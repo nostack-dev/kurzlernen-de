@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="cupcake">
 <head>
     <meta charset="UTF-8">
     <title>kurzlernen.de</title>
@@ -17,22 +17,9 @@
     <!-- Header mit DaisyUI Navbar -->
     <header class="navbar bg-base-300">
         <div class="flex-1">
-            <a class="btn btn-ghost normal-case text-xl">10-Minuten-Herausforderung</a>
+            <a class="btn btn-ghost normal-case text-xl">kurzlernen.de</a>
         </div>
         <div class="flex-none">
-            <!-- Farbschema Dropdown -->
-            <div class="dropdown dropdown-end">
-                <label tabindex="0" class="btn btn-secondary m-1">Farbschema ändern</label>
-                <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
-                    <li><a href="#" onclick="setTheme('light')">Licht</a></li>
-                    <li><a href="#" onclick="setTheme('dark')">Dunkel</a></li>
-                    <li><a href="#" onclick="setTheme('cupcake')">Cupcake</a></li>
-                    <li><a href="#" onclick="setTheme('emerald')">Emerald</a></li>
-                    <li><a href="#" onclick="setTheme('synthwave')">Synthwave</a></li>
-                    <li><a href="#" onclick="setTheme('dracula')">Dracula</a></li>
-                </ul>
-            </div>
-        </div>
     </header>
 
     <div class="mx-auto p-4 max-w-screen-md">
@@ -221,19 +208,6 @@
         let savedAudioURL = "";
         let savedProofURL = "";
         let storedTasks = {};
-
-        document.addEventListener("DOMContentLoaded", () => {
-            const storedTheme = localStorage.getItem("theme") || "synthwave";
-            setTheme(storedTheme);
-            if (checkBrowserCompatibility()) {
-                loadTasksFromLocalStorage(); // Lade Aufgaben aus dem Local Storage
-            }
-        });
-
-        function setTheme(theme) {
-            document.documentElement.setAttribute("data-theme", theme);
-            localStorage.setItem("theme", theme);
-        }
 
         function checkBrowserCompatibility() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
