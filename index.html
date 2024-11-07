@@ -6,12 +6,22 @@
     <title>10-Minuten-Herausforderung</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@1.20.0/dist/full.css" rel="stylesheet">
-    <!-- Recorder.js einbinden -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/recorderjs/0.1.0/recorder.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <style>
+        /* Druckfreundlicher Bereich außerhalb des sichtbaren Bereichs positionieren */
+        #printableTasks {
+            position: absolute;
+            top: -10000px;
+            left: -10000px;
+            width: 210mm;
+            min-height: 297mm;
+            box-sizing: border-box;
+            background-color: white;
+            padding: 2rem;
+        }
+    </style>
 </head>
 <body class="bg-base-200 text-base-content">
-
     <!-- Header mit Farbschema-Auswahl -->
     <header class="bg-base-300 p-4 flex justify-between items-center space-x-4">
         <h1 class="text-2xl font-bold">10-Minuten-Herausforderung</h1>
@@ -42,7 +52,7 @@
                 <div class="card-body">
                     <h2 class="card-title text-lg font-bold">Aufgabe 1: Lesen</h2>
                     <div class="flex items-center">
-                        <progress id="progress1" class="progress progress-primary w-56" value="100" max="100"></progress>
+                        <progress id="progress1" class="progress progress-primary w-full max-w-xs" value="100" max="100"></progress>
                         <span id="timer1" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
                     <p class="py-4">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
@@ -64,7 +74,7 @@
                 <div class="card-body">
                     <h2 class="card-title text-lg font-bold">Aufgabe 2: Abschreiben</h2>
                     <div class="flex items-center">
-                        <progress id="progress2" class="progress progress-secondary w-56" value="100" max="100"></progress>
+                        <progress id="progress2" class="progress progress-secondary w-full max-w-xs" value="100" max="100"></progress>
                         <span id="timer2" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
                     <p id="writeText" class="mt-4">
@@ -89,11 +99,11 @@
                 <div class="card-body">
                     <h2 class="card-title text-lg font-bold">Aufgabe 3: Rechenaufgaben</h2>
                     <div class="flex items-center">
-                        <progress id="progress3" class="progress progress-accent w-56" value="100" max="100"></progress>
+                        <progress id="progress3" class="progress progress-accent w-full max-w-xs" value="100" max="100"></progress>
                         <span id="timer3" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
                     <button id="toggleTimer3" class="btn btn-primary mt-4 w-full" onclick="toggleTask(3)">Aufgabe beginnen</button>
-                    <div id="mathText" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"></div>
+                    <div id="mathText" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
                 </div>
             </div>
         </div>
@@ -167,7 +177,7 @@
     </div>
 
     <!-- Druckfreundlicher Bereich -->
-    <div id="printableTasks" class="hidden p-8 bg-white" style="width: 210mm; min-height: 297mm; box-sizing: border-box;">
+    <div id="printableTasks">
         <div id="printableTask1" class="mb-8">
             <h1 class="text-3xl font-bold mb-4">10-Minuten-Herausforderung</h1>
             <h2 class="text-xl font-semibold mb-2">Aufgabe 1: Lesen</h2>
@@ -209,8 +219,8 @@
         let taskIntervals = [null, null, null];
         let currentTask = null;
         let isRecording = false;
-        let recorder;
-        let audioStream;
+        let mediaRecorder;
+        let audioChunks = [];
         let savedAudioURL = "";
         let savedProofURL = "";
 
@@ -228,7 +238,7 @@
                 return false;
             }
 
-            if (!window.MediaRecorder && !window.Recorder) {
+            if (!window.MediaRecorder) {
                 showValidationModal("Ihr Browser unterstützt die MediaRecorder-API nicht. Bitte verwenden Sie einen aktuellen Browser.");
                 return false;
             }
@@ -273,7 +283,7 @@
                     document.getElementById("proofPreview").classList.remove("hidden");
                     document.getElementById("savedProof").classList.remove("hidden");
 
-                    // Fügen Sie das Bild in den Druckbereich ein, falls vorhanden
+                    // Fügen Sie das Bild in den druckfreundlichen Bereich ein, falls vorhanden
                     const printableProof = document.getElementById("printableProof");
                     printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
                     const img = document.createElement("img");
@@ -326,20 +336,8 @@
         function toggleTask(taskIndex) {
             if (currentTask === taskIndex) {
                 if (taskIndex === 1) {
-                    try {
-                        if (recorder && isRecording) {
-                            recorder.stop();
-                            console.log("Recording stopped.");
-                        }
-                        // Wechseln des Buttons von "Pause" zu "Fortsetzen"
-                        const toggleButton = document.getElementById(`toggleTimer${taskIndex}`);
-                        toggleButton.textContent = "Fortsetzen";
-                        toggleButton.classList.remove("btn-error");
-                        toggleButton.classList.add("btn-primary");
-                    } catch (error) {
-                        console.error("Fehler beim Pausieren der Aufnahme:", error);
-                        showValidationModal("Fehler beim Pausieren der Aufnahme.");
-                    }
+                    // Stoppen der Aufnahme
+                    stopTaskConfirmed(taskIndex);
                 } else {
                     stopTask(taskIndex);
                 }
@@ -406,16 +404,24 @@
         }
 
         function startRecording() {
-            // Verwenden von Recorder.js als Alternative zur MediaRecorder API
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    audioStream = stream;
-                    const input = audioContext.createMediaStreamSource(stream);
-                    recorder = new Recorder(input, { numChannels: 1 });
-                    recorder.record();
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        savedAudioURL = URL.createObjectURL(audioBlob);
+                        const audioPlayer = document.getElementById("audioPlayer");
+                        audioPlayer.src = savedAudioURL;
+                        document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+                        document.getElementById("savedRecording").classList.remove("hidden");
+                        // Speichern der Aufnahme im localStorage
+                        saveTasksToLocalStorage();
+                    };
                     isRecording = true;
-                    console.log("Recording started using Recorder.js");
+                    console.log("Recording started using MediaRecorder API");
                 })
                 .catch(error => {
                     console.error("Fehler beim Starten der Aufnahme:", error);
@@ -424,26 +430,11 @@
         }
 
         function stopRecording() {
-            if (recorder && isRecording) {
-                recorder.stop();
-                audioStream.getTracks().forEach(track => track.stop());
-                recorder.exportWAV(blob => {
-                    savedAudioURL = URL.createObjectURL(blob);
-                    const audioPlayer = document.getElementById("audioPlayer");
-                    audioPlayer.src = savedAudioURL;
-                    audioPlayer.load();
-                    audioPlayer.play().catch(error => {
-                        console.error("Fehler beim Abspielen der Aufnahme:", error);
-                        showValidationModal("Fehler beim Abspielen der Aufnahme.");
-                    });
-                    document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
-                    document.getElementById("savedRecording").classList.remove("hidden");
-
-                    // Speichern der Aufnahme im localStorage
-                    saveTasksToLocalStorage();
-                });
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
                 isRecording = false;
-                recorder.clear();
+                console.log("Recording stopped.");
             }
         }
 
@@ -608,7 +599,12 @@
                     const num2 = Math.floor(Math.random() * 20) + 1;
                     const operator1 = operators[Math.floor(Math.random() * operators.length)];
                     let taskText = `${num1} ${operator1} ${num2}`;
-                    const answer = eval(taskText);
+                    let answer;
+                    try {
+                        answer = eval(taskText);
+                    } catch (error) {
+                        answer = "?";
+                    }
                     mathTasks.push({ num1, num2, operator: operator1, answer });
                 }
                 // Speichern der generierten Mathematikaufgaben im localStorage
@@ -654,13 +650,13 @@
 
             // Aufgabe 1: Lesen
             const readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
-            const printableTask1 = document.getElementById("printableTask1");
-            printableTask1.querySelector("#printableReadText").innerText = readText;
+            const printableTask1 = document.getElementById("printableReadText");
+            printableTask1.innerText = readText;
 
             // Aufgabe 2: Schreiben
             const writeText = document.getElementById("writeText").innerText;
-            const printableTask2 = document.getElementById("printableTask2");
-            printableTask2.querySelector("#printableWriteText").innerText = writeText;
+            const printableTask2 = document.getElementById("printableWriteText");
+            printableTask2.innerText = writeText;
 
             // Aufgabe 3: Mathe
             const mathTasks = JSON.parse(localStorage.getItem("tasks")).task3.mathTasks;
@@ -698,7 +694,10 @@
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
-            html2pdf().set(opt).from(printableDiv).save();
+            html2pdf().set(opt).from(printableDiv).save().catch(error => {
+                console.error("Fehler bei der PDF-Erstellung:", error);
+                showValidationModal("Fehler bei der PDF-Erstellung.");
+            });
         }
 
         function saveTasksToLocalStorage() {
