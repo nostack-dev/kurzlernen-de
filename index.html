@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -17,7 +18,7 @@
     <!-- Header mit DaisyUI Navbar -->
     <header class="navbar bg-base-300">
         <div class="flex-1">
-            <a class="btn btn-ghost normal-case text-xl">kurzlernen.de</a>
+            <a class="btn btn-ghost normal-case text-xl">10-Minuten-Herausforderung</a>
         </div>
         <div class="flex-none">
             <!-- Farbschema Dropdown -->
@@ -104,14 +105,12 @@
             </div>
         </div>
 
-        <!-- Abgabe-Button -->
-        <button id="submitBtn" class="btn btn-success fixed bottom-4 right-4 hidden" onclick="checkSubmission()">Abgeben</button>
+        <!-- WhatsApp-Button -->
+        <button id="submitBtn" class="btn btn-success fixed bottom-4 right-4 hidden" onclick="sendResultsViaWhatsApp()">Per WhatsApp versenden</button>
     </div>
 
     <!-- Modale für Validierungen -->
-    <!-- ... (Die Modale bleiben unverändert) ... -->
-
-    <!-- Modale für Validierungen -->
+    <!-- Modale bleiben unverändert -->
     <input type="checkbox" id="validationModal" class="modal-toggle" />
     <div class="modal">
         <div class="modal-box">
@@ -222,6 +221,7 @@
         let recorder;
         let savedAudioURL = "";
         let savedProofURL = "";
+        let storedTasks = {};
 
         document.addEventListener("DOMContentLoaded", () => {
             const storedTheme = localStorage.getItem("theme") || "synthwave";
@@ -245,7 +245,7 @@
         }
 
         function loadTasksFromLocalStorage() {
-            const storedTasks = JSON.parse(localStorage.getItem("tasks"));
+            storedTasks = JSON.parse(localStorage.getItem("tasks"));
 
             if (storedTasks) {
                 // Aufgaben sind bereits gespeichert, laden wir sie
@@ -296,22 +296,22 @@
 
         function initializeTasks() {
             // Initialisierung der Inhalte für Aufgabe 1 (Lesen) und Aufgabe 2 (Schreiben)
-            const initialReadText = `**Das Geheimnis des Verlorenen Amuletts**
+            const initialReadText = `**Das Geheimnis des Verborgenen Tals**
 
-Es war ein stürmischer Abend, als Laura und Max am Strand entlanggingen. Die Geschwister liebten Abenteuer, und heute war kein gewöhnlicher Tag. Eine alte Legende besagte, dass an diesem Strand ein magisches Amulett versteckt sein soll, das seinem Finder unglaubliche Kräfte verleiht.
+Einst gab es ein verborgenes Tal, umgeben von hohen Bergen und dichten Wäldern. In diesem Tal lebten Wesen, von denen niemand je gehört hatte. Sie hüteten einen Schatz, der nicht aus Gold oder Edelsteinen bestand, sondern aus reiner Weisheit. Es hieß, wer den Weg in das Tal finde und die Prüfungen bestehe, erlange Wissen, das keine Bücher lehren konnten.
 
-Plötzlich blitzte etwas im Sand auf. "Schau mal, Max!", rief Laura aufgeregt. Sie liefen zu der Stelle und gruben das Objekt aus. Es war ein altes, verziertes Amulett mit geheimnisvollen Symbolen. Kaum hatte Max es berührt, begann es zu leuchten. Ein heftiger Wind kam auf, und vor ihnen erschien eine zarte Gestalt. "Ich bin der Hüter des Amuletts", sprach sie mit sanfter Stimme. "Nur wer Mut und ein reines Herz besitzt, darf seine Macht nutzen."
+Eines Tages beschlossen die Geschwister Anna und Ben, das Tal zu suchen. Bewaffnet mit Mut und Neugier machten sie sich auf den Weg. Sie durchquerten stürmische Flüsse, kletterten über steile Felsen und kämpften sich durch dichte Vegetation. Nach vielen Tagen erreichten sie schließlich einen Nebel, der das Tal verbarg.
 
-Laura und Max sahen sich an. "Wir wollen das Amulett beschützen", sagte Max entschlossen. Die Gestalt lächelte. "Dann erwartet euch ein großes Abenteuer." Mit diesen Worten verschwanden sie in einem Strudel aus Licht.
+Am Eingang erschienen ihnen drei Wächter. "Nur die Reinen im Herzen dürfen eintreten", sagten sie. Anna und Ben blickten sich an und antworteten: "Wir suchen nicht nach Reichtümern, sondern nach Verständnis." Die Wächter lächelten und ließen sie passieren.
 
-Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nach Hause zurückzukehren, mussten sie das Rätsel des Amuletts lösen und seine wahre Kraft verstehen. Gemeinsam machten sie sich auf den Weg, nicht ahnend, welche Abenteuer sie erwarten würden.`;
+Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes und die Geschichten der Sterne. Sie erkannten, dass wahre Weisheit nicht im Besitz liegt, sondern im Erleben und Teilen. Mit neu gewonnenen Erkenntnissen kehrten sie zurück, bereit, die Welt mit ihrem Wissen zu bereichern.`;
 
             const initialWriteText = `Schreibe folgenden Text sorgfältig ab:
 
-"Mut ist nicht die Abwesenheit von Angst, sondern die Erkenntnis, dass etwas wichtiger ist als die Angst. Vertrauen ist der Schlüssel zu jeder Freundschaft."`;
+"Der wahre Wert eines Menschen zeigt sich nicht in dem, was er besitzt, sondern in dem, was er anderen gibt. Freundlichkeit und Großzügigkeit sind die Edelsteine des Herzens."`;
 
             // Speichern der initialen Aufgaben in localStorage
-            const tasks = {
+            storedTasks = {
                 task1: {
                     progress: 100,
                     timer: taskTimersInitial[0],
@@ -327,10 +327,11 @@ Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nac
                 },
                 task3: {
                     progress: 100,
-                    timer: taskTimersInitial[2]
+                    timer: taskTimersInitial[2],
+                    mathTasks: []
                 }
             };
-            localStorage.setItem("tasks", JSON.stringify(tasks));
+            localStorage.setItem("tasks", JSON.stringify(storedTasks));
 
             // Anzeigen der initialen Inhalte
             document.getElementById("readText").innerHTML = `<strong>Lesetext:</strong><br>${initialReadText}`;
@@ -386,7 +387,7 @@ Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nac
             const timerValue = taskTimers[taskIndex - 1];
 
             if (timerValue === 0) {
-                toggleButton.textContent = "Abgeben";
+                toggleButton.textContent = "Per WhatsApp versenden";
                 toggleButton.classList.remove("btn-error");
                 toggleButton.classList.add("btn-success");
                 document.getElementById("submitBtn").classList.remove("hidden");
@@ -595,13 +596,12 @@ Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nac
         }
 
         function loadMathTasks() {
-            const storedTasks = JSON.parse(localStorage.getItem("tasks"));
             const mathContainer = document.getElementById("mathText");
             mathContainer.innerHTML = '';
 
-            let mathTasks;
-            if (storedTasks && storedTasks.task3 && storedTasks.task3.mathTasks && Array.isArray(storedTasks.task3.mathTasks) && storedTasks.task3.mathTasks.length === 32) {
-                mathTasks = storedTasks.task3.mathTasks;
+            let mathTasks = storedTasks.task3.mathTasks;
+            if (mathTasks.length === 32) {
+                // Bereits vorhandene Aufgaben verwenden
             } else {
                 // Neue Mathematikaufgaben generieren
                 mathTasks = [];
@@ -617,13 +617,9 @@ Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nac
                     } catch (error) {
                         answer = "?";
                     }
-                    mathTasks.push({ num1, num2, operator: operator1, answer });
+                    mathTasks.push({ num1, num2, operator: operator1, answer, userAnswer: "" });
                 }
-                // Speichern der generierten Mathematikaufgaben im localStorage
-                if (storedTasks) {
-                    storedTasks.task3.mathTasks = mathTasks;
-                    localStorage.setItem("tasks", JSON.stringify(storedTasks));
-                }
+                storedTasks.task3.mathTasks = mathTasks;
             }
 
             // Mathematikaufgaben anzeigen
@@ -642,9 +638,12 @@ Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nac
                 const input = document.createElement("input");
                 input.type = "text";
                 input.classList.add("input", "input-bordered", "ml-2", "w-16");
-                input.dataset.answer = task.answer;
+                input.dataset.index = index;
+                input.value = task.userAnswer || "";
                 input.addEventListener('input', function() {
-                    this.value = this.value.replace(/[^0-9]/g, ''); // Erlaubt nur Zahlen
+                    this.value = this.value.replace(/[^0-9\-]/g, ''); // Erlaubt Zahlen und Minuszeichen
+                    storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value;
+                    saveTasksToLocalStorage();
                 });
                 input.disabled = true; // Initial disabled
 
@@ -656,113 +655,46 @@ Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nac
             });
         }
 
-        function printTasksAsPDF() {
-            // Füllen des druckfreundlichen Bereichs mit aktuellen Daten
-            const printableDiv = document.getElementById("printableTasks");
-            printableDiv.classList.remove('hidden'); // Element einblenden
+        function sendResultsViaWhatsApp() {
+            let message = "";
+            // Aufgabe 1
+            message += "Aufgabe 1: Lesen\n";
+            message += "Lesetext:\n" + storedTasks.task1.readText + "\n";
+            message += "Aufnahme: " + (savedAudioURL ? "Vorhanden" : "Keine Aufnahme") + "\n\n";
 
-            // Aufgabe 1: Lesen
-            const readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
-            const printableTask1 = document.getElementById("printableReadText");
-            printableTask1.innerText = readText;
+            // Aufgabe 2
+            message += "Aufgabe 2: Abschreiben\n";
+            message += "Abschreibtext:\n" + storedTasks.task2.writeText + "\n";
+            message += "Foto der Abschrift: " + (savedProofURL ? "Vorhanden" : "Kein Foto hochgeladen") + "\n\n";
 
-            // Aufgabe 2: Schreiben
-            const writeText = document.getElementById("writeText").innerText;
-            const printableTask2 = document.getElementById("printableWriteText");
-            printableTask2.innerText = writeText;
-
-            // Foto der Abschrift
-            const printableProof = document.getElementById("printableProof");
-            printableProof.innerHTML = ''; // Leeren vor dem Befüllen
-            if (savedProofURL) {
-                // Wenn ein Foto hochgeladen wurde, füge es ein
-                const img = document.createElement("img");
-                img.src = savedProofURL;
-                img.style.maxWidth = "100%";
-                img.style.height = "auto";
-                printableProof.appendChild(img);
-            } else {
-                // Wenn kein Foto hochgeladen wurde, füge den QR-Code ein
-                const qrImg = document.createElement("img");
-                qrImg.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAACgAQMAAACSLZK3AAAABlBMVEUAAAD///+l2Z/dAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABh0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMC4xMfEgaZUAAAAHdElNRQfkCxEXBQ7hHrQcAAAAK0lEQVRIx+3NsQ0AIBAEwaT1T8KF9AoVNBx3/SEQCAAAECBAgQIsERHiF3SSof3+nxn4JKkJAwoYTYgAAAABJRU5ErkJggg==';
-                qrImg.style.maxWidth = "100%";
-                qrImg.style.height = "auto";
-                printableProof.appendChild(qrImg);
-            }
-
-            // Aufgabe 3: Mathe
-            const storedTasks = JSON.parse(localStorage.getItem("tasks"));
-            const mathTasks = storedTasks.task3.mathTasks;
-            const mathPrintable = document.getElementById("printableMathTasks");
-            mathPrintable.innerHTML = ''; // Leeren vor dem Befüllen
-
-            mathTasks.forEach((task, index) => {
-                const taskDiv = document.createElement("div");
-                taskDiv.style.marginBottom = "1rem";
-                taskDiv.style.fontSize = "1rem";
-
-                const taskNumber = document.createElement("span");
-                taskNumber.style.marginRight = "0.5rem";
-                taskNumber.innerText = `${index + 1}.`;
-
-                const taskTextElement = document.createElement("span");
-                taskTextElement.style.marginRight = "0.5rem";
-                taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} =`;
-
-                const answerLine = document.createElement("span");
-                answerLine.style.borderBottom = "1px solid black";
-                answerLine.style.display = "inline-block";
-                answerLine.style.width = "50px";
-                answerLine.style.marginLeft = "0.5rem";
-
-                taskDiv.appendChild(taskNumber);
-                taskDiv.appendChild(taskTextElement);
-                taskDiv.appendChild(answerLine);
-
-                mathPrintable.appendChild(taskDiv);
+            // Aufgabe 3
+            message += "Aufgabe 3: Rechenaufgaben\n";
+            storedTasks.task3.mathTasks.forEach((task, index) => {
+                let userAnswer = task.userAnswer || "";
+                message += `${index + 1}. ${task.num1} ${task.operator} ${task.num2} = ${userAnswer} (Lösung: ${task.answer})\n`;
             });
 
-            // Optionen für html2pdf.js
-            const opt = {
-                margin: [0.5, 0.5, 0.5, 0.5], // Oben, links, unten, rechts
-                filename: 'Aufgabenblatt.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-            };
+            // Encode message for URL
+            const encodedMessage = encodeURIComponent(message);
 
-            // PDF generieren
-            html2pdf().set(opt).from(printableDiv).save().then(() => {
-                printableDiv.classList.add('hidden'); // Element wieder ausblenden
-            }).catch(error => {
-                console.error("Fehler bei der PDF-Erstellung:", error);
-                showValidationModal("Fehler bei der PDF-Erstellung.");
-                printableDiv.classList.add('hidden'); // Element wieder ausblenden, auch bei Fehlern
-            });
+            // Open WhatsApp
+            const whatsappURL = `https://wa.me/?text=${encodedMessage}`;
+            window.open(whatsappURL, '_blank');
         }
 
         function saveTasksToLocalStorage() {
-            const storedTasks = JSON.parse(localStorage.getItem("tasks")) || {};
-
-            // Aktualisieren der Timer und Fortschritte
-            storedTasks.task1 = storedTasks.task1 || {};
-            storedTasks.task2 = storedTasks.task2 || {};
-            storedTasks.task3 = storedTasks.task3 || {};
-
             storedTasks.task1.progress = document.getElementById("progress1").value;
             storedTasks.task1.timer = taskTimers[0];
-            storedTasks.task1.readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
             storedTasks.task1.savedAudioURL = savedAudioURL;
 
             storedTasks.task2.progress = document.getElementById("progress2").value;
             storedTasks.task2.timer = taskTimers[1];
-            storedTasks.task2.writeText = document.getElementById("writeText").innerHTML;
             storedTasks.task2.savedProofURL = savedProofURL;
             storedTasks.task2.proofName = document.getElementById("proofName").innerText;
 
             storedTasks.task3.progress = document.getElementById("progress3").value;
             storedTasks.task3.timer = taskTimers[2];
-            // Math-Aufgaben werden bereits in loadMathTasks gespeichert
+            // Math-Aufgaben werden bereits aktualisiert
 
             localStorage.setItem("tasks", JSON.stringify(storedTasks));
         }
