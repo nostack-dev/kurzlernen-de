@@ -1,3 +1,4 @@
+``html
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -11,7 +12,7 @@
 </head>
 <body class="bg-base-200 text-base-content">
     <!-- Header mit Farbschema-Auswahl -->
-    <header class="bg-base-300 p-4 flex justify-between items-center space-x-4">
+    <header class="bg-base-300 p-4 flex justify-between items-center">
         <h1 class="text-2xl font-bold">10-Minuten-Herausforderung</h1>
         <div class="flex space-x-2">
             <!-- Farbschema Dropdown -->
@@ -30,21 +31,23 @@
     </header>
 
     <div class="container mx-auto p-4 max-w-screen-md">
-        <button class="btn btn-secondary mt-2 w-full" onclick="confirmResetTasks()">Neues Set an Aufgaben</button>
-        <button class="btn btn-accent mt-4 w-full" onclick="printTasksAsPDF()">Alle Aufgaben als PDF drucken</button>
+        <div class="flex flex-col items-center">
+            <button class="btn btn-secondary mt-2 w-full" onclick="confirmResetTasks()">Neues Set an Aufgaben</button>
+            <button class="btn btn-accent mt-4 w-full" onclick="printTasksAsPDF()">Alle Aufgaben als PDF drucken</button>
+        </div>
 
         <!-- Aufgaben-Bereich -->
-        <div id="tasks">
+        <div id="tasks" class="mt-4">
             <!-- Aufgabe 1: Lesen -->
             <div id="task1" class="task card shadow-lg bg-base-100 mb-8">
                 <div class="card-body">
                     <h2 class="card-title text-lg font-bold">Aufgabe 1: Lesen</h2>
-                    <div class="flex items-center">
+                    <div class="flex items-center justify-center">
                         <progress id="progress1" class="progress progress-primary w-full max-w-xs" value="100" max="100"></progress>
                         <span id="timer1" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
-                    <p class="py-4">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
-                    <p id="readText" class="py-2">
+                    <p class="py-4 text-center">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
+                    <p id="readText" class="py-2 text-center">
                         <strong>Lesetext:</strong><br>
                         <!-- Platzhalter, wird durch JavaScript ersetzt -->
                     </p>
@@ -61,11 +64,11 @@
             <div id="task2" class="task card shadow-lg bg-base-100 mb-8">
                 <div class="card-body">
                     <h2 class="card-title text-lg font-bold">Aufgabe 2: Abschreiben</h2>
-                    <div class="flex items-center">
+                    <div class="flex items-center justify-center">
                         <progress id="progress2" class="progress progress-secondary w-full max-w-xs" value="100" max="100"></progress>
                         <span id="timer2" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
-                    <p id="writeText" class="mt-4">
+                    <p id="writeText" class="mt-4 text-center">
                         <!-- Platzhalter, wird durch JavaScript ersetzt -->
                     </p>
                     <button id="toggleTimer2" class="btn btn-primary mt-4 w-full" onclick="toggleTask(2)">Aufgabe beginnen</button>
@@ -86,7 +89,7 @@
             <div id="task3" class="task card shadow-lg bg-base-100 mb-8">
                 <div class="card-body">
                     <h2 class="card-title text-lg font-bold">Aufgabe 3: Rechenaufgaben</h2>
-                    <div class="flex items-center">
+                    <div class="flex items-center justify-center">
                         <progress id="progress3" class="progress progress-accent w-full max-w-xs" value="100" max="100"></progress>
                         <span id="timer3" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
@@ -165,37 +168,40 @@
     </div>
 
     <!-- Druckfreundlicher Bereich -->
-    <div id="printableTasks" class="hidden p-8 bg-white">
-        <div id="printableTask1" class="mb-8">
-            <h1 class="text-3xl font-bold mb-4">10-Minuten-Herausforderung</h1>
-            <h2 class="text-xl font-semibold mb-2">Aufgabe 1: Lesen</h2>
-            <p><strong>Lesetext:</strong></p>
-            <p class="border-b-2 border-dashed pb-4 mb-4" style="min-height: 60px;" id="printableReadText">
-                <!-- Lesetext -->
-            </p>
-            <p class="mb-8"><strong>Notizen:</strong></p>
-            <div class="border-t-2 border-dashed pt-4 mb-8" style="min-height: 100px;">
-                <!-- Notizenbereich -->
+    <div id="printableTasks" class="hidden">
+        <div style="padding: 2rem; background-color: white; color: black;">
+            <div id="printableTask1" style="margin-bottom: 2rem;">
+                <h1 style="font-size: 2rem; font-weight: bold; margin-bottom: 1rem; text-align: center;">10-Minuten-Herausforderung</h1>
+                <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Aufgabe 1: Lesen</h2>
+                <p><strong>Lesetext:</strong></p>
+                <p id="printableReadText" style="border-bottom: 2px dashed black; padding-bottom: 1rem; margin-bottom: 1rem; min-height: 60px;">
+                    <!-- Lesetext -->
+                </p>
+                <p style="margin-bottom: 2rem;"><strong>Notizen:</strong></p>
+                <div style="border-top: 2px dashed black; padding-top: 1rem; margin-bottom: 2rem; min-height: 100px;">
+                    <!-- Notizenbereich -->
+                </div>
             </div>
-        </div>
 
-        <div id="printableTask2" class="mb-8">
-            <h2 class="text-xl font-semibold mb-2">Aufgabe 2: Abschreiben</h2>
-            <p><strong>Abschreibtext:</strong></p>
-            <p class="border-b-2 border-dashed pb-4 mb-4" style="min-height: 60px;" id="printableWriteText">
-                <!-- Abschreibtext -->
-            </p>
-            <p class="mb-8"><strong>Foto der Abschrift:</strong></p>
-            <div class="border-dashed border-2 p-4 mb-8" style="min-height: 150px;" id="printableProof">
-                <!-- Platz für das Foto -->
+            <div id="printableTask2" style="margin-bottom: 2rem;">
+                <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Aufgabe 2: Abschreiben</h2>
+                <p><strong>Abschreibtext:</strong></p>
+                <p id="printableWriteText" style="border-bottom: 2px dashed black; padding-bottom: 1rem; margin-bottom: 1rem; min-height: 60px;">
+                    <!-- Abschreibtext -->
+                </p>
+                <p style="margin-bottom: 2rem;"><strong>Foto der Abschrift:</strong></p>
+                <div id="printableProof" style="border: 2px dashed black; padding: 1rem; margin-bottom: 2rem; min-height: 150px; text-align: center;">
+                    <!-- Platz für das Foto -->
+                    <!-- Falls kein Foto vorhanden ist, kann hier ein Hinweis eingefügt werden -->
+                </div>
             </div>
-        </div>
 
-        <div id="printableTask3" class="mb-8">
-            <h2 class="text-xl font-semibold mb-2">Aufgabe 3: Rechenaufgaben</h2>
-            <div class="grid grid-cols-1 gap-4" id="printableMathTasks">
-                <!-- Rechenaufgaben -->
-                <!-- Jede Aufgabe mit einer Linie für die Antwort -->
+            <div id="printableTask3">
+                <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Aufgabe 3: Rechenaufgaben</h2>
+                <div id="printableMathTasks">
+                    <!-- Rechenaufgaben -->
+                    <!-- Jede Aufgabe mit einer Linie für die Antwort -->
+                </div>
             </div>
         </div>
     </div>
@@ -276,7 +282,8 @@
                     printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
                     const img = document.createElement("img");
                     img.src = savedProofURL;
-                    img.classList.add("w-full", "h-auto");
+                    img.style.maxWidth = "100%";
+                    img.style.height = "auto";
                     printableProof.appendChild(img);
                 }
 
@@ -476,7 +483,8 @@
                     printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
                     const img = document.createElement("img");
                     img.src = savedProofURL;
-                    img.classList.add("w-full", "h-auto");
+                    img.style.maxWidth = "100%";
+                    img.style.height = "auto";
                     printableProof.appendChild(img);
 
                     // Speichern des Beweises im localStorage
@@ -605,7 +613,7 @@
             // Mathematikaufgaben anzeigen
             mathTasks.forEach((task, index) => {
                 const taskDiv = document.createElement("div");
-                taskDiv.classList.add("flex", "items-center", "mb-2");
+                taskDiv.classList.add("flex", "items-center", "justify-center", "mb-2");
 
                 const taskNumber = document.createElement("span");
                 taskNumber.classList.add("mr-2");
@@ -648,24 +656,29 @@
             printableTask2.innerText = writeText;
 
             // Aufgabe 3: Mathe
-            const mathTasks = JSON.parse(localStorage.getItem("tasks")).task3.mathTasks;
+            const storedTasks = JSON.parse(localStorage.getItem("tasks"));
+            const mathTasks = storedTasks.task3.mathTasks;
             const mathPrintable = document.getElementById("printableMathTasks");
             mathPrintable.innerHTML = ''; // Leeren vor dem Befüllen
 
             mathTasks.forEach((task, index) => {
                 const taskDiv = document.createElement("div");
-                taskDiv.classList.add("flex", "items-center", "mb-2");
+                taskDiv.style.marginBottom = "1rem";
+                taskDiv.style.fontSize = "1rem";
 
                 const taskNumber = document.createElement("span");
-                taskNumber.classList.add("mr-2");
+                taskNumber.style.marginRight = "0.5rem";
                 taskNumber.innerText = `${index + 1}.`;
 
                 const taskTextElement = document.createElement("span");
-                taskTextElement.classList.add("mr-2");
+                taskTextElement.style.marginRight = "0.5rem";
                 taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} =`;
 
                 const answerLine = document.createElement("span");
-                answerLine.classList.add("border-b-2", "border-dashed", "w-20");
+                answerLine.style.borderBottom = "1px solid black";
+                answerLine.style.display = "inline-block";
+                answerLine.style.width = "50px";
+                answerLine.style.marginLeft = "0.5rem";
 
                 taskDiv.appendChild(taskNumber);
                 taskDiv.appendChild(taskTextElement);
@@ -676,10 +689,10 @@
 
             // Optionen für html2pdf.js
             const opt = {
-                margin:       0.5,
+                margin:       [0.5, 0.5, 0.5, 0.5], // Oben, links, unten, rechts
                 filename:     'Aufgabenblatt.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2 },
+                html2canvas:  { scale: 2, useCORS: true },
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
