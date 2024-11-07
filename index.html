@@ -164,6 +164,42 @@
         </div>
     </div>
 
+    <!-- Druckfreundlicher Bereich -->
+    <div id="printableTasks" class="hidden p-8 bg-white" style="width: 210mm; min-height: 297mm; box-sizing: border-box;">
+        <div id="printableTask1" class="mb-8">
+            <h1 class="text-3xl font-bold mb-4">10-Minuten-Herausforderung</h1>
+            <h2 class="text-xl font-semibold mb-2">Aufgabe 1: Lesen</h2>
+            <p><strong>Lesetext:</strong></p>
+            <p class="border-b-2 border-dashed pb-4 mb-4" style="min-height: 60px;" id="printableReadText">
+                <!-- Lesetext -->
+            </p>
+            <p class="mb-8"><strong>Notizen:</strong></p>
+            <div class="border-t-2 border-dashed pt-4 mb-8" style="min-height: 100px;">
+                <!-- Notizenbereich -->
+            </div>
+        </div>
+
+        <div id="printableTask2" class="mb-8">
+            <h2 class="text-xl font-semibold mb-2">Aufgabe 2: Abschreiben</h2>
+            <p><strong>Abschreibtext:</strong></p>
+            <p class="border-b-2 border-dashed pb-4 mb-4" style="min-height: 60px;" id="printableWriteText">
+                <!-- Abschreibtext -->
+            </p>
+            <p class="mb-8"><strong>Foto der Abschrift:</strong></p>
+            <div class="border-dashed border-2 p-4 mb-8" style="min-height: 150px;" id="printableProof">
+                <!-- Platz für das Foto -->
+            </div>
+        </div>
+
+        <div id="printableTask3" class="mb-8">
+            <h2 class="text-xl font-semibold mb-2">Aufgabe 3: Rechenaufgaben</h2>
+            <div class="grid grid-cols-1 gap-4" id="printableMathTasks">
+                <!-- Rechenaufgaben -->
+                <!-- Jede Aufgabe mit einer Linie für die Antwort -->
+            </div>
+        </div>
+    </div>
+
     <script>
         // Initiale Timerwerte (in Sekunden)
         const taskTimersInitial = [600, 600, 600];
@@ -218,6 +254,14 @@
                     document.getElementById("proofPreview").href = savedProofURL;
                     document.getElementById("proofPreview").classList.remove("hidden");
                     document.getElementById("savedProof").classList.remove("hidden");
+
+                    // Fügen Sie das Bild in den Druckbereich ein, falls vorhanden
+                    const printableProof = document.getElementById("printableProof");
+                    printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
+                    const img = document.createElement("img");
+                    img.src = savedProofURL;
+                    img.classList.add("w-full", "h-auto");
+                    printableProof.appendChild(img);
                 }
 
                 // Laden der Mathematikaufgaben
@@ -405,6 +449,15 @@
                     proofPreview.classList.remove("hidden"); // Mache den Link sichtbar
                     document.getElementById("savedProof").classList.remove("hidden");
                     savedProofURL = e.target.result;
+
+                    // Fügen Sie das Bild in den druckfreundlichen Bereich ein
+                    const printableProof = document.getElementById("printableProof");
+                    printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
+                    const img = document.createElement("img");
+                    img.src = savedProofURL;
+                    img.classList.add("w-full", "h-auto");
+                    printableProof.appendChild(img);
+
                     // Speichern des Beweises im localStorage
                     saveTasksToLocalStorage();
                 };
@@ -422,6 +475,7 @@
             document.getElementById("proofName").innerText = "";
             document.getElementById("proofPreview").classList.add("hidden"); // Verstecke den Vorschau-Link
             savedProofURL = "";
+            document.getElementById("printableProof").innerHTML = ''; // Entfernt das Bild im Druckbereich
             // Aktualisieren im localStorage
             saveTasksToLocalStorage();
         }
@@ -523,13 +577,17 @@
             }
 
             // Mathematikaufgaben anzeigen
-            mathTasks.forEach(task => {
+            mathTasks.forEach((task, index) => {
                 const taskDiv = document.createElement("div");
                 taskDiv.classList.add("flex", "items-center", "mb-2");
 
-                const taskTextElement = document.createElement("p");
-                taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} = `;
-                taskDiv.appendChild(taskTextElement);
+                const taskNumber = document.createElement("span");
+                taskNumber.classList.add("mr-2");
+                taskNumber.innerText = `${index + 1}.`;
+
+                const taskTextElement = document.createElement("span");
+                taskTextElement.classList.add("mr-2");
+                taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} =`;
 
                 const input = document.createElement("input");
                 input.type = "text";
@@ -539,6 +597,9 @@
                     this.value = this.value.replace(/[^0-9]/g, ''); // Erlaubt nur Zahlen
                 });
                 input.disabled = true; // Initial disabled
+
+                taskDiv.appendChild(taskNumber);
+                taskDiv.appendChild(taskTextElement);
                 taskDiv.appendChild(input);
 
                 mathContainer.appendChild(taskDiv);
@@ -546,24 +607,56 @@
         }
 
         function printTasksAsPDF() {
-            const options = {
-                margin: 1,
-                filename: '10-Minuten-Herausforderung.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            // Füllen des druckfreundlichen Bereichs mit aktuellen Daten
+            const printableDiv = document.getElementById("printableTasks");
+
+            // Aufgabe 1: Lesen
+            const readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
+            const printableTask1 = document.getElementById("printableTask1");
+            printableTask1.querySelector("#printableReadText").innerText = readText;
+
+            // Aufgabe 2: Schreiben
+            const writeText = document.getElementById("writeText").innerText;
+            const printableTask2 = document.getElementById("printableTask2");
+            printableTask2.querySelector("#printableWriteText").innerText = writeText;
+
+            // Aufgabe 3: Mathe
+            const mathTasks = JSON.parse(localStorage.getItem("tasks")).task3.mathTasks;
+            const mathPrintable = document.getElementById("printableMathTasks");
+            mathPrintable.innerHTML = ''; // Leeren vor dem Befüllen
+
+            mathTasks.forEach((task, index) => {
+                const taskDiv = document.createElement("div");
+                taskDiv.classList.add("flex", "items-center", "mb-2");
+
+                const taskNumber = document.createElement("span");
+                taskNumber.classList.add("mr-2");
+                taskNumber.innerText = `${index + 1}.`;
+
+                const taskTextElement = document.createElement("span");
+                taskTextElement.classList.add("mr-2");
+                taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} =`;
+
+                const answerLine = document.createElement("span");
+                answerLine.classList.add("border-b-2", "border-dashed", "w-20");
+
+                taskDiv.appendChild(taskNumber);
+                taskDiv.appendChild(taskTextElement);
+                taskDiv.appendChild(answerLine);
+
+                mathPrintable.appendChild(taskDiv);
+            });
+
+            // Erstellen der PDF aus dem druckfreundlichen Bereich
+            const opt = {
+                margin:       0.5,
+                filename:     'Aufgabenblatt.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
-            // Verstecke alle Buttons während des PDF-Generierungsprozesses
-            const buttons = document.querySelectorAll('button');
-            buttons.forEach(button => button.classList.add('hidden'));
-
-            // Erstelle die PDF und stelle die Buttons nach 1s wieder her
-            html2pdf().set(options).from(document.body).save().then(() => {
-                setTimeout(() => {
-                    buttons.forEach(button => button.classList.remove('hidden'));
-                }, 1000);
-            });
+            html2pdf().set(opt).from(printableDiv).save();
         }
 
         function saveTasksToLocalStorage() {
