@@ -44,9 +44,9 @@
                         <span id="timer1" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
                     <p class="py-4">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
-                    <p class="py-2">
+                    <p id="readText" class="py-2">
                         <strong>Lesetext:</strong><br>
-                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent vel ligula scelerisque, finibus odio et, semper risus.
+                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
                     </p>
                     <button id="toggleTimer1" class="btn btn-primary mt-4 w-full" onclick="toggleTask(1)">Aufgabe beginnen</button>
                     <div id="savedRecording" class="mt-4 hidden">
@@ -65,7 +65,9 @@
                         <progress id="progress2" class="progress progress-secondary w-56" value="100" max="100"></progress>
                         <span id="timer2" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
-                    <p id="schreibenText" class="mt-4">Bitte schreiben Sie den Text handschriftlich auf ein Blatt Papier und laden Sie ein Foto der Abschrift hoch.</p>
+                    <p id="writeText" class="mt-4">
+                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
+                    </p>
                     <button id="toggleTimer2" class="btn btn-primary mt-4 w-full" onclick="toggleTask(2)">Aufgabe beginnen</button>
                     
                     <!-- Stilisiertes Datei-Upload-Feld -->
@@ -73,9 +75,9 @@
                     <input id="proofUpload" type="file" accept="image/*" class="hidden" onchange="uploadProof()" />
                     
                     <div id="savedProof" class="mt-4 hidden">
-                        <img id="proofImage" class="w-full h-auto" alt="Beweisfoto">
                         <span id="proofName" class="ml-2"></span>
                         <button class="btn btn-error btn-sm ml-4" onclick="confirmDeleteProof()">🗑️ Löschen</button>
+                        <a id="proofPreview" href="#" class="btn btn-link ml-2 hidden" target="_blank">Vorschau anzeigen</a>
                     </div>
                 </div>
             </div>
@@ -89,7 +91,7 @@
                         <span id="timer3" class="ml-4 text-lg font-mono">10:00</span>
                     </div>
                     <button id="toggleTimer3" class="btn btn-primary mt-4 w-full" onclick="toggleTask(3)">Aufgabe beginnen</button>
-                    <div id="matheText" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"></div>
+                    <div id="mathText" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"></div>
                 </div>
             </div>
         </div>
@@ -136,8 +138,35 @@
         </div>
     </div>
 
+    <!-- Bestätigungsmodal für das Löschen des Beweises -->
+    <input type="checkbox" id="confirmDeleteProofModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Beweis löschen?</h3>
+            <p class="py-4">Möchten Sie den Beweis wirklich löschen?</p>
+            <div class="modal-action">
+                <label class="btn btn-error" onclick="deleteProof()">Ja, löschen</label>
+                <label for="confirmDeleteProofModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsmodal für das Zurücksetzen -->
+    <input type="checkbox" id="confirmResetModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Aufgaben zurücksetzen?</h3>
+            <p class="py-4">Möchten Sie wirklich die Aufgaben zurücksetzen? Alle bisherigen Fortschritte gehen verloren.</p>
+            <div class="modal-action">
+                <label class="btn btn-error" onclick="resetTasks()">Ja, zurücksetzen</label>
+                <label for="confirmResetModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
     <script>
-        let taskTimersInitial = [600, 600, 600]; // Alle Aufgaben sind jetzt fest auf 10 Minuten (600 Sekunden)
+        // Initiale Timerwerte (in Sekunden)
+        const taskTimersInitial = [600, 600, 600];
         let taskTimers = [...taskTimersInitial];
         let taskIntervals = [null, null, null];
         let currentTask = null;
@@ -150,12 +179,86 @@
         document.addEventListener("DOMContentLoaded", () => {
             const storedTheme = localStorage.getItem("theme") || "synthwave";
             setTheme(storedTheme);
-            loadMathTasks();
+            loadTasksFromLocalStorage(); // Lade Aufgaben aus dem Local Storage
         });
 
         function setTheme(theme) {
             document.documentElement.setAttribute("data-theme", theme);
             localStorage.setItem("theme", theme);
+        }
+
+        function loadTasksFromLocalStorage() {
+            const storedTasks = JSON.parse(localStorage.getItem("tasks"));
+
+            if (storedTasks) {
+                // Aufgaben sind bereits gespeichert, laden wir sie
+                taskTimers = [storedTasks.task1.timer, storedTasks.task2.timer, storedTasks.task3.timer];
+                document.getElementById("progress1").value = storedTasks.task1.progress;
+                document.getElementById("timer1").innerText = formatTime(storedTasks.task1.timer);
+                document.getElementById("progress2").value = storedTasks.task2.progress;
+                document.getElementById("timer2").innerText = formatTime(storedTasks.task2.timer);
+                document.getElementById("progress3").value = storedTasks.task3.progress;
+                document.getElementById("timer3").innerText = formatTime(storedTasks.task3.timer);
+
+                // Laden der Inhalte für Aufgabe 1 und 2
+                document.getElementById("readText").innerHTML = `<strong>Lesetext:</strong><br>${storedTasks.task1.readText}`;
+                document.getElementById("writeText").innerHTML = storedTasks.task2.writeText;
+
+                // Laden der gespeicherten Aufnahmen und Beweise
+                if (storedTasks.task1.savedAudioURL) {
+                    savedAudioURL = storedTasks.task1.savedAudioURL;
+                    document.getElementById("audioPlayer").src = savedAudioURL;
+                    document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+                    document.getElementById("savedRecording").classList.remove("hidden");
+                }
+
+                if (storedTasks.task2.savedProofURL) {
+                    savedProofURL = storedTasks.task2.savedProofURL;
+                    document.getElementById("proofName").innerText = storedTasks.task2.proofName;
+                    document.getElementById("proofPreview").href = savedProofURL;
+                    document.getElementById("proofPreview").classList.remove("hidden");
+                    document.getElementById("savedProof").classList.remove("hidden");
+                }
+
+                // Laden der Mathematikaufgaben
+                loadMathTasks();
+            } else {
+                // Aufgaben sind nicht gespeichert, initialisieren wir sie
+                initializeTasks();
+            }
+        }
+
+        function initializeTasks() {
+            // Initialisierung der Inhalte für Aufgabe 1 (Lesen) und Aufgabe 2 (Schreiben)
+            const initialReadText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent vel ligula scelerisque, finibus odio et, semper risus.";
+            const initialWriteText = "Bitte schreiben Sie den folgenden Text handschriftlich auf ein Blatt Papier und laden Sie ein Foto der Abschrift hoch.";
+
+            // Speichern der initialen Aufgaben in localStorage
+            const tasks = {
+                task1: {
+                    progress: 100,
+                    timer: taskTimersInitial[0],
+                    readText: initialReadText,
+                    savedAudioURL: ""
+                },
+                task2: {
+                    progress: 100,
+                    timer: taskTimersInitial[1],
+                    writeText: initialWriteText,
+                    savedProofURL: "",
+                    proofName: ""
+                },
+                task3: {
+                    progress: 100,
+                    timer: taskTimersInitial[2]
+                }
+            };
+            localStorage.setItem("tasks", JSON.stringify(tasks));
+
+            // Anzeigen der initialen Inhalte
+            document.getElementById("readText").innerHTML = `<strong>Lesetext:</strong><br>${initialReadText}`;
+            document.getElementById("writeText").innerHTML = initialWriteText;
+            loadMathTasks();
         }
 
         function toggleTask(taskIndex) {
@@ -222,6 +325,9 @@
             if (taskIndex === 3) {
                 toggleMathInputs(false);
             }
+
+            // Speichern des aktuellen Aufgabenstands
+            saveTasksToLocalStorage();
         }
 
         function startRecording() {
@@ -235,7 +341,7 @@
                 })
                 .catch(error => {
                     console.error("Fehler beim Starten der Aufnahme:", error);
-                    showValidationModal("Audioaufnahme nicht möglich.");
+                    showValidationModal("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
                 });
         }
 
@@ -248,13 +354,15 @@
                     document.getElementById("audioPlayer").src = savedAudioURL;
                     document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
                     document.getElementById("savedRecording").classList.remove("hidden");
+                    // Speichern der Aufnahme im localStorage
+                    saveTasksToLocalStorage();
                 };
                 isRecording = false;
             }
         }
 
         function toggleMathInputs(enable) {
-            const inputs = document.querySelectorAll("#matheText input");
+            const inputs = document.querySelectorAll("#mathText input");
             inputs.forEach(input => input.disabled = !enable);
         }
 
@@ -270,6 +378,7 @@
                 timerElement.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
                 const progressValue = (taskTimers[taskIndex - 1] / taskTimersInitial[taskIndex - 1]) * 100;
                 progressElement.value = progressValue;
+                saveTasksToLocalStorage();
             } else {
                 stopTask(taskIndex);
                 taskTimers[taskIndex - 1] = taskTimersInitial[taskIndex - 1];
@@ -290,10 +399,14 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    document.getElementById("proofImage").src = e.target.result;
                     document.getElementById("proofName").innerText = file.name;
+                    const proofPreview = document.getElementById("proofPreview");
+                    proofPreview.href = e.target.result; // Setze die URL für die Vorschau
+                    proofPreview.classList.remove("hidden"); // Mache den Link sichtbar
                     document.getElementById("savedProof").classList.remove("hidden");
-                    savedProofURL = e.target.result; // Speichern der URL für die Überprüfung
+                    savedProofURL = e.target.result;
+                    // Speichern des Beweises im localStorage
+                    saveTasksToLocalStorage();
                 };
                 reader.readAsDataURL(file);
             }
@@ -301,16 +414,16 @@
         }
 
         function confirmDeleteProof() {
-            if (confirm("Möchten Sie das hochgeladene Bild wirklich löschen?")) {
-                deleteProof();
-            }
+            document.getElementById("confirmDeleteProofModal").checked = true;
         }
 
         function deleteProof() {
             document.getElementById("savedProof").classList.add("hidden");
-            document.getElementById("proofImage").src = "";
             document.getElementById("proofName").innerText = "";
+            document.getElementById("proofPreview").classList.add("hidden"); // Verstecke den Vorschau-Link
             savedProofURL = "";
+            // Aktualisieren im localStorage
+            saveTasksToLocalStorage();
         }
 
         function confirmDeleteRecording() {
@@ -322,6 +435,8 @@
             document.getElementById("audioPlayer").src = "";
             savedAudioURL = "";
             document.getElementById("confirmDeleteRecordingModal").checked = false; // Modal schließen
+            // Aktualisieren im localStorage
+            saveTasksToLocalStorage();
         }
 
         function checkSubmission() {
@@ -330,12 +445,16 @@
                 message = "Bitte füllen Sie mindestens eine Aufgabe aus: eine Aufnahme in Aufgabe 1, ein Bild in Aufgabe 2 oder eine Berechnung in Aufgabe 3.";
             } else {
                 message = "Alle Anforderungen erfüllt oder mindestens eine Aufgabe abgeschlossen. Abgabe erfolgreich!";
+                // Nach erfolgreicher Abgabe speichern wir den aktuellen Stand
+                saveTasksToLocalStorage();
+                // Bereinigen der gespeicherten Aufgaben, um bei nächstem Laden ein neues Set zu generieren
+                localStorage.removeItem("tasks");
             }
             showValidationModal(message);
         }
 
         function hasAnyMathInput() {
-            const mathInputs = document.querySelectorAll("#matheText input");
+            const mathInputs = document.querySelectorAll("#mathText input");
             return Array.from(mathInputs).some(input => input.value.trim() !== "");
         }
 
@@ -352,6 +471,7 @@
         function resetTasks() {
             taskTimers = [...taskTimersInitial];
             taskIntervals.forEach(interval => clearInterval(interval));
+            taskIntervals = [null, null, null];
             currentTask = null;
             document.querySelectorAll('[id^=toggleTimer]').forEach(btn => {
                 btn.textContent = 'Aufgabe beginnen';
@@ -361,7 +481,11 @@
             updateTimerDisplays();
             deleteRecording();
             deleteProof();
-            loadMathTasks();
+            // Entfernen der gespeicherten Aufgaben aus dem localStorage
+            localStorage.removeItem("tasks");
+            // Initialisieren neuer Aufgaben
+            initializeTasks();
+            document.getElementById("confirmResetModal").checked = false; // Schließen des Modals
         }
 
         function updateTimerDisplays() {
@@ -372,33 +496,53 @@
         }
 
         function loadMathTasks() {
-            const mathContainer = document.getElementById("matheText");
+            const storedTasks = JSON.parse(localStorage.getItem("tasks"));
+            const mathContainer = document.getElementById("mathText");
             mathContainer.innerHTML = '';
-            const operators = ["+", "-", "*"];
-            for (let i = 0; i < 32; i++) {
-                const num1 = Math.floor(Math.random() * 20) + 1;
-                const num2 = Math.floor(Math.random() * 20) + 1;
-                const operator1 = operators[Math.floor(Math.random() * operators.length)];
-                let taskText = `${num1} ${operator1} ${num2}`;
-                const task = document.createElement("div");
-                task.classList.add("flex", "items-center", "mb-2");
+
+            let mathTasks;
+            if (storedTasks && storedTasks.task3 && storedTasks.task3.mathTasks && Array.isArray(storedTasks.task3.mathTasks) && storedTasks.task3.mathTasks.length === 32) {
+                mathTasks = storedTasks.task3.mathTasks;
+            } else {
+                // Neue Mathematikaufgaben generieren
+                mathTasks = [];
+                const operators = ["+", "-", "*"];
+                for (let i = 0; i < 32; i++) {
+                    const num1 = Math.floor(Math.random() * 20) + 1;
+                    const num2 = Math.floor(Math.random() * 20) + 1;
+                    const operator1 = operators[Math.floor(Math.random() * operators.length)];
+                    let taskText = `${num1} ${operator1} ${num2}`;
+                    const answer = eval(taskText);
+                    mathTasks.push({ num1, num2, operator: operator1, answer });
+                }
+                // Speichern der generierten Mathematikaufgaben im localStorage
+                if (storedTasks) {
+                    storedTasks.task3.mathTasks = mathTasks;
+                    localStorage.setItem("tasks", JSON.stringify(storedTasks));
+                }
+            }
+
+            // Mathematikaufgaben anzeigen
+            mathTasks.forEach(task => {
+                const taskDiv = document.createElement("div");
+                taskDiv.classList.add("flex", "items-center", "mb-2");
 
                 const taskTextElement = document.createElement("p");
-                taskTextElement.innerText = `${taskText} = `;
-                task.appendChild(taskTextElement);
+                taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} = `;
+                taskDiv.appendChild(taskTextElement);
 
                 const input = document.createElement("input");
                 input.type = "text";
                 input.classList.add("input", "input-bordered", "ml-2", "w-16");
-                input.dataset.answer = eval(taskText);
+                input.dataset.answer = task.answer;
                 input.addEventListener('input', function() {
                     this.value = this.value.replace(/[^0-9]/g, ''); // Erlaubt nur Zahlen
                 });
                 input.disabled = true; // Initial disabled
-                task.appendChild(input);
+                taskDiv.appendChild(input);
 
-                mathContainer.appendChild(task);
-            }
+                mathContainer.appendChild(taskDiv);
+            });
         }
 
         function printTasksAsPDF() {
@@ -410,16 +554,41 @@
                 jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
-            // Verstecke alle Buttons
-            const buttons = document.querySelectorAll('.btn');
+            // Verstecke alle Buttons während des PDF-Generierungsprozesses
+            const buttons = document.querySelectorAll('button');
             buttons.forEach(button => button.classList.add('hidden'));
 
+            // Erstelle die PDF und stelle die Buttons nach 1s wieder her
             html2pdf().set(options).from(document.body).save().then(() => {
-                // Warte 1 Sekunde und zeige die Buttons wieder an
                 setTimeout(() => {
                     buttons.forEach(button => button.classList.remove('hidden'));
                 }, 1000);
             });
+        }
+
+        function saveTasksToLocalStorage() {
+            const storedTasks = JSON.parse(localStorage.getItem("tasks")) || {};
+
+            // Aktualisieren der Timer und Fortschritte
+            storedTasks.task1 = storedTasks.task1 || {};
+            storedTasks.task2 = storedTasks.task2 || {};
+            storedTasks.task3 = storedTasks.task3 || {};
+
+            storedTasks.task1.progress = document.getElementById("progress1").value;
+            storedTasks.task1.timer = taskTimers[0];
+            storedTasks.task1.readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
+
+            storedTasks.task2.progress = document.getElementById("progress2").value;
+            storedTasks.task2.timer = taskTimers[1];
+            storedTasks.task2.writeText = document.getElementById("writeText").innerHTML;
+            storedTasks.task2.savedProofURL = savedProofURL;
+            storedTasks.task2.proofName = document.getElementById("proofName").innerText;
+
+            storedTasks.task3.progress = document.getElementById("progress3").value;
+            storedTasks.task3.timer = taskTimers[2];
+            // Math-Aufgaben werden bereits in loadMathTasks gespeichert
+
+            localStorage.setItem("tasks", JSON.stringify(storedTasks));
         }
     </script>
 </body>
