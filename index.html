@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10-Minuten-Herausforderung</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@1.20.0/dist/full.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-base-200 text-base-content">
+
+    <!-- Header mit Farbschema-Auswahl -->
+    <header class="bg-base-300 p-4 flex justify-between items-center space-x-4">
+        <h1 class="text-2xl font-bold">10-Minuten-Herausforderung</h1>
+        <div class="flex space-x-2">
+            <!-- Farbschema Dropdown -->
+            <div class="dropdown">
+                <label tabindex="0" class="btn btn-secondary m-1">Farbschema ändern</label>
+                <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
+                    <li><a href="#" onclick="setTheme('light')">Licht</a></li>
+                    <li><a href="#" onclick="setTheme('dark')">Dunkel</a></li>
+                    <li><a href="#" onclick="setTheme('cupcake')">Cupcake</a></li>
+                    <li><a href="#" onclick="setTheme('emerald')">Emerald</a></li>
+                    <li><a href="#" onclick="setTheme('synthwave')">Synthwave</a></li>
+                    <li><a href="#" onclick="setTheme('dracula')">Dracula</a></li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto p-4 max-w-screen-md">
+        <button class="btn btn-secondary mt-2 w-full" onclick="confirmResetTasks()">Neues Set an Aufgaben</button>
+        <button class="btn btn-accent mt-4 w-full" onclick="printTasksAsPDF()">Alle Aufgaben als PDF drucken</button>
+
+        <!-- Aufgaben-Bereich -->
+        <div id="tasks">
+            <!-- Aufgabe 1: Lesen -->
+            <div id="task1" class="task card shadow-lg bg-base-100 mb-8">
+                <div class="card-body">
+                    <h2 class="card-title text-lg font-bold">Aufgabe 1: Lesen</h2>
+                    <div class="flex items-center">
+                        <progress id="progress1" class="progress progress-primary w-56" value="100" max="100"></progress>
+                        <span id="timer1" class="ml-4 text-lg font-mono">10:00</span>
+                    </div>
+                    <p class="py-4">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
+                    <p class="py-2">
+                        <strong>Lesetext:</strong><br>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent vel ligula scelerisque, finibus odio et, semper risus.
+                    </p>
+                    <button id="toggleTimer1" class="btn btn-primary mt-4 w-full" onclick="toggleTask(1)">Aufgabe beginnen</button>
+                    <div id="savedRecording" class="mt-4 hidden">
+                        <audio id="audioPlayer" controls></audio>
+                        <span id="recordingName" class="ml-2"></span>
+                        <button class="btn btn-error btn-sm ml-4" onclick="confirmDeleteRecording()">🗑️ Löschen</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aufgabe 2: Schreiben -->
+            <div id="task2" class="task card shadow-lg bg-base-100 mb-8">
+                <div class="card-body">
+                    <h2 class="card-title text-lg font-bold">Aufgabe 2: Abschreiben</h2>
+                    <div class="flex items-center">
+                        <progress id="progress2" class="progress progress-secondary w-56" value="100" max="100"></progress>
+                        <span id="timer2" class="ml-4 text-lg font-mono">10:00</span>
+                    </div>
+                    <p id="schreibenText" class="mt-4">Bitte schreiben Sie den Text handschriftlich auf ein Blatt Papier und laden Sie ein Foto der Abschrift hoch.</p>
+                    <button id="toggleTimer2" class="btn btn-primary mt-4 w-full" onclick="toggleTask(2)">Aufgabe beginnen</button>
+                    
+                    <!-- Stilisiertes Datei-Upload-Feld -->
+                    <label for="proofUpload" class="btn btn-primary mt-4 w-full">Foto der Abschrift hochladen</label>
+                    <input id="proofUpload" type="file" accept="image/*" class="hidden" onchange="uploadProof()" />
+                    
+                    <div id="savedProof" class="mt-4 hidden">
+                        <img id="proofImage" class="w-full h-auto" alt="Beweisfoto">
+                        <span id="proofName" class="ml-2"></span>
+                        <button class="btn btn-error btn-sm ml-4" onclick="confirmDeleteProof()">🗑️ Löschen</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aufgabe 3: Mathe -->
+            <div id="task3" class="task card shadow-lg bg-base-100 mb-8">
+                <div class="card-body">
+                    <h2 class="card-title text-lg font-bold">Aufgabe 3: Rechenaufgaben</h2>
+                    <div class="flex items-center">
+                        <progress id="progress3" class="progress progress-accent w-56" value="100" max="100"></progress>
+                        <span id="timer3" class="ml-4 text-lg font-mono">10:00</span>
+                    </div>
+                    <button id="toggleTimer3" class="btn btn-primary mt-4 w-full" onclick="toggleTask(3)">Aufgabe beginnen</button>
+                    <div id="matheText" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Abgabe-Button -->
+        <button id="submitBtn" class="btn btn-success fixed bottom-4 right-4 hidden" onclick="checkSubmission()">Abgeben</button>
+    </div>
+
+    <!-- Modale für Validierungen -->
+    <input type="checkbox" id="validationModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Abgabe-Validierung</h3>
+            <p id="validationMessage" class="py-4"></p>
+            <div class="modal-action">
+                <label for="validationModal" class="btn">Schließen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsmodal für das Stoppen der Aufnahme -->
+    <input type="checkbox" id="confirmStopRecordingModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Aufnahme beenden?</h3>
+            <p class="py-4">Möchten Sie die Aufnahme wirklich beenden? Falls dies ein Versehen war, können Sie den Vorgang fortsetzen.</p>
+            <div class="modal-action">
+                <label class="btn btn-error" onclick="stopTaskConfirmed(1)">Ja, beenden</label>
+                <label for="confirmStopRecordingModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsmodal für das Löschen der Aufnahme -->
+    <input type="checkbox" id="confirmDeleteRecordingModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Aufnahme löschen?</h3>
+            <p class="py-4">Möchten Sie die Aufnahme wirklich löschen?</p>
+            <div class="modal-action">
+                <label class="btn btn-error" onclick="deleteRecording()">Ja, löschen</label>
+                <label for="confirmDeleteRecordingModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let taskTimersInitial = [600, 600, 600]; // Alle Aufgaben sind jetzt fest auf 10 Minuten (600 Sekunden)
+        let taskTimers = [...taskTimersInitial];
+        let taskIntervals = [null, null, null];
+        let currentTask = null;
+        let isRecording = false;
+        let mediaRecorder;
+        let audioChunks = [];
+        let savedAudioURL = "";
+        let savedProofURL = "";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const storedTheme = localStorage.getItem("theme") || "synthwave";
+            setTheme(storedTheme);
+            loadMathTasks();
+        });
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute("data-theme", theme);
+            localStorage.setItem("theme", theme);
+        }
+
+        function toggleTask(taskIndex) {
+            if (currentTask === taskIndex) {
+                if (taskIndex === 1) {
+                    document.getElementById("confirmStopRecordingModal").checked = true;
+                } else {
+                    stopTask(taskIndex);
+                }
+            } else {
+                if (currentTask !== null) {
+                    stopTask(currentTask);
+                }
+                startTask(taskIndex);
+            }
+        }
+
+        function stopTaskConfirmed(taskIndex) {
+            document.getElementById("confirmStopRecordingModal").checked = false; // Schließt das Modal
+            stopTask(taskIndex); // Stoppt die Aufgabe
+        }
+
+        function startTask(taskIndex) {
+            currentTask = taskIndex;
+            const toggleButton = document.getElementById(`toggleTimer${taskIndex}`);
+            toggleButton.textContent = "Pause";
+            toggleButton.classList.remove("btn-primary");
+            toggleButton.classList.add("btn-error");
+
+            if (taskIndex === 1) {
+                toggleButton.innerHTML = '<span class="mr-2">🔴</span> Pause';
+                startRecording();
+            }
+
+            if (taskIndex === 3) {
+                toggleMathInputs(true);
+            }
+
+            taskIntervals[taskIndex - 1] = setInterval(() => updateTaskTimer(taskIndex), 1000);
+        }
+
+        function stopTask(taskIndex) {
+            clearInterval(taskIntervals[taskIndex - 1]);
+            taskIntervals[taskIndex - 1] = null;
+            currentTask = null;
+            const toggleButton = document.getElementById(`toggleTimer${taskIndex}`);
+            const timerValue = taskTimers[taskIndex - 1];
+
+            if (timerValue === 0) {
+                toggleButton.textContent = "Abgeben";
+                toggleButton.classList.remove("btn-error");
+                toggleButton.classList.add("btn-success");
+                document.getElementById("submitBtn").classList.remove("hidden");
+            } else {
+                toggleButton.textContent = "Aufgabe beginnen";
+                toggleButton.classList.remove("btn-error");
+                toggleButton.classList.add("btn-primary");
+            }
+
+            if (taskIndex === 1) {
+                stopRecording();
+            }
+
+            if (taskIndex === 3) {
+                toggleMathInputs(false);
+            }
+        }
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                    isRecording = true;
+                })
+                .catch(error => {
+                    console.error("Fehler beim Starten der Aufnahme:", error);
+                    showValidationModal("Audioaufnahme nicht möglich.");
+                });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    savedAudioURL = URL.createObjectURL(audioBlob);
+                    document.getElementById("audioPlayer").src = savedAudioURL;
+                    document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+                    document.getElementById("savedRecording").classList.remove("hidden");
+                };
+                isRecording = false;
+            }
+        }
+
+        function toggleMathInputs(enable) {
+            const inputs = document.querySelectorAll("#matheText input");
+            inputs.forEach(input => input.disabled = !enable);
+        }
+
+        function updateTaskTimer(taskIndex) {
+            let timeLeft = taskTimers[taskIndex - 1];
+            const timerElement = document.getElementById(`timer${taskIndex}`);
+            const progressElement = document.getElementById(`progress${taskIndex}`);
+
+            if (timeLeft > 0) {
+                taskTimers[taskIndex - 1]--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerElement.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                const progressValue = (taskTimers[taskIndex - 1] / taskTimersInitial[taskIndex - 1]) * 100;
+                progressElement.value = progressValue;
+            } else {
+                stopTask(taskIndex);
+                taskTimers[taskIndex - 1] = taskTimersInitial[taskIndex - 1];
+                timerElement.innerText = "10:00";
+                progressElement.value = 100;
+                showValidationModal(`Zeit für Aufgabe ${taskIndex} abgelaufen`);
+            }
+        }
+
+        function showValidationModal(message) {
+            document.getElementById("validationMessage").innerText = message;
+            document.getElementById("validationModal").checked = true;
+        }
+
+        function uploadProof() {
+            const fileInput = document.getElementById("proofUpload");
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById("proofImage").src = e.target.result;
+                    document.getElementById("proofName").innerText = file.name;
+                    document.getElementById("savedProof").classList.remove("hidden");
+                    savedProofURL = e.target.result; // Speichern der URL für die Überprüfung
+                };
+                reader.readAsDataURL(file);
+            }
+            fileInput.value = "";
+        }
+
+        function confirmDeleteProof() {
+            if (confirm("Möchten Sie das hochgeladene Bild wirklich löschen?")) {
+                deleteProof();
+            }
+        }
+
+        function deleteProof() {
+            document.getElementById("savedProof").classList.add("hidden");
+            document.getElementById("proofImage").src = "";
+            document.getElementById("proofName").innerText = "";
+            savedProofURL = "";
+        }
+
+        function confirmDeleteRecording() {
+            document.getElementById("confirmDeleteRecordingModal").checked = true;
+        }
+
+        function deleteRecording() {
+            document.getElementById("savedRecording").classList.add("hidden");
+            document.getElementById("audioPlayer").src = "";
+            savedAudioURL = "";
+            document.getElementById("confirmDeleteRecordingModal").checked = false; // Modal schließen
+        }
+
+        function checkSubmission() {
+            let message = "";
+            if (!savedAudioURL && !savedProofURL && !hasAnyMathInput()) {
+                message = "Bitte füllen Sie mindestens eine Aufgabe aus: eine Aufnahme in Aufgabe 1, ein Bild in Aufgabe 2 oder eine Berechnung in Aufgabe 3.";
+            } else {
+                message = "Alle Anforderungen erfüllt oder mindestens eine Aufgabe abgeschlossen. Abgabe erfolgreich!";
+            }
+            showValidationModal(message);
+        }
+
+        function hasAnyMathInput() {
+            const mathInputs = document.querySelectorAll("#matheText input");
+            return Array.from(mathInputs).some(input => input.value.trim() !== "");
+        }
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+        }
+
+        function confirmResetTasks() {
+            document.getElementById("confirmResetModal").checked = true;
+        }
+
+        function resetTasks() {
+            taskTimers = [...taskTimersInitial];
+            taskIntervals.forEach(interval => clearInterval(interval));
+            currentTask = null;
+            document.querySelectorAll('[id^=toggleTimer]').forEach(btn => {
+                btn.textContent = 'Aufgabe beginnen';
+                btn.classList.remove("btn-error", "btn-success");
+                btn.classList.add("btn-primary");
+            });
+            updateTimerDisplays();
+            deleteRecording();
+            deleteProof();
+            loadMathTasks();
+        }
+
+        function updateTimerDisplays() {
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`timer${i}`).innerText = formatTime(taskTimersInitial[i - 1]);
+                document.getElementById(`progress${i}`).value = 100;
+            }
+        }
+
+        function loadMathTasks() {
+            const mathContainer = document.getElementById("matheText");
+            mathContainer.innerHTML = '';
+            const operators = ["+", "-", "*"];
+            for (let i = 0; i < 32; i++) {
+                const num1 = Math.floor(Math.random() * 20) + 1;
+                const num2 = Math.floor(Math.random() * 20) + 1;
+                const operator1 = operators[Math.floor(Math.random() * operators.length)];
+                let taskText = `${num1} ${operator1} ${num2}`;
+                const task = document.createElement("div");
+                task.classList.add("flex", "items-center", "mb-2");
+
+                const taskTextElement = document.createElement("p");
+                taskTextElement.innerText = `${taskText} = `;
+                task.appendChild(taskTextElement);
+
+                const input = document.createElement("input");
+                input.type = "text";
+                input.classList.add("input", "input-bordered", "ml-2", "w-16");
+                input.dataset.answer = eval(taskText);
+                input.addEventListener('input', function() {
+                    this.value = this.value.replace(/[^0-9]/g, ''); // Erlaubt nur Zahlen
+                });
+                input.disabled = true; // Initial disabled
+                task.appendChild(input);
+
+                mathContainer.appendChild(task);
+            }
+        }
+
+        function printTasksAsPDF() {
+            const options = {
+                margin: 1,
+                filename: '10-Minuten-Herausforderung.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Verstecke alle Buttons
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(button => button.classList.add('hidden'));
+
+            html2pdf().set(options).from(document.body).save().then(() => {
+                // Warte 1 Sekunde und zeige die Buttons wieder an
+                setTimeout(() => {
+                    buttons.forEach(button => button.classList.remove('hidden'));
+                }, 1000);
+            });
+        }
+    </script>
+</body>
+</html>
