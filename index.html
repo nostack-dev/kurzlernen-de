@@ -7,19 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@1.20.0/dist/full.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
-    <style>
-        /* Druckfreundlicher Bereich außerhalb des sichtbaren Bereichs positionieren */
-        #printableTasks {
-            position: absolute;
-            top: -10000px;
-            left: -10000px;
-            width: 210mm;
-            min-height: 297mm;
-            box-sizing: border-box;
-            background-color: white;
-            padding: 2rem;
-        }
-    </style>
+    <!-- Entfernt das benutzerdefinierte CSS -->
 </head>
 <body class="bg-base-200 text-base-content">
     <!-- Header mit Farbschema-Auswahl -->
@@ -177,7 +165,7 @@
     </div>
 
     <!-- Druckfreundlicher Bereich -->
-    <div id="printableTasks">
+    <div id="printableTasks" class="hidden p-8 bg-white">
         <div id="printableTask1" class="mb-8">
             <h1 class="text-3xl font-bold mb-4">10-Minuten-Herausforderung</h1>
             <h2 class="text-xl font-semibold mb-2">Aufgabe 1: Lesen</h2>
@@ -647,6 +635,7 @@
         function printTasksAsPDF() {
             // Füllen des druckfreundlichen Bereichs mit aktuellen Daten
             const printableDiv = document.getElementById("printableTasks");
+            printableDiv.classList.remove('hidden'); // Element einblenden
 
             // Aufgabe 1: Lesen
             const readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
@@ -685,7 +674,7 @@
                 mathPrintable.appendChild(taskDiv);
             });
 
-            // Erstellen der PDF aus dem druckfreundlichen Bereich
+            // Optionen für html2pdf.js
             const opt = {
                 margin:       0.5,
                 filename:     'Aufgabenblatt.pdf',
@@ -694,9 +683,13 @@
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
-            html2pdf().set(opt).from(printableDiv).save().catch(error => {
+            // PDF generieren
+            html2pdf().set(opt).from(printableDiv).save().then(() => {
+                printableDiv.classList.add('hidden'); // Element wieder ausblenden
+            }).catch(error => {
                 console.error("Fehler bei der PDF-Erstellung:", error);
                 showValidationModal("Fehler bei der PDF-Erstellung.");
+                printableDiv.classList.add('hidden'); // Element wieder ausblenden, auch bei Fehlern
             });
         }
 
@@ -711,6 +704,7 @@
             storedTasks.task1.progress = document.getElementById("progress1").value;
             storedTasks.task1.timer = taskTimers[0];
             storedTasks.task1.readText = document.getElementById("readText").innerText.replace("Lesetext:\n", "");
+            storedTasks.task1.savedAudioURL = savedAudioURL;
 
             storedTasks.task2.progress = document.getElementById("progress2").value;
             storedTasks.task2.timer = taskTimers[1];
