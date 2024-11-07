@@ -2,12 +2,16 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>10-Minuten-Herausforderung</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- DaisyUI -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@1.20.0/dist/full.css" rel="stylesheet">
+    <!-- html2pdf.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
-    <!-- Entfernt das benutzerdefinierte CSS -->
+    <!-- RecordRTC.js -->
+    <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
 </head>
 <body class="bg-base-200 text-base-content">
     <!-- Header mit Farbschema-Auswahl -->
@@ -212,8 +216,7 @@
         let taskIntervals = [null, null, null];
         let currentTask = null;
         let isRecording = false;
-        let mediaRecorder;
-        let audioChunks = [];
+        let recorder;
         let savedAudioURL = "";
         let savedProofURL = "";
 
@@ -228,11 +231,6 @@
         function checkBrowserCompatibility() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 showValidationModal("Ihr Browser unterstützt keine Audioaufnahmen. Bitte verwenden Sie einen aktuellen Browser.");
-                return false;
-            }
-
-            if (!window.MediaRecorder) {
-                showValidationModal("Ihr Browser unterstützt die MediaRecorder-API nicht. Bitte verwenden Sie einen aktuellen Browser.");
                 return false;
             }
 
@@ -296,8 +294,19 @@
 
         function initializeTasks() {
             // Initialisierung der Inhalte für Aufgabe 1 (Lesen) und Aufgabe 2 (Schreiben)
-            const initialReadText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent vel ligula scelerisque, finibus odio et, semper risus.";
-            const initialWriteText = "Bitte schreiben Sie den folgenden Text handschriftlich auf ein Blatt Papier und laden Sie ein Foto der Abschrift hoch.";
+            const initialReadText = `**Das Geheimnis des Verlorenen Amuletts**
+
+Es war ein stürmischer Abend, als Laura und Max am Strand entlanggingen. Die Geschwister liebten Abenteuer, und heute war kein gewöhnlicher Tag. Eine alte Legende besagte, dass an diesem Strand ein magisches Amulett versteckt sein soll, das seinem Finder unglaubliche Kräfte verleiht.
+
+Plötzlich blitzte etwas im Sand auf. "Schau mal, Max!", rief Laura aufgeregt. Sie liefen zu der Stelle und gruben das Objekt aus. Es war ein altes, verziertes Amulett mit geheimnisvollen Symbolen. Kaum hatte Max es berührt, begann es zu leuchten. Ein heftiger Wind kam auf, und vor ihnen erschien eine zarte Gestalt. "Ich bin der Hüter des Amuletts", sprach sie mit sanfter Stimme. "Nur wer Mut und ein reines Herz besitzt, darf seine Macht nutzen."
+
+Laura und Max sahen sich an. "Wir wollen das Amulett beschützen", sagte Max entschlossen. Die Gestalt lächelte. "Dann erwartet euch ein großes Abenteuer." Mit diesen Worten verschwanden sie in einem Strudel aus Licht.
+
+Sie fanden sich in einer fremden Welt wieder, voller Wunder und Gefahren. Um nach Hause zurückzukehren, mussten sie das Rätsel des Amuletts lösen und seine wahre Kraft verstehen. Gemeinsam machten sie sich auf den Weg, nicht ahnend, welche Abenteuer sie erwarten würden.`;
+
+            const initialWriteText = `Schreibe folgenden Text sorgfältig ab:
+
+"Mut ist nicht die Abwesenheit von Angst, sondern die Erkenntnis, dass etwas wichtiger ist als die Angst. Vertrauen ist der Schlüssel zu jeder Freundschaft."`;
 
             // Speichern der initialen Aufgaben in localStorage
             const tasks = {
@@ -400,22 +409,15 @@
         function startRecording() {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
-                    mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.start();
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        savedAudioURL = URL.createObjectURL(audioBlob);
-                        const audioPlayer = document.getElementById("audioPlayer");
-                        audioPlayer.src = savedAudioURL;
-                        document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
-                        document.getElementById("savedRecording").classList.remove("hidden");
-                        // Speichern der Aufnahme im localStorage
-                        saveTasksToLocalStorage();
+                    const options = {
+                        mimeType: 'audio/wav',
+                        numberOfAudioChannels: 1,
+                        sampleRate: 44100 // CD quality
                     };
+                    recorder = RecordRTC(stream, options);
+                    recorder.startRecording();
                     isRecording = true;
-                    console.log("Recording started using MediaRecorder API");
+                    console.log("Recording started using RecordRTC");
                 })
                 .catch(error => {
                     console.error("Fehler beim Starten der Aufnahme:", error);
@@ -424,11 +426,19 @@
         }
 
         function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                isRecording = false;
-                console.log("Recording stopped.");
+            if (recorder && isRecording) {
+                recorder.stopRecording(() => {
+                    const blob = recorder.getBlob();
+                    savedAudioURL = URL.createObjectURL(blob);
+                    const audioPlayer = document.getElementById("audioPlayer");
+                    audioPlayer.src = savedAudioURL;
+                    document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+                    document.getElementById("savedRecording").classList.remove("hidden");
+                    isRecording = false;
+                    console.log("Recording stopped.");
+                    // Speichern der Aufnahme im localStorage
+                    saveTasksToLocalStorage();
+                });
             }
         }
 
