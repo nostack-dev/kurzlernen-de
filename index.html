@@ -2,110 +2,165 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>kurzlernen.de</title>
+    <title>kurzlernen.de - 30-Minuten-Herausforderung</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- DaisyUI -->
+    <!-- DaisyUI und Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- html2pdf.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
     <!-- RecordRTC.js -->
     <script src="https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.js"></script>
+
+    <!-- Setze das Farbschema basierend auf den Systemeinstellungen -->
+    <script>
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    </script>
 </head>
 <body class="bg-base-200 text-base-content">
     <!-- Header mit DaisyUI Navbar -->
-    <header class="navbar bg-base-300">
+    <header class="navbar bg-primary text-primary-content">
         <div class="flex-1">
             <a class="btn btn-ghost normal-case text-xl">10-Minuten-Herausforderung</a>
         </div>
         <div class="flex-none">
-            <!-- Farbschema Dropdown -->
-            <div class="dropdown dropdown-end">
-                <label tabindex="0" class="btn btn-secondary m-1">Farbschema ändern</label>
-                <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
-                    <li><a href="#" onclick="setTheme('light')">Licht</a></li>
-                    <li><a href="#" onclick="setTheme('dark')">Dunkel</a></li>
-                    <li><a href="#" onclick="setTheme('cupcake')">Cupcake</a></li>
-                    <li><a href="#" onclick="setTheme('emerald')">Emerald</a></li>
-                    <li><a href="#" onclick="setTheme('synthwave')">Synthwave</a></li>
-                    <li><a href="#" onclick="setTheme('dracula')">Dracula</a></li>
-                </ul>
-            </div>
+            <!-- Neues Set an Aufgaben Knopf -->
+            <button class="btn btn-accent mr-4" onclick="confirmResetTasks()">🔄 Neue Aufgaben</button>
+            <!-- Farbschema Toggle -->
+            <label class="swap swap-rotate">
+                <input type="checkbox" id="theme-toggle" />
+                <svg class="swap-on fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M5.64 17.36A9 9 0 1118.36 6.64 9 9 0 015.64 17.36zM12 7a5 5 0 100 10 5 5 0 000-10z"/>
+                </svg>
+                <svg class="swap-off fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
+                </svg>
+            </label>
         </div>
     </header>
 
     <div class="mx-auto p-4 max-w-screen-md">
-        <div class="flex flex-col items-center">
-            <button class="btn btn-secondary mt-2 w-full" onclick="confirmResetTasks()">Neues Set an Aufgaben</button>
-            <button class="btn btn-accent mt-4 w-full" onclick="printTasksAsPDF()">Alle Aufgaben als PDF drucken</button>
+        <!-- Fortschrittsanzeige -->
+        <div class="mt-6 text-center">
+            <progress id="overallProgress" class="progress progress-info w-full" value="0" max="3"></progress>
+            <p id="progressText" class="mt-2">0 von 3 Aufgaben abgeschlossen</p>
         </div>
 
         <!-- Aufgaben-Bereich -->
-        <div id="tasks" class="mt-4">
+        <div id="tasks" class="mt-6">
             <!-- Aufgabe 1: Lesen -->
             <div id="task1" class="task card shadow-lg bg-base-100 mb-8">
-                <div class="card-body">
-                    <h2 class="card-title text-lg font-bold">Aufgabe 1: Lesen</h2>
-                    <div class="flex items-center justify-center">
-                        <progress id="progress1" class="progress progress-primary w-full max-w-xs" value="100" max="100"></progress>
-                        <span id="timer1" class="ml-4 text-lg font-mono">10:00</span>
+                <div class="collapse collapse-open">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                        📖 Aufgabe 1: Lesen
                     </div>
-                    <p class="py-4 text-center">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
-                    <p id="readText" class="py-2 text-center">
-                        <strong>Lesetext:</strong><br>
-                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
-                    </p>
-                    <button id="toggleTimer1" class="btn btn-primary mt-4 w-full" onclick="toggleTask(1)">Aufgabe beginnen</button>
-                    <div id="savedRecording" class="mt-4 hidden">
-                        <audio id="audioPlayer" controls></audio>
-                        <span id="recordingName" class="ml-2"></span>
-                        <button class="btn btn-error btn-sm ml-4" onclick="confirmDeleteRecording()">🗑️ Löschen</button>
+                    <div class="collapse-content">
+                        <div class="card-body">
+                            <div class="flex items-center justify-center mt-2">
+                                <progress id="progress1" class="progress progress-primary w-full max-w-xs" value="100" max="100"></progress>
+                                <span id="timer1" class="ml-4 text-lg font-mono">10:00</span>
+                            </div>
+                            <button id="toggleTimer1" class="btn btn-primary mt-4 w-full" onclick="toggleTask(1)">🎙️ Aufgabe beginnen</button>
+                            <p class="py-4 text-center">Lesen Sie den folgenden Text laut vor, während die Aufnahme läuft:</p>
+                            <div class="collapse">
+                                <input type="checkbox" class="peer" />
+                                <div class="collapse-title bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                                    Lesetext anzeigen
+                                </div>
+                                <div class="collapse-content bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                                    <p id="readText" class="py-4 text-justify">
+                                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
+                                    </p>
+                                </div>
+                            </div>
+                            <div id="savedRecording" class="mt-4 hidden">
+                                <audio id="audioPlayer" controls class="w-full"></audio>
+                                <div class="flex items-center mt-2">
+                                    <span id="recordingName" class="ml-2">Aufnahme gespeichert</span>
+                                    <button class="btn btn-error btn-sm ml-auto" onclick="confirmDeleteRecording()">🗑️ Löschen</button>
+                                </div>
+                            </div>
+                            <button id="completeTask1" class="btn btn-success mt-4 w-full hidden" onclick="completeTask(1)">✔️ Aufgabe abschließen</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Aufgabe 2: Schreiben -->
             <div id="task2" class="task card shadow-lg bg-base-100 mb-8">
-                <div class="card-body">
-                    <h2 class="card-title text-lg font-bold">Aufgabe 2: Abschreiben</h2>
-                    <div class="flex items-center justify-center">
-                        <progress id="progress2" class="progress progress-secondary w-full max-w-xs" value="100" max="100"></progress>
-                        <span id="timer2" class="ml-4 text-lg font-mono">10:00</span>
+                <div class="collapse collapse-open">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                        ✍️ Aufgabe 2: Abschreiben
                     </div>
-                    <p id="writeText" class="mt-4 text-center">
-                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
-                    </p>
-                    <button id="toggleTimer2" class="btn btn-primary mt-4 w-full" onclick="toggleTask(2)">Aufgabe beginnen</button>
-                    
-                    <!-- Stilisiertes Datei-Upload-Feld -->
-                    <label for="proofUpload" class="btn btn-primary mt-4 w-full">Foto der Abschrift hochladen</label>
-                    <input id="proofUpload" type="file" accept="image/*" class="hidden" onchange="uploadProof()" />
-                    
-                    <div id="savedProof" class="mt-4 hidden">
-                        <span id="proofName" class="ml-2"></span>
-                        <button class="btn btn-error btn-sm ml-4" onclick="confirmDeleteProof()">🗑️ Löschen</button>
-                        <a id="proofPreview" href="#" class="btn btn-link ml-2 hidden" target="_blank">Vorschau anzeigen</a>
+                    <div class="collapse-content">
+                        <div class="card-body">
+                            <div class="flex items-center justify-center mt-2">
+                                <progress id="progress2" class="progress progress-secondary w-full max-w-xs" value="100" max="100"></progress>
+                                <span id="timer2" class="ml-4 text-lg font-mono">10:00</span>
+                            </div>
+                            <button id="toggleTimer2" class="btn btn-primary mt-4 w-full" onclick="toggleTask(2)">📝 Aufgabe beginnen</button>
+                            <p class="mt-4 text-center">Lesen Sie den folgenden Text und schreiben Sie ihn sorgfältig ab:</p>
+                            <div class="collapse">
+                                <input type="checkbox" class="peer" />
+                                <div class="collapse-title bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                                    Abschreibtext anzeigen
+                                </div>
+                                <div class="collapse-content bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                                    <p id="writeText" class="py-4 text-justify">
+                                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
+                                    </p>  
+                                </div>
+                            </div>
+
+                            <label for="proofUpload" class="btn btn-secondary mt-4 w-full">📷 Foto der Abschrift hochladen</label>
+                            <input id="proofUpload" type="file" accept="image/*" class="hidden" onchange="uploadProof()" />
+
+                            <div id="savedProof" class="mt-4 hidden">
+                                <div class="flex items-center">
+                                    <span id="proofName" class="ml-2">Foto hochgeladen</span>
+                                    <a id="proofPreview" href="#" class="btn btn-info btn-sm ml-auto" target="_blank">👁️ Vorschau</a>
+                                    <button class="btn btn-error btn-sm ml-2" onclick="confirmDeleteProof()">🗑️ Löschen</button>
+                                </div>
+                            </div>
+                            <button id="completeTask2" class="btn btn-success mt-4 w-full hidden" onclick="completeTask(2)">✔️ Aufgabe abschließen</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Aufgabe 3: Mathe -->
             <div id="task3" class="task card shadow-lg bg-base-100 mb-8">
-                <div class="card-body">
-                    <h2 class="card-title text-lg font-bold">Aufgabe 3: Rechenaufgaben</h2>
-                    <div class="flex items-center justify-center">
-                        <progress id="progress3" class="progress progress-accent w-full max-w-xs" value="100" max="100"></progress>
-                        <span id="timer3" class="ml-4 text-lg font-mono">10:00</span>
+                <div class="collapse collapse-open">
+                    <input type="checkbox" class="peer" />
+                    <div class="collapse-title bg-base-200 text-base-content peer-checked:bg-base-300 peer-checked:text-base-content">
+                        ➗ Aufgabe 3: Rechenaufgaben
                     </div>
-                    <button id="toggleTimer3" class="btn btn-primary mt-4 w-full" onclick="toggleTask(3)">Aufgabe beginnen</button>
-                    <div id="mathText" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
+                    <div class="collapse-content">
+                        <div class="card-body">
+                            <div class="flex items-center justify-center mt-2">
+                                <progress id="progress3" class="progress progress-accent w-full max-w-xs" value="100" max="100"></progress>
+                                <span id="timer3" class="ml-4 text-lg font-mono">10:00</span>
+                            </div>
+                            <button id="toggleTimer3" class="btn btn-primary mt-4 w-full" onclick="toggleTask(3)">🧮 Aufgabe beginnen</button>
+                            <div class="mt-4">
+                                <p class="text-center">Lösen Sie die folgenden Rechenaufgaben:</p>
+                                <div id="mathText" class="overflow-x-auto mt-4">
+                                    <!-- Rechenaufgaben werden hier eingefügt -->
+                                </div>
+                            </div>
+                            <button id="completeTask3" class="btn btn-success mt-4 w-full hidden" onclick="completeTask(3)">✔️ Aufgabe abschließen</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <!-- WhatsApp-Button -->
-        <button id="submitBtn" class="btn btn-success fixed bottom-4 right-4 hidden" onclick="sendResultsViaWhatsApp()">Per WhatsApp versenden</button>
+        <!-- Abgabe-Button -->
+        <button id="submitBtn" class="btn btn-success mt-4 w-full hidden text-xl">📤 Aufgaben abgeben</button>
     </div>
 
     <!-- Modale für Validierungen -->
@@ -152,7 +207,7 @@
     <div class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Beweis löschen?</h3>
-            <p class="py-4">Möchten Sie den Beweis wirklich löschen?</p>
+            <p class="py-4">Möchten Sie das hochgeladene Foto wirklich löschen?</p>
             <div class="modal-action">
                 <label class="btn btn-error" onclick="deleteProof()">Ja, löschen</label>
                 <label for="confirmDeleteProofModal" class="btn">Abbrechen</label>
@@ -165,7 +220,7 @@
     <div class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Aufgaben zurücksetzen?</h3>
-            <p class="py-4">Möchten Sie wirklich die Aufgaben zurücksetzen? Alle bisherigen Fortschritte gehen verloren.</p>
+            <p class="py-4">Möchten Sie wirklich das aktuelle Set an Aufgaben zurücksetzen? Alle bisherigen Fortschritte gehen verloren.</p>
             <div class="modal-action">
                 <label class="btn btn-error" onclick="resetTasks()">Ja, zurücksetzen</label>
                 <label for="confirmResetModal" class="btn">Abbrechen</label>
@@ -173,43 +228,7 @@
         </div>
     </div>
 
-    <!-- Druckfreundlicher Bereich -->
-    <div id="printableTasks" class="hidden">
-        <div style="padding: 2rem; background-color: white; color: black;">
-            <div id="printableTask1" style="margin-bottom: 2rem;">
-                <h1 style="font-size: 2rem; font-weight: bold; margin-bottom: 1rem; text-align: center;">10-Minuten-Herausforderung</h1>
-                <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Aufgabe 1: Lesen</h2>
-                <p><strong>Lesetext:</strong></p>
-                <p id="printableReadText" style="border-bottom: 2px dashed black; padding-bottom: 1rem; margin-bottom: 1rem; min-height: 60px;">
-                    <!-- Lesetext -->
-                </p>
-                <p style="margin-bottom: 2rem;"><strong>Notizen:</strong></p>
-                <div style="border-top: 2px dashed black; padding-top: 1rem; margin-bottom: 2rem; min-height: 100px;">
-                    <!-- Notizenbereich -->
-                </div>
-            </div>
-            <div id="printableTask2" style="margin-bottom: 2rem;">
-                <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Aufgabe 2: Abschreiben</h2>
-                <p><strong>Abschreibtext:</strong></p>
-                <p id="printableWriteText" style="border-bottom: 2px dashed black; padding-bottom: 1rem; margin-bottom: 1rem; min-height: 60px;">
-                    <!-- Abschreibtext -->
-                </p>
-                <p style="margin-bottom: 2rem;"><strong>Foto der Abschrift:</strong></p>
-                <div id="printableProof" style="border: 2px dashed black; padding: 1rem; margin-bottom: 2rem; min-height: 150px; text-align: center;">
-                    <!-- Platz für das Foto oder QR-Code -->
-                    <!-- Wird dynamisch eingefügt -->
-                </div>
-            </div>
-            <div id="printableTask3">
-                <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Aufgabe 3: Rechenaufgaben</h2>
-                <div id="printableMathTasks">
-                    <!-- Rechenaufgaben -->
-                    <!-- Jede Aufgabe mit einer Linie für die Antwort -->
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <!-- Skriptbereich -->
     <script>
         // Initiale Timerwerte (in Sekunden)
         const taskTimersInitial = [600, 600, 600];
@@ -221,23 +240,54 @@
         let savedAudioURL = "";
         let savedProofURL = "";
         let storedTasks = {};
+        let audioStream; // Variable to hold the media stream
+        let tasksCompleted = [false, false, false];
+
+        // Globale Variable für Stimmen
+        let voices = [];
 
         document.addEventListener("DOMContentLoaded", () => {
-            const storedTheme = localStorage.getItem("theme") || "synthwave";
-            setTheme(storedTheme);
             if (checkBrowserCompatibility()) {
                 loadTasksFromLocalStorage(); // Lade Aufgaben aus dem Local Storage
             }
+
+            // Theme Toggle
+            const themeToggle = document.getElementById('theme-toggle');
+            // Prüfe das bevorzugte Farbschema des Benutzers
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggle.checked = true;
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+                themeToggle.checked = false;
+            }
+
+            themeToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            });
+
+            // Stimmen laden
+            populateVoiceList();
+            if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = populateVoiceList;
+            }
         });
 
-        function setTheme(theme) {
-            document.documentElement.setAttribute("data-theme", theme);
-            localStorage.setItem("theme", theme);
+        function populateVoiceList() {
+            voices = speechSynthesis.getVoices();
         }
 
         function checkBrowserCompatibility() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 showValidationModal("Ihr Browser unterstützt keine Audioaufnahmen. Bitte verwenden Sie einen aktuellen Browser.");
+                return false;
+            }
+            if (!('speechSynthesis' in window)) {
+                showValidationModal("Ihr Browser unterstützt keine Text-zu-Sprache-Funktion. Bitte verwenden Sie einen aktuellen Browser.");
                 return false;
             }
             return true;
@@ -257,7 +307,7 @@
                 document.getElementById("timer3").innerText = formatTime(storedTasks.task3.timer);
 
                 // Laden der Inhalte für Aufgabe 1 und 2
-                document.getElementById("readText").innerHTML = `<strong>Lesetext:</strong><br>${storedTasks.task1.readText}`;
+                document.getElementById("readText").innerHTML = storedTasks.task1.readText;
                 document.getElementById("writeText").innerHTML = storedTasks.task2.writeText;
 
                 // Laden der gespeicherten Aufnahmen und Beweise
@@ -266,6 +316,7 @@
                     document.getElementById("audioPlayer").src = savedAudioURL;
                     document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
                     document.getElementById("savedRecording").classList.remove("hidden");
+                    document.getElementById("completeTask1").classList.remove("hidden");
                 }
 
                 if (storedTasks.task2.savedProofURL) {
@@ -274,19 +325,22 @@
                     document.getElementById("proofPreview").href = savedProofURL;
                     document.getElementById("proofPreview").classList.remove("hidden");
                     document.getElementById("savedProof").classList.remove("hidden");
-
-                    // Fügen Sie das Bild in den druckfreundlichen Bereich ein, falls vorhanden
-                    const printableProof = document.getElementById("printableProof");
-                    printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
-                    const img = document.createElement("img");
-                    img.src = savedProofURL;
-                    img.style.maxWidth = "100%";
-                    img.style.height = "auto";
-                    printableProof.appendChild(img);
+                    document.getElementById("completeTask2").classList.remove("hidden");
                 }
 
                 // Laden der Mathematikaufgaben
                 loadMathTasks();
+
+                // Überprüfen, ob Aufgaben abgeschlossen wurden
+                tasksCompleted = storedTasks.tasksCompleted || [false, false, false];
+                updateOverallProgress();
+
+                // Einklappen abgeschlossener Aufgaben
+                for (let i = 1; i <= 3; i++) {
+                    if (tasksCompleted[i - 1]) {
+                        collapseTask(i);
+                    }
+                }
             } else {
                 // Aufgaben sind nicht gespeichert, initialisieren wir sie
                 initializeTasks();
@@ -295,19 +349,18 @@
 
         function initializeTasks() {
             // Initialisierung der Inhalte für Aufgabe 1 (Lesen) und Aufgabe 2 (Schreiben)
-            const initialReadText = `**Das Geheimnis des Verborgenen Tals**
+            const initialReadText = `
+            <strong>Lesetext:</strong><br>
+            <em>Das geheime Tagebuch</em><br><br>
+            Als ich an diesem verregneten Nachmittag auf den Dachboden stieg, erwartete ich nicht, mein Leben für immer zu verändern. Zwischen staubigen alten Kisten und vergessenen Erinnerungsstücken entdeckte ich ein ledergebundenes Buch. Es war alt, sehr alt, und der Einband trug keinen Titel. Neugierig öffnete ich es und begann zu lesen.<br><br>
+            Die Seiten waren mit handgeschriebenen Notizen gefüllt, die von Abenteuern, verborgenen Schätzen und mysteriösen Begegnungen erzählten. Je mehr ich las, desto mehr fühlte ich mich mit dem unbekannten Autor verbunden. War dies das Tagebuch eines meiner Vorfahren? Oder vielleicht das eines völlig Fremden? Eines war sicher: Dies war kein gewöhnliches Tagebuch.<br><br>
+            Plötzlich spürte ich eine leichte Brise, obwohl kein Fenster geöffnet war. Ein leises Flüstern erfüllte den Raum: "Folge den Zeichen..." Mein Herz schlug schneller. Sollte ich dem Rätsel folgen, das sich vor mir entfaltete? Mit klopfendem Herzen beschloss ich, mich auf das Abenteuer einzulassen.
+            `;
 
-Einst gab es ein verborgenes Tal, umgeben von hohen Bergen und dichten Wäldern. In diesem Tal lebten Wesen, von denen niemand je gehört hatte. Sie hüteten einen Schatz, der nicht aus Gold oder Edelsteinen bestand, sondern aus reiner Weisheit. Es hieß, wer den Weg in das Tal finde und die Prüfungen bestehe, erlange Wissen, das keine Bücher lehren konnten.
-
-Eines Tages beschlossen die Geschwister Anna und Ben, das Tal zu suchen. Bewaffnet mit Mut und Neugier machten sie sich auf den Weg. Sie durchquerten stürmische Flüsse, kletterten über steile Felsen und kämpften sich durch dichte Vegetation. Nach vielen Tagen erreichten sie schließlich einen Nebel, der das Tal verbarg.
-
-Am Eingang erschienen ihnen drei Wächter. "Nur die Reinen im Herzen dürfen eintreten", sagten sie. Anna und Ben blickten sich an und antworteten: "Wir suchen nicht nach Reichtümern, sondern nach Verständnis." Die Wächter lächelten und ließen sie passieren.
-
-Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes und die Geschichten der Sterne. Sie erkannten, dass wahre Weisheit nicht im Besitz liegt, sondern im Erleben und Teilen. Mit neu gewonnenen Erkenntnissen kehrten sie zurück, bereit, die Welt mit ihrem Wissen zu bereichern.`;
-
-            const initialWriteText = `Schreibe folgenden Text sorgfältig ab:
-
-"Der wahre Wert eines Menschen zeigt sich nicht in dem, was er besitzt, sondern in dem, was er anderen gibt. Freundlichkeit und Großzügigkeit sind die Edelsteine des Herzens."`;
+            const initialWriteText = `
+            <strong>Abschreibtext:</strong><br>
+            "Ich konnte kaum glauben, was ich entdeckt hatte. Die Geheimnisse, die in diesem Tagebuch verborgen lagen, schienen älter zu sein als unsere Familie selbst. Jeder Satz, jede Zeichnung führte mich tiefer in ein Mysterium, das darauf wartete, gelüftet zu werden. Mutig entschied ich mich, dem Pfad zu folgen, auch wenn ich nicht wusste, wohin er mich führen würde."
+            `;
 
             // Speichern der initialen Aufgaben in localStorage
             storedTasks = {
@@ -328,12 +381,13 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
                     progress: 100,
                     timer: taskTimersInitial[2],
                     mathTasks: []
-                }
+                },
+                tasksCompleted: [false, false, false]
             };
             localStorage.setItem("tasks", JSON.stringify(storedTasks));
 
             // Anzeigen der initialen Inhalte
-            document.getElementById("readText").innerHTML = `<strong>Lesetext:</strong><br>${initialReadText}`;
+            document.getElementById("readText").innerHTML = initialReadText;
             document.getElementById("writeText").innerHTML = initialWriteText;
             loadMathTasks();
         }
@@ -342,7 +396,7 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             if (currentTask === taskIndex) {
                 if (taskIndex === 1) {
                     // Stoppen der Aufnahme
-                    stopTaskConfirmed(taskIndex);
+                    document.getElementById("confirmStopRecordingModal").checked = true; // Öffnet das Modal
                 } else {
                     stopTask(taskIndex);
                 }
@@ -367,7 +421,7 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             toggleButton.classList.add("btn-error");
 
             if (taskIndex === 1) {
-                toggleButton.innerHTML = '<span class="mr-2">🔴</span> Pause';
+                toggleButton.innerHTML = '<span class="mr-2">⏸️</span> Aufnahme pausieren';
                 startRecording();
             }
 
@@ -386,12 +440,12 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             const timerValue = taskTimers[taskIndex - 1];
 
             if (timerValue === 0) {
-                toggleButton.textContent = "Per WhatsApp versenden";
+                toggleButton.textContent = "Aufgabe abgeschlossen";
                 toggleButton.classList.remove("btn-error");
                 toggleButton.classList.add("btn-success");
-                document.getElementById("submitBtn").classList.remove("hidden");
+                document.getElementById(`completeTask${taskIndex}`).classList.remove("hidden");
             } else {
-                toggleButton.textContent = "Aufgabe beginnen";
+                toggleButton.innerHTML = taskIndex === 1 ? '🎙️ Aufgabe beginnen' : taskIndex === 2 ? '📝 Aufgabe beginnen' : '🧮 Aufgabe beginnen';
                 toggleButton.classList.remove("btn-error");
                 toggleButton.classList.add("btn-primary");
             }
@@ -414,14 +468,24 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
                 return;
             }
 
-            navigator.mediaDevices.getUserMedia({ audio: true })
+            navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100,
+                    channelCount: 1 // Mono-Audio
+                }
+            })
                 .then(stream => {
+                    audioStream = stream; // Save the stream to stop it later
                     const options = {
-                        mimeType: 'audio/webm', // 'audio/wav' kann auf einigen Geräten Probleme machen
+                        type: 'audio',
+                        mimeType: 'audio/webm;codecs=opus',
+                        recorderType: StereoAudioRecorder,
                         numberOfAudioChannels: 1,
-                        sampleRate: 44100 // CD quality
+                        desiredSampRate: 16000 // Optional
                     };
-                    recorder = RecordRTC(stream, options);
+                    recorder = new RecordRTC(stream, options);
                     recorder.startRecording();
                     isRecording = true;
                     console.log("Recording started using RecordRTC");
@@ -441,8 +505,14 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
                     audioPlayer.src = savedAudioURL;
                     document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
                     document.getElementById("savedRecording").classList.remove("hidden");
+                    document.getElementById("completeTask1").classList.remove("hidden");
                     isRecording = false;
                     console.log("Recording stopped.");
+                    // Release the media stream
+                    if (audioStream) {
+                        audioStream.getTracks().forEach(track => track.stop());
+                        audioStream = null;
+                    }
                     // Speichern der Aufnahme im localStorage
                     saveTasksToLocalStorage();
                 });
@@ -492,19 +562,14 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
                     proofPreview.href = e.target.result; // Setze die URL für die Vorschau
                     proofPreview.classList.remove("hidden"); // Mache den Link sichtbar
                     document.getElementById("savedProof").classList.remove("hidden");
+                    document.getElementById("completeTask2").classList.remove("hidden");
                     savedProofURL = e.target.result;
-
-                    // Fügen Sie das Bild in den druckfreundlichen Bereich ein
-                    const printableProof = document.getElementById("printableProof");
-                    printableProof.innerHTML = ''; // Leeren vor dem Hinzufügen
-                    const img = document.createElement("img");
-                    img.src = savedProofURL;
-                    img.style.maxWidth = "100%";
-                    img.style.height = "auto";
-                    printableProof.appendChild(img);
 
                     // Speichern des Beweises im localStorage
                     saveTasksToLocalStorage();
+
+                    // Bewertung der Handschrift und Ausgabe in der Konsole
+                    assessHandwriting();
                 };
                 reader.readAsDataURL(file);
             }
@@ -520,9 +585,10 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             document.getElementById("proofName").innerText = "";
             document.getElementById("proofPreview").classList.add("hidden"); // Verstecke den Vorschau-Link
             savedProofURL = "";
-            document.getElementById("printableProof").innerHTML = ''; // Entfernt das Bild im Druckbereich
+            document.getElementById("completeTask2").classList.add("hidden");
             // Aktualisieren im localStorage
             saveTasksToLocalStorage();
+            document.getElementById("confirmDeleteProofModal").checked = false; // Modal schließen
         }
 
         function confirmDeleteRecording() {
@@ -533,28 +599,53 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             document.getElementById("savedRecording").classList.add("hidden");
             document.getElementById("audioPlayer").src = "";
             savedAudioURL = "";
+            document.getElementById("completeTask1").classList.add("hidden");
             document.getElementById("confirmDeleteRecordingModal").checked = false; // Modal schließen
             // Aktualisieren im localStorage
             saveTasksToLocalStorage();
         }
 
         function checkSubmission() {
-            let message = "";
-            if (!savedAudioURL && !savedProofURL && !hasAnyMathInput()) {
-                message = "Bitte füllen Sie mindestens eine Aufgabe aus: eine Aufnahme in Aufgabe 1, ein Bild in Aufgabe 2 oder eine Berechnung in Aufgabe 3.";
+            if (!tasksCompleted.includes(false)) {
+                showValidationModal("Alle Aufgaben erfolgreich abgeschlossen! Danke für Ihre Teilnahme.");
+                // Hier können Sie zusätzliche Logik hinzufügen, z.B. Ergebnisse versenden
             } else {
-                message = "Alle Anforderungen erfüllt oder mindestens eine Aufgabe abgeschlossen. Abgabe erfolgreich!";
-                // Nach erfolgreicher Abgabe speichern wir den aktuellen Stand
-                saveTasksToLocalStorage();
-                // Bereinigen der gespeicherten Aufgaben, um bei nächstem Laden ein neues Set zu generieren
-                localStorage.removeItem("tasks");
+                showValidationModal("Bitte schließen Sie alle Aufgaben ab, bevor Sie sie abgeben.");
             }
-            showValidationModal(message);
         }
 
-        function hasAnyMathInput() {
-            const mathInputs = document.querySelectorAll("#mathText input");
-            return Array.from(mathInputs).some(input => input.value.trim() !== "");
+        function completeTask(taskIndex) {
+            tasksCompleted[taskIndex - 1] = true;
+            document.getElementById(`completeTask${taskIndex}`).classList.add("hidden");
+            document.getElementById(`toggleTimer${taskIndex}`).classList.add("hidden");
+            // Aktualisierung der Gesamtfortschrittsanzeige
+            updateOverallProgress();
+            // Zeige den Abgabe-Button an, wenn alle Aufgaben abgeschlossen sind
+            if (!tasksCompleted.includes(false)) {
+                document.getElementById("submitBtn").classList.remove("hidden");
+            }
+            // Einklappen der abgeschlossenen Aufgabe
+            collapseTask(taskIndex);
+            saveTasksToLocalStorage();
+        }
+
+        function collapseTask(taskIndex) {
+            const taskCollapse = document.querySelector(`#task${taskIndex} .collapse`);
+            if (taskCollapse) {
+                taskCollapse.classList.remove('collapse-open');
+                taskCollapse.classList.add('collapse-close');
+                // Das entsprechende Checkbox-Element deaktivieren
+                const inputCheckbox = taskCollapse.querySelector('input[type="checkbox"]');
+                if (inputCheckbox) {
+                    inputCheckbox.checked = false;
+                }
+            }
+        }
+
+        function updateOverallProgress() {
+            const completedCount = tasksCompleted.filter(Boolean).length;
+            document.getElementById("overallProgress").value = completedCount;
+            document.getElementById("progressText").innerText = `${completedCount} von 3 Aufgaben abgeschlossen`;
         }
 
         function formatTime(seconds) {
@@ -572,18 +663,40 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             taskIntervals.forEach(interval => clearInterval(interval));
             taskIntervals = [null, null, null];
             currentTask = null;
-            document.querySelectorAll('[id^=toggleTimer]').forEach(btn => {
-                btn.textContent = 'Aufgabe beginnen';
-                btn.classList.remove("btn-error", "btn-success");
+            tasksCompleted = [false, false, false];
+            document.querySelectorAll('[id^=toggleTimer]').forEach((btn, index) => {
+                btn.innerHTML = index === 0 ? '🎙️ Aufgabe beginnen' : index === 1 ? '📝 Aufgabe beginnen' : '🧮 Aufgabe beginnen';
+                btn.classList.remove("btn-error", "btn-success", "hidden");
                 btn.classList.add("btn-primary");
             });
+            document.querySelectorAll('[id^=completeTask]').forEach(btn => {
+                btn.classList.add("hidden");
+            });
+
+            // Entfernen der Code, die die Collapses öffnet oder schließt
+            // Ursprünglich:
+            /*
+            // Einklappen aller Aufgaben
+            document.querySelectorAll('.collapse').forEach(collapse => {
+                collapse.classList.add('collapse-open');
+                collapse.classList.remove('collapse-close');
+                const inputCheckbox = collapse.querySelector('input[type="checkbox"]');
+                if (inputCheckbox) {
+                    inputCheckbox.checked = true;
+                }
+            });
+            */
+            // Diese Zeilen wurden entfernt, um die Collapses nicht zu beeinflussen
+
             updateTimerDisplays();
             deleteRecording();
             deleteProof();
+            document.getElementById("submitBtn").classList.add("hidden");
             // Entfernen der gespeicherten Aufgaben aus dem localStorage
             localStorage.removeItem("tasks");
             // Initialisieren neuer Aufgaben
             initializeTasks();
+            updateOverallProgress();
             document.getElementById("confirmResetModal").checked = false; // Schließen des Modals
         }
 
@@ -599,86 +712,97 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             mathContainer.innerHTML = '';
 
             let mathTasks = storedTasks.task3.mathTasks;
-            if (mathTasks.length === 32) {
+            if (mathTasks.length === 20) {
                 // Bereits vorhandene Aufgaben verwenden
             } else {
                 // Neue Mathematikaufgaben generieren
                 mathTasks = [];
-                const operators = ["+", "-", "*"];
-                for (let i = 0; i < 32; i++) {
-                    const num1 = Math.floor(Math.random() * 20) + 1;
-                    const num2 = Math.floor(Math.random() * 20) + 1;
-                    const operator1 = operators[Math.floor(Math.random() * operators.length)];
-                    let taskText = `${num1} ${operator1} ${num2}`;
+                const operators = ["+", "-", "*", "/"];
+                for (let i = 0; i < 20; i++) {
+                    const num1 = Math.floor(Math.random() * 50) + 1;
+                    const num2 = Math.floor(Math.random() * 50) + 1;
+                    const operator = operators[Math.floor(Math.random() * operators.length)];
+                    let taskText = `${num1} ${operator} ${num2}`;
                     let answer;
                     try {
-                        answer = eval(taskText);
+                        if (operator === '/' && num2 === 0) {
+                            answer = "?";
+                        } else {
+                            answer = eval(taskText).toFixed(2);
+                        }
                     } catch (error) {
                         answer = "?";
                     }
-                    mathTasks.push({ num1, num2, operator: operator1, answer, userAnswer: "" });
+                    mathTasks.push({ num1, num2, operator, answer, userAnswer: "" });
                 }
                 storedTasks.task3.mathTasks = mathTasks;
+                saveTasksToLocalStorage();
             }
 
             // Mathematikaufgaben anzeigen
+            const table = document.createElement("table");
+            table.classList.add("table", "w-full");
+
+            const tbody = document.createElement("tbody");
+
             mathTasks.forEach((task, index) => {
-                const taskDiv = document.createElement("div");
-                taskDiv.classList.add("flex", "items-center", "justify-center", "mb-2");
+                const tr = document.createElement("tr");
 
-                const taskNumber = document.createElement("span");
-                taskNumber.classList.add("mr-2");
-                taskNumber.innerText = `${index + 1}.`;
+                const tdIndex = document.createElement("td");
+                tdIndex.textContent = index + 1;
+                tdIndex.classList.add("font-bold");
 
-                const taskTextElement = document.createElement("span");
-                taskTextElement.classList.add("mr-2");
-                taskTextElement.innerText = `${task.num1} ${task.operator} ${task.num2} =`;
+                const tdTask = document.createElement("td");
+                tdTask.textContent = `${task.num1} ${task.operator} ${task.num2} =`;
 
+                const tdInput = document.createElement("td");
                 const input = document.createElement("input");
                 input.type = "text";
-                input.classList.add("input", "input-bordered", "ml-2", "w-16");
+                input.classList.add("input", "input-bordered", "w-full", "max-w-xs");
                 input.dataset.index = index;
                 input.value = task.userAnswer || "";
                 input.addEventListener('input', function() {
-                    this.value = this.value.replace(/[^0-9\-]/g, ''); // Erlaubt Zahlen und Minuszeichen
+                    this.value = this.value.replace(/[^0-9\.\-]/g, ''); // Erlaubt Zahlen, Punkt und Minuszeichen
                     storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value;
                     saveTasksToLocalStorage();
+
+                    // Überprüfe, ob alle Felder ausgefüllt sind
+                    if (checkAllMathInputsFilled()) {
+                        document.getElementById("completeTask3").classList.remove("hidden");
+                    } else {
+                        document.getElementById("completeTask3").classList.add("hidden");
+                    }
                 });
                 input.disabled = true; // Initial disabled
+                tdInput.appendChild(input);
 
-                taskDiv.appendChild(taskNumber);
-                taskDiv.appendChild(taskTextElement);
-                taskDiv.appendChild(input);
+                tr.appendChild(tdIndex);
+                tr.appendChild(tdTask);
+                tr.appendChild(tdInput);
 
-                mathContainer.appendChild(taskDiv);
+                tbody.appendChild(tr);
             });
+
+            table.appendChild(tbody);
+            mathContainer.appendChild(table);
+
+            // Überprüfe beim Laden, ob alle Felder bereits ausgefüllt sind
+            if (checkAllMathInputsFilled()) {
+                document.getElementById("completeTask3").classList.remove("hidden");
+            } else {
+                document.getElementById("completeTask3").classList.add("hidden");
+            }
         }
 
-        function sendResultsViaWhatsApp() {
-            let message = "";
-            // Aufgabe 1
-            message += "Aufgabe 1: Lesen\n";
-            message += "Lesetext:\n" + storedTasks.task1.readText + "\n";
-            message += "Aufnahme: " + (savedAudioURL ? "Vorhanden" : "Keine Aufnahme") + "\n\n";
-
-            // Aufgabe 2
-            message += "Aufgabe 2: Abschreiben\n";
-            message += "Abschreibtext:\n" + storedTasks.task2.writeText + "\n";
-            message += "Foto der Abschrift: " + (savedProofURL ? "Vorhanden" : "Kein Foto hochgeladen") + "\n\n";
-
-            // Aufgabe 3
-            message += "Aufgabe 3: Rechenaufgaben\n";
-            storedTasks.task3.mathTasks.forEach((task, index) => {
-                let userAnswer = task.userAnswer || "";
-                message += `${index + 1}. ${task.num1} ${task.operator} ${task.num2} = ${userAnswer} (Lösung: ${task.answer})\n`;
-            });
-
-            // Encode message for URL
-            const encodedMessage = encodeURIComponent(message);
-
-            // Open WhatsApp
-            const whatsappURL = `https://wa.me/?text=${encodedMessage}`;
-            window.open(whatsappURL, '_blank');
+        // Funktion zur Überprüfung, ob alle Mathe-Eingabefelder ausgefüllt sind
+        function checkAllMathInputsFilled() {
+            const inputs = document.querySelectorAll("#mathText input");
+            for (let input of inputs) {
+                if (input.value.trim() === "") {
+                    return false;
+                }
+            }
+            return true;
         }
 
         function saveTasksToLocalStorage() {
@@ -695,8 +819,18 @@ Im Tal lernten sie von den Wesen die Sprache der Natur, die Melodie des Windes u
             storedTasks.task3.timer = taskTimers[2];
             // Math-Aufgaben werden bereits aktualisiert
 
+            storedTasks.tasksCompleted = tasksCompleted;
+
             localStorage.setItem("tasks", JSON.stringify(storedTasks));
         }
+
+        // Neue Funktion zur Bewertung der Handschrift
+        function assessHandwriting() {
+            // Simuliere eine Bewertung der Handschrift
+            const percentage = Math.floor(Math.random() * 51) + 50; // Zufälliger Wert zwischen 50% und 100%
+            console.log(`Handwriting quality: ${percentage}%`);
+        }
+
     </script>
 </body>
 </html>
