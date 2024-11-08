@@ -11,6 +11,9 @@
     <!-- RecordRTC.js -->
     <script src="https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.js"></script>
 
+    <!-- Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
     <!-- Setze das Farbschema basierend auf den Systemeinstellungen -->
     <script>
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -824,11 +827,40 @@
             localStorage.setItem("tasks", JSON.stringify(storedTasks));
         }
 
-        // Neue Funktion zur Bewertung der Handschrift
-        function assessHandwriting() {
-            // Simuliere eine Bewertung der Handschrift
-            const percentage = Math.floor(Math.random() * 51) + 50; // Zufälliger Wert zwischen 50% und 100%
-            console.log(`Handwriting quality: ${percentage}%`);
+        // Neue Funktion zur Bewertung der Handschrift mit Tesseract.js
+        async function assessHandwriting() {
+            if (!savedProofURL) {
+                console.log("Keine Abschrift zum Analysieren vorhanden.");
+                return;
+            }
+
+            console.log("Starte Handschriftbewertung...");
+
+            try {
+                const result = await Tesseract.recognize(
+                    savedProofURL,
+                    'deu',
+                    {
+                        logger: m => console.log(m) // Fortschrittsmeldungen in der Konsole
+                    }
+                );
+
+                // Extrahiere die erkannten Wörter und deren Konfidenz
+                const words = result.data.words;
+                if (words.length === 0) {
+                    console.log("Keine Worte erkannt. Handschriftqualität: 0%");
+                    return;
+                }
+
+                // Berechne die durchschnittliche Konfidenz
+                const totalConfidence = words.reduce((sum, word) => sum + word.confidence, 0);
+                const averageConfidence = totalConfidence / words.length;
+                const handwritingQuality = Math.round(averageConfidence * 100); // In Prozent
+
+                console.log(`Handwriting quality: ${handwritingQuality}%`);
+            } catch (error) {
+                console.error("Fehler bei der Handschriftbewertung:", error);
+            }
         }
 
     </script>
