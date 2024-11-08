@@ -87,6 +87,11 @@
                                     <button class="btn btn-error btn-sm ml-auto" onclick="confirmDeleteRecording()">🗑️ Löschen</button>
                                 </div>
                             </div>
+                            <!-- Alternative Audio Upload -->
+                            <div id="alternativeAudioUpload" class="mt-4 hidden">
+                                <label for="audioFileUpload" class="btn btn-secondary w-full">🎧 Alternativ: Audiodatei hochladen</label>
+                                <input id="audioFileUpload" type="file" accept="audio/*" class="hidden" onchange="uploadAudioFile()" />
+                            </div>
                             <button id="completeTask1" class="btn btn-success mt-4 w-full hidden" onclick="completeTask(1)">✔️ Aufgabe abschließen</button>
                         </div>
                     </div>
@@ -495,7 +500,13 @@
                 })
                 .catch(error => {
                     console.error("Fehler beim Starten der Aufnahme:", error);
-                    showValidationModal("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
+                    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                        // Zeige alternative Audio-Upload-Option
+                        document.getElementById("alternativeAudioUpload").classList.remove("hidden");
+                        showValidationModal("Mikrofon nicht gefunden. Bitte laden Sie eine Audiodatei hoch.");
+                    } else {
+                        showValidationModal("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
+                    }
                 });
         }
 
@@ -575,6 +586,26 @@
                     assessHandwriting();
                 };
                 reader.readAsDataURL(file);
+            }
+            fileInput.value = "";
+        }
+
+        function uploadAudioFile() {
+            const fileInput = document.getElementById("audioFileUpload");
+            const file = fileInput.files[0];
+            if (file) {
+                const audioURL = URL.createObjectURL(file);
+                savedAudioURL = audioURL;
+                const audioPlayer = document.getElementById("audioPlayer");
+                audioPlayer.src = audioURL;
+                document.getElementById("recordingName").innerText = "Audiodatei hochgeladen";
+                document.getElementById("savedRecording").classList.remove("hidden");
+                document.getElementById("completeTask1").classList.remove("hidden");
+                document.getElementById("alternativeAudioUpload").classList.add("hidden");
+                console.log("Audiodatei erfolgreich hochgeladen.");
+
+                // Speichern der Audiodatei im localStorage
+                saveTasksToLocalStorage();
             }
             fileInput.value = "";
         }
@@ -694,6 +725,8 @@
             updateTimerDisplays();
             deleteRecording();
             deleteProof();
+            // Verstecke auch den alternativen Audio-Upload, falls sichtbar
+            document.getElementById("alternativeAudioUpload").classList.add("hidden");
             document.getElementById("submitBtn").classList.add("hidden");
             // Entfernen der gespeicherten Aufgaben aus dem localStorage
             localStorage.removeItem("tasks");
@@ -861,6 +894,27 @@
             } catch (error) {
                 console.error("Fehler bei der Handschriftbewertung:", error);
             }
+        }
+
+        // Neue Funktion zum Hochladen und Verarbeiten einer Audiodatei
+        function uploadAudioFile() {
+            const fileInput = document.getElementById("audioFileUpload");
+            const file = fileInput.files[0];
+            if (file) {
+                const audioURL = URL.createObjectURL(file);
+                savedAudioURL = audioURL;
+                const audioPlayer = document.getElementById("audioPlayer");
+                audioPlayer.src = audioURL;
+                document.getElementById("recordingName").innerText = "Audiodatei hochgeladen";
+                document.getElementById("savedRecording").classList.remove("hidden");
+                document.getElementById("completeTask1").classList.remove("hidden");
+                document.getElementById("alternativeAudioUpload").classList.add("hidden");
+                console.log("Audiodatei erfolgreich hochgeladen.");
+
+                // Speichern der Audiodatei im localStorage
+                saveTasksToLocalStorage();
+            }
+            fileInput.value = "";
         }
 
     </script>
