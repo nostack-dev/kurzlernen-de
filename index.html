@@ -134,7 +134,7 @@
                             <progress id="progress2" class="progress progress-secondary w-56" value="100" max="100"></progress>
                         </div>
                     </div>
-                    <p id="handwritingQuality" class="mt-2">Handschriftqualität: <span id="qualityValue">0%</span></p>
+                    <p id="handwritingQuality" class="mt-2"><span id="qualityValue"></span></p>
                     <label for="proofUpload" class="btn btn-secondary mt-4 w-full">📷 Foto der Abschrift aufnehmen</label>
                     <input id="proofUpload" type="file" accept="image/*" capture="camera" class="hidden" onchange="uploadProof()" />
                     <div id="savedProof" class="mt-4 hidden">
@@ -284,8 +284,8 @@
         <div class="hero min-h-screen bg-base-200">
             <div class="hero-content text-center">
                 <div class="max-w-md">
-                    <h1 class="text-5xl font-bold">Danke dir!</h1>
-                    <p class="py-6">Super! Du hast alle Aufgaben erfolgreich abgeschlossen und abgegeben. Wenn du magst, kannst du deine Aufgaben und deine Lösungen hier herunterladen.</p>
+                    <h1 class="text-5xl font-bold">Super!</h1>
+                    <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du deine sie hier herunterladen.</p>
                     <button class="btn btn-primary" onclick="downloadZip()">📥 Ergebnisse herunterladen</button>
                 </div>
             </div>
@@ -779,7 +779,7 @@ async function stopRecording(taskIndex) {
                 timerMinutesElement.style.setProperty('--value', '0');
                 timerSecondsElement.style.setProperty('--value', '00');
 
-                if (taskIndex === 1) {
+                if(taskIndex === 1 && recorder && isRecording){
                     stopRecording(taskIndex);
                 } else {
                     if (taskIntervals[taskIndex - 1]) {
@@ -858,7 +858,7 @@ function deleteProof() {
     document.getElementById("proofPreview").classList.add("hidden");
     savedProofURL = "";
     storedTasks.task2.savedProofURL = null; // URL entfernen
-    document.getElementById("qualityValue").innerText = "0%";
+    document.getElementById("qualityValue").innerText = "";
     checkAllTasksCompleted();
     saveTasksToLocalStorage();
     document.getElementById("confirmDeleteProofModal").checked = false;
@@ -914,7 +914,7 @@ function deleteProof() {
                     document.getElementById("proofPreview").href = "#";
                     document.getElementById("proofPreview").classList.add("hidden");
                     document.getElementById("savedProof").classList.add("hidden");
-                    document.getElementById("qualityValue").innerText = "0%";
+                    document.getElementById("qualityValue").innerText = "";
                 }
             }
 
@@ -994,7 +994,9 @@ function deleteProof() {
         function confirmCompleteTask(taskIndex) {
             document.getElementById("validationMessage").innerHTML = "Möchtest du die Aufgabe wirklich abschließen?";
             const confirmButton = document.getElementById("modalConfirmButton");
-
+            if(taskIndex === 1){               
+                    stopRecording(taskIndex);
+                } 
             // Entferne vorherige Event-Listener, um Mehrfachauslösungen zu vermeiden
             confirmButton.removeEventListener('click', handleTaskCompletion);
 
