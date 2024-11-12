@@ -815,7 +815,7 @@
             try {
                 const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/mp4' : 'audio/mp4';
                 const mediaRecorder = new MediaRecorder(audioStream, { mimeType });
 
                 const audioChunks = [];
