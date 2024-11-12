@@ -1177,7 +1177,7 @@ async function startRecording() {
                         const base64Image = scaledDataUrl.split(',')[1]; // Entfernt den Data-URL-Header
                         storedTasks.task2.proofDataURL = base64Image; // Speichere den Base64-String
                         savedProofURL = scaledDataUrl; // Für die Vorschau
-                        document.getElementById("proofName").innerText = file.name;
+                        document.getElementById("proofName").innerText = "Abschrift.jpg";
                         const proofPreview = document.getElementById("proofPreview");
                         proofPreview.href = savedProofURL;
                         //proofPreview.classList.remove("hidden");
