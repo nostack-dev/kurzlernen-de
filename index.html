@@ -325,9 +325,10 @@
                     <h1 class="text-5xl font-bold">Super!</h1>
                     <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier
                         herunterladen.</p>
-                    <button class="btn btn-primary" onclick="downloadZip()">📥 Ergebnisse herunterladen</button>
+
                     <button class="btn btn-accent mr-4" onclick="confirmResetTasks()" id="newTasksBtn">🔄 Neu
                         Starten</button>
+                    <button class="btn btn-primary" onclick="downloadZip()">📥 Ergebnisse herunterladen</button>
 
                 </div>
             </div>
@@ -904,7 +905,7 @@
                 }
             }
             if (!combinedBlob) {
-                console.error("Aufnahme wurde nicht gestartet oder Recorder ist nicht initialisiert.");
+                console.log("Aufnahme wurde nicht gestartet oder Recorder ist wurde bereits de-initialisiert.");
                 showValidationModal("Die Aufnahmedatei fehlt. Versuche es bitte nochmal.");
             }
 
