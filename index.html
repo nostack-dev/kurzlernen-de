@@ -65,6 +65,7 @@
             <progress id="overallProgress" class="progress progress-info w-full" value="0" max="3"></progress>
             <p id="progressText" class="mt-2">0 von 3 Aufgaben abgeschlossen</p>
         </div>
+<div id="toast-container" class="fixed bottom-4 right-4 space-y-2"></div>
 
         <!-- Aufgaben-Bereich -->
         <div id="tasks" class="mt-6 space-y-4">
@@ -316,24 +317,26 @@
             </div>
         </div>
     </div>
-
-    <!-- Vielen Dank Seite -->
-    <div id="thankYouPage" class="hidden">
-        <div class="hero min-h-screen bg-base-200">
-            <div class="hero-content text-center">
-                <div class="max-w-md">
-                    <h1 class="text-5xl font-bold">Super!</h1>
-                    <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier
-                        herunterladen.</p>
-
-                    <button class="btn btn-accent mr-4" onclick="confirmResetTasks()" id="newTasksBtn">🔄 Neu
-                        Starten</button>
-                    <button class="btn btn-primary" onclick="downloadZip()">📥 Ergebnisse herunterladen</button>
-
+<!-- Vielen Dank Seite -->
+<div id="thankYouPage" class="hidden">
+    <div class="hero min-h-screen bg-base-200">
+        <div class="hero-content text-center">
+            <div class="max-w-md space-y-6">
+                <h1 class="text-5xl font-bold">Super!</h1>
+                <p class="py-4">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier herunterladen.</p>
+                <div class="flex justify-center space-x-4">
+                    <button class="btn btn-primary" onclick="downloadZip()">
+                        📥 Ergebnisse herunterladen
+                    </button>
+                    <button class="btn btn-success" onclick="shareOnWhatsApp()">
+                        📤 Über WhatsApp teilen
+                    </button>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
 
     <!-- Skriptbereich -->
     <script>
@@ -1302,7 +1305,61 @@
             submitted = true;
             saveTasksToLocalStorage();
         }
-
+async function shareOnWhatsApp() {
+    // Überprüfen, ob navigator.share und canShare verfügbar sind und Dateien unterstützt werden
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File(["dummy"], "dummy.txt")] })) {
+        // Erstellen einer neuen Instanz von JSZip
+        const zip = new JSZip();
+        
+        // Beispiel: Dateien zur ZIP hinzufügen
+        zip.file("ergebnis.txt", "Hier sind deine Ergebnisse!");
+        zip.file("zusammenfassung.txt", "Zusammenfassung deiner Aufgaben.");
+        
+        // ZIP-Datei generieren
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const zipFile = new File([zipBlob], 'Ergebnisse.zip', { type: 'application/zip' });
+        
+        try {
+            // Freigabe mit navigator.share versuchen
+            await navigator.share({
+                title: 'Ergebnisse teilen',
+                text: 'Hier sind meine Ergebnisse! Schau mal rein:',
+                files: [zipFile]
+            });
+            showToast('Erfolgreich geteilt', 'success');
+        } catch (error) {
+            // Fehlerbehandlung bei fehlenden Berechtigungen oder anderem Fehler
+            if (error.name === 'NotAllowedError') {
+                showToast('Freigabe abgelehnt. Stelle sicher, dass die Berechtigungen korrekt sind.', 'warning');
+            } else {
+                console.error('Fehler bei der Freigabe:', error);
+                showToast('Freigabe fehlgeschlagen.', 'error');
+            }
+        }
+    } else {
+        showToast('Dein Gerät oder Browser unterstützt die direkte Freigabe von Dateien nicht.', 'error');
+    }
+}
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    
+    // DaisyUI Toast Styles basierend auf dem Typ
+    toast.className = `alert alert-${type} shadow-lg`;
+    toast.innerHTML = `
+        <div>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    // Toast zum Container hinzufügen
+    toastContainer.appendChild(toast);
+    
+    // Toast nach 4 Sekunden entfernen
+    setTimeout(() => {
+        toast.remove();
+    }, 4000);
+}
         function disableAllInteractions() {
             document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .btn-success, #task1 .btn-error, #task1 .btn-warning, ' +
                 '#task2 .btn-primary, #task2 .btn-secondary, #task2 .btn-success, #task2 .btn-error, #task2 .btn-warning, ' +
@@ -1335,37 +1392,38 @@
             startRecordingProcess();
         }
 
-        // Funktion zum Erstellen und Herunterladen der ZIP-Datei
-        async function downloadZip() {
-            const zip = new JSZip();
+   let cachedZipBlob = null; // Globale Variable zum Speichern der ZIP-Datei
 
-            // Aufgabe 1: Aufnahme hinzufügen
-            if (storedTasks.task1.audioData) {
-                // Dekodieren des Base64-Strings
-                const audioBlob = base64ToBlob(storedTasks.task1.audioData, 'audio/wav');
-                zip.file("Aufnahme.wav", audioBlob);
-            }
+async function downloadZip() {
+    const zip = new JSZip();
 
-            // Aufgabe 2: Foto der Abschrift hinzufügen
-            if (storedTasks.task2.proofDataURL) {
-                const imgBlob = base64ToBlob(storedTasks.task2.proofDataURL, 'image/png');
-                zip.file("Abschrift.png", imgBlob);
-            }
+    // Aufgabe 1: Aufnahme hinzufügen
+    if (storedTasks.task1.audioData) {
+        const audioBlob = base64ToBlob(storedTasks.task1.audioData, 'audio/wav');
+        zip.file("Aufnahme.wav", audioBlob);
+    }
 
-            // Aufgabe 3: Rechenaufgaben inklusive Lösungen
-            const mathContent = generateMathContent();
-            zip.file("Rechenaufgaben.txt", mathContent);
+    // Aufgabe 2: Foto der Abschrift hinzufügen
+    if (storedTasks.task2.proofDataURL) {
+        const imgBlob = base64ToBlob(storedTasks.task2.proofDataURL, 'image/png');
+        zip.file("Abschrift.png", imgBlob);
+    }
 
-            // Aufgabentexte hinzufügen
-            zip.file("Lesetext.html", storedTasks.task1.readText);
-            zip.file("Abschreibtext.html", storedTasks.task2.writeText);
+    // Aufgabe 3: Rechenaufgaben inklusive Lösungen
+    const mathContent = generateMathContent();
+    zip.file("Rechenaufgaben.txt", mathContent);
 
-            // ZIP-Datei generieren und herunterladen
-            zip.generateAsync({ type: "blob" })
-                .then(function (content) {
-                    saveAs(content, generateFilename());
-                });
-        }
+    // Aufgabentexte hinzufügen
+    zip.file("Lesetext.html", storedTasks.task1.readText);
+    zip.file("Abschreibtext.html", storedTasks.task2.writeText);
+
+    // ZIP-Datei generieren und zwischenspeichern
+    cachedZipBlob = await zip.generateAsync({ type: "blob" });
+    
+    // Herunterladen der ZIP-Datei
+    saveAs(cachedZipBlob, generateFilename());
+}
+
         function generateFilename() {
             const now = new Date();
 
