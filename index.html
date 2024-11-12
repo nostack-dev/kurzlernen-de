@@ -326,13 +326,13 @@ https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.min.js
         <div class="hero-content text-center">
             <div class="max-w-md space-y-6">
                 <h1 class="text-5xl font-bold">Super!</h1>
-                <p class="py-4">Yeah! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier die Lösungen als Datei herunterladen oder über WhatsApp teilen und deinen Eltern zeigen.</p>
+                <p class="py-4">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier herunterladen.</p>
                 <div class="flex justify-center space-x-4">
                     <button class="btn btn-primary" onclick="downloadZip()">
                         📥 Herunterladen
                     </button>
-                    <button class="btn btn-success" onclick="shareOnWhatsApp()">
-                        📤  WhatsApp teilen
+                    <button class="btn btn-success" onclick="shareFile()">
+                        📤 Teilen
                     </button>
                 </div>
             </div>
@@ -1294,15 +1294,26 @@ async function startRecording() {
             submitted = true;
             saveTasksToLocalStorage();
         }
-async function shareOnWhatsApp() {
-    // Überprüfen, ob navigator.share und canShare verfügbar sind und Dateien unterstützt werden
+async function shareFile() {
+     // Überprüfen, ob navigator.share und canShare verfügbar sind und Dateien unterstützt werden
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File(["dummy"], "dummy.txt")] })) {
+        
         // Erstellen einer neuen Instanz von JSZip
         const zip = new JSZip();
         
-        // Beispiel: Dateien zur ZIP hinzufügen
-        zip.file("ergebnis.txt", "Hier sind deine Ergebnisse!");
-        zip.file("zusammenfassung.txt", "Zusammenfassung deiner Aufgaben.");
+        // Dateien zur ZIP hinzufügen
+        if (storedTasks.task1.audioData) {
+            const audioBlob = base64ToBlob(storedTasks.task1.audioData, 'audio/wav');
+            zip.file("Aufnahme.wav", audioBlob);
+        }
+        if (storedTasks.task2.proofDataURL) {
+            const imgBlob = base64ToBlob(storedTasks.task2.proofDataURL, 'image/png');
+            zip.file("Abschrift.png", imgBlob);
+        }
+        const mathContent = generateMathContent();
+        zip.file("Rechenaufgaben.txt", mathContent);
+        zip.file("Lesetext.html", storedTasks.task1.readText);
+        zip.file("Abschreibtext.html", storedTasks.task2.writeText);
         
         // ZIP-Datei generieren
         const zipBlob = await zip.generateAsync({ type: "blob" });
@@ -1329,8 +1340,10 @@ async function shareOnWhatsApp() {
         showToast('Dein Gerät oder Browser unterstützt die direkte Freigabe von Dateien nicht.', 'error');
     }
 }
+
+// Toast-Funktion für Benachrichtigungen
 function showToast(message, type = 'info') {
-    const toastContainer = document.getElementById('toast-container');
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
     const toast = document.createElement('div');
     
     // DaisyUI Toast Styles basierend auf dem Typ
@@ -1348,6 +1361,15 @@ function showToast(message, type = 'info') {
     setTimeout(() => {
         toast.remove();
     }, 4000);
+}
+
+// Funktion zur Erstellung des Toast-Containers, falls dieser noch nicht existiert
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'fixed top-4 right-4 space-y-4 z-50';
+    document.body.appendChild(container);
+    return container;
 }
         function disableAllInteractions() {
             document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .btn-success, #task1 .btn-error, #task1 .btn-warning, ' +
