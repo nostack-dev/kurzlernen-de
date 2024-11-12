@@ -692,7 +692,7 @@
 
         async function stopRecording(taskIndex) {
             document.getElementById("confirmStopRecordingModal").checked = false;
-
+            let combinedBlob;
             if (taskIndex === 1 && recorder && isRecording) {
                 try {
                     const blob = await recorder.stopRecording();
@@ -706,7 +706,7 @@
                     recordedBlobs = [blob];
 
                     try {
-                        const combinedBlob = new Blob(recordedBlobs, { type: 'audio/wav' });
+                        combinedBlob = new Blob(recordedBlobs, { type: 'audio/wav' });
                         savedAudioURL = URL.createObjectURL(combinedBlob);
                         storedTasks.task1.savedAudioURL = savedAudioURL;
 
@@ -738,9 +738,10 @@
                     console.error("Fehler beim Stoppen der Aufnahme:", error);
                     showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
                 }
-            } else {
+            } 
+            if(!combinedBlob){
                 console.error("Aufnahme wurde nicht gestartet oder Recorder ist nicht initialisiert.");
-                showValidationModal("Aufnahme wurde nicht gestartet.");
+                showValidationModal("Die Aufnahmedatei fehlt. Versuche es bitte nochmal.");
             }
 
             if (taskIntervals[taskIndex - 1]) {
