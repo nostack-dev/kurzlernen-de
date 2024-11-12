@@ -236,7 +236,7 @@
             <h3 class="font-bold text-lg">Foto deiner Abschrift löschen?</h3>
             <p class="py-4">Bist du sicher, dass du das hochgeladene Foto deiner Abschrift löschen möchtest?</p>
             <div class="modal-action">
-                <button class="btn btn-error" onclick="deleteProof()">Ja, bitte löschen</button>
+                <button class="btn btn-error btn-sm ml-2" onclick="deleteProof()">Ja, bitte löschen</button>
                 <label for="confirmDeleteProofModal" class="btn">Nein, behalten</label>
             </div>
         </div>
@@ -401,7 +401,7 @@
             updateTimerDisplays();
         });
 
-        // **Neue Funktion zur Browserkompatibilitätsprüfung**
+        // Neue Funktion zur Browserkompatibilitätsprüfung
         function checkBrowserCompatibility() {
             // Überprüfen, ob getUserMedia und MediaRecorder verfügbar sind
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -458,7 +458,7 @@
                         document.getElementById("proofName").innerText = "Foto geladen";
                         const proofPreview = document.getElementById("proofPreview");
                         proofPreview.href = savedProofURL;
-                        //proofPreview.classList.remove("hidden");
+                        proofPreview.classList.remove("hidden");
                         document.getElementById("savedProof").classList.remove("hidden");
                     }
 
@@ -485,29 +485,37 @@
         function initializeTasks() {
             // Aufgaben initialisieren
             const initialReadText = `
-            <em>Das geheime Tagebuch</em><br><br>
-            Als ich an diesem verregneten Nachmittag auf den Dachboden stieg, erwartete ich nicht, mein Leben für immer zu verändern. Zwischen staubigen alten Kisten und vergessenen Erinnerungsstücken entdeckte ich ein ledergebundenes Buch. Es war alt, sehr alt, und der Einband trug keinen Titel. Neugierig öffnete ich es und begann zu lesen.<br><br>
-            Die Seiten waren mit handgeschriebenen Notizen gefüllt, die von Abenteuern, verborgenen Schätzen und mysteriösen Begegnungen erzählten. Je mehr ich las, desto mehr fühlte ich mich mit dem unbekannten Autor verbunden. War dies das Tagebuch eines meiner Vorfahren? Oder vielleicht das eines völlig Fremden? Eines war sicher: Dies war kein gewöhnliches Tagebuch.<br><br>
-            Plötzlich spürte ich eine leichte Brise, obwohl kein Fenster geöffnet war. Ein leises Flüstern erfüllte den Raum: "Folge den Zeichen..." Mein Herz schlug schneller. Sollte ich dem Rätsel folgen, das sich vor mir entfaltete? Mit klopfendem Herzen beschloss ich, mich auf das Abenteuer einzulassen.
+                <em>Das geheime Tagebuch</em><br><br>
+                Als ich an diesem verregneten Nachmittag auf den Dachboden stieg, erwartete ich nicht, mein Leben für immer zu verändern. Zwischen staubigen alten Kisten und vergessenen Erinnerungsstücken entdeckte ich ein ledergebundenes Buch. Es war alt, sehr alt, und der Einband trug keinen Titel. Neugierig öffnete ich es und begann zu lesen.<br><br>
+                Die Seiten waren mit handgeschriebenen Notizen gefüllt, die von Abenteuern, verborgenen Schätzen und mysteriösen Begegnungen erzählten. Je mehr ich las, desto mehr fühlte ich mich mit dem unbekannten Autor verbunden. War dies das Tagebuch eines meiner Vorfahren? Oder vielleicht das eines völlig Fremden? Eines war sicher: Dies war kein gewöhnliches Tagebuch.<br><br>
+                Plötzlich spürte ich eine leichte Brise, obwohl kein Fenster geöffnet war. Ein leises Flüstern erfüllte den Raum: "Folge den Zeichen..." Mein Herz schlug schneller. Sollte ich dem Rätsel folgen, das sich vor mir entfaltete? Mit klopfendem Herzen beschloss ich, mich auf das Abenteuer einzulassen.
             `;
 
             const initialWriteText = `
-            <strong>Abschreibtext:</strong><br>
-            "Ich konnte kaum glauben, was ich entdeckt hatte. Die Geheimnisse, die in diesem Tagebuch verborgen lagen, schienen älter zu sein als unsere Familie selbst. Jeder Satz, jede Zeichnung führte mich tiefer in ein Mysterium, das darauf wartete, gelüftet zu werden. Mutig entschied ich mich, dem Pfad zu folgen, auch wenn ich nicht wusste, wohin er mich führen würde."
+                <strong>Abschreibtext:</strong><br>
+                "Ich konnte kaum glauben, was ich entdeckt hatte. Die Geheimnisse, die in diesem Tagebuch verborgen lagen, schienen älter zu sein als unsere Familie selbst. Jeder Satz, jede Zeichnung führte mich tiefer in ein Mysterium, das darauf wartete, gelüftet zu werden. Mutig entschied ich mich, dem Pfad zu folgen, auch wenn ich nicht wusste, wohin er mich führen würde."
             `;
 
             const mathTasks = [];
-            const operators = ["+", "-", "*", "/"];
-            for (let i = 0; i < 20; i++) {
-                const num1 = Math.floor(Math.random() * 50) + 1;
-                let num2 = Math.floor(Math.random() * 50) + 1;
-                if (operators[i % 4] === '/') {
-                    while (num2 === 0) {
-                        num2 = Math.floor(Math.random() * 50) + 1;
-                    }
+            const multiplicationRange = { min: 1, max: 10 }; // Kleines Einmaleins
+            const divisionRange = { min: 1, max: 10 }; // Einfache Divisionen
+
+            // Generiere 10 einfache Matheaufgaben (5 Multiplikation, 5 Division)
+            for (let i = 0; i < 10; i++) {
+                if (i < 5) {
+                    // Multiplikation
+                    const num1 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+                    const num2 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+                    const operator = "*";
+                    mathTasks.push({ num1, num2, operator, userAnswer: "" });
+                } else {
+                    // Division (sicherstellen, dass das Ergebnis eine ganze Zahl ist)
+                    const divisor = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+                    const quotient = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+                    const dividend = divisor * quotient;
+                    const operator = "/";
+                    mathTasks.push({ num1: dividend, num2: divisor, operator, userAnswer: "" });
                 }
-                const operator = operators[i % 4];
-                mathTasks.push({ num1, num2, operator, userAnswer: "" });
             }
 
             storedTasks = {
@@ -567,7 +575,8 @@
                 input.value = task.userAnswer || "";
                 input.addEventListener('input', function () {
                     if (submitted) return;
-                    this.value = this.value.replace(/[^0-9\.\-]/g, ''); // Filtert nicht-numerische Eingaben
+                    // Nur ganzzahlige Eingaben erlauben
+                    this.value = this.value.replace(/[^0-9]/g, '');
                     storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value; // Speichern der Benutzerantwort
                     saveTasksToLocalStorage();
                     checkAllTasksCompleted(); // Überprüfung, ob alle Aufgaben gelöst sind
@@ -1062,7 +1071,7 @@
                         document.getElementById("proofName").innerText = file.name;
                         const proofPreview = document.getElementById("proofPreview");
                         proofPreview.href = savedProofURL;
-                        //proofPreview.classList.remove("hidden");
+                        proofPreview.classList.remove("hidden");
                         document.getElementById("savedProof").classList.remove("hidden");
 
                         saveTasksToLocalStorage();
@@ -1129,7 +1138,7 @@
 
             // Prüfe, ob eine unvollständige Aufgabe gefunden wurde und der Index innerhalb der Grenzen liegt
             if (nextTaskIndex >= 0 && nextTaskIndex < totalSteps) {
-                currentTaskIndex = nextTaskIndex + 1; // Da `nextTaskIndex` 0-basiert ist
+                currentTaskIndex = nextTaskIndex + 1; // Da nextTaskIndex 0-basiert ist
                 console.log(`Displaying the next incomplete task: Task ${currentTaskIndex}`);
                 showNextTask(currentTaskIndex);
             } else {
@@ -1249,12 +1258,12 @@
             switch (operator) {
                 case '+':
                     return num1 + num2;
-                case '-':d
+                case '-':
                     return num1 - num2;
                 case '*':
                     return num1 * num2;
                 case '/':
-                    return (num1 / num2).toFixed(2);
+                    return (num1 / num2); // Ganze Zahlen durch die Generierung sind garantiert
                 default:
                     return 'Unbekannter Operator';
             }
