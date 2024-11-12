@@ -1362,8 +1362,25 @@
             // ZIP-Datei generieren und herunterladen
             zip.generateAsync({ type: "blob" })
                 .then(function (content) {
-                    saveAs(content, "Ergebnisse.zip");
+                    saveAs(content, generateFilename());
                 });
+        }
+        function generateFilename() {
+            const now = new Date();
+
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0'); // Monate sind nullbasiert
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+
+            // Einfacher Hash: eine zufällige Zeichenkette
+            const hash = Math.random().toString(36).substring(2, 8); // Generiert eine 6-stellige alphanumerische Zeichenkette
+
+            // Zusammensetzen des Dateinamens
+            const filename = `kurzlernen.de_${year}${month}${day}_${hours}${minutes}_${hash}.zip`;
+
+            return filename;
         }
 
         function generateMathContent() {
