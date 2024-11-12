@@ -29,6 +29,9 @@
             }
         });
     </script>
+<script src="
+https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.min.js
+"></script>
 </head>
 
 <body class="bg-base-200 text-base-content">
@@ -326,10 +329,10 @@
                 <p class="py-4">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier herunterladen.</p>
                 <div class="flex justify-center space-x-4">
                     <button class="btn btn-primary" onclick="downloadZip()">
-                        📥 Download
+                        📥 Ergebnisse herunterladen
                     </button>
                     <button class="btn btn-success" onclick="shareOnWhatsApp()">
-                        📤 WhatsApp
+                        📤 Über WhatsApp teilen
                     </button>
                 </div>
             </div>
@@ -775,155 +778,141 @@
                 startTimer(taskIndex); // Timer starten
             }
         }
+function startRecordingProcess() {
+    const startButton = document.getElementById("startTask1");
+    const startIcon = document.getElementById("startIcon1");
+    const startText = document.getElementById("startText1");
 
-        function startRecordingProcess() {
-            const startButton = document.getElementById("startTask1");
-            const startIcon = document.getElementById("startIcon1");
-            const startText = document.getElementById("startText1");
+    if (!startText) {
+        console.error("Element mit ID 'startText1' nicht gefunden.");
+        showValidationModal("Interner Fehler: Start-Text nicht gefunden.");
+        return;
+    }
 
-            if (!startText) {
-                console.error("Element mit ID 'startText1' nicht gefunden.");
-                showValidationModal("Interner Fehler: Start-Text nicht gefunden.");
-                return;
+    // Überprüfen, ob bereits eine Aufnahme läuft
+    if (isRecording) {
+        // Aufnahme stoppen, wenn bereits gestartet
+        confirmStopRecording();
+    } else {
+        // Starten der Aufnahme
+        startText.innerText = "Aufnahme läuft...";
+        startIcon.textContent = "⏹️";
+        isRecording = true; // Aufnahme läuft jetzt
+
+        startRecording().then(() => {
+            document.getElementById("task1Progress").classList.remove("hidden");
+            startTimer(1); // Timer starten
+        }).catch((error) => {
+            startText.innerText = "Starten";
+            startIcon.textContent = "▶";
+            isRecording = false; // Aufnahme nicht gestartet
+            if (error.message.includes("Mikrofon")) {
+                document.getElementById("micErrorModal").checked = true;
+            } else {
+                showValidationModal("Fehler beim Starten der Aufnahme: " + error.message);
+                currentTask = null;
             }
+        });
+    }
+}
+async function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Audioaufnahme nicht möglich. Ihr Gerät oder Browser unterstützt diese Funktion nicht.");
+    }
 
-            startText.innerText = "Aufnahme läuft...";
-            startIcon.textContent = "⏹️";
-            isRecording = true; // Aufnahme läuft jetzt
+    try {
+        // Mikrofonzugriff anfordern
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            startRecording().then(() => {
-                document.getElementById("task1Progress").classList.remove("hidden");
-                startTimer(1); // Timer starten
-            }).catch((error) => {
-                startText.innerText = "Starten";
-                startIcon.textContent = "▶️";
-                isRecording = false; // Aufnahme nicht gestartet
-                if (error.message.includes("Mikrofon")) {
-                    document.getElementById("micErrorModal").checked = true;
-                } else {
-                    showValidationModal("Fehler beim Starten der Aufnahme: " + error.message);
-                    currentTask = null;
-                }
-            });
-        }
+        // RecordRTC konfigurieren
+        recorder = RecordRTC(audioStream, {
+            type: 'audio',
+            mimeType: 'audio/wav',
+            recorderType: StereoAudioRecorder, // Nutzt StereoAudioRecorder, um WAV zu erstellen
+            numberOfAudioChannels: 1, // Mono-Kanal für bessere Kompatibilität
+            sampleRate: 44100 // Optionale Anpassung der Sample-Rate
+        });
 
-        async function startRecording() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error("Audioaufnahme nicht möglich. Ihr Gerät oder Browser unterstützt diese Funktion nicht.");
-            }
+        recorder.startRecording(); // Aufnahme starten
+        isRecording = true;
+        console.log("RecordRTC Audio-Aufnahme gestartet.");
 
-            try {
-                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Rückgabewert des Recorders setzen
+        recorder.audioStream = audioStream;
 
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/mp4' : 'audio/mp4';
-                const mediaRecorder = new MediaRecorder(audioStream, { mimeType });
+        return Promise.resolve(); // Indikator für erfolgreichen Start der Aufnahme
+    } catch (error) {
+        console.error("Fehler beim Starten der Aufnahme:", error);
+        throw new Error("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
+    }
+}
 
-                const audioChunks = [];
-                mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-
-                mediaRecorder.start();
-                isRecording = true;
-
-                console.log("MediaRecorder gestartet.");
-
-                // Rückgabewert des Recorders setzen
-                recorder = {
-                    mediaRecorder,
-                    audioStream,
-                    stopRecording: () => new Promise(resolve => {
-                        mediaRecorder.onstop = () => {
-                            const audioBlob = new Blob(audioChunks, { type: mimeType });
-                            resolve(audioBlob);
-                        };
-                        mediaRecorder.stop();
-                        console.log("MediaRecorder gestoppt.");
-                    })
-                };
-
-                return Promise.resolve(); // Indikator für erfolgreichen Start der Aufnahme
-
-            } catch (error) {
-                console.error("Fehler beim Starten der Aufnahme:", error);
-                throw new Error("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
-            }
-        }
 
         function confirmStopRecording() {
             document.getElementById("confirmStopRecordingModal").checked = true;
         }
 
-        async function stopRecording(taskIndex) {
-            document.getElementById("confirmStopRecordingModal").checked = false;
-            let combinedBlob;
-            if (taskIndex === 1 && recorder && isRecording) {
-                try {
-                    const blob = await recorder.stopRecording();
+     async function stopRecording(taskIndex) {
+    document.getElementById("confirmStopRecordingModal").checked = false;
+    
+    if (taskIndex === 1 && recorder && isRecording) {
+        try {
+            await recorder.stopRecording();
 
-                    if (!blob || blob.size === 0) {
-                        console.error("Blob wurde nicht erstellt oder ist leer.");
-                        showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche es erneut.");
-                        return;
-                    }
+            // Kurze Verzögerung, um sicherzustellen, dass der Blob korrekt generiert wird
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-                    recordedBlobs = [blob];
+            const blob = recorder.getBlob();
 
-                    try {
-                        combinedBlob = new Blob(recordedBlobs, { type: 'audio/wav' });
-                        // Konvertiere Blob zu Base64
-                        const base64Audio = await blobToBase64(combinedBlob);
-                        storedTasks.task1.audioData = base64Audio; // Speichere den Base64-String
-                        savedAudioURL = URL.createObjectURL(combinedBlob);
-                        storedTasks.task1.savedAudioURL = savedAudioURL;
-
-                        if (!savedAudioURL || !savedAudioURL.startsWith("blob:")) {
-                            throw new Error("Erstellung der Blob-URL fehlgeschlagen.");
-                        }
-                    } catch (error) {
-                        console.error("Fehler bei der Erstellung der Blob-URL:", error);
-                        showValidationModal("Fehler beim Laden der Aufnahme. Bitte versuche es erneut.");
-                        return;
-                    }
-
-                    const audioPlayer = document.getElementById("audioPlayer");
-                    audioPlayer.src = savedAudioURL;
-                    document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
-                    document.getElementById("savedRecording").classList.remove("hidden");
-
-                    isRecording = false;
-                    console.log("Recording stopped.");
-
-                    if (recorder.audioStream) {
-                        recorder.audioStream.getTracks().forEach(track => track.stop());
-                        recorder.audioStream = null;
-                    }
-
-                    // Setze recorder auf null, um doppelte Aufrufe zu verhindern
-                    recorder = null;
-
-                    await saveTasksToLocalStorage();
-                    checkAllTasksCompleted();
-                } catch (error) {
-                    console.error("Fehler beim Stoppen der Aufnahme:", error);
-                    showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
-                }
-            }
-            if (!combinedBlob) {
-                console.log("Aufnahme wurde nicht gestartet oder Recorder ist wurde bereits de-initialisiert.");
-                showValidationModal("Die Aufnahmedatei fehlt. Versuche es bitte nochmal.");
+            if (!blob || blob.size === 0) {
+                console.error("Blob wurde nicht erstellt oder ist leer.");
+                showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche es erneut.");
+                return;
             }
 
-            if (taskIntervals[taskIndex - 1]) {
-                clearInterval(taskIntervals[taskIndex - 1]);
-                taskIntervals[taskIndex - 1] = null;
-            }
-            currentTask = null;
+            recordedBlobs = [blob];
+            const base64Audio = await blobToBase64(blob); // Konvertiere Blob zu Base64
+            storedTasks.task1.audioData = base64Audio;
+            savedAudioURL = URL.createObjectURL(blob);
+            storedTasks.task1.savedAudioURL = savedAudioURL;
 
-            const startButton = document.getElementById("startTask1");
-            const startIcon = document.getElementById("startIcon1");
-            const startText = document.getElementById("startText1");
-            startText.innerText = "Starten";
-            startIcon.textContent = "▶";
+            const audioPlayer = document.getElementById("audioPlayer");
+            audioPlayer.src = savedAudioURL;
+            document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+            document.getElementById("savedRecording").classList.remove("hidden");
+
+            isRecording = false;
+            console.log("Recording gestoppt und gespeichert.");
+
+            // AudioStream beenden
+            recorder.audioStream.getTracks().forEach(track => track.stop());
+
+            // Recorder auf null setzen, um doppelte Aufrufe zu verhindern
+            recorder = null;
+
+            await saveTasksToLocalStorage();
+            checkAllTasksCompleted();
+        } catch (error) {
+            console.error("Fehler beim Stoppen der Aufnahme:", error);
+            showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
         }
+    } else {
+        console.log("Aufnahme wurde nicht gestartet oder Recorder ist bereits de-initialisiert.");
+        showValidationModal("Die Aufnahmedatei fehlt. Versuche es bitte nochmal.");
+    }
+
+    if (taskIntervals[taskIndex - 1]) {
+        clearInterval(taskIntervals[taskIndex - 1]);
+        taskIntervals[taskIndex - 1] = null;
+    }
+    currentTask = null;
+
+    const startButton = document.getElementById("startTask1");
+    const startIcon = document.getElementById("startIcon1");
+    const startText = document.getElementById("startText1");
+    startText.innerText = "Starten";
+    startIcon.textContent = "▶";
+}
 
         // Timer-Funktionen
 
