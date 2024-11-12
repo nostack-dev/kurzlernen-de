@@ -35,21 +35,20 @@
     <!-- Header mit DaisyUI Navbar -->
     <header class="navbar bg-primary text-primary-content">
         <div class="flex-1">
-            <a class="btn btn-ghost normal-case text-xl">kurzlernen.de🤓</a>
+            <a class="btn btn-ghost normal-case text-xl">😎</a>
         </div>
         <div class="flex-none">
             <!-- Neues Set an Aufgaben Knopf -->
-            <button class="btn btn-accent mr-4" onclick="confirmResetTasks()" id="newTasksBtn">🔄 Neue Aufgaben</button>
+            <button class="btn btn-accent mr-4" onclick="confirmResetTasks()" id="newTasksBtn">🔄 Neu Starten</button>
             <!-- Farbschema Toggle -->
             <label class="swap swap-rotate">
-                <input type="checkbox" id="theme-toggle" />
-                <svg class="swap-on fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M5.64 17.36A9 9 0 1118.36 6.64 9 9 0 015.64 17.36zM12 7a5 5 0 100 10 5 5 0 000-10z" />
-                </svg>
-                <svg class="swap-off fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" />
-                </svg>
-            </label>
+
+  <!-- this hidden checkbox controls the state -->
+  <input id="theme-toggle" type="checkbox" />
+
+  <div class="swap-on">😈</div>
+  <div class="swap-off">😇</div>
+</label>
         </div>
     </header>
 
@@ -151,7 +150,7 @@
                     <div id="savedProof" class="mt-4 hidden">
                         <div class="flex items-center">
                             <span id="proofName" class="ml-2">Foto hochgeladen</span>
-                            <a id="proofPreview" href="#" class="btn btn-info btn-sm ml-auto" target="_blank">👁️
+                            <a id="proofPreview" href="#" class="btn btn-info btn-sm ml-auto hidden" target="_blank">👁️
                                 Vorschau</a>
                             <button class="btn btn-error btn-sm ml-2" onclick="confirmDeleteProof()">🗑️
                                 Löschen</button>
@@ -299,6 +298,18 @@
         </div>
     </div>
 
+    <!-- Monologue Modal -->
+    <input type="checkbox" id="monologueModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Monolog</h3>
+            <p class="py-4">Vielen Dank für deine Teilnahme!</p>
+            <div class="modal-action">
+                <label for="monologueModal" class="btn">Schließen</label>
+            </div>
+        </div>
+    </div>
+
     <!-- Vielen Dank Seite -->
     <div id="thankYouPage" class="hidden">
         <div class="hero min-h-screen bg-base-200">
@@ -315,21 +326,44 @@
 
     <!-- Skriptbereich -->
     <script>
+        // Hilfsfunktionen
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result.split(',')[1];
+                    resolve(base64data);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function base64ToBlob(base64, mime) {
+            const byteChars = atob(base64);
+            const byteNumbers = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+                byteNumbers[i] = byteChars.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mime });
+        }
+
         // Globale Variablen und Konstanten
         const taskTimersInitial = [600, 600, 600]; // 10 Minuten für jede Aufgabe
         let taskTimers = [...taskTimersInitial];
         let taskIntervals = [null, null, null];
         let currentTask = null;
-        let currentTaskIndex = null; // Deklaration von currentTaskIndex
+        let currentTaskIndex = null;
         let isRecording = false;
         let recorder;
         let recordedBlobs = [];
         let savedAudioURL = "";
         let savedProofURL = "";
         let storedTasks = {};
-        let audioStream; // Variable zum Speichern des Media Streams
+        let audioStream;
         let tasksCompleted = [false, false, false];
-        let submitted = false; // Flag für die Abgabe
+        let submitted = false;
         const totalSteps = 3;
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -362,6 +396,9 @@
             if (!storedTasks || Object.keys(storedTasks).length === 0) {
                 initializeTasks();
             }
+
+            // Initiale Timer-Anzeige aktualisieren
+            updateTimerDisplays();
         });
 
         // **Neue Funktion zur Browserkompatibilitätsprüfung**
@@ -381,17 +418,6 @@
 
         // Funktionen zum Laden, Speichern und Initialisieren der Aufgaben
         async function saveTasksToLocalStorage() {
-            // Nur die URL des Blobs speichern, nicht den Blob selbst
-            if (storedTasks.task1.audioBlob) {
-                storedTasks.task1.savedAudioURL = URL.createObjectURL(storedTasks.task1.audioBlob);
-                delete storedTasks.task1.audioBlob; // Entfernen Sie den Blob aus dem Objekt
-            }
-
-            if (storedTasks.task2.proofDataURL) {
-                storedTasks.task2.savedProofURL = URL.createObjectURL(storedTasks.task2.proofDataURL); // Erstellen einer URL für das Bild
-                delete storedTasks.task2.proofDataURL; // Entfernen Sie das Bild-Blob aus dem Objekt
-            }
-
             try {
                 localStorage.setItem("tasks", JSON.stringify(storedTasks));
             } catch (error) {
@@ -426,11 +452,13 @@
                     }
 
                     // Laden und Anzeigen des gespeicherten Beweises
-                    if (savedProofURL && savedProofURL !== "") {
+                    if (storedTasks.task2.proofDataURL) {
+                        const base64Image = storedTasks.task2.proofDataURL;
+                        savedProofURL = `data:image/png;base64,${base64Image}`;
                         document.getElementById("proofName").innerText = "Foto geladen";
                         const proofPreview = document.getElementById("proofPreview");
                         proofPreview.href = savedProofURL;
-                        proofPreview.classList.remove("hidden");
+                        //proofPreview.classList.remove("hidden");
                         document.getElementById("savedProof").classList.remove("hidden");
                     }
 
@@ -485,10 +513,12 @@
             storedTasks = {
                 task1: {
                     readText: initialReadText,
+                    audioData: null,
                     savedAudioURL: "",
                 },
                 task2: {
                     writeText: initialWriteText,
+                    proofDataURL: null,
                     savedProofURL: "",
                 },
                 task3: {
@@ -597,7 +627,7 @@
             currentTask = taskIndex;
 
             if (taskIndex === 1) {
-                if (savedAudioURL !== "") {
+                if (storedTasks.task1.audioData) {
                     document.getElementById("confirmRestartRecordingModal").checked = true;
                     return;
                 }
@@ -647,6 +677,7 @@
                 }
             });
         }
+
         async function startRecording() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 throw new Error("Audioaufnahme nicht möglich. Ihr Gerät oder Browser unterstützt diese Funktion nicht.");
@@ -664,6 +695,8 @@
                 mediaRecorder.start();
                 isRecording = true;
 
+                console.log("MediaRecorder gestartet.");
+
                 // Rückgabewert des Recorders setzen
                 recorder = {
                     mediaRecorder,
@@ -674,17 +707,17 @@
                             resolve(audioBlob);
                         };
                         mediaRecorder.stop();
+                        console.log("MediaRecorder gestoppt.");
                     })
                 };
 
                 return Promise.resolve(); // Indikator für erfolgreichen Start der Aufnahme
 
             } catch (error) {
+                console.error("Fehler beim Starten der Aufnahme:", error);
                 throw new Error("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
             }
         }
-
-
 
         function confirmStopRecording() {
             document.getElementById("confirmStopRecordingModal").checked = true;
@@ -699,7 +732,7 @@
 
                     if (!blob || blob.size === 0) {
                         console.error("Blob wurde nicht erstellt oder ist leer.");
-                        showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche  es erneut.");
+                        showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche es erneut.");
                         return;
                     }
 
@@ -707,6 +740,9 @@
 
                     try {
                         combinedBlob = new Blob(recordedBlobs, { type: 'audio/wav' });
+                        // Konvertiere Blob zu Base64
+                        const base64Audio = await blobToBase64(combinedBlob);
+                        storedTasks.task1.audioData = base64Audio; // Speichere den Base64-String
                         savedAudioURL = URL.createObjectURL(combinedBlob);
                         storedTasks.task1.savedAudioURL = savedAudioURL;
 
@@ -715,7 +751,7 @@
                         }
                     } catch (error) {
                         console.error("Fehler bei der Erstellung der Blob-URL:", error);
-                        showValidationModal("Fehler beim Laden der Aufnahme. Bitte versuchef es erneut.");
+                        showValidationModal("Fehler beim Laden der Aufnahme. Bitte versuche es erneut.");
                         return;
                     }
 
@@ -732,14 +768,17 @@
                         recorder.audioStream = null;
                     }
 
+                    // Setze recorder auf null, um doppelte Aufrufe zu verhindern
+                    recorder = null;
+
                     await saveTasksToLocalStorage();
                     checkAllTasksCompleted();
                 } catch (error) {
                     console.error("Fehler beim Stoppen der Aufnahme:", error);
                     showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
                 }
-            } 
-            if(!combinedBlob){
+            }
+            if (!combinedBlob) {
                 console.error("Aufnahme wurde nicht gestartet oder Recorder ist nicht initialisiert.");
                 showValidationModal("Die Aufnahmedatei fehlt. Versuche es bitte nochmal.");
             }
@@ -853,15 +892,19 @@
         function confirmDeleteRecording() {
             document.getElementById("confirmDeleteRecordingModal").checked = true;
         }
+
         function deleteRecording() {
             if (savedAudioURL) {
                 URL.revokeObjectURL(savedAudioURL); // Blob-URL freigeben
             }
             document.getElementById("savedRecording").classList.add("hidden");
             document.getElementById("audioPlayer").src = "";
+            document.getElementById("recordingName").innerText = "";
+            document.getElementById("alternativeAudioUpload").classList.remove("hidden");
             savedAudioURL = "";
-            recordedBlobs = [];
+            storedTasks.task1.audioData = null; // Base64-String entfernen
             storedTasks.task1.savedAudioURL = null; // URL entfernen
+            recordedBlobs = [];
             checkAllTasksCompleted();
             saveTasksToLocalStorage();
             document.getElementById("confirmDeleteRecordingModal").checked = false;
@@ -879,7 +922,7 @@
             document.getElementById("proofName").innerText = "";
             document.getElementById("proofPreview").classList.add("hidden");
             savedProofURL = "";
-            storedTasks.task2.savedProofURL = null; // URL entfernen
+            storedTasks.task2.proofDataURL = null; // Base64-String entfernen
             document.getElementById("qualityValue").innerText = "";
             checkAllTasksCompleted();
             saveTasksToLocalStorage();
@@ -947,7 +990,6 @@
 
             document.getElementById("confirmResetModal").checked = false;
             location.reload();
-
         }
 
         function updateOverallProgress() {
@@ -957,8 +999,8 @@
         }
 
         function checkAllTasksCompleted() {
-            tasksCompleted[0] = savedAudioURL && savedAudioURL !== "";
-            tasksCompleted[1] = savedProofURL && savedProofURL !== "";
+            tasksCompleted[0] = storedTasks.task1.audioData && storedTasks.task1.audioData !== "";
+            tasksCompleted[1] = storedTasks.task2.proofDataURL && storedTasks.task2.proofDataURL !== "";
             tasksCompleted[2] = storedTasks.task3.mathTasks.every(task => task.userAnswer.trim() !== "");
 
             updateOverallProgress();
@@ -971,21 +1013,25 @@
 
         // Funktionen für den Upload und die Verarbeitung von Dateien
 
-        function uploadAudioFile() {
+        async function uploadAudioFile() {
             const fileInput = document.getElementById("audioFileUpload");
             const file = fileInput.files[0];
             if (file) {
-                const audioURL = URL.createObjectURL(file);
-                savedAudioURL = audioURL;
-                recordedBlobs = [file];
-                storedTasks.task1.audioBlob = file; // Blob speichern
-                const audioPlayer = document.getElementById("audioPlayer");
-                audioPlayer.src = audioURL;
-                document.getElementById("recordingName").innerText = "Audiodatei hochgeladen";
-                document.getElementById("savedRecording").classList.remove("hidden");
-                document.getElementById("alternativeAudioUpload").classList.add("hidden");
+                const reader = new FileReader();
+                reader.onloadend = async function (e) {
+                    const base64Audio = e.target.result.split(',')[1]; // Entfernt den Data-URL-Header
+                    storedTasks.task1.audioData = base64Audio; // Speichere den Base64-String
+                    savedAudioURL = e.target.result; // Für die Vorschau
+                    const audioPlayer = document.getElementById("audioPlayer");
+                    audioPlayer.src = savedAudioURL;
+                    document.getElementById("recordingName").innerText = "Audiodatei hochgeladen";
+                    document.getElementById("savedRecording").classList.remove("hidden");
+                    document.getElementById("alternativeAudioUpload").classList.add("hidden");
 
-                checkAllTasksCompleted();
+                    await saveTasksToLocalStorage();
+                    checkAllTasksCompleted();
+                };
+                reader.readAsDataURL(file);
             } else {
                 showValidationModal("Fehler beim Laden der Audiodatei. Bitte versuche es erneut.");
             }
@@ -997,37 +1043,71 @@
             const file = fileInput.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function (e) {
-                    document.getElementById("proofName").innerText = file.name;
-                    const proofPreview = document.getElementById("proofPreview");
-                    proofPreview.href = e.target.result;
-                    proofPreview.classList.remove("hidden");
-                    document.getElementById("savedProof").classList.remove("hidden");
-                    savedProofURL = e.target.result;
-                    storedTasks.task2.proofDataURL = e.target.result; // Bild speichern
+                reader.onload = async function (e) {
+                    // Skalieren des Bildes vor dem Speichern
+                    const img = new Image();
+                    img.onload = function () {
+                        const canvas = document.createElement('canvas');
+                        const maxWidth = 800; // Maximale Breite
+                        const scaleSize = maxWidth / img.width;
+                        canvas.width = maxWidth;
+                        canvas.height = img.height * scaleSize;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const scaledDataUrl = canvas.toDataURL('image/png', 0.7); // Komprimierung auf 70%
 
-                    checkAllTasksCompleted();
+                        const base64Image = scaledDataUrl.split(',')[1]; // Entfernt den Data-URL-Header
+                        storedTasks.task2.proofDataURL = base64Image; // Speichere den Base64-String
+                        savedProofURL = scaledDataUrl; // Für die Vorschau
+                        document.getElementById("proofName").innerText = file.name;
+                        const proofPreview = document.getElementById("proofPreview");
+                        proofPreview.href = savedProofURL;
+                        //proofPreview.classList.remove("hidden");
+                        document.getElementById("savedProof").classList.remove("hidden");
+
+                        saveTasksToLocalStorage();
+                        checkAllTasksCompleted();
+                    };
+                    img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             }
             fileInput.value = "";
         }
 
+        // confirmCompleteTask with corrections
         function confirmCompleteTask(taskIndex) {
             document.getElementById("validationMessage").innerHTML = "Möchtest du die Aufgabe wirklich abschließen?";
             const confirmButton = document.getElementById("modalConfirmButton");
-            if (taskIndex === 1) {
-                stopRecording(taskIndex);
-            }
+            
             // Entferne vorherige Event-Listener, um Mehrfachauslösungen zu vermeiden
             confirmButton.removeEventListener('click', handleTaskCompletion);
-
-            // Neuer Event-Listener für den Abschluss der Aufgabe
-            confirmButton.addEventListener('click', () => handleTaskCompletion(taskIndex));
+            confirmButton.removeEventListener('click', handleTask1StopAndComplete);
+            
+            if (taskIndex === 1) {
+                // Für Aufgabe 1: Stoppe die Aufnahme nach Bestätigung
+                confirmButton.addEventListener('click', handleTask1StopAndComplete);
+            } else {
+                // Für andere Aufgaben: Nur den Abschluss der Aufgabe
+                confirmButton.addEventListener('click', () => handleTaskCompletion(taskIndex));
+            }
 
             confirmButton.classList.remove("hidden");
             document.getElementById("validationModal").checked = true;
             updateOverallProgress();
+        }
+
+        async function handleTask1StopAndComplete() {
+            try {
+                await stopRecording(1);
+                handleTaskCompletion(1);
+            } catch (error) {
+                console.error("Fehler beim Stoppen der Aufnahme:", error);
+                showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
+            }
+            // Entferne den Event-Listener nach der Ausführung
+            const confirmButton = document.getElementById("modalConfirmButton");
+            confirmButton.removeEventListener('click', handleTask1StopAndComplete);
         }
 
         function handleTaskCompletion(taskIndex) {
@@ -1128,14 +1208,16 @@
             const zip = new JSZip();
 
             // Aufgabe 1: Aufnahme hinzufügen
-            if (storedTasks.task1.audioBlob) {
-                zip.file("Aufnahme.wav", storedTasks.task1.audioBlob);
+            if (storedTasks.task1.audioData) {
+                // Dekodieren des Base64-Strings
+                const audioBlob = base64ToBlob(storedTasks.task1.audioData, 'audio/wav');
+                zip.file("Aufnahme.wav", audioBlob);
             }
 
             // Aufgabe 2: Foto der Abschrift hinzufügen
             if (storedTasks.task2.proofDataURL) {
-                const imgData = storedTasks.task2.proofDataURL.split(',')[1];
-                zip.file("Abschrift.png", imgData, { base64: true });
+                const imgBlob = base64ToBlob(storedTasks.task2.proofDataURL, 'image/png');
+                zip.file("Abschrift.png", imgBlob);
             }
 
             // Aufgabe 3: Rechenaufgaben inklusive Lösungen
@@ -1167,7 +1249,7 @@
             switch (operator) {
                 case '+':
                     return num1 + num2;
-                case '-':
+                case '-':d
                     return num1 - num2;
                 case '*':
                     return num1 * num2;
