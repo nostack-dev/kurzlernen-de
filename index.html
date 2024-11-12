@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <title>kurzlernen.de - 30-Minuten-Herausforderung</title>
@@ -29,6 +30,7 @@
         });
     </script>
 </head>
+
 <body class="bg-base-200 text-base-content">
     <!-- Header mit DaisyUI Navbar -->
     <header class="navbar bg-primary text-primary-content">
@@ -42,10 +44,10 @@
             <label class="swap swap-rotate">
                 <input type="checkbox" id="theme-toggle" />
                 <svg class="swap-on fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M5.64 17.36A9 9 0 1118.36 6.64 9 9 0 015.64 17.36zM12 7a5 5 0 100 10 5 5 0 000-10z"/>
+                    <path d="M5.64 17.36A9 9 0 1118.36 6.64 9 9 0 015.64 17.36zM12 7a5 5 0 100 10 5 5 0 000-10z" />
                 </svg>
                 <svg class="swap-off fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
+                    <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" />
                 </svg>
             </label>
         </div>
@@ -74,7 +76,8 @@
                             </span>
                         </div>
                         <div>
-                            <button id="startTask1" class="btn btn-primary flex items-center" onclick="handleTask1ButtonClick()">
+                            <button id="startTask1" class="btn btn-primary flex items-center"
+                                onclick="handleTask1ButtonClick()">
                                 <span id="startIcon1" class="mr-2">▶️</span>
                                 <span id="startText1">Starten</span>
                             </button>
@@ -86,24 +89,29 @@
                     <!-- Fortschrittsbalken, initial verborgen -->
                     <div class="flex items-center justify-between mt-2 hidden" id="task1Progress">
                         <div>
-                            <progress id="progress1" class="progress progress-primary w-56" value="100" max="100"></progress>
+                            <progress id="progress1" class="progress progress-primary w-56" value="100"
+                                max="100"></progress>
                         </div>
                     </div>
                     <div id="savedRecording" class="mt-4 hidden">
                         <audio id="audioPlayer" controls class="w-full"></audio>
                         <div class="flex items-center mt-2">
                             <span id="recordingName" class="ml-2">Aufnahme gespeichert</span>
-                            <button class="btn btn-error btn-sm ml-auto" onclick="confirmDeleteRecording()">🗑️ Löschen</button>
+                            <button class="btn btn-error btn-sm ml-auto" onclick="confirmDeleteRecording()">🗑️
+                                Löschen</button>
                         </div>
                     </div>
                     <!-- Alternative Audio Upload -->
                     <div id="alternativeAudioUpload" class="mt-4 hidden">
-                        <label for="audioFileUpload" class="btn btn-secondary w-full">🎧 Alternativ: Audiodatei hochladen</label>
-                        <input id="audioFileUpload" type="file" accept="audio/*" class="hidden" onchange="uploadAudioFile()" />
+                        <label for="audioFileUpload" class="btn btn-secondary w-full">🎧 Alternativ: Audiodatei
+                            hochladen</label>
+                        <input id="audioFileUpload" type="file" accept="audio/*" class="hidden"
+                            onchange="uploadAudioFile()" />
                     </div>
                     <!-- Abschließen Button -->
                     <div class="mt-4">
-                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(1)">✅ Aufgabe abschließen</button>
+                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(1)">✅ Aufgabe
+                            abschließen</button>
                     </div>
                 </div>
             </div>
@@ -131,22 +139,28 @@
                     <!-- Fortschrittsbalken, initial verborgen -->
                     <div class="flex items-center justify-between mt-2 hidden" id="task2Progress">
                         <div>
-                            <progress id="progress2" class="progress progress-secondary w-56" value="100" max="100"></progress>
+                            <progress id="progress2" class="progress progress-secondary w-56" value="100"
+                                max="100"></progress>
                         </div>
                     </div>
                     <p id="handwritingQuality" class="mt-2"><span id="qualityValue"></span></p>
-                    <label for="proofUpload" class="btn btn-secondary mt-4 w-full">📷 Foto der Abschrift aufnehmen</label>
-                    <input id="proofUpload" type="file" accept="image/*" capture="camera" class="hidden" onchange="uploadProof()" />
+                    <label for="proofUpload" class="btn btn-secondary mt-4 w-full">📷 Foto der Abschrift
+                        aufnehmen</label>
+                    <input id="proofUpload" type="file" accept="image/*" capture="camera" class="hidden"
+                        onchange="uploadProof()" />
                     <div id="savedProof" class="mt-4 hidden">
                         <div class="flex items-center">
                             <span id="proofName" class="ml-2">Foto hochgeladen</span>
-                            <a id="proofPreview" href="#" class="btn btn-info btn-sm ml-auto" target="_blank">👁️ Vorschau</a>
-                            <button class="btn btn-error btn-sm ml-2" onclick="confirmDeleteProof()">🗑️ Löschen</button>
+                            <a id="proofPreview" href="#" class="btn btn-info btn-sm ml-auto" target="_blank">👁️
+                                Vorschau</a>
+                            <button class="btn btn-error btn-sm ml-2" onclick="confirmDeleteProof()">🗑️
+                                Löschen</button>
                         </div>
                     </div>
                     <!-- Abschließen Button -->
                     <div class="mt-4">
-                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(2)">✅ Aufgabe abschließen</button>
+                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(2)">✅ Aufgabe
+                            abschließen</button>
                     </div>
                 </div>
             </div>
@@ -174,12 +188,14 @@
                     <!-- Fortschrittsbalken, initial verborgen -->
                     <div class="flex items-center justify-between mt-2 hidden" id="task3Progress">
                         <div>
-                            <progress id="progress3" class="progress progress-accent w-56" value="100" max="100"></progress>
+                            <progress id="progress3" class="progress progress-accent w-56" value="100"
+                                max="100"></progress>
                         </div>
                     </div>
                     <!-- Abschließen Button -->
                     <div class="mt-4">
-                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(3)">✅ Aufgabe abschließen</button>
+                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(3)">✅ Aufgabe
+                            abschließen</button>
                     </div>
                 </div>
             </div>
@@ -232,7 +248,8 @@
     <div class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Aufgaben zurücksetzen?</h3>
-            <p class="py-4">Möchtest du wirklich alle Aufgaben zurücksetzen? Deine bisherigen Fortschritte gehen dadurch verloren.</p>
+            <p class="py-4">Möchtest du wirklich alle Aufgaben zurücksetzen? Deine bisherigen Fortschritte gehen dadurch
+                verloren.</p>
             <div class="modal-action">
                 <button class="btn btn-error" onclick="resetTasks()">Ja, zurücksetzen</button>
                 <label for="confirmResetModal" class="btn">Abbrechen</label>
@@ -245,7 +262,8 @@
     <div class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Mikrofonproblem</h3>
-            <p class="py-4">Es gab ein Problem mit deinem Mikrofon oder es wurde nicht gefunden. Willst du die Aufgabe trotzdem starten und die Audioaufnahme überspringen?</p>
+            <p class="py-4">Es gab ein Problem mit deinem Mikrofon oder es wurde nicht gefunden. Willst du die Aufgabe
+                trotzdem starten und die Audioaufnahme überspringen?</p>
             <div class="modal-action">
                 <button class="btn btn-primary" onclick="proceedWithoutMic()">Ja, trotzdem starten</button>
                 <label for="micErrorModal" class="btn">Abbrechen</label>
@@ -258,7 +276,8 @@
     <div class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Aufnahme abschließen?</h3>
-            <p class="py-4">Deine Aufnahme wird dann abgeschlossen und zur Lösung deiner Aufgabe als Anhang hinzugefügt. Möchtest du deine Aufnahme abschließen? </p>
+            <p class="py-4">Deine Aufnahme wird dann abgeschlossen und zur Lösung deiner Aufgabe als Anhang hinzugefügt.
+                Möchtest du deine Aufnahme abschließen? </p>
             <div class="modal-action">
                 <button class="btn btn-primary" onclick="stopRecording(1)">Ja, beenden</button>
                 <label for="confirmStopRecordingModal" class="btn">Abbrechen</label>
@@ -271,7 +290,8 @@
     <div class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Aufnahme neu starten?</h3>
-            <p class="py-4">Möchtest du die Aufnahme neu starten? Deine aktuelle Aufnahme wird dadurch überschrieben.</p>
+            <p class="py-4">Möchtest du die Aufnahme neu starten? Deine aktuelle Aufnahme wird dadurch überschrieben.
+            </p>
             <div class="modal-action">
                 <button class="btn btn-primary" onclick="restartRecording()">Ja, neu starten</button>
                 <label for="confirmRestartRecordingModal" class="btn">Abbrechen</label>
@@ -285,7 +305,8 @@
             <div class="hero-content text-center">
                 <div class="max-w-md">
                     <h1 class="text-5xl font-bold">Super!</h1>
-                    <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du deine sie hier herunterladen.</p>
+                    <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du deine sie hier
+                        herunterladen.</p>
                     <button class="btn btn-primary" onclick="downloadZip()">📥 Ergebnisse herunterladen</button>
                 </div>
             </div>
@@ -329,7 +350,7 @@
                 themeToggle.checked = false;
             }
 
-            themeToggle.addEventListener('change', function() {
+            themeToggle.addEventListener('change', function () {
                 if (this.checked) {
                     document.documentElement.setAttribute('data-theme', 'dark');
                 } else {
@@ -344,40 +365,40 @@
         });
 
         // **Neue Funktion zur Browserkompatibilitätsprüfung**
-  function checkBrowserCompatibility() {
-    // Überprüfen, ob getUserMedia und MediaRecorder verfügbar sind
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        return false;
-    }
-    if (!window.MediaRecorder) {
-        return false;
-    }
-    if (!window.JSZip) {
-        return false;
-    }
-    return true;
-}
+        function checkBrowserCompatibility() {
+            // Überprüfen, ob getUserMedia und MediaRecorder verfügbar sind
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return false;
+            }
+            if (!window.MediaRecorder) {
+                return false;
+            }
+            if (!window.JSZip) {
+                return false;
+            }
+            return true;
+        }
 
         // Funktionen zum Laden, Speichern und Initialisieren der Aufgaben
-async function saveTasksToLocalStorage() {
-    // Nur die URL des Blobs speichern, nicht den Blob selbst
-    if (storedTasks.task1.audioBlob) {
-        storedTasks.task1.savedAudioURL = URL.createObjectURL(storedTasks.task1.audioBlob);
-        delete storedTasks.task1.audioBlob; // Entfernen Sie den Blob aus dem Objekt
-    }
+        async function saveTasksToLocalStorage() {
+            // Nur die URL des Blobs speichern, nicht den Blob selbst
+            if (storedTasks.task1.audioBlob) {
+                storedTasks.task1.savedAudioURL = URL.createObjectURL(storedTasks.task1.audioBlob);
+                delete storedTasks.task1.audioBlob; // Entfernen Sie den Blob aus dem Objekt
+            }
 
-    if (storedTasks.task2.proofDataURL) {
-        storedTasks.task2.savedProofURL = URL.createObjectURL(storedTasks.task2.proofDataURL); // Erstellen einer URL für das Bild
-        delete storedTasks.task2.proofDataURL; // Entfernen Sie das Bild-Blob aus dem Objekt
-    }
+            if (storedTasks.task2.proofDataURL) {
+                storedTasks.task2.savedProofURL = URL.createObjectURL(storedTasks.task2.proofDataURL); // Erstellen einer URL für das Bild
+                delete storedTasks.task2.proofDataURL; // Entfernen Sie das Bild-Blob aus dem Objekt
+            }
 
-    try {
-        localStorage.setItem("tasks", JSON.stringify(storedTasks));
-    } catch (error) {
-        console.error("Speichern im localStorage fehlgeschlagen:", error);
-        showValidationModal("Speichern fehlgeschlagen. Bitte prüfe den verfügbaren Speicherplatz.");
-    }
-}
+            try {
+                localStorage.setItem("tasks", JSON.stringify(storedTasks));
+            } catch (error) {
+                console.error("Speichern im localStorage fehlgeschlagen:", error);
+                showValidationModal("Speichern fehlgeschlagen. Bitte prüfe den verfügbaren Speicherplatz.");
+            }
+        }
 
         async function loadTasksFromLocalStorage() {
             try {
@@ -405,7 +426,7 @@ async function saveTasksToLocalStorage() {
                     }
 
                     // Laden und Anzeigen des gespeicherten Beweises
-		   if (savedProofURL && savedProofURL !== "") {
+                    if (savedProofURL && savedProofURL !== "") {
                         document.getElementById("proofName").innerText = "Foto geladen";
                         const proofPreview = document.getElementById("proofPreview");
                         proofPreview.href = savedProofURL;
@@ -514,7 +535,7 @@ async function saveTasksToLocalStorage() {
                 input.classList.add("input", "input-bordered", "w-full", "max-w-xs");
                 input.dataset.index = index;
                 input.value = task.userAnswer || "";
-                input.addEventListener('input', function() {
+                input.addEventListener('input', function () {
                     if (submitted) return;
                     this.value = this.value.replace(/[^0-9\.\-]/g, ''); // Filtert nicht-numerische Eingaben
                     storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value; // Speichern der Benutzerantwort
@@ -612,8 +633,8 @@ async function saveTasksToLocalStorage() {
             isRecording = true; // Aufnahme läuft jetzt
 
             startRecording().then(() => {
-                                     document.getElementById("task1Progress").classList.remove("hidden");
-                                     startTimer(1); // Timer starten
+                document.getElementById("task1Progress").classList.remove("hidden");
+                startTimer(1); // Timer starten
             }).catch((error) => {
                 startText.innerText = "Starten";
                 startIcon.textContent = "▶️";
@@ -626,42 +647,42 @@ async function saveTasksToLocalStorage() {
                 }
             });
         }
-async function startRecording() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Audioaufnahme nicht möglich. Ihr Gerät oder Browser unterstützt diese Funktion nicht.");
-    }
+        async function startRecording() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Audioaufnahme nicht möglich. Ihr Gerät oder Browser unterstützt diese Funktion nicht.");
+            }
 
-    try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            try {
+                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-        const mediaRecorder = new MediaRecorder(audioStream, { mimeType });
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                const mediaRecorder = new MediaRecorder(audioStream, { mimeType });
 
-        const audioChunks = [];
-        mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                const audioChunks = [];
+                mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
 
-        mediaRecorder.start();
-        isRecording = true;
+                mediaRecorder.start();
+                isRecording = true;
 
-        // Rückgabewert des Recorders setzen
-        recorder = {
-            mediaRecorder,
-            audioStream,
-            stopRecording: () => new Promise(resolve => {
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: mimeType });
-                    resolve(audioBlob);
+                // Rückgabewert des Recorders setzen
+                recorder = {
+                    mediaRecorder,
+                    audioStream,
+                    stopRecording: () => new Promise(resolve => {
+                        mediaRecorder.onstop = () => {
+                            const audioBlob = new Blob(audioChunks, { type: mimeType });
+                            resolve(audioBlob);
+                        };
+                        mediaRecorder.stop();
+                    })
                 };
-                mediaRecorder.stop();
-            })
-        };
-        
-        return Promise.resolve(); // Indikator für erfolgreichen Start der Aufnahme
 
-    } catch (error) {
-        throw new Error("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
-    }
-}
+                return Promise.resolve(); // Indikator für erfolgreichen Start der Aufnahme
+
+            } catch (error) {
+                throw new Error("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
+            }
+        }
 
 
 
@@ -669,71 +690,71 @@ async function startRecording() {
             document.getElementById("confirmStopRecordingModal").checked = true;
         }
 
-async function stopRecording(taskIndex) {
-    document.getElementById("confirmStopRecordingModal").checked = false;
+        async function stopRecording(taskIndex) {
+            document.getElementById("confirmStopRecordingModal").checked = false;
 
-    if (taskIndex === 1 && recorder && isRecording) {
-        try {
-            const blob = await recorder.stopRecording();
+            if (taskIndex === 1 && recorder && isRecording) {
+                try {
+                    const blob = await recorder.stopRecording();
 
-            if (!blob || blob.size === 0) {
-                console.error("Blob wurde nicht erstellt oder ist leer.");
-                showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche  es erneut.");
-                return;
-            }
+                    if (!blob || blob.size === 0) {
+                        console.error("Blob wurde nicht erstellt oder ist leer.");
+                        showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche  es erneut.");
+                        return;
+                    }
 
-            recordedBlobs = [blob];
+                    recordedBlobs = [blob];
 
-            try {
-                const combinedBlob = new Blob(recordedBlobs, { type: 'audio/wav' });
-                savedAudioURL = URL.createObjectURL(combinedBlob);
-                storedTasks.task1.savedAudioURL = savedAudioURL;
+                    try {
+                        const combinedBlob = new Blob(recordedBlobs, { type: 'audio/wav' });
+                        savedAudioURL = URL.createObjectURL(combinedBlob);
+                        storedTasks.task1.savedAudioURL = savedAudioURL;
 
-                if (!savedAudioURL || !savedAudioURL.startsWith("blob:")) {
-                    throw new Error("Erstellung der Blob-URL fehlgeschlagen.");
+                        if (!savedAudioURL || !savedAudioURL.startsWith("blob:")) {
+                            throw new Error("Erstellung der Blob-URL fehlgeschlagen.");
+                        }
+                    } catch (error) {
+                        console.error("Fehler bei der Erstellung der Blob-URL:", error);
+                        showValidationModal("Fehler beim Laden der Aufnahme. Bitte versuchef es erneut.");
+                        return;
+                    }
+
+                    const audioPlayer = document.getElementById("audioPlayer");
+                    audioPlayer.src = savedAudioURL;
+                    document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+                    document.getElementById("savedRecording").classList.remove("hidden");
+
+                    isRecording = false;
+                    console.log("Recording stopped.");
+
+                    if (recorder.audioStream) {
+                        recorder.audioStream.getTracks().forEach(track => track.stop());
+                        recorder.audioStream = null;
+                    }
+
+                    await saveTasksToLocalStorage();
+                    checkAllTasksCompleted();
+                } catch (error) {
+                    console.error("Fehler beim Stoppen der Aufnahme:", error);
+                    showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
                 }
-            } catch (error) {
-                console.error("Fehler bei der Erstellung der Blob-URL:", error);
-                showValidationModal("Fehler beim Laden der Aufnahme. Bitte versuchef es erneut.");
-                return;
+            } else {
+                console.error("Aufnahme wurde nicht gestartet oder Recorder ist nicht initialisiert.");
+                showValidationModal("Aufnahme wurde nicht gestartet.");
             }
 
-            const audioPlayer = document.getElementById("audioPlayer");
-            audioPlayer.src = savedAudioURL;
-            document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
-            document.getElementById("savedRecording").classList.remove("hidden");
-
-            isRecording = false;
-            console.log("Recording stopped.");
-
-            if (recorder.audioStream) {
-                recorder.audioStream.getTracks().forEach(track => track.stop());
-                recorder.audioStream = null;
+            if (taskIntervals[taskIndex - 1]) {
+                clearInterval(taskIntervals[taskIndex - 1]);
+                taskIntervals[taskIndex - 1] = null;
             }
+            currentTask = null;
 
-            await saveTasksToLocalStorage();
-            checkAllTasksCompleted();
-        } catch (error) {
-            console.error("Fehler beim Stoppen der Aufnahme:", error);
-            showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
+            const startButton = document.getElementById("startTask1");
+            const startIcon = document.getElementById("startIcon1");
+            const startText = document.getElementById("startText1");
+            startText.innerText = "Starten";
+            startIcon.textContent = "▶";
         }
-    } else {
-        console.error("Aufnahme wurde nicht gestartet oder Recorder ist nicht initialisiert.");
-        showValidationModal("Aufnahme wurde nicht gestartet.");
-    }
-
-    if (taskIntervals[taskIndex - 1]) {
-        clearInterval(taskIntervals[taskIndex - 1]);
-        taskIntervals[taskIndex - 1] = null;
-    }
-    currentTask = null;
-
-    const startButton = document.getElementById("startTask1");
-    const startIcon = document.getElementById("startIcon1");
-    const startText = document.getElementById("startText1");
-    startText.innerText = "Starten";
-    startIcon.textContent = "▶";
-}
 
         // Timer-Funktionen
 
@@ -779,7 +800,7 @@ async function stopRecording(taskIndex) {
                 timerMinutesElement.style.setProperty('--value', '0');
                 timerSecondsElement.style.setProperty('--value', '00');
 
-                if(taskIndex === 1 && recorder && isRecording){
+                if (taskIndex === 1 && recorder && isRecording) {
                     stopRecording(taskIndex);
                 } else {
                     if (taskIntervals[taskIndex - 1]) {
@@ -809,7 +830,7 @@ async function stopRecording(taskIndex) {
 
         function startTimer(taskIndex) {
             const startButton = document.getElementById(`startTask${taskIndex}`);
-            if(taskIndex != 1)
+            if (taskIndex != 1)
                 startButton.disabled = true;
             const progressDiv = document.getElementById(`task${taskIndex}Progress`);
             if (progressDiv) {
@@ -831,38 +852,38 @@ async function stopRecording(taskIndex) {
         function confirmDeleteRecording() {
             document.getElementById("confirmDeleteRecordingModal").checked = true;
         }
-function deleteRecording() {
-    if (savedAudioURL) {
-        URL.revokeObjectURL(savedAudioURL); // Blob-URL freigeben
-    }
-    document.getElementById("savedRecording").classList.add("hidden");
-    document.getElementById("audioPlayer").src = "";
-    savedAudioURL = "";
-    recordedBlobs = [];
-    storedTasks.task1.savedAudioURL = null; // URL entfernen
-    checkAllTasksCompleted();
-    saveTasksToLocalStorage();
-    document.getElementById("confirmDeleteRecordingModal").checked = false;
-}
+        function deleteRecording() {
+            if (savedAudioURL) {
+                URL.revokeObjectURL(savedAudioURL); // Blob-URL freigeben
+            }
+            document.getElementById("savedRecording").classList.add("hidden");
+            document.getElementById("audioPlayer").src = "";
+            savedAudioURL = "";
+            recordedBlobs = [];
+            storedTasks.task1.savedAudioURL = null; // URL entfernen
+            checkAllTasksCompleted();
+            saveTasksToLocalStorage();
+            document.getElementById("confirmDeleteRecordingModal").checked = false;
+        }
 
         function confirmDeleteProof() {
             document.getElementById("confirmDeleteProofModal").checked = true;
         }
 
-function deleteProof() {
-    if (savedProofURL) {
-        URL.revokeObjectURL(savedProofURL); // Blob-URL freigeben
-    }
-    document.getElementById("savedProof").classList.add("hidden");
-    document.getElementById("proofName").innerText = "";
-    document.getElementById("proofPreview").classList.add("hidden");
-    savedProofURL = "";
-    storedTasks.task2.savedProofURL = null; // URL entfernen
-    document.getElementById("qualityValue").innerText = "";
-    checkAllTasksCompleted();
-    saveTasksToLocalStorage();
-    document.getElementById("confirmDeleteProofModal").checked = false;
-}
+        function deleteProof() {
+            if (savedProofURL) {
+                URL.revokeObjectURL(savedProofURL); // Blob-URL freigeben
+            }
+            document.getElementById("savedProof").classList.add("hidden");
+            document.getElementById("proofName").innerText = "";
+            document.getElementById("proofPreview").classList.add("hidden");
+            savedProofURL = "";
+            storedTasks.task2.savedProofURL = null; // URL entfernen
+            document.getElementById("qualityValue").innerText = "";
+            checkAllTasksCompleted();
+            saveTasksToLocalStorage();
+            document.getElementById("confirmDeleteProofModal").checked = false;
+        }
 
         function confirmResetTasks() {
             document.getElementById("confirmResetModal").checked = true;
@@ -922,7 +943,7 @@ function deleteProof() {
             localStorage.removeItem("tasks");
             await initializeTasks();
             updateOverallProgress();
-		
+
             document.getElementById("confirmResetModal").checked = false;
             location.reload();
 
@@ -935,9 +956,9 @@ function deleteProof() {
         }
 
         function checkAllTasksCompleted() {
-   		      tasksCompleted[0] = savedAudioURL && savedAudioURL !== "";
-   			     tasksCompleted[1] = savedProofURL && savedProofURL !== "";
-   			     tasksCompleted[2] = storedTasks.task3.mathTasks.every(task => task.userAnswer.trim() !== "");
+            tasksCompleted[0] = savedAudioURL && savedAudioURL !== "";
+            tasksCompleted[1] = savedProofURL && savedProofURL !== "";
+            tasksCompleted[2] = storedTasks.task3.mathTasks.every(task => task.userAnswer.trim() !== "");
 
             updateOverallProgress();
             saveTasksToLocalStorage();
@@ -975,7 +996,7 @@ function deleteProof() {
             const file = fileInput.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     document.getElementById("proofName").innerText = file.name;
                     const proofPreview = document.getElementById("proofPreview");
                     proofPreview.href = e.target.result;
@@ -994,9 +1015,9 @@ function deleteProof() {
         function confirmCompleteTask(taskIndex) {
             document.getElementById("validationMessage").innerHTML = "Möchtest du die Aufgabe wirklich abschließen?";
             const confirmButton = document.getElementById("modalConfirmButton");
-            if(taskIndex === 1){               
-                    stopRecording(taskIndex);
-                } 
+            if (taskIndex === 1) {
+                stopRecording(taskIndex);
+            }
             // Entferne vorherige Event-Listener, um Mehrfachauslösungen zu vermeiden
             confirmButton.removeEventListener('click', handleTaskCompletion);
 
@@ -1005,6 +1026,7 @@ function deleteProof() {
 
             confirmButton.classList.remove("hidden");
             document.getElementById("validationModal").checked = true;
+            updateOverallProgress();
         }
 
         function handleTaskCompletion(taskIndex) {
@@ -1069,12 +1091,12 @@ function deleteProof() {
         }
 
         function disableAllInteractions() {
-document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .btn-success, #task1 .btn-error, #task1 .btn-warning, ' +
-                         '#task2 .btn-primary, #task2 .btn-secondary, #task2 .btn-success, #task2 .btn-error, #task2 .btn-warning, ' +
-                         '#task3 .btn-primary, #task3 .btn-secondary, #task3 .btn-success, #task3 .btn-error, #task3 .btn-warning')
-        .forEach(btn => {
-            btn.disabled = true;
-        });
+            document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .btn-success, #task1 .btn-error, #task1 .btn-warning, ' +
+                '#task2 .btn-primary, #task2 .btn-secondary, #task2 .btn-success, #task2 .btn-error, #task2 .btn-warning, ' +
+                '#task3 .btn-primary, #task3 .btn-secondary, #task3 .btn-success, #task3 .btn-error, #task3 .btn-warning')
+                .forEach(btn => {
+                    btn.disabled = true;
+                });
 
             document.querySelectorAll('#task2 input[type="file"]').forEach(input => {
                 input.disabled = true;
@@ -1125,7 +1147,7 @@ document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .b
 
             // ZIP-Datei generieren und herunterladen
             zip.generateAsync({ type: "blob" })
-                .then(function(content) {
+                .then(function (content) {
                     saveAs(content, "Ergebnisse.zip");
                 });
         }
@@ -1159,4 +1181,5 @@ document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .b
         updateTimerDisplays();
     </script>
 </body>
+
 </html>
