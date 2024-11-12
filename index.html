@@ -246,8 +246,8 @@
     <input type="checkbox" id="confirmResetModal" class="modal-toggle" />
     <div class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg">Aufgaben zurücksetzen?</h3>
-            <p class="py-4">Möchtest du wirklich alle Aufgaben zurücksetzen? Deine bisherigen Fortschritte gehen dadurch
+            <h3 class="font-bold text-lg">Aufgaben neu starten?</h3>
+            <p class="py-4">Möchtest du wirklich alle Aufgaben neu starten? Deine bisherigen Fortschritte gehen dadurch
                 verloren.</p>
             <div class="modal-action">
                 <button class="btn btn-error" onclick="resetTasks()">Ja, zurücksetzen</button>
@@ -316,9 +316,11 @@
             <div class="hero-content text-center">
                 <div class="max-w-md">
                     <h1 class="text-5xl font-bold">Super!</h1>
-                    <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du deine sie hier
+                    <p class="py-6">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier
                         herunterladen.</p>
                     <button class="btn btn-primary" onclick="downloadZip()">📥 Ergebnisse herunterladen</button>
+                   <button class="btn btn-accent mr-4" onclick="confirmResetTasks()" id="newTasksBtn">🔄 Neu Starten</button>
+
                 </div>
             </div>
         </div>
@@ -545,71 +547,92 @@
             document.getElementById("task2").classList.add("hidden");
             document.getElementById("task3").classList.add("hidden");
         }
+function loadMathTasks() {
+    const mathContainer = document.getElementById("mathTasks");
+    mathContainer.innerHTML = ''; // Leeren des Containers für den Neuaufbau
 
-        function loadMathTasks() {
-            const mathContainer = document.getElementById("mathTasks");
-            mathContainer.innerHTML = ''; // Leeren des Containers für den Neuaufbau
+    const mathTasks = storedTasks.task3.mathTasks; // Rechenaufgaben aus den gespeicherten Aufgaben abrufen
 
-            const mathTasks = storedTasks.task3.mathTasks; // Rechenaufgaben aus den gespeicherten Aufgaben abrufen
+    const table = document.createElement("table");
+    table.classList.add("table", "w-full", "table-hover"); // Verwende "table-hover" statt "table-zebra"
 
-            const table = document.createElement("table");
-            table.classList.add("table", "w-full", "table-zebra"); // Table-Klassen für Tailwind/DaisyUI Styling
+    const tbody = document.createElement("tbody");
 
-            const tbody = document.createElement("tbody");
+    mathTasks.forEach((task, index) => {
+        const tr = document.createElement("tr");
 
-            mathTasks.forEach((task, index) => {
-                const tr = document.createElement("tr");
+        const tdIndex = document.createElement("td");
+        tdIndex.textContent = index + 1;
+        tdIndex.classList.add("font-bold");
 
-                const tdIndex = document.createElement("td");
-                tdIndex.textContent = index + 1;
-                tdIndex.classList.add("font-bold");
+        const tdTask = document.createElement("td");
+        tdTask.textContent = `${task.num1} ${operatorToSymbol(task.operator)} ${task.num2} =`;
 
-                const tdTask = document.createElement("td");
-                tdTask.textContent = `${task.num1} ${operatorToSymbol(task.operator)} ${task.num2} =`;
+        const tdInput = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.classList.add("input", "input-bordered", "w-full", "max-w-xs");
+        input.dataset.index = index;
+        input.value = task.userAnswer || "";
 
-                const tdInput = document.createElement("td");
-                const input = document.createElement("input");
-                input.type = "text";
-                input.classList.add("input", "input-bordered", "w-full", "max-w-xs");
-                input.dataset.index = index;
-                input.value = task.userAnswer || "";
-                input.addEventListener('input', function () {
-                    if (submitted) return;
-                    // Nur ganzzahlige Eingaben erlauben
-                    this.value = this.value.replace(/[^0-9]/g, '');
-                    storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value; // Speichern der Benutzerantwort
-                    saveTasksToLocalStorage();
-                    checkAllTasksCompleted(); // Überprüfung, ob alle Aufgaben gelöst sind
-                });
-                input.disabled = submitted ? true : false;
-                tdInput.appendChild(input);
+        // Event-Listener mit Überprüfung des Disabled-Status
+        input.addEventListener('input', function () {
+            if (submitted || this.disabled) return; // Abbrechen, wenn deaktiviert oder bereits abgeschickt
+            // Nur ganzzahlige Eingaben erlauben
+            this.value = this.value.replace(/[^0-9]/g, '');
+            storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value; // Speichern der Benutzerantwort
+            saveTasksToLocalStorage();
+            checkAllTasksCompleted(); // Überprüfung, ob alle Aufgaben gelöst sind
+        });
 
-                tr.appendChild(tdIndex);
-                tr.appendChild(tdTask);
-                tr.appendChild(tdInput);
+        // Setze den Disabled-Status basierend auf dem abgeschlossenen Zustand
+        input.disabled = submitted ? true : false;
+        tdInput.appendChild(input);
 
-                tbody.appendChild(tr);
-            });
+        tr.appendChild(tdIndex);
+        tr.appendChild(tdTask);
+        tr.appendChild(tdInput);
 
-            table.appendChild(tbody);
-            mathContainer.appendChild(table);
-        }
+        tbody.appendChild(tr);
+    });
 
-        function operatorToSymbol(operator) {
-            switch (operator) {
-                case '+':
-                    return '+';
-                case '-':
-                    return '−';
-                case '*':
-                    return '×';
-                case '/':
-                    return '÷';
-                default:
-                    return operator;
-            }
-        }
+    table.appendChild(tbody);
+    mathContainer.appendChild(table);
 
+    // Initiales Deaktivieren der Math-Task Eingabefelder, falls die Aufgabe nicht abgeschlossen ist
+    if (!tasksCompleted[2]) { // Index 2 für die dritte Aufgabe
+        disableMathTasks();
+    }
+}
+
+function operatorToSymbol(operator) {
+    switch (operator) {
+        case '+':
+            return '+';
+        case '-':
+            return '−';
+        case '*':
+            return '×';
+        case '/':
+            return '÷';
+        default:
+            return operator;
+    }
+}
+ function disableMathTasks() {
+        const mathTaskInputs = document.querySelectorAll('#mathTasks .input.input-bordered.w-full.max-w-xs');
+        mathTaskInputs.forEach(input => {
+            input.disabled = true;
+        });
+        console.log("Alle Math-Task Eingabefelder wurden deaktiviert.");
+    }
+    function enableMathTasks() {
+        const mathTaskInputs = document.querySelectorAll('#mathTasks .input.input-bordered.w-full.max-w-xs');
+        mathTaskInputs.forEach(input => {
+            input.disabled = false;
+        });
+        console.log("Alle Math-Task Eingabefelder wurden aktiviert.");
+    }
         // Start- und Stop-Logik für Aufgabe 1
 
         function handleTask1ButtonClick() {
@@ -622,39 +645,43 @@
             }
         }
 
-        function startTask(taskIndex) {
-            if (submitted) {
-                showValidationModal("Aufgaben wurden bereits abgegeben und können nicht mehr gestartet werden.");
-                return;
-            }
+function startTask(taskIndex) {
+    if (submitted) {
+        showValidationModal("Aufgaben wurden bereits abgegeben und können nicht mehr gestartet werden.");
+        return;
+    }
 
-            if (currentTask !== null && currentTask !== taskIndex) {
-                showValidationModal("Bitte schließe die aktuelle Aufgabe ab, bevor du eine neue beginnst.");
-                return;
-            }
+    if (currentTask !== null && currentTask !== taskIndex) {
+        showValidationModal("Bitte schließe die aktuelle Aufgabe ab, bevor du eine neue beginnst.");
+        return;
+    }
 
-            currentTask = taskIndex;
+    currentTask = taskIndex;
 
-            if (taskIndex === 1) {
-                if (storedTasks.task1.audioData) {
-                    document.getElementById("confirmRestartRecordingModal").checked = true;
-                    return;
-                }
-
-                startRecordingProcess();
-            } else if (taskIndex === 2 || taskIndex === 3) {
-                const startButton = document.getElementById(`startTask${taskIndex}`);
-                startButton.disabled = true;
-                startButton.innerText = "✅ Läuft";
-
-                const progressDiv = document.getElementById(`task${taskIndex}Progress`);
-                if (progressDiv) {
-                    progressDiv.classList.remove("hidden");
-                }
-
-                startTimer(taskIndex); // Timer starten
-            }
+    if (taskIndex === 1) {
+        if (storedTasks.task1.audioData) {
+            document.getElementById("confirmRestartRecordingModal").checked = true;
+            return;
         }
+
+        startRecordingProcess();
+    } else if (taskIndex === 2 || taskIndex === 3) {
+        const startButton = document.getElementById(`startTask${taskIndex}`);
+        startButton.disabled = true;
+        startButton.innerText = "✅ Läuft";
+
+        const progressDiv = document.getElementById(`task${taskIndex}Progress`);
+        if (progressDiv) {
+            progressDiv.classList.remove("hidden");
+        }
+
+        if (taskIndex === 3) {
+            enableMathTasks(); // Eingabefelder für Mathe-Aufgaben aktivieren
+        }
+
+        startTimer(taskIndex); // Timer starten
+    }
+}
 
         function startRecordingProcess() {
             const startButton = document.getElementById("startTask1");
@@ -1123,6 +1150,10 @@
             // Mark task as completed
             tasksCompleted[taskIndex - 1] = true;
             saveTasksToLocalStorage();
+    // Spezifische Aktionen für Mathe-Aufgabe
+    if (taskIndex === 3) {
+        disableMathTasks(); // Eingabefelder für Mathe-Aufgaben deaktivieren
+    }
 
             console.log(`Task ${taskIndex} marked as complete.`);
             document.getElementById("validationModal").checked = false;
@@ -1138,6 +1169,7 @@
 
             // Prüfe, ob eine unvollständige Aufgabe gefunden wurde und der Index innerhalb der Grenzen liegt
             if (nextTaskIndex >= 0 && nextTaskIndex < totalSteps) {
+                updateOverallProgress();
                 currentTaskIndex = nextTaskIndex + 1; // Da nextTaskIndex 0-basiert ist
                 console.log(`Displaying the next incomplete task: Task ${currentTaskIndex}`);
                 showNextTask(currentTaskIndex);
@@ -1174,6 +1206,7 @@
         }
 
         function showFinalPage() {
+            updateOverallProgress();
             document.getElementById("tasks").classList.add("hidden");
             document.getElementById("thankYouPage").classList.remove("hidden");
             submitted = true;
