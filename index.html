@@ -2,79 +2,1484 @@
 <html lang="de">
 
 <head>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "SkillCoins.de",
-      "url": "https://skillcoins.de",
-      "logo": "https://skillcoins.de/logo.png",
-      "description": "Lerne und verdiene Belohnungen mit SkillCoins.de. Erhalte Punkte für erfolgreiches Lernen und tausche sie gegen digitale Belohnungen wie V-Bucks oder Steam-Guthaben ein.",
-      "founder": {
-        "@type": "Person",
-        "name": "Christian Heinrich Hohlfeld"
-      },
-      "address": {
-        "@type": "PostalAddress",
-        "addressLocality": "Deutschland"
-      },
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "contactType": "customer service",
-        "email": "support@skillcoins.de",
-        "url": "https://skillcoins.de/kontakt",
-        "availableLanguage": ["German"]
-      }
-    }
-    </script>
-    <title>SkillCoins.de – Lernen und Belohnen</title>
     <meta charset="UTF-8">
+    <title>kurzlernen.de</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta property="og:title" content="SkillCoins.de – Lernen und Belohnen">
-    <meta property="og:description" content="Verdiene Belohnungen durch Lernen. Tausch deine Punkte gegen digitale Rewards ein.">
-    <meta property="og:image" content="https://skillcoins.de/logo.png">
-    <meta property="og:url" content="https://skillcoins.de">
-    <meta property="og:type" content="website">
-    <meta name="description" content="SkillCoins.de macht Lernen motivierend: Punkte sammeln und gegen coole Belohnungen einlösen.">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <link href="tailwind.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/keycloak-js@latest/dist/keycloak.min.js"></script>
-</head>
+    <!-- Tailwind CSS und DaisyUI -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
 
-<body class="bg-gray-50">
-    <header class="bg-white shadow p-4 flex justify-between">
-        <h1 class="text-xl font-bold">SkillCoins.de</h1>
-        <button id="keycloak-login" class="text-blue-500 font-medium">Login</button>
-    </header>
+    <!-- Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
 
-    <main class="container mx-auto mt-10 text-center">
-        <h2 class="text-3xl font-bold mb-4">Willkommen bei SkillCoins.de</h2>
-        <p class="text-gray-700">Lerne, sammle Punkte und verdiene digitale Belohnungen!</p>
-    </main>
+    <!-- JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-    <footer class="bg-gray-800 text-white text-center py-4 mt-10">
-        <p>© 2024 SkillCoins.de. Alle Rechte vorbehalten.</p>
-    </footer>
+    <!-- FileSaver.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
+    <!-- DaisyUI Theme Configuration -->
     <script>
-        const keycloak = new Keycloak({
-            url: 'https://identityserver.de',
-            realm: 'skillcoins',
-            clientId: 'skillcoins-frontend'
-        });
-
-        document.getElementById('keycloak-login').addEventListener('click', () => {
-            if (keycloak.authenticated) {
-                keycloak.logout();
+        // Theme wechseln basierend auf den Systemeinstellungen
+        document.addEventListener("DOMContentLoaded", () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.setAttribute('data-theme', 'dark');
             } else {
-                keycloak.login();
+                document.documentElement.setAttribute('data-theme', 'light');
             }
         });
+    </script>
+<script src="
+https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.min.js
+"></script>
+</head>
 
-        keycloak.init({ onLoad: 'check-sso' }).then(authenticated => {
-            document.getElementById('keycloak-login').textContent = authenticated ? 'Logout' : 'Login';
+<body class="bg-base-200 text-base-content">
+    <!-- Header mit DaisyUI Navbar -->
+    <header class="navbar bg-primary text-primary-content">
+        <div class="flex-1">
+            <a id="buttonheadertop" class="btn btn-ghost normal-case text-xl"
+                onclick="playFartWithParticles(event)">💩</a>
+        </div>
+        <!-- Audio Element (unsichtbar) -->
+        <audio id="fartSound" src="https://www.soundjay.com/human/fart-01.mp3" preload="auto"></audio>
+        <!-- Inline JavaScript -->
+        <script>
+
+        </script>
+        <div class="flex-none">
+            <!-- Neues Set an Aufgaben Knopf -->
+            <button class="btn btn-accent mr-4" onclick="confirmResetTasks()" id="newTasksBtn">🔄 Neu Starten</button>
+            <!-- Farbschema Toggle -->
+            <label class="swap swap-rotate">
+
+                <!-- this hidden checkbox controls the state -->
+                <input id="theme-toggle" type="checkbox" />
+
+                <div class="swap-on">😈</div>
+                <div class="swap-off">😇</div>
+            </label>
+        </div>
+    </header>
+
+    <div class="mx-auto p-4 max-w-screen-md">
+        <!-- Fortschrittsanzeige -->
+        <div class="mt-6 text-center">
+            <progress id="overallProgress" class="progress progress-info w-full" value="0" max="3"></progress>
+            <p id="progressText" class="mt-2">0 von 3 Aufgaben abgeschlossen</p>
+        </div>
+<div id="toast-container" class="fixed bottom-4 right-4 space-y-2"></div>
+
+        <!-- Aufgaben-Bereich -->
+        <div id="tasks" class="mt-6 space-y-4">
+            <!-- Aufgabe 1: Lesen -->
+            <div id="task1" class="task card shadow-lg bg-base-100">
+                <div class="card-body">
+                    <!-- Titel, Timer und Start-Button in einer Zeile -->
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center">
+                        <div class="flex items-center">
+                            <h3 class="card-title">📖 Aufgabe 1: Lesen</h3>
+                            <!-- Timer -->
+                            <span id="timer1" class="countdown font-mono text-2xl ml-4">
+                                <span id="timer1Minutes" style="--value:10;"></span>:
+                                <span id="timer1Seconds" style="--value:00;"></span>
+                            </span>
+                        </div>
+                        <div>
+                            <button id="startTask1" class="btn btn-primary flex items-center"
+                                onclick="handleTask1ButtonClick()">
+                                <span id="startIcon1" class="mr-2">▶️</span>
+                                <span id="startText1">Starten</span>
+                            </button>
+                        </div>
+                    </div>
+                    <p id="readText" class="py-4 text-justify">
+                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
+                    </p>
+                    <!-- Fortschrittsbalken, initial verborgen -->
+                    <div class="flex items-center justify-between mt-2 hidden" id="task1Progress">
+                        <div>
+                            <progress id="progress1" class="progress progress-primary w-56" value="100"
+                                max="100"></progress>
+                        </div>
+                    </div>
+                    <div id="savedRecording" class="mt-4 hidden">
+                        <audio id="audioPlayer" controls class="w-full"></audio>
+                        <div class="flex items-center mt-2">
+                            <span id="recordingName" class="ml-2">Aufnahme gespeichert</span>
+                            <button class="btn btn-error btn-sm ml-auto" onclick="confirmDeleteRecording()">🗑️
+                                Löschen</button>
+                        </div>
+                    </div>
+                    <!-- Alternative Audio Upload -->
+                    <div id="alternativeAudioUpload" class="mt-4 hidden">
+                        <label for="audioFileUpload" class="btn btn-secondary w-full">🎧 Alternativ: Audiodatei
+                            hochladen</label>
+                        <input id="audioFileUpload" type="file" accept="audio/*" class="hidden"
+                            onchange="uploadAudioFile()" />
+                    </div>
+                    <!-- Abschließen Button -->
+                    <div class="mt-4">
+                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(1)">✅ Aufgabe
+                            abschließen</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aufgabe 2: Schreiben -->
+            <div id="task2" class="task card shadow-lg bg-base-100 hidden">
+                <div class="card-body">
+                    <!-- Titel, Timer und Start-Button in einer Zeile -->
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center">
+                        <div class="flex items-center">
+                            <h3 class="card-title">✍️ Aufgabe 2: Abschreiben</h3>
+                            <!-- Timer -->
+                            <span id="timer2" class="countdown font-mono text-2xl ml-4">
+                                <span id="timer2Minutes" style="--value:10;"></span>:
+                                <span id="timer2Seconds" style="--value:00;"></span>
+                            </span>
+                        </div>
+                        <div>
+                            <button id="startTask2" class="btn btn-primary" onclick="startTask(2)">▶️ Starten</button>
+                        </div>
+                    </div>
+                    <p id="writeText" class="py-4 text-justify">
+                        <!-- Platzhalter, wird durch JavaScript ersetzt -->
+                    </p>
+                    <!-- Fortschrittsbalken, initial verborgen -->
+                    <div class="flex items-center justify-between mt-2 hidden" id="task2Progress">
+                        <div>
+                            <progress id="progress2" class="progress progress-secondary w-56" value="100"
+                                max="100"></progress>
+                        </div>
+                    </div>
+                    <p id="handwritingQuality" class="mt-2"><span id="qualityValue"></span></p>
+                    <label for="proofUpload" class="btn btn-secondary mt-4 w-full">📷 Foto der Abschrift
+                        aufnehmen</label>
+                    <input id="proofUpload" type="file" accept="image/*" capture="camera" class="hidden"
+                        onchange="uploadProof()" />
+                    <div id="savedProof" class="mt-4 hidden">
+                        <div class="flex items-center">
+                            <span id="proofName" class="ml-2">Foto hochgeladen</span>
+                            <a id="proofPreview" href="#" class="btn btn-info btn-sm ml-auto hidden" target="_blank">👁️
+                                Vorschau</a>
+                            <button class="btn btn-error btn-sm ml-2" onclick="confirmDeleteProof()">🗑️
+                                Löschen</button>
+                        </div>
+                    </div>
+                    <!-- Abschließen Button -->
+                    <div class="mt-4">
+                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(2)">✅ Aufgabe
+                            abschließen</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aufgabe 3: Mathe -->
+            <div id="task3" class="task card shadow-lg bg-base-100 hidden">
+                <div class="card-body">
+                    <!-- Titel, Timer und Start-Button in einer Zeile -->
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center">
+                        <div class="flex items-center">
+                            <h3 class="card-title">➗ Aufgabe 3: Rechenaufgaben</h3>
+                            <!-- Timer -->
+                            <span id="timer3" class="countdown font-mono text-2xl ml-4">
+                                <span id="timer3Minutes" style="--value:10;"></span>:
+                                <span id="timer3Seconds" style="--value:00;"></span>
+                            </span>
+                        </div>
+                        <div>
+                            <button id="startTask3" class="btn btn-primary" onclick="startTask(3)">▶️ Starten</button>
+                        </div>
+                    </div>
+                    <div id="mathTasks" class="overflow-x-auto mt-4">
+                        <!-- Rechenaufgaben werden hier eingefügt -->
+                    </div>
+                    <!-- Fortschrittsbalken, initial verborgen -->
+                    <div class="flex items-center justify-between mt-2 hidden" id="task3Progress">
+                        <div>
+                            <progress id="progress3" class="progress progress-accent w-56" value="100"
+                                max="100"></progress>
+                        </div>
+                    </div>
+                    <!-- Abschließen Button -->
+                    <div class="mt-4">
+                        <button class="btn btn-success w-full mb-2" onclick="confirmCompleteTask(3)">✅ Aufgabe
+                            abschließen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Abgabe-Button entfernt -->
+    </div>
+
+    <!-- Modale für Validierungen und Bestätigungen -->
+    <!-- Validierungsmodal -->
+    <input type="checkbox" id="validationModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg" id="modalTitle">Hinweis</h3>
+            <p id="validationMessage" class="py-4"></p>
+            <div class="modal-action">
+                <label for="validationModal" class="btn">Abbrechen</label>
+                <button id="modalConfirmButton" class="btn btn-primary hidden">Bestätigen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsmodal für das Löschen der Aufnahme -->
+    <input type="checkbox" id="confirmDeleteRecordingModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Willst du deine Aufnahme wirklich löschen?</h3>
+            <p class="py-4">Möchtest du die Aufnahme wirklich löschen?</p>
+            <div class="modal-action">
+                <button class="btn btn-error" onclick="deleteRecording()">Ja, löschen</button>
+                <label for="confirmDeleteRecordingModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsmodal für das Löschen des Beweises -->
+    <input type="checkbox" id="confirmDeleteProofModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Foto deiner Abschrift löschen?</h3>
+            <p class="py-4">Bist du sicher, dass du das hochgeladene Foto deiner Abschrift löschen möchtest?</p>
+            <div class="modal-action">
+                <button class="btn btn-error ml-2" onclick="deleteProof()">Ja, bitte löschen</button>
+                <label for="confirmDeleteProofModal" class="btn">Nein, behalten</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsmodal für das Zurücksetzen -->
+    <input type="checkbox" id="confirmResetModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Aufgaben neu starten?</h3>
+            <p class="py-4">Möchtest du wirklich alle Aufgaben neu starten? Deine bisherigen Fortschritte gehen dadurch
+                verloren.</p>
+            <div class="modal-action">
+                <button class="btn btn-error" onclick="resetTasks()">Ja, zurücksetzen</button>
+                <label for="confirmResetModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal für Mikrofonprobleme -->
+    <input type="checkbox" id="micErrorModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Mikrofonproblem</h3>
+            <p class="py-4">Es gab ein Problem mit deinem Mikrofon oder es wurde nicht gefunden. Willst du die Aufgabe
+                trotzdem starten und die Audioaufnahme überspringen?</p>
+            <div class="modal-action">
+                <button class="btn btn-primary" onclick="proceedWithoutMic()">Ja, trotzdem starten</button>
+                <label for="micErrorModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal für das Stoppen der Aufnahme -->
+    <input type="checkbox" id="confirmStopRecordingModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Aufnahme abschließen?</h3>
+            <p class="py-4">Deine Aufnahme wird dann abgeschlossen und zur Lösung deiner Aufgabe als Anhang hinzugefügt.
+                Möchtest du deine Aufnahme abschließen? </p>
+            <div class="modal-action">
+                <button class="btn btn-primary" onclick="stopRecording(1)">Ja, beenden</button>
+                <label for="confirmStopRecordingModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal für das Neustarten der Aufnahme -->
+    <input type="checkbox" id="confirmRestartRecordingModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Aufnahme neu starten?</h3>
+            <p class="py-4">Möchtest du die Aufnahme neu starten? Deine aktuelle Aufnahme wird dadurch überschrieben.
+            </p>
+            <div class="modal-action">
+                <button class="btn btn-primary" onclick="restartRecording()">Ja, neu starten</button>
+                <label for="confirmRestartRecordingModal" class="btn">Abbrechen</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monologue Modal -->
+    <input type="checkbox" id="monologueModal" class="modal-toggle" />
+    <div class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Monolog</h3>
+            <p class="py-4">Vielen Dank für deine Teilnahme!</p>
+            <div class="modal-action">
+                <label for="monologueModal" class="btn">Schließen</label>
+            </div>
+        </div>
+    </div>
+<!-- Vielen Dank Seite -->
+<div id="thankYouPage" class="hidden">
+    <div class="hero min-h-screen bg-base-200">
+        <div class="hero-content text-center">
+            <div class="max-w-md space-y-6">
+                <h1 class="text-5xl font-bold">Super!</h1>
+                <p class="py-4">Toll! Du hast deine Aufgaben abgegeben. Wenn du magst, kannst du sie hier herunterladen.</p>
+                <div class="flex justify-center space-x-4">
+                    <button class="btn btn-primary" onclick="downloadZip()">
+                        📥 Herunterladen
+                    </button>
+                    <button class="btn btn-success hidden" onclick="shareFile()">
+                        📤 Teilen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    <!-- Skriptbereich -->
+    <script>
+        let mouseMoveHandler = null;
+        let lastParticleTime = 0;
+        const throttleTime = 5; // Zeit in ms zwischen Partikel-Erstellungen
+
+        // Funktion zum Abspielen des Furtz-Sounds und Starten des Partikeleffekts
+        function playFartWithParticles(event) {
+            event.preventDefault(); // Verhindert das Standardverhalten des Links
+
+            const fartSound = document.getElementById('fartSound');
+            fartSound.currentTime = 0; // Setzt den Sound auf den Anfang
+            fartSound.play().catch(error => {
+                console.error("Fehler beim Abspielen des Furtz-Sounds:", error);
+            });
+
+            // Event Listener für Mausbewegungen hinzufügen
+            const button = document.getElementById('buttonheadertop');
+            mouseMoveHandler = (e) => createParticle(e);
+            document.addEventListener('mousemove', mouseMoveHandler);
+
+            // Event Listener für das Ende des Sounds hinzufügen
+            fartSound.onended = () => {
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                mouseMoveHandler = null;
+            };
+        }
+
+        // Funktion zum Erzeugen von Partikeln
+        function createParticle(event) {
+            const currentTime = Date.now();
+            if (currentTime - lastParticleTime < throttleTime) {
+                return; // Throttle: Verhindert zu viele Partikel in kurzer Zeit
+            }
+            lastParticleTime = currentTime;
+
+            const x = event.clientX;
+            const y = event.clientY;
+
+            const particle = document.createElement('span');
+
+            // Zufällige braune Farbe aus verschiedenen Brauntönen
+            const browns = [
+                `rgba(139, 69, 19, ${Math.random() * 0.5 + 0.5})`,    // SaddleBrown
+                `rgba(160, 82, 45, ${Math.random() * 0.5 + 0.5})`,    // Sienna
+                `rgba(205, 133, 63, ${Math.random() * 0.5 + 0.5})`     // Peru
+            ];
+            const randomBrown = browns[Math.floor(Math.random() * browns.length)];
+
+            // Setze alle notwendigen Stile inline
+            Object.assign(particle.style, {
+                position: 'absolute',
+                width: `${Math.random() * 6 + 3}px`, // Größe zwischen 3px und 9px
+                height: `${Math.random() * 6 + 3}px`,
+                backgroundColor: randomBrown, // Zufällige braune Farbe mit variabler Transparenz
+                borderRadius: '50%',
+                pointerEvents: 'none',
+                left: `${x}px`, // Horizontale Position innerhalb des Viewports
+                top: `${y}px`,  // Vertikale Position innerhalb des Viewports
+                opacity: '1',
+                transform: 'translate(-50%, -50%)',
+                filter: `blur(${Math.random() * 1}px)`, // Leichte Unschärfe
+                zIndex: '9999', // Stelle sicher, dass Partikel sichtbar sind
+            });
+
+            // Füge das Partikel dem Body hinzu
+            document.body.appendChild(particle);
+
+            // Definiere die Animation
+            const animation = particle.animate([
+                { transform: `translate(-50%, -50%) translateY(0px)`, opacity: 1 },
+                { transform: `translate(-50%, -50%) translateY(-30px)`, opacity: 0 }
+            ], {
+                duration: 800, // 0,8 Sekunden
+                easing: 'ease-out',
+                fill: 'forwards', // Behalte den Endzustand nach der Animation bei
+            });
+
+            // Entferne das Partikel nach Abschluss der Animation
+            animation.onfinish = () => {
+                particle.remove();
+            };
+        }
+        // Hilfsfunktionen
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result.split(',')[1];
+                    resolve(base64data);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function base64ToBlob(base64, mime) {
+            const byteChars = atob(base64);
+            const byteNumbers = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+                byteNumbers[i] = byteChars.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mime });
+        }
+
+        // Globale Variablen und Konstanten
+        const taskTimersInitial = [600, 600, 600]; // 10 Minuten für jede Aufgabe
+        let taskTimers = [...taskTimersInitial];
+        let taskIntervals = [null, null, null];
+        let currentTask = null;
+        let currentTaskIndex = null;
+        let isRecording = false;
+        let recorder;
+        let recordedBlobs = [];
+        let savedAudioURL = "";
+        let savedProofURL = "";
+        let storedTasks = {};
+        let audioStream;
+        let tasksCompleted = [false, false, false];
+        let submitted = false;
+        const totalSteps = 3;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (checkBrowserCompatibility()) {
+                loadTasksFromLocalStorage();
+            } else {
+                console.log("Ihr Browser unterstützt nicht alle notwendigen Funktionen für diese Anwendung.");
+            }
+
+            // Theme Toggle
+            const themeToggle = document.getElementById('theme-toggle');
+            // Prüfe das bevorzugte Farbschema des Benutzers
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggle.checked = true;
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+                themeToggle.checked = false;
+            }
+
+            themeToggle.addEventListener('change', function () {
+                if (this.checked) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            });
+
+            // Initialisiere die Aufgaben, falls nicht vorhanden
+            if (!storedTasks || Object.keys(storedTasks).length === 0) {
+                initializeTasks();
+            }
+
+            // Initiale Timer-Anzeige aktualisieren
+            updateTimerDisplays();
         });
+
+        // Neue Funktion zur Browserkompatibilitätsprüfung
+        function checkBrowserCompatibility() {
+            // Überprüfen, ob getUserMedia und MediaRecorder verfügbar sind
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return false;
+            }
+            if (!window.MediaRecorder) {
+                return false;
+            }
+            if (!window.JSZip) {
+                return false;
+            }
+            return true;
+        }
+
+        // Funktionen zum Laden, Speichern und Initialisieren der Aufgaben
+        async function saveTasksToLocalStorage() {
+            try {
+                localStorage.setItem("tasks", JSON.stringify(storedTasks));
+            } catch (error) {
+                console.error("Speichern im localStorage fehlgeschlagen:", error);
+                showValidationModal("Speichern fehlgeschlagen. Bitte prüfe den verfügbaren Speicherplatz.");
+            }
+        }
+
+        async function loadTasksFromLocalStorage() {
+            try {
+                const tasksData = localStorage.getItem("tasks");
+
+                if (tasksData) {
+                    storedTasks = JSON.parse(tasksData);
+                    console.log("Loaded tasks from local storage:", storedTasks);
+
+                    document.getElementById("readText").innerHTML = storedTasks.task1.readText;
+                    document.getElementById("writeText").innerHTML = storedTasks.task2.writeText;
+                    loadMathTasks(); // Load math tasks
+
+                    tasksCompleted = storedTasks.tasksCompleted || [false, false, false];
+                    submitted = storedTasks.submitted || false;
+                    savedAudioURL = storedTasks.task1.savedAudioURL || "";
+                    savedProofURL = storedTasks.task2.savedProofURL || "";
+
+                    // Laden und Anzeigen der gespeicherten Aufnahme
+                    if (savedAudioURL && savedAudioURL !== "") {
+                        const audioPlayer = document.getElementById("audioPlayer");
+                        audioPlayer.src = savedAudioURL;
+                        document.getElementById("recordingName").innerText = "Aufnahme geladen";
+                        document.getElementById("savedRecording").classList.remove("hidden");
+                    }
+
+                    // Laden und Anzeigen des gespeicherten Beweises
+                    if (storedTasks.task2.proofDataURL) {
+                        const base64Image = storedTasks.task2.proofDataURL;
+                        savedProofURL = `data:image/png;base64,${base64Image}`;
+                        document.getElementById("proofName").innerText = "Foto geladen";
+                        const proofPreview = document.getElementById("proofPreview");
+                        proofPreview.href = savedProofURL;
+                        //proofPreview.classList.remove("hidden");
+                        document.getElementById("savedProof").classList.remove("hidden");
+                    }
+
+                    updateOverallProgress(); // Update progress display
+
+                    if (submitted) {
+                        console.log("Tasks already submitted. Disabling interactions.");
+                        disableAllInteractions();
+                        showFinalPage();
+                    } else if (!tasksCompleted.every(Boolean)) {
+                        console.log("Tasks not yet submitted. Displaying the next incomplete task.");
+                        displayNextIncompleteTask();
+                    }
+                } else {
+                    console.log("No tasks found in local storage. Initializing tasks.");
+                    await initializeTasks();
+                }
+            } catch (error) {
+                console.error("Error loading tasks from local storage:", error);
+                await initializeTasks(); // Fallback to initialize tasks if an error occurs
+            }
+        }
+
+        function initializeTasks() {
+            // Aufgaben initialisieren
+            const initialReadText = `
+                <em>Das geheime Tagebuch</em><br><br>
+                Als ich an diesem verregneten Nachmittag auf den Dachboden stieg, erwartete ich nicht, mein Leben für immer zu verändern. Zwischen staubigen alten Kisten und vergessenen Erinnerungsstücken entdeckte ich ein ledergebundenes Buch. Es war alt, sehr alt, und der Einband trug keinen Titel. Neugierig öffnete ich es und begann zu lesen.<br><br>
+                Die Seiten waren mit handgeschriebenen Notizen gefüllt, die von Abenteuern, verborgenen Schätzen und mysteriösen Begegnungen erzählten. Je mehr ich las, desto mehr fühlte ich mich mit dem unbekannten Autor verbunden. War dies das Tagebuch eines meiner Vorfahren? Oder vielleicht das eines völlig Fremden? Eines war sicher: Dies war kein gewöhnliches Tagebuch.<br><br>
+                Plötzlich spürte ich eine leichte Brise, obwohl kein Fenster geöffnet war. Ein leises Flüstern erfüllte den Raum: "Folge den Zeichen..." Mein Herz schlug schneller. Sollte ich dem Rätsel folgen, das sich vor mir entfaltete? Mit klopfendem Herzen beschloss ich, mich auf das Abenteuer einzulassen.
+            `;
+
+            const initialWriteText = `
+                <strong>Abschreibtext:</strong><br>
+                "Ich konnte kaum glauben, was ich entdeckt hatte. Die Geheimnisse, die in diesem Tagebuch verborgen lagen, schienen älter zu sein als unsere Familie selbst. Jeder Satz, jede Zeichnung führte mich tiefer in ein Mysterium, das darauf wartete, gelüftet zu werden. Mutig entschied ich mich, dem Pfad zu folgen, auch wenn ich nicht wusste, wohin er mich führen würde."
+            `;
+
+            const mathTasks = [];
+            const multiplicationRange = { min: 1, max: 10 }; // Kleines Einmaleins
+            const divisionRange = { min: 1, max: 10 }; // Einfache Divisionen
+
+            // Generiere 10 einfache Matheaufgaben (5 Multiplikation, 5 Division)
+            for (let i = 0; i < 10; i++) {
+                if (i < 5) {
+                    // Multiplikation
+                    const num1 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+                    const num2 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+                    const operator = "*";
+                    mathTasks.push({ num1, num2, operator, userAnswer: "" });
+                } else {
+                    // Division (sicherstellen, dass das Ergebnis eine ganze Zahl ist)
+                    const divisor = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+                    const quotient = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+                    const dividend = divisor * quotient;
+                    const operator = "/";
+                    mathTasks.push({ num1: dividend, num2: divisor, operator, userAnswer: "" });
+                }
+            }
+
+            storedTasks = {
+                task1: {
+                    readText: initialReadText,
+                    audioData: null,
+                    savedAudioURL: "",
+                },
+                task2: {
+                    writeText: initialWriteText,
+                    proofDataURL: null,
+                    savedProofURL: "",
+                },
+                task3: {
+                    mathTasks: mathTasks,
+                },
+                tasksCompleted: [false, false, false],
+                submitted: false
+            };
+            saveTasksToLocalStorage();
+
+            document.getElementById("readText").innerHTML = initialReadText;
+            document.getElementById("writeText").innerHTML = initialWriteText;
+            loadMathTasks();
+
+            document.getElementById("task1").classList.remove("hidden");
+            document.getElementById("task2").classList.add("hidden");
+            document.getElementById("task3").classList.add("hidden");
+        }
+        function loadMathTasks() {
+            const mathContainer = document.getElementById("mathTasks");
+            mathContainer.innerHTML = ''; // Leeren des Containers für den Neuaufbau
+
+            const mathTasks = storedTasks.task3.mathTasks; // Rechenaufgaben aus den gespeicherten Aufgaben abrufen
+
+            const table = document.createElement("table");
+            table.classList.add("table", "w-full", "table-hover"); // Verwende "table-hover" statt "table-zebra"
+
+            const tbody = document.createElement("tbody");
+
+            mathTasks.forEach((task, index) => {
+                const tr = document.createElement("tr");
+
+                const tdIndex = document.createElement("td");
+                tdIndex.textContent = index + 1;
+                tdIndex.classList.add("font-bold");
+
+                const tdTask = document.createElement("td");
+                tdTask.textContent = `${task.num1} ${operatorToSymbol(task.operator)} ${task.num2} =`;
+
+                const tdInput = document.createElement("td");
+                const input = document.createElement("input");
+                input.type = "text";
+                input.classList.add("input", "input-bordered", "w-full", "max-w-xs");
+                input.dataset.index = index;
+                input.value = task.userAnswer || "";
+
+                // Event-Listener mit Überprüfung des Disabled-Status
+                input.addEventListener('input', function () {
+                    if (submitted || this.disabled) return; // Abbrechen, wenn deaktiviert oder bereits abgeschickt
+                    // Nur ganzzahlige Eingaben erlauben
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                    storedTasks.task3.mathTasks[this.dataset.index].userAnswer = this.value; // Speichern der Benutzerantwort
+                    saveTasksToLocalStorage();
+                    checkAllTasksCompleted(); // Überprüfung, ob alle Aufgaben gelöst sind
+                });
+
+                // Setze den Disabled-Status basierend auf dem abgeschlossenen Zustand
+                input.disabled = submitted ? true : false;
+                tdInput.appendChild(input);
+
+                tr.appendChild(tdIndex);
+                tr.appendChild(tdTask);
+                tr.appendChild(tdInput);
+
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(tbody);
+            mathContainer.appendChild(table);
+
+            // Initiales Deaktivieren der Math-Task Eingabefelder, falls die Aufgabe nicht abgeschlossen ist
+            if (!tasksCompleted[2]) { // Index 2 für die dritte Aufgabe
+                disableMathTasks();
+            }
+        }
+
+        function operatorToSymbol(operator) {
+            switch (operator) {
+                case '+':
+                    return '+';
+                case '-':
+                    return '−';
+                case '*':
+                    return '×';
+                case '/':
+                    return '÷';
+                default:
+                    return operator;
+            }
+        }
+        function disableMathTasks() {
+            const mathTaskInputs = document.querySelectorAll('#mathTasks .input.input-bordered.w-full.max-w-xs');
+            mathTaskInputs.forEach(input => {
+                input.disabled = true;
+            });
+            console.log("Alle Math-Task Eingabefelder wurden deaktiviert.");
+        }
+        function enableMathTasks() {
+            const mathTaskInputs = document.querySelectorAll('#mathTasks .input.input-bordered.w-full.max-w-xs');
+            mathTaskInputs.forEach(input => {
+                input.disabled = false;
+            });
+            console.log("Alle Math-Task Eingabefelder wurden aktiviert.");
+        }
+        // Start- und Stop-Logik für Aufgabe 1
+
+        function handleTask1ButtonClick() {
+            if (isRecording) {
+                // Wenn Aufnahme läuft, soll Aufnahme gestoppt werden
+                confirmStopRecording();
+            } else {
+                // Wenn keine Aufnahme läuft, Aufnahme starten
+                startTask(1);
+            }
+        }
+
+        function startTask(taskIndex) {
+            if (submitted) {
+                showValidationModal("Aufgaben wurden bereits abgegeben und können nicht mehr gestartet werden.");
+                return;
+            }
+
+            if (currentTask !== null && currentTask !== taskIndex) {
+                showValidationModal("Bitte schließe die aktuelle Aufgabe ab, bevor du eine neue beginnst.");
+                return;
+            }
+
+            currentTask = taskIndex;
+
+            if (taskIndex === 1) {
+                if (storedTasks.task1.audioData) {
+                    document.getElementById("confirmRestartRecordingModal").checked = true;
+                    return;
+                }
+
+                startRecordingProcess();
+            } else if (taskIndex === 2 || taskIndex === 3) {
+                const startButton = document.getElementById(`startTask${taskIndex}`);
+                startButton.disabled = true;
+                startButton.innerText = "✅ Läuft";
+
+                const progressDiv = document.getElementById(`task${taskIndex}Progress`);
+                if (progressDiv) {
+                    progressDiv.classList.remove("hidden");
+                }
+
+                if (taskIndex === 3) {
+                    enableMathTasks(); // Eingabefelder für Mathe-Aufgaben aktivieren
+                }
+
+                startTimer(taskIndex); // Timer starten
+            }
+        }
+function startRecordingProcess() {
+    const startButton = document.getElementById("startTask1");
+    const startIcon = document.getElementById("startIcon1");
+    const startText = document.getElementById("startText1");
+
+    if (!startText) {
+        console.error("Element mit ID 'startText1' nicht gefunden.");
+        showValidationModal("Interner Fehler: Start-Text nicht gefunden.");
+        return;
+    }
+
+    // Überprüfen, ob bereits eine Aufnahme läuft
+    if (isRecording) {
+        // Aufnahme stoppen, wenn bereits gestartet
+        confirmStopRecording();
+    } else {
+        // Starten der Aufnahme
+        startText.innerText = "Aufnahme läuft...";
+        startIcon.textContent = "⏹️";
+        isRecording = true; // Aufnahme läuft jetzt
+
+        startRecording().then(() => {
+            document.getElementById("task1Progress").classList.remove("hidden");
+            startTimer(1); // Timer starten
+        }).catch((error) => {
+            startText.innerText = "Starten";
+            startIcon.textContent = "▶";
+            isRecording = false; // Aufnahme nicht gestartet
+            if (error.message.includes("Mikrofon")) {
+                document.getElementById("micErrorModal").checked = true;
+            } else {
+                showValidationModal("Fehler beim Starten der Aufnahme: " + error.message);
+                currentTask = null;
+            }
+        });
+    }
+}
+async function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Audioaufnahme nicht möglich. Ihr Gerät oder Browser unterstützt diese Funktion nicht.");
+    }
+
+    try {
+        // Mikrofonzugriff anfordern
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // RecordRTC konfigurieren
+        recorder = RecordRTC(audioStream, {
+            type: 'audio',
+            mimeType: 'audio/wav',
+            recorderType: StereoAudioRecorder, // Nutzt StereoAudioRecorder, um WAV zu erstellen
+            numberOfAudioChannels: 1, // Mono-Kanal für bessere Kompatibilität
+            sampleRate: 44100 // Optionale Anpassung der Sample-Rate
+        });
+
+        recorder.startRecording(); // Aufnahme starten
+        isRecording = true;
+        console.log("RecordRTC Audio-Aufnahme gestartet.");
+
+        // Rückgabewert des Recorders setzen
+        recorder.audioStream = audioStream;
+
+        return Promise.resolve(); // Indikator für erfolgreichen Start der Aufnahme
+    } catch (error) {
+        console.error("Fehler beim Starten der Aufnahme:", error);
+        throw new Error("Audioaufnahme nicht möglich. Bitte Mikrofonzugriff erlauben.");
+    }
+}
+
+
+        function confirmStopRecording() {
+            document.getElementById("confirmStopRecordingModal").checked = true;
+        }
+
+     async function stopRecording(taskIndex) {
+    document.getElementById("confirmStopRecordingModal").checked = false;
+    
+    if (taskIndex === 1 && recorder && isRecording) {
+        try {
+            await recorder.stopRecording();
+
+            // Kurze Verzögerung, um sicherzustellen, dass der Blob korrekt generiert wird
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const blob = recorder.getBlob();
+
+            if (!blob || blob.size === 0) {
+                console.error("Blob wurde nicht erstellt oder ist leer.");
+                showValidationModal("Fehler bei der Erstellung der Aufnahme. Bitte versuche es erneut.");
+                return;
+            }
+
+            recordedBlobs = [blob];
+            const base64Audio = await blobToBase64(blob); // Konvertiere Blob zu Base64
+            storedTasks.task1.audioData = base64Audio;
+            savedAudioURL = URL.createObjectURL(blob);
+            storedTasks.task1.savedAudioURL = savedAudioURL;
+
+            const audioPlayer = document.getElementById("audioPlayer");
+            audioPlayer.src = savedAudioURL;
+            document.getElementById("recordingName").innerText = "Aufnahme gespeichert";
+            document.getElementById("savedRecording").classList.remove("hidden");
+
+            isRecording = false;
+            console.log("Recording gestoppt und gespeichert.");
+
+            // AudioStream beenden
+            recorder.audioStream.getTracks().forEach(track => track.stop());
+
+            // Recorder auf null setzen, um doppelte Aufrufe zu verhindern
+            recorder = null;
+
+            await saveTasksToLocalStorage();
+            checkAllTasksCompleted();
+        } catch (error) {
+            console.error("Fehler beim Stoppen der Aufnahme:", error);
+            showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
+        }
+    } else {
+        console.log("Aufnahme wurde nicht gestartet oder Recorder ist bereits de-initialisiert.");
+        showValidationModal("Die Aufnahmedatei fehlt. Versuche es bitte nochmal.");
+    }
+
+    if (taskIntervals[taskIndex - 1]) {
+        clearInterval(taskIntervals[taskIndex - 1]);
+        taskIntervals[taskIndex - 1] = null;
+    }
+    currentTask = null;
+
+    const startButton = document.getElementById("startTask1");
+    const startIcon = document.getElementById("startIcon1");
+    const startText = document.getElementById("startText1");
+    startText.innerText = "Starten";
+    startIcon.textContent = "▶";
+}
+
+        // Timer-Funktionen
+
+        function updateTimerDisplays() {
+            for (let i = 1; i <= 3; i++) {
+                const minutes = Math.floor(taskTimersInitial[i - 1] / 60);
+                const seconds = taskTimersInitial[i - 1] % 60;
+
+                const timerMinutesElement = document.getElementById(`timer${i}Minutes`);
+                const timerSecondsElement = document.getElementById(`timer${i}Seconds`);
+
+                timerMinutesElement.style.setProperty('--value', minutes);
+                timerSecondsElement.style.setProperty('--value', seconds < 10 ? '0' + seconds : seconds);
+
+                const progressElement = document.getElementById(`progress${i}`);
+                if (progressElement) {
+                    progressElement.value = 100;
+                }
+            }
+        }
+
+        function updateTaskTimer(taskIndex) {
+            let timeLeft = taskTimers[taskIndex - 1];
+
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+
+            const timerMinutesElement = document.getElementById(`timer${taskIndex}Minutes`);
+            const timerSecondsElement = document.getElementById(`timer${taskIndex}Seconds`);
+            const progressElement = document.getElementById(`progress${taskIndex}`);
+
+            if (timeLeft >= 0) {
+                taskTimers[taskIndex - 1]--;
+
+                timerMinutesElement.style.setProperty('--value', minutes);
+                timerSecondsElement.style.setProperty('--value', seconds < 10 ? '0' + seconds : seconds);
+
+                const progressValue = (taskTimers[taskIndex - 1] / taskTimersInitial[taskIndex - 1]) * 100;
+                if (progressElement) {
+                    progressElement.value = progressValue;
+                }
+            } else {
+                timerMinutesElement.style.setProperty('--value', '0');
+                timerSecondsElement.style.setProperty('--value', '00');
+
+                if (taskIndex === 1 && recorder && isRecording) {
+                    stopRecording(taskIndex);
+                } else {
+                    if (taskIntervals[taskIndex - 1]) {
+                        clearInterval(taskIntervals[taskIndex - 1]);
+                        taskIntervals[taskIndex - 1] = null;
+                    }
+                    currentTask = null;
+
+                    const startButton = document.getElementById(`startTask${taskIndex}`);
+                    if (startButton) {
+                        startButton.disabled = false;
+                        startButton.innerText = "▶️ Starten";
+                    }
+                }
+
+                taskTimers[taskIndex - 1] = taskTimersInitial[taskIndex - 1];
+                if (progressElement) {
+                    progressElement.value = 100;
+                }
+                showValidationModal(`Zeit für Aufgabe 🕒${taskIndex} abgelaufen`);
+
+                if (taskIndex === 3) {
+                    showMonologue();
+                }
+            }
+        }
+
+        function startTimer(taskIndex) {
+            const startButton = document.getElementById(`startTask${taskIndex}`);
+            if (taskIndex != 1)
+                startButton.disabled = true;
+            const progressDiv = document.getElementById(`task${taskIndex}Progress`);
+            if (progressDiv) {
+                progressDiv.classList.remove("hidden");
+            }
+
+            taskIntervals[taskIndex - 1] = setInterval(() => updateTaskTimer(taskIndex), 1000);
+        }
+
+        // Weitere Funktionen
+
+        function showValidationModal(message) {
+            document.getElementById("validationMessage").innerHTML = message;
+            const confirmButton = document.getElementById("modalConfirmButton");
+            confirmButton.classList.add("hidden");
+            document.getElementById("validationModal").checked = true;
+        }
+
+        function confirmDeleteRecording() {
+            document.getElementById("confirmDeleteRecordingModal").checked = true;
+        }
+
+        function deleteRecording() {
+            if (savedAudioURL) {
+                URL.revokeObjectURL(savedAudioURL); // Blob-URL freigeben
+            }
+            document.getElementById("savedRecording").classList.add("hidden");
+            document.getElementById("audioPlayer").src = "";
+            document.getElementById("recordingName").innerText = "";
+            document.getElementById("alternativeAudioUpload").classList.remove("hidden");
+            savedAudioURL = "";
+            storedTasks.task1.audioData = null; // Base64-String entfernen
+            storedTasks.task1.savedAudioURL = null; // URL entfernen
+            recordedBlobs = [];
+            checkAllTasksCompleted();
+            saveTasksToLocalStorage();
+            document.getElementById("confirmDeleteRecordingModal").checked = false;
+        }
+
+        function confirmDeleteProof() {
+            document.getElementById("confirmDeleteProofModal").checked = true;
+        }
+
+        function deleteProof() {
+            if (savedProofURL) {
+                URL.revokeObjectURL(savedProofURL); // Blob-URL freigeben
+            }
+            document.getElementById("savedProof").classList.add("hidden");
+            document.getElementById("proofName").innerText = "";
+            document.getElementById("proofPreview").classList.add("hidden");
+            savedProofURL = "";
+            storedTasks.task2.proofDataURL = null; // Base64-String entfernen
+            document.getElementById("qualityValue").innerText = "";
+            checkAllTasksCompleted();
+            saveTasksToLocalStorage();
+            document.getElementById("confirmDeleteProofModal").checked = false;
+        }
+
+        function confirmResetTasks() {
+            document.getElementById("confirmResetModal").checked = true;
+        }
+
+        async function resetTasks() {
+            // Aufgaben zurücksetzen
+            taskTimers = [...taskTimersInitial];
+            taskIntervals.forEach(interval => clearInterval(interval));
+            taskIntervals = [null, null, null];
+            currentTask = null;
+            currentTaskIndex = null; // Zurücksetzen von currentTaskIndex
+            tasksCompleted = [false, false, false];
+            submitted = false;
+            savedAudioURL = "";
+            savedProofURL = "";
+            recordedBlobs = [];
+
+            // Reset der UI-Elemente
+            for (let i = 1; i <= totalSteps; i++) {
+                const taskDiv = document.getElementById(`task${i}`);
+                if (taskDiv) {
+                    taskDiv.classList.add("hidden");
+                }
+
+                const startButton = document.getElementById(`startTask${i}`);
+                if (startButton) {
+                    startButton.classList.remove("hidden");
+                    startButton.disabled = false;
+                    startButton.classList.remove("btn-success");
+                    startButton.classList.add("btn-primary");
+                    if (i === 1) {
+                        startButton.innerHTML = '<span id="startIcon1" class="mr-2">▶️</span><span id="startText1">Starten</span>';
+                    } else {
+                        startButton.innerText = "▶️ Starten";
+                    }
+                }
+
+                if (i === 1) {
+                    // Aufgabe 1 spezifische Resets
+                    document.getElementById("savedRecording").classList.add("hidden");
+                    document.getElementById("audioPlayer").src = "";
+                    document.getElementById("recordingName").innerText = "";
+                    document.getElementById("alternativeAudioUpload").classList.add("hidden");
+                    recordedBlobs = [];
+                } else if (i === 2) {
+                    // Aufgabe 2 spezifische Resets
+                    document.getElementById("proofName").innerText = "";
+                    document.getElementById("proofPreview").href = "#";
+                    document.getElementById("proofPreview").classList.add("hidden");
+                    document.getElementById("savedProof").classList.add("hidden");
+                    document.getElementById("qualityValue").innerText = "";
+                }
+            }
+
+            updateTimerDisplays();
+            localStorage.removeItem("tasks");
+            await initializeTasks();
+            updateOverallProgress();
+
+            document.getElementById("confirmResetModal").checked = false;
+            location.reload();
+        }
+
+        function updateOverallProgress() {
+            const completedCount = tasksCompleted.filter(Boolean).length;
+            document.getElementById("overallProgress").value = completedCount;
+            document.getElementById("progressText").innerText = `${completedCount} von 3 Aufgaben abgeschlossen`;
+        }
+
+        function checkAllTasksCompleted() {
+            tasksCompleted[0] = storedTasks.task1.audioData && storedTasks.task1.audioData !== "";
+            tasksCompleted[1] = storedTasks.task2.proofDataURL && storedTasks.task2.proofDataURL !== "";
+            tasksCompleted[2] = storedTasks.task3.mathTasks.every(task => task.userAnswer.trim() !== "");
+
+            updateOverallProgress();
+            saveTasksToLocalStorage();
+
+            if (tasksCompleted.every(Boolean)) {
+                showFinalPage();
+            }
+        }
+
+        // Funktionen für den Upload und die Verarbeitung von Dateien
+
+        async function uploadAudioFile() {
+            const fileInput = document.getElementById("audioFileUpload");
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = async function (e) {
+                    const base64Audio = e.target.result.split(',')[1]; // Entfernt den Data-URL-Header
+                    storedTasks.task1.audioData = base64Audio; // Speichere den Base64-String
+                    savedAudioURL = e.target.result; // Für die Vorschau
+                    const audioPlayer = document.getElementById("audioPlayer");
+                    audioPlayer.src = savedAudioURL;
+                    document.getElementById("recordingName").innerText = "Audiodatei hochgeladen";
+                    document.getElementById("savedRecording").classList.remove("hidden");
+                    document.getElementById("alternativeAudioUpload").classList.add("hidden");
+
+                    await saveTasksToLocalStorage();
+                    checkAllTasksCompleted();
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showValidationModal("Fehler beim Laden der Audiodatei. Bitte versuche es erneut.");
+            }
+            fileInput.value = "";
+        }
+
+        function uploadProof() {
+            const fileInput = document.getElementById("proofUpload");
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async function (e) {
+                    // Skalieren des Bildes vor dem Speichern
+                    const img = new Image();
+                    img.onload = function () {
+                        const canvas = document.createElement('canvas');
+                        const maxWidth = 800; // Maximale Breite
+                        const scaleSize = maxWidth / img.width;
+                        canvas.width = maxWidth;
+                        canvas.height = img.height * scaleSize;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const scaledDataUrl = canvas.toDataURL('image/png', 0.7); // Komprimierung auf 70%
+
+                        const base64Image = scaledDataUrl.split(',')[1]; // Entfernt den Data-URL-Header
+                        storedTasks.task2.proofDataURL = base64Image; // Speichere den Base64-String
+                        savedProofURL = scaledDataUrl; // Für die Vorschau
+                        document.getElementById("proofName").innerText = "Abschrift.jpg";
+                        const proofPreview = document.getElementById("proofPreview");
+                        proofPreview.href = savedProofURL;
+                        //proofPreview.classList.remove("hidden");
+                        document.getElementById("savedProof").classList.remove("hidden");
+
+                        saveTasksToLocalStorage();
+                        checkAllTasksCompleted();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            fileInput.value = "";
+        }
+
+        // confirmCompleteTask with corrections
+        function confirmCompleteTask(taskIndex) {
+            document.getElementById("validationMessage").innerHTML = "Möchtest du die Aufgabe wirklich abschließen?";
+            const confirmButton = document.getElementById("modalConfirmButton");
+
+            // Entferne vorherige Event-Listener, um Mehrfachauslösungen zu vermeiden
+            confirmButton.removeEventListener('click', handleTaskCompletion);
+            confirmButton.removeEventListener('click', handleTask1StopAndComplete);
+
+            if (taskIndex === 1) {
+                // Für Aufgabe 1: Stoppe die Aufnahme nach Bestätigung
+                confirmButton.addEventListener('click', handleTask1StopAndComplete);
+            } else {
+                // Für andere Aufgaben: Nur den Abschluss der Aufgabe
+                confirmButton.addEventListener('click', () => handleTaskCompletion(taskIndex));
+            }
+
+            confirmButton.classList.remove("hidden");
+            document.getElementById("validationModal").checked = true;
+            updateOverallProgress();
+        }
+
+        async function handleTask1StopAndComplete() {
+            try {
+                await stopRecording(1);
+                handleTaskCompletion(1);
+            } catch (error) {
+                console.error("Fehler beim Stoppen der Aufnahme:", error);
+                showValidationModal("Aufnahme konnte nicht gestoppt werden. Bitte versuche es erneut.");
+            }
+            // Entferne den Event-Listener nach der Ausführung
+            const confirmButton = document.getElementById("modalConfirmButton");
+            confirmButton.removeEventListener('click', handleTask1StopAndComplete);
+        }
+
+        function handleTaskCompletion(taskIndex) {
+            // Mark task as completed
+            tasksCompleted[taskIndex - 1] = true;
+            saveTasksToLocalStorage();
+            // Spezifische Aktionen für Mathe-Aufgabe
+            if (taskIndex === 3) {
+                disableMathTasks(); // Eingabefelder für Mathe-Aufgaben deaktivieren
+            }
+
+            console.log(`Task ${taskIndex} marked as complete.`);
+            document.getElementById("validationModal").checked = false;
+            currentTask = null; // Reset current task
+
+            // Move to the next task
+            displayNextIncompleteTask();
+        }
+
+        function displayNextIncompleteTask() {
+            // Finde den Index der nächsten unvollständigen Aufgabe, falls vorhanden
+            const nextTaskIndex = tasksCompleted.findIndex(completed => !completed);
+
+            // Prüfe, ob eine unvollständige Aufgabe gefunden wurde und der Index innerhalb der Grenzen liegt
+            if (nextTaskIndex >= 0 && nextTaskIndex < totalSteps) {
+                updateOverallProgress();
+                currentTaskIndex = nextTaskIndex + 1; // Da nextTaskIndex 0-basiert ist
+                console.log(`Displaying the next incomplete task: Task ${currentTaskIndex}`);
+                showNextTask(currentTaskIndex);
+            } else {
+                console.log("No incomplete tasks found. All tasks are completed.");
+                console.log("currentTaskIndex: " + currentTaskIndex);
+                showFinalPage(); // Zeige die "Vielen Dank"-Seite
+            }
+        }
+
+        function showNextTask(taskIndex = currentTaskIndex) {
+            console.log("Attempting to show the next task...");
+
+            // Check if all tasks are completed or if taskIndex is invalid
+            if (tasksCompleted.every(Boolean) || taskIndex < 1 || taskIndex > totalSteps) {
+                console.log("All tasks completed - exiting showNextTask.");
+                showFinalPage(); // Show final completion modal or message
+                return;
+            }
+
+            // Hide all tasks
+            for (let i = 1; i <= totalSteps; i++) {
+                document.getElementById(`task${i}`).classList.add("hidden");
+            }
+
+            // Show the specified task if it exists
+            const currentTaskElement = document.getElementById(`task${taskIndex}`);
+            if (currentTaskElement) {
+                currentTaskElement.classList.remove("hidden");
+                console.log(`Displaying task ${taskIndex}`);
+            } else {
+                console.error(`Task ${taskIndex} does not exist in the DOM.`);
+            }
+        }
+
+        function showFinalPage() {
+            updateOverallProgress();
+            document.getElementById("tasks").classList.add("hidden");
+            document.getElementById("thankYouPage").classList.remove("hidden");
+            submitted = true;
+            saveTasksToLocalStorage();
+        }
+async function shareFile() {
+     // Überprüfen, ob navigator.share und canShare verfügbar sind und Dateien unterstützt werden
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File(["dummy"], "dummy.txt")] })) {
+        
+        // Erstellen einer neuen Instanz von JSZip
+        const zip = new JSZip();
+        
+        // Dateien zur ZIP hinzufügen
+        if (storedTasks.task1.audioData) {
+            const audioBlob = base64ToBlob(storedTasks.task1.audioData, 'audio/wav');
+            zip.file("Aufnahme.wav", audioBlob);
+        }
+        if (storedTasks.task2.proofDataURL) {
+            const imgBlob = base64ToBlob(storedTasks.task2.proofDataURL, 'image/png');
+            zip.file("Abschrift.png", imgBlob);
+        }
+        const mathContent = generateMathContent();
+        zip.file("Rechenaufgaben.txt", mathContent);
+        zip.file("Lesetext.html", storedTasks.task1.readText);
+        zip.file("Abschreibtext.html", storedTasks.task2.writeText);
+        
+        // ZIP-Datei generieren
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const zipFile = new File([zipBlob], 'Ergebnisse.zip', { type: 'application/zip' });
+        
+        try {
+            // Freigabe mit navigator.share versuchen
+            await navigator.share({
+                title: 'Ergebnisse teilen',
+                text: 'Hier sind meine Ergebnisse! Schau mal rein:',
+                files: [zipFile]
+            });
+            showToast('Erfolgreich geteilt', 'success');
+        } catch (error) {
+            // Fehlerbehandlung bei fehlenden Berechtigungen oder anderem Fehler
+            if (error.name === 'NotAllowedError') {
+                showToast('Freigabe abgelehnt. Stelle sicher, dass die Berechtigungen korrekt sind.', 'warning');
+            } else {
+                console.error('Fehler bei der Freigabe:', error);
+                showToast('Freigabe fehlgeschlagen.', 'error');
+            }
+        }
+    } else {
+        showToast('Dein Gerät oder Browser unterstützt die direkte Freigabe von Dateien nicht.', 'error');
+    }
+}
+
+// Toast-Funktion für Benachrichtigungen
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
+    const toast = document.createElement('div');
+    
+    // DaisyUI Toast Styles basierend auf dem Typ
+    toast.className = `alert alert-${type} shadow-lg`;
+    toast.innerHTML = `
+        <div>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    // Toast zum Container hinzufügen
+    toastContainer.appendChild(toast);
+    
+    // Toast nach 4 Sekunden entfernen
+    setTimeout(() => {
+        toast.remove();
+    }, 4000);
+}
+
+// Funktion zur Erstellung des Toast-Containers, falls dieser noch nicht existiert
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'fixed top-4 right-4 space-y-4 z-50';
+    document.body.appendChild(container);
+    return container;
+}
+        function disableAllInteractions() {
+            document.querySelectorAll('#task1 .btn-primary, #task1 .btn-secondary, #task1 .btn-success, #task1 .btn-error, #task1 .btn-warning, ' +
+                '#task2 .btn-primary, #task2 .btn-secondary, #task2 .btn-success, #task2 .btn-error, #task2 .btn-warning, ' +
+                '#task3 .btn-primary, #task3 .btn-secondary, #task3 .btn-success, #task3 .btn-error, #task3 .btn-warning')
+                .forEach(btn => {
+                    btn.disabled = true;
+                });
+
+            document.querySelectorAll('#task2 input[type="file"]').forEach(input => {
+                input.disabled = true;
+            });
+
+            document.querySelectorAll("#mathTasks input").forEach(input => {
+                input.disabled = true;
+            });
+        }
+
+        function proceedWithoutMic() {
+            document.getElementById("micErrorModal").checked = false;
+            startTimer(1); // Timer starten
+        }
+
+        function showMonologue() {
+            document.getElementById("monologueModal").checked = true;
+        }
+
+        function restartRecording() {
+            document.getElementById("confirmRestartRecordingModal").checked = false;
+            deleteRecording();
+            startRecordingProcess();
+        }
+
+   let cachedZipBlob = null; // Globale Variable zum Speichern der ZIP-Datei
+
+async function downloadZip() {
+    const zip = new JSZip();
+
+    // Aufgabe 1: Aufnahme hinzufügen
+    if (storedTasks.task1.audioData) {
+        const audioBlob = base64ToBlob(storedTasks.task1.audioData, 'audio/wav');
+        zip.file("Aufnahme.wav", audioBlob);
+    }
+
+    // Aufgabe 2: Foto der Abschrift hinzufügen
+    if (storedTasks.task2.proofDataURL) {
+        const imgBlob = base64ToBlob(storedTasks.task2.proofDataURL, 'image/png');
+        zip.file("Abschrift.png", imgBlob);
+    }
+
+    // Aufgabe 3: Rechenaufgaben inklusive Lösungen
+    const mathContent = generateMathContent();
+    zip.file("Rechenaufgaben.txt", mathContent);
+
+    // Aufgabentexte hinzufügen
+    zip.file("Lesetext.html", storedTasks.task1.readText);
+    zip.file("Abschreibtext.html", storedTasks.task2.writeText);
+
+    // ZIP-Datei generieren und zwischenspeichern
+    cachedZipBlob = await zip.generateAsync({ type: "blob" });
+    
+    // Herunterladen der ZIP-Datei
+    saveAs(cachedZipBlob, generateFilename());
+}
+
+        function generateFilename() {
+            const now = new Date();
+
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0'); // Monate sind nullbasiert
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+
+            // Einfacher Hash: eine zufällige Zeichenkette
+            const hash = Math.random().toString(36).substring(2, 8); // Generiert eine 6-stellige alphanumerische Zeichenkette
+
+            // Zusammensetzen des Dateinamens
+            const filename = `kurzlernen.de_${year}${month}${day}_${hours}${minutes}_${hash}.zip`;
+
+            return filename;
+        }
+
+        function generateMathContent() {
+            let content = "Rechenaufgaben und Lösungen:\n\n";
+            storedTasks.task3.mathTasks.forEach((task, index) => {
+                const userAnswer = task.userAnswer.trim();
+                const correctAnswer = calculateAnswer(task.num1, task.num2, task.operator);
+                content += `${index + 1}. ${task.num1} ${operatorToSymbol(task.operator)} ${task.num2} = ${userAnswer} (Korrekte Antwort: ${correctAnswer})\n`;
+            });
+            return content;
+        }
+
+        function calculateAnswer(num1, num2, operator) {
+            switch (operator) {
+                case '+':
+                    return num1 + num2;
+                case '-':
+                    return num1 - num2;
+                case '*':
+                    return num1 * num2;
+                case '/':
+                    return (num1 / num2); // Ganze Zahlen durch die Generierung sind garantiert
+                default:
+                    return 'Unbekannter Operator';
+            }
+        }
+
+        // Initiale Timer-Anzeige aktualisieren
+        updateTimerDisplays();
     </script>
 </body>
 
