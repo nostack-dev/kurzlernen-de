@@ -104,7 +104,7 @@
         }
     </style>
 
-    <!-- Import maps polyfill -->
+    <!-- Import Maps Polyfill -->
     <!-- Entfernen Sie dies, wenn Import Maps in Ihren Zielbrowsern unterstützt werden -->
     <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
 
@@ -142,21 +142,21 @@
     <div class="instructions">
         <h3>Anweisungen:</h3>
         <ul>
-            <li><strong>Rechtsklick + Draggen:</strong>
+            <li><strong>Linksklick + Draggen:</strong>
                 <ul>
                     <li>Draggen nach oben/unten: Ändert die Frequenz des Sinus</li>
                     <li>Draggen nach links/rechts: Ändert die Frequenz des Cosinus</li>
                     <li>Mit <strong>Alt</strong> gedrückt:
-                    <ul>
-                        <li>Draggen nach oben/unten: Ändert die Amplitude des Sinus</li>
-                        <li>Draggen nach links/rechts: Ändert die Amplitude des Cosinus</li>
-                    </ul>
+                        <ul>
+                            <li>Draggen nach oben/unten: Ändert die Amplitude des Sinus</li>
+                            <li>Draggen nach links/rechts: Ändert die Amplitude des Cosinus</li>
+                        </ul>
                     </li>
                     <li>Mit <strong>Strg</strong> gedrückt:
-                    <ul>
-                        <li>Draggen nach oben/unten: Ändert die Phase des Sinus</li>
-                        <li>Draggen nach links/rechts: Ändert die Phase des Cosinus</li>
-                    </ul>
+                        <ul>
+                            <li>Draggen nach oben/unten: Ändert die Phase des Sinus</li>
+                            <li>Draggen nach links/rechts: Ändert die Phase des Cosinus</li>
+                        </ul>
                     </li>
                 </ul>
             </li>
@@ -287,19 +287,19 @@
         // ============================
         const trailGeometry = new THREE.BufferGeometry();
         const maxTrailPoints = 500;
-        const trailPositionsArray = new Float32Array(maxTrailPoints * 3);
-        const trailAlphasArray = new Float32Array(maxTrailPoints * 1); // Alpha-Werte für jeden Punkt
+        const trailPositions = new Float32Array(maxTrailPoints * 3);
+        const trailAlphas = new Float32Array(maxTrailPoints * 1); // Alpha-Werte für jeden Punkt
 
         // Initialisiere Positionen und Alphas
         for (let i = 0; i < maxTrailPoints; i++) {
-            trailPositionsArray[i * 3] = 0;
-            trailPositionsArray[i * 3 + 1] = 0;
-            trailPositionsArray[i * 3 + 2] = 0;
-            trailAlphasArray[i] = 0;
+            trailPositions[i * 3] = 0;
+            trailPositions[i * 3 + 1] = 0;
+            trailPositions[i * 3 + 2] = 0;
+            trailAlphas[i] = 0;
         }
 
-        trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositionsArray, 3));
-        trailGeometry.setAttribute('alpha', new THREE.BufferAttribute(trailAlphasArray, 1));
+        trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        trailGeometry.setAttribute('alpha', new THREE.BufferAttribute(trailAlphas, 1));
 
         // Shader Material für Spur mit Alpha-Fade-Out
         const trailMaterial = new THREE.ShaderMaterial({
@@ -334,12 +334,12 @@
 
         function updateTrail(position) {
             // Setze die neue Position
-            trailPositionsArray[trailIndex * 3] = position.x;
-            trailPositionsArray[trailIndex * 3 + 1] = position.y;
-            trailPositionsArray[trailIndex * 3 + 2] = position.z;
+            trailPositions[trailIndex * 3] = position.x;
+            trailPositions[trailIndex * 3 + 1] = position.y;
+            trailPositions[trailIndex * 3 + 2] = position.z;
 
             // Setze den Alpha-Wert auf maximal (1.0)
-            trailAlphasArray[trailIndex] = 1.0;
+            trailAlphas[trailIndex] = 1.0;
 
             // Aktualisiere den Index
             trailIndex = (trailIndex + 1) % maxTrailPoints;
@@ -350,109 +350,163 @@
         }
 
         // ============================
-        // Dragging-Mechanik für Parameter (Rechtsklick)
+        // Dragging-Mechanik für Parameter
         // ============================
-        let isRightDragging = false;
-        let startRightMouse = new THREE.Vector2();
-        let currentRightMouse = new THREE.Vector2();
+        let isDragging = false;
+        let dragType = null; // 'sin_frequency', 'sin_amplitude', 'sin_phase', 'cos_frequency', 'cos_amplitude', 'cos_phase'
+        let startMouse = new THREE.Vector2();
+        let currentMouse = new THREE.Vector2();
 
-        // Verhindere das Kontextmenü für den Canvas
-        canvas.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-        });
+        // Parameter-Änderung nur mit linker Maustaste, wenn Pointer nicht gesperrt
+        renderer.domElement.addEventListener('mousedown', (event) => {
+            if (event.button === 0 && !controls.isLocked) { // Linksklick und Pointer nicht gesperrt
+                isDragging = true;
+                startMouse.set(event.clientX, event.clientY);
 
-        canvas.addEventListener('mousedown', (event) => {
-            if (event.button === 2) { // Rechtsklick
-                isRightDragging = true;
-                startRightMouse.set(event.clientX, event.clientY);
+                // Temporär setzen, Drag-Typ wird beim Draggen bestimmt
+                dragType = null;
             }
         });
 
-        window.addEventListener('mousemove', (event) => {
-            if (!isRightDragging) return;
-            currentRightMouse.set(event.clientX, event.clientY);
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            if (!isDragging) return;
+            currentMouse.set(event.clientX, event.clientY);
         });
 
-        window.addEventListener('mouseup', (event) => {
-            if (event.button === 2 && isRightDragging) { // Rechtsklick
-                isRightDragging = false;
+        renderer.domElement.addEventListener('mouseup', (event) => {
+            if (!isDragging) return;
+            isDragging = false;
 
-                const endMouse = new THREE.Vector2(event.clientX, event.clientY);
-                const dragVector = new THREE.Vector2().subVectors(endMouse, startRightMouse);
+            const endMouse = new THREE.Vector2(event.clientX, event.clientY);
+            const dragVector = new THREE.Vector2().subVectors(endMouse, startMouse);
 
-                const dragDistance = dragVector.length();
-                if (dragDistance < 10) {
-                    // Kleine Drags ignorieren
-                    return;
-                }
+            const dragDistance = dragVector.length();
+            if (dragDistance < 10) {
+                // Kleine Drags ignorieren
+                dragType = null;
+                return;
+            }
 
-                const isHorizontal = Math.abs(dragVector.x) > Math.abs(dragVector.y);
+            const isHorizontal = Math.abs(dragVector.x) > Math.abs(dragVector.y);
 
-                // Bestimme Drag-Typ basierend auf Modifier-Tasten
-                let dragType = null;
-                if (event.altKey) {
-                    if (isHorizontal) {
-                        dragType = 'frequency_cos';
-                    } else {
-                        dragType = 'frequency_sin';
-                    }
-                } else if (event.ctrlKey) {
-                    if (isHorizontal) {
-                        dragType = 'phase_cos';
-                    } else {
-                        dragType = 'phase_sin';
-                    }
+            // Bestimme Drag-Typ basierend auf Modifier-Tasten
+            if (event.altKey) {
+                if (isHorizontal) {
+                    dragType = 'cos_amplitude';
                 } else {
-                    if (isHorizontal) {
-                        dragType = 'amplitude_cos';
-                    } else {
-                        dragType = 'amplitude_sin';
-                    }
+                    dragType = 'sin_amplitude';
                 }
-
-                const delta = isHorizontal ? dragVector.x : -dragVector.y;
-
-                // Ändere die entsprechenden Parameter
-                switch (dragType) {
-                    case 'frequency_sin':
-                        frequencySin += delta * 0.05;
-                        frequencySin = Math.max(0.1, frequencySin); // Mindestfrequenz
-                        break;
-                    case 'frequency_cos':
-                        frequencyCos += delta * 0.05;
-                        frequencyCos = Math.max(0.1, frequencyCos); // Mindestfrequenz
-                        break;
-                    case 'amplitude_sin':
-                        amplitudeSin += delta * 0.05;
-                        amplitudeSin = Math.max(0.1, amplitudeSin); // Mindestamplitude
-                        break;
-                    case 'amplitude_cos':
-                        amplitudeCos += delta * 0.05;
-                        amplitudeCos = Math.max(0.1, amplitudeCos); // Mindestamplitude
-                        break;
-                    case 'phase_sin':
-                        phaseSin += delta * 1.0;
-                        phaseSin %= 360;
-                        if (phaseSin < 0) phaseSin += 360;
-                        break;
-                    case 'phase_cos':
-                        phaseCos += delta * 1.0;
-                        phaseCos %= 360;
-                        if (phaseCos < 0) phaseCos += 360;
-                        break;
-                    default:
-                        break;
+            } else if (event.ctrlKey) {
+                if (isHorizontal) {
+                    dragType = 'cos_phase';
+                } else {
+                    dragType = 'sin_phase';
                 }
+            } else {
+                if (isHorizontal) {
+                    dragType = 'cos_frequency';
+                } else {
+                    dragType = 'sin_frequency';
+                }
+            }
 
-                updateHUD();
+            const delta = isHorizontal ? dragVector.x : -dragVector.y;
+
+            // Ändere die entsprechenden Parameter
+            switch (dragType) {
+                case 'sin_frequency':
+                    frequencySin += delta * 0.05;
+                    frequencySin = Math.max(0.1, frequencySin); // Mindestfrequenz
+                    break;
+                case 'cos_frequency':
+                    frequencyCos += delta * 0.05;
+                    frequencyCos = Math.max(0.1, frequencyCos); // Mindestfrequenz
+                    break;
+                case 'sin_amplitude':
+                    amplitudeSin += delta * 0.05;
+                    amplitudeSin = Math.max(0.1, amplitudeSin); // Mindestamplitude
+                    break;
+                case 'cos_amplitude':
+                    amplitudeCos += delta * 0.05;
+                    amplitudeCos = Math.max(0.1, amplitudeCos); // Mindestamplitude
+                    break;
+                case 'sin_phase':
+                    phaseSin += delta * 1.0;
+                    phaseSin %= 360;
+                    if (phaseSin < 0) phaseSin += 360;
+                    break;
+                case 'cos_phase':
+                    phaseCos += delta * 1.0;
+                    phaseCos %= 360;
+                    if (phaseCos < 0) phaseCos += 360;
+                    break;
+                default:
+                    break;
+            }
+
+            updateHUD();
+            dragType = null;
+        });
+
+        renderer.domElement.addEventListener('mouseleave', () => {
+            if (isDragging) {
+                isDragging = false;
+                dragType = null;
             }
         });
 
         // ============================
         // Kamera Bewegung via Tastatur
         // ============================
-        // PointerLockControls handle keyboard controls (W/A/S/D, Q/E)
-        // Zusätzlich: 'F' Taste und Space für UI-Toggle
+        const moveSpeed = 10.0; // Geschwindigkeit der Kamera (Einheiten pro Sekunde)
+        const move = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+            up: false,
+            down: false
+        };
+
+        const keys = {
+            'w': 'forward',
+            'W': 'forward',
+            's': 'backward',
+            'S': 'backward',
+            'a': 'left',
+            'A': 'left',
+            'd': 'right',
+            'D': 'right',
+            'q': 'down',
+            'Q': 'down',
+            'e': 'up',
+            'E': 'up'
+        };
+
+        window.addEventListener('keydown', (event) => {
+            const key = event.key;
+            if (keys[key] !== undefined) {
+                move[keys[key]] = true;
+            }
+
+            // Leertaste (Space) zum Ein-/Ausblenden der Steuerungselemente
+            if (event.code === 'Space') {
+                event.preventDefault(); // Verhindert das Scrollen der Seite
+                toggleControlsVisibility();
+            }
+
+            // 'F' Taste zum Zurücksetzen der Kamera-Perspektive
+            if (event.key === 'f' || event.key === 'F') {
+                resetCamera();
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            const key = event.key;
+            if (keys[key] !== undefined) {
+                move[keys[key]] = false;
+            }
+        });
 
         // ============================
         // Toggle Controls Visibility
@@ -474,7 +528,7 @@
             camera.lookAt(0, 0, 0);
             updateHUD();
 
-            // Entsperre den Pointer Lock
+            // Optional: Entsperre den Pointer Lock
             controls.unlock();
         }
 
@@ -487,7 +541,31 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Kamera Bewegung wird von PointerLockControls gehandhabt
+            const delta = clock.getDelta();
+
+            // Kamera Bewegung basierend auf Tastatureingaben
+            const moveDistance = moveSpeed * delta;
+
+            if (move.forward) {
+                controls.moveForward(moveDistance);
+            }
+            if (move.backward) {
+                controls.moveForward(-moveDistance);
+            }
+            if (move.left) {
+                controls.moveRight(-moveDistance);
+            }
+            if (move.right) {
+                controls.moveRight(moveDistance);
+            }
+            if (move.up) {
+                controls.getObject().position.y += moveDistance;
+            }
+            if (move.down) {
+                controls.getObject().position.y -= moveDistance;
+            }
+
+            // Aktualisiere PointerLockControls
             controls.update();
 
             const elapsed = (Date.now() - startTime) / 1000; // Sekunden seit Start
@@ -505,10 +583,10 @@
             updateTrail(oscillator.position.clone());
 
             // Fade out the trail by reducing alpha values
-            for (let i = 0; i < trailAlphasArray.length; i++) {
-                trailAlphasArray[i] *= 0.99; // Dämpfungsfaktor für Alpha
-                if (trailAlphasArray[i] < 0.01) {
-                    trailAlphasArray[i] = 0.0;
+            for (let i = 0; i < maxTrailPoints; i++) {
+                trailAlphas[i] *= 0.99; // Dämpfungsfaktor für Alpha
+                if (trailAlphas[i] < 0.01) {
+                    trailAlphas[i] = 0.0;
                 }
             }
             trailGeometry.attributes.alpha.needsUpdate = true;
@@ -544,7 +622,7 @@
             trailIndex = 0;
             for (let i = 0; i < trailGeometry.attributes.position.array.length; i++) {
                 trailGeometry.attributes.position.array[i] = 0;
-                trailAlphasArray[i] = 0.0;
+                trailAlphas[i] = 0.0;
             }
             trailGeometry.attributes.position.needsUpdate = true;
             trailGeometry.attributes.alpha.needsUpdate = true;
@@ -557,27 +635,6 @@
             // Entsperre den Pointer Lock, falls gesperrt
             controls.unlock();
         });
-
-        // ============================
-        // Keyboard Events
-        // ============================
-        window.addEventListener('keydown', (event) => {
-            // Leertaste (Space) zum Ein-/Ausblenden der Steuerungselemente
-            if (event.code === 'Space') {
-                event.preventDefault(); // Verhindert das Scrollen der Seite
-                toggleControlsVisibility();
-            }
-
-            // 'F' Taste zum Zurücksetzen der Kamera-Perspektive
-            if (event.key === 'f' || event.key === 'F') {
-                resetCamera();
-            }
-        });
-
-        window.addEventListener('keyup', (event) => {
-            // Optional: Weitere Tastaturaktionen hier einfügen
-        });
-
     </script>
 </body>
 
