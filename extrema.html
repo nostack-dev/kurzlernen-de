@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Sinus Curve</title>
+    <title>Interactive Sinus Curve with Rotation</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,7 +30,7 @@
     </style>
 </head>
 <body>
-    <h1>Interactive Sinus Curve</h1>
+    <h1>Interactive Sinus Curve with Rotation</h1>
     <canvas id="sinusCanvas" width="800" height="400"></canvas>
     <div class="controls">
         <label for="vectorX">X-Komponente (Periode):</label>
@@ -40,6 +40,10 @@
         <label for="vectorY">Y-Komponente (Amplitude):</label>
         <input id="vectorY" type="range" min="0.5" max="5" step="0.1" value="1">
         <span class="value" id="vectorYValue">1.0</span>
+        <br>
+        <label for="rotation">Rotation (Grad):</label>
+        <input id="rotation" type="range" min="0" max="360" step="1" value="0">
+        <span class="value" id="rotationValue">0</span>°
     </div>
     <script>
         const canvas = document.getElementById('sinusCanvas');
@@ -48,8 +52,24 @@
         const canvasHeight = canvas.height;
         const vectorXSlider = document.getElementById('vectorX');
         const vectorYSlider = document.getElementById('vectorY');
+        const rotationSlider = document.getElementById('rotation');
         const vectorXValue = document.getElementById('vectorXValue');
         const vectorYValue = document.getElementById('vectorYValue');
+        const rotationValue = document.getElementById('rotationValue');
+
+        /**
+         * Rotiert einen Vektor um einen Winkel in Grad.
+         * @param {number} x - X-Komponente des Vektors.
+         * @param {number} y - Y-Komponente des Vektors.
+         * @param {number} angle - Winkel in Grad.
+         * @returns {Object} - Neuer Vektor nach Rotation.
+         */
+        function rotateVector(x, y, angle) {
+            const radians = (angle * Math.PI) / 180; // Grad in Radiant umrechnen
+            const rotatedX = x * Math.cos(radians) - y * Math.sin(radians);
+            const rotatedY = x * Math.sin(radians) + y * Math.cos(radians);
+            return { x: rotatedX, y: rotatedY };
+        }
 
         /**
          * Berechnet die Sinuskurve basierend auf einem Vektor.
@@ -63,10 +83,10 @@
             const period = xKomponente * 4; // Periode basierend auf X-Komponente
             const xValues = [];
             const yValues = [];
-            const step = (2 * Math.PI) / points;
+            const step = (4 * Math.PI) / points; // Bereich von -2π bis 2π
 
             for (let i = 0; i <= points; i++) {
-                const x = i * step;
+                const x = -2 * Math.PI + i * step; // Start bei -2π
                 const y = amplitude * Math.sin((2 * Math.PI / period) * x);
                 xValues.push(x);
                 yValues.push(y);
@@ -78,11 +98,18 @@
             ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
             // Dynamische Skalierung
-            const xScale = canvasWidth / (2 * Math.PI); // Skalierung der x-Achse
+            const xScale = canvasWidth / (4 * Math.PI); // Skalierung der x-Achse
             const yScale = canvasHeight / 4; // Skalierung der y-Achse (halbe Höhe)
 
-            const xKomponente = parseFloat(vectorXSlider.value);
-            const yKomponente = parseFloat(vectorYSlider.value);
+            let xKomponente = parseFloat(vectorXSlider.value);
+            let yKomponente = parseFloat(vectorYSlider.value);
+            const rotationAngle = parseFloat(rotationSlider.value);
+
+            // Vektor rotieren
+            const rotatedVector = rotateVector(xKomponente, yKomponente, rotationAngle);
+            xKomponente = rotatedVector.x;
+            yKomponente = rotatedVector.y;
+
             const { xValues, yValues, vector } = generateSinusFromVector(xKomponente, yKomponente);
 
             // Achsen zeichnen
@@ -93,10 +120,17 @@
             ctx.lineWidth = 1;
             ctx.stroke();
 
+            ctx.beginPath();
+            ctx.moveTo(canvasWidth / 2, 0);
+            ctx.lineTo(canvasWidth / 2, canvasHeight);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
             // Sinuskurve zeichnen
             ctx.beginPath();
             for (let i = 0; i < xValues.length; i++) {
-                const x = xValues[i] * xScale; // Dynamische x-Skalierung
+                const x = canvasWidth / 2 + xValues[i] * xScale; // Dynamische x-Skalierung
                 const y = canvasHeight / 2 - yValues[i] * yScale; // Dynamische y-Skalierung und zentriert
                 if (i === 0) {
                     ctx.moveTo(x, y);
@@ -109,10 +143,10 @@
             ctx.stroke();
 
             // Vektor zeichnen
-            const peakX = vector.period / 4 * xScale; // Hochpunkt bei Periode/4
+            const peakX = canvasWidth / 2 + (vector.period / 4) * xScale; // Hochpunkt bei Periode/4
             const peakY = canvasHeight / 2 - vector.y * yScale; // Amplitude dynamisch skaliert
             ctx.beginPath();
-            ctx.moveTo(0, canvasHeight / 2);
+            ctx.moveTo(canvasWidth / 2, canvasHeight / 2);
             ctx.lineTo(peakX, peakY);
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
@@ -121,16 +155,18 @@
             // Vektor-Komponenten anzeigen
             ctx.fillStyle = 'red';
             ctx.font = '14px Arial';
-            ctx.fillText(`(${vector.x.toFixed(1)}, ${vector.y.toFixed(1)})`, peakX + 10, peakY - 10);
+            ctx.fillText(`(${rotatedVector.x.toFixed(1)}, ${rotatedVector.y.toFixed(1)})`, peakX + 10, peakY - 10);
 
             // Update Slider-Werte
-            vectorXValue.textContent = xKomponente.toFixed(1);
-            vectorYValue.textContent = yKomponente.toFixed(1);
+            vectorXValue.textContent = rotatedVector.x.toFixed(1);
+            vectorYValue.textContent = rotatedVector.y.toFixed(1);
+            rotationValue.textContent = rotationAngle.toFixed(0);
         }
 
         // Event Listener für Slider
         vectorXSlider.addEventListener('input', drawSinusCurve);
         vectorYSlider.addEventListener('input', drawSinusCurve);
+        rotationSlider.addEventListener('input', drawSinusCurve);
 
         // Initiale Darstellung
         drawSinusCurve();
