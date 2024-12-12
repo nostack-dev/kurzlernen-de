@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IFS Fractal Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #mainContainer {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #controlsContainer {
+            width: 350px;
+            overflow-y: auto;
+            padding-right: 10px;
+            box-sizing: border-box;
+            border-right: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+        #controls {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .transformation, .probabilities {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        .transformation h3, .probabilities h3 {
+            margin-top: 0;
+            font-size: 16px;
+        }
+        .slider-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .slider-group label {
+            flex: 1 0 60px;
+            font-size: 14px;
+            margin-right: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .slider-group input[type="range"] {
+            flex: 3 0 180px;
+            margin-right: 10px;
+        }
+        #canvasContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        canvas {
+            border: 1px solid #000;
+            cursor: default;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #zoomControls {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        #zoomControls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            user-select: none;
+        }
+        #exampleSelect {
+            margin-bottom: 20px;
+        }
+        /* Add/Remove Buttons */
+        #transformationButtons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        #transformationButtons button {
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            flex: 1;
+            margin: 0 5px;
+        }
+        /* Remove button disabled state */
+        #transformationButtons button:disabled {
+            background-color: #e0e0e0;
+            cursor: not-allowed;
+        }
+        /* Scrollbar styling for controls */
+        #controlsContainer::-webkit-scrollbar {
+            width: 8px;
+        }
+        #controlsContainer::-webkit-scrollbar-thumb {
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        #controlsContainer::-webkit-scrollbar-track {
+            background-color: rgba(0,0,0,0.05);
+        }
+        /* Responsive Design */
+        @media (max-width: 800px) {
+            #mainContainer {
+                flex-direction: column;
+            }
+            #controlsContainer {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #ccc;
+                padding-right: 0;
+                padding-bottom: 10px;
+            }
+            .transformation, .probabilities {
+                width: 100%;
+            }
+            .slider-group label, .slider-group input[type="range"] {
+                flex: 1 0 100%;
+                margin-right: 0;
+            }
+            .slider-group input[type="range"] {
+                margin-top: 5px;
+            }
+            #transformationButtons {
+                flex-direction: column;
+            }
+            #transformationButtons button {
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>IFS Fractal Generator</h1>
+    <div id="exampleSelect">
+        <label for="examples">Choose an Example:</label>
+        <select id="examples">
+            <option value="line" selected>Simple Line</option>
+            <option value="sierpinski">Sierpinski Triangle</option>
+            <option value="barnsley">Barnsley Fern</option>
+        </select>
+    </div>
+    <div id="mainContainer">
+        <div id="controlsContainer">
+            <div id="transformationButtons">
+                <button id="addTransformation">Add Transformation</button>
+                <button id="removeTransformation">Remove Transformation</button>
+            </div>
+            <div id="controls">
+                <!-- Transformation and Probability sliders will be dynamically added here -->
+            </div>
+        </div>
+        <div id="canvasContainer">
+            <canvas id="fractalCanvas" width="800" height="800"></canvas>
+            <div id="zoomControls">
+                <button id="zoomIn">+</button>
+                <button id="zoomOut">-</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Define examples
+        const examples = {
+            sierpinski: {
+                transformations: [
+                    { a: 0.5, b: 0, c: 0, d: 0, e: 0.5, f: 0 },
+                    { a: 0.5, b: 0, c: 0.5, d: 0, e: 0.5, f: 0 },
+                    { a: 0.5, b: 0, c: 0.25, d: 0, e: 0.5, f: 0.433 } // 0.433 ≈ sqrt(3)/2
+                ],
+                probabilities: [1/3, 1/3, 1/3]
+            },
+            barnsley: {
+                transformations: [
+                    { a: 0, b: 0, c: 0, d: 0.16, e: 0, f: 0 },
+                    { a: 0.85, b: 0.04, c: 0, d: -0.04, e: 0.85, f: 1.6 },
+                    { a: 0.2, b: -0.26, c: 0, d: 0.23, e: 0.22, f: 1.6 },
+                    { a: -0.15, b: 0.28, c: 0, d: 0.26, e: 0.24, f: 0.44 }
+                ],
+                probabilities: [0.01, 0.85, 0.07, 0.07]
+            },
+            line: {
+                transformations: [
+                    { 
+                        a: Math.cos(0.2), 
+                        b: -Math.sin(0.2), 
+                        c: 0, 
+                        d: Math.sin(0.2), 
+                        e: Math.cos(0.2), 
+                        f: 0 
+                    },
+                    { 
+                        a: Math.cos(0.4), 
+                        b: -Math.sin(0.4), 
+                        c: 0.5, 
+                        d: Math.sin(0.4), 
+                        e: Math.cos(0.4), 
+                        f: 0.5 
+                    },
+                    { 
+                        a: Math.cos(0.6), 
+                        b: -Math.sin(0.6), 
+                        c: 0.25, 
+                        d: Math.sin(0.6), 
+                        e: Math.cos(0.6), 
+                        f: 0.5 
+                    }
+                ],
+                probabilities: [0.33, 0.33, 0.34]
+            }
+        };
+
+        const canvas = document.getElementById('fractalCanvas');
+        const ctx = canvas.getContext('2d');
+        const controlsDiv = document.getElementById('controls');
+        const examplesSelect = document.getElementById('examples');
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+        const addTransBtn = document.getElementById('addTransformation');
+        const removeTransBtn = document.getElementById('removeTransformation');
+
+        let currentExample = 'line'; // Default to Simple Line
+        let transformations = JSON.parse(JSON.stringify(examples[currentExample].transformations));
+        let probabilities = examples[currentExample].probabilities.slice();
+        let scale = 100; // Initial scale
+
+        // Initialize UI
+        function initUI() {
+            controlsDiv.innerHTML = ''; // Clear existing controls
+
+            // Transformation Sliders
+            transformations.forEach((trans, index) => {
+                const transDiv = document.createElement('div');
+                transDiv.className = 'transformation';
+                transDiv.id = `transformation_${index}`;
+                transDiv.innerHTML = `<h3>Transformation ${index + 1}</h3>`;
+
+                ['a', 'b', 'c', 'd', 'e', 'f'].forEach((param) => {
+                    const sliderGroup = document.createElement('div');
+                    sliderGroup.className = 'slider-group';
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `trans${index}_${param}`;
+                    label.textContent = `${param}: ${trans[param].toFixed(3)}`;
+
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    // Adjust min and max based on typical transformation values
+                    if (param === 'c' || param === 'f') {
+                        slider.min = -2;
+                        slider.max = 2;
+                        slider.step = 0.01;
+                    } else {
+                        slider.min = -2;
+                        slider.max = 2;
+                        slider.step = 0.01;
+                    }
+                    slider.value = trans[param];
+                    slider.id = `trans${index}_${param}`;
+
+                    slider.oninput = function() {
+                        transformations[index][param] = parseFloat(this.value);
+                        label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
+                        generateAndPlot();
+                    };
+
+                    sliderGroup.appendChild(label);
+                    sliderGroup.appendChild(slider);
+                    transDiv.appendChild(sliderGroup);
+                });
+
+                controlsDiv.appendChild(transDiv);
+            });
+
+            // Probability sliders
+            if (probabilities.length > 1) {
+                const probDiv = document.createElement('div');
+                probDiv.className = 'probabilities';
+                probDiv.id = 'probabilities';
+                probDiv.innerHTML = `<h3>Probabilities</h3>`;
+
+                probabilities.forEach((prob, index) => {
+                    const sliderGroup = document.createElement('div');
+                    sliderGroup.className = 'slider-group';
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `prob_${index}`;
+                    label.textContent = `P${index + 1}: ${prob.toFixed(2)}`;
+
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    slider.min = 0;
+                    slider.max = 1;
+                    slider.step = 0.01;
+                    slider.value = prob;
+                    slider.id = `prob_${index}`;
+
+                    slider.oninput = function() {
+                        probabilities[index] = parseFloat(this.value);
+                        updateProbabilities(index);
+                        generateAndPlot();
+                    };
+
+                    sliderGroup.appendChild(label);
+                    sliderGroup.appendChild(slider);
+                    probDiv.appendChild(sliderGroup);
+                });
+
+                controlsDiv.appendChild(probDiv);
+            }
+
+            updateRemoveButtonState();
+        }
+
+        // Update Probabilities and Normalize
+        function updateProbabilities(changedIndex) {
+            const total = probabilities.reduce((a, b) => a + b, 0);
+            if (total === 0) {
+                // Prevent division by zero
+                probabilities = probabilities.map((_, i) => i === changedIndex ? 1 : 0);
+            } else {
+                probabilities = probabilities.map(p => p / total);
+            }
+            // Update all probability sliders
+            probabilities.forEach((p, i) => {
+                const probSlider = document.getElementById(`prob_${i}`);
+                const probLabel = probSlider.previousSibling;
+                probSlider.value = p;
+                probLabel.textContent = `P${i + 1}: ${p.toFixed(2)}`;
+            });
+        }
+
+        // Apply IFS
+        function applyIFS(initialPoints, transformations, probabilities, iterations) {
+            let points = initialPoints.slice();
+            const allPoints = [];
+
+            for (let i = 0; i < iterations; i++) {
+                const newPoints = [];
+                points.forEach(point => {
+                    const idx = weightedRandom(probabilities);
+                    const trans = transformations[idx];
+                    const x = trans.a * point[0] + trans.b * point[1] + trans.c;
+                    const y = trans.d * point[0] + trans.e * point[1] + trans.f;
+                    newPoints.push([x, y]);
+                });
+                points = newPoints;
+                allPoints.push(...points);
+            }
+
+            return allPoints;
+        }
+
+        // Weighted random selection
+        function weightedRandom(weights) {
+            const r = Math.random();
+            let cumulative = 0;
+            for (let i = 0; i < weights.length; i++) {
+                cumulative += weights[i];
+                if (r < cumulative) {
+                    return i;
+                }
+            }
+            return weights.length - 1;
+        }
+
+        // Plot points on canvas
+        function plotPoints(points) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000';
+            points.forEach(point => {
+                const x = canvas.width / 2 + point[0] * scale;
+                const y = canvas.height - (canvas.height / 2 + point[1] * scale);
+                ctx.fillRect(x, y, 1, 1);
+            });
+        }
+
+        // Generate and plot
+        function generateAndPlot() {
+            const initialPoints = [[0, 0]];
+            const iterations = 10000;
+            const points = applyIFS(initialPoints, transformations, probabilities, iterations);
+            plotPoints(points);
+        }
+
+        // Handle example selection
+        examplesSelect.onchange = function() {
+            currentExample = this.value;
+            const selected = examples[currentExample];
+            transformations = JSON.parse(JSON.stringify(selected.transformations));
+            probabilities = selected.probabilities.slice();
+            scale = 100; // Reset scale
+            initUI();
+            generateAndPlot();
+        };
+
+        // Zoom Controls
+        zoomInBtn.onclick = function() {
+            scale *= 1.2;
+            generateAndPlot();
+        };
+
+        zoomOutBtn.onclick = function() {
+            scale /= 1.2;
+            generateAndPlot();
+        };
+
+        // Add Transformation
+        addTransBtn.onclick = function() {
+            // Define default transformation (identity with no translation)
+            const newTrans = { a: 1, b: 0, c: 0, d: 0, e: 1, f: 0 };
+            transformations.push(newTrans);
+            probabilities.push(1 / transformations.length);
+            // Normalize probabilities
+            probabilities = probabilities.map(p => p / transformations.length);
+
+            // Re-render probability sliders
+            renderProbabilities();
+
+            // Create sliders for the new transformation
+            const index = transformations.length - 1;
+            const transDiv = document.createElement('div');
+            transDiv.className = 'transformation';
+            transDiv.id = `transformation_${index}`;
+            transDiv.innerHTML = `<h3>Transformation ${index + 1}</h3>`;
+
+            ['a', 'b', 'c', 'd', 'e', 'f'].forEach((param) => {
+                const sliderGroup = document.createElement('div');
+                sliderGroup.className = 'slider-group';
+
+                const label = document.createElement('label');
+                label.htmlFor = `trans${index}_${param}`;
+                label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                if (param === 'c' || param === 'f') {
+                    slider.min = -2;
+                    slider.max = 2;
+                    slider.step = 0.01;
+                } else {
+                    slider.min = -2;
+                    slider.max = 2;
+                    slider.step = 0.01;
+                }
+                slider.value = transformations[index][param];
+                slider.id = `trans${index}_${param}`;
+
+                slider.oninput = function() {
+                    transformations[index][param] = parseFloat(this.value);
+                    label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
+                    generateAndPlot();
+                };
+
+                sliderGroup.appendChild(label);
+                sliderGroup.appendChild(slider);
+                transDiv.appendChild(sliderGroup);
+            });
+
+            controlsDiv.insertBefore(transDiv, document.getElementById('probabilities'));
+            generateAndPlot();
+            updateRemoveButtonState();
+        };
+
+        // Remove Transformation
+        removeTransBtn.onclick = function() {
+            if (transformations.length <= 1) return; // Ensure at least one transformation remains
+
+            // Remove last transformation
+            transformations.pop();
+            probabilities.pop();
+
+            // Normalize probabilities
+            const total = probabilities.reduce((a, b) => a + b, 0);
+            if (total > 0) {
+                probabilities = probabilities.map(p => p / total);
+            }
+
+            // Remove sliders from UI
+            const index = transformations.length;
+            const transDiv = document.getElementById(`transformation_${index}`);
+            if (transDiv) {
+                controlsDiv.removeChild(transDiv);
+            }
+
+            // Re-render probability sliders
+            renderProbabilities();
+
+            generateAndPlot();
+            updateRemoveButtonState();
+        };
+
+        // Render Probability Sliders
+        function renderProbabilities() {
+            let probDiv = document.getElementById('probabilities');
+            if (!probDiv) {
+                // Create probabilities div if it doesn't exist
+                probDiv = document.createElement('div');
+                probDiv.className = 'probabilities';
+                probDiv.id = 'probabilities';
+                probDiv.innerHTML = `<h3>Probabilities</h3>`;
+                controlsDiv.appendChild(probDiv);
+            } else {
+                probDiv.innerHTML = `<h3>Probabilities</h3>`; // Reset content
+            }
+
+            probabilities.forEach((prob, index) => {
+                const sliderGroup = document.createElement('div');
+                sliderGroup.className = 'slider-group';
+
+                const label = document.createElement('label');
+                label.htmlFor = `prob_${index}`;
+                label.textContent = `P${index + 1}: ${prob.toFixed(2)}`;
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = 0;
+                slider.max = 1;
+                slider.step = 0.01;
+                slider.value = prob;
+                slider.id = `prob_${index}`;
+
+                slider.oninput = function() {
+                    probabilities[index] = parseFloat(this.value);
+                    updateProbabilities(index);
+                    generateAndPlot();
+                };
+
+                sliderGroup.appendChild(label);
+                sliderGroup.appendChild(slider);
+                probDiv.appendChild(sliderGroup);
+            });
+        }
+
+        // Update Remove Button State
+        function updateRemoveButtonState() {
+            if (transformations.length <= 1) {
+                removeTransBtn.disabled = true;
+            } else {
+                removeTransBtn.disabled = false;
+            }
+        }
+
+        // Initialize
+        initUI();
+        generateAndPlot();
+    </script>
+</body>
+</html>
