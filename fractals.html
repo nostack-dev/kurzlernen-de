@@ -2,273 +2,182 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>IFS Fractal Generator with Audio Integration</title>
+    <title>IFS Fractal Generator</title>
     <style>
-        /* Reset and basic styles */
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-            background-color: black;
+        body {
             font-family: Arial, sans-serif;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
-
-        /* Canvas styling */
-        #fractalCanvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background-color: black;
+        #mainContainer {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
         }
-
-        /* Sidebar Menu styling */
-        #sidebar {
-            position: absolute;
-            top: 0;
-            left: -300px; /* Hidden by default */
-            width: 300px;
-            height: 100%;
-            background-color: rgba(255,255,255,0.95);
-            padding: 15px 20px;
-            box-sizing: border-box;
-            z-index: 20;
-            transition: left 0.3s ease;
+        #controlsContainer {
+            width: 350px;
             overflow-y: auto;
+            padding-right: 10px;
+            box-sizing: border-box;
+            border-right: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
         }
-
-        #sidebar.open {
-            left: 0;
+        #controls {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
-
-        /* Sidebar content sections */
-        .section {
+        .transformation, .probabilities {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
             margin-bottom: 20px;
+            box-sizing: border-box;
         }
-
-        .section h3 {
+        .transformation h3, .probabilities h3 {
             margin-top: 0;
             font-size: 16px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
         }
-
         .slider-group {
             display: flex;
             align-items: center;
             margin-bottom: 10px;
             flex-wrap: wrap;
         }
-
         .slider-group label {
-            flex: 1 0 50px;
-            font-size: 12px;
+            flex: 1 0 60px;
+            font-size: 14px;
             margin-right: 10px;
             cursor: pointer;
             user-select: none;
         }
-
         .slider-group input[type="range"] {
-            flex: 3 0 120px;
+            flex: 3 0 180px;
             margin-right: 10px;
         }
-
-        /* Control buttons */
-        #transformationButtons, #zoomControls, #audioControls, #autoControl {
+        #canvasContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        canvas {
+            border: 1px solid #000;
+            cursor: default;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #zoomControls {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        #zoomControls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            user-select: none;
+        }
+        #exampleSelect {
+            margin-bottom: 20px;
+        }
+        /* Add/Remove Buttons */
+        #transformationButtons {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
         }
-
-        #transformationButtons button, #zoomControls button, #autoControl button, #audioControls button {
-            padding: 5px 8px;
-            font-size: 12px;
+        #transformationButtons button {
+            padding: 10px;
+            font-size: 14px;
             cursor: pointer;
             user-select: none;
-            border: none;
-            border-radius: 3px;
-            transition: background-color 0.3s;
             flex: 1;
-            margin-right: 5px;
+            margin: 0 5px;
         }
-
-        #transformationButtons button:last-child,
-        #zoomControls button:last-child,
-        #audioControls button:last-child {
-            margin-right: 0;
-        }
-
-        /* Specific button styles */
-        #addTransformation {
-            background-color: #28a745;
-            color: white;
-        }
-
-        #addTransformation:hover {
-            background-color: #218838;
-        }
-
-        #removeTransformation {
-            background-color: #dc3545;
-            color: white;
-        }
-
-        #removeTransformation:hover:not(:disabled) {
-            background-color: #c82333;
-        }
-
-        #removeTransformation:disabled {
+        /* Remove button disabled state */
+        #transformationButtons button:disabled {
             background-color: #e0e0e0;
             cursor: not-allowed;
-            color: #666;
         }
-
-        #zoomIn, #zoomOut {
-            background-color: #17a2b8;
-            color: white;
+        /* Scrollbar styling for controls */
+        #controlsContainer::-webkit-scrollbar {
+            width: 8px;
         }
-
-        #zoomIn:hover, #zoomOut:hover {
-            background-color: #138496;
+        #controlsContainer::-webkit-scrollbar-thumb {
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 4px;
         }
-
-        #autoControl button {
-            background-color: #007BFF;
-            color: white;
-            flex: 1;
+        #controlsContainer::-webkit-scrollbar-track {
+            background-color: rgba(0,0,0,0.05);
         }
-
-        #autoControl button.stop {
-            background-color: #DC3545;
-        }
-
-        #autoControl button:hover:not(.stop) {
-            background-color: #0056b3;
-        }
-
-        #autoControl button.stop:hover {
-            background-color: #c82333;
-        }
-
-        #audioControls button {
-            background-color: #6f42c1;
-            color: white;
-            flex: 1;
-        }
-
-        #audioControls button:hover {
-            background-color: #5a32a3;
-        }
-
-        /* Dot Counter */
-        #dotCounter {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background-color: rgba(255,255,255,0.8);
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            color: #333;
-            display: none; /* Hidden by default */
-            z-index: 10;
-        }
-
-        /* Smooth sidebar transition */
-        #sidebar {
-            transition: left 0.3s ease;
-        }
-
         /* Responsive Design */
-        @media (max-width: 600px) {
-            #sidebar {
-                width: 250px;
-            }
-            .slider-group input[type="range"] {
-                flex: 3 0 100px;
-            }
-            #transformationButtons, #zoomControls, #audioControls, #autoControl {
+        @media (max-width: 800px) {
+            #mainContainer {
                 flex-direction: column;
             }
-            #transformationButtons button, #zoomControls button, #audioControls button, #autoControl button {
-                margin-bottom: 5px;
+            #controlsContainer {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #ccc;
+                padding-right: 0;
+                padding-bottom: 10px;
             }
-            #transformationButtons button:last-child,
-            #zoomControls button:last-child,
-            #audioControls button:last-child,
-            #autoControl button:last-child {
-                margin-bottom: 0;
+            .transformation, .probabilities {
+                width: 100%;
+            }
+            .slider-group label, .slider-group input[type="range"] {
+                flex: 1 0 100%;
+                margin-right: 0;
+            }
+            .slider-group input[type="range"] {
+                margin-top: 5px;
+            }
+            #transformationButtons {
+                flex-direction: column;
+            }
+            #transformationButtons button {
+                margin: 5px 0;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Canvas for fractal rendering -->
-    <canvas id="fractalCanvas"></canvas>
-
-    <!-- Dot Counter -->
-    <div id="dotCounter">Dots Plotted: 0</div>
-
-    <!-- Sidebar Menu -->
-    <div id="sidebar">
-        <!-- Example Selection -->
-        <div class="section" id="exampleSelect">
-            <h3>Example:</h3>
-            <select id="examples">
-                <option value="line" selected>Simple Line</option>
-                <option value="sierpinski">Sierpinski Triangle</option>
-                <option value="barnsley">Barnsley Fern</option>
-            </select>
-        </div>
-
-        <!-- Audio Controls -->
-        <div class="section" id="audioControls">
-            <h3>Audio:</h3>
-            <input type="file" id="audioFile" accept="audio/*">
-        </div>
-
-        <!-- Auto Adjust Controls -->
-        <div class="section" id="autoControl">
-            <h3>Auto Adjust:</h3>
-            <button id="toggleAuto">Stop Auto Adjust</button>
-        </div>
-
-        <!-- Add/Remove Transformation Buttons -->
-        <div class="section" id="transformationButtons">
-            <button id="addTransformation">Add Transformation</button>
-            <button id="removeTransformation" disabled>Remove Transformation</button>
-        </div>
-
-        <!-- Transformation and Probability sliders -->
-        <div class="section" id="controls">
-            <!-- Transformation and Probability sliders will be dynamically added here -->
-        </div>
-
-        <!-- Sliders for Total Points and Simulation Speed -->
-        <div class="section" id="additionalControls">
-            <h3>Simulation Controls:</h3>
-            <div class="slider-group">
-                <label for="totalPoints">Points:</label>
-                <input type="range" id="totalPoints" min="1000" max="50000" step="1000" value="10000">
-                <span id="totalPointsValue">10000</span>
+    <h1>IFS Fractal Generator</h1>
+    <div id="exampleSelect">
+        <label for="examples">Choose an Example:</label>
+        <select id="examples">
+            <option value="line" selected>Simple Line</option>
+            <option value="sierpinski">Sierpinski Triangle</option>
+            <option value="barnsley">Barnsley Fern</option>
+        </select>
+    </div>
+    <div id="mainContainer">
+        <div id="controlsContainer">
+            <div id="transformationButtons">
+                <button id="addTransformation">Add Transformation</button>
+                <button id="removeTransformation">Remove Transformation</button>
             </div>
-            <div class="slider-group">
-                <label for="simulationSpeed">Speed:</label>
-                <input type="range" id="simulationSpeed" min="10" max="200" step="10" value="1">
-                <span id="simulationSpeedValue">100</span>
+            <div id="controls">
+                <!-- Transformation and Probability sliders will be dynamically added here -->
             </div>
         </div>
-
-        <!-- Zoom Controls -->
-        <div class="section" id="zoomControls">
-            <button id="zoomIn">Zoom In (+)</button>
-            <button id="zoomOut">Zoom Out (-)</button>
+        <div id="canvasContainer">
+            <canvas id="fractalCanvas" width="800" height="800"></canvas>
+            <div id="zoomControls">
+                <button id="zoomIn">+</button>
+                <button id="zoomOut">-</button>
+            </div>
         </div>
     </div>
-
     <script>
-        // Define fractal examples
+        // Define examples
         const examples = {
             sierpinski: {
                 transformations: [
@@ -318,7 +227,6 @@
             }
         };
 
-        // Get DOM elements
         const canvas = document.getElementById('fractalCanvas');
         const ctx = canvas.getContext('2d');
         const controlsDiv = document.getElementById('controls');
@@ -327,70 +235,11 @@
         const zoomOutBtn = document.getElementById('zoomOut');
         const addTransBtn = document.getElementById('addTransformation');
         const removeTransBtn = document.getElementById('removeTransformation');
-        const toggleAutoBtn = document.getElementById('toggleAuto');
-        const dotCounter = document.getElementById('dotCounter');
-        const sidebar = document.getElementById('sidebar');
-        const audioFileInput = document.getElementById('audioFile');
-        const totalPointsSlider = document.getElementById('totalPoints');
-        const totalPointsValue = document.getElementById('totalPointsValue');
-        const simulationSpeedSlider = document.getElementById('simulationSpeed');
-        const simulationSpeedValue = document.getElementById('simulationSpeedValue');
 
-        // Initial settings
         let currentExample = 'line'; // Default to Simple Line
         let transformations = JSON.parse(JSON.stringify(examples[currentExample].transformations));
         let probabilities = examples[currentExample].probabilities.slice();
         let scale = 100; // Initial scale
-        let currentColor = '#FFFFFF'; // Default white
-
-        // Auto Adjust Variables
-        let autoAdjustInterval = null;
-        let autoAdjustFrequency = 100; // in milliseconds (slowed down)
-        let autoAdjustStep = 0.001; // smaller step for ultra-fine adjustments
-        let targets = []; // To store targets for transformations and probabilities
-
-        // Audio Variables
-        let audioContext = null;
-        let analyser = null;
-        let dataArray = null;
-        let source = null;
-        let isAudioPlaying = false;
-
-        // Color Interpolation Variables
-        let targetColor = { r: 255, g: 255, b: 255 }; // Start with white
-        let currentColorRGB = { r: 255, g: 255, b: 255 };
-
-        // Simulation Control Variables
-        let totalPoints = parseInt(totalPointsSlider.value);
-        let simulationSpeed = parseInt(simulationSpeedSlider.value);
-
-        // Initialize target values
-        function initializeTargets() {
-            targets = [];
-
-            // Set new random targets for transformations
-            transformations.forEach(trans => {
-                const transTarget = {};
-                ['a', 'b', 'c', 'd', 'e', 'f'].forEach(param => {
-                    transTarget[param] = getRandomInRange(getSliderMin(param), getSliderMax(param));
-                });
-                targets.push(transTarget);
-            });
-
-            // Set new random targets for probabilities
-            const probTargets = probabilities.map(() => getRandomInRange(0, 1));
-            targets.push(probTargets);
-            normalizeProbabilities();
-        }
-
-        // Update Remove Button State
-        function updateRemoveButtonState() {
-            if (transformations.length <= 1) {
-                removeTransBtn.disabled = true;
-            } else {
-                removeTransBtn.disabled = false;
-            }
-        }
 
         // Initialize UI
         function initUI() {
@@ -403,7 +252,7 @@
                 transDiv.id = `transformation_${index}`;
                 transDiv.innerHTML = `<h3>Transformation ${index + 1}</h3>`;
 
-                ['a', 'b', 'c', 'd', 'e', 'f'].forEach(param => {
+                ['a', 'b', 'c', 'd', 'e', 'f'].forEach((param) => {
                     const sliderGroup = document.createElement('div');
                     sliderGroup.className = 'slider-group';
 
@@ -413,22 +262,23 @@
 
                     const slider = document.createElement('input');
                     slider.type = 'range';
-                    slider.min = -2;
-                    slider.max = 2;
-                    slider.step = 0.001;
+                    // Adjust min and max based on typical transformation values
+                    if (param === 'c' || param === 'f') {
+                        slider.min = -2;
+                        slider.max = 2;
+                        slider.step = 0.01;
+                    } else {
+                        slider.min = -2;
+                        slider.max = 2;
+                        slider.step = 0.01;
+                    }
                     slider.value = trans[param];
                     slider.id = `trans${index}_${param}`;
 
                     slider.oninput = function() {
-                        const targetValue = parseFloat(this.value);
-                        transformations[index][param] = targetValue;
-                        label.textContent = `${param}: ${targetValue.toFixed(3)}`;
+                        transformations[index][param] = parseFloat(this.value);
+                        label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
                         generateAndPlot();
-                    };
-
-                    slider.onchange = function() {
-                        const targetValue = parseFloat(this.value);
-                        label.textContent = `${param}: ${targetValue.toFixed(3)}`;
                     };
 
                     sliderGroup.appendChild(label);
@@ -440,57 +290,43 @@
             });
 
             // Probability sliders
-            renderProbabilities();
-
-            updateRemoveButtonState();
-            initializeTargets();
-        }
-
-        // Render Probability Sliders
-        function renderProbabilities() {
-            let probDiv = document.getElementById('probabilities');
-            if (!probDiv) {
-                // Create probabilities div if it doesn't exist
-                probDiv = document.createElement('div');
+            if (probabilities.length > 1) {
+                const probDiv = document.createElement('div');
                 probDiv.className = 'probabilities';
                 probDiv.id = 'probabilities';
                 probDiv.innerHTML = `<h3>Probabilities</h3>`;
+
+                probabilities.forEach((prob, index) => {
+                    const sliderGroup = document.createElement('div');
+                    sliderGroup.className = 'slider-group';
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `prob_${index}`;
+                    label.textContent = `P${index + 1}: ${prob.toFixed(2)}`;
+
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    slider.min = 0;
+                    slider.max = 1;
+                    slider.step = 0.01;
+                    slider.value = prob;
+                    slider.id = `prob_${index}`;
+
+                    slider.oninput = function() {
+                        probabilities[index] = parseFloat(this.value);
+                        updateProbabilities(index);
+                        generateAndPlot();
+                    };
+
+                    sliderGroup.appendChild(label);
+                    sliderGroup.appendChild(slider);
+                    probDiv.appendChild(sliderGroup);
+                });
+
                 controlsDiv.appendChild(probDiv);
-            } else {
-                probDiv.innerHTML = `<h3>Probabilities</h3>`; // Reset content
             }
 
-            probabilities.forEach((prob, index) => {
-                const sliderGroup = document.createElement('div');
-                sliderGroup.className = 'slider-group';
-
-                const label = document.createElement('label');
-                label.htmlFor = `prob_${index}`;
-                label.textContent = `P${index + 1}: ${prob.toFixed(2)}`;
-
-                const slider = document.createElement('input');
-                slider.type = 'range';
-                slider.min = 0;
-                slider.max = 1;
-                slider.step = 0.001;
-                slider.value = prob;
-                slider.id = `prob_${index}`;
-
-                slider.oninput = function() {
-                    probabilities[index] = parseFloat(this.value);
-                    updateProbabilities(index);
-                    generateAndPlot();
-                };
-
-                slider.onchange = function() {
-                    const probValue = parseFloat(this.value);
-                    label.textContent = `P${index + 1}: ${probValue.toFixed(2)}`;
-                };
-
-                sliderGroup.appendChild(label);
-                sliderGroup.appendChild(slider);
-                probDiv.appendChild(sliderGroup);
-            });
+            updateRemoveButtonState();
         }
 
         // Update Probabilities and Normalize
@@ -506,7 +342,7 @@
             probabilities.forEach((p, i) => {
                 const probSlider = document.getElementById(`prob_${i}`);
                 const probLabel = probSlider.previousSibling;
-                probSlider.value = p.toFixed(3);
+                probSlider.value = p;
                 probLabel.textContent = `P${i + 1}: ${p.toFixed(2)}`;
             });
         }
@@ -515,7 +351,6 @@
         function applyIFS(initialPoints, transformations, probabilities, iterations) {
             let points = initialPoints.slice();
             const allPoints = [];
-            let dotCount = 0;
 
             for (let i = 0; i < iterations; i++) {
                 const newPoints = [];
@@ -525,13 +360,11 @@
                     const x = trans.a * point[0] + trans.b * point[1] + trans.c;
                     const y = trans.d * point[0] + trans.e * point[1] + trans.f;
                     newPoints.push([x, y]);
-                    dotCount++;
                 });
                 points = newPoints;
                 allPoints.push(...points);
             }
 
-            dotCounter.textContent = `Dots Plotted: ${dotCount}`;
             return allPoints;
         }
 
@@ -550,33 +383,20 @@
 
         // Plot points on canvas
         function plotPoints(points) {
-            // Adjust canvas size for high DPI displays
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = window.innerHeight * dpr;
-            ctx.scale(dpr, dpr);
-
-            // Clear canvas with black background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-
             points.forEach(point => {
-                const x = window.innerWidth / 2 + point[0] * scale;
-                const y = window.innerHeight / 2 - point[1] * scale; // Invert y-axis for correct orientation
-                // Assign current color
-                ctx.fillStyle = `rgb(${Math.round(currentColorRGB.r)}, ${Math.round(currentColorRGB.g)}, ${Math.round(currentColorRGB.b)})`;
-                ctx.fillRect(x, y, 1, 1); // Maintain dot size as 1x1 pixels
+                const x = canvas.width / 2 + point[0] * scale;
+                const y = canvas.height - (canvas.height / 2 + point[1] * scale);
+                ctx.fillRect(x, y, 1, 1);
             });
         }
-
-        let currentPoints = []; // To store current points for re-rendering on resize
 
         // Generate and plot
         function generateAndPlot() {
             const initialPoints = [[0, 0]];
-            const iterations = totalPoints;
+            const iterations = 10000;
             const points = applyIFS(initialPoints, transformations, probabilities, iterations);
-            currentPoints = points;
             plotPoints(points);
         }
 
@@ -621,7 +441,7 @@
             transDiv.id = `transformation_${index}`;
             transDiv.innerHTML = `<h3>Transformation ${index + 1}</h3>`;
 
-            ['a', 'b', 'c', 'd', 'e', 'f'].forEach(param => {
+            ['a', 'b', 'c', 'd', 'e', 'f'].forEach((param) => {
                 const sliderGroup = document.createElement('div');
                 sliderGroup.className = 'slider-group';
 
@@ -631,22 +451,22 @@
 
                 const slider = document.createElement('input');
                 slider.type = 'range';
-                slider.min = -2;
-                slider.max = 2;
-                slider.step = 0.001;
+                if (param === 'c' || param === 'f') {
+                    slider.min = -2;
+                    slider.max = 2;
+                    slider.step = 0.01;
+                } else {
+                    slider.min = -2;
+                    slider.max = 2;
+                    slider.step = 0.01;
+                }
                 slider.value = transformations[index][param];
                 slider.id = `trans${index}_${param}`;
 
                 slider.oninput = function() {
-                    const targetValue = parseFloat(this.value);
-                    transformations[index][param] = targetValue;
-                    label.textContent = `${param}: ${targetValue.toFixed(3)}`;
+                    transformations[index][param] = parseFloat(this.value);
+                    label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
                     generateAndPlot();
-                };
-
-                slider.onchange = function() {
-                    const targetValue = parseFloat(this.value);
-                    label.textContent = `${param}: ${targetValue.toFixed(3)}`;
                 };
 
                 sliderGroup.appendChild(label);
@@ -657,7 +477,6 @@
             controlsDiv.insertBefore(transDiv, document.getElementById('probabilities'));
             generateAndPlot();
             updateRemoveButtonState();
-            initializeTargets();
         };
 
         // Remove Transformation
@@ -686,474 +505,62 @@
 
             generateAndPlot();
             updateRemoveButtonState();
-            initializeTargets();
         };
 
-        // Handle key presses
-        document.addEventListener('keydown', function(event) {
-            if (event.code === 'Space') {
-                event.preventDefault(); // Prevent scrolling
-                toggleFullscreen();
-            }
-            if (event.key.toLowerCase() === 'h') {
-                toggleSidebar();
-            }
-            if (event.code === 'ArrowUp') {
-                increaseSpeed();
-            }
-            if (event.code === 'ArrowDown') {
-                decreaseSpeed();
-            }
-            // Handle color keys 0-9
-            if (/^[0-9]$/.test(event.key)) {
-                changeColor(event.key);
-            }
-        });
-
-        // Toggle Fullscreen and Menu
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                // Enter fullscreen
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.error(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
-                });
-                // Hide sidebar and dot counter
-                sidebar.classList.remove('open');
-                dotCounter.style.display = 'none';
+        // Render Probability Sliders
+        function renderProbabilities() {
+            let probDiv = document.getElementById('probabilities');
+            if (!probDiv) {
+                // Create probabilities div if it doesn't exist
+                probDiv = document.createElement('div');
+                probDiv.className = 'probabilities';
+                probDiv.id = 'probabilities';
+                probDiv.innerHTML = `<h3>Probabilities</h3>`;
+                controlsDiv.appendChild(probDiv);
             } else {
-                // Exit fullscreen
-                document.exitFullscreen();
-                // Sidebar remains hidden until 'H' is pressed
-                dotCounter.style.display = 'none';
+                probDiv.innerHTML = `<h3>Probabilities</h3>`; // Reset content
             }
-        }
 
-        // Toggle Sidebar Visibility
-        function toggleSidebar() {
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-                dotCounter.style.display = 'none';
-            } else {
-                sidebar.classList.add('open');
-                dotCounter.style.display = 'block';
-            }
-        }
+            probabilities.forEach((prob, index) => {
+                const sliderGroup = document.createElement('div');
+                sliderGroup.className = 'slider-group';
 
-        // Adjust speed
-        function increaseSpeed() {
-            if (autoAdjustFrequency > 10) { // Prevent too high speed
-                autoAdjustFrequency -= 10; // Decrease interval for faster adjustments
-                simulationSpeed = Math.min(simulationSpeed + 10, 200);
-                simulationSpeedSlider.value = simulationSpeed;
-                simulationSpeedValue.textContent = simulationSpeed;
-                if (autoAdjustInterval) {
-                    clearInterval(autoAdjustInterval);
-                    autoAdjustInterval = setInterval(autoAdjustSliders, autoAdjustFrequency);
-                }
-                console.log(`Auto Adjust Frequency: ${autoAdjustFrequency} ms`);
-            }
-        }
+                const label = document.createElement('label');
+                label.htmlFor = `prob_${index}`;
+                label.textContent = `P${index + 1}: ${prob.toFixed(2)}`;
 
-        function decreaseSpeed() {
-            if (autoAdjustFrequency < 1000) { // Prevent too low speed
-                autoAdjustFrequency += 10; // Increase interval for slower adjustments
-                simulationSpeed = Math.max(simulationSpeed - 10, 10);
-                simulationSpeedSlider.value = simulationSpeed;
-                simulationSpeedValue.textContent = simulationSpeed;
-                if (autoAdjustInterval) {
-                    clearInterval(autoAdjustInterval);
-                    autoAdjustInterval = setInterval(autoAdjustSliders, autoAdjustFrequency);
-                }
-                console.log(`Auto Adjust Frequency: ${autoAdjustFrequency} ms`);
-            }
-        }
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = 0;
+                slider.max = 1;
+                slider.step = 0.01;
+                slider.value = prob;
+                slider.id = `prob_${index}`;
 
-        // Start/Stop Auto Adjust
-        toggleAutoBtn.onclick = function() {
-            if (autoAdjustInterval) {
-                // Stop auto adjust
-                clearInterval(autoAdjustInterval);
-                autoAdjustInterval = null;
-                toggleAutoBtn.textContent = 'Start Auto Adjust';
-                toggleAutoBtn.classList.remove('stop');
-            } else {
-                // Start auto adjust
-                initializeTargets();
-                autoAdjustInterval = setInterval(autoAdjustSliders, autoAdjustFrequency);
-                toggleAutoBtn.textContent = 'Stop Auto Adjust';
-                toggleAutoBtn.classList.add('stop');
-            }
-        };
+                slider.oninput = function() {
+                    probabilities[index] = parseFloat(this.value);
+                    updateProbabilities(index);
+                    generateAndPlot();
+                };
 
-        // Function to smoothly adjust sliders and interpolate colors
-        function autoAdjustSliders() {
-            let changed = false;
-
-            // Adjust transformation parameters towards targets
-            transformations.forEach((trans, index) => {
-                ['a', 'b', 'c', 'd', 'e', 'f'].forEach(param => {
-                    const currentValue = trans[param];
-                    const targetValue = targets[index][param];
-                    if (Math.abs(targetValue - currentValue) > autoAdjustStep) {
-                        const step = (targetValue > currentValue) ? autoAdjustStep : -autoAdjustStep;
-                        transformations[index][param] = currentValue + step;
-
-                        // Update the corresponding slider
-                        const slider = document.getElementById(`trans${index}_${param}`);
-                        if (slider) {
-                            slider.value = transformations[index][param].toFixed(3);
-                            const label = slider.previousSibling;
-                            label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
-                        }
-                        changed = true;
-                    } else {
-                        // Target reached, set a new target
-                        targets[index][param] = getRandomInRange(getSliderMin(param), getSliderMax(param));
-                        changed = true;
-                    }
-                });
+                sliderGroup.appendChild(label);
+                sliderGroup.appendChild(slider);
+                probDiv.appendChild(sliderGroup);
             });
-
-            // Adjust probabilities towards targets
-            const probIndex = transformations.length; // Last entry in targets array
-            probabilities.forEach((prob, i) => {
-                const currentProb = prob;
-                const targetProb = targets[probIndex][i];
-                if (Math.abs(targetProb - currentProb) > autoAdjustStep) {
-                    const step = (targetProb > currentProb) ? autoAdjustStep : -autoAdjustStep;
-                    probabilities[i] = currentProb + step;
-                    changed = true;
-                } else {
-                    // Target reached, set a new target
-                    targets[probIndex][i] = getRandomInRange(0, 1);
-                    changed = true;
-                }
-            });
-
-            if (changed) {
-                // Normalize probabilities to sum to 1
-                normalizeProbabilities();
-
-                // Update all probability sliders
-                probabilities.forEach((p, i) => {
-                    const probSlider = document.getElementById(`prob_${i}`);
-                    const probLabel = probSlider.previousSibling;
-                    probSlider.value = p.toFixed(3);
-                    probLabel.textContent = `P${i + 1}: ${p.toFixed(2)}`;
-                });
-
-                // Smooth color interpolation
-                lerpColors();
-
-                generateAndPlot();
-            }
         }
 
-        // Normalize probabilities to sum to 1
-        function normalizeProbabilities() {
-            const total = probabilities.reduce((a, b) => a + b, 0);
-            if (total === 0) {
-                // Prevent division by zero by resetting to equal probabilities
-                probabilities = probabilities.map(() => 1 / probabilities.length);
+        // Update Remove Button State
+        function updateRemoveButtonState() {
+            if (transformations.length <= 1) {
+                removeTransBtn.disabled = true;
             } else {
-                probabilities = probabilities.map(p => p / total);
+                removeTransBtn.disabled = false;
             }
         }
 
-        // Initialize target values
-        function initializeTargets() {
-            // Clear existing targets
-            targets = [];
-
-            // Set new random targets for transformations
-            transformations.forEach(trans => {
-                const transTarget = {};
-                ['a', 'b', 'c', 'd', 'e', 'f'].forEach(param => {
-                    transTarget[param] = getRandomInRange(getSliderMin(param), getSliderMax(param));
-                });
-                targets.push(transTarget);
-            });
-
-            // Set new random targets for probabilities
-            const probTargets = probabilities.map(() => getRandomInRange(0, 1));
-            targets.push(probTargets);
-            normalizeProbabilities();
-        }
-
-        // Utility functions to get slider min and max based on parameter
-        function getSliderMin(param) {
-            return -2;
-        }
-
-        function getSliderMax(param) {
-            return 2;
-        }
-
-        // Function to get random number in range
-        function getRandomInRange(min, max) {
-            return (Math.random() * (max - min)) + min;
-        }
-
-        // Initialize the UI and plot
+        // Initialize
         initUI();
         generateAndPlot();
-
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            plotPoints(currentPoints);
-        });
-
-        // Audio Integration
-        audioFileInput.addEventListener('change', function() {
-            const files = this.files;
-            if (files.length === 0) return;
-            const file = files[0];
-            const fileURL = URL.createObjectURL(file);
-
-            if (audioContext) {
-                audioContext.close();
-            }
-
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            const bufferLength = analyser.frequencyBinCount;
-            dataArray = new Uint8Array(bufferLength);
-
-            const audio = new Audio();
-            audio.src = fileURL;
-            audio.crossOrigin = "anonymous";
-            audio.loop = true;
-            audio.play().catch(error => {
-                console.error('Error playing audio:', error);
-            });
-
-            source = audioContext.createMediaElementSource(audio);
-            source.connect(analyser);
-            analyser.connect(audioContext.destination);
-
-            isAudioPlaying = true;
-
-            // Start audio-driven transformation
-            if (autoAdjustInterval) {
-                // Stop existing auto-adjust
-                clearInterval(autoAdjustInterval);
-                autoAdjustInterval = null;
-                toggleAutoBtn.textContent = 'Start Auto Adjust';
-                toggleAutoBtn.classList.remove('stop');
-            }
-
-            // Start audio-driven adjustment
-            autoAdjustInterval = setInterval(() => {
-                analyser.getByteFrequencyData(dataArray);
-                adjustTransformationsBasedOnAudio(dataArray);
-                generateAndPlot();
-            }, autoAdjustFrequency);
-            toggleAutoBtn.textContent = 'Stop Auto Adjust';
-            toggleAutoBtn.classList.add('stop');
-        });
-
-        // Function to adjust transformations based on audio data
-        function adjustTransformationsBasedOnAudio(frequencyData) {
-            // Calculate average frequency
-            let sum = 0;
-            for (let i = 0; i < frequencyData.length; i++) {
-                sum += frequencyData[i];
-            }
-            const avg = sum / frequencyData.length;
-
-            // Map average frequency to a transformation parameter, e.g., scale
-            // For demonstration, let's map it to scale
-            scale = 50 + (avg / 255) * 200; // Scale between 50 and 250
-
-            // Optionally, map specific frequency bands to specific transformation parameters
-            // Example: Map low frequencies to 'a' and 'd', mid to 'b' and 'e', high to 'c' and 'f'
-
-            const lowFreq = getAverage(frequencyData, 0, 16); // Low frequencies
-            const midFreq = getAverage(frequencyData, 17, 80); // Mid frequencies
-            const highFreq = getAverage(frequencyData, 81, 128); // High frequencies
-
-            // Update transformation parameters based on frequency data
-            transformations.forEach((trans, index) => {
-                // Example mapping:
-                trans.a = 0.5 + (lowFreq / 255) * 1.5; // Range: 0.5 to 2.0
-                trans.b = 0 + (midFreq / 255) * 2; // Range: 0 to 2
-                trans.c = 0 + (highFreq / 255) * 1; // Range: 0 to 1
-                // Similarly for d, e, f
-                trans.d = 0.5 + (lowFreq / 255) * 1.5;
-                trans.e = 0.5 + (midFreq / 255) * 1.5;
-                trans.f = 0 + (highFreq / 255) * 1;
-            });
-
-            // Dynamic Color Interpolation based on average frequency
-            // Map average frequency to a color hue
-            const hue = (avg / 255) * 360; // Hue between 0 and 360
-            targetColor = hsvToRgb(hue, 1, 1); // Full saturation and value
-        }
-
-        // Utility function to calculate average of a subset of the array
-        function getAverage(array, start, end) {
-            let sum = 0;
-            for (let i = start; i <= end; i++) {
-                sum += array[i];
-            }
-            return sum / (end - start + 1);
-        }
-
-        // Function to smoothly interpolate colors
-        function lerpColors() {
-            currentColorRGB.r += (targetColor.r - currentColorRGB.r) * 0.02;
-            currentColorRGB.g += (targetColor.g - currentColorRGB.g) * 0.02;
-            currentColorRGB.b += (targetColor.b - currentColorRGB.b) * 0.02;
-        }
-
-        // HSV to RGB conversion
-        function hsvToRgb(h, s, v) {
-            let c = v * s;
-            let x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-            let m = v - c;
-            let r, g, b;
-
-            if (h >= 0 && h < 60) {
-                r = c; g = x; b = 0;
-            } else if (h >= 60 && h < 120) {
-                r = x; g = c; b = 0;
-            } else if (h >= 120 && h < 180) {
-                r = 0; g = c; b = x;
-            } else if (h >= 180 && h < 240) {
-                r = 0; g = x; b = c;
-            } else if (h >= 240 && h < 300) {
-                r = x; g = 0; b = c;
-            } else {
-                r = c; g = 0; b = x;
-            }
-
-            return {
-                r: Math.round((r + m) * 255),
-                g: Math.round((g + m) * 255),
-                b: Math.round((b + m) * 255)
-            };
-        }
-
-        // Function to smoothly adjust sliders and interpolate colors
-        function animate() {
-            requestAnimationFrame(animate);
-            // Smooth color interpolation
-            lerpColors();
-            generateAndPlot();
-        }
-
-        // Start animation loop
-        animate();
-
-        // Function to plot points
-        function plotPoints(points) {
-            // Adjust canvas size for high DPI displays
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = window.innerHeight * dpr;
-            ctx.scale(dpr, dpr);
-
-            // Clear canvas with black background
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-
-            points.forEach(point => {
-                const x = window.innerWidth / 2 + point[0] * scale;
-                const y = window.innerHeight / 2 - point[1] * scale; // Invert y-axis for correct orientation
-                // Assign current color
-                ctx.fillStyle = `rgb(${Math.round(currentColorRGB.r)}, ${Math.round(currentColorRGB.g)}, ${Math.round(currentColorRGB.b)})`;
-                ctx.fillRect(x, y, 1, 1); // Maintain dot size as 1x1 pixels
-            });
-        }
-
-        // Generate and plot
-        function generateAndPlot() {
-            const initialPoints = [[0, 0]];
-            const iterations = totalPoints;
-            const points = applyIFS(initialPoints, transformations, probabilities, iterations);
-            currentPoints = points;
-            plotPoints(points);
-        }
-
-        // Handle example selection
-        examplesSelect.onchange = function() {
-            currentExample = this.value;
-            const selected = examples[currentExample];
-            transformations = JSON.parse(JSON.stringify(selected.transformations));
-            probabilities = selected.probabilities.slice();
-            scale = 100; // Reset scale
-            initUI();
-            generateAndPlot();
-        };
-
-        // Function to smoothly interpolate colors (already called in animate)
-        // No need to call it here
-
-        // Function to handle fullscreen change and adjust UI accordingly
-        document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                // Hide sidebar and dot counter
-                sidebar.classList.remove('open');
-                dotCounter.style.display = 'none';
-            } else {
-                // Sidebar remains hidden until 'H' is pressed
-                dotCounter.style.display = 'none';
-            }
-        });
-
-        // Slider Controls for Total Points and Simulation Speed
-        totalPointsSlider.oninput = function() {
-            totalPoints = parseInt(this.value);
-            totalPointsValue.textContent = totalPoints;
-            generateAndPlot();
-        };
-
-        simulationSpeedSlider.oninput = function() {
-            simulationSpeed = parseInt(this.value);
-            simulationSpeedValue.textContent = simulationSpeed;
-            // Adjust autoAdjustFrequency based on simulationSpeed
-            // Higher simulationSpeed => lower autoAdjustFrequency (faster adjustments)
-            autoAdjustFrequency = 200 - simulationSpeed; // Example mapping
-            autoAdjustFrequency = Math.max(10, Math.min(autoAdjustFrequency, 200)); // Clamp between 10 and 200 ms
-            if (autoAdjustInterval) {
-                clearInterval(autoAdjustInterval);
-                autoAdjustInterval = setInterval(autoAdjustSliders, autoAdjustFrequency);
-            }
-            console.log(`Auto Adjust Frequency: ${autoAdjustFrequency} ms`);
-        };
-
-        // Initialize additional sliders
-        totalPointsValue.textContent = totalPointsSlider.value;
-        simulationSpeedValue.textContent = simulationSpeedSlider.value;
-
-        // Function to toggle color based on key press
-        function changeColor(key) {
-            const colorMap = {
-                '0': { r: 255, g: 255, b: 255 }, // White
-                '1': { r: 255, g: 0, b: 0 },     // Red
-                '2': { r: 0, g: 255, b: 0 },     // Green
-                '3': { r: 0, g: 0, b: 255 },     // Blue
-                '4': { r: 255, g: 255, b: 0 },   // Yellow
-                '5': { r: 255, g: 0, b: 255 },   // Magenta
-                '6': { r: 0, g: 255, b: 255 },   // Cyan
-                '7': { r: 255, g: 165, b: 0 },   // Orange
-                '8': { r: 128, g: 0, b: 128 },   // Purple
-                '9': { r: 128, g: 128, b: 128 }  // Gray
-            };
-            targetColor = colorMap[key] || { r: 255, g: 255, b: 255 };
-        }
-
-        // Function to smoothly interpolate colors (already called in animate)
-        // No need to call it here
-
-        // Automatically start Auto Adjust on page load
-        window.onload = function() {
-            initializeTargets();
-            autoAdjustInterval = setInterval(autoAdjustSliders, autoAdjustFrequency);
-            toggleAutoBtn.textContent = 'Stop Auto Adjust';
-            toggleAutoBtn.classList.add('stop');
-        };
     </script>
 </body>
 </html>
