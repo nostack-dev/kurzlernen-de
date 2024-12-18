@@ -31,6 +31,15 @@
     <div class="flex flex-1 overflow-hidden">
         <!-- Sidebar für Parametersteuerungen -->
         <div class="w-full md:w-1/3 lg:w-1/4 bg-base-100 p-6 overflow-y-auto">
+            <!-- Anzahl der Datenpunkte Slider -->
+            <div class="card shadow-lg compact side bg-base-100 mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Anzahl der Datenpunkte (N)</h3>
+                    <input type="range" id="numSamples" min="10" max="1000" step="10" value="100" class="range range-info">
+                    <span id="numSamplesValue" class="text-lg">100</span>
+                </div>
+            </div>
+            
             <!-- Amplitude Slider -->
             <div class="card shadow-lg compact side bg-base-100 mb-4">
                 <div class="card-body">
@@ -58,12 +67,12 @@
                 </div>
             </div>
             
-            <!-- Noise-Amplitude Slider -->
+            <!-- dataNoiseRange-Amplitude Slider -->
             <div class="card shadow-lg compact side bg-base-100 mb-6">
                 <div class="card-body">
-                    <h3 class="card-title">Noise-Amplitude (N)</h3>
-                    <input type="range" id="noiseAmplitude" min="0" max="1" step="0.01" value="0.25" class="range range-warning">
-                    <span id="noiseAmplitudeValue" class="text-lg">0.25</span>
+                    <h3 class="card-title">dataNoiseRange-Amplitude (N)</h3>
+                    <input type="range" id="dataNoiseRangeAmplitude" min="0" max="1" step="0.01" value="0.25" class="range range-warning">
+                    <span id="dataNoiseRangeAmplitudeValue" class="text-lg">0.25</span>
                 </div>
             </div>
         </div>
@@ -86,33 +95,35 @@
 
         const ctx = document.getElementById('waveChart').getContext('2d');
 
-        // Anzahl der Datenpunkte
-        const N = 100;
-        const t = Array.from({ length: N }, (_, i) => (2 * Math.PI * i) / (N - 1));
-
         // **Initiale Parameter aus den Slidern auslesen**
+        let numSamples = parseInt(document.getElementById('numSamples').value);
         let amplitude = parseFloat(document.getElementById('amplitude').value);
         let frequency = parseFloat(document.getElementById('frequency').value);
         let phaseShift = parseFloat(document.getElementById('phaseShift').value);
-        let noiseAmplitude = parseFloat(document.getElementById('noiseAmplitude').value);
+        let dataNoiseRangeAmplitude = parseFloat(document.getElementById('dataNoiseRangeAmplitude').value);
 
-        console.log("Initiale Parameter:", { amplitude, frequency, phaseShift, noiseAmplitude });
+        console.log("Initiale Parameter:", { numSamples, amplitude, frequency, phaseShift, dataNoiseRangeAmplitude });
 
-        // **Generiere Originaldaten basierend auf aktuellen Parametern**
-        function generateOriginalData() {
+        // **Generiere Zeitpunkte basierend auf der Anzahl der Datenpunkte**
+        function generateTimePoints(N) {
+            return Array.from({ length: N }, (_, i) => (2 * Math.PI * i) / (N - 1));
+        }
+
+        // **Generiere Trägerwelle basierend auf aktuellen Parametern**
+        function generateTrägerwelleSine(t) {
             return t.map(value => amplitude * Math.sin(frequency * value + phaseShift));
         }
 
-        // **Generiere Rauschdaten basierend auf aktuellen Parametern**
-        function generateNoisyData(originalData) {
-            return originalData.map((value, index) => {
-                const noise = noiseAmplitude * (Math.random() * 2 - 1); // Gleichverteiltes Rauschen zwischen -N und +N
-                return value + noise;
+        // **Generiere Daten basierend auf aktuellen Parametern**
+        function generateData(trägerwelleSine) {
+            return trägerwelleSine.map(value => {
+                const dataNoiseRange = dataNoiseRangeAmplitude * (Math.random() * 2 - 1); // Gleichverteiltes Rauschen zwischen -N und +N
+                return value + dataNoiseRange;
             });
         }
 
-        // **Funktion zur Kodierung der Originaldaten**
-        function encodeVector(amplitude, frequency, phaseShift, data) {
+        // **Funktion zur Kodierung der Daten**
+        function encodeVector(amplitude, frequency, phaseShift, data, t) {
             return data.map((value, index) => {
                 const phaseValue = amplitude * Math.cos(frequency * t[index] + phaseShift);
                 if (phaseValue === 0) {
@@ -124,14 +135,14 @@
             });
         }
 
-        // **Funktion zur Rekonstruktion der Originaldaten aus den kodierten Daten**
-        function unwind(amplitude, frequency, phaseShift, encodedData, noisyData) {
+        // **Funktion zur Rekonstruktion der Daten aus den kodierten Daten**
+        function unwind(amplitude, frequency, phaseShift, encodedData, data, t) {
             let decodedData = [];
             for (let index = 0; index < t.length; index++) {
                 const phaseValue = amplitude * Math.cos(frequency * t[index] + phaseShift);
                 if (phaseValue === 0) {
-                    // Wenn phaseValue genau 0 ist, setzen wir den rekonstruierten Wert auf noisyData(t)
-                    decodedData.push(noisyData[index]);
+                    // Wenn phaseValue genau 0 ist, setzen wir den rekonstruierten Wert auf data(t)
+                    decodedData.push(data[index]);
                 } else {
                     decodedData.push(encodedData[index] / phaseValue);
                 }
@@ -142,10 +153,11 @@
         // **Funktion zum Speichern der Encoding-Parameter als JSON-Datei**
         function saveParameters() {
             const params = {
+                numSamples,
                 amplitude,
                 frequency,
                 phaseShift,
-                noiseAmplitude
+                dataNoiseRangeAmplitude
             };
             const dataStr = JSON.stringify(params, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
@@ -165,6 +177,11 @@
                 try {
                     const params = JSON.parse(event.target.result);
                     console.log("Geladene Parameter:", params);
+                    if (params.numSamples !== undefined) {
+                        document.getElementById('numSamples').value = params.numSamples;
+                        document.getElementById('numSamplesValue').textContent = params.numSamples;
+                        numSamples = params.numSamples;
+                    }
                     if (params.amplitude !== undefined) {
                         document.getElementById('amplitude').value = params.amplitude;
                         document.getElementById('amplitudeValue').textContent = params.amplitude.toFixed(1);
@@ -180,10 +197,10 @@
                         document.getElementById('phaseShiftValue').textContent = params.phaseShift.toFixed(1);
                         phaseShift = params.phaseShift;
                     }
-                    if (params.noiseAmplitude !== undefined) {
-                        document.getElementById('noiseAmplitude').value = params.noiseAmplitude;
-                        document.getElementById('noiseAmplitudeValue').textContent = params.noiseAmplitude.toFixed(2);
-                        noiseAmplitude = params.noiseAmplitude;
+                    if (params.dataNoiseRangeAmplitude !== undefined) {
+                        document.getElementById('dataNoiseRangeAmplitude').value = params.dataNoiseRangeAmplitude;
+                        document.getElementById('dataNoiseRangeAmplitudeValue').textContent = params.dataNoiseRangeAmplitude.toFixed(2);
+                        dataNoiseRangeAmplitude = params.dataNoiseRangeAmplitude;
                     }
                     updateData();
                 } catch (error) {
@@ -210,9 +227,9 @@
             }
         });
 
-        // **Funktion zum Rekonstruieren der Originaldaten aus den kodierten Daten**
-        function reconstructOriginalData() {
-            let reconstructed = unwind(amplitude, frequency, phaseShift, encodedData, noisyData);
+        // **Funktion zum Rekonstruieren der Daten aus den kodierten Daten**
+        function reconstructData() {
+            let reconstructed = unwind(amplitude, frequency, phaseShift, encodedData, data, t);
             reconstructedData = reconstructed;
             console.log("Rekonstruierte Daten:", reconstructedData);
 
@@ -220,6 +237,7 @@
             const existingReconstructed = chart.data.datasets.find(dataset => dataset.label === 'Rekonstruierte Daten');
             if (existingReconstructed) {
                 existingReconstructed.data = reconstructedData;
+                existingReconstructed.hidden = false; // Sichtbar machen
             } else {
                 chart.data.datasets.push({
                     label: 'Rekonstruierte Daten',
@@ -238,26 +256,30 @@
 
         // **Funktion zum Aktualisieren der Daten basierend auf den aktuellen Parametern**
         function updateData() {
-            // **Generiere Originaldaten basierend auf aktuellen Parametern**
-            originalData = generateOriginalData();
-            console.log("Originaldaten aktualisiert:", originalData);
+            // **Generiere Zeitpunkte basierend auf der Anzahl der Datenpunkte**
+            t = generateTimePoints(numSamples);
+            console.log("Zeitpunkte generiert:", t);
 
-            // **Generiere Rauschdaten basierend auf aktuellen Parametern**
-            noisyData = generateNoisyData(originalData);
-            console.log("Rauschdaten aktualisiert:", noisyData);
+            // **Generiere TrägerwelleSine basierend auf aktuellen Parametern**
+            tragerWelleSine = generateTrägerwelleSine(t);
+            console.log("TrägerwelleSine aktualisiert:", tragerWelleSine);
+
+            // **Generiere Daten basierend auf aktuellen Parametern**
+            data = generateData(tragerWelleSine);
+            console.log("Daten aktualisiert:", data);
 
             // **Kodierte Daten basierend auf aktuellen Parametern generieren**
-            encodedData = encodeVector(amplitude, frequency, phaseShift, noisyData);
+            encodedData = encodeVector(amplitude, frequency, phaseShift, data, t);
             console.log("Kodierte Daten aktualisiert:", encodedData);
 
-            // **Aktualisiere Originaldaten im Chart**
-            const existingOriginal = chart.data.datasets.find(dataset => dataset.label === 'Originaldaten');
-            if (existingOriginal) {
-                existingOriginal.data = originalData;
+            // **Aktualisiere TrägerwelleSine im Chart**
+            const existingTrägerwelleSine = chart.data.datasets.find(dataset => dataset.label === 'TrägerwelleSine');
+            if (existingTrägerwelleSine) {
+                existingTrägerwelleSine.data = tragerWelleSine;
             } else {
                 chart.data.datasets.push({
-                    label: 'Originaldaten',
-                    data: originalData,
+                    label: 'TrägerwelleSine',
+                    data: tragerWelleSine,
                     borderColor: 'rgba(59, 130, 246, 0.5)', // Blau
                     borderWidth: 2,
                     fill: false,
@@ -267,19 +289,19 @@
                 });
             }
 
-            // **Aktualisiere Rauschdaten im Chart**
-            const existingNoisy = chart.data.datasets.find(dataset => dataset.label === 'Rauschdaten');
-            if (existingNoisy) {
-                existingNoisy.data = noisyData;
+            // **Aktualisiere Daten im Chart**
+            const existingData = chart.data.datasets.find(dataset => dataset.label === 'Daten');
+            if (existingData) {
+                existingData.data = data;
             } else {
                 chart.data.datasets.push({
-                    label: 'Rauschdaten',
-                    data: noisyData,
-                    borderColor: 'rgba(255, 159, 64, 0.5)', // Orange
+                    label: 'Daten',
+                    data: data,
+                    borderColor: 'rgba(255, 206, 86, 0.5)', // Gelb
                     borderWidth: 2,
                     fill: false,
                     pointRadius: 3,
-                    hidden: true, // Standardmäßig ausgeblendet
+                    hidden: false, // Standardmäßig angezeigt
                 });
             }
 
@@ -306,10 +328,21 @@
                 console.log("Rekonstruierte Daten entfernt.");
             }
 
+            // **Aktualisiere die Labels im Chart**
+            chart.data.labels = t;
+
             chart.update();
         }
 
-        // **Slider-Event-Listener**
+        // **Slider-Event-Listener für Anzahl der Datenpunkte (N)**
+        document.getElementById('numSamples').addEventListener('input', e => {
+            numSamples = parseInt(e.target.value);
+            document.getElementById('numSamplesValue').textContent = numSamples;
+            console.log("Anzahl der Datenpunkte (N) geändert:", numSamples);
+            updateData();
+        });
+
+        // **Slider-Event-Listener für Amplitude**
         document.getElementById('amplitude').addEventListener('input', e => {
             amplitude = parseFloat(e.target.value);
             document.getElementById('amplitudeValue').textContent = amplitude.toFixed(1);
@@ -317,6 +350,7 @@
             updateData();
         });
 
+        // **Slider-Event-Listener für Frequenz**
         document.getElementById('frequency').addEventListener('input', e => {
             frequency = parseFloat(e.target.value);
             document.getElementById('frequencyValue').textContent = frequency.toFixed(1);
@@ -324,6 +358,7 @@
             updateData();
         });
 
+        // **Slider-Event-Listener für Phasenverschiebung**
         document.getElementById('phaseShift').addEventListener('input', e => {
             phaseShift = parseFloat(e.target.value);
             document.getElementById('phaseShiftValue').textContent = phaseShift.toFixed(1);
@@ -331,21 +366,25 @@
             updateData();
         });
 
-        document.getElementById('noiseAmplitude').addEventListener('input', e => {
-            noiseAmplitude = parseFloat(e.target.value);
-            document.getElementById('noiseAmplitudeValue').textContent = noiseAmplitude.toFixed(2);
-            console.log("Noise-Amplitude geändert:", noiseAmplitude);
+        // **Slider-Event-Listener für dataNoiseRange-Amplitude**
+        document.getElementById('dataNoiseRangeAmplitude').addEventListener('input', e => {
+            dataNoiseRangeAmplitude = parseFloat(e.target.value);
+            document.getElementById('dataNoiseRangeAmplitudeValue').textContent = dataNoiseRangeAmplitude.toFixed(2);
+            console.log("dataNoiseRange-Amplitude geändert:", dataNoiseRangeAmplitude);
             updateData();
         });
 
-        // **Initialisiere Originaldaten, Rauschdaten und kodierte Daten**
-        let originalData = generateOriginalData();
-        console.log("Originaldaten generiert:", originalData);
+        // **Initialisiere Zeitpunkte, TrägerwelleSine, Daten und kodierte Daten**
+        let t = generateTimePoints(numSamples);
+        console.log("Zeitpunkte generiert:", t);
 
-        let noisyData = generateNoisyData(originalData);
-        console.log("Rauschdaten generiert:", noisyData);
+        let tragerWelleSine = generateTrägerwelleSine(t);
+        console.log("TrägerwelleSine generiert:", tragerWelleSine);
 
-        let encodedData = encodeVector(amplitude, frequency, phaseShift, noisyData);
+        let data = generateData(tragerWelleSine);
+        console.log("Daten generiert:", data);
+
+        let encodedData = encodeVector(amplitude, frequency, phaseShift, data, t);
         console.log("Kodierte Daten generiert:", encodedData);
 
         let reconstructedData = []; // Wird erst nach Rekonstruktion gesetzt
@@ -357,8 +396,8 @@
                 labels: t,
                 datasets: [
                     {
-                        label: 'Originaldaten',
-                        data: originalData,
+                        label: 'TrägerwelleSine',
+                        data: tragerWelleSine,
                         borderColor: 'rgba(59, 130, 246, 0.5)', // Blau
                         borderWidth: 2,
                         fill: false,
@@ -367,13 +406,13 @@
                         hidden: false, // Standardmäßig angezeigt
                     },
                     {
-                        label: 'Rauschdaten',
-                        data: noisyData,
-                        borderColor: 'rgba(255, 159, 64, 0.5)', // Orange
+                        label: 'Daten',
+                        data: data,
+                        borderColor: 'rgba(255, 206, 86, 0.5)', // Gelb
                         borderWidth: 2,
                         fill: false,
                         pointRadius: 3,
-                        hidden: true, // Standardmäßig ausgeblendet
+                        hidden: false, // Standardmäßig angezeigt
                     },
                     {
                         label: 'Kodierte Daten',
@@ -451,7 +490,7 @@
         });
 
         // **Event Listener für den "Kurve rekonstruieren" Button**
-        document.getElementById('reconstructCurve').addEventListener('click', reconstructOriginalData);
+        document.getElementById('reconstructCurve').addEventListener('click', reconstructData);
 
         console.log("Skript vollständig ausgeführt.");
     });
