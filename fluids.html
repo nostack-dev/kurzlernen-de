@@ -24,6 +24,18 @@
         #ui input[type=range] {
             width: 200px;
         }
+        #resetButton {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background-color: #444;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #resetButton:hover {
+            background-color: #666;
+        }
     </style>
 </head>
 <body>
@@ -56,7 +68,7 @@
         varying vec3 vColor;
         void main() {
             gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0);
-            gl_PointSize = 5.0;
+            gl_PointSize = 8.0; // Increased point size for better visibility
             vColor = aColor;
         }
     `;
@@ -66,7 +78,7 @@
         precision mediump float;
         varying vec3 vColor;
         void main() {
-            gl_FragColor = vec4(vColor, 1.0);
+            gl_FragColor = vec4(vColor, 0.8); // Slight transparency
         }
     `;
 
@@ -80,6 +92,10 @@
         alert('WebGL 2 is not supported by your browser. Please use a modern browser.');
         throw new Error('WebGL 2 not supported');
     }
+
+    // Enable Blending for better particle visibility
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     // Shader Compilation Utility
     function compileShader(gl, source, type) {
@@ -143,7 +159,7 @@
 
     // Simulation Parameters
     let GRID_SIZE = 30;              // Reduced Grid resolution for performance
-    let NUM_PARTICLES = 1000;        // Reduced Number of particles
+    let NUM_PARTICLES = 5000;        // Increased Number of particles for density
     let TIME_STEP = 0.1;             // Time step for simulation
     let VISCOSITY_THRESHOLD = 10.0;  // Threshold for kinetic energy to apply viscosity
     let DAMPING_FACTOR = 0.8;        // Damping factor applied to particle velocities
@@ -255,29 +271,36 @@
 
     // Collision Handling: Reassign Directions if Multiple Particles Occupy the Same Cell
     function collideParticles(particles, gridSize) {
-        // Spatial Hashing: Map grid cells to particle indices using a flat array for performance
+        // Spatial Hashing: Use a flat array for performance
         const grid = new Uint32Array(gridSize * gridSize * gridSize);
 
-        particles.forEach((p, idx) => {
-            const x = Math.floor(p.x) % gridSize;
-            const y = Math.floor(p.y) % gridSize;
-            const z = Math.floor(p.z) % gridSize;
-            const index = x * gridSize * gridSize + y * gridSize + z;
-            grid[index] += 1;
+        // Count particles in each grid cell
+        particles.forEach(p => {
+            const x = Math.floor(p.x);
+            const y = Math.floor(p.y);
+            const z = Math.floor(p.z);
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && z >= 0 && z < gridSize) {
+                const index = x * gridSize * gridSize + y * gridSize + z;
+                grid[index]++;
+            }
         });
 
-        particles.forEach((p, idx) => {
-            const x = Math.floor(p.x) % gridSize;
-            const y = Math.floor(p.y) % gridSize;
-            const z = Math.floor(p.z) % gridSize;
-            const index = x * gridSize * gridSize + y * gridSize + z;
-            if (grid[index] >= 2) {
-                // Reassign direction randomly
-                const newDir = Math.floor(Math.random() * NUM_DIRECTIONS_TOTAL);
-                p.state = 1 << newDir;
-                p.velocity.x = DIRECTIONS[newDir].x;
-                p.velocity.y = DIRECTIONS[newDir].y;
-                p.velocity.z = DIRECTIONS[newDir].z;
+        // Reassign directions for cells with multiple particles
+        particles.forEach(p => {
+            const x = Math.floor(p.x);
+            const y = Math.floor(p.y);
+            const z = Math.floor(p.z);
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && z >= 0 && z < gridSize) {
+                const index = x * gridSize * gridSize + y * gridSize + z;
+                if (grid[index] >= 2) {
+                    // Reassign direction randomly
+                    const newDir = Math.floor(Math.random() * NUM_DIRECTIONS_TOTAL);
+                    p.state = 1 << newDir;
+                    // Update velocity based on new direction
+                    p.velocity.x = DIRECTIONS[newDir].x;
+                    p.velocity.y = DIRECTIONS[newDir].y;
+                    p.velocity.z = DIRECTIONS[newDir].z;
+                }
             }
         });
     }
@@ -287,11 +310,13 @@
         const densityGrid = new Float32Array(gridSize * gridSize * gridSize);
 
         particles.forEach(p => {
-            const x = Math.floor(p.x) % gridSize;
-            const y = Math.floor(p.y) % gridSize;
-            const z = Math.floor(p.z) % gridSize;
-            const index = x * gridSize * gridSize + y * gridSize + z;
-            densityGrid[index] += 1.0; // Simple mass accumulation
+            const x = Math.floor(p.x);
+            const y = Math.floor(p.y);
+            const z = Math.floor(p.z);
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && z >= 0 && z < gridSize) {
+                const index = x * gridSize * gridSize + y * gridSize + z;
+                densityGrid[index] += 1.0; // Simple mass accumulation
+            }
         });
 
         return densityGrid;
@@ -344,9 +369,9 @@
     function applyPressureForces(particles, pressureGrid, gridSize, dt) {
         // Compute pressure gradients and adjust particle velocities accordingly
         particles.forEach(p => {
-            const x = Math.floor(p.x) % gridSize;
-            const y = Math.floor(p.y) % gridSize;
-            const z = Math.floor(p.z) % gridSize;
+            const x = Math.floor(p.x);
+            const y = Math.floor(p.y);
+            const z = Math.floor(p.z);
             const index = x * gridSize * gridSize + y * gridSize + z;
 
             // Neighbor indices with boundary conditions
@@ -375,9 +400,9 @@
 
         // Calculate kinetic energy per grid cell
         particles.forEach(p => {
-            const x = Math.floor(p.x) % gridSize;
-            const y = Math.floor(p.y) % gridSize;
-            const z = Math.floor(p.z) % gridSize;
+            const x = Math.floor(p.x);
+            const y = Math.floor(p.y);
+            const z = Math.floor(p.z);
             const index = x * gridSize * gridSize + y * gridSize + z;
             const speedSquared = p.velocity.x * p.velocity.x + p.velocity.y * p.velocity.y + p.velocity.z * p.velocity.z;
             energyGrid[index] += speedSquared;
@@ -385,9 +410,9 @@
 
         // Apply viscosity: dampen particles in low-energy regions
         particles.forEach(p => {
-            const x = Math.floor(p.x) % gridSize;
-            const y = Math.floor(p.y) % gridSize;
-            const z = Math.floor(p.z) % gridSize;
+            const x = Math.floor(p.x);
+            const y = Math.floor(p.y);
+            const z = Math.floor(p.z);
             const index = x * gridSize * gridSize + y * gridSize + z;
             if (energyGrid[index] < VISCOSITY_THRESHOLD) {
                 // Apply damping by reducing particle velocities
@@ -458,24 +483,18 @@
         const ndcY = 1 - (mouseY / canvas.height) * 2; // Invert Y axis
 
         // Define a sphere around the mouse click to apply force
-        const forceRadius = 5;
-        const forceStrength = 50;
+        const forceRadius = 0.1; // Reduced to a normalized value
+        const forceStrength = 5.0; // Adjusted for better responsiveness
 
         particles.forEach(p => {
             // Normalize particle position to grid coordinates
-            const gridX = p.x;
-            const gridY = p.y;
-            const gridZ = p.z;
-
-            // Project particle position to screen space (approximation)
-            const projX = (gridX / GRID_SIZE) * 2 - 1;
-            const projY = (gridY / GRID_SIZE) * 2 - 1;
-
-            // Calculate distance from mouse click
-            const dist = Math.sqrt((projX - ndcX) ** 2 + (projY - ndcY) ** 2);
-            if (dist < forceRadius / GRID_SIZE) {
+            const gridX = p.x / GRID_SIZE * 2 - 1;
+            const gridY = p.y / GRID_SIZE * 2 - 1;
+            // For simplicity, we consider only X and Y for force application
+            const dist = Math.sqrt((gridX - ndcX) ** 2 + (gridY - ndcY) ** 2);
+            if (dist < forceRadius) {
                 // Apply a radial outward force
-                const angle = Math.atan2(projY - ndcY, projX - ndcX);
+                const angle = Math.atan2(gridY - ndcY, gridX - ndcX);
                 p.velocity.x += forceStrength * Math.cos(angle);
                 p.velocity.y += forceStrength * Math.sin(angle);
             }
