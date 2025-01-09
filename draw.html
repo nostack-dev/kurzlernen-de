@@ -170,6 +170,7 @@
     const SNAP_THRESHOLD = 20; // pixels for snapping
     const MIN_SCALE = 0.5;
     const MAX_SCALE = 5;
+    const GESTURE_TIMEOUT = 300; // milliseconds for detecting taps
 
     // ==================== STATE VARIABLES =======================
     const svg = document.getElementById('svgCanvas');
@@ -412,7 +413,7 @@
 
           if (vp) {
             // Check if VP is within SVG bounds
-            if (vp.x < 0 || vp.x > viewBox.width || vp.y < 0 || vp.y > viewBox.height) {
+            if (vp.x < 0 || vp.x > 800 || vp.y < 0 || vp.y > 600) {
               return; // Ignore VPs outside bounds
             }
 
@@ -531,6 +532,10 @@
         startDrawing(x, y);
       }
       // Two-finger touch: Handled in touchmove for panning/zooming
+      // Three-finger touch: Handled for Undo/Redo
+      if (e.touches.length === 3) {
+        handleMultiFingerTap(e);
+      }
     }
 
     function handleTouchMove(e) {
@@ -543,13 +548,18 @@
         // Two-finger touch: Panning and Zooming
         handlePinchZoom(e);
       }
+      // Ignore other touch moves
     }
 
     function handleTouchEnd(e) {
-      if (isDrawing) {
+      if (isDrawing && e.changedTouches.length === 1) {
         const touch = e.changedTouches[0];
         const {x, y} = getTouchPosition(touch);
         finishDrawing(x, y);
+      }
+      // Handle multi-finger tap
+      if (e.changedTouches.length === 3) {
+        handleMultiFingerTapEnd(e);
       }
     }
 
@@ -649,6 +659,9 @@
         redoStackLocal.push(undoStackLocal.pop());
         shapes.innerHTML = undoStackLocal[undoStackLocal.length - 1];
         rebindVanishingPointEventListeners();
+        console.log('Undo performed.');
+      } else {
+        console.warn('Nothing to undo.');
       }
     }
 
@@ -658,6 +671,9 @@
         undoStackLocal.push(state);
         shapes.innerHTML = state;
         rebindVanishingPointEventListeners();
+        console.log('Redo performed.');
+      } else {
+        console.warn('Nothing to redo.');
       }
     }
 
@@ -703,7 +719,6 @@
         const dx = clientX - startX;
         const dy = clientY - startY;
 
-        const svgRect = svg.getBoundingClientRect();
         const deltaX = dx / scale;
         const deltaY = dy / scale;
 
@@ -764,27 +779,47 @@
 
     // ==================== MODE TOGGLE VIA DOUBLE-TAP =======================
     // Toggle between Draw Line and Draw Circle modes via double-tap on the canvas
-    let lastTap = 0;
-    svg.addEventListener('touchend', function(e) {
-      const currentTime = new Date().getTime();
-      const tapLength = currentTime - lastTap;
-      if (tapLength < 300 && tapLength > 0) {
-        // Double-tap detected: Toggle mode
-        toggleMode();
-        lastTap = 0;
-      } else {
-        lastTap = currentTime;
-      }
-    }, false);
+    let lastTapTime = 0;
+    let tapCount = 0;
+    let tapTimer = null;
 
-    function toggleMode() {
-      if (currentMode === 'drawLine') {
-        currentMode = 'drawCircle';
+    function handleMultiFingerTap(e) {
+      const currentTime = new Date().getTime();
+      const timeDiff = currentTime - lastTapTime;
+
+      if (timeDiff < GESTURE_TIMEOUT && tapCount < 3) {
+        tapCount += 1;
+        clearTimeout(tapTimer);
+
+        if (tapCount === 2) {
+          undo();
+        } else if (tapCount === 3) {
+          redo();
+        }
+
+        tapTimer = setTimeout(() => {
+          tapCount = 0;
+        }, GESTURE_TIMEOUT);
       } else {
-        currentMode = 'drawLine';
+        tapCount = 1;
+        tapTimer = setTimeout(() => {
+          tapCount = 0;
+        }, GESTURE_TIMEOUT);
       }
-      updateModeIndicator();
+
+      lastTapTime = currentTime;
     }
+
+    function handleMultiFingerTapEnd(e) {
+      // No additional handling required here
+    }
+
+    // Override existing touchstart to handle 3-finger taps
+    svg.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 3) {
+        handleMultiFingerTap(e);
+      }
+    }, {passive: false});
 
     // ==================== PAN AND ZOOM ON MOBILE =======================
     // Handled via touchmove events with two-finger gestures
