@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mobile SVG Drawing Tool with Vanishing Points</title>
+  <title>Mobile SVG Drawing Tool with Accurate Dragging</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     /* Reset and Base Styles */
@@ -184,7 +184,7 @@
 
     let panX = 0;
     let panY = 0;
-    let scale = 1;
+    let scaleFactor = 1;
 
     let lastTouchDistance = null;
     let initialPan = {x: 0, y: 0};
@@ -308,6 +308,7 @@
       }
 
       shapes.appendChild(currentShape);
+      console.log(`Started drawing ${currentMode} at (${x.toFixed(2)}, ${y.toFixed(2)})`);
     }
 
     function drawShape(x, y) {
@@ -322,6 +323,8 @@
         const r = Math.hypot(dx, dy);
         currentShape.setAttribute('r', r);
       }
+
+      console.log(`Drawing ${currentMode} to (${x.toFixed(2)}, ${y.toFixed(2)})`);
     }
 
     function finishDrawing(x, y) {
@@ -334,6 +337,7 @@
         if (snapPoint) {
           currentShape.setAttribute('x2', snapPoint.x);
           currentShape.setAttribute('y2', snapPoint.y);
+          console.log(`Line snapped to vanishing point at (${snapPoint.x.toFixed(2)}, ${snapPoint.y.toFixed(2)})`);
         }
         // After drawing, detect vanishing points
         detectVanishingPoints();
@@ -343,19 +347,21 @@
         if (snapPoint) {
           currentShape.setAttribute('cx', snapPoint.x);
           currentShape.setAttribute('cy', snapPoint.y);
+          console.log(`Circle center snapped to vanishing point at (${snapPoint.x.toFixed(2)}, ${snapPoint.y.toFixed(2)})`);
         }
       }
 
       // Save state for undo
       saveState();
       currentShape = null;
+      console.log(`Finished drawing ${currentMode}`);
     }
 
     // ==================== SNAP POINT FUNCTIONS =======================
     function findSnapPoint(x, y) {
       const points = Array.from(shapes.querySelectorAll('.vanishing-point'));
       let closest = null;
-      let minDist = SNAP_THRESHOLD;
+      let minDist = SNAP_THRESHOLD / scaleFactor; // Adjust threshold based on scale
 
       points.forEach(pt => {
         const px = parseFloat(pt.getAttribute('cx'));
@@ -430,6 +436,7 @@
               shapes.appendChild(vpElement);
 
               vanishingPoints.push({id: vpElement.id, x: vp.x, y: vp.y, lines: []});
+              console.log(`Created vanishing point at (${vp.x.toFixed(2)}, ${vp.y.toFixed(2)})`);
 
               // Add event listeners for dragging VP
               vpElement.addEventListener('touchstart', (e) => startVPDDragging(e, vpElement));
@@ -447,7 +454,7 @@
     }
 
     function findExistingVP(x, y) {
-      return vanishingPoints.find(vp => Math.hypot(x - vp.x, y - vp.y) <= SNAP_THRESHOLD);
+      return vanishingPoints.find(vp => Math.hypot(x - vp.x, y - vp.y) <= SNAP_THRESHOLD / scaleFactor);
     }
 
     function associateLineWithVP(line, vp) {
@@ -455,6 +462,7 @@
         vp.lines.push(line.id);
         line.classList.add('associated-line');
         drawVanishingLine(line, vp);
+        console.log(`Associated line ${line.id} with vanishing point ${vp.id}`);
       }
     }
 
@@ -480,6 +488,7 @@
       vanishingLine.setAttribute('y2', vp.y);
 
       shapes.appendChild(vanishingLine);
+      console.log(`Drew vanishing line for line ${line.id} to VP ${vp.id}`);
     }
 
     function clearVanishingPoints() {
@@ -490,6 +499,7 @@
       vanishingPoints = [];
       // Remove all vanishing lines
       shapes.querySelectorAll('.vanishing-line').forEach(vl => vl.remove());
+      console.log('Cleared all vanishing points and lines');
     }
 
     // Calculate the angle of a line in degrees
@@ -598,16 +608,17 @@
       if (!lastTouchDistance) {
         lastTouchDistance = currentDistance;
         initialPan = {x: panX, y: panY};
-        initialScale = scale;
+        initialScale = scaleFactor;
       } else {
         const scaleChange = currentDistance / lastTouchDistance;
         let newScale = initialScale * scaleChange;
 
         // Clamp scale to prevent excessive zooming
         newScale = Math.min(Math.max(newScale, MIN_SCALE), MAX_SCALE);
-        scale = newScale;
+        scaleFactor = newScale;
 
         updateTransform();
+        console.log(`Zoomed to scale factor: ${scaleFactor.toFixed(2)}`);
       }
     }
 
@@ -619,30 +630,35 @@
 
     // ==================== VIEWPORT TRANSFORM FUNCTIONS =======================
     function updateTransform() {
-      const transform = `translate(${panX}, ${panY}) scale(${scale})`;
+      const transform = `translate(${panX}, ${panY}) scale(${scaleFactor})`;
       viewport.setAttribute('transform', transform);
     }
 
     function resetTransform() {
       panX = 0;
       panY = 0;
-      scale = 1;
+      scaleFactor = 1;
       updateTransform();
+      console.log('Transform reset to default');
     }
 
     // ==================== UTILITY FUNCTIONS =======================
     function getTouchPosition(touch) {
-      const rect = svg.getBoundingClientRect();
-      const x = (touch.clientX - rect.left - panX) / scale;
-      const y = (touch.clientY - rect.top - panY) / scale;
-      return {x, y};
+      const point = svg.createSVGPoint();
+      point.x = touch.clientX;
+      point.y = touch.clientY;
+      const ctm = svg.getScreenCTM().inverse();
+      const svgP = point.matrixTransform(ctm).matrixTransform(viewport.getCTM().inverse());
+      return {x: svgP.x, y: svgP.y};
     }
 
     function getMousePosition(e) {
-      const rect = svg.getBoundingClientRect();
-      const x = (e.clientX - rect.left - panX) / scale;
-      const y = (e.clientY - rect.top - panY) / scale;
-      return {x, y};
+      const point = svg.createSVGPoint();
+      point.x = e.clientX;
+      point.y = e.clientY;
+      const ctm = svg.getScreenCTM().inverse();
+      const svgP = point.matrixTransform(ctm).matrixTransform(viewport.getCTM().inverse());
+      return {x: svgP.x, y: svgP.y};
     }
 
     // ==================== STATE MANAGEMENT =======================
@@ -652,6 +668,7 @@
     function saveState() {
       undoStackLocal.push(shapes.innerHTML);
       redoStackLocal = []; // Clear redo stack on new action
+      console.log('State saved for Undo');
     }
 
     function undo() {
@@ -693,37 +710,30 @@
       e.preventDefault();
       e.stopPropagation();
 
-      let startX, startY;
+      let startPoint = {x: 0, y: 0};
       let initialVP = {x: parseFloat(vpElement.getAttribute('cx')), y: parseFloat(vpElement.getAttribute('cy'))};
 
       if (e.type === 'touchstart') {
         const touch = e.touches[0];
-        startX = touch.clientX;
-        startY = touch.clientY;
+        startPoint = getTouchPosition(touch);
       } else {
-        startX = e.clientX;
-        startY = e.clientY;
+        startPoint = getMousePosition(e);
       }
 
       function moveVP(event) {
-        let clientX, clientY;
+        let currentPoint = {x: 0, y: 0};
         if (event.type === 'touchmove') {
           const touch = event.touches[0];
-          clientX = touch.clientX;
-          clientY = touch.clientY;
+          currentPoint = getTouchPosition(touch);
         } else {
-          clientX = event.clientX;
-          clientY = event.clientY;
+          currentPoint = getMousePosition(event);
         }
 
-        const dx = clientX - startX;
-        const dy = clientY - startY;
+        const dx = currentPoint.x - startPoint.x;
+        const dy = currentPoint.y - startPoint.y;
 
-        const deltaX = dx / scale;
-        const deltaY = dy / scale;
-
-        const newX = initialVP.x + deltaX;
-        const newY = initialVP.y + deltaY;
+        const newX = initialVP.x + dx;
+        const newY = initialVP.y + dy;
 
         vpElement.setAttribute('cx', newX);
         vpElement.setAttribute('cy', newY);
@@ -741,6 +751,8 @@
             }
           });
         }
+
+        console.log(`Vanishing point moved to (${newX.toFixed(2)}, ${newY.toFixed(2)})`);
       }
 
       function endVP() {
@@ -773,12 +785,13 @@
       updateModeIndicator();
       saveState();
       rebindVanishingPointEventListeners();
+      console.log('SVG Drawing Tool Initialized');
     }
 
     init();
 
-    // ==================== MODE TOGGLE VIA DOUBLE-TAP =======================
-    // Toggle between Draw Line and Draw Circle modes via double-tap on the canvas
+    // ==================== MODE TOGGLE VIA DOUBLE-TAP AND GESTURES =======================
+    // Implement three-finger double-tap for Undo and three-finger triple-tap for Redo
     let lastTapTime = 0;
     let tapCount = 0;
     let tapTimer = null;
@@ -821,12 +834,49 @@
       }
     }, {passive: false});
 
+    // Handle double-tap for mode toggle
+    let lastSingleTapTime = 0;
+    let singleTapTimer = null;
+
+    svg.addEventListener('touchend', function(e) {
+      if (e.touches.length > 0) return; // Ignore if still fingers are touching
+
+      if (e.changedTouches.length === 1 && e.touches.length === 0) {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastSingleTapTime;
+
+        if (tapLength < GESTURE_TIMEOUT && tapLength > 0) {
+          // Double-tap detected: Toggle mode
+          toggleMode();
+          clearTimeout(singleTapTimer);
+        } else {
+          // Single tap: Start timer to wait for potential double-tap
+          singleTapTimer = setTimeout(() => {
+            // Single tap action can be defined here if needed
+            // Currently, no action on single tap
+          }, GESTURE_TIMEOUT);
+        }
+
+        lastSingleTapTime = currentTime;
+      }
+    }, false);
+
+    function toggleMode() {
+      if (currentMode === 'drawLine') {
+        currentMode = 'drawCircle';
+      } else {
+        currentMode = 'drawLine';
+      }
+      updateModeIndicator();
+      console.log(`Mode toggled to ${currentMode}`);
+    }
+
     // ==================== PAN AND ZOOM ON MOBILE =======================
     // Handled via touchmove events with two-finger gestures
     // Already implemented in handleTouchMove with handlePinchZoom
 
     // ==================== DEBUG WINDOW DRAGGING =======================
-    // Optional: Implement dragging of the debug window
+    // Implement dragging of the debug window
     (function() {
       const debugWindow = document.getElementById('debugWindow');
       const debugHeader = document.getElementById('debugHeader');
