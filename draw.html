@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Simple Mobile SVG Drawing Tool</title>
+  <title>Simple SVG Drawing Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     /* ==================== RESET & BASE STYLES ==================== */
@@ -158,6 +158,7 @@
       msg.textContent = message;
       debugContent.appendChild(msg);
       debugContent.scrollTop = debugContent.scrollHeight;
+      console.log(message); // Also log to browser console
     }
 
     // ==================== INITIAL SETUP ====================
@@ -624,6 +625,7 @@
       };
     }
 
+    // ==================== REBIND EVENT LISTENERS AFTER UNDO/REDO ====================
     function rebindEventListeners() {
       // Remove existing listeners
       shapes.querySelectorAll('.line, .circle').forEach(el => {
