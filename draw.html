@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Mobile-Friendly SVG Drawing Tool with Vanishing Points</title>
+  <title>Minimalist SVG Drawing Tool with Vanishing Points</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     html, body {
@@ -76,45 +76,10 @@
       pointer-events: none; /* so it doesn't block clicks */
       user-select: none;
     }
-    /* Control Panel */
+    /* Hidden Control Panel for Future Use (Optional) */
+    /* You can remove this if not needed */
     #controlPanel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    #controlPanel button, #controlPanel input {
-      padding: 10px;
-      font-size: 16px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: #f9f9f9;
-      cursor: pointer;
-    }
-    #controlPanel button.active {
-      background: #d0e6ff;
-      border-color: #007BFF;
-    }
-    /* Responsive adjustments */
-    @media (max-width: 600px) {
-      #controlPanel {
-        top: auto;
-        bottom: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        flex-direction: row;
-        flex-wrap: wrap;
-      }
-      #controlPanel button, #controlPanel input {
-        flex: 1 1 45%;
-      }
+      display: none;
     }
   </style>
 </head>
@@ -130,15 +95,6 @@
     <g id="shapes"></g>
   </g>
 </svg>
-
-<!-- Control Panel -->
-<div id="controlPanel">
-  <button id="modeLine" class="active">Draw Line</button>
-  <button id="modeCircle">Draw Circle</button>
-  <button id="toggleVP">Toggle Vanishing Points</button>
-  <button id="toggleVL">Toggle Vanishing Lines</button>
-  <input type="number" id="tolerance" min="1" max="10" value="5" placeholder="Tolerance (°)">
-</div>
 
 <script>
   // ==================== CONFIG =======================
@@ -183,14 +139,6 @@
   // ============= VARIABLES & EVENT TARGETS ============
   const svg      = document.getElementById('svgCanvas');
   const panLayer = document.getElementById('panLayer');
-  const controlPanel = document.getElementById('controlPanel');
-  const modeLineBtn = document.getElementById('modeLine');
-  const modeCircleBtn = document.getElementById('modeCircle');
-  const toggleVPBtn = document.getElementById('toggleVP');
-  const toggleVLBtn = document.getElementById('toggleVL');
-  const toleranceInput = document.getElementById('tolerance');
-
-  let currentMode = 'line'; // 'line' or 'circle'
 
   let circleIdCounter = 0;
   let lineIdCounter   = 0;
@@ -202,10 +150,11 @@
   let startX, startY;
   let mouseMoved   = false;
 
-  // Panning
+  // Panning and Zooming
   let panning    = false;
   let panStart   = {x:0,y:0};
   let panOffset  = {x:0,y:0};
+  let scale      = 1;
 
   // Move shapes
   let selectedElement = null;
@@ -436,6 +385,7 @@
 
   // Start Drawing
   function startDrawing(e) {
+    if (e.type === 'touchstart' && e.touches.length > 2) return; // Limit to single or two-finger touches
     e.preventDefault();
     const { x, y } = getEventPoint(e);
     const pt = getSVGPoint(x, y);
@@ -445,7 +395,7 @@
     drawing = true;
     mouseMoved = false;
 
-    if(currentMode === 'circle') {
+    if(isDrawingCircle(e)) {
       currentShape = document.createElementNS("http://www.w3.org/2000/svg","circle");
       currentShape.setAttribute('cx', startX);
       currentShape.setAttribute('cy', startY);
@@ -454,7 +404,7 @@
       currentShape.id= 'circle-'+(circleIdCounter++);
       shapes.appendChild(currentShape);
     }
-    else if(currentMode === 'line') {
+    else {
       currentShape = document.createElementNS("http://www.w3.org/2000/svg","line");
       currentShape.setAttribute('x1', startX);
       currentShape.setAttribute('y1', startY);
@@ -466,9 +416,19 @@
     }
   }
 
+  // Determine if the current drawing action should create a circle
+  function isDrawingCircle(e) {
+    if (e.type.startsWith('touch')) {
+      return e.touches.length === 2;
+    } else {
+      return e.shiftKey;
+    }
+  }
+
   // Drawing in Progress
   function drawingInProgress(e) {
     if(!drawing) return;
+    if(isDrawingCircle(e) !== (currentShape.classList.contains('circle'))) return; // Prevent mode switch during drawing
     const { x, y } = getEventPoint(e);
     const pt = getSVGPoint(x, y);
     const currentX = pt.x;
@@ -478,7 +438,7 @@
 
     // Determine snapping
     let snapTo = null;
-    if(currentMode === 'circle') {
+    if(currentShape.classList.contains('circle')) {
       // Snap to center points
       const spoints= getAllSnapPointsInArea(currentX, currentY, highlightThreshold, ['center']);
       const cSnap= findClosestSnapPoint(currentX, currentY, spoints, highlightThreshold);
@@ -490,7 +450,7 @@
       const r= Math.hypot(dx, dy);
       currentShape.setAttribute('r', r);
     }
-    else if(currentMode === 'line') {
+    else {
       // Snap to various points
       const spoints= getAllSnapPointsInArea(currentX, currentY, highlightThreshold, ['center','line-end','circumference']);
       const cSnap= findClosestSnapPoint(currentX, currentY, spoints, highlightThreshold);
@@ -511,7 +471,7 @@
     const endX = pt.x;
     const endY = pt.y;
 
-    if(currentMode === 'circle') {
+    if(currentShape.classList.contains('circle')) {
       // Finalize circle
       const cx= parseFloat(currentShape.getAttribute('cx'));
       const cy= parseFloat(currentShape.getAttribute('cy'));
@@ -526,7 +486,7 @@
       }
       addCircumferenceSnapPoints(currentShape);
     }
-    else if(currentMode === 'line') {
+    else {
       // Finalize line
       const x2= parseFloat(currentShape.getAttribute('x2'));
       const y2= parseFloat(currentShape.getAttribute('y2'));
@@ -554,6 +514,7 @@
 
   // =================== MOVE ELEMENTS =======================
   function moveElementStart(e) {
+    if(e.type.startsWith('touch') && e.touches.length > 1) return; // Ignore multi-touch for moving elements
     e.preventDefault();
     const { x, y } = getEventPoint(e);
     const pt = getSVGPoint(x, y);
@@ -836,225 +797,7 @@
   // Debounced version of detectVanishingPoints to improve performance
   const debouncedDetectVP = debounce(detectVanishingPoints, 300);
 
-  // =================== DRAWING MODE SELECTION =======================
-  modeLineBtn.addEventListener('click', () => {
-    currentMode = 'line';
-    modeLineBtn.classList.add('active');
-    modeCircleBtn.classList.remove('active');
-  });
-
-  modeCircleBtn.addEventListener('click', () => {
-    currentMode = 'circle';
-    modeCircleBtn.classList.add('active');
-    modeLineBtn.classList.remove('active');
-  });
-
-  // =================== TOGGLE VANISHING POINTS AND LINES =======================
-  let showVanishingPoints = true;
-  let showVanishingLines = true;
-
-  toggleVPBtn.addEventListener('click', () => {
-    showVanishingPoints = !showVanishingPoints;
-    shapes.querySelectorAll('.vanishing-point').forEach(vp => {
-      vp.style.display = showVanishingPoints ? 'block' : 'none';
-    });
-  });
-
-  toggleVLBtn.addEventListener('click', () => {
-    showVanishingLines = !showVanishingLines;
-    shapes.querySelectorAll('.vanishing-line').forEach(vl => {
-      vl.style.display = showVanishingLines ? 'block' : 'none';
-    });
-  });
-
-  // =================== VANISHING TOLERANCE =======================
-  toleranceInput.addEventListener('change', (e) => {
-    const val = parseInt(e.target.value);
-    if(val >=1 && val <=10) {
-      vanishingTolerance = val;
-      saveState();
-      debouncedDetectVP(); // Re-run detection with new tolerance
-    } else {
-      alert('Tolerance must be between 1 and 10 degrees.');
-      e.target.value = vanishingTolerance;
-    }
-  });
-
-  // =================== MOUSE AND TOUCH EVENTS =======================
-  // Start Drawing
-  svg.addEventListener('touchstart', startDrawing, {passive: false});
-  svg.addEventListener('mousedown', startDrawing);
-
-  // Drawing in Progress
-  svg.addEventListener('touchmove', drawingInProgress, {passive: false});
-  svg.addEventListener('mousemove', drawingInProgress);
-
-  // Finish Drawing
-  svg.addEventListener('touchend', finishDrawing);
-  svg.addEventListener('mouseup', finishDrawing);
-
-  // Move Elements
-  svg.addEventListener('mousedown', moveElementStart);
-  svg.addEventListener('touchstart', moveElementStart, {passive: false});
-
-  // =================== REBINDING EVENT LISTENERS ===================
-  function rebindAllEventListeners() {
-    rebindPointEventListeners();
-    rebindVanishingPointEventListeners();
-  }
-
-  function rebindPointEventListeners() {
-    shapes.querySelectorAll('.point').forEach((p)=>{
-      if(p.dataset.bound) return;
-      p.dataset.bound='true';
-
-      p.addEventListener('touchstart',(e)=>{
-        if(e.altKey || e.touches.length > 1) { // Use two-finger touch as alternative for Alt+click
-          e.preventDefault();
-          e.stopPropagation();
-          // Only allow moving if the point is connected to at least one line or it's a circumference point connected to a circle
-          const connectedLines = getConnectedLines(p);
-          const isCircumference = p.dataset.type === 'circumference';
-          const connectedToCircle = isCircumference && p.dataset.circle;
-
-          if((connectedLines.length > 0) || connectedToCircle) {
-            movingSnapPoint= p;
-            highlightConnectedLines(p);
-
-            const origX= parseFloat(p.getAttribute('cx'));
-            const origY= parseFloat(p.getAttribute('cy'));
-            const mp= getMousePosition(e);
-            offsetX= mp.x - origX;
-            offsetY= mp.y - origY;
-
-            svg.style.cursor='grabbing';
-            svg.addEventListener('touchmove', moveSnapPoint, {passive: false});
-            svg.addEventListener('touchend', dropSnapPoint);
-            svg.addEventListener('mousemove', moveSnapPoint);
-            svg.addEventListener('mouseup', dropSnapPoint);
-          }
-        }
-      });
-
-      p.addEventListener('mousedown',(e)=>{
-        if(e.altKey) {
-          e.preventDefault();
-          e.stopPropagation();
-          // Only allow moving if the point is connected to at least one line or it's a circumference point connected to a circle
-          const connectedLines = getConnectedLines(p);
-          const isCircumference = p.dataset.type === 'circumference';
-          const connectedToCircle = isCircumference && p.dataset.circle;
-
-          if((connectedLines.length > 0) || connectedToCircle) {
-            movingSnapPoint= p;
-            highlightConnectedLines(p);
-
-            const origX= parseFloat(p.getAttribute('cx'));
-            const origY= parseFloat(p.getAttribute('cy'));
-            const mp= getMousePosition(e);
-            offsetX= mp.x - origX;
-            offsetY= mp.y - origY;
-
-            svg.style.cursor='grabbing';
-            svg.addEventListener('mousemove', moveSnapPoint);
-            svg.addEventListener('mouseup', dropSnapPoint);
-          }
-        }
-      });
-    });
-  }
-
-  function highlightConnectedLines(snapPoint) {
-    highlightedLines=[];
-    const lines= getConnectedLines(snapPoint);
-    lines.forEach(L=>{
-      L.classList.add('highlighted-line');
-      highlightedLines.push(L);
-    });
-    snapPoint.classList.add('highlighted');
-  }
-  function unhighlightConnectedLines() {
-    highlightedLines.forEach(L=> L.classList.remove('highlighted-line'));
-    highlightedLines=[];
-    shapes.querySelectorAll('.point.highlighted').forEach(p=>p.classList.remove('highlighted'));
-    shapes.querySelectorAll('.circle.snap-candidate, .point.snap-candidate')
-          .forEach(el=>el.classList.remove('snap-candidate'));
-  }
-  function highlightSnapCandidate(cSnap) {
-    shapes.querySelectorAll('.circle.snap-candidate, .point.snap-candidate')
-          .forEach(el=>el.classList.remove('snap-candidate'));
-    if(cSnap && cSnap.element) {
-      cSnap.element.classList.add('snap-candidate');
-    }
-  }
-  function getSVGPoint(x, y) {
-    const point = svg.createSVGPoint();
-    point.x = x;
-    point.y = y;
-    return point.matrixTransform(panLayer.getScreenCTM().inverse());
-  }
-  function getAllSnapPointsInArea(x,y,threshold,allowedTypes) {
-    const found=[];
-    // Points
-    const pts= shapes.querySelectorAll('.point');
-    pts.forEach(p=>{
-      const px= parseFloat(p.getAttribute('cx'));
-      const py= parseFloat(p.getAttribute('cy'));
-      const dist= Math.hypot(x-px,y-py);
-      const t= p.dataset.type||'point';
-      if(dist<=threshold && allowedTypes.includes(t)) {
-        found.push({x:px,y:py,element:p,type:t});
-      }
-    });
-    // Circle centers
-    const circles= shapes.querySelectorAll('.circle');
-    circles.forEach(c=>{
-      const cx= parseFloat(c.getAttribute('cx'));
-      const cy= parseFloat(c.getAttribute('cy'));
-      const dist= Math.hypot(x-cx,y-cy);
-      if(dist<=threshold && allowedTypes.includes('center')) {
-        found.push({x:cx,y:cy,element:c,type:'center'});
-      }
-    });
-    // Vanishing points
-    vanishingPoints.forEach(vp=>{
-      const dist= Math.hypot(x - vp.x, y - vp.y);
-      if(dist <= threshold && allowedTypes.includes('vanishing-point')) {
-        const vpElement = document.getElementById(vp.id);
-        found.push({x: vp.x, y: vp.y, element: vpElement, type: 'vanishing-point'});
-      }
-    });
-    return found;
-  }
-  function findClosestSnapPoint(x,y,snapPoints,threshold) {
-    let closest=null, minD= threshold;
-    snapPoints.forEach(sp=>{
-      const dist= Math.hypot(x-sp.x, y-sp.y);
-      if(dist<minD) {
-        minD= dist; 
-        closest= sp;
-      }
-    });
-    return closest;
-  }
-  function displaySnapPoints(spoints) {
-    shapes.querySelectorAll('.debug-snap-point').forEach(d=>d.remove());
-    spoints.forEach(sp=>{
-      const dbg= document.createElementNS("http://www.w3.org/2000/svg","circle");
-      dbg.classList.add('debug-snap-point');
-      dbg.setAttribute('cx', sp.x);
-      dbg.setAttribute('cy', sp.y);
-      dbg.setAttribute('r', 3);
-      shapes.appendChild(dbg);
-    });
-  }
-  function removeAllHighlights() {
-    shapes.querySelectorAll('.point.highlighted').forEach(p=>p.classList.remove('highlighted'));
-    shapes.querySelectorAll('.circle.snap-candidate, .point.snap-candidate')
-          .forEach(el=>el.classList.remove('snap-candidate'));
-  }
-
-  // Snap creation
+  // =================== POINT MANAGEMENT =======================
   function findOrCreatePoint(x,y,type='point') {
     const existing= findPointAt(x,y,5);
     if(existing) return existing;
@@ -1096,231 +839,40 @@
     return false;
   }
 
-  // Lines
-  function ensureLineSnapped(line, p1, p2) {
-    if(!p1) {
-      const dp1= line.getAttribute('data-point1');
-      if(dp1) p1= document.getElementById(dp1);
-    }
-    if(!p2) {
-      const dp2= line.getAttribute('data-point2');
-      if(dp2) p2= document.getElementById(dp2);
-    }
-    if(!p1) {
-      const x1= parseFloat(line.getAttribute('x1'));
-      const y1= parseFloat(line.getAttribute('y1'));
-      p1= findOrCreatePoint(x1,y1,'line-end');
-      if(p1) line.setAttribute('data-point1', p1.id);
-    }
-    if(!p2) {
-      const x2= parseFloat(line.getAttribute('x2'));
-      const y2= parseFloat(line.getAttribute('y2'));
-      p2= findOrCreatePoint(x2,y2,'line-end');
-      if(p2) line.setAttribute('data-point2', p2.id);
-    }
-  }
-
-  // Circles
-  function addCircumferenceSnapPoints(circle) {
-    const cid= circle.id;
-    const cx= parseFloat(circle.getAttribute('cx'));
-    const cy= parseFloat(circle.getAttribute('cy'));
-    const r = parseFloat(circle.getAttribute('r'));
-    const step= 30;
-    for(let angle=0; angle<360; angle+=step) {
-      const rad= angle*(Math.PI/180);
-      const px= cx + r*Math.cos(rad);
-      const py= cy + r*Math.sin(rad);
-
-      const cP= document.createElementNS("http://www.w3.org/2000/svg","circle");
-      cP.setAttribute('cx', px);
-      cP.setAttribute('cy', py);
-      cP.setAttribute('r', 4);
-      cP.classList.add('point');
-      cP.dataset.type= 'circumference';
-      cP.dataset.circle = cid;
-      cP.id= 'point-'+(pointIdCounter++);
-      shapes.appendChild(cP);
-    }
-  }
-
-  // Get connected lines for a given point
-  function getConnectedLines(point) {
-    return Array.from(shapes.querySelectorAll(`.line[data-point1="${point.id}"], .line[data-point2="${point.id}"]`));
-  }
-
-  // =================== VANISHING POINT MARKER DRAGGING ===================
-  // Allow dragging vanishing points
-  function initiateVanishingPointDrag(vpMarker, event) {
-    const onMove = (e) => {
-      const { x, y } = getEventPoint(e);
-      const pt = getSVGPoint(x, y);
-      vpMarker.setAttribute('cx', pt.x);
-      vpMarker.setAttribute('cy', pt.y);
-      
-      // Update vanishing point data
-      const vpData = vanishingPoints.find(vpObj => vpObj.id === vpMarker.id);
-      if(vpData) {
-        vpData.x = pt.x;
-        vpData.y = pt.y;
-        // Update all associated vanishing lines
-        vpData.lines.forEach(lineId => {
-          const line = document.getElementById(lineId);
-          if(line) {
-            drawVanishingLine(line, vpData);
-          }
-        });
-      }
-    };
-
-    const onEnd = () => {
-      svg.style.cursor='crosshair';
-      svg.removeEventListener('touchmove', onMove);
-      svg.removeEventListener('mousemove', onMove);
-      svg.removeEventListener('touchend', onEnd);
-      svg.removeEventListener('mouseup', onEnd);
-      saveState();
-    };
-
-    svg.style.cursor='grabbing';
-    svg.addEventListener('mousemove', onMove);
-    svg.addEventListener('touchmove', onMove, {passive: false});
-    svg.addEventListener('mouseup', onEnd);
-    svg.addEventListener('touchend', onEnd);
-  }
-
-  // =================== VANISHING POINT DETECTION ===================
-  // Intelligent Detection: Suggest vanishing points without being intrusive
-  function detectVanishingPoints() {
-    const allLines = Array.from(shapes.querySelectorAll('.line'));
-    
-    // Clear existing vanishing points and lines
-    clearVanishingPoints();
-
-    // Group lines by their angles within the vanishing tolerance
-    const angleGroups = [];
-    
-    allLines.forEach(line => {
-      const angle = calculateLineAngle(line);
-      let foundGroup = false;
-      
-      for(let group of angleGroups) {
-        const diff = Math.abs(angle - group.angle);
-        const adjustedDiff = diff > 180 ? 360 - diff : diff;
-        if(adjustedDiff < vanishingTolerance) {
-          group.lines.push(line);
-          foundGroup = true;
-          break;
-        }
-      }
-      
-      if(!foundGroup) {
-        angleGroups.push({ angle: angle, lines: [line] });
-      }
-    });
-    
-    // For each group with two or more lines, calculate vanishing point
-    angleGroups.forEach(group => {
-      if(group.lines.length >= 2) {
-        // Calculate intersection of the first two lines
-        const line1 = group.lines[0];
-        const line2 = group.lines[1];
-        const vp = calculateIntersection(
-          parseFloat(line1.getAttribute('x1')), parseFloat(line1.getAttribute('y1')),
-          parseFloat(line1.getAttribute('x2')), parseFloat(line1.getAttribute('y2')),
-          parseFloat(line2.getAttribute('x1')), parseFloat(line2.getAttribute('y1')),
-          parseFloat(line2.getAttribute('x2')), parseFloat(line2.getAttribute('y2'))
-        );
-        if(vp) {
-          // Check if a vanishing point already exists near the intersection
-          let existingVP = findVanishingPointAt(vp.x, vp.y, snapThreshold);
-          if(!existingVP) {
-            // Create a new vanishing point
-            existingVP = createVanishingPoint(vp.x, vp.y);
-          }
-          // Associate all lines in the group with this vanishing point
-          group.lines.forEach(line => {
-            associateLineWithVanishingPoint(line, existingVP.id);
-          });
-        }
-      }
-    });
-  }
-
-  // Debounced version of detectVanishingPoints to improve performance
-  const debouncedDetectVP = debounce(detectVanishingPoints, 300);
-
-  // =================== DRAWING MODE SELECTION =======================
-  modeLineBtn.addEventListener('click', () => {
-    currentMode = 'line';
-    modeLineBtn.classList.add('active');
-    modeCircleBtn.classList.remove('active');
-  });
-
-  modeCircleBtn.addEventListener('click', () => {
-    currentMode = 'circle';
-    modeCircleBtn.classList.add('active');
-    modeLineBtn.classList.remove('active');
-  });
-
-  // =================== TOGGLE VANISHING POINTS AND LINES =======================
-  let showVanishingPoints = true;
-  let showVanishingLines = true;
-
-  toggleVPBtn.addEventListener('click', () => {
-    showVanishingPoints = !showVanishingPoints;
-    shapes.querySelectorAll('.vanishing-point').forEach(vp => {
-      vp.style.display = showVanishingPoints ? 'block' : 'none';
-    });
-  });
-
-  toggleVLBtn.addEventListener('click', () => {
-    showVanishingLines = !showVanishingLines;
-    shapes.querySelectorAll('.vanishing-line').forEach(vl => {
-      vl.style.display = showVanishingLines ? 'block' : 'none';
-    });
-  });
-
-  // =================== VANISHING TOLERANCE =======================
-  toleranceInput.addEventListener('change', (e) => {
-    const val = parseInt(e.target.value);
-    if(val >=1 && val <=10) {
-      vanishingTolerance = val;
-      saveState();
-      debouncedDetectVP(); // Re-run detection with new tolerance
-    } else {
-      alert('Tolerance must be between 1 and 10 degrees.');
-      e.target.value = vanishingTolerance;
-    }
-  });
-
-  // =================== VANISHING POINT MARKER DRAGGING ===================
-  // Handled via initiateVanishingPointDrag function
-
-  // =================== DRAWING EVENTS =======================
+  // =================== MOUSE AND TOUCH EVENTS =======================
   // Unified event handlers for mouse and touch
-  function startDrawingHandler(e) {
-    if(e.type === 'touchstart') {
-      if(e.touches.length > 1) return; // Ignore multi-touch for drawing
-    }
-    startDrawing(e);
-  }
-
-  function drawingHandler(e) {
-    if(e.type === 'touchmove') {
-      if(e.touches.length > 1) return; // Ignore multi-touch for drawing
-    }
-    drawingInProgress(e);
-  }
-
-  function finishDrawingHandler(e) {
-    finishDrawing(e);
+  function getSVGPoint(x, y) {
+    const point = svg.createSVGPoint();
+    point.x = x;
+    point.y = y;
+    return point.matrixTransform(panLayer.getScreenCTM().inverse());
   }
 
   // =================== MOVE ELEMENTS HANDLING =======================
   // Implemented above as moveElementStart, moveElementMouse, moveElementTouch
 
-  // =================== EVENT LISTENERS REBINDING =======================
+  // =================== VANISHING POINT MARKER DRAGGING ===================
+  // Handled via initiateVanishingPointDrag function
+
+  // =================== VANISHING TOLERANCE =======================
+  // Handled via 'vanishingTolerance' variable and toleranceInput (if any)
+
+  // =================== POINT MANAGEMENT =======================
+  // Implemented above as findOrCreatePoint, findPointAt, addPoint, etc.
+
+  // =================== DRAWING MODE SELECTION =======================
+  // Handled via gesture-based detection in 'startDrawing' and 'isDrawingCircle'
+
+  // =================== INITIALIZATION =======================
+  function init() {
+    // Any initial setup can go here
+    undoStack.push(shapes.innerHTML);
+    rebindAllEventListeners();
+  }
+
+  init();
+
+  // =================== REBINDING EVENT LISTENERS ===================
   function rebindAllEventListeners() {
     rebindPointEventListeners();
     rebindVanishingPointEventListeners();
@@ -1331,6 +883,7 @@
       if(p.dataset.bound) return;
       p.dataset.bound='true';
 
+      // Handle touch interactions for points
       p.addEventListener('touchstart',(e)=>{
         if(e.touches.length > 1) { // Use two-finger touch as alternative for Alt+click
           e.preventDefault();
@@ -1359,6 +912,7 @@
         }
       });
 
+      // Handle mouse interactions for points
       p.addEventListener('mousedown',(e)=>{
         if(e.altKey) {
           e.preventDefault();
@@ -1404,18 +958,27 @@
           .forEach(el=>el.classList.remove('snap-candidate'));
   }
 
-  // =================== INITIALIZATION =======================
-  function init() {
-    // Any initial setup can go here
-    undoStack.push(shapes.innerHTML);
-    rebindAllEventListeners();
-  }
+  // =================== VANISHING POINT DETECTION ===================
+  // Rebinding vanishing point event listeners
+  function rebindVanishingPointEventListeners() {
+    shapes.querySelectorAll('.vanishing-point').forEach(vp=>{
+      if(vp.dataset.bound) return;
+      vp.dataset.bound='true';
 
-  init();
+      vp.addEventListener('touchstart', (e)=>{
+        if(e.touches.length > 0) {
+          initiateVanishingPointDrag(vp, e);
+        }
+      });
+
+      vp.addEventListener('mousedown', (e)=>{
+        initiateVanishingPointDrag(vp, e);
+      });
+    });
+  }
 
   // =================== PAN AND ZOOM =======================
   // Simple pan and zoom implementation
-  let scale = 1;
   let lastTouchDistance = null;
 
   svg.addEventListener('touchmove', (e) => {
@@ -1443,6 +1006,44 @@
       lastTouchDistance = null;
     }
   });
+
+  // =================== MOVE ELEMENTS =======================
+  // Implemented above as moveElementStart, moveElementMouse, moveElementTouch
+
+  // =================== VANISHING POINT MARKER DRAGGING ===================
+  // Handled via initiateVanishingPointDrag function
+
+  // =================== INITIALIZATION =======================
+  function init() {
+    // Any initial setup can go here
+    undoStack.push(shapes.innerHTML);
+    rebindAllEventListeners();
+  }
+
+  init();
+
+  // =================== FINAL TOUCHES =======================
+  // Ensure that touch gestures for panning and drawing do not interfere
+  svg.addEventListener('touchstart', (e) => {
+    if(e.touches.length === 1) {
+      // Single touch: could be drawing or panning
+      // If touch is on empty space, start drawing
+      const touch = e.touches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if(target === svg || target === panLayer) {
+        startDrawing(e);
+      }
+      else {
+        // Else, possibly moving an element
+      }
+    }
+    else if(e.touches.length === 2) {
+      // Two-finger touch: could be drawing a circle or zooming
+      // Here, we'll prioritize zooming, but also allow drawing circles
+      // For simplicity, we'll interpret two-finger touch as drawing circles
+      startDrawing(e);
+    }
+  }, {passive: false});
 
 </script>
 </body>
