@@ -119,7 +119,7 @@
       font-size: 14px;
     }
 
-    /* Indicator for Current Mode */
+    /* Mode Indicator */
     #modeIndicator {
       position: fixed;
       top: 10px;
@@ -176,12 +176,7 @@
     let currentShape = null;
 
     let viewBox = {x: 0, y: 0, width: 800, height: 600};
-    let scaleFactor = 1;
 
-    let undoStack = [];
-    let redoStack = [];
-
-    // Vanishing Points Data
     let vanishingPoints = []; // Array of {id, x, y, lines: [lineIds]}
     let vpIdCounter = 0;
 
@@ -321,7 +316,7 @@
       isDrawing = false;
 
       if (currentMode === 'drawLine') {
-        // Snap to nearest point if within threshold
+        // Snap to nearest vanishing point if within threshold
         const snapPoint = findSnapPoint(x, y);
         if (snapPoint) {
           currentShape.setAttribute('x2', snapPoint.x);
@@ -330,7 +325,7 @@
         // After drawing, detect vanishing points
         detectVanishingPoints();
       } else if (currentMode === 'drawCircle') {
-        // Snap center to nearest point if within threshold
+        // Snap center to nearest vanishing point if within threshold
         const snapPoint = findSnapPoint(startPoint.x, startPoint.y);
         if (snapPoint) {
           currentShape.setAttribute('cx', snapPoint.x);
@@ -366,7 +361,7 @@
     function detectVanishingPoints() {
       const allLines = Array.from(shapes.querySelectorAll('.line'));
 
-      // Clear existing vanishing points
+      // Clear existing vanishing points and vanishing lines
       clearVanishingPoints();
 
       // Group lines by angle within tolerance
@@ -424,15 +419,14 @@
               vanishingPoints.push({id: vpElement.id, x: vp.x, y: vp.y, lines: []});
 
               // Add event listeners for dragging VP
-              vpElement.addEventListener('touchstart', startVPD dragging);
-              vpElement.addEventListener('mousedown', startVPD dragging);
+              vpElement.addEventListener('touchstart', (e) => startVPDDragging(e, vpElement));
+              vpElement.addEventListener('mousedown', (e) => startVPDDragging(e, vpElement));
             }
 
             // Associate all lines in the group with this VP
-            angleGroups.forEach(grp => {
-              grp.lines.forEach(line => {
-                associateLineWithVP(line, existingVP || vanishingPoints[vanishingPoints.length -1]);
-              });
+            group.lines.forEach(line => {
+              const vpToAssociate = existingVP || vanishingPoints[vanishingPoints.length -1];
+              associateLineWithVP(line, vpToAssociate);
             });
           }
         }
@@ -517,40 +511,29 @@
     svg.addEventListener('mouseup', handleMouseUp);
 
     // ==================== TOUCH EVENT HANDLERS =======================
-    let lastTouchEnd = 0;
-    let ongoingTouches = [];
-
     function handleTouchStart(e) {
-      e.preventDefault();
-
-      const touches = e.touches;
-      if (touches.length === 1) {
+      if (e.touches.length === 1) {
         // Single-finger touch: Start drawing
-        const touch = touches[0];
+        const touch = e.touches[0];
         const {x, y} = getTouchPosition(touch);
         startDrawing(x, y);
       }
-      // Double and Triple-finger touches are handled by default touchmove for panning/zooming
+      // Two-finger touch: Handled in touchmove for panning/zooming
     }
 
     function handleTouchMove(e) {
-      e.preventDefault();
-
-      const touches = e.touches;
-      if (touches.length === 1 && isDrawing) {
+      if (e.touches.length === 1 && isDrawing) {
         // Single-finger touch: Drawing
-        const touch = touches[0];
+        const touch = e.touches[0];
         const {x, y} = getTouchPosition(touch);
         drawShape(x, y);
-      } else if (touches.length === 2) {
+      } else if (e.touches.length === 2) {
         // Two-finger touch: Panning and Zooming
         handlePinchZoom(e);
       }
     }
 
     function handleTouchEnd(e) {
-      e.preventDefault();
-
       if (isDrawing) {
         const touch = e.changedTouches[0];
         const {x, y} = getTouchPosition(touch);
@@ -562,7 +545,7 @@
     let isMouseDown = false;
 
     function handleMouseDown(e) {
-      e.preventDefault();
+      if (e.button !== 0) return; // Only respond to left-click
       isMouseDown = true;
       const {x, y} = getMousePosition(e);
       startDrawing(x, y);
@@ -570,14 +553,12 @@
 
     function handleMouseMove(e) {
       if (!isMouseDown || !isDrawing) return;
-      e.preventDefault();
       const {x, y} = getMousePosition(e);
       drawShape(x, y);
     }
 
     function handleMouseUp(e) {
       if (!isMouseDown) return;
-      e.preventDefault();
       isMouseDown = false;
       const {x, y} = getMousePosition(e);
       finishDrawing(x, y);
@@ -657,39 +638,65 @@
     }
 
     // ==================== STATE MANAGEMENT =======================
+    let undoStack = [];
+    let redoStack = [];
+
     function saveState() {
       undoStack.push(shapes.innerHTML);
       redoStack = []; // Clear redo stack on new action
     }
 
+    function undo() {
+      if (undoStack.length > 1) {
+        redoStack.push(undoStack.pop());
+        shapes.innerHTML = undoStack[undoStack.length - 1];
+        rebindVanishingPointEventListeners();
+      }
+    }
+
+    function redo() {
+      if (redoStack.length > 0) {
+        const state = redoStack.pop();
+        undoStack.push(state);
+        shapes.innerHTML = state;
+        rebindVanishingPointEventListeners();
+      }
+    }
+
+    // Add keyboard shortcuts for undo/redo on devices with keyboards
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      } else if (e.ctrlKey && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    });
+
     // ==================== VANISHING POINT DRAGGING =======================
-    function startVPDDragging(e) {
+    function startVPDDragging(e, vpElement) {
       e.preventDefault();
       e.stopPropagation();
 
-      const vp = e.target;
-      const initialX = parseFloat(vp.getAttribute('cx'));
-      const initialY = parseFloat(vp.getAttribute('cy'));
-
-      let startX = 0;
-      let startY = 0;
+      let startX, startY;
+      let initialX, initialY;
 
       if (e.type === 'touchstart') {
         const touch = e.touches[0];
         startX = touch.clientX;
         startY = touch.clientY;
-        document.addEventListener('touchmove', moveVP, {passive: false});
-        document.addEventListener('touchend', endVP);
       } else {
         startX = e.clientX;
         startY = e.clientY;
-        document.addEventListener('mousemove', moveVP);
-        document.addEventListener('mouseup', endVP);
       }
+
+      initialX = parseFloat(vpElement.getAttribute('cx'));
+      initialY = parseFloat(vpElement.getAttribute('cy'));
 
       function moveVP(event) {
         let clientX, clientY;
-        if (event.type.startsWith('touch')) {
+        if (event.type === 'touchmove') {
           const touch = event.touches[0];
           clientX = touch.clientX;
           clientY = touch.clientY;
@@ -701,14 +708,17 @@
         const dx = (clientX - startX) * (viewBox.width / svg.clientWidth);
         const dy = (clientY - startY) * (viewBox.height / svg.clientHeight);
 
-        vp.setAttribute('cx', initialX + dx);
-        vp.setAttribute('cy', initialY + dy);
+        const newX = initialX + dx;
+        const newY = initialY + dy;
+
+        vpElement.setAttribute('cx', newX);
+        vpElement.setAttribute('cy', newY);
 
         // Update vanishing point data
-        const vpData = vanishingPoints.find(v => v.id === vp.id);
+        const vpData = vanishingPoints.find(vp => vp.id === vpElement.id);
         if (vpData) {
-          vpData.x += dx;
-          vpData.y += dy;
+          vpData.x = newX;
+          vpData.y = newY;
           // Update all associated vanishing lines
           vpData.lines.forEach(lineId => {
             const line = document.getElementById(lineId);
@@ -720,23 +730,40 @@
       }
 
       function endVP() {
-        document.removeEventListener('touchmove', moveVP);
-        document.removeEventListener('touchend', endVP);
         document.removeEventListener('mousemove', moveVP);
+        document.removeEventListener('touchmove', moveVP, {passive: false});
         document.removeEventListener('mouseup', endVP);
+        document.removeEventListener('touchend', endVP, {passive: false});
         saveState();
       }
+
+      document.addEventListener('mousemove', moveVP);
+      document.addEventListener('touchmove', moveVP, {passive: false});
+      document.addEventListener('mouseup', endVP);
+      document.addEventListener('touchend', endVP, {passive: false});
+    }
+
+    // ==================== REBIND VANISHING POINT EVENT LISTENERS =======================
+    function rebindVanishingPointEventListeners() {
+      shapes.querySelectorAll('.vanishing-point').forEach(vp => {
+        if (!vp.dataset.bound) {
+          vp.dataset.bound = 'true';
+          vp.addEventListener('touchstart', (e) => startVPDDragging(e, vp));
+          vp.addEventListener('mousedown', (e) => startVPDDragging(e, vp));
+        }
+      });
     }
 
     // ==================== INITIALIZATION =======================
     function init() {
       updateModeIndicator();
       saveState();
+      rebindVanishingPointEventListeners();
     }
 
     init();
 
-    // ==================== USER INTERACTION TOGGLE =======================
+    // ==================== MODE TOGGLE VIA DOUBLE-TAP =======================
     // Toggle between Draw Line and Draw Circle modes via double-tap on the canvas
     let lastTap = 0;
     svg.addEventListener('touchend', function(e) {
@@ -760,77 +787,9 @@
       updateModeIndicator();
     }
 
-    // ==================== DEBUG WINDOW DRAGGING =======================
-    // Optional: Implement dragging of the debug window
-    (function() {
-      const debugWindow = document.getElementById('debugWindow');
-      const debugHeader = document.getElementById('debugHeader');
-
-      let isDragging = false;
-      let startX, startY;
-      let initialPos = {x: 0, y: 0};
-
-      debugHeader.addEventListener('touchstart', dragStart);
-      debugHeader.addEventListener('mousedown', dragStart);
-
-      function dragStart(e) {
-        e.preventDefault();
-        isDragging = true;
-
-        if (e.type === 'touchstart') {
-          const touch = e.touches[0];
-          startX = touch.clientX;
-          startY = touch.clientY;
-        } else {
-          startX = e.clientX;
-          startY = e.clientY;
-        }
-
-        const rect = debugWindow.getBoundingClientRect();
-        initialPos = {x: rect.left, y: rect.top};
-
-        document.addEventListener('touchmove', dragging);
-        document.addEventListener('touchend', dragEnd);
-        document.addEventListener('mousemove', dragging);
-        document.addEventListener('mouseup', dragEnd);
-      }
-
-      function dragging(e) {
-        if (!isDragging) return;
-        let clientX, clientY;
-        if (e.type === 'touchmove') {
-          const touch = e.touches[0];
-          clientX = touch.clientX;
-          clientY = touch.clientY;
-        } else {
-          clientX = e.clientX;
-          clientY = e.clientY;
-        }
-
-        const dx = clientX - startX;
-        const dy = clientY - startY;
-
-        debugWindow.style.left = `${initialPos.x + dx}px`;
-        debugWindow.style.top = `${initialPos.y + dy}px`;
-        debugWindow.style.right = 'auto';
-        debugWindow.style.bottom = 'auto';
-      }
-
-      function dragEnd() {
-        isDragging = false;
-        document.removeEventListener('touchmove', dragging);
-        document.removeEventListener('touchend', dragEnd);
-        document.removeEventListener('mousemove', dragging);
-        document.removeEventListener('mouseup', dragEnd);
-      }
-    })();
-
-    // ==================== HANDLE VANISHING POINT DRAGGING =======================
-    // Already handled in detectVanishingPoints and associateLineWithVP
-
-    // ==================== SANITY CHECK FUNCTIONS =======================
-    // (Optional) Add any additional checks or optimizations here
-
+    // ==================== PAN AND ZOOM ON MOBILE =======================
+    // Handled via touchmove events with two-finger gestures
+    // Already implemented in handleTouchMove with handlePinchZoom
   </script>
 </body>
 </html>
