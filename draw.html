@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>SVG Drawing Tool with Enhanced Vanishing Point Detection</title>
+  <style>
+    html, body {
+      margin: 0; 
+      padding: 0; 
+      height: 100%; 
+      overflow: hidden;
+      user-select: none;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      cursor: crosshair;
+    }
+    .circle {
+      fill: rgba(0, 0, 255, 0.2);
+      stroke: #000;
+      stroke-width: 2;
+      cursor: move;
+    }
+    .line {
+      stroke: #000;
+      stroke-width: 2;
+      cursor: move;
+    }
+    /* Highlight lines associated with a vanishing point */
+    .line.associated-line {
+      stroke: purple;
+      stroke-width: 2.5;
+    }
+    /* Vanishing Point Markers */
+    .vanishing-point {
+      fill: rgba(255, 165, 0, 0.6); /* Semi-transparent orange */
+      stroke: #ff4500; /* OrangeRed */
+      stroke-width: 2;
+      r: 6;
+      cursor: grab;
+      transition: transform 0.2s;
+    }
+    .vanishing-point:hover {
+      transform: scale(1.2);
+    }
+    /* Vanishing Lines */
+    .vanishing-line {
+      stroke: rgba(0, 128, 0, 0.5); /* Semi-transparent green */
+      stroke-dasharray: 5,5;
+      stroke-width: 1.5;
+      pointer-events: none;
+    }
+    /* Points: small black dot, but large invisible stroke for easy interaction */
+    .point {
+      fill: #000;
+      stroke: transparent;
+      stroke-width: 24;
+      pointer-events: stroke;
+      cursor: pointer;
+      r: 4;
+      transition: fill 0.15s, r 0.15s, transform 0.15s;
+    }
+    .point.highlighted {
+      fill: red;
+      r: 6;
+      filter: drop-shadow(0 0 5px red);
+    }
+    /* Line Labels */
+    .line-label {
+      fill: #333;
+      font-size: 12px;
+      pointer-events: none; /* so it doesn't block clicks */
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+<svg id="svgCanvas">
+  <g id="panLayer">
+    <defs>
+      <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+        <path d="M 50 0 L 0 0 0 50" fill="none" stroke="gray" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#grid)"/>
+    <g id="shapes"></g>
+  </g>
+</svg>
+
+<script>
+  // ==================== CONFIG =======================
+  let highlightThreshold = 25; 
+  let snapThreshold      = 20;
+  let vanishingTolerance = 5; // degrees for detecting nearly parallel lines
+
+  // Undo / Redo
+  const shapes   = document.getElementById('shapes');
+  let undoStack  = [];
+  let redoStack  = [];
+
+  function saveState() {
+    redoStack.length = 0;
+    undoStack.push(shapes.innerHTML);
+  }
+  function undo() {
+    if (undoStack.length > 1) {
+      redoStack.push(undoStack.pop());
+      shapes.innerHTML = undoStack[undoStack.length - 1];
+      rebindAllEventListeners();
+    }
+  }
+  function redo() {
+    if (redoStack.length > 0) {
+      const state = redoStack.pop();
+      undoStack.push(state);
+      shapes.innerHTML = state;
+      rebindAllEventListeners();
+    }
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault();
+      undo();
+    } else if (e.ctrlKey && e.key === 'y') {
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  // ============= VARIABLES & EVENT TARGETS ============
+  const svg      = document.getElementById('svgCanvas');
+  const panLayer = document.getElementById('panLayer');
+
+  let circleIdCounter = 0;
+  let lineIdCounter   = 0;
+  let pointIdCounter  = 0;
+  let vpIdCounter     = 0; // Vanishing Point ID counter
+
+  let drawing      = false;
+  let drawMode     = 'none'; // 'circle' | 'line' | 'none'
+  let currentShape = null;
+  let startX, startY;
+  let mouseMoved   = false;
+
+  // Panning
+  let panning    = false;
+  let panStart   = {x:0,y:0};
+  let panOffset  = {x:0,y:0};
+
+  // Move shapes
+  let selectedElement = null;
+  let offsetX, offsetY;
+
+  // Vanishing Points Data Structure
+  let vanishingPoints = []; // Array of objects: {id, x, y, lines: [lineIds]}
+  let vanishingLines = [];  // Array of SVG line elements connecting lines to vanishing points
+
+  // Prevent context menu on right/middle
+  window.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('auxclick', e => {
+    if (e.button === 1) e.preventDefault();
+  });
+
+  // Debounce function to limit how often a function can fire
+  function debounce(func, delay) {
+    let debounceTimer;
+    return function() {
+      const context = this;
+      const args = arguments;
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => func.apply(context, args), delay);
+    }
+  }
+
+  // =================== HELPER FUNCTIONS =======================
+  
+  // Calculate the Angle of a Line in Degrees
+  function calculateLineAngle(line) {
+    const x1 = parseFloat(line.getAttribute('x1'));
+    const y1 = parseFloat(line.getAttribute('y1'));
+    const x2 = parseFloat(line.getAttribute('x2'));
+    const y2 = parseFloat(line.getAttribute('y2'));
+    const angleRad = Math.atan2(y2 - y1, x2 - x1);
+    const angleDeg = angleRad * (180 / Math.PI);
+    return (angleDeg + 360) % 360; // Normalize angle between 0-360
+  }
+
+  // Calculate Intersection Point of Two Lines
+  function calculateIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+    const denom = (x1 - x2)*(y3 - y4) - (y1 - y2)*(x3 - x4);
+    if(denom === 0) return null; // Parallel lines
+    const Px = ((x1*y2 - y1*x2)*(x3 - x4) - (x1 - x2)*(x3*y4 - y3*x4)) / denom;
+    const Py = ((x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)) / denom;
+    return {x: Px, y: Py};
+  }
+
+  // Find Vanishing Point at Given Coordinates (within threshold)
+  function findVanishingPointAt(x, y, threshold) {
+    return vanishingPoints.find(vp => Math.hypot(x - vp.x, y - vp.y) <= threshold);
+  }
+
+  // Create a Vanishing Point Marker
+  function createVanishingPoint(x, y) {
+    const vp = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    vp.classList.add('vanishing-point');
+    vp.setAttribute('cx', x);
+    vp.setAttribute('cy', y);
+    vp.setAttribute('r', 6);
+    vp.id = 'vp-'+(vpIdCounter++);
+    shapes.appendChild(vp);
+    vanishingPoints.push({id: vp.id, x, y, lines: []});
+    rebindVanishingPointEventListeners();
+    return vp.id;
+  }
+
+  // Associate a Line with a Vanishing Point
+  function associateLineWithVanishingPoint(line, vpId) {
+    if(!vpId) return;
+    // Find the vanishing point in the array
+    const vp = vanishingPoints.find(vp => vp.id === vpId);
+    if(vp) {
+      if(!vp.lines.includes(line.id)) {
+        vp.lines.push(line.id);
+        // Add visual association
+        line.classList.add('associated-line');
+        // Draw a vanishing line from the midpoint of the line to the vanishing point
+        drawVanishingLine(line, vp);
+      }
+    }
+  }
+
+  // Draw a Vanishing Line Connecting a Line to its Vanishing Point
+  function drawVanishingLine(line, vp) {
+    // Remove existing vanishing lines for this line
+    shapes.querySelectorAll(`.vanishing-line[data-line="${line.id}"]`).forEach(l => l.remove());
+
+    const vanishingLine = document.createElementNS("http://www.w3.org/2000/svg","line");
+    vanishingLine.classList.add('vanishing-line');
+    // Connect from the midpoint of the line to the vanishing point
+    const x1 = parseFloat(line.getAttribute('x1'));
+    const y1 = parseFloat(line.getAttribute('y1'));
+    const x2 = parseFloat(line.getAttribute('x2'));
+    const y2 = parseFloat(line.getAttribute('y2'));
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    vanishingLine.setAttribute('x1', midX);
+    vanishingLine.setAttribute('y1', midY);
+    vanishingLine.setAttribute('x2', vp.x);
+    vanishingLine.setAttribute('y2', vp.y);
+    vanishingLine.dataset.line = line.id;
+    shapes.appendChild(vanishingLine);
+    vanishingLines.push(vanishingLine);
+  }
+
+  // Remove All Existing Vanishing Points and Lines
+  function clearVanishingPoints() {
+    vanishingPoints.forEach(vp => {
+      const vpElement = document.getElementById(vp.id);
+      if (vpElement) vpElement.remove();
+    });
+    vanishingPoints = [];
+    shapes.querySelectorAll('.vanishing-line').forEach(vl => vl.remove());
+    vanishingLines = [];
+  }
+
+  // =================== LINE LABELING =======================
+  /** 
+   * Store text on a small <text> near the midpoint: 
+   * "123.4 mm, 67.8°" 
+   */
+  function updateLineLabel(line) {
+    const x1= parseFloat(line.getAttribute('x1'));
+    const y1= parseFloat(line.getAttribute('y1'));
+    const x2= parseFloat(line.getAttribute('x2'));
+    const y2= parseFloat(line.getAttribute('y2'));
+
+    const dx= x2 - x1;
+    const dy= y2 - y1;
+    const lengthPx= Math.hypot(dx,dy); 
+    const angleDeg= Math.atan2(dy,dx)*(180/Math.PI);
+
+    const lengthMm= lengthPx; // 1px=1mm assumption
+    const midX= (x1 + x2)*0.5;
+    const midY= (y1 + y2)*0.5;
+    const labelText= `${lengthMm.toFixed(1)} mm, ${angleDeg.toFixed(1)}°`;
+
+    // Store or get text element for this line
+    const labelId= line.id + '-label';
+    let label= document.getElementById(labelId);
+    if(!label) {
+      label= document.createElementNS("http://www.w3.org/2000/svg","text");
+      label.classList.add('line-label');
+      label.id= labelId;
+      shapes.appendChild(label);
+    }
+    label.textContent= labelText;
+    label.setAttribute('x', midX);
+    label.setAttribute('y', midY);
+  }
+
+  // =================== VANISHING POINT DETECTION ===================
+  // Intelligent Detection: Suggest vanishing points without being intrusive
+  function detectVanishingPoints() {
+    const allLines = Array.from(shapes.querySelectorAll('.line'));
+    
+    // Clear existing vanishing points and lines
+    clearVanishingPoints();
+
+    // Group lines by their angles within the vanishing tolerance
+    const angleGroups = [];
+    
+    allLines.forEach(line => {
+      const angle = calculateLineAngle(line);
+      let foundGroup = false;
+      
+      for(let group of angleGroups) {
+        const diff = Math.abs(angle - group.angle);
+        const adjustedDiff = diff > 180 ? 360 - diff : diff;
+        if(adjustedDiff < vanishingTolerance) {
+          group.lines.push(line);
+          foundGroup = true;
+          break;
+        }
+      }
+      
+      if(!foundGroup) {
+        angleGroups.push({ angle: angle, lines: [line] });
+      }
+    });
+    
+    // For each group with two or more lines, calculate vanishing point
+    angleGroups.forEach(group => {
+      if(group.lines.length >= 2) {
+        // Calculate intersection of the first two lines
+        const line1 = group.lines[0];
+        const line2 = group.lines[1];
+        const vp = calculateIntersection(
+          parseFloat(line1.getAttribute('x1')), parseFloat(line1.getAttribute('y1')),
+          parseFloat(line1.getAttribute('x2')), parseFloat(line1.getAttribute('y2')),
+          parseFloat(line2.getAttribute('x1')), parseFloat(line2.getAttribute('y1')),
+          parseFloat(line2.getAttribute('x2')), parseFloat(line2.getAttribute('y2'))
+        );
+        if(vp) {
+          // Check if a vanishing point already exists near the intersection
+          let existingVP = findVanishingPointAt(vp.x, vp.y, snapThreshold);
+          if(!existingVP) {
+            // Create a new vanishing point
+            existingVP = createVanishingPoint(vp.x, vp.y);
+          }
+          // Associate all lines in the group with this vanishing point
+          group.lines.forEach(line => {
+            associateLineWithVanishingPoint(line, existingVP.id);
+          });
+        }
+      }
+    });
+  }
+
+  // Debounced version of detectVanishingPoints to improve performance
+  const debouncedDetectVP = debounce(detectVanishingPoints, 300);
+
+  // =================== MOUSE EVENTS FOR DRAWING =======================
+  svg.addEventListener('mousedown',(e)=>{
+    if(e.button===1) { // Middle => panning
+      e.preventDefault();
+      panning= true;
+      panStart= {x:e.clientX, y:e.clientY};
+      svg.style.cursor='grab';
+      return;
+    }
+    // Only left or right
+    if(e.button!==0 && e.button!==2) return;
+    const pt= getMousePosition(e);
+
+    if(e.button===2) {
+      // Right-click => circle
+      drawMode= 'circle';
+      startX= pt.x; startY= pt.y;
+      drawing= true; mouseMoved= false;
+
+      currentShape= document.createElementNS("http://www.w3.org/2000/svg","circle");
+      currentShape.setAttribute('cx', startX);
+      currentShape.setAttribute('cy', startY);
+      currentShape.setAttribute('r', 0);
+      currentShape.classList.add('circle');
+      currentShape.id= 'circle-'+(circleIdCounter++);
+      shapes.appendChild(currentShape);
+      return;
+    }
+
+    if(e.button===0) {
+      // Left-click => line
+      drawMode= 'line';
+      startX= pt.x; startY= pt.y;
+      drawing= true; mouseMoved= false;
+
+      currentShape= document.createElementNS("http://www.w3.org/2000/svg","line");
+      currentShape.setAttribute('x1', startX);
+      currentShape.setAttribute('y1', startY);
+      currentShape.setAttribute('x2', startX);
+      currentShape.setAttribute('y2', startY);
+      currentShape.classList.add('line');
+      currentShape.id= 'line-'+(lineIdCounter++);
+      shapes.appendChild(currentShape);
+      return;
+    }
+  });
+
+  svg.addEventListener('mousemove', (e)=>{
+    if(panning) {
+      const dx= e.clientX - panStart.x;
+      const dy= e.clientY - panStart.y;
+      panOffset.x+= dx; 
+      panOffset.y+= dy;
+      panLayer.setAttribute('transform', `translate(${panOffset.x},${panOffset.y})`);
+      panStart= {x:e.clientX,y:e.clientY};
+      return;
+    }
+
+    if(drawing) {
+      mouseMoved= true;
+      const pt= getMousePosition(e);
+
+      let allowedTypes= [];
+      if(drawMode==='circle') {
+        allowedTypes=['center'];
+      } else if(drawMode==='line') {
+        allowedTypes=['center','line-end','circumference'];
+      }
+
+      const spoints= getAllSnapPointsInArea(pt.x, pt.y, highlightThreshold, allowedTypes);
+      displaySnapPoints(spoints);
+      const cSnap= findClosestSnapPoint(pt.x, pt.y, spoints, highlightThreshold);
+      highlightClosestPoint(cSnap);
+
+      if(drawMode==='circle') {
+        const dx= cSnap ? (cSnap.x-startX) : (pt.x-startX);
+        const dy= cSnap ? (cSnap.y-startY) : (pt.y-startY);
+        const r= Math.hypot(dx,dy);
+        currentShape.setAttribute('r', r);
+      }
+      else if(drawMode==='line') {
+        if(cSnap) {
+          currentShape.setAttribute('x2', cSnap.x);
+          currentShape.setAttribute('y2', cSnap.y);
+        } else {
+          currentShape.setAttribute('x2', pt.x);
+          currentShape.setAttribute('y2', pt.y);
+        }
+      }
+    }
+  });
+
+  svg.addEventListener('mouseup', (e)=>{
+    if(panning && e.button===1) {
+      panning= false;
+      svg.style.cursor='crosshair';
+      return;
+    }
+
+    if(drawing && (e.button===0|| e.button===2)) {
+      if(drawMode==='line') {
+        const endX= parseFloat(currentShape.getAttribute('x2'));
+        const endY= parseFloat(currentShape.getAttribute('y2'));
+
+        const spoints= getAllSnapPointsInArea(endX, endY, snapThreshold,
+                      ['center','line-end','circumference']);
+        const cSnap= findClosestSnapPoint(endX, endY, spoints, snapThreshold);
+        if(cSnap) {
+          currentShape.setAttribute('x2', cSnap.x);
+          currentShape.setAttribute('y2', cSnap.y);
+          const p2= findOrCreatePoint(cSnap.x, cSnap.y, cSnap.type);
+          if(p2) currentShape.setAttribute('data-point2', p2.id);
+        }
+
+        // Place line label
+        updateLineLabel(currentShape);
+        ensureLineSnapped(currentShape,null,null);
+
+        // After creating the line, detect vanishing points
+        debouncedDetectVP();
+
+        drawing= false;
+        currentShape= null;
+        removeAllHighlights();
+        drawMode= 'none';
+        saveState();
+      }
+      else if(drawMode==='circle') {
+        const cx= parseFloat(currentShape.getAttribute('cx'));
+        const cy= parseFloat(currentShape.getAttribute('cy'));
+
+        const centerCandidates= getAllSnapPointsInArea(cx, cy, snapThreshold, ['center']);
+        const cSnap= findClosestSnapPoint(cx, cy, centerCandidates, snapThreshold);
+        if(cSnap) {
+          currentShape.setAttribute('cx', cSnap.x);
+          currentShape.setAttribute('cy', cSnap.y);
+        }
+        addCircumferenceSnapPoints(currentShape);
+
+        drawing= false;
+        currentShape= null;
+        removeAllHighlights();
+        drawMode= 'none';
+        saveState();
+      }
+    }
+  });
+
+  // =================== MOVING ELEMENTS =======================
+  svg.addEventListener('mousedown',(e)=>{
+    if(drawMode!=='none') return;
+
+    const target= e.target;
+    if(target.classList.contains('circle') || target.classList.contains('line') || target.classList.contains('vanishing-point')) {
+      selectedElement= target;
+      const pt= getMousePosition(e);
+
+      if(target.classList.contains('circle')) {
+        offsetX= pt.x - parseFloat(target.getAttribute('cx'));
+        offsetY= pt.y - parseFloat(target.getAttribute('cy'));
+      }
+      else if(target.classList.contains('line')) {
+        const x1= parseFloat(target.getAttribute('x1'));
+        const y1= parseFloat(target.getAttribute('y1'));
+        const x2= parseFloat(target.getAttribute('x2'));
+        const y2= parseFloat(target.getAttribute('y2'));
+        const distS= Math.hypot(pt.x-x1, pt.y-y1);
+        const distE= Math.hypot(pt.x-x2, pt.y-y2);
+
+        if(distS < distE) {
+          target.setAttribute('data-moving-end','start');
+          offsetX= pt.x - x1; offsetY= pt.y - y1;
+        } else {
+          target.setAttribute('data-moving-end','end');
+          offsetX= pt.x - x2; offsetY= pt.y - y2;
+        }
+      }
+      else if(target.classList.contains('vanishing-point')) {
+        // Allow dragging vanishing points
+        initiateVanishingPointDrag(target, e);
+        return;
+      }
+      svg.style.cursor='grabbing';
+      svg.addEventListener('mousemove', moveElement);
+      svg.addEventListener('mouseup', dropElement);
+    }
+  });
+
+  function moveElement(e) {
+    if(!selectedElement) return;
+    const pt= getMousePosition(e);
+    let newX= pt.x - offsetX;
+    let newY= pt.y - offsetY;
+
+    if(selectedElement.classList.contains('circle')) {
+      const spoints= getAllSnapPointsInArea(newX,newY, highlightThreshold, ['center']);
+      const cSnap= findClosestSnapPoint(newX, newY, spoints, highlightThreshold);
+
+      if(cSnap) { newX= cSnap.x; newY= cSnap.y; }
+      selectedElement.setAttribute('cx', newX);
+      selectedElement.setAttribute('cy', newY);
+
+      removeCircumferenceSnapPoints(selectedElement);
+      addCircumferenceSnapPoints(selectedElement);
+    }
+    else if(selectedElement.classList.contains('line')) {
+      const end= selectedElement.getAttribute('data-moving-end')||'end';
+      const spoints= getAllSnapPointsInArea(newX, newY, highlightThreshold, 
+                    ['center','line-end','circumference']);
+      const cSnap= findClosestSnapPoint(newX, newY, spoints, highlightThreshold);
+
+      if(cSnap) { newX= cSnap.x; newY= cSnap.y; }
+
+      if(end==='start') {
+        selectedElement.setAttribute('x1', newX);
+        selectedElement.setAttribute('y1', newY);
+      } else {
+        selectedElement.setAttribute('x2', newX);
+        selectedElement.setAttribute('y2', newY);
+      }
+      // Update line label
+      updateLineLabel(selectedElement);
+
+      // If line references points, update them
+      if(end==='start') {
+        const p1id= selectedElement.dataset.point1;
+        if(p1id) {
+          const p1= document.getElementById(p1id);
+          if(p1) {
+            p1.setAttribute('cx', newX);
+            p1.setAttribute('cy', newY);
+          }
+        }
+      } else {
+        const p2id= selectedElement.dataset.point2;
+        if(p2id) {
+          const p2= document.getElementById(p2id);
+          if(p2) {
+            p2.setAttribute('cx', newX);
+            p2.setAttribute('cy', newY);
+          }
+        }
+      }
+
+      // Re-detect vanishing points with the updated line
+      debouncedDetectVP();
+    }
+  }
+
+  function dropElement(e) {
+    if(!selectedElement) return;
+    if(selectedElement.classList.contains('circle')) {
+      const cx= parseFloat(selectedElement.getAttribute('cx'));
+      const cy= parseFloat(selectedElement.getAttribute('cy'));
+      const spoints= getAllSnapPointsInArea(cx, cy, snapThreshold, ['center']);
+      const cSnap= findClosestSnapPoint(cx, cy, spoints, snapThreshold);
+      if(cSnap) {
+        selectedElement.setAttribute('cx', cSnap.x);
+        selectedElement.setAttribute('cy', cSnap.y);
+      }
+      addCircumferenceSnapPoints(selectedElement);
+    }
+    else if(selectedElement.classList.contains('line')) {
+      const end= selectedElement.getAttribute('data-moving-end')||'end';
+      let xVal= (end==='start')
+                ? parseFloat(selectedElement.getAttribute('x1'))
+                : parseFloat(selectedElement.getAttribute('x2'));
+      let yVal= (end==='start')
+                ? parseFloat(selectedElement.getAttribute('y1'))
+                : parseFloat(selectedElement.getAttribute('y2'));
+      const spoints= getAllSnapPointsInArea(xVal,yVal, snapThreshold,
+                    ['center','line-end','circumference']);
+      const cSnap= findClosestSnapPoint(xVal,yVal, spoints, snapThreshold);
+      if(cSnap) {
+        xVal= cSnap.x; yVal= cSnap.y;
+        if(end==='start') {
+          selectedElement.setAttribute('x1', xVal);
+          selectedElement.setAttribute('y1', yVal);
+          const p1id= selectedElement.dataset.point1;
+          if(p1id) {
+            const p1= document.getElementById(p1id);
+            if(p1) { p1.setAttribute('cx', xVal); p1.setAttribute('cy', yVal); }
+          }
+        } else {
+          selectedElement.setAttribute('x2', xVal);
+          selectedElement.setAttribute('y2', yVal);
+          const p2id= selectedElement.dataset.point2;
+          if(p2id) {
+            const p2= document.getElementById(p2id);
+            if(p2) { p2.setAttribute('cx', xVal); p2.setAttribute('cy', yVal); }
+          }
+        }
+      }
+      // Update line label
+      updateLineLabel(selectedElement);
+    }
+
+    selectedElement.removeAttribute('data-moving-end');
+    selectedElement= null;
+    svg.removeEventListener('mousemove', moveElement);
+    svg.removeEventListener('mouseup', dropElement);
+    svg.style.cursor='crosshair';
+    saveState();
+  }
+
+  // =================== VANISHING POINT MARKER DRAGGING ===================
+  // Allow dragging vanishing points
+  function initiateVanishingPointDrag(vpMarker, event) {
+    const onMouseMove = (e) => {
+      const pt = getMousePosition(e);
+      vpMarker.setAttribute('cx', pt.x);
+      vpMarker.setAttribute('cy', pt.y);
+      
+      // Update vanishing point data
+      const vpData = vanishingPoints.find(vpObj => vpObj.id === vpMarker.id);
+      if(vpData) {
+        vpData.x = pt.x;
+        vpData.y = pt.y;
+        // Update all associated vanishing lines
+        vpData.lines.forEach(lineId => {
+          const line = document.getElementById(lineId);
+          if(line) {
+            drawVanishingLine(line, vpData);
+          }
+        });
+      }
+    };
+
+    const onMouseUp = () => {
+      svg.style.cursor='crosshair';
+      svg.removeEventListener('mousemove', onMouseMove);
+      svg.removeEventListener('mouseup', onMouseUp);
+      saveState();
+    };
+
+    svg.style.cursor='grabbing';
+    svg.addEventListener('mousemove', onMouseMove);
+    svg.addEventListener('mouseup', onMouseUp);
+  }
+
+  // =================== VANISHING POINT DETECTION ===================
+  // Intelligent Detection: Suggest vanishing points without being intrusive
+  function detectVanishingPoints() {
+    const allLines = Array.from(shapes.querySelectorAll('.line'));
+    
+    // Clear existing vanishing points and lines
+    clearVanishingPoints();
+
+    // Group lines by their angles within the vanishing tolerance
+    const angleGroups = [];
+    
+    allLines.forEach(line => {
+      const angle = calculateLineAngle(line);
+      let foundGroup = false;
+      
+      for(let group of angleGroups) {
+        const diff = Math.abs(angle - group.angle);
+        const adjustedDiff = diff > 180 ? 360 - diff : diff;
+        if(adjustedDiff < vanishingTolerance) {
+          group.lines.push(line);
+          foundGroup = true;
+          break;
+        }
+      }
+      
+      if(!foundGroup) {
+        angleGroups.push({ angle: angle, lines: [line] });
+      }
+    });
+    
+    // For each group with two or more lines, calculate vanishing point
+    angleGroups.forEach(group => {
+      if(group.lines.length >= 2) {
+        // Calculate intersection of the first two lines
+        const line1 = group.lines[0];
+        const line2 = group.lines[1];
+        const vp = calculateIntersection(
+          parseFloat(line1.getAttribute('x1')), parseFloat(line1.getAttribute('y1')),
+          parseFloat(line1.getAttribute('x2')), parseFloat(line1.getAttribute('y2')),
+          parseFloat(line2.getAttribute('x1')), parseFloat(line2.getAttribute('y1')),
+          parseFloat(line2.getAttribute('x2')), parseFloat(line2.getAttribute('y2'))
+        );
+        if(vp) {
+          // Check if a vanishing point already exists near the intersection
+          let existingVP = findVanishingPointAt(vp.x, vp.y, snapThreshold);
+          if(!existingVP) {
+            // Create a new vanishing point
+            existingVP = createVanishingPoint(vp.x, vp.y);
+          }
+          // Associate all lines in the group with this vanishing point
+          group.lines.forEach(line => {
+            associateLineWithVanishingPoint(line, existingVP.id);
+          });
+        }
+      }
+    });
+  }
+
+  // Debounced version of detectVanishingPoints to improve performance
+  const debouncedDetectVP = debounce(detectVanishingPoints, 300);
+
+  // =================== POINT MANAGEMENT =======================
+  function findOrCreatePoint(x,y,type='point') {
+    const existing= findPointAt(x,y,5);
+    if(existing) return existing;
+    return addPoint(x,y,type);
+  }
+  function findPointAt(x,y,threshold) {
+    const pts= shapes.querySelectorAll('.point');
+    for(let p of pts) {
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      if(dist<=threshold) return p;
+    }
+    return null;
+  }
+  function addPoint(x,y,type='point') {
+    if(pointExists(x,y,5)) return null;
+    const p= document.createElementNS("http://www.w3.org/2000/svg","circle");
+    p.setAttribute('cx', x);
+    p.setAttribute('cy', y);
+    p.setAttribute('r', 4);
+    p.classList.add('point');
+    p.dataset.type= type;
+    if(type === 'circumference') {
+      p.dataset.circle = currentShape.id;
+    }
+    p.id= 'point-'+(pointIdCounter++);
+    shapes.appendChild(p);
+    return p;
+  }
+  function pointExists(x,y,threshold) {
+    const pts= shapes.querySelectorAll('.point');
+    for(let p of pts) {
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      if(dist<=threshold) return true;
+    }
+    return false;
+  }
+
+  // =================== MOUSE EVENTS FOR INTERACTION =======================
+  function moveSnapPoint(e) {
+    if(!movingSnapPoint) return;
+    const pt= getMousePosition(e);
+    let newX= pt.x - offsetX;
+    let newY= pt.y - offsetY;
+
+    // Snap to closest snap point if within threshold
+    const spoints= getAllSnapPointsInArea(newX, newY, highlightThreshold, ['center','line-end','circumference']);
+    const cSnap= findClosestSnapPoint(newX, newY, spoints, highlightThreshold);
+
+    if(cSnap) { newX= cSnap.x; newY= cSnap.y; }
+
+    movingSnapPoint.setAttribute('cx', newX);
+    movingSnapPoint.setAttribute('cy', newY);
+
+    // Update connected lines
+    const lines= getConnectedLines(movingSnapPoint);
+    lines.forEach(L=>{
+      if(L.getAttribute('data-point1')===movingSnapPoint.id) {
+        L.setAttribute('x1', newX);
+        L.setAttribute('y1', newY);
+      }
+      if(L.getAttribute('data-point2')===movingSnapPoint.id) {
+        L.setAttribute('x2', newX);
+        L.setAttribute('y2', newY);
+      }
+      updateLineLabel(L);
+      // Update vanishing lines if associated
+      const vpId = getLineVanishingPoint(L.id);
+      if(vpId) {
+        updateVanishingLine(L, vpId);
+      }
+    });
+  }
+  function dropSnapPoint(e) {
+    if(!movingSnapPoint) return;
+    let finalX= parseFloat(movingSnapPoint.getAttribute('cx'));
+    let finalY= parseFloat(movingSnapPoint.getAttribute('cy'));
+
+    const spoints= getAllSnapPointsInArea(finalX, finalY, snapThreshold,
+      ['center','line-end','circumference']);
+    const cSnap= findClosestSnapPoint(finalX, finalY, spoints, snapThreshold);
+    if(cSnap) {
+      finalX= cSnap.x; finalY= cSnap.y;
+      movingSnapPoint.setAttribute('cx', finalX);
+      movingSnapPoint.setAttribute('cy', finalY);
+
+      // Final update lines
+      const lines= getConnectedLines(movingSnapPoint);
+      lines.forEach(L=>{
+        if(L.getAttribute('data-point1')===movingSnapPoint.id) {
+          L.setAttribute('x1', finalX);
+          L.setAttribute('y1', finalY);
+          updateLineLabel(L);
+          // Update vanishing lines if associated
+          const vpId = getLineVanishingPoint(L.id);
+          if(vpId) {
+            updateVanishingLine(L, vpId);
+          }
+        }
+        if(L.getAttribute('data-point2')===movingSnapPoint.id) {
+          L.setAttribute('x2', finalX);
+          L.setAttribute('y2', finalY);
+          updateLineLabel(L);
+          // Update vanishing lines if associated
+          const vpId = getLineVanishingPoint(L.id);
+          if(vpId) {
+            updateVanishingLine(L, vpId);
+          }
+        }
+      });
+    }
+    unhighlightConnectedLines();
+    svg.removeEventListener('mousemove', moveSnapPoint);
+    svg.removeEventListener('mouseup', dropSnapPoint);
+    movingSnapPoint= null;
+    offsetX= 0; offsetY= 0;
+    svg.style.cursor='crosshair';
+    saveState();
+  }
+
+  // =================== HELPERS =======================
+  function rebindAllEventListeners() {
+    rebindPointEventListeners();
+    rebindVanishingPointEventListeners();
+  }
+
+  function rebindPointEventListeners() {
+    shapes.querySelectorAll('.point').forEach((p)=>{
+      if(p.dataset.bound) return;
+      p.dataset.bound='true';
+
+      p.addEventListener('mousedown',(e)=>{
+        if(e.altKey) {
+          e.stopPropagation();
+          // Only allow moving if the point is connected to at least one line or it's a circumference point connected to a circle
+          const connectedLines = getConnectedLines(p);
+          const isCircumference = p.dataset.type === 'circumference';
+          const connectedToCircle = isCircumference && p.dataset.circle;
+
+          if((connectedLines.length > 0) || connectedToCircle) {
+            movingSnapPoint= p;
+            highlightConnectedLines(p);
+
+            const origX= parseFloat(p.getAttribute('cx'));
+            const origY= parseFloat(p.getAttribute('cy'));
+            const mp= getMousePosition(e);
+            offsetX= mp.x - origX;
+            offsetY= mp.y - origY;
+
+            svg.style.cursor='grabbing';
+            svg.addEventListener('mousemove', moveSnapPoint);
+            svg.addEventListener('mouseup', dropSnapPoint);
+          }
+        }
+      });
+    });
+  }
+
+  function highlightConnectedLines(snapPoint) {
+    highlightedLines=[];
+    const lines= getConnectedLines(snapPoint);
+    lines.forEach(L=>{
+      L.classList.add('highlighted-line');
+      highlightedLines.push(L);
+    });
+    snapPoint.classList.add('highlighted');
+  }
+  function unhighlightConnectedLines() {
+    highlightedLines.forEach(L=> L.classList.remove('highlighted-line'));
+    highlightedLines=[];
+    shapes.querySelectorAll('.point.highlighted').forEach(p=>p.classList.remove('highlighted'));
+    shapes.querySelectorAll('.circle.snap-candidate, .point.snap-candidate')
+          .forEach(el=>el.classList.remove('snap-candidate'));
+  }
+  function highlightSnapCandidate(cSnap) {
+    shapes.querySelectorAll('.circle.snap-candidate, .point.snap-candidate')
+          .forEach(el=>el.classList.remove('snap-candidate'));
+    if(cSnap && cSnap.element) {
+      cSnap.element.classList.add('snap-candidate');
+    }
+  }
+  function getAllSnapPointsInArea(x,y,threshold,allowedTypes) {
+    const found=[];
+    // Points
+    const pts= shapes.querySelectorAll('.point');
+    pts.forEach(p=>{
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      const t= p.dataset.type||'point';
+      if(dist<=threshold && allowedTypes.includes(t)) {
+        found.push({x:px,y:py,element:p,type:t});
+      }
+    });
+    // Circle centers
+    const circles= shapes.querySelectorAll('.circle');
+    circles.forEach(c=>{
+      const cx= parseFloat(c.getAttribute('cx'));
+      const cy= parseFloat(c.getAttribute('cy'));
+      const dist= Math.hypot(x-cx,y-cy);
+      if(dist<=threshold && allowedTypes.includes('center')) {
+        found.push({x:cx,y:cy,element:c,type:'center'});
+      }
+    });
+    // Vanishing points
+    vanishingPoints.forEach(vp=>{
+      const dist= Math.hypot(x - vp.x, y - vp.y);
+      if(dist <= threshold && allowedTypes.includes('vanishing-point')) {
+        const vpElement = document.getElementById(vp.id);
+        found.push({x: vp.x, y: vp.y, element: vpElement, type: 'vanishing-point'});
+      }
+    });
+    return found;
+  }
+  function findClosestSnapPoint(x,y,snapPoints,threshold) {
+    let closest=null, minD= threshold;
+    snapPoints.forEach(sp=>{
+      const dist= Math.hypot(x-sp.x, y-sp.y);
+      if(dist<minD) {
+        minD= dist; 
+        closest= sp;
+      }
+    });
+    return closest;
+  }
+  function displaySnapPoints(spoints) {
+    shapes.querySelectorAll('.debug-snap-point').forEach(d=>d.remove());
+    spoints.forEach(sp=>{
+      const dbg= document.createElementNS("http://www.w3.org/2000/svg","circle");
+      dbg.classList.add('debug-snap-point');
+      dbg.setAttribute('cx', sp.x);
+      dbg.setAttribute('cy', sp.y);
+      dbg.setAttribute('r', 3);
+      shapes.appendChild(dbg);
+    });
+  }
+  function removeAllHighlights() {
+    shapes.querySelectorAll('.point.highlighted').forEach(p=>p.classList.remove('highlighted'));
+    shapes.querySelectorAll('.circle.snap-candidate, .point.snap-candidate')
+          .forEach(el=>el.classList.remove('snap-candidate'));
+  }
+
+  // Snap creation
+  function findOrCreatePoint(x,y,type='point') {
+    const existing= findPointAt(x,y,5);
+    if(existing) return existing;
+    return addPoint(x,y,type);
+  }
+  function findPointAt(x,y,threshold) {
+    const pts= shapes.querySelectorAll('.point');
+    for(let p of pts) {
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      if(dist<=threshold) return p;
+    }
+    return null;
+  }
+  function addPoint(x,y,type='point') {
+    if(pointExists(x,y,5)) return null;
+    const p= document.createElementNS("http://www.w3.org/2000/svg","circle");
+    p.setAttribute('cx', x);
+    p.setAttribute('cy', y);
+    p.setAttribute('r', 4);
+    p.classList.add('point');
+    p.dataset.type= type;
+    if(type === 'circumference') {
+      p.dataset.circle = currentShape.id;
+    }
+    p.id= 'point-'+(pointIdCounter++);
+    shapes.appendChild(p);
+    return p;
+  }
+  function pointExists(x,y,threshold) {
+    const pts= shapes.querySelectorAll('.point');
+    for(let p of pts) {
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      if(dist<=threshold) return true;
+    }
+    return false;
+  }
+
+  // Lines
+  function ensureLineSnapped(line, p1, p2) {
+    if(!p1) {
+      const dp1= line.getAttribute('data-point1');
+      if(dp1) p1= document.getElementById(dp1);
+    }
+    if(!p2) {
+      const dp2= line.getAttribute('data-point2');
+      if(dp2) p2= document.getElementById(dp2);
+    }
+    if(!p1) {
+      const x1= parseFloat(line.getAttribute('x1'));
+      const y1= parseFloat(line.getAttribute('y1'));
+      p1= findOrCreatePoint(x1,y1,'line-end');
+      if(p1) line.setAttribute('data-point1', p1.id);
+    }
+    if(!p2) {
+      const x2= parseFloat(line.getAttribute('x2'));
+      const y2= parseFloat(line.getAttribute('y2'));
+      p2= findOrCreatePoint(x2,y2,'line-end');
+      if(p2) line.setAttribute('data-point2', p2.id);
+    }
+  }
+
+  // Circles
+  function addCircumferenceSnapPoints(circle) {
+    const cid= circle.id;
+    const cx= parseFloat(circle.getAttribute('cx'));
+    const cy= parseFloat(circle.getAttribute('cy'));
+    const r = parseFloat(circle.getAttribute('r'));
+    const step= 30;
+    for(let angle=0; angle<360; angle+=step) {
+      const rad= angle*(Math.PI/180);
+      const px= cx + r*Math.cos(rad);
+      const py= cy + r*Math.sin(rad);
+
+      const cP= document.createElementNS("http://www.w3.org/2000/svg","circle");
+      cP.setAttribute('cx', px);
+      cP.setAttribute('cy', py);
+      cP.setAttribute('r', 4);
+      cP.classList.add('point');
+      cP.dataset.type= 'circumference';
+      cP.dataset.circle = cid;
+      cP.id= 'point-'+(pointIdCounter++);
+      shapes.appendChild(cP);
+    }
+  }
+
+  // Get connected lines for a given point
+  function getConnectedLines(point) {
+    return Array.from(shapes.querySelectorAll(`.line[data-point1="${point.id}"], .line[data-point2="${point.id}"]`));
+  }
+
+  // =================== VANISHING POINT MARKER DRAGGING ===================
+  // Allow dragging vanishing points
+  function initiateVanishingPointDrag(vpMarker, event) {
+    const onMouseMove = (e) => {
+      const pt = getMousePosition(e);
+      vpMarker.setAttribute('cx', pt.x);
+      vpMarker.setAttribute('cy', pt.y);
+      
+      // Update vanishing point data
+      const vpData = vanishingPoints.find(vpObj => vpObj.id === vpMarker.id);
+      if(vpData) {
+        vpData.x = pt.x;
+        vpData.y = pt.y;
+        // Update all associated vanishing lines
+        vpData.lines.forEach(lineId => {
+          const line = document.getElementById(lineId);
+          if(line) {
+            drawVanishingLine(line, vpData);
+          }
+        });
+      }
+    };
+
+    const onMouseUp = () => {
+      svg.style.cursor='crosshair';
+      svg.removeEventListener('mousemove', onMouseMove);
+      svg.removeEventListener('mouseup', onMouseUp);
+      saveState();
+    };
+
+    svg.style.cursor='grabbing';
+    svg.addEventListener('mousemove', onMouseMove);
+    svg.addEventListener('mouseup', onMouseUp);
+  }
+
+  // =================== VANISHING POINT DETECTION ===================
+  // Intelligent Detection: Suggest vanishing points without being intrusive
+  function detectVanishingPoints() {
+    const allLines = Array.from(shapes.querySelectorAll('.line'));
+    
+    // Clear existing vanishing points and lines
+    clearVanishingPoints();
+
+    // Group lines by their angles within the vanishing tolerance
+    const angleGroups = [];
+    
+    allLines.forEach(line => {
+      const angle = calculateLineAngle(line);
+      let foundGroup = false;
+      
+      for(let group of angleGroups) {
+        const diff = Math.abs(angle - group.angle);
+        const adjustedDiff = diff > 180 ? 360 - diff : diff;
+        if(adjustedDiff < vanishingTolerance) {
+          group.lines.push(line);
+          foundGroup = true;
+          break;
+        }
+      }
+      
+      if(!foundGroup) {
+        angleGroups.push({ angle: angle, lines: [line] });
+      }
+    });
+    
+    // For each group with two or more lines, calculate vanishing point
+    angleGroups.forEach(group => {
+      if(group.lines.length >= 2) {
+        // Calculate intersection of the first two lines
+        const line1 = group.lines[0];
+        const line2 = group.lines[1];
+        const vp = calculateIntersection(
+          parseFloat(line1.getAttribute('x1')), parseFloat(line1.getAttribute('y1')),
+          parseFloat(line1.getAttribute('x2')), parseFloat(line1.getAttribute('y2')),
+          parseFloat(line2.getAttribute('x1')), parseFloat(line2.getAttribute('y1')),
+          parseFloat(line2.getAttribute('x2')), parseFloat(line2.getAttribute('y2'))
+        );
+        if(vp) {
+          // Check if a vanishing point already exists near the intersection
+          let existingVP = findVanishingPointAt(vp.x, vp.y, snapThreshold);
+          if(!existingVP) {
+            // Create a new vanishing point
+            existingVP = createVanishingPoint(vp.x, vp.y);
+          }
+          // Associate all lines in the group with this vanishing point
+          group.lines.forEach(line => {
+            associateLineWithVanishingPoint(line, existingVP.id);
+          });
+        }
+      }
+    });
+  }
+
+  // Debounced version of detectVanishingPoints to improve performance
+  const debouncedDetectVP = debounce(detectVanishingPoints, 300);
+
+  // =================== INITIALIZATION =======================
+  function init() {
+    // Any initial setup can go here
+  }
+
+  init();
+  undoStack.push(shapes.innerHTML);
+
+  // =================== REBINDING EVENT LISTENERS ===================
+  function rebindVanishingPointEventListeners() {
+    shapes.querySelectorAll('.vanishing-point').forEach(vp=>{
+      if(vp.dataset.bound) return;
+      vp.dataset.bound='true';
+
+      vp.addEventListener('mousedown', (e)=>{
+        if(e.ctrlKey) {
+          e.stopPropagation();
+          initiateVanishingPointDrag(vp, e);
+        }
+      });
+    });
+  }
+
+  // =================== TESTING THE CORRECTIONS ===================
+  // After any change, ensure event listeners are properly bound
+  rebindAllEventListeners();
+  undoStack.push(shapes.innerHTML);
+  
+</script>
+</body>
+</html>
