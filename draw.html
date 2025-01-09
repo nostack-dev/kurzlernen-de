@@ -368,6 +368,48 @@
   // Debounced version of detectVanishingPoints to improve performance
   const debouncedDetectVP = debounce(detectVanishingPoints, 300);
 
+  // =================== POINT MANAGEMENT =======================
+  function findOrCreatePoint(x,y,type='point') {
+    const existing= findPointAt(x,y,5);
+    if(existing) return existing;
+    return addPoint(x,y,type);
+  }
+  function findPointAt(x,y,threshold) {
+    const pts= shapes.querySelectorAll('.point');
+    for(let p of pts) {
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      if(dist<=threshold) return p;
+    }
+    return null;
+  }
+  function addPoint(x,y,type='point') {
+    if(pointExists(x,y,5)) return null;
+    const p= document.createElementNS("http://www.w3.org/2000/svg","circle");
+    p.setAttribute('cx', x);
+    p.setAttribute('cy', y);
+    p.setAttribute('r', 4);
+    p.classList.add('point');
+    p.dataset.type= type;
+    if(type === 'circumference') {
+      p.dataset.circle = currentShape.id;
+    }
+    p.id= 'point-'+(pointIdCounter++);
+    shapes.appendChild(p);
+    return p;
+  }
+  function pointExists(x,y,threshold) {
+    const pts= shapes.querySelectorAll('.point');
+    for(let p of pts) {
+      const px= parseFloat(p.getAttribute('cx'));
+      const py= parseFloat(p.getAttribute('cy'));
+      const dist= Math.hypot(x-px,y-py);
+      if(dist<=threshold) return true;
+    }
+    return false;
+  }
+
   // =================== MOUSE AND TOUCH EVENTS FOR DRAWING =======================
   // Unified event handlers for mouse and touch
   function getEventPoint(e) {
@@ -385,7 +427,7 @@
 
   // Start Drawing
   function startDrawing(e) {
-    if (e.type === 'touchstart' && e.touches.length > 2) return; // Limit to single or two-finger touches
+    if (e.type === 'touchstart' && e.touches.length > 3) return; // Limit to single, double, or triple-finger touches
     e.preventDefault();
     const { x, y } = getEventPoint(e);
     const pt = getSVGPoint(x, y);
@@ -419,7 +461,7 @@
   // Determine if the current drawing action should create a circle
   function isDrawingCircle(e) {
     if (e.type.startsWith('touch')) {
-      return e.touches.length === 2;
+      return e.touches.length === 3; // Triple-finger touch for circles
     } else {
       return e.shiftKey;
     }
@@ -797,6 +839,15 @@
   // Debounced version of detectVanishingPoints to improve performance
   const debouncedDetectVP = debounce(detectVanishingPoints, 300);
 
+  // =================== DRAWING MODE SELECTION =======================
+  // No UI buttons; handled via gestures
+
+  // =================== TOGGLE VANISHING POINTS AND LINES =======================
+  // Not implemented to maintain minimalistic design
+
+  // =================== VANISHING TOLERANCE =======================
+  // Optionally, implement via gestures or default value
+
   // =================== POINT MANAGEMENT =======================
   function findOrCreatePoint(x,y,type='point') {
     const existing= findPointAt(x,y,5);
@@ -840,37 +891,35 @@
   }
 
   // =================== MOUSE AND TOUCH EVENTS =======================
-  // Unified event handlers for mouse and touch
-  function getSVGPoint(x, y) {
-    const point = svg.createSVGPoint();
-    point.x = x;
-    point.y = y;
-    return point.matrixTransform(panLayer.getScreenCTM().inverse());
-  }
+  // Start Drawing
+  svg.addEventListener('touchstart', (e) => {
+    if(e.touches.length === 1 || e.touches.length === 3) {
+      startDrawing(e);
+    }
+    // Two-finger touch reserved for panning and zooming
+  }, {passive: false});
+  svg.addEventListener('mousedown', startDrawing);
 
-  // =================== MOVE ELEMENTS HANDLING =======================
-  // Implemented above as moveElementStart, moveElementMouse, moveElementTouch
+  // Drawing in Progress
+  svg.addEventListener('touchmove', (e) => {
+    if(drawing && (e.touches.length === 1 || e.touches.length === 3)) {
+      drawingInProgress(e);
+    }
+    // Two-finger touch reserved for panning and zooming
+  }, {passive: false});
+  svg.addEventListener('mousemove', drawingInProgress);
 
-  // =================== VANISHING POINT MARKER DRAGGING ===================
-  // Handled via initiateVanishingPointDrag function
+  // Finish Drawing
+  svg.addEventListener('touchend', (e) => {
+    if(drawing && (e.touches.length < 3)) { // If less than three fingers, finish drawing
+      finishDrawing(e);
+    }
+  });
+  svg.addEventListener('mouseup', finishDrawing);
 
-  // =================== VANISHING TOLERANCE =======================
-  // Handled via 'vanishingTolerance' variable and toleranceInput (if any)
-
-  // =================== POINT MANAGEMENT =======================
-  // Implemented above as findOrCreatePoint, findPointAt, addPoint, etc.
-
-  // =================== DRAWING MODE SELECTION =======================
-  // Handled via gesture-based detection in 'startDrawing' and 'isDrawingCircle'
-
-  // =================== INITIALIZATION =======================
-  function init() {
-    // Any initial setup can go here
-    undoStack.push(shapes.innerHTML);
-    rebindAllEventListeners();
-  }
-
-  init();
+  // Move Elements
+  svg.addEventListener('touchstart', moveElementStart, {passive: false});
+  svg.addEventListener('mousedown', moveElementStart);
 
   // =================== REBINDING EVENT LISTENERS ===================
   function rebindAllEventListeners() {
@@ -885,7 +934,7 @@
 
       // Handle touch interactions for points
       p.addEventListener('touchstart',(e)=>{
-        if(e.touches.length > 1) { // Use two-finger touch as alternative for Alt+click
+        if(e.touches.length > 1) { // Use multiple-finger touch as alternative for Alt+click
           e.preventDefault();
           e.stopPropagation();
           // Only allow moving if the point is connected to at least one line or it's a circumference point connected to a circle
@@ -899,7 +948,7 @@
 
             const origX= parseFloat(p.getAttribute('cx'));
             const origY= parseFloat(p.getAttribute('cy'));
-            const mp= getMousePosition(e);
+            const mp= getEventPoint(e);
             offsetX= mp.x - origX;
             offsetY= mp.y - origY;
 
@@ -928,7 +977,7 @@
 
             const origX= parseFloat(p.getAttribute('cx'));
             const origY= parseFloat(p.getAttribute('cy'));
-            const mp= getMousePosition(e);
+            const mp= getEventPoint(e);
             offsetX= mp.x - origX;
             offsetY= mp.y - origY;
 
@@ -1007,7 +1056,7 @@
     }
   });
 
-  // =================== MOVE ELEMENTS =======================
+  // =================== MOVE ELEMENTS HANDLING =======================
   // Implemented above as moveElementStart, moveElementMouse, moveElementTouch
 
   // =================== VANISHING POINT MARKER DRAGGING ===================
@@ -1025,26 +1074,22 @@
   // =================== FINAL TOUCHES =======================
   // Ensure that touch gestures for panning and drawing do not interfere
   svg.addEventListener('touchstart', (e) => {
-    if(e.touches.length === 1) {
-      // Single touch: could be drawing or panning
-      // If touch is on empty space, start drawing
+    if(e.touches.length === 1 || e.touches.length === 3) {
+      // Single-finger touch: draw line
+      // Triple-finger touch: draw circle
       const touch = e.touches[0];
       const target = document.elementFromPoint(touch.clientX, touch.clientY);
       if(target === svg || target === panLayer) {
         startDrawing(e);
       }
-      else {
-        // Else, possibly moving an element
-      }
+      // Else, possibly moving an element
     }
     else if(e.touches.length === 2) {
-      // Two-finger touch: could be drawing a circle or zooming
-      // Here, we'll prioritize zooming, but also allow drawing circles
-      // For simplicity, we'll interpret two-finger touch as drawing circles
-      startDrawing(e);
+      // Two-finger touch: pan and zoom
+      // Handled separately in touchmove
     }
+    // Ignore other touch counts
   }, {passive: false});
-
 </script>
 </body>
 </html>
