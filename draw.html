@@ -143,7 +143,10 @@
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#grid)"/>
-    <g id="shapes"></g>
+    <!-- Viewport Group for Transformations -->
+    <g id="viewport">
+      <g id="shapes"></g>
+    </g>
   </svg>
 
   <!-- Debug Window -->
@@ -165,9 +168,12 @@
     // ==================== CONFIGURATION =======================
     const VANISHING_TOLERANCE = 5; // degrees for detecting nearly parallel lines
     const SNAP_THRESHOLD = 20; // pixels for snapping
+    const MIN_SCALE = 0.5;
+    const MAX_SCALE = 5;
 
     // ==================== STATE VARIABLES =======================
     const svg = document.getElementById('svgCanvas');
+    const viewport = document.getElementById('viewport');
     const shapes = document.getElementById('shapes');
 
     let currentMode = 'drawLine'; // Modes: drawLine, drawCircle
@@ -175,7 +181,13 @@
     let startPoint = {x: 0, y: 0};
     let currentShape = null;
 
-    let viewBox = {x: 0, y: 0, width: 800, height: 600};
+    let panX = 0;
+    let panY = 0;
+    let scale = 1;
+
+    let lastTouchDistance = null;
+    let initialPan = {x: 0, y: 0};
+    let initialScale = 1;
 
     let vanishingPoints = []; // Array of {id, x, y, lines: [lineIds]}
     let vpIdCounter = 0;
@@ -565,35 +577,27 @@
     }
 
     // ==================== PINCH ZOOM HANDLING =======================
-    let initialPinchDistance = null;
-    let initialViewBox = {...viewBox};
-
     function handlePinchZoom(e) {
       if (e.touches.length !== 2) return;
 
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
 
-      const dist = getDistance(touch1, touch2);
+      const currentDistance = getDistance(touch1, touch2);
 
-      if (!initialPinchDistance) {
-        initialPinchDistance = dist;
-        initialViewBox = {...viewBox};
+      if (!lastTouchDistance) {
+        lastTouchDistance = currentDistance;
+        initialPan = {x: panX, y: panY};
+        initialScale = scale;
       } else {
-        const scaleChange = dist / initialPinchDistance;
-        const newWidth = initialViewBox.width / scaleChange;
-        const newHeight = initialViewBox.height / scaleChange;
+        const scaleChange = currentDistance / lastTouchDistance;
+        let newScale = initialScale * scaleChange;
 
-        // Center the zoom on the midpoint between the two touches
-        const mid = getMidPoint(touch1, touch2);
-        const svgMid = getSVGCoordinates(mid.x, mid.y);
+        // Clamp scale to prevent excessive zooming
+        newScale = Math.min(Math.max(newScale, MIN_SCALE), MAX_SCALE);
+        scale = newScale;
 
-        viewBox.width = newWidth;
-        viewBox.height = newHeight;
-        viewBox.x = svgMid.x - (svgMid.x * newWidth / initialViewBox.width);
-        viewBox.y = svgMid.y - (svgMid.y * newHeight / initialViewBox.height);
-
-        updateViewBox();
+        updateTransform();
       }
     }
 
@@ -603,61 +607,55 @@
       return Math.hypot(dx, dy);
     }
 
-    function getMidPoint(touch1, touch2) {
-      return {
-        x: (touch1.clientX + touch2.clientX) / 2,
-        y: (touch1.clientY + touch2.clientY) / 2
-      };
+    // ==================== VIEWPORT TRANSFORM FUNCTIONS =======================
+    function updateTransform() {
+      const transform = `translate(${panX}, ${panY}) scale(${scale})`;
+      viewport.setAttribute('transform', transform);
     }
 
-    // ==================== VIEWBOX FUNCTIONS =======================
-    function updateViewBox() {
-      svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
+    function resetTransform() {
+      panX = 0;
+      panY = 0;
+      scale = 1;
+      updateTransform();
     }
 
     // ==================== UTILITY FUNCTIONS =======================
     function getTouchPosition(touch) {
       const rect = svg.getBoundingClientRect();
-      const x = (touch.clientX - rect.left) * (viewBox.width / rect.width) + viewBox.x;
-      const y = (touch.clientY - rect.top) * (viewBox.height / rect.height) + viewBox.y;
+      const x = (touch.clientX - rect.left - panX) / scale;
+      const y = (touch.clientY - rect.top - panY) / scale;
       return {x, y};
     }
 
     function getMousePosition(e) {
       const rect = svg.getBoundingClientRect();
-      const x = (e.clientX - rect.left) * (viewBox.width / rect.width) + viewBox.x;
-      const y = (e.clientY - rect.top) * (viewBox.height / rect.height) + viewBox.y;
+      const x = (e.clientX - rect.left - panX) / scale;
+      const y = (e.clientY - rect.top - panY) / scale;
       return {x, y};
     }
 
-    function getSVGCoordinates(x, y) {
-      const rect = svg.getBoundingClientRect();
-      const svgX = (x - rect.left) * (viewBox.width / rect.width) + viewBox.x;
-      const svgY = (y - rect.top) * (viewBox.height / rect.height) + viewBox.y;
-      return {x: svgX, y: svgY};
-    }
-
     // ==================== STATE MANAGEMENT =======================
-    let undoStack = [];
-    let redoStack = [];
+    let undoStackLocal = [];
+    let redoStackLocal = [];
 
     function saveState() {
-      undoStack.push(shapes.innerHTML);
-      redoStack = []; // Clear redo stack on new action
+      undoStackLocal.push(shapes.innerHTML);
+      redoStackLocal = []; // Clear redo stack on new action
     }
 
     function undo() {
-      if (undoStack.length > 1) {
-        redoStack.push(undoStack.pop());
-        shapes.innerHTML = undoStack[undoStack.length - 1];
+      if (undoStackLocal.length > 1) {
+        redoStackLocal.push(undoStackLocal.pop());
+        shapes.innerHTML = undoStackLocal[undoStackLocal.length - 1];
         rebindVanishingPointEventListeners();
       }
     }
 
     function redo() {
-      if (redoStack.length > 0) {
-        const state = redoStack.pop();
-        undoStack.push(state);
+      if (redoStackLocal.length > 0) {
+        const state = redoStackLocal.pop();
+        undoStackLocal.push(state);
         shapes.innerHTML = state;
         rebindVanishingPointEventListeners();
       }
@@ -680,7 +678,7 @@
       e.stopPropagation();
 
       let startX, startY;
-      let initialX, initialY;
+      let initialVP = {x: parseFloat(vpElement.getAttribute('cx')), y: parseFloat(vpElement.getAttribute('cy'))};
 
       if (e.type === 'touchstart') {
         const touch = e.touches[0];
@@ -690,9 +688,6 @@
         startX = e.clientX;
         startY = e.clientY;
       }
-
-      initialX = parseFloat(vpElement.getAttribute('cx'));
-      initialY = parseFloat(vpElement.getAttribute('cy'));
 
       function moveVP(event) {
         let clientX, clientY;
@@ -705,11 +700,15 @@
           clientY = event.clientY;
         }
 
-        const dx = (clientX - startX) * (viewBox.width / svg.clientWidth);
-        const dy = (clientY - startY) * (viewBox.height / svg.clientHeight);
+        const dx = clientX - startX;
+        const dy = clientY - startY;
 
-        const newX = initialX + dx;
-        const newY = initialY + dy;
+        const svgRect = svg.getBoundingClientRect();
+        const deltaX = dx / scale;
+        const deltaY = dy / scale;
+
+        const newX = initialVP.x + deltaX;
+        const newY = initialVP.y + deltaY;
 
         vpElement.setAttribute('cx', newX);
         vpElement.setAttribute('cy', newY);
@@ -790,6 +789,71 @@
     // ==================== PAN AND ZOOM ON MOBILE =======================
     // Handled via touchmove events with two-finger gestures
     // Already implemented in handleTouchMove with handlePinchZoom
+
+    // ==================== DEBUG WINDOW DRAGGING =======================
+    // Optional: Implement dragging of the debug window
+    (function() {
+      const debugWindow = document.getElementById('debugWindow');
+      const debugHeader = document.getElementById('debugHeader');
+
+      let isDragging = false;
+      let startX, startY;
+      let initialPos = {x: 0, y: 0};
+
+      debugHeader.addEventListener('touchstart', dragStart);
+      debugHeader.addEventListener('mousedown', dragStart);
+
+      function dragStart(e) {
+        e.preventDefault();
+        isDragging = true;
+
+        if (e.type === 'touchstart') {
+          const touch = e.touches[0];
+          startX = touch.clientX;
+          startY = touch.clientY;
+        } else {
+          startX = e.clientX;
+          startY = e.clientY;
+        }
+
+        const rect = debugWindow.getBoundingClientRect();
+        initialPos = {x: rect.left, y: rect.top};
+
+        document.addEventListener('touchmove', dragging, {passive: false});
+        document.addEventListener('touchend', dragEnd, {passive: false});
+        document.addEventListener('mousemove', dragging);
+        document.addEventListener('mouseup', dragEnd);
+      }
+
+      function dragging(e) {
+        if (!isDragging) return;
+        let clientX, clientY;
+        if (e.type === 'touchmove') {
+          const touch = e.touches[0];
+          clientX = touch.clientX;
+          clientY = touch.clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+
+        debugWindow.style.left = `${initialPos.x + dx}px`;
+        debugWindow.style.top = `${initialPos.y + dy}px`;
+        debugWindow.style.right = 'auto';
+        debugWindow.style.bottom = 'auto';
+      }
+
+      function dragEnd() {
+        isDragging = false;
+        document.removeEventListener('touchmove', dragging);
+        document.removeEventListener('touchend', dragEnd, {passive: false});
+        document.removeEventListener('mousemove', dragging);
+        document.removeEventListener('mouseup', dragEnd);
+      }
+    })();
   </script>
 </body>
 </html>
