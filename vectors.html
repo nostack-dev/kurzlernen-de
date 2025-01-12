@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Vector Drawing with Accurate Rotation</title>
+    <title>Advanced Vector Drawing Application</title>
     <style>
         /* Reset default styles */
         body, html {
@@ -11,6 +11,7 @@
             height: 100%;
             overflow: hidden;
             user-select: none; /* Prevent text selection while dragging */
+            font-family: Arial, sans-serif;
         }
 
         /* Canvas Styling */
@@ -19,7 +20,7 @@
             background-color: #FFFFFF;
         }
 
-        /* Rotation Status Styling */
+        /* Rotation Status Display Styling */
         #rotationStatus {
             position: absolute;
             top: 10px;
@@ -29,22 +30,20 @@
             padding: 5px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            font-family: Arial, sans-serif;
-            font-size: 14px; /* px for consistent size */
+            font-size: 14px;
         }
 
         /* Alignment Status Display Styling */
         #alignmentStatus {
             position: absolute;
             top: 10px;
-            right: 120px;
+            right: 150px;
             z-index: 10;
             background-color: rgba(255, 255, 255, 0.8);
             padding: 5px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            font-family: Arial, sans-serif;
-            font-size: 14px; /* px for consistent size */
+            font-size: 14px;
         }
 
         /* Selection Rectangle Styling */
@@ -52,28 +51,221 @@
             position: absolute;
             border: 2px dashed #00BFFF;
             background-color: rgba(0, 191, 255, 0.2);
-            pointer-events: none;
-            display: none;
+            pointer-events: none; /* Allow mouse events to pass through */
+            display: none; /* Hidden by default */
             z-index: 5;
         }
 
-        /* Save Button Styling */
-        #saveButton {
+        /* Save Buttons Styling */
+        #saveButton, #saveProjectButton, #loadProjectButton, #toggleGridButton {
             position: absolute;
             bottom: 20px;
-            right: 20px;
-            z-index: 10;
             padding: 10px 20px;
-            font-size: 14px; /* px => consistent size on zoom */
+            font-size: 14px;
             border: none;
             background-color: #008CBA; /* Blue */
             color: white;
             cursor: pointer;
             border-radius: 4px;
+            z-index: 10;
         }
 
-        #saveButton:hover {
+        #saveButton:hover, #saveProjectButton:hover, #loadProjectButton:hover, #toggleGridButton:hover {
             background-color: #005f6a;
+        }
+
+        #saveButton {
+            right: 20px;
+        }
+
+        #saveProjectButton {
+            right: 140px;
+        }
+
+        #loadProjectButton {
+            right: 260px;
+        }
+
+        #toggleGridButton {
+            right: 380px;
+            background-color: #4CAF50; /* Green */
+        }
+
+        #toggleGridButton:hover {
+            background-color: #357a38;
+        }
+
+        /* Help Button Styling */
+        #helpButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            background-color: #4CAF50; /* Green */
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        #helpButton:hover {
+            background-color: #357a38;
+        }
+
+        /* Input Dialog Styling */
+        #inputDialog {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255,255,255,0.95);
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            display: none;
+            z-index: 20;
+        }
+
+        #inputDialog label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        #inputDialog input {
+            width: 100px;
+            padding: 5px;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+
+        #inputDialog button {
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #008CBA;
+            color: white;
+        }
+
+        #inputDialog button:hover {
+            background-color: #005f6a;
+        }
+
+        /* Help Dialog Styling */
+        #helpDialog {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255,255,255,0.95);
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            display: none;
+            z-index: 20;
+            max-width: 400px;
+            overflow-y: auto;
+            max-height: 80%;
+        }
+
+        #helpDialog h2 {
+            margin-top: 0;
+        }
+
+        #helpDialog ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        #helpDialog li {
+            margin-bottom: 10px;
+        }
+
+        #closeHelp {
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #008CBA;
+            color: white;
+        }
+
+        #closeHelp:hover {
+            background-color: #005f6a;
+        }
+
+        /* Background Image Controls */
+        #bgControls {
+            position: absolute;
+            top: 10px;
+            left: 150px;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+        }
+
+        #bgControls input[type="file"] {
+            display: none;
+        }
+
+        #bgUploadLabel {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            background-color: #FF9800; /* Orange */
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        #bgUploadLabel:hover {
+            background-color: #E68900;
+        }
+
+        #bgLockButton {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            background-color: #757575; /* Gray */
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        #bgLockButton.locked {
+            background-color: #f44336; /* Red */
+        }
+
+        #bgLockButton.unlocked {
+            background-color: #4CAF50; /* Green */
+        }
+
+        #bgLockButton::after {
+            content: '🔒';
+            margin-left: 5px;
+        }
+
+        #bgLockButton.unlocked::after {
+            content: '🔓';
+        }
+
+        /* Length Handle Styling */
+        .length-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #FF5722;
+            border: 2px solid #FFFFFF;
+            border-radius: 50%;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+            z-index: 15;
         }
     </style>
 </head>
@@ -87,95 +279,172 @@
     <!-- Selection Rectangle Element -->
     <div id="selectionRect"></div>
 
-    <!-- Save Button -->
-    <button id="saveButton">Save Image</button>
+    <!-- Save Buttons -->
+    <button id="saveButton">Save Image 📷</button>
+    <button id="saveProjectButton">Save Project 🗂️</button>
+    <button id="loadProjectButton">Load Project 📂</button>
+    <button id="toggleGridButton">Hide Gridlines 🟩</button>
+
+    <!-- Help Button -->
+    <button id="helpButton">Help ❓</button>
+
+    <!-- Background Image Controls -->
+    <div id="bgControls">
+        <label for="bgUpload" id="bgUploadLabel">Upload Background 🖼️</label>
+        <input type="file" id="bgUpload" accept="image/*">
+        <button id="bgLockButton" class="locked">Lock Background 🔒</button>
+    </div>
+
+    <!-- Input Dialog for Editing -->
+    <div id="inputDialog">
+        <label for="inputValue">Enter value:</label>
+        <input type="number" id="inputValue" step="0.01">
+        <button id="confirmInput">OK</button>
+    </div>
+
+    <!-- Help Dialog -->
+    <div id="helpDialog">
+        <h2>Help Guide</h2>
+        <ul>
+            <li><strong>X Key:</strong> Toggle X-axis alignment.</li>
+            <li><strong>Y Key:</strong> Toggle Y-axis alignment.</li>
+            <li><strong>Shift + Drag:</strong> Snap angle to nearest 45° increments.</li>
+            <li><strong>Spacebar:</strong> Toggle motor rotation.</li>
+            <li><strong>Ctrl + Z:</strong> Undo.</li>
+            <li><strong>Ctrl + Y:</strong> Redo.</li>
+            <li><strong>H Key:</strong> Toggle visibility of snap points, arrows, and geometry labels.</li>
+            <li><strong>C Key:</strong> Toggle imperfect alignment (random errors).</li>
+            <li><strong>Ctrl + Alt + Left Click:</strong> Select multiple snap points.</li>
+            <li><strong>Shift + Alt + Left Click:</strong> Create a right angle at a snap point.</li>
+            <li><strong>Delete Key:</strong> Delete selected snap points and their connected lines.</li>
+            <li><strong>Click on Number Labels:</strong> Edit side lengths directly.</li>
+            <li><strong>Hold 'Ctrl' While Editing:</strong> Align lines and angles to the nearest 45° or 90° increments.</li>
+            <li><strong>Middle Mouse Drag:</strong> Move background image when unlocked.</li>
+            <li><strong>Mouse Wheel:</strong> Scale background image when unlocked.</li>
+            <li><strong>Shift + Middle Mouse Drag:</strong> Rotate background image when unlocked.</li>
+            <li><strong>Click on Length Handles:</strong> Edit line lengths.</li>
+            <li><strong>Toggle Gridlines Button:</strong> Show or hide gridlines on the canvas.</li>
+        </ul>
+        <button id="closeHelp">Close</button>
+    </div>
 
     <!-- Canvas Element -->
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <canvas id="canvas" width="1200" height="800"></canvas>
 
+    <!-- JavaScript Code -->
     <script>
-        /********************************************************
-         *                Initialization / Globals              *
-         ********************************************************/
+        // ***********************
+        // ***** Initialization ****
+        // ***********************
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        const rotationStateElement = document.getElementById('rotationStatus');
+        const rotationStatus = document.getElementById('rotationStatus');
         const alignmentStatus = document.getElementById('alignmentStatus');
-        const selectionRectElement = document.getElementById('selectionRect');
+        const selectionRect = document.getElementById('selectionRect');
         const saveButton = document.getElementById('saveButton');
+        const saveProjectButton = document.getElementById('saveProjectButton');
+        const loadProjectButton = document.getElementById('loadProjectButton');
+        const toggleGridButton = document.getElementById('toggleGridButton');
+        const inputDialog = document.getElementById('inputDialog');
+        const inputValue = document.getElementById('inputValue');
+        const confirmInput = document.getElementById('confirmInput');
+        const helpButton = document.getElementById('helpButton');
+        const helpDialog = document.getElementById('helpDialog');
+        const closeHelp = document.getElementById('closeHelp');
 
+        const bgUpload = document.getElementById('bgUpload');
+        const bgUploadLabel = document.getElementById('bgUploadLabel');
+        const bgLockButton = document.getElementById('bgLockButton');
+
+        // Define motorRotationSpeed
+        const motorRotationSpeed = 0.02; // radians per frame
+
+        // Grid settings
         const gridSize = 35;
         const gridColor = '#A9A9A9';
-        const snapRadius = 15; 
 
+        // Snap settings
+        const snapRadius = 15;
+
+        // Conversion
+        const pxPerCm = 35;
+
+        // Collections
         const shapes = [];
         const snapPoints = [];
-        const undoStack = [];
-        const redoStack = [];
         const triangles = [];
+        const labels = []; // Collection to store label information
 
+        // States
         let isDragging = false;
         let isCtrlDragging = false;
         let isCtrlAltDragging = false;
-        let origin = { type:null, line:null, snapPoint:null };
+        let origin = { type: null, line: null, snapPoint: null };
         let currentVector = null;
 
         let isRotating = false;
         let rotationTarget = null;
         let rotationAnchor = null;
-        let initialMousePos = { x:0, y:0 };
+        let initialMousePos = { x: 0, y: 0 };
         let initialVectors = {};
 
         let isMotorRunning = false;
         let selectedSnapPoints = [];
         let motorRotationAnchor = null;
 
-        // store lines' original positions for revert
-        let motorOriginalPositions = new Map();
-
         let isSelectionRectActive = false;
-        let selectionRectStart = { x:0, y:0 };
-        let selectionRectCurrent = { x:0, y:0 };
+        let selectionRectStart = { x: 0, y: 0 };
+        let selectionRectCurrent = { x: 0, y: 0 };
 
         let hoveredSnapPoint = null;
-        let dragStartPos = { x:0, y:0 };
+        let hoveredLabel = null;
+        let hoveredHandle = null; // For length handles
+
         let hasDragged = false;
+
         let currentMouseButton = null;
 
         let snapPointsVisible = true;
         let arrowsVisible = true;
+        let geometryLabelsVisible = true;
+        let gridLinesVisible = true; // New flag for gridlines
 
         let isXAligned = false;
         let isYAligned = false;
-        const snapIncrement = Math.PI / 12; 
-        const motorRotationSpeed = Math.PI / 180; 
 
-        let panOffset = { x:0, y:0 };
+        let alignmentErrorEnabled = false;
+
+        // Panning
+        let panOffset = { x: 0, y: 0 };
         let isPanning = false;
-        let panStart = { x:0, y:0 };
+        let panStart = { x: 0, y: 0 };
 
+        // Selected Snap Point for SHIFT+Right-Click
         let selectedSnapPoint = null;
-        let shouldFill = false; 
 
-        /******************************************************
-         *   (A) "C" Key => Constrain to Horizontal/Vertical  *
-         ******************************************************/
-        let isCKeyActive = false; 
-        // We'll detect the axis once user drags a certain distance from dragStart
-        let lockedAxis = null; // 'horizontal' or 'vertical' or null
+        // Undo/Redo Stacks
+        const undoStack = [];
+        const redoStack = [];
 
-        /********************************************************
-         *            Utility / Helper Functions                *
-         ********************************************************/
-        function getMousePos(evt) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: evt.clientX - rect.left + panOffset.x,
-                y: evt.clientY - rect.top + panOffset.y
-            };
-        }
+        // Rotation Sets
+        const motorRotatingLines = new Set();
+        const rotatingLines = new Set();
 
+        // Editing Element
+        let editingElement = null; // { type: 'length' | 'area', element: Line | Triangle, target: 'end' | null }
+
+        // Background Image Variables
+        let bgImage = null;
+        let bgImageX = 0;
+        let bgImageY = 0;
+        let bgImageScale = 1;
+        let bgImageRotation = 0; // in radians
+        let bgImageLocked = true;
+
+        // ***********************
+        // ***** Utility Functions ****
+        // ***********************
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -184,16 +453,25 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left + panOffset.x,
+                y: evt.clientY - rect.top + panOffset.y
+            };
+        }
+
         function drawGrid() {
+            if (!gridLinesVisible) return; // Skip drawing grid if hidden
             ctx.strokeStyle = gridColor;
             ctx.lineWidth = 1;
-            for(let x=0; x<=canvas.width; x+=gridSize){
+            for (let x = 0; x <= canvas.width; x += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(x - panOffset.x, 0 - panOffset.y);
                 ctx.lineTo(x - panOffset.x, canvas.height - panOffset.y);
                 ctx.stroke();
             }
-            for(let y=0; y<=canvas.height; y+=gridSize){
+            for (let y = 0; y <= canvas.height; y += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(0 - panOffset.x, y - panOffset.y);
                 ctx.lineTo(canvas.width - panOffset.x, y - panOffset.y);
@@ -201,179 +479,752 @@
             }
         }
 
-        function snapToGrid(angle) {
-            return Math.round(angle / snapIncrement)*snapIncrement;
+        function dist(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
         }
 
-        function snapTo45Degrees(angle) {
-            const deg = angle*(180/Math.PI);
-            const snappedDeg = Math.round(deg/45)*45;
-            return snappedDeg*(Math.PI/180);
+        function snapToGrid(angle) {
+            const degrees = angle * (180 / Math.PI);
+            const snappedDegrees = Math.round(degrees / 45) * 45;
+            return snappedDegrees * (Math.PI / 180);
         }
 
         function drawArrow(from, to) {
-            if(!from||!to) return;
-            const headLength=10;
-            const angle=Math.atan2(to.y - from.y, to.x - from.x);
-            ctx.strokeStyle='#333333';
-            ctx.fillStyle='#333333';
-            ctx.lineWidth=2;
+            if (!from || !to) return;
+            const headLength = 10;
+            const angle = Math.atan2(to.y - from.y, to.x - from.x);
+            ctx.strokeStyle = '#333333';
+            ctx.fillStyle = '#333333';
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(to.x - panOffset.x, to.y - panOffset.y);
             ctx.lineTo(
-                to.x - panOffset.x - headLength*Math.cos(angle - Math.PI/6),
-                to.y - panOffset.y - headLength*Math.sin(angle - Math.PI/6)
+                to.x - panOffset.x - headLength * Math.cos(angle - Math.PI / 6),
+                to.y - panOffset.y - headLength * Math.sin(angle - Math.PI / 6)
             );
             ctx.lineTo(
-                to.x - panOffset.x - headLength*Math.cos(angle + Math.PI/6),
-                to.y - panOffset.y - headLength*Math.sin(angle + Math.PI/6)
+                to.x - panOffset.x - headLength * Math.cos(angle + Math.PI / 6),
+                to.y - panOffset.y - headLength * Math.sin(angle + Math.PI / 6)
             );
             ctx.lineTo(to.x - panOffset.x, to.y - panOffset.y);
             ctx.fill();
         }
 
-        function findNearbySnapPoint(x,y,exclude=null){
-            let closest=null;
-            let minDist=snapRadius;
-            snapPoints.forEach(sp=>{
-                if(exclude && exclude.includes(sp)) return;
-                const dist=Math.hypot(x - sp.x,y - sp.y);
-                if(dist<=snapRadius && dist<minDist){
-                    minDist=dist;
-                    closest=sp;
+        function findNearbySnapPoint(x, y, exclude = []) {
+            let closestPoint = null;
+            let minDist = snapRadius;
+            snapPoints.forEach(sp => {
+                if (exclude.includes(sp)) return;
+                const d = Math.hypot(x - sp.x, y - sp.y);
+                if (d <= snapRadius && d < minDist) {
+                    minDist = d;
+                    closestPoint = sp;
                 }
             });
-            return closest;
+            return closestPoint;
         }
 
-        // if isCKeyActive => we detect if user has moved more in X or Y from dragStart
-        // then we lock that axis
-        function applyCKeyAxisConstraint(start, current){
-            if(!isCKeyActive) return current;
-            // if not locked yet => check if we moved more horizontally or vertically
-            const dx = current.x - start.x;
-            const dy = current.y - start.y;
-            if(!lockedAxis){
-                if(Math.abs(dx) > 10 || Math.abs(dy) > 10){
-                    if(Math.abs(dx)>=Math.abs(dy)){
-                        lockedAxis='horizontal';
-                    } else {
-                        lockedAxis='vertical';
-                    }
+        function applyAlignmentConstraints(originalPos, currentPos, modifiers = {}) {
+            let newX = currentPos.x;
+            let newY = currentPos.y;
+
+            if (isXAligned && !isYAligned) {
+                newY = originalPos.y;
+            } else if (isYAligned && !isXAligned) {
+                newX = originalPos.x;
+            }
+
+            // Check if Ctrl key is held for additional alignment options
+            if (modifiers.ctrl) {
+                // Align to nearest 45° or 90°
+                const dx = newX - originalPos.x;
+                const dy = newY - originalPos.y;
+                let angle = Math.atan2(dy, dx);
+                angle = snapToGrid(angle);
+                const distance = Math.hypot(dx, dy);
+                newX = originalPos.x + distance * Math.cos(angle);
+                newY = originalPos.y + distance * Math.sin(angle);
+            }
+
+            if (alignmentErrorEnabled) {
+                // Introduce slight random error up to ±5 pixels
+                const errorRange = 5;
+                if (Math.random() < 0.5) {
+                    newX += (Math.random() - 0.5) * 2 * errorRange;
+                } else {
+                    newY += (Math.random() - 0.5) * 2 * errorRange;
                 }
             }
-            if(lockedAxis==='horizontal'){
-                return { x: current.x, y: start.y };
-            } else if(lockedAxis==='vertical'){
-                return { x: start.x, y: current.y };
-            }
-            return current;
+
+            return { x: newX, y: newY };
         }
 
-        function applyAlignmentConstraints(originalPos, currentPos) {
-            let newX=currentPos.x;
-            let newY=currentPos.y;
-            if(isXAligned && !isYAligned){
-                newY=originalPos.y;
-            } else if(isYAligned && !isXAligned){
-                newX=originalPos.x;
+        // ***********************
+        // ***** Classes ****
+        // ***********************
+        class Shape {
+            constructor(type) {
+                this.type = type;
             }
-            return { x:newX, y:newY };
+            isPointInside(x, y) { return false; }
+            draw() { }
+            getSnapPoints() { return []; }
         }
 
-        function pointLineDistance(point,start,end){
-            const A=point.x - start.x;
-            const B=point.y - start.y;
-            const C=end.x - start.x;
-            const D=end.y - start.y;
-            const dot=A*C + B*D;
-            const len_sq=C*C + D*D;
-            let param=-1;
-            if(len_sq!==0) param=dot/len_sq;
-            let xx,yy;
-            if(param<0){xx=start.x; yy=start.y;}
-            else if(param>1){xx=end.x; yy=end.y;}
-            else{
-                xx=start.x + param*C;
-                yy=start.y + param*D;
+        class SnapPoint {
+            static nextId = 0;
+            constructor(x, y, type = 'standard') {
+                this.id = SnapPoint.nextId++;
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.connectedLines = [];
+                this.rotationDirection = 'clockwise';
+                this.trail = [];
             }
-            const dx=point.x-xx;
-            const dy=point.y-yy;
-            return Math.hypot(dx,dy);
+            addLine(line, endPoint) {
+                this.connectedLines.push({ line, endPoint });
+            }
+            removeLine(line) {
+                this.connectedLines = this.connectedLines.filter(c => c.line !== line);
+            }
+            move(nx, ny, silent = false) {
+                if (isMotorRunning) {
+                    this.trail.push({ x: nx, y: ny });
+                    if (this.trail.length > 200) this.trail.shift();
+                }
+                this.x = nx;
+                this.y = ny;
+                if (!silent) {
+                    this.connectedLines.forEach(conn => {
+                        conn.line.updateCenter();
+                    });
+                }
+            }
+            isNear(x, y) {
+                return Math.hypot(this.x - x, this.y - y) <= snapRadius;
+            }
         }
 
-        function getLineIntersection(line1, line2){
-            const x1=line1.start.x;
-            const y1=line1.start.y;
-            const x2=line1.end.x;
-            const y2=line1.end.y;
+        class Line extends Shape {
+            static nextId = 0;
+            constructor(start, end) {
+                super('line');
+                this.id = Line.nextId++;
+                this.start = start;
+                this.end = end;
+                this.updateCenter();
+                this.lengthHandle = null; // Reference to the handle DOM element
+                this.length = dist(start, end) / pxPerCm; // Length in cm
+                this.start.addLine(this, 'start');
+                this.end.addLine(this, 'end');
+            }
+            updateCenter() {
+                this.center = {
+                    x: (this.start.x + this.end.x) / 2,
+                    y: (this.start.y + this.end.y) / 2
+                };
+            }
+            isPointInside(x, y) {
+                const d = pointLineDistance({ x, y }, this.start, this.end);
+                return d <= 6;
+            }
+            draw() {
+                if (!this.start || !this.end) return;
+                if (isMotorRunning && motorRotatingLines.has(this)) {
+                    ctx.strokeStyle = '#32CD32';
+                } else if (isRotating && rotatingLines.has(this)) {
+                    ctx.strokeStyle = '#FF4500';
+                } else {
+                    ctx.strokeStyle = '#333333';
+                }
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.start.x - panOffset.x, this.start.y - panOffset.y);
+                ctx.lineTo(this.end.x - panOffset.x, this.end.y - panOffset.y);
+                ctx.stroke();
 
-            const x3=line2.start.x;
-            const y3=line2.start.y;
-            const x4=line2.end.x;
-            const y4=line2.end.y;
+                if (selectedSnapPoints.length > 0) {
+                    selectedSnapPoints.forEach(sp => {
+                        ctx.strokeStyle = '#00FFFF';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    });
+                }
+                if (arrowsVisible) {
+                    drawArrow(this.start, this.end);
+                }
 
-            const denom=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);
-            if(denom===0) return null;
-            const Px=((x1*y2 - y1*x2)*(x3-x4)-(x1-x2)*(x3*y4 - y3*x4))/denom;
-            const Py=((x1*y2 - y1*x2)*(y3-y4)-(y1-y2)*(x3*y4 - y3*x4))/denom;
-            if(
-                Math.min(x1,x2)-0.001<=Px && Px<=Math.max(x1,x2)+0.001 &&
-                Math.min(y1,y2)-0.001<=Py && Py<=Math.max(y1,y2)+0.001 &&
-                Math.min(x3,x4)-0.001<=Px && Px<=Math.max(x3,x4)+0.001 &&
-                Math.min(y3,y4)-0.001<=Py && Py<=Math.max(y3,y4)+0.001
-            ){
-                return { x:Px, y:Py };
+                // Draw Length Handle
+                this.drawLengthHandle();
+            }
+            getSnapPoints() {
+                return [{ x: this.start.x, y: this.start.y }, { x: this.end.x, y: this.end.y }];
+            }
+            setEndPoint(endPoint, newPos) {
+                if (endPoint === 'start') {
+                    if (newPos instanceof SnapPoint) {
+                        this.start.removeLine(this);
+                        this.start = newPos;
+                        this.start.addLine(this, 'start');
+                    } else {
+                        this.start.move(newPos.x, newPos.y);
+                    }
+                } else {
+                    if (newPos instanceof SnapPoint) {
+                        this.end.removeLine(this);
+                        this.end = newPos;
+                        this.end.addLine(this, 'end');
+                    } else {
+                        this.end.move(newPos.x, newPos.y);
+                    }
+                }
+                this.updateCenter();
+                this.length = dist(this.start, this.end) / pxPerCm; // Update length in cm
+            }
+            rotate(deltaAngle, anchor) {
+                const cos = Math.cos(deltaAngle), sin = Math.sin(deltaAngle);
+                let sx = this.start.x - anchor.x;
+                let sy = this.start.y - anchor.y;
+                let ex = this.end.x - anchor.x;
+                let ey = this.end.y - anchor.y;
+
+                const rsx = sx * cos - sy * sin;
+                const rsy = sx * sin + sy * cos;
+                const rex = ex * cos - ey * sin;
+                const rey = ex * sin + ey * cos;
+
+                this.start.move(rsx + anchor.x, rsy + anchor.y);
+                this.end.move(rex + anchor.x, rey + anchor.y);
+                this.updateCenter();
+                this.length = dist(this.start, this.end) / pxPerCm; // Update length in cm
+            }
+            isPointOnLine(point, tolerance = 5) {
+                const d = pointLineDistance(point, this.start, this.end);
+                return d <= tolerance;
+            }
+            splitAtPoint(point) {
+                if (
+                    (point.x === this.start.x && point.y === this.start.y) ||
+                    (point.x === this.end.x && point.y === this.end.y)
+                ) {
+                    // Split at endpoint is not allowed
+                    return [];
+                }
+                let sp = findNearbySnapPoint(point.x, point.y);
+                if (!sp) {
+                    sp = new SnapPoint(point.x, point.y);
+                    snapPoints.push(sp);
+                }
+                if (
+                    (sp.x === this.start.x && sp.y === this.start.y) ||
+                    (sp.x === this.end.x && sp.y === this.end.y)
+                ) {
+                    // Split at existing endpoint is not allowed
+                    return [];
+                }
+                const line1 = new Line(this.start, sp);
+                const line2 = new Line(sp, this.end);
+                shapes.push(line1, line2);
+                const idx = shapes.findIndex(l => l.id === this.id);
+                if (idx > -1) shapes.splice(idx, 1);
+                console.log(`Line ID:${this.id} split into Line ID:${line1.id} & Line ID:${line2.id}`);
+                return [line1, line2];
+            }
+            // Method to draw length handle
+            drawLengthHandle() {
+                // Calculate midpoint
+                const midX = (this.start.x + this.end.x) / 2;
+                const midY = (this.start.y + this.end.y) / 2;
+
+                // If handle doesn't exist, create it
+                if (!this.lengthHandle) {
+                    this.lengthHandle = document.createElement('div');
+                    this.lengthHandle.className = 'length-handle';
+                    document.body.appendChild(this.lengthHandle);
+
+                    // Add event listener
+                    this.lengthHandle.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent triggering other events
+                        openInputDialog('length', this, 'end');
+                    });
+                }
+
+                // Position the handle
+                const handleX = midX - panOffset.x;
+                const handleY = midY - panOffset.y;
+                this.lengthHandle.style.left = `${handleX}px`;
+                this.lengthHandle.style.top = `${handleY}px`;
+
+                // Update handle visibility
+                if (geometryLabelsVisible) {
+                    this.lengthHandle.style.display = 'block';
+                } else {
+                    this.lengthHandle.style.display = 'none';
+                }
+            }
+            // Remove the length handle from DOM
+            removeLengthHandle() {
+                if (this.lengthHandle) {
+                    document.body.removeChild(this.lengthHandle);
+                    this.lengthHandle = null;
+                }
+            }
+        }
+
+        class Triangle extends Shape {
+            static nextId = 0;
+            constructor(A, B, C) {
+                super('triangle');
+                this.id = Triangle.nextId++;
+                this.A = A;
+                this.B = B;
+                this.C = C;
+                this.updateCenter();
+                // No need to add lines here as lines are managed separately
+            }
+            updateCenter() {
+                this.center = {
+                    x: (this.A.x + this.B.x + this.C.x) / 3,
+                    y: (this.A.y + this.B.y + this.C.y) / 3
+                };
+            }
+            isPointInside(x, y) {
+                // Simple point in triangle test
+                const areaOrig = computeTriangleArea(this.A, this.B, this.C);
+                const area1 = computeTriangleArea({x, y}, this.B, this.C);
+                const area2 = computeTriangleArea(this.A, {x, y}, this.C);
+                const area3 = computeTriangleArea(this.A, this.B, {x, y});
+                return Math.abs(areaOrig - (area1 + area2 + area3)) < 0.1;
+            }
+            draw() {
+                // Triangles are filled elsewhere
+            }
+            getSnapPoints() {
+                return [this.A, this.B, this.C];
+            }
+        }
+
+        // ***********************
+        // ***** Point-Line Distance ****
+        // ***********************
+        function pointLineDistance(point, start, end) {
+            const A = point.x - start.x;
+            const B = point.y - start.y;
+            const C = end.x - start.x;
+            const D = end.y - start.y;
+
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            if (lenSq !== 0) param = dot / lenSq;
+
+            let xx, yy;
+            if (param < 0) {
+                xx = start.x;
+                yy = start.y;
+            } else if (param > 1) {
+                xx = end.x;
+                yy = end.y;
+            } else {
+                xx = start.x + param * C;
+                yy = start.y + param * D;
+            }
+            const dx = point.x - xx;
+            const dy = point.y - yy;
+            return Math.hypot(dx, dy);
+        }
+
+        // ***********************
+        // ***** Line Intersection ****
+        // ***********************
+        function getLineIntersection(line1, line2) {
+            const x1 = line1.start.x, y1 = line1.start.y;
+            const x2 = line1.end.x, y2 = line1.end.y;
+            const x3 = line2.start.x, y3 = line2.start.y;
+            const x4 = line2.end.x, y4 = line2.end.y;
+
+            const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+            if (denom === 0) return null;
+
+            const Px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom;
+            const Py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom;
+
+            if (
+                Math.min(x1, x2) - 0.001 <= Px && Px <= Math.max(x1, x2) + 0.001 &&
+                Math.min(y1, y2) - 0.001 <= Py && Py <= Math.max(y1, y2) + 0.001 &&
+                Math.min(x3, x4) - 0.001 <= Px && Px <= Math.max(x3, x4) + 0.001 &&
+                Math.min(y3, y4) - 0.001 <= Py && Py <= Math.max(y3, y4) + 0.001
+            ) {
+                return { x: Px, y: Py };
             }
             return null;
         }
 
-        function detectTriangles(){
-            triangles.length=0;
-            snapPoints.forEach(A=>{
-                const neighborsA=A.connectedLines.map(conn=>(conn.endPoint==='start'?conn.line.end:conn.line.start));
-                neighborsA.forEach(B=>{
-                    if(B.id<=A.id) return;
-                    const neighborsB=B.connectedLines.map(conn=>(conn.endPoint==='start'?conn.line.end:conn.line.start));
-                    neighborsB.forEach(C=>{
-                        if(C.id<=B.id) return;
-                        if(C===A) return;
-                        const isConnected=A.connectedLines.some(conn=>{
-                            const other=(conn.endPoint==='start'?conn.line.end:conn.line.start);
-                            return other===C;
+        // ***********************
+        // ***** Intersection Handling ****
+        // ***********************
+        function checkAndHandleIntersections(newLine) {
+            shapes.forEach(existingLine => {
+                if (existingLine === newLine) return;
+                const intersection = getLineIntersection(newLine, existingLine);
+                if (intersection) {
+                    console.log(`Intersection between Line ${newLine.id} & Line ${existingLine.id} at (${intersection.x}, ${intersection.y})`);
+                    let sp = findNearbySnapPoint(intersection.x, intersection.y);
+                    if (!sp) {
+                        sp = new SnapPoint(intersection.x, intersection.y);
+                        snapPoints.push(sp);
+                        console.log(`Created SnapPoint ID:${sp.id}`);
+                    }
+                    const [l1, l2] = existingLine.splitAtPoint(sp);
+                    if (l1 && l2) {
+                        undoStack.push({
+                            type: 'splitLine',
+                            originalLineId: existingLine.id,
+                            newLines: [l1.id, l2.id],
+                            splitPoint: { x: sp.x, y: sp.y },
+                            originalLineStartId: existingLine.start.id,
+                            originalLineEndId: existingLine.end.id
                         });
-                        if(isConnected){
-                            triangles.push([A,B,C]);
+                        redoStack.length = 0;
+                    }
+                }
+            });
+        }
+
+        // ***********************
+        // ***** Rectangle Functions ****
+        // ***********************
+        function getRectangleCoordinates(start, current) {
+            const x = Math.min(start.x, current.x);
+            const y = Math.min(start.y, current.y);
+            const width = Math.abs(current.x - start.x);
+            const height = Math.abs(current.y - start.y);
+            return { x, y, width, height };
+        }
+
+        function isPointInRect(sp, rect) {
+            return (
+                sp.x >= rect.x && sp.x <= rect.x + rect.width &&
+                sp.y >= rect.y && sp.y <= rect.y + rect.height
+            );
+        }
+
+        // ***********************
+        // ***** Selection Toggle ****
+        // ***********************
+        function toggleSelection(snapPoint, mode = 'toggle') {
+            if (mode === 'toggle') {
+                const idx = selectedSnapPoints.findIndex(s => s.id === snapPoint.id);
+                if (idx === -1) {
+                    selectedSnapPoints.push(snapPoint);
+                } else {
+                    selectedSnapPoints.splice(idx, 1);
+                }
+            } else if (mode === 'add') {
+                if (!selectedSnapPoints.some(s => s.id === snapPoint.id)) {
+                    selectedSnapPoints.push(snapPoint);
+                }
+            }
+        }
+
+        // ***********************
+        // ***** Editing Functionality ****
+        // ***********************
+        function openInputDialog(type, element, target) {
+            editingElement = { type, element, target };
+            inputValue.value = '';
+            inputDialog.style.display = 'block';
+            inputValue.focus();
+        }
+
+        function closeInputDialog() {
+            inputDialog.style.display = 'none';
+            editingElement = null;
+        }
+
+        // Store the last mouse event to access modifier keys in confirmInput handler
+        let lastMouseEvent = null;
+        canvas.addEventListener('mousedown', e => {
+            lastMouseEvent = e;
+        });
+
+        // Handle 'Enter' key to confirm input
+        inputValue.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                confirmInput.click();
+            }
+        });
+
+        confirmInput.addEventListener('click', () => {
+            const value = parseFloat(inputValue.value);
+            if (isNaN(value)) {
+                // Invalid input, revert silently
+                closeInputDialog();
+                return;
+            }
+            if (editingElement) {
+                if (editingElement.type === 'length') {
+                    const line = editingElement.element;
+                    const currentLengthPx = dist(line.start, line.end);
+                    if (value <= 0) {
+                        // Invalid length, revert silently
+                        closeInputDialog();
+                        return;
+                    }
+                    const newLengthPx = value * pxPerCm;
+                    const ratio = newLengthPx / currentLengthPx;
+                    const dx = line.end.x - line.start.x;
+                    const dy = line.end.y - line.start.y;
+                    let newX = line.start.x + dx * ratio;
+                    let newY = line.start.y + dy * ratio;
+
+                    // Check if Shift key is held during the last mouse event for angle snapping
+                    const modifiers = {
+                        shift: isShiftPressed, // Updated to use global Shift state
+                        ctrl: lastMouseEvent ? lastMouseEvent.ctrlKey : false
+                    };
+
+                    // Apply alignment constraints if modifiers are active
+                    if (isXAligned || isYAligned || modifiers.ctrl) {
+                        const origPos = { x: line.start.x, y: line.start.y };
+                        const adj = applyAlignmentConstraints(origPos, { x: newX, y: newY }, modifiers);
+                        newX = adj.x;
+                        newY = adj.y;
+                    }
+
+                    // Snap to angles if Shift is held
+                    if (modifiers.shift) {
+                        const angle = Math.atan2(newY - line.start.y, newX - line.start.x);
+                        const snappedAngle = snapToGrid(angle);
+                        newX = line.start.x + Math.cos(snappedAngle) * newLengthPx;
+                        newY = line.start.y + Math.sin(snappedAngle) * newLengthPx;
+                    }
+
+                    // Snap to existing snap points
+                    const s = findNearbySnapPoint(newX, newY);
+                    if (s) { newX = s.x; newY = s.y; }
+
+                    // Validate the new position to prevent degenerate triangles
+                    if (isNaN(newX) || isNaN(newY)) {
+                        closeInputDialog();
+                        return;
+                    }
+
+                    // Push to undo stack
+                    undoStack.push({
+                        type: 'editLength',
+                        lineId: line.id,
+                        prevEnd: { x: line.end.x, y: line.end.y },
+                        newEnd: { x: newX, y: newY }
+                    });
+                    redoStack.length = 0;
+
+                    // Update line
+                    line.setEndPoint('end', { x: newX, y: newY });
+                } else if (editingElement.type === 'area') {
+                    const tri = editingElement.element;
+                    const [A, B, C] = tri;
+                    const sideAB = dist(A, B);
+                    const sideBC = dist(B, C);
+                    const sideCA = dist(C, A);
+
+                    const areaPx2 = computeTriangleAreaPx(sideAB, sideBC, sideCA);
+                    if (value <= 0) {
+                        // Invalid area, revert silently
+                        closeInputDialog();
+                        return;
+                    }
+                    const newAreaCm2 = value;
+                    const newAreaPx2 = newAreaCm2 * (pxPerCm * pxPerCm);
+                    const scaleFactor = Math.sqrt(newAreaPx2 / areaPx2);
+                    tri.forEach(sp => {
+                        sp.move(A.x + (sp.x - A.x) * scaleFactor, A.y + (sp.y - A.y) * scaleFactor);
+                    });
+                    undoStack.push({
+                        type: 'editArea',
+                        triangleIds: tri.map(sp => sp.id),
+                        oldPositions: tri.map(sp => ({ id: sp.id, x: sp.x / scaleFactor, y: sp.y / scaleFactor })),
+                        newPositions: tri.map(sp => ({ id: sp.id, x: sp.x, y: sp.y }))
+                    });
+                    redoStack.length = 0;
+                }
+            }
+            closeInputDialog();
+            draw();
+        });
+
+        // ***********************
+        // ***** Triangle Detection & Area ****
+        // ***********************
+        function detectTriangles() {
+            triangles.length = 0;
+            snapPoints.forEach(A => {
+                const neighborsA = A.connectedLines.map(conn =>
+                    conn.endPoint === 'start' ? conn.line.end : conn.line.start
+                );
+                neighborsA.forEach(B => {
+                    if (B.id <= A.id) return;
+                    const neighborsB = B.connectedLines.map(conn =>
+                        conn.endPoint === 'start' ? conn.line.end : conn.line.start
+                    );
+                    neighborsB.forEach(C => {
+                        if (C.id <= B.id || C === A) return;
+                        const isConnected = A.connectedLines.some(conn => {
+                            const other = conn.endPoint === 'start' ? conn.line.end : conn.line.start;
+                            return other === C;
+                        });
+                        if (isConnected) {
+                            triangles.push([A, B, C]);
                         }
                     });
                 });
             });
         }
 
-        function draw(){
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            drawGrid();
-            detectTriangles();
+        function computeTriangleArea(a, b, c) {
+            return Math.abs((a.x*(b.y - c.y) + b.x*(c.y - a.y) + c.x*(a.y - b.y)) / 2);
+        }
 
-            // fill if needed
-            if(shouldFill && selectedSnapPoints.length>=3){
-                ctx.fillStyle='rgba(128,128,128,0.3)';
-                ctx.beginPath();
-                ctx.moveTo(selectedSnapPoints[0].x - panOffset.x, selectedSnapPoints[0].y - panOffset.y);
-                for(let i=1;i<selectedSnapPoints.length;i++){
-                    ctx.lineTo(selectedSnapPoints[i].x - panOffset.x, selectedSnapPoints[i].y - panOffset.y);
-                }
-                ctx.closePath();
-                ctx.fill();
-            }
+        function computeTriangleAreaPx(a, b, c) {
+            const s = (a + b + c) / 2;
+            return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+        }
 
-            shapes.forEach(shape=>{
-                shape.draw();
+        function computeTriangleAngles(a, b, c) {
+            const angleA = Math.acos((b * b + c * c - a * a) / (2 * b * c));
+            const angleB = Math.acos((a * a + c * c - b * b) / (2 * a * c));
+            const angleC = Math.acos((a * a + b * b - c * c) / (2 * a * b));
+            return [
+                (angleA * 180 / Math.PI).toFixed(2),
+                (angleB * 180 / Math.PI).toFixed(2),
+                (angleC * 180 / Math.PI).toFixed(2)
+            ];
+        }
+
+        function labelSide(P1, P2, lengthCm) {
+            if (!geometryLabelsVisible) return;
+            const midX = (P1.x + P2.x) / 2;
+            const midY = (P1.y + P2.y) / 2;
+            const textOffset = 10;
+            const dx = P2.x - P1.x;
+            const dy = P2.y - P1.y;
+            const len = Math.hypot(dx, dy);
+            const ux = -dy / len;
+            const uy = dx / len;
+            const labelX = midX + textOffset * ux;
+            const labelY = midY + textOffset * uy;
+
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.font = '12px Arial';
+            ctx.fillText(`${lengthCm.toFixed(2)} cm`, labelX - panOffset.x - 25, labelY - panOffset.y - 5); // Adjusted for better positioning
+
+            // Store label information for hit-testing
+            const textMetrics = ctx.measureText(`${lengthCm.toFixed(2)} cm`);
+            labels.push({
+                type: 'length',
+                triangle: [P1, P2],
+                target: `side${P1.id}${P2.id}`, // Unique identifier
+                x: labelX - panOffset.x - 25, // Adjusted x
+                y: labelY - panOffset.y - 14, // Adjusted y
+                width: textMetrics.width + 50, // Adjusted width
+                height: 14 // Approximate height
             });
 
-            ctx.strokeStyle='rgba(128,128,128,0.5)';
-            ctx.lineWidth=1;
-            triangles.forEach(tri=>{
+            ctx.restore();
+        }
+
+        function computeTriangleAreaCm2(sideAB, sideBC, sideCA) {
+            const areaPx2 = computeTriangleAreaPx(sideAB, sideBC, sideCA);
+            const areaCm2 = areaPx2 / (pxPerCm * pxPerCm);
+            return areaCm2;
+        }
+
+        function drawTriangleLabels(tri) {
+            if (!geometryLabelsVisible) return;
+            const [A, B, C] = tri;
+            const sideAB = dist(A, B);
+            const sideBC = dist(B, C);
+            const sideCA = dist(C, A);
+
+            const AB_cm = sideAB / pxPerCm;
+            const BC_cm = sideBC / pxPerCm;
+            const CA_cm = sideCA / pxPerCm;
+
+            const [angleA, angleB, angleC] = computeTriangleAngles(sideBC, sideCA, sideAB);
+
+            labelSide(A, B, AB_cm);
+            labelSide(B, C, BC_cm);
+            labelSide(C, A, CA_cm);
+
+            // Removed angle arcs as per user request
+
+            const areaCm2 = computeTriangleAreaCm2(sideAB, sideBC, sideCA);
+            const centroid = {
+                x: (A.x + B.x + C.x) / 3,
+                y: (A.y + B.y + C.y) / 3
+            };
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.font = '12px Arial';
+            ctx.fillText(`Area: ${areaCm2.toFixed(2)} cm²`, centroid.x - panOffset.x - 40, centroid.y - panOffset.y - 5);
+            ctx.restore();
+
+            // Store label information for hit-testing
+            const textMetrics = ctx.measureText(`Area: ${areaCm2.toFixed(2)} cm²`);
+            labels.push({
+                type: 'area',
+                triangle: tri,
+                target: `area${tri.map(sp => sp.id).join('-')}`, // Unique identifier
+                x: centroid.x - panOffset.x - 40,
+                y: centroid.y - panOffset.y - 14,
+                width: textMetrics.width + 80, // Adjusted width
+                height: 14 // Approximate height
+            });
+        }
+
+        // ***********************
+        // ***** Drawing Function ****
+        // ***********************
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            // Draw Background Image
+            if (bgImage) {
+                ctx.save();
+                ctx.translate(bgImageX - panOffset.x, bgImageY - panOffset.y);
+                ctx.rotate(bgImageRotation);
+                ctx.scale(bgImageScale, bgImageScale);
+                ctx.globalAlpha = 0.5; // Semi-transparent
+                ctx.drawImage(bgImage, -bgImage.width / 2, -bgImage.height / 2);
+                ctx.restore();
+            }
+
+            labels.length = 0; // Clear previous labels
+            detectTriangles();
+
+            // Fill triangles
+            ctx.fillStyle = 'rgba(128,128,128,0.2)';
+            triangles.forEach(tri => {
+                ctx.beginPath();
+                ctx.moveTo(tri[0].x - panOffset.x, tri[0].y - panOffset.y);
+                ctx.lineTo(tri[1].x - panOffset.x, tri[1].y - panOffset.y);
+                ctx.lineTo(tri[2].x - panOffset.x, tri[2].y - panOffset.y);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Draw shapes
+            shapes.forEach(shape => shape.draw());
+
+            // Outline triangles
+            ctx.strokeStyle = 'rgba(128,128,128,0.5)';
+            ctx.lineWidth = 1;
+            triangles.forEach(tri => {
                 ctx.beginPath();
                 ctx.moveTo(tri[0].x - panOffset.x, tri[0].y - panOffset.y);
                 ctx.lineTo(tri[1].x - panOffset.x, tri[1].y - panOffset.y);
@@ -382,67 +1233,101 @@
                 ctx.stroke();
             });
 
-            if(hoveredSnapPoint){
-                ctx.fillStyle='#00FF00';
-                ctx.beginPath();
-                ctx.arc(hoveredSnapPoint.x - panOffset.x, hoveredSnapPoint.y - panOffset.y, snapRadius,0,2*Math.PI);
-                ctx.globalAlpha=0.3;
-                ctx.fill();
-                ctx.globalAlpha=1.0;
+            // Draw geometry labels
+            if (geometryLabelsVisible) {
+                triangles.forEach(tri => {
+                    drawTriangleLabels(tri);
+                });
             }
 
-            if(selectedSnapPoints.length>0){
-                selectedSnapPoints.forEach(sp=>{
-                    ctx.strokeStyle='#00FFFF';
-                    ctx.lineWidth=3;
+            // Highlight hovered snap point
+            if (hoveredSnapPoint) {
+                ctx.fillStyle = '#00FF00';
+                ctx.beginPath();
+                ctx.arc(hoveredSnapPoint.x - panOffset.x, hoveredSnapPoint.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
+                ctx.globalAlpha = 0.3;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+
+            // Highlight hovered label
+            if (hoveredLabel) {
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.rect(hoveredLabel.x, hoveredLabel.y, hoveredLabel.width, hoveredLabel.height);
+                ctx.stroke();
+            }
+
+            // Highlight selected snap points
+            if (selectedSnapPoints.length > 0) {
+                selectedSnapPoints.forEach(sp => {
+                    ctx.strokeStyle = '#00FFFF';
+                    ctx.lineWidth = 3;
                     ctx.beginPath();
-                    ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, snapRadius,0,2*Math.PI);
+                    ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
                     ctx.stroke();
                 });
             }
 
-            if(snapPointsVisible){
-                snapPoints.forEach(sp=>{
-                    if(sp.connectedLines.length===0){
-                        ctx.fillStyle='#FF0000';
+            // Draw unconnected snap points
+            if (snapPointsVisible) {
+                snapPoints.forEach(sp => {
+                    if (sp.connectedLines.length === 0) {
+                        ctx.fillStyle = '#FF0000';
                         ctx.beginPath();
-                        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y,6,0,2*Math.PI);
+                        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, 6, 0, 2 * Math.PI);
                         ctx.fill();
                     }
                 });
             }
 
-            if(snapPointsVisible){
-                shapes.forEach(shape=>{
-                    if(shape.type==='line'){
-                        ctx.fillStyle='#FF0000';
+            // Draw endpoints
+            if (snapPointsVisible) {
+                shapes.forEach(shape => {
+                    if (shape.type === 'line') {
+                        ctx.fillStyle = '#FF0000';
                         ctx.beginPath();
-                        ctx.arc(shape.start.x - panOffset.x, shape.start.y - panOffset.y,6,0,2*Math.PI);
+                        ctx.arc(shape.start.x - panOffset.x, shape.start.y - panOffset.y, 6, 0, 2 * Math.PI);
                         ctx.fill();
 
                         ctx.beginPath();
-                        ctx.arc(shape.end.x - panOffset.x, shape.end.y - panOffset.y,6,0,2*Math.PI);
+                        ctx.arc(shape.end.x - panOffset.x, shape.end.y - panOffset.y, 6, 0, 2 * Math.PI);
                         ctx.fill();
                     }
                 });
             }
 
-            if(arrowsVisible){
-                shapes.forEach(shape=>{
-                    if(shape.type==='line'){
+            // Draw arrows
+            if (arrowsVisible) {
+                shapes.forEach(shape => {
+                    if (shape.type === 'line') {
                         drawArrow(shape.start, shape.end);
                     }
                 });
             }
 
-            if(isMotorRunning){
-                ctx.strokeStyle='rgba(0,0,255,0.3)';
-                ctx.lineWidth=1;
-                snapPoints.forEach(sp=>{
-                    if(sp.trail.length>1){
+            // Draw selection rectangle
+            if (isSelectionRectActive) {
+                const r = getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
+                ctx.strokeStyle = '#00BFFF';
+                ctx.fillStyle = 'rgba(0,191,255,0.2)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.rect(r.x - panOffset.x, r.y - panOffset.y, r.width, r.height);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // Draw motor rotation trails
+            if (isMotorRunning) {
+                ctx.strokeStyle = 'rgba(0,0,255,0.3)';
+                ctx.lineWidth = 1;
+                snapPoints.forEach(sp => {
+                    if (sp.trail && sp.trail.length > 1) {
                         ctx.beginPath();
                         ctx.moveTo(sp.trail[0].x - panOffset.x, sp.trail[0].y - panOffset.y);
-                        for(let i=1;i<sp.trail.length;i++){
+                        for (let i = 1; i < sp.trail.length; i++) {
                             ctx.lineTo(sp.trail[i].x - panOffset.x, sp.trail[i].y - panOffset.y);
                         }
                         ctx.stroke();
@@ -450,332 +1335,208 @@
                 });
             }
 
-            if(isDragging && currentVector){
-                if(origin.type==='line'){
-                    ctx.strokeStyle='#B0B0B0';
-                    ctx.setLineDash([7,3]);
-                    ctx.beginPath();
-                    ctx.moveTo(origin.startSnapPoint.x - panOffset.x, origin.startSnapPoint.y - panOffset.y);
-                    ctx.lineTo(currentVector.x - panOffset.x, currentVector.y - panOffset.y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    ctx.strokeStyle='#333333';
-                    ctx.beginPath();
-                    ctx.arc(currentVector.x - panOffset.x, currentVector.y - panOffset.y,4,0,2*Math.PI);
-                    ctx.fill();
-                }
-            }
-
-            if(isCtrlDragging && origin.snapPoint){
-                ctx.fillStyle='#FFA500';
+            // Draw preview line while dragging
+            if (isDragging && currentVector && origin.type === 'line') {
+                ctx.strokeStyle = '#B0B0B0';
+                ctx.setLineDash([7, 3]);
                 ctx.beginPath();
-                ctx.arc(origin.snapPoint.x - panOffset.x, origin.snapPoint.y - panOffset.y, snapRadius,0,2*Math.PI);
-                ctx.globalAlpha=0.2;
+                ctx.moveTo(origin.startSnapPoint.x - panOffset.x, origin.startSnapPoint.y - panOffset.y);
+                ctx.lineTo(currentVector.x - panOffset.x, currentVector.y - panOffset.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.strokeStyle = '#333333';
+                ctx.beginPath();
+                ctx.arc(currentVector.x - panOffset.x, currentVector.y - panOffset.y, 4, 0, 2 * Math.PI);
                 ctx.fill();
-                ctx.globalAlpha=1.0;
+            }
 
-                const nearestSnap=findNearbySnapPoint(origin.snapPoint.x, origin.snapPoint.y, [origin.snapPoint]);
-                if(nearestSnap){
-                    ctx.fillStyle='#00FF00';
+            // Highlight ctrl-dragging snap point
+            if (isCtrlDragging && origin.snapPoint) {
+                ctx.fillStyle = '#FFA500';
+                ctx.beginPath();
+                ctx.arc(origin.snapPoint.x - panOffset.x, origin.snapPoint.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
+                ctx.globalAlpha = 0.2;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+
+                const near = findNearbySnapPoint(origin.snapPoint.x, origin.snapPoint.y, [origin.snapPoint]);
+                if (near) {
+                    ctx.fillStyle = '#00FF00';
                     ctx.beginPath();
-                    ctx.arc(nearestSnap.x - panOffset.x, nearestSnap.y - panOffset.y, snapRadius,0,2*Math.PI);
-                    ctx.globalAlpha=0.3;
+                    ctx.arc(near.x - panOffset.x, near.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
+                    ctx.globalAlpha = 0.3;
                     ctx.fill();
-                    ctx.globalAlpha=1.0;
+                    ctx.globalAlpha = 1.0;
                 }
             }
 
-            if(selectedSnapPoint){
-                ctx.strokeStyle='#0000FF';
-                ctx.lineWidth=3;
+            // Highlight SHIFT+Right selected snap point
+            if (selectedSnapPoint) {
+                ctx.strokeStyle = '#0000FF';
+                ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(selectedSnapPoint.x - panOffset.x, selectedSnapPoint.y - panOffset.y, snapRadius,0,2*Math.PI);
+                ctx.arc(selectedSnapPoint.x - panOffset.x, selectedSnapPoint.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
                 ctx.stroke();
             }
 
-            let alignText='None';
-            if(isXAligned && isYAligned){
-                alignText='X & Y';
-            } else if(isXAligned){
-                alignText='X';
-            } else if(isYAligned){
-                alignText='Y';
-            }
-            alignmentStatus.textContent=`Alignment: ${alignText}`;
-        }
-
-        const motorRotatingLines=new Set();
-        const rotatingLines=new Set();
-
-        class Shape {
-            constructor(type){ this.type=type; }
-            isPointInside(x,y){ return false; }
-            draw(){}
-            getSnapPoints(){ return[]; }
-        }
-
-        class SnapPoint {
-            static nextId=0;
-            constructor(x,y,type='standard'){
-                this.id=SnapPoint.nextId++;
-                this.x=x;
-                this.y=y;
-                this.type=type;
-                this.connectedLines=[];
-                this.rotationDirection='clockwise';
-                this.trail=[];
-            }
-            addLine(line,endPoint){
-                this.connectedLines.push({ line, endPoint });
-            }
-            removeLine(line){
-                this.connectedLines=this.connectedLines.filter(conn=>conn.line!==line);
-            }
-            move(newX,newY,silent=false){
-                if(isMotorRunning){
-                    this.trail.push({x:newX,y:newY});
-                    if(this.trail.length>200){
-                        this.trail.shift();
-                    }
-                }
-                this.x=newX; 
-                this.y=newY;
-                if(!silent){
-                    this.connectedLines.forEach(conn=>{
-                        conn.line.updateCenter();
-                    });
-                }
-            }
-            isNear(x,y){
-                return Math.hypot(this.x - x, this.y - y)<=snapRadius;
-            }
-        }
-
-        class Line extends Shape {
-            static nextId=0;
-            constructor(start,end){
-                super('line');
-                this.id=Line.nextId++;
-                this.start=start;
-                this.end=end;
-                this.updateCenter();
-                this.start.addLine(this,'start');
-                this.end.addLine(this,'end');
-            }
-            updateCenter(){
-                this.center={
-                    x:(this.start.x+this.end.x)/2,
-                    y:(this.start.y+this.end.y)/2
-                };
-            }
-            isPointInside(x,y){
-                const dist=pointLineDistance({x,y},this.start,this.end);
-                return dist<=6;
-            }
-            draw(){
-                if(!this.start||!this.end) return;
-                if(isMotorRunning && motorRotatingLines.has(this)){
-                    ctx.strokeStyle='#32CD32';
-                } else if(isRotating && rotatingLines.has(this)){
-                    ctx.strokeStyle='#FF4500';
-                } else {
-                    ctx.strokeStyle='#333333';
-                }
-                ctx.lineWidth=2;
+            // Highlight hovered label
+            if (hoveredLabel) {
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(this.start.x - panOffset.x, this.start.y - panOffset.y);
-                ctx.lineTo(this.end.x - panOffset.x, this.end.y - panOffset.y);
+                ctx.rect(hoveredLabel.x, hoveredLabel.y, hoveredLabel.width, hoveredLabel.height);
                 ctx.stroke();
+            }
 
-                if(selectedSnapPoints.length>0){
-                    selectedSnapPoints.forEach(sp=>{
-                        ctx.strokeStyle='#00FFFF';
-                        ctx.lineWidth=3;
-                        ctx.beginPath();
-                        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, snapRadius,0,2*Math.PI);
-                        ctx.stroke();
-                    });
-                }
-
-                if(arrowsVisible){
-                    drawArrow(this.start,this.end);
-                }
-            }
-            getSnapPoints(){
-                return [
-                    { x:this.start.x, y:this.start.y },
-                    { x:this.end.x,   y:this.end.y }
-                ];
-            }
-            setEndPoint(endPoint,newPos){
-                if(endPoint==='start'){
-                    if(newPos instanceof SnapPoint){
-                        this.start.removeLine(this);
-                        this.start=newPos;
-                        this.start.addLine(this,'start');
-                    } else {
-                        this.start.move(newPos.x,newPos.y);
-                    }
-                } else if(endPoint==='end'){
-                    if(newPos instanceof SnapPoint){
-                        this.end.removeLine(this);
-                        this.end=newPos;
-                        this.end.addLine(this,'end');
-                    } else {
-                        this.end.move(newPos.x,newPos.y);
-                    }
-                }
-                this.updateCenter();
-            }
-            rotate(deltaAngle,anchor){
-                const cos=Math.cos(deltaAngle);
-                const sin=Math.sin(deltaAngle);
-                let startX=this.start.x - anchor.x;
-                let startY=this.start.y - anchor.y;
-                let endX=this.end.x - anchor.x;
-                let endY=this.end.y - anchor.y;
-                const rStartX=startX*cos - startY*sin;
-                const rStartY=startX*sin + startY*cos;
-                const rEndX=endX*cos - endY*sin;
-                const rEndY=endX*sin + endY*cos;
-                this.start.move(rStartX+anchor.x,rStartY+anchor.y);
-                this.end.move(rEndX+anchor.x,  rEndY+anchor.y);
-                this.updateCenter();
-            }
-            isPointOnLine(point,tolerance=5){
-                const dist=pointLineDistance(point,this.start,this.end);
-                return dist<=tolerance;
-            }
-            splitAtPoint(point){
-                if((point.x===this.start.x && point.y===this.start.y)||
-                   (point.x===this.end.x   && point.y===this.end.y)){
-                    console.warn('Split point is an endpoint. Aborted.');
-                    return [];
-                }
-                let existingSnap=findNearbySnapPoint(point.x,point.y);
-                if(!existingSnap){
-                    existingSnap=new SnapPoint(point.x,point.y);
-                    snapPoints.push(existingSnap);
-                }
-                if((existingSnap.x===this.start.x && existingSnap.y===this.start.y)||
-                   (existingSnap.x===this.end.x   && existingSnap.y===this.end.y)){
-                    console.warn('Split point is existing endpoint. Aborted.');
-                    return [];
-                }
-                const line1=new Line(this.start,existingSnap);
-                const line2=new Line(existingSnap,this.end);
-                shapes.push(line1,line2);
-                const idx=shapes.findIndex(l=>l.id===this.id);
-                if(idx>-1) shapes.splice(idx,1);
-                else console.warn(`Original line ID:${this.id} not found in shapes array.`);
-                console.log(`Line ID:${this.id} split => line1:${line1.id}, line2:${line2.id}`);
-                return [line1,line2];
-            }
+            // Update alignment status
+            let alignmentText = 'None';
+            if (isXAligned && isYAligned) alignmentText = 'X & Y';
+            else if (isXAligned) alignmentText = 'X';
+            else if (isYAligned) alignmentText = 'Y';
+            alignmentStatus.textContent = `Alignment: ${alignmentText}`;
         }
 
-        function checkAndHandleIntersections(newLine){
-            shapes.forEach(existingLine=>{
-                if(existingLine===newLine) return;
-                const intersection=getLineIntersection(newLine,existingLine);
-                if(intersection){
-                    console.log(`Intersection at (${intersection.x},${intersection.y}) b/w newLine:${newLine.id} & line:${existingLine.id}`);
-                    let existingSnap=findNearbySnapPoint(intersection.x,intersection.y);
-                    if(!existingSnap){
-                        existingSnap=new SnapPoint(intersection.x,intersection.y);
-                        snapPoints.push(existingSnap);
-                        console.log(`Created new SnapPoint ID:${existingSnap.id}`);
-                    }
-                    const [line1,line2]=existingLine.splitAtPoint(existingSnap);
-                    if(line1 && line2){
-                        undoStack.push({
-                            type:'splitLine',
-                            originalLineId:existingLine.id,
-                            newLines:[line1.id,line2.id],
-                            splitPoint:{x:existingSnap.x,y:existingSnap.y}
-                        });
-                        redoStack.length=0;
+        // ***********************
+        // ***** Mouse Event Handlers ****
+        // ***********************
+        canvas.addEventListener('mousedown', e => {
+            lastMouseEvent = e; // Store the last mouse event for modifier keys
+
+            const pos = getMousePos(e);
+
+            // ***********************
+            // ***** Check if Click is on a Label or Handle *****
+            // ***********************
+            const clickedOnLabel = labels.some(label => {
+                return pos.x >= label.x && pos.x <= label.x + label.width &&
+                       pos.y >= label.y && pos.y <= label.y + label.height;
+            });
+
+            // Check if clicked on any length handle
+            let clickedOnHandle = false;
+            shapes.forEach(shape => {
+                if (shape.type === 'line' && shape.lengthHandle) {
+                    const handleRect = shape.lengthHandle.getBoundingClientRect();
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const handleX = handleRect.left + window.scrollX;
+                    const handleY = handleRect.top + window.scrollY;
+                    const mouseX = e.clientX;
+                    const mouseY = e.clientY;
+                    if (
+                        mouseX >= handleX &&
+                        mouseX <= handleX + handleRect.width &&
+                        mouseY >= handleY &&
+                        mouseY <= handleY + handleRect.height
+                    ) {
+                        clickedOnHandle = true;
+                        // Open input dialog for length editing
+                        openInputDialog('length', shape, 'end');
+                        // Prevent further actions
+                        e.stopPropagation();
                     }
                 }
             });
-        }
 
-        canvas.addEventListener('contextmenu', e=> e.preventDefault());
+            if (clickedOnLabel || clickedOnHandle) {
+                // Do not initiate any dragging or drawing actions
+                return;
+            }
+            // ***********************
 
-        // MOUSE DOWN
-        canvas.addEventListener('mousedown', e=>{
-            const pos=getMousePos(e);
-            dragStartPos=pos;
-            hasDragged=false;
-            lockedAxis=null; // reset for "C" usage
-
-            currentMouseButton=e.button;
-
-            // ctrl+alt => selection rectangle
-            if(e.ctrlKey && e.altKey && e.button===0){
-                isSelectionRectActive=true;
-                selectionRectStart={x:pos.x,y:pos.y};
-                selectionRectCurrent={x:pos.x,y:pos.y};
-                selectionRectElement.style.display='block';
-                selectionRectElement.style.left=`${selectionRectStart.x - panOffset.x}px`;
-                selectionRectElement.style.top=`${selectionRectStart.y - panOffset.y}px`;
-                selectionRectElement.style.width='0px';
-                selectionRectElement.style.height='0px';
+            if (e.button === 1) { // Middle mouse button
+                if (!bgImageLocked && bgImage) {
+                    // Start moving background image
+                    isDragging = true;
+                    isBgDragging = true;
+                    bgDragStart = { x: pos.x, y: pos.y };
+                    bgInitialPos = { x: bgImageX, y: bgImageY };
+                } else {
+                    // Start panning the canvas
+                    isPanning = true;
+                    panStart = { x: e.clientX, y: e.clientY };
+                    canvas.style.cursor = 'grabbing';
+                }
+                e.preventDefault();
                 return;
             }
 
-            if(e.shiftKey && e.button===2){
-                const sp=findNearbySnapPoint(pos.x,pos.y);
-                if(sp){
-                    selectedSnapPoint=sp;
-                    console.log(`Selected SnapPoint ID:${sp.id}`);
-                } else {
-                    selectedSnapPoint=null;
-                }
+            dragStartPos = pos;
+            hasDragged = false;
+            currentMouseButton = e.button;
+
+            // Ctrl + Alt + Left Click => Selection Rectangle
+            if (e.ctrlKey && e.altKey && e.button === 0) {
+                isSelectionRectActive = true;
+                selectionRectStart = { x: pos.x, y: pos.y };
+                selectionRectCurrent = { x: pos.x, y: pos.y };
+                selectionRect.style.display = 'block';
+                selectionRect.style.left = `${selectionRectStart.x - panOffset.x}px`;
+                selectionRect.style.top = `${selectionRectStart.y - panOffset.y}px`;
+                selectionRect.style.width = '0px';
+                selectionRect.style.height = '0px';
+                return;
+            }
+
+            // Shift + Alt + Left Click => Make Right Angle
+            if (e.shiftKey && e.altKey && e.button === 0) {
+                const sp = findNearbySnapPoint(pos.x, pos.y);
+                if (sp) makeRightAngleAtSnapPoint(sp);
+                return;
+            }
+
+            // Shift + Right Click => Select Snap Point
+            if (e.shiftKey && e.button === 2) {
+                const sp = findNearbySnapPoint(pos.x, pos.y);
+                if (sp) selectedSnapPoint = sp;
+                else selectedSnapPoint = null;
                 draw();
                 return;
             }
 
-            if(e.button===2||e.button===0) e.preventDefault();
+            if (e.button === 2 || e.button === 0) {
+                e.preventDefault();
+            }
 
-            if((e.button===0||e.button===2) && e.ctrlKey && !e.altKey){
-                const sp=findNearbySnapPoint(pos.x,pos.y);
-                if(sp){
-                    isDragging=true;
-                    isCtrlDragging=true;
-                    isCtrlAltDragging=e.altKey;
-                    origin={type:'snapPoint',snapPoint:sp};
-                    currentVector={x:sp.x,y:sp.y};
+            // Ctrl + Left/Right Click => Move Snap Point
+            if ((e.button === 0 || e.button === 2) && e.ctrlKey && !e.altKey) {
+                const sp = findNearbySnapPoint(pos.x, pos.y);
+                if (sp) {
+                    isDragging = true;
+                    isCtrlDragging = true;
+                    origin = { type: 'snapPoint', snapPoint: sp };
+                    currentVector = { x: sp.x, y: sp.y };
                     draw();
                     return;
                 }
             }
 
-            if(e.altKey){
-                rotationTarget=shapes.find(shape=>shape.isPointInside(pos.x,pos.y));
-                if(rotationTarget){
-                    isRotating=true;
-                    rotationAnchor=rotationTarget.center;
-                    initialMousePos=pos;
-                    initialVectors[rotationTarget.id]={
-                        start:{x:rotationTarget.start.x,y:rotationTarget.start.y},
-                        end:{x:rotationTarget.end.x,y:rotationTarget.end.y}
+            // Alt + Click => Rotate Shape
+            if (e.altKey) {
+                rotationTarget = shapes.find(sh => sh.isPointInside(pos.x, pos.y));
+                if (rotationTarget) {
+                    isRotating = true;
+                    rotationAnchor = rotationTarget.center;
+                    initialMousePos = pos;
+                    initialVectors[rotationTarget.id] = {
+                        start: { x: rotationTarget.start.x, y: rotationTarget.start.y },
+                        end: { x: rotationTarget.end.x, y: rotationTarget.end.y }
                     };
                     rotatingLines.add(rotationTarget);
                     draw();
                     return;
                 }
-                const sp=findNearbySnapPoint(pos.x,pos.y);
-                if(sp){
-                    const connectedLines=sp.connectedLines.map(conn=>conn.line);
-                    if(connectedLines.length>0){
-                        isRotating=true;
-                        rotationAnchor=sp;
-                        initialMousePos=pos;
-                        connectedLines.forEach(line=>{
-                            initialVectors[line.id]={
-                                start:{x:line.start.x,y:line.start.y},
-                                end:{x:line.end.x,y:line.end.y}
+                const altSP = findNearbySnapPoint(pos.x, pos.y);
+                if (altSP) {
+                    const connectedLines = altSP.connectedLines.map(c => c.line);
+                    if (connectedLines.length > 0) {
+                        isRotating = true;
+                        rotationAnchor = altSP;
+                        initialMousePos = pos;
+                        connectedLines.forEach(line => {
+                            initialVectors[line.id] = {
+                                start: { x: line.start.x, y: line.start.y },
+                                end: { x: line.end.x, y: line.end.y }
                             };
                             rotatingLines.add(line);
                         });
@@ -785,314 +1546,357 @@
                 }
             }
 
-            // left => new line
-            if(e.button===0 && !e.altKey && !e.ctrlKey && !e.shiftKey){
-                isDragging=true;
-                isCtrlDragging=false;
-                isCtrlAltDragging=false;
-                const sp=findNearbySnapPoint(pos.x,pos.y);
-                let startSnapPoint;
-                if(sp){
-                    startSnapPoint=sp;
+            // Left Click => New Line (with optional Shift for angle snapping)
+            if (e.button === 0 && !e.altKey && !e.ctrlKey && !e.shiftKey) {
+                isDragging = true;
+                isCtrlDragging = false;
+                origin = { type: 'line', line: null, startSnapPoint: null };
+                const sp = findNearbySnapPoint(pos.x, pos.y);
+                let startSP;
+                if (sp) {
+                    startSP = sp;
                 } else {
-                    startSnapPoint=new SnapPoint(pos.x,pos.y);
-                    snapPoints.push(startSnapPoint);
+                    startSP = new SnapPoint(pos.x, pos.y);
+                    snapPoints.push(startSP);
                 }
-                currentVector={x:pos.x,y:pos.y};
-                origin={type:'line', line:null, startSnapPoint};
+                origin.startSnapPoint = startSP;
+                currentVector = { x: pos.x, y: pos.y };
                 draw();
                 return;
             }
 
-            // right => new line
-            if(e.button===2 && !e.altKey && !e.ctrlKey && !e.shiftKey){
-                isDragging=true;
-                isCtrlDragging=false;
-                isCtrlAltDragging=false;
-                const sp=findNearbySnapPoint(pos.x,pos.y);
-                let startSnapPoint;
-                if(sp){
-                    startSnapPoint=sp;
+            // Shift + Left Click => New Line with Angle Snapping
+            if (e.button === 0 && e.shiftKey) {
+                isDragging = true;
+                isCtrlDragging = false;
+                origin = { type: 'line', line: null, startSnapPoint: null };
+                const sp = findNearbySnapPoint(pos.x, pos.y);
+                let startSP;
+                if (sp) {
+                    startSP = sp;
                 } else {
-                    startSnapPoint=new SnapPoint(pos.x,pos.y);
-                    snapPoints.push(startSnapPoint);
+                    startSP = new SnapPoint(pos.x, pos.y);
+                    snapPoints.push(startSP);
                 }
-                currentVector={x:pos.x,y:pos.y};
-                origin={type:'line',line:null,startSnapPoint};
+                origin.startSnapPoint = startSP;
+                currentVector = { x: pos.x, y: pos.y };
                 draw();
                 return;
             }
 
-            // shift+left => detach lines
-            if(e.shiftKey && e.button===0){
-                if(selectedSnapPoint){
-                    const connectedLines=[...selectedSnapPoint.connectedLines];
-                    connectedLines.forEach(conn=>{
-                        const line=conn.line;
-                        const newSnap=new SnapPoint(selectedSnapPoint.x,selectedSnapPoint.y);
-                        snapPoints.push(newSnap);
-                        if(conn.endPoint==='start'){
-                            line.setEndPoint('start',newSnap);
+            // Right Click => New Line
+            if (e.button === 2 && !e.altKey && !e.ctrlKey && !e.shiftKey) {
+                isDragging = true;
+                isCtrlDragging = false;
+                origin = { type: 'line', line: null, startSnapPoint: null };
+                const sp = findNearbySnapPoint(pos.x, pos.y);
+                let startSP;
+                if (sp) {
+                    startSP = sp;
+                } else {
+                    startSP = new SnapPoint(pos.x, pos.y);
+                    snapPoints.push(startSP);
+                }
+                origin.startSnapPoint = startSP;
+                currentVector = { x: pos.x, y: pos.y };
+                draw();
+                return;
+            }
+
+            // Shift + Right Click => Detach Lines
+            if (e.shiftKey && e.button === 0) {
+                if (selectedSnapPoint) {
+                    const connected = [...selectedSnapPoint.connectedLines];
+                    connected.forEach(conn => {
+                        const line = conn.line;
+                        const newSP = new SnapPoint(selectedSnapPoint.x, selectedSnapPoint.y);
+                        snapPoints.push(newSP);
+                        if (conn.endPoint === 'start') {
+                            line.setEndPoint('start', newSP);
                         } else {
-                            line.setEndPoint('end',newSnap);
+                            line.setEndPoint('end', newSP);
                         }
-                        console.log(`Detached line ${line.id} from snapPoint ${selectedSnapPoint.id}`);
                     });
-                    isDragging=true;
-                    isCtrlDragging=false;
-                    isCtrlAltDragging=false;
-                    currentVector={x:pos.x,y:pos.y};
-                    origin={type:'line',line:null,startSnapPoint:selectedSnapPoint};
+                    isDragging = true;
+                    isCtrlDragging = false;
+                    origin = { type: 'line', line: null, startSnapPoint: selectedSnapPoint };
+                    currentVector = { x: selectedSnapPoint.x, y: selectedSnapPoint.y };
                     draw();
                     return;
                 }
             }
         });
 
-        // MOUSE MOVE
-        canvas.addEventListener('mousemove', e=>{
-            const pos=getMousePos(e);
-            hoveredSnapPoint=findNearbySnapPoint(pos.x,pos.y);
+        canvas.addEventListener('mousemove', e => {
+            const pos = getMousePos(e);
 
-            if(isDragging){
-                if(isCtrlAltDragging){
-                    canvas.style.cursor='not-allowed';
-                } else if(isCtrlDragging){
-                    if(e.ctrlKey && e.shiftKey){
-                        canvas.style.cursor='nwse-resize';
-                    } else {
-                        canvas.style.cursor='move';
-                    }
-                } else {
-                    if(e.ctrlKey && e.shiftKey){
-                        canvas.style.cursor='nwse-resize';
-                    } else {
-                        canvas.style.cursor='crosshair';
-                    }
-                }
-            } else if(isRotating){
-                canvas.style.cursor='grab';
-            } else if(isMotorRunning){
-                canvas.style.cursor='default';
-            } else if(isSelectionRectActive){
-                canvas.style.cursor='crosshair';
-            } else {
-                if(hoveredSnapPoint){
-                    canvas.style.cursor='pointer';
-                } else {
-                    canvas.style.cursor='default';
+            hoveredSnapPoint = findNearbySnapPoint(pos.x, pos.y);
+
+            // Check if hovering over any label
+            hoveredLabel = null;
+            for (let label of labels) {
+                if (pos.x >= label.x && pos.x <= label.x + label.width &&
+                    pos.y >= label.y && pos.y <= label.y + label.height) {
+                    hoveredLabel = label;
+                    break;
                 }
             }
 
-            if(isDragging && origin.type==='line'){
-                // apply "C" axis constraint
-                let newPos={ x: pos.x, y: pos.y };
-                newPos = applyCKeyAxisConstraint(dragStartPos, newPos);
-
-                // also apply alignment if X or Y is toggled
-                if(isXAligned||isYAligned){
-                    newPos=applyAlignmentConstraints(dragStartPos,newPos);
+            // Check if hovering over any length handle
+            hoveredHandle = null;
+            shapes.forEach(shape => {
+                if (shape.type === 'line' && shape.lengthHandle) {
+                    const handleRect = shape.lengthHandle.getBoundingClientRect();
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const handleX = handleRect.left + window.scrollX;
+                    const handleY = handleRect.top + window.scrollY;
+                    const mouseX = e.clientX;
+                    const mouseY = e.clientY;
+                    if (
+                        mouseX >= handleX &&
+                        mouseX <= handleX + handleRect.width &&
+                        mouseY >= handleY &&
+                        mouseY <= handleY + handleRect.height
+                    ) {
+                        hoveredHandle = shape;
+                    }
                 }
-                currentVector=newPos;
-            }
+            });
 
-            if(isSelectionRectActive){
-                selectionRectCurrent={x:pos.x,y:pos.y};
-                const rect=getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
-                selectionRectElement.style.left=`${rect.x - panOffset.x}px`;
-                selectionRectElement.style.top=`${rect.y - panOffset.y}px`;
-                selectionRectElement.style.width=`${rect.width}px`;
-                selectionRectElement.style.height=`${rect.height}px`;
+            if (isSelectionRectActive) {
+                selectionRectCurrent = { x: pos.x, y: pos.y };
+                const r = getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
+                selectionRect.style.left = `${r.x - panOffset.x}px`;
+                selectionRect.style.top = `${r.y - panOffset.y}px`;
+                selectionRect.style.width = `${r.width}px`;
+                selectionRect.style.height = `${r.height}px`;
                 draw();
                 return;
             }
 
-            if(isDragging){
-                hasDragged=true;
-                if(isCtrlAltDragging){
-                    // ...
-                } else if(isCtrlDragging){
-                    let newX=pos.x;
-                    let newY=pos.y;
+            if (isDragging) {
+                hasDragged = true;
+                if (isCtrlDragging) {
+                    let nx = pos.x;
+                    let ny = pos.y;
+                    const near = findNearbySnapPoint(nx, ny, [origin.snapPoint]);
+                    if (near) { nx = near.x; ny = near.y; }
+                    origin.snapPoint.move(nx, ny);
+                } else if (isBgDragging && bgImage) {
+                    // Move Background Image
+                    const dx = pos.x - bgDragStart.x;
+                    const dy = pos.y - bgDragStart.y;
+                    bgImageX = bgInitialPos.x - dx; // Inverted
+                    bgImageY = bgInitialPos.y - dy; // Inverted
+                } else if (origin.type === 'line') {
+                    let ex = pos.x;
+                    let ey = pos.y;
 
-                    // apply "C" axis constraint
-                    let cResult = applyCKeyAxisConstraint(dragStartPos,{x:newX,y:newY});
-                    newX=cResult.x; 
-                    newY=cResult.y;
+                    // Apply alignment constraints if active
+                    if (isXAligned || isYAligned || isCtrlPressed) {
+                        const origPos = { x: origin.startSnapPoint.x, y: origin.startSnapPoint.y };
+                        const modifiers = {
+                            ctrl: isCtrlPressed,
+                            shift: isShiftPressed
+                        };
+                        const adj = applyAlignmentConstraints(origPos, { x: ex, y: ey }, modifiers);
+                        ex = adj.x;
+                        ey = adj.y;
+                    }
 
-                    if(isXAligned||isYAligned){
-                        const oldPos={x:origin.snapPoint.x,y:origin.snapPoint.y};
-                        const cPos=applyAlignmentConstraints(oldPos,{x:newX,y:newY});
-                        newX=cPos.x; newY=cPos.y;
+                    // Snap to angles if Shift is held
+                    if (isShiftPressed) {
+                        const angle = Math.atan2(ey - origin.startSnapPoint.y, ex - origin.startSnapPoint.x);
+                        const snappedAngle = snapToGrid(angle);
+                        const distance = Math.hypot(ex - origin.startSnapPoint.x, ey - origin.startSnapPoint.y);
+                        ex = origin.startSnapPoint.x + Math.cos(snappedAngle) * distance;
+                        ey = origin.startSnapPoint.y + Math.sin(snappedAngle) * distance;
                     }
-                    const nearestSnap=findNearbySnapPoint(newX,newY,[origin.snapPoint]);
-                    if(nearestSnap){
-                        newX=nearestSnap.x; 
-                        newY=nearestSnap.y;
-                    }
-                    if(e.ctrlKey && e.shiftKey){
-                        const dx=newX-origin.snapPoint.x;
-                        const dy=newY-origin.snapPoint.y;
-                        let angle=Math.atan2(dy,dx);
-                        angle=snapTo45Degrees(angle);
-                        const dist=Math.hypot(dx,dy);
-                        newX=origin.snapPoint.x+dist*Math.cos(angle);
-                        newY=origin.snapPoint.y+dist*Math.sin(angle);
-                    }
-                    origin.snapPoint.move(newX,newY);
-                } else if(origin.type==='line'){
-                    let endX=pos.x;
-                    let endY=pos.y;
 
-                    // apply "C" axis constraint
-                    let cResult=applyCKeyAxisConstraint(dragStartPos,{x:endX,y:endY});
-                    endX=cResult.x; endY=cResult.y;
-
-                    if(isXAligned||isYAligned){
-                        const oPos={x:origin.startSnapPoint.x,y:origin.startSnapPoint.y};
-                        const adj=applyAlignmentConstraints(oPos,{x:endX,y:endY});
-                        endX=adj.x; endY=adj.y;
-                    }
-                    const sp=findNearbySnapPoint(endX,endY);
-                    if(sp){
-                        endX=sp.x; 
-                        endY=sp.y;
-                    }
-                    currentVector={x:endX,y:endY};
+                    // Snap to existing snap points
+                    const s = findNearbySnapPoint(ex, ey);
+                    if (s) { ex = s.x; ey = s.y; }
+                    currentVector = { x: ex, y: ey };
                 }
             }
 
-            if(isRotating && rotationTarget){
+            if (isRotating && rotationTarget) {
                 let deltaAngle;
-                const anchorX=rotationAnchor.x;
-                const anchorY=rotationAnchor.y;
-                const angle1=Math.atan2(initialMousePos.y-anchorY, initialMousePos.x-anchorX);
-                const angle2=Math.atan2(pos.y-anchorY, pos.x-anchorX);
-                deltaAngle=angle2-angle1;
-                if(deltaAngle>Math.PI) deltaAngle-=2*Math.PI;
-                if(deltaAngle<-Math.PI) deltaAngle+=2*Math.PI;
-                if(e.shiftKey) deltaAngle=snapToGrid(deltaAngle);
-
-                if(rotationAnchor.rotationDirection==='counter-clockwise'){
-                    deltaAngle=-deltaAngle;
+                const ax = rotationAnchor.x, ay = rotationAnchor.y;
+                const angle1 = Math.atan2(initialMousePos.y - ay, initialMousePos.x - ax);
+                const angle2 = Math.atan2(pos.y - ay, pos.x - ax);
+                deltaAngle = angle2 - angle1;
+                if (deltaAngle > Math.PI) {
+                    deltaAngle -= 2 * Math.PI;
                 }
-                rotatingLines.forEach(line=>{
-                    line.rotate(deltaAngle,rotationAnchor);
+                if (deltaAngle < -Math.PI) {
+                    deltaAngle += 2 * Math.PI;
+                }
+
+                if (isShiftPressed) {
+                    deltaAngle = snapToGrid(deltaAngle);
+                }
+
+                rotatingLines.forEach(line => {
+                    let angleToUse = deltaAngle;
+                    if (rotationAnchor.rotationDirection === 'counter-clockwise') {
+                        angleToUse = -deltaAngle;
+                    }
+                    line.rotate(angleToUse, rotationAnchor);
                 });
-                initialMousePos={x:pos.x,y:pos.y};
-                draw();
+                initialMousePos = { x: pos.x, y: pos.y };
             }
 
             draw();
         });
 
-        // MOUSE UP
-        canvas.addEventListener('mouseup', e=>{
-            const pos=getMousePos(e);
-            const releasedMouseButton=currentMouseButton;
-            currentMouseButton=null;
+        canvas.addEventListener('mouseup', e => {
+            const pos = getMousePos(e);
+            const releasedMouseButton = currentMouseButton;
+            currentMouseButton = null;
 
-            if(isSelectionRectActive){
-                const rect=getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
-                const selectedInRect=snapPoints.filter(sp=>isPointInRect(sp,rect));
-                // toggle each sp in or out
-                selectedInRect.forEach(sp=>{
-                    const idx=selectedSnapPoints.indexOf(sp);
-                    if(idx===-1){
-                        selectedSnapPoints.push(sp);
-                    } else {
-                        selectedSnapPoints.splice(idx,1);
+            // ***********************
+            // ***** Check if Release is on a Label or Handle *****
+            // ***********************
+            const wasOnLabel = labels.some(label => pos.x >= label.x && pos.x <= label.x + label.width &&
+                pos.y >= label.y && pos.y <= label.y + label.height);
+
+            // Check if release was on a length handle
+            let wasOnHandle = false;
+            shapes.forEach(shape => {
+                if (shape.type === 'line' && shape.lengthHandle) {
+                    const handleRect = shape.lengthHandle.getBoundingClientRect();
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const handleX = handleRect.left + window.scrollX;
+                    const handleY = handleRect.top + window.scrollY;
+                    const mouseX = e.clientX;
+                    const mouseY = e.clientY;
+                    if (
+                        mouseX >= handleX &&
+                        mouseX <= handleX + handleRect.width &&
+                        mouseY >= handleY &&
+                        mouseY <= handleY + handleRect.height
+                    ) {
+                        wasOnHandle = true;
+                        // Input dialog already opened on handle click
                     }
-                });
-                selectionRectElement.style.display='none';
-                isSelectionRectActive=false;
-                undoStack.push({
-                    type:'selectRectangle',
-                    selectedSnapPoints:selectedInRect.map(sp=>sp.id),
-                    mode:'toggle'
-                });
-                redoStack.length=0;
+                }
+            });
+
+            if (wasOnLabel || wasOnHandle) {
+                // If the mouse was released on a label or handle, do not perform other actions
+                draw();
+                return;
+            }
+            // ***********************
+
+            if (e.button === 1) { // Middle mouse button
+                if (isDragging && isBgDragging) {
+                    // Finish moving background image
+                    isDragging = false;
+                    isBgDragging = false;
+                } else {
+                    // Finish panning the canvas
+                    isPanning = false;
+                    canvas.style.cursor = 'default';
+                }
                 draw();
                 return;
             }
 
-            if(isDragging){
-                if(isCtrlDragging){
-                    const sp=origin.snapPoint;
-                    const nearestSnap=findNearbySnapPoint(sp.x,sp.y,[sp]);
-                    // record for undo
-                    const action={
-                        type:'moveSnapPoint',
-                        snapPoint: sp,
-                        prevPosition:{x:dragStartPos.x,y:dragStartPos.y},
-                        newPosition:{x:sp.x,y:sp.y}
-                    };
-                    if(nearestSnap){
-                        sp.connectedLines.forEach(conn=>{
-                            conn.line.setEndPoint(conn.endPoint, nearestSnap);
-                            nearestSnap.addLine(conn.line, conn.endPoint);
+            if (isSelectionRectActive) {
+                const r = getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
+                const selected = snapPoints.filter(sp => isPointInRect(sp, r));
+                selectedSnapPoints = selected;
+                undoStack.push({
+                    type: 'selectRectangle',
+                    selectedSnapPoints: selected.map(sp => sp.id),
+                    mode: 'replace'
+                });
+                redoStack.length = 0;
+                selectionRect.style.display = 'none';
+                isSelectionRectActive = false;
+                draw();
+                return;
+            }
+
+            if (isDragging) {
+                if (isCtrlDragging) {
+                    const sp = origin.snapPoint;
+                    const near = findNearbySnapPoint(sp.x, sp.y, [sp]);
+                    if (near) {
+                        sp.connectedLines.forEach(conn => {
+                            conn.line.setEndPoint(conn.endPoint, near);
+                            near.addLine(conn.line, conn.endPoint);
                         });
-                        const idx=snapPoints.indexOf(sp);
-                        if(idx>-1) snapPoints.splice(idx,1);
+                        const idx = snapPoints.indexOf(sp);
+                        if (idx > -1) snapPoints.splice(idx, 1);
                     }
-                    undoStack.push(action);
-                    redoStack.length=0;
-                } else if(origin.type==='line'){
-                    if(hasDragged){
-                        let startSnapPoint=origin.startSnapPoint;
-                        let endSnapPoint;
-                        if(findNearbySnapPoint(currentVector.x,currentVector.y)){
-                            endSnapPoint=findNearbySnapPoint(currentVector.x,currentVector.y);
-                        } else {
-                            endSnapPoint=new SnapPoint(currentVector.x,currentVector.y);
-                            snapPoints.push(endSnapPoint);
+                    undoStack.push({
+                        type: 'moveSnapPoint',
+                        snapPoint: sp,
+                        prevPosition: { x: sp.x, y: sp.y },
+                        newPosition: { x: sp.x, y: sp.y }
+                    });
+                    redoStack.length = 0;
+                } else if (isBgDragging) {
+                    // Background image moved; action already recorded during move
+                } else if (origin.type === 'line') {
+                    if (hasDragged) {
+                        let st = origin.startSnapPoint;
+                        let endSP;
+                        const found = findNearbySnapPoint(currentVector.x, currentVector.y);
+                        if (found) endSP = found;
+                        else {
+                            endSP = new SnapPoint(currentVector.x, currentVector.y);
+                            snapPoints.push(endSP);
                         }
-                        if(startSnapPoint.x===endSnapPoint.x && startSnapPoint.y===endSnapPoint.y){
-                            isDragging=false;
+                        if (st.x === endSP.x && st.y === endSP.y) {
+                            isDragging = false;
+                            currentVector = null;
                             draw();
                             return;
                         }
-                        const newLine=new Line(startSnapPoint,endSnapPoint);
+                        const newLine = new Line(st, endSP);
                         shapes.push(newLine);
-                        undoStack.push({type:'addShape',shape:newLine});
-                        redoStack.length=0;
+                        undoStack.push({ type: 'addShape', shape: newLine });
+                        redoStack.length = 0;
+
                         checkAndHandleIntersections(newLine);
                     }
                 }
-                currentVector=null;
-                isDragging=false;
-                isCtrlDragging=false;
-                isCtrlAltDragging=false;
-            } else if(isRotating){
-                const action={
-                    type:'rotateShape',
-                    shapes:Array.from(rotatingLines).map(line=>line.id),
-                    anchor: rotationAnchor.id||null,
+                currentVector = null;
+                isDragging = false;
+                isCtrlDragging = false;
+                isCtrlAltDragging = false;
+            } else if (isRotating) {
+                const action = {
+                    type: 'rotateShape',
+                    shapes: Array.from(rotatingLines).map(l => l.id),
+                    anchor: rotationAnchor.id || null,
                     rotationSpeed: motorRotationSpeed
                 };
                 undoStack.push(action);
-                redoStack.length=0;
-                isRotating=false;
-                rotationTarget=null;
-                rotationAnchor=null;
-                initialVectors={};
+                redoStack.length = 0;
+                isRotating = false;
+                rotationTarget = null;
+                rotationAnchor = null;
+                initialVectors = {};
                 rotatingLines.clear();
             } else {
-                if(!hasDragged && releasedMouseButton!==null){
-                    const sp=findNearbySnapPoint(pos.x,pos.y);
-                    if(sp){
-                        if((releasedMouseButton===0||releasedMouseButton===2) && e.ctrlKey && e.altKey){
-                            toggleSelection(sp,'toggle');
-                        } else if((releasedMouseButton===0||releasedMouseButton===2) && e.ctrlKey && !e.altKey){
-                            toggleSelection(sp,'add');
-                        } else if((releasedMouseButton===0||releasedMouseButton===2) && e.shiftKey){
-                            toggleSelection(sp,'toggle');
-                        } else {
-                            selectedSnapPoints=[sp];
+                if (!hasDragged && releasedMouseButton !== null) {
+                    const sp = findNearbySnapPoint(pos.x, pos.y);
+                    if (sp) {
+                        if ((releasedMouseButton === 0 || releasedMouseButton === 2) && lastMouseEvent && lastMouseEvent.ctrlKey && lastMouseEvent.altKey) {
+                            toggleSelection(sp, 'toggle');
+                        } else if ((releasedMouseButton === 0 || releasedMouseButton === 2) && lastMouseEvent && lastMouseEvent.ctrlKey && !lastMouseEvent.altKey) {
+                            toggleSelection(sp, 'add');
+                        } else if ((releasedMouseButton === 0 || releasedMouseButton === 2)) {
+                            selectedSnapPoints = [sp];
                         }
                         draw();
                     } else {
-                        selectedSnapPoints=[];
+                        selectedSnapPoints = [];
                         draw();
                     }
                 }
@@ -1100,394 +1904,898 @@
             draw();
         });
 
-        // PANNING
-        canvas.addEventListener('mousedown', e=>{
-            if(e.button===1){
-                isPanning=true;
-                panStart={x:e.clientX,y:e.clientY};
-                canvas.style.cursor='grab';
-                e.preventDefault();
-            }
-        });
-        window.addEventListener('mouseup', e=>{
-            if(e.button===1){
-                isPanning=false;
-                canvas.style.cursor='default';
-            }
-        });
-        window.addEventListener('mousemove', e=>{
-            if(isPanning){
-                const dx=e.clientX - panStart.x;
-                const dy=e.clientY - panStart.y;
-                panStart={x:e.clientX,y:e.clientY};
-                panOffset.x+=dx;
-                panOffset.y+=dy;
+        // ***********************
+        // ***** Panning Handlers ****
+        // ***********************
+        window.addEventListener('mousemove', e => {
+            if (isPanning) {
+                const dx = e.clientX - panStart.x;
+                const dy = e.clientY - panStart.y;
+                panStart = { x: e.clientX, y: e.clientY };
+                panOffset.x -= dx; // Inverted
+                panOffset.y -= dy; // Inverted
                 draw();
             }
         });
+        window.addEventListener('mouseup', e => {
+            if (e.button === 1) {
+                isPanning = false;
+                canvas.style.cursor = 'default';
+            }
+        });
 
-        // KEYBOARD
-        window.addEventListener('keydown', e=>{
-            // Space => motor
-            if(e.code==='Space'){
+        // ***********************
+        // ***** Keyboard Event Handlers ****
+        // ***********************
+        let isShiftPressed = false; // New variable to track Shift key state
+        let isCtrlPressed = false; // To track Ctrl key state
+
+        window.addEventListener('keydown', e => {
+            // Update Shift and Ctrl key states
+            if (e.key === 'Shift') {
+                isShiftPressed = true;
+            }
+            if (e.key === 'Control') {
+                isCtrlPressed = true;
+            }
+
+            // Motor Rotation Toggle - Space
+            if (e.code === 'Space') {
                 e.preventDefault();
-                if(!isMotorRunning && selectedSnapPoints.length>0){
-                    let anchor=selectedSnapPoints[0];
-                    const connectedLines=selectedSnapPoints.flatMap(sp=>sp.connectedLines.map(conn=>conn.line));
-                    const uniqueLines=Array.from(new Set(connectedLines));
-                    if(uniqueLines.length>0){
-                        motorOriginalPositions.clear();
-                        uniqueLines.forEach(line=>{
-                            motorOriginalPositions.set(line,{
-                                start:{x:line.start.x,y:line.start.y},
-                                end:{x:line.end.x,y:line.end.y}
-                            });
-                        });
-                        isMotorRunning=true;
-                        rotationStateElement.textContent='Rotation: Running';
-                        uniqueLines.forEach(line=>motorRotatingLines.add(line));
-                        motorRotationAnchor=anchor;
-                        let prevTimestamp=null;
-                        function rotateMotor(ts){
-                            if(!isMotorRunning) return;
-                            if(!prevTimestamp) prevTimestamp=ts;
-                            const dt=ts - prevTimestamp;
-                            prevTimestamp=ts;
-                            const deltaAngle=motorRotationSpeed*(dt/(1000/60));
-                            motorRotatingLines.forEach(line=>{
-                                let angle=deltaAngle;
-                                if(motorRotationAnchor.rotationDirection==='counter-clockwise'){
-                                    angle=-deltaAngle;
+                if (!isMotorRunning && selectedSnapPoints.length > 0) {
+                    const anchor = selectedSnapPoints[0];
+                    const connectedLines = selectedSnapPoints.flatMap(sp => sp.connectedLines.map(conn => conn.line));
+                    const uniqueLines = Array.from(new Set(connectedLines));
+                    if (uniqueLines.length > 0) {
+                        isMotorRunning = true;
+                        rotationStatus.textContent = 'Rotation: Running';
+                        uniqueLines.forEach(l => motorRotatingLines.add(l));
+                        motorRotationAnchor = anchor;
+                        let prevTimestamp = null;
+                        function rotateMotor(timestamp) {
+                            if (!isMotorRunning) return;
+                            if (!prevTimestamp) prevTimestamp = timestamp;
+                            const dt = timestamp - prevTimestamp;
+                            prevTimestamp = timestamp;
+                            const da = motorRotationSpeed * (dt / (1000 / 60));
+                            motorRotatingLines.forEach(line => {
+                                let angle = da;
+                                if (motorRotationAnchor.rotationDirection === 'counter-clockwise') {
+                                    angle = -da;
                                 }
-                                line.rotate(angle,motorRotationAnchor);
+                                line.rotate(angle, motorRotationAnchor);
                             });
                             draw();
                             requestAnimationFrame(rotateMotor);
                         }
                         requestAnimationFrame(rotateMotor);
                         undoStack.push({
-                            type:'startMotorRotation',
-                            snapPoints:selectedSnapPoints.map(sp=>sp.id),
-                            shapes:uniqueLines.map(line=>line.id),
-                            rotationSpeed:motorRotationSpeed,
-                            rotationAnchorId:motorRotationAnchor.id
+                            type: 'startMotorRotation',
+                            snapPoints: selectedSnapPoints.map(sp => sp.id),
+                            shapes: uniqueLines.map(l => l.id),
+                            rotationSpeed: motorRotationSpeed,
+                            rotationAnchorId: motorRotationAnchor.id
                         });
-                        redoStack.length=0;
+                        redoStack.length = 0;
                     }
-                } else if(isMotorRunning){
-                    isMotorRunning=false;
-                    rotationStateElement.textContent='Rotation: Stopped';
-                    motorOriginalPositions.forEach((orig,line)=>{
-                        line.start.move(orig.start.x,orig.start.y);
-                        line.end.move(orig.end.x,orig.end.y);
-                        line.updateCenter();
-                    });
-                    motorOriginalPositions.clear();
+                } else if (isMotorRunning) {
+                    isMotorRunning = false;
+                    rotationStatus.textContent = 'Rotation: Stopped';
                     motorRotatingLines.clear();
-                    motorRotationAnchor=null;
-                    undoStack.push({type:'stopMotorRotation'});
-                    redoStack.length=0;
+                    motorRotationAnchor = null;
+                    undoStack.push({ type: 'stopMotorRotation' });
+                    redoStack.length = 0;
                 }
                 draw();
             }
 
-            // X => toggle x align
-            if(e.key.toLowerCase()==='x'){
+            // Alignment Toggles - X and Y
+            if (e.key.toLowerCase() === 'x') {
                 e.preventDefault();
-                if(isYAligned) isYAligned=false;
-                isXAligned=!isXAligned;
-                draw();
+                if (isYAligned) isYAligned = false;
+                isXAligned = !isXAligned;
+                updateAlignmentStatus();
             }
-            // Y => toggle y align
-            if(e.key.toLowerCase()==='y'){
+            if (e.key.toLowerCase() === 'y') {
                 e.preventDefault();
-                if(isXAligned) isXAligned=false;
-                isYAligned=!isYAligned;
-                draw();
-            }
-            // H => hide snap points & arrows
-            if(e.key.toLowerCase()==='h'){
-                e.preventDefault();
-                snapPointsVisible=!snapPointsVisible;
-                arrowsVisible=!arrowsVisible;
-                draw();
-            }
-            // F => fill shape
-            if(e.key.toLowerCase()==='f'){
-                e.preventDefault();
-                shouldFill=!shouldFill;
-                console.log('Fill shape toggled =>',shouldFill);
-                draw();
-            }
-            // (B) "C" => toggle axis constraint mode
-            if(e.key.toLowerCase()==='c'){
-                e.preventDefault();
-                isCKeyActive=!isCKeyActive;
-                lockedAxis=null; // reset
-                console.log('C key toggled =>', isCKeyActive);
+                if (isXAligned) isXAligned = false;
+                isYAligned = !isYAligned;
+                updateAlignmentStatus();
             }
 
-            // Delete => remove selected snap points
-            if(e.key==='Delete'){
-                if(selectedSnapPoints.length>0){
-                    const linesToDelete=new Set();
-                    selectedSnapPoints.forEach(sp=>{
-                        sp.connectedLines.forEach(conn=>{
+            // Toggle Visibility - H
+            if (e.key.toLowerCase() === 'h') {
+                e.preventDefault();
+                snapPointsVisible = !snapPointsVisible;
+                arrowsVisible = !arrowsVisible;
+                geometryLabelsVisible = !geometryLabelsVisible;
+                // Toggle visibility of length handles
+                shapes.forEach(shape => {
+                    if (shape.type === 'line' && shape.lengthHandle) {
+                        shape.lengthHandle.style.display = geometryLabelsVisible ? 'block' : 'none';
+                    }
+                });
+                draw();
+            }
+
+            // Toggle Imperfect Alignment - C
+            if (e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                alignmentErrorEnabled = !alignmentErrorEnabled;
+                draw();
+            }
+
+            // Delete Selected Elements
+            if (e.key === 'Delete') {
+                if (selectedSnapPoints.length > 0) {
+                    const linesToDelete = new Set();
+                    selectedSnapPoints.forEach(sp => {
+                        sp.connectedLines.forEach(conn => {
                             linesToDelete.add(conn.line);
                         });
                     });
-                    const snapPointsToDelete=[...selectedSnapPoints];
-                    const deletedLines=[...linesToDelete];
-                    deletedLines.forEach(line=>{
-                        const idx=shapes.indexOf(line);
-                        if(idx>-1) shapes.splice(idx,1);
-                        [line.start,line.end].forEach(sp=>sp.removeLine(line));
+                    const spsToDelete = [...selectedSnapPoints];
+                    const deletedLines = [...linesToDelete];
+
+                    deletedLines.forEach(line => {
+                        const idx = shapes.indexOf(line);
+                        if (idx !== -1) shapes.splice(idx, 1);
+                        [line.start, line.end].forEach(sp => {
+                            sp.removeLine(line);
+                        });
+                        // Remove length handles
+                        line.removeLengthHandle();
                     });
-                    snapPointsToDelete.forEach(sp=>{
-                        const spIndex=snapPoints.indexOf(sp);
-                        if(spIndex>-1) snapPoints.splice(spIndex,1);
+                    spsToDelete.forEach(sp => {
+                        const idx = snapPoints.indexOf(sp);
+                        if (idx > -1) snapPoints.splice(idx, 1);
                     });
+
                     undoStack.push({
-                        type:'deleteSnapPoints',
-                        snapPoints:snapPointsToDelete.map(sp=>({
-                            id:sp.id, x:sp.x, y:sp.y,
-                            type:sp.type,
-                            rotationDirection:sp.rotationDirection
+                        type: 'deleteSnapPoints',
+                        snapPoints: spsToDelete.map(sp => ({
+                            id: sp.id,
+                            x: sp.x,
+                            y: sp.y,
+                            type: sp.type,
+                            rotationDirection: sp.rotationDirection
                         })),
-                        lines:deletedLines.map(line=>({
-                            id:line.id,
-                            start:{
-                                id:line.start.id,
-                                x:line.start.x,
-                                y:line.start.y,
-                                type:line.start.type,
-                                rotationDirection:line.start.rotationDirection
+                        lines: deletedLines.map(line => ({
+                            id: line.id,
+                            start: {
+                                id: line.start.id,
+                                x: line.start.x,
+                                y: line.start.y,
+                                type: line.start.type,
+                                rotationDirection: line.start.rotationDirection
                             },
-                            end:{
-                                id:line.end.id,
-                                x:line.end.x,
-                                y:line.end.y,
-                                type:line.end.type,
-                                rotationDirection:line.end.rotationDirection
+                            end: {
+                                id: line.end.id,
+                                x: line.end.x,
+                                y: line.end.y,
+                                type: line.end.type,
+                                rotationDirection: line.end.rotationDirection
                             }
                         }))
                     });
-                    redoStack.length=0;
-                    selectedSnapPoints=[];
+                    redoStack.length = 0;
+                    selectedSnapPoints = [];
                     draw();
                 }
             }
 
-            // Undo / Redo
-            if(e.ctrlKey && (e.key==='z' || e.key==='Z')){
-                const action=undoStack.pop();
-                if(action){
-                    if(action.type==='addShape'){
-                        const idx=shapes.indexOf(action.shape);
-                        if(idx>-1){
-                            shapes.splice(idx,1);
-                            [action.shape.start,action.shape.end].forEach(sp=>{
-                                sp.removeLine(action.shape);
-                                if(sp.connectedLines.length===0 && sp.type!=='center'){
-                                    const spIdx=snapPoints.indexOf(sp);
-                                    if(spIdx>-1) snapPoints.splice(spIdx,1);
-                                }
-                            });
-                            redoStack.push(action);
-                        }
-                    } else if(action.type==='rotateShape'){
-                        action.shapes.forEach(lineId=>{
-                            const line=shapes.find(l=>l.id===lineId);
-                            if(line && initialVectors[line.id]){
-                                line.setEndPoint('start',{x:initialVectors[line.id].start.x,y:initialVectors[line.id].start.y});
-                                line.setEndPoint('end',{x:initialVectors[line.id].end.x,y:initialVectors[line.id].end.y});
-                            }
-                        });
-                        redoStack.push(action);
-                    } else if(action.type==='moveSnapPoint'){
-                        const sp=snapPoints.find(s=>s.id===action.snapPoint.id);
-                        if(sp){
-                            sp.move(action.prevPosition.x,action.prevPosition.y);
-                            redoStack.push(action);
-                        }
-                    } else if(action.type==='startMotorRotation'){
-                        redoStack.push(action);
-                    } else if(action.type==='stopMotorRotation'){
-                        redoStack.push(action);
-                    } else if(action.type==='deleteSnapPoints'){
-                        action.snapPoints.forEach(spData=>{
-                            const restored=new SnapPoint(spData.x,spData.y,spData.type);
-                            restored.id=spData.id;
-                            restored.rotationDirection=spData.rotationDirection;
-                            snapPoints.push(restored);
-                        });
-                        action.lines.forEach(lineData=>{
-                            const st=snapPoints.find(s=>s.id===lineData.start.id);
-                            const en=snapPoints.find(s=>s.id===lineData.end.id);
-                            if(st && en){
-                                const restoredLine=new Line(st,en);
-                                restoredLine.id=lineData.id;
-                                shapes.push(restoredLine);
-                            }
-                        });
-                        redoStack.push(action);
-                    } else if(action.type==='selectRectangle'){
-                        if(action.mode==='toggle'){
-                            action.selectedSnapPoints.forEach(id=>{
-                                const sp=snapPoints.find(s=>s.id===id);
-                                if(sp){
-                                    const idx=selectedSnapPoints.indexOf(sp);
-                                    if(idx===-1){
-                                        selectedSnapPoints.push(sp);
-                                    } else {
-                                        selectedSnapPoints.splice(idx,1);
-                                    }
-                                }
-                            });
-                        } else if(action.mode==='replace'){
-                            selectedSnapPoints=[];
-                        }
-                        redoStack.push(action);
-                    }
-                }
-                draw();
-            } else if(e.ctrlKey && (e.key==='y'||e.key==='Y')){
-                const action=redoStack.pop();
-                if(action){
-                    if(action.type==='addShape'){
-                        shapes.push(action.shape);
-                        action.shape.start.addLine(action.shape,'start');
-                        action.shape.end.addLine(action.shape,'end');
-                        undoStack.push(action);
-                    } else if(action.type==='rotateShape'){
-                        undoStack.push(action);
-                    } else if(action.type==='moveSnapPoint'){
-                        const sp=snapPoints.find(s=>s.id===action.snapPoint.id);
-                        if(sp){
-                            sp.move(action.newPosition.x,action.newPosition.y);
-                            undoStack.push(action);
-                        }
-                    } else if(action.type==='startMotorRotation'){
-                        if(!isMotorRunning && action.snapPoints.length>0){
-                            const connected=action.shapes.map(id=>shapes.find(l=>l.id===id)).filter(l=>l);
-                            if(connected.length>0){
-                                isMotorRunning=true;
-                                rotationStateElement.textContent='Rotation: Running';
-                                connected.forEach(line=>motorRotatingLines.add(line));
-                                motorRotationAnchor=snapPoints.find(sp=>sp.id===action.rotationAnchorId);
-                                let prevTimestamp=null;
-                                function rotateMotorRedo(ts){
-                                    if(!isMotorRunning) return;
-                                    if(!prevTimestamp) prevTimestamp=ts;
-                                    const dt=ts-prevTimestamp;
-                                    prevTimestamp=ts;
-                                    const deltaAngle=action.rotationSpeed*(dt/(1000/60));
-                                    motorRotatingLines.forEach(line=>{
-                                        let angle=deltaAngle;
-                                        if(motorRotationAnchor.rotationDirection==='counter-clockwise'){
-                                            angle=-deltaAngle;
-                                        }
-                                        line.rotate(angle,motorRotationAnchor);
-                                    });
-                                    draw();
-                                    requestAnimationFrame(rotateMotorRedo);
-                                }
-                                requestAnimationFrame(rotateMotorRedo);
-                            }
-                        }
-                        undoStack.push(action);
-                    } else if(action.type==='stopMotorRotation'){
-                        if(isMotorRunning){
-                            isMotorRunning=false;
-                            rotationStateElement.textContent='Rotation: Stopped';
-                            motorRotatingLines.clear();
-                            motorRotationAnchor=null;
-                        }
-                        undoStack.push(action);
-                    } else if(action.type==='deleteSnapPoints'){
-                        const {snapPoints:spList, lines:lList}=action;
-                        lList.forEach(lineData=>{
-                            const line=shapes.find(l=>l.id===lineData.id);
-                            if(line){
-                                shapes.splice(shapes.indexOf(line),1);
-                                [line.start,line.end].forEach(sp=>sp.removeLine(line));
-                            }
-                        });
-                        spList.forEach(spData=>{
-                            const sp=snapPoints.find(s=>s.id===spData.id);
-                            if(sp){
-                                const spIndex=snapPoints.indexOf(sp);
-                                if(spIndex>-1) snapPoints.splice(spIndex,1);
-                            }
-                        });
-                        undoStack.push(action);
-                    } else if(action.type==='selectRectangle'){
-                        if(action.mode==='toggle'){
-                            action.selectedSnapPoints.forEach(id=>{
-                                const sp=snapPoints.find(s=>s.id===id);
-                                if(sp){
-                                    const idx=selectedSnapPoints.indexOf(sp);
-                                    if(idx===-1) selectedSnapPoints.push(sp);
-                                    else selectedSnapPoints.splice(idx,1);
-                                }
-                            });
-                        } else if(action.mode==='replace'){
-                            selectedSnapPoints=action.selectedSnapPoints.map(id=>snapPoints.find(sp=>sp.id===id)).filter(sp=>sp);
-                        }
-                        undoStack.push(action);
-                    }
-                }
+            // Undo / Redo - Ctrl+Z / Ctrl+Y
+            if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+                e.preventDefault();
+                undo();
+            } else if (e.ctrlKey && (e.key === 'y' || e.key === 'Y')) {
+                e.preventDefault();
+                redo();
+            }
+
+            // Deselect all with 'Esc' key
+            if (e.key === 'Escape') {
+                selectedSnapPoints = [];
                 draw();
             }
         });
 
-        function toggleSelection(snapPoint, mode='toggle'){
-            if(mode==='toggle'){
-                const idx=selectedSnapPoints.indexOf(snapPoint);
-                if(idx===-1){
-                    selectedSnapPoints.push(snapPoint);
-                    console.log(`Selecting SnapPoint ID:${snapPoint.id}`);
-                } else {
-                    selectedSnapPoints.splice(idx,1);
-                    console.log(`Deselecting SnapPoint ID:${snapPoint.id}`);
+        window.addEventListener('keyup', e => {
+            // Update Shift and Ctrl key states
+            if (e.key === 'Shift') {
+                isShiftPressed = false;
+            }
+            if (e.key === 'Control') {
+                isCtrlPressed = false;
+            }
+        });
+
+        function updateAlignmentStatus() {
+            let alignmentText = 'None';
+            if (isXAligned && isYAligned) alignmentText = 'X & Y';
+            else if (isXAligned) alignmentText = 'X';
+            else if (isYAligned) alignmentText = 'Y';
+            alignmentStatus.textContent = `Alignment: ${alignmentText}`;
+        }
+
+        // ***********************
+        // ***** Undo/Redo Functions ****
+        // ***********************
+        function undo() {
+            const action = undoStack.pop();
+            if (action) {
+                switch(action.type) {
+                    case 'addShape':
+                        // Remove the added shape
+                        const index = shapes.findIndex(s => s.id === action.shape.id);
+                        if (index !== -1) {
+                            // Remove length handle if it's a line
+                            if (action.shape.type === 'line') {
+                                action.shape.removeLengthHandle();
+                            }
+                            shapes.splice(index, 1);
+                        }
+                        break;
+                    case 'moveSnapPoint':
+                        // Revert snap point to previous position
+                        const sp = snapPoints.find(s => s.id === action.snapPoint.id);
+                        if (sp) {
+                            sp.x = action.prevPosition.x;
+                            sp.y = action.prevPosition.y;
+                        }
+                        break;
+                    case 'splitLine':
+                        // Remove the new lines and restore the original line
+                        action.newLines.forEach(newLineId => {
+                            const idx = shapes.findIndex(l => l.id === newLineId);
+                            if (idx !== -1) {
+                                const line = shapes[idx];
+                                line.removeLengthHandle();
+                                shapes.splice(idx, 1);
+                            }
+                        });
+                        // Recreate the original line
+                        const originalLine = new Line(
+                            snapPoints.find(sp => sp.id === action.originalLineStartId),
+                            snapPoints.find(sp => sp.id === action.originalLineEndId)
+                        );
+                        originalLine.id = action.originalLineId;
+                        shapes.push(originalLine);
+                        break;
+                    case 'makeRightAngle':
+                        // Revert the position of the moved snap point
+                        const tri = triangles.find(tri => tri.some(sp => sp.id === action.vertexId));
+                        if (tri) {
+                            const spToRevert = snapPoints.find(sp => sp.id === action.adjacent2Id);
+                            if (spToRevert) {
+                                spToRevert.move(action.oldPosition.x, action.oldPosition.y);
+                            }
+                        }
+                        break;
+                    case 'editLength':
+                        // Revert line end position
+                        const lineEdit = shapes.find(l => l.id === action.lineId);
+                        if (lineEdit) {
+                            lineEdit.setEndPoint('end', { x: action.prevEnd.x, y: action.prevEnd.y });
+                        }
+                        break;
+                    case 'editArea':
+                        // Revert triangle scaling
+                        const triangleIds = action.triangleIds;
+                        triangleIds.forEach(id => {
+                            const spData = action.oldPositions.find(pos => pos.id === id);
+                            if (spData) {
+                                const sp = snapPoints.find(s => s.id === id);
+                                if (sp) {
+                                    sp.x = spData.x;
+                                    sp.y = spData.y;
+                                }
+                            }
+                        });
+                        break;
+                    case 'startMotorRotation':
+                        // Stop motor rotation
+                        isMotorRunning = false;
+                        rotationStatus.textContent = 'Rotation: Stopped';
+                        motorRotatingLines.clear();
+                        motorRotationAnchor = null;
+                        break;
+                    case 'stopMotorRotation':
+                        // Restart motor rotation
+                        isMotorRunning = true;
+                        rotationStatus.textContent = 'Rotation: Running';
+                        action.shapes.forEach(lineId => {
+                            const line = shapes.find(l => l.id === lineId);
+                            if (line) motorRotatingLines.add(line);
+                        });
+                        motorRotationAnchor = snapPoints.find(sp => sp.id === action.rotationAnchorId);
+                        let prevTimestamp = null;
+                        function rotateMotor(timestamp) {
+                            if (!isMotorRunning) return;
+                            if (!prevTimestamp) prevTimestamp = timestamp;
+                            const dt = timestamp - prevTimestamp;
+                            prevTimestamp = timestamp;
+                            const da = action.rotationSpeed * (dt / (1000 / 60));
+                            motorRotatingLines.forEach(line => {
+                                let angle = da;
+                                if (motorRotationAnchor.rotationDirection === 'counter-clockwise') {
+                                    angle = -da;
+                                }
+                                line.rotate(angle, motorRotationAnchor);
+                            });
+                            draw();
+                            requestAnimationFrame(rotateMotor);
+                        }
+                        requestAnimationFrame(rotateMotor);
+                        break;
+                    case 'moveBackground':
+                        // Revert background image position
+                        bgImageX = action.oldPosition.x;
+                        bgImageY = action.oldPosition.y;
+                        break;
+                    case 'scaleBackground':
+                        // Revert background image scale
+                        bgImageScale = action.oldScale;
+                        break;
+                    case 'rotateBackground':
+                        // Revert background image rotation
+                        bgImageRotation = action.oldRotation;
+                        break;
+                    case 'deleteSnapPoints':
+                        // Restore deleted snap points and lines
+                        action.snapPoints.forEach(spData => {
+                            const sp = new SnapPoint(spData.x, spData.y, spData.type);
+                            sp.id = spData.id;
+                            sp.rotationDirection = spData.rotationDirection;
+                            snapPoints.push(sp);
+                        });
+                        action.lines.forEach(lineData => {
+                            const startSP = snapPoints.find(sp => sp.id === lineData.start.id);
+                            const endSP = snapPoints.find(sp => sp.id === lineData.end.id);
+                            if (startSP && endSP) {
+                                const line = new Line(startSP, endSP);
+                                line.id = lineData.id;
+                                shapes.push(line);
+                            }
+                        });
+                        break;
+                    // Handle other action types as needed
                 }
-            } else if(mode==='add'){
-                if(!selectedSnapPoints.includes(snapPoint)){
-                    selectedSnapPoints.push(snapPoint);
-                    console.log(`Adding SnapPoint ID:${snapPoint.id} to selection`);
-                }
+                redoStack.push(action);
+                draw();
             }
         }
 
-        function getRectangleCoordinates(start, current){
-            const x=Math.min(start.x,current.x);
-            const y=Math.min(start.y,current.y);
-            const width=Math.abs(current.x-start.x);
-            const height=Math.abs(current.y-start.y);
-            return { x,y,width,height };
-        }
-        function isPointInRect(sp,rect){
-            return (
-                sp.x>=rect.x && sp.x<=rect.x+rect.width &&
-                sp.y>=rect.y && sp.y<=rect.y+rect.height
-            );
+        function redo() {
+            const action = redoStack.pop();
+            if (action) {
+                switch(action.type) {
+                    case 'addShape':
+                        // Re-add the shape
+                        shapes.push(action.shape);
+                        break;
+                    case 'moveSnapPoint':
+                        // Move snap point to new position
+                        const sp = snapPoints.find(s => s.id === action.snapPoint.id);
+                        if (sp) {
+                            sp.x = action.newPosition.x;
+                            sp.y = action.newPosition.y;
+                        }
+                        break;
+                    case 'splitLine':
+                        // Re-split the line
+                        const originalLine = shapes.find(l => l.id === action.originalLineId);
+                        if (originalLine) {
+                            originalLine.splitAtPoint({ x: action.splitPoint.x, y: action.splitPoint.y });
+                        }
+                        break;
+                    case 'makeRightAngle':
+                        // Reapply the right angle
+                        const tri = triangles.find(tri => tri.some(sp => sp.id === action.vertexId));
+                        if (tri) {
+                            const spToMove = snapPoints.find(sp => sp.id === action.adjacent2Id);
+                            if (spToMove) {
+                                spToMove.move(action.newPosition.x, action.newPosition.y);
+                            }
+                        }
+                        break;
+                    case 'editLength':
+                        // Reapply line end position
+                        const lineEdit = shapes.find(l => l.id === action.lineId);
+                        if (lineEdit) {
+                            lineEdit.setEndPoint('end', { x: action.newEnd.x, y: action.newEnd.y });
+                        }
+                        break;
+                    case 'editArea':
+                        // Reapply triangle scaling
+                        const triangleIds = action.triangleIds;
+                        triangleIds.forEach(id => {
+                            const spData = action.newPositions.find(pos => pos.id === id);
+                            if (spData) {
+                                const sp = snapPoints.find(s => s.id === id);
+                                if (sp) {
+                                    sp.x = spData.x;
+                                    sp.y = spData.y;
+                                }
+                            }
+                        });
+                        break;
+                    case 'startMotorRotation':
+                        // Start motor rotation again
+                        isMotorRunning = true;
+                        rotationStatus.textContent = 'Rotation: Running';
+                        action.shapes.forEach(lineId => {
+                            const line = shapes.find(l => l.id === lineId);
+                            if (line) motorRotatingLines.add(line);
+                        });
+                        motorRotationAnchor = snapPoints.find(sp => sp.id === action.rotationAnchorId);
+                        let prevTimestamp = null;
+                        function rotateMotor(timestamp) {
+                            if (!isMotorRunning) return;
+                            if (!prevTimestamp) prevTimestamp = timestamp;
+                            const dt = timestamp - prevTimestamp;
+                            prevTimestamp = timestamp;
+                            const da = action.rotationSpeed * (dt / (1000 / 60));
+                            motorRotatingLines.forEach(line => {
+                                let angle = da;
+                                if (motorRotationAnchor.rotationDirection === 'counter-clockwise') {
+                                    angle = -da;
+                                }
+                                line.rotate(angle, motorRotationAnchor);
+                            });
+                            draw();
+                            requestAnimationFrame(rotateMotor);
+                        }
+                        requestAnimationFrame(rotateMotor);
+                        break;
+                    case 'stopMotorRotation':
+                        // Stop motor rotation
+                        isMotorRunning = false;
+                        rotationStatus.textContent = 'Rotation: Stopped';
+                        motorRotatingLines.clear();
+                        motorRotationAnchor = null;
+                        break;
+                    case 'moveBackground':
+                        // Reapply background image position
+                        bgImageX = action.newPosition.x;
+                        bgImageY = action.newPosition.y;
+                        break;
+                    case 'scaleBackground':
+                        // Reapply background image scale
+                        bgImageScale = action.newScale;
+                        break;
+                    case 'rotateBackground':
+                        // Reapply background image rotation
+                        bgImageRotation = action.newRotation;
+                        break;
+                    case 'deleteSnapPoints':
+                        // Remove the restored snap points and lines
+                        action.snapPoints.forEach(spData => {
+                            const sp = snapPoints.find(s => s.id === spData.id);
+                            if (sp) {
+                                // Remove connected lines
+                                sp.connectedLines.forEach(conn => {
+                                    const line = shapes.find(l => l.id === conn.line.id);
+                                    if (line) {
+                                        const idx = shapes.indexOf(line);
+                                        if (idx !== -1) {
+                                            // Remove length handle if it's a line
+                                            if (line.type === 'line') {
+                                                line.removeLengthHandle();
+                                            }
+                                            shapes.splice(idx, 1);
+                                        }
+                                    }
+                                });
+                                // Remove the snap point
+                                const idx = snapPoints.indexOf(sp);
+                                if (idx > -1) snapPoints.splice(idx, 1);
+                            }
+                        });
+                        action.lines.forEach(lineData => {
+                            const line = shapes.find(l => l.id === lineData.id);
+                            if (line) {
+                                const idx = shapes.indexOf(line);
+                                if (idx > -1) {
+                                    // Remove length handle if it's a line
+                                    if (line.type === 'line') {
+                                        line.removeLengthHandle();
+                                    }
+                                    shapes.splice(idx, 1);
+                                }
+                            }
+                        });
+                        break;
+                    // Handle other action types as needed
+                }
+                undoStack.push(action);
+                draw();
+            }
         }
 
-        saveButton.addEventListener('click', ()=>{
-            const tempCanvas=document.createElement('canvas');
-            tempCanvas.width=canvas.width;
-            tempCanvas.height=canvas.height;
-            const tempCtx=tempCanvas.getContext('2d');
-            tempCtx.fillStyle='#FFFFFF';
-            tempCtx.fillRect(0,0,tempCanvas.width,tempCanvas.height);
-            tempCtx.drawImage(canvas,0,0);
-            const link=document.createElement('a');
-            link.download='canvas_image.png';
-            link.href=tempCanvas.toDataURL();
+        // ***********************
+        // ***** Save Functionality ****
+        // ***********************
+        saveButton.addEventListener('click', () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.fillStyle = '#FFFFFF';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(canvas, 0, 0);
+            const link = document.createElement('a');
+            link.download = 'canvas_image.png';
+            link.href = tempCanvas.toDataURL();
             link.click();
         });
 
-        draw();
+        // ***********************
+        // ***** Save Project Functionality ****
+        // ***********************
+        saveProjectButton.addEventListener('click', () => {
+            const project = {
+                snapPoints: snapPoints.map(sp => ({
+                    id: sp.id,
+                    x: sp.x,
+                    y: sp.y,
+                    type: sp.type,
+                    rotationDirection: sp.rotationDirection
+                })),
+                shapes: shapes.map(shape => {
+                    if (shape.type === 'line') {
+                        return {
+                            type: 'line',
+                            id: shape.id,
+                            start: shape.start.id,
+                            end: shape.end.id,
+                            length: shape.length
+                        };
+                    } else if (shape.type === 'triangle') {
+                        return {
+                            type: 'triangle',
+                            id: shape.id,
+                            vertices: [shape.A.id, shape.B.id, shape.C.id]
+                        };
+                    }
+                }),
+                bgImage: bgImage ? {
+                    src: bgImage.src,
+                    x: bgImageX,
+                    y: bgImageY,
+                    scale: bgImageScale,
+                    rotation: bgImageRotation
+                } : null,
+                panOffset: panOffset,
+                gridLinesVisible: gridLinesVisible // Include gridlines state
+            };
+            const projectStr = JSON.stringify(project);
+            const blob = new Blob([projectStr], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = 'project.json';
+            link.href = URL.createObjectURL(blob);
+            link.click();
+        });
+
+        // ***********************
+        // ***** Load Project Functionality ****
+        // ***********************
+        loadProjectButton.addEventListener('click', () => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        const project = JSON.parse(event.target.result);
+                        // Clear current project
+                        shapes.forEach(shape => {
+                            if (shape.type === 'line') {
+                                shape.removeLengthHandle();
+                            }
+                        });
+                        shapes.length = 0;
+                        snapPoints.length = 0;
+                        triangles.length = 0;
+                        selectedSnapPoints = [];
+                        labels.length = 0;
+
+                        // Restore snap points
+                        project.snapPoints.forEach(spData => {
+                            const sp = new SnapPoint(spData.x, spData.y, spData.type);
+                            sp.id = spData.id;
+                            sp.rotationDirection = spData.rotationDirection;
+                            snapPoints.push(sp);
+                        });
+
+                        // Restore shapes
+                        project.shapes.forEach(shapeData => {
+                            if (shapeData.type === 'line') {
+                                const startSP = snapPoints.find(sp => sp.id === shapeData.start);
+                                const endSP = snapPoints.find(sp => sp.id === shapeData.end);
+                                if (startSP && endSP) {
+                                    const line = new Line(startSP, endSP);
+                                    line.id = shapeData.id;
+                                    line.length = shapeData.length;
+                                    shapes.push(line);
+                                }
+                            }
+                            // Add more shape types if needed
+                        });
+
+                        // Restore background image
+                        if (project.bgImage) {
+                            const img = new Image();
+                            img.onload = function() {
+                                bgImage = img;
+                                bgImageX = project.bgImage.x;
+                                bgImageY = project.bgImage.y;
+                                bgImageScale = project.bgImage.scale;
+                                bgImageRotation = project.bgImage.rotation;
+                                draw();
+                            };
+                            img.src = project.bgImage.src;
+                        } else {
+                            bgImage = null;
+                        }
+
+                        // Restore pan offset
+                        panOffset = project.panOffset || { x: 0, y: 0 };
+
+                        // Restore gridlines visibility
+                        gridLinesVisible = project.gridLinesVisible !== undefined ? project.gridLinesVisible : true;
+                        toggleGridButton.textContent = gridLinesVisible ? 'Hide Gridlines 🟩' : 'Show Gridlines 🟦';
+
+                        draw();
+                        alert('Project loaded successfully!');
+                    } catch (error) {
+                        alert('Failed to load project: Invalid file.');
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            fileInput.click();
+        });
+        // Gridline Toggle Event Listener
+        toggleGridButton.addEventListener('click', () => {
+            gridLinesVisible = !gridLinesVisible;
+            toggleGridButton.textContent = gridLinesVisible ? 'Hide Gridlines 🟩' : 'Show Gridlines 🟦';
+           draw(); // Redraw the canvas to reflect gridline visibility
+         });
+
+        // ***********************
+        // ***** Help Dialog Handlers ****
+        // ***********************
+        helpButton.addEventListener('click', () => {
+            helpDialog.style.display = 'block';
+        });
+
+        closeHelp.addEventListener('click', () => {
+            helpDialog.style.display = 'none';
+        });
+
+        // ***********************
+        // ***** Double-Click Handling ****
+        // ***********************
+        canvas.addEventListener('dblclick', e => {
+            const pos = getMousePos(e);
+
+            // 1) Check for a SnapPoint
+            const sp = findNearbySnapPoint(pos.x, pos.y);
+            if (sp) {
+                // Prompt to edit length if connected to a line
+                if (sp.connectedLines.length > 0) {
+                    const line = sp.connectedLines[0].line;
+                    openInputDialog('length', line, 'end');
+                }
+                return;
+            }
+
+            // 2) Check for a triangle area label
+            const clickedLabel = labels.find(label => {
+                return pos.x >= label.x && pos.x <= label.x + label.width &&
+                       pos.y >= label.y && pos.y <= label.y + label.height &&
+                       label.type === 'area';
+            });
+            if (clickedLabel) {
+                openInputDialog('area', clickedLabel.triangle, null);
+                return;
+            }
+        });
+
+        // ***********************
+        // ***** Click Event Handling for Labels and Handles ****
+        // ***********************
+        canvas.addEventListener('click', e => {
+            const pos = getMousePos(e);
+
+            // Check if clicked on any label
+            const clickedLabel = labels.find(label => {
+                return pos.x >= label.x && pos.x <= label.x + label.width &&
+                       pos.y >= label.y && pos.y <= label.y + label.height;
+            });
+
+            if (clickedLabel) {
+                if (clickedLabel.type === 'length') {
+                    // Identify the corresponding line
+                    const [P1, P2] = clickedLabel.triangle;
+                    const line = shapes.find(l => 
+                        (l.start.id === P1.id && l.end.id === P2.id) ||
+                        (l.start.id === P2.id && l.end.id === P1.id)
+                    );
+                    if (line) {
+                        openInputDialog('length', line, 'end');
+                    }
+                } else if (clickedLabel.type === 'area') {
+                    openInputDialog('area', clickedLabel.triangle, null);
+                }
+            }
+        });
+
+        // ***********************
+        // ***** Background Image Upload and Manipulation ****
+        // ***********************
+        bgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    bgImage = img;
+                    bgImageX = canvas.width / 2;
+                    bgImageY = canvas.height / 2;
+                    bgImageScale = 1;
+                    bgImageRotation = 0;
+                    draw();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        bgLockButton.addEventListener('click', () => {
+            bgImageLocked = !bgImageLocked;
+            if (bgImageLocked) {
+                bgLockButton.classList.remove('unlocked');
+                bgLockButton.classList.add('locked');
+                bgLockButton.textContent = 'Lock Background 🔒';
+            } else {
+                bgLockButton.classList.remove('locked');
+                bgLockButton.classList.add('unlocked');
+                bgLockButton.textContent = 'Unlock Background 🔓';
+            }
+        });
+
+        // Background Image Drag Variables
+        let isBgDragging = false;
+        let bgDragStart = { x: 0, y: 0 };
+        let bgInitialPos = { x: 0, y: 0 };
+
+        // Handle mouse wheel for scaling background image
+        canvas.addEventListener('wheel', e => {
+            if (!bgImageLocked && bgImage) {
+                e.preventDefault();
+                const scaleAmount = e.deltaY < 0 ? 1.1 : 0.9;
+                bgImageScale *= scaleAmount;
+                bgImageScale = Math.max(0.1, Math.min(bgImageScale, 10)); // Clamp scale
+                undoStack.push({
+                    type: 'scaleBackground',
+                    oldScale: bgImageScale / scaleAmount,
+                    newScale: bgImageScale
+                });
+                redoStack.length = 0;
+                draw();
+            }
+        });
+
+        // Handle rotation with Shift + Middle Mouse Drag
+        let isRotatingBg = false;
+        let bgRotateStart = { x: 0, y: 0 };
+        let bgInitialRotation = 0;
+
+        canvas.addEventListener('mousedown', e => {
+            if (e.button === 1 && !bgImageLocked && bgImage) { // Middle mouse button
+                if (e.shiftKey) {
+                    isRotatingBg = true;
+                    bgRotateStart = { x: e.clientX, y: e.clientY };
+                    bgInitialRotation = bgImageRotation;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            if (isRotatingBg) {
+                const dx = e.clientX - bgRotateStart.x;
+                bgImageRotation = bgInitialRotation + dx * 0.01; // Adjust rotation speed as needed
+                draw();
+            }
+        });
+
+        canvas.addEventListener('mouseup', e => {
+            if (isRotatingBg) {
+                isRotatingBg = false;
+                undoStack.push({
+                    type: 'rotateBackground',
+                    oldRotation: bgInitialRotation,
+                    newRotation: bgImageRotation
+                });
+                redoStack.length = 0;
+                draw();
+            }
+        });
+
+        // ***********************
+        // ***** Triangle Detection & Area ****
+        // ***********************
+        // Already handled in detectTriangles and drawTriangleLabels
+
+        // ***********************
+        // ***** Miscellaneous ****
+        // ***********************
+        // Prevent context menu on canvas
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        // ***********************
+        // ***** Right Angle Function ****
+        // ***********************
+        function makeRightAngleAtSnapPoint(sp) {
+            detectTriangles();
+            let foundTriangle = null;
+            for (let tri of triangles) {
+                if (tri.includes(sp)) { foundTriangle = tri; break; }
+            }
+            if (!foundTriangle) {
+                return;
+            }
+            const [A, B, C] = foundTriangle;
+            let vertex = sp;
+            let adjacent1, adjacent2;
+            if (sp === A) { adjacent1 = B; adjacent2 = C; }
+            else if (sp === B) { adjacent1 = A; adjacent2 = C; }
+            else { adjacent1 = A; adjacent2 = B; }
+
+            const lenAdj1 = dist(vertex, adjacent1);
+            const lenAdj2 = dist(vertex, adjacent2);
+
+            if (lenAdj1 === 0 || lenAdj2 === 0) {
+                return;
+            }
+
+            // Calculate new position for adjacent2 to form a right angle
+            const angle1 = Math.atan2(adjacent1.y - vertex.y, adjacent1.x - vertex.x);
+            const rightAngle = angle1 + Math.PI / 2;
+            const newAdj2X = vertex.x + lenAdj2 * Math.cos(rightAngle);
+            const newAdj2Y = vertex.y + lenAdj2 * Math.sin(rightAngle);
+
+            // Validate the new position to prevent degenerate triangles
+            if (isNaN(newAdj2X) || isNaN(newAdj2Y)) {
+                closeInputDialog();
+                return;
+            }
+
+            // Store old position for undo
+            const oldPosition = { x: adjacent2.x, y: adjacent2.y };
+
+            // Update position
+            adjacent2.move(newAdj2X, newAdj2Y);
+
+            // Push to undo stack
+            undoStack.push({
+                type: 'makeRightAngle',
+                vertexId: vertex.id,
+                adjacent2Id: adjacent2.id,
+                oldPosition: oldPosition,
+                newPosition: { x: newAdj2X, y: newAdj2Y }
+            });
+            redoStack.length = 0;
+
+            draw();
+        }
     </script>
 </body>
 </html>
