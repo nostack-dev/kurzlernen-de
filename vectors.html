@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Drawing App – Full Merging, Detaching, & SHIFT Angle Snaps</title>
+  <title>Drawing App – Enhanced Merge Points + Chain Straightening</title>
   <style>
     body, html {
       margin: 0;
@@ -28,17 +28,18 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 
-const pxPerCm = 35;       // 35 px ~ 1 cm
-const snapRadius = 15;    // For merging endpoints or snapping dragging
+const pxPerCm = 35;
+const snapRadius = 15;
 
-let endpoints = [];       // Each ep: { x, y, lines:[], selected: bool, parentCircle?: Circle }
+let endpoints = [];    // Each ep: { x, y, lines: [], selected: bool, parentCircle?: ... }
 let lines = [];
 let circles = [];
 
-// Panning offset (unused for now)
+let isPanning = false;
 let panOffset = { x:0, y:0 };
+let panStart = { x:0, y:0 };
+let oldPan = { x:0, y:0 };
 
-// Drawing states
 let isDrawingLine = false;
 let startEndpoint = null;
 let currentPosLine = { x:0, y:0 };
@@ -47,7 +48,7 @@ let isDrawingCircle = false;
 let circleCenter = null;
 let currentPosCircle = { x:0, y:0 };
 
-let vKeyHeld = false;  // If "V" => circle creation
+let vKeyHeld = false;  // “V” => circle creation
 
 // Endpoint dragging
 let isDraggingEndpoint = false;
@@ -65,15 +66,15 @@ const undoStack = [];
 const redoStack = [];
 
 // Toggles
-let labelsVisible = true;
+let labelsVisible = true;     // toggled by “H”
+let showAngles = true;        // toggled by “I”
+let showLineLengths = false;  // toggled by “U”
 let shiftIsHeld = false;
-let showLineLengths = false; // "U"
-let showAngles = true;       // "I"
 
 let hoverEndpoint = null;
 
 // ======================================================
-// Utility
+// Utility Functions
 // ======================================================
 function getMousePos(e){
   const rect = canvas.getBoundingClientRect();
@@ -86,106 +87,123 @@ function dist(a,b){
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 function pointInRect(p, start, current){
-  let xMin= Math.min(start.x, current.x);
-  let xMax= Math.max(start.x, current.x);
-  let yMin= Math.min(start.y, current.y);
-  let yMax= Math.max(start.y, current.y);
-  return(p.x>= xMin && p.x<= xMax && p.y>= yMin && p.y<= yMax);
+  let xMin = Math.min(start.x, current.x);
+  let xMax = Math.max(start.x, current.x);
+  let yMin = Math.min(start.y, current.y);
+  let yMax = Math.max(start.y, current.y);
+  return (p.x >= xMin && p.x <= xMax && p.y >= yMin && p.y <= yMax);
 }
-
-// "findEndpoint" must be defined before "spaceMergeDownHoveredEndpoint" uses it
 function findEndpoint(x,y){
   for(let ep of endpoints){
-    if(dist(ep,{ x,y })<= snapRadius) return ep;
+    if(dist(ep,{ x,y }) <= snapRadius) return ep;
   }
   return null;
 }
-function getSnappedEndpoint(x,y){
-  let existing= findEndpoint(x,y);
-  if(existing) return existing;
-  let ep= { x, y, lines:[], selected:false };
-  endpoints.push(ep);
-  return ep;
-}
 function cleanupEndpoints(){
-  for(let i=endpoints.length-1;i>=0;i--){
+  for(let i=endpoints.length-1; i>=0; i--){
     if(endpoints[i].lines.length===0){
       endpoints.splice(i,1);
     }
   }
 }
-
-// SHIFT angle constraints for dragging or line drawing
-function applyConstraints(origin, curr, shiftHeld){
-  let { x: ox, y: oy }= origin;
-  let { x: cx, y: cy }= curr;
-  if(shiftHeld){
-    let inputAngle= Math.atan2(cy- oy, cx- ox);
-    if(inputAngle<0) inputAngle+= 2*Math.PI;
-
-    // Snap to multiples of 45°, or parallel/perp to lines from "origin"
-    let cand45= Math.round(inputAngle/(Math.PI/4))*(Math.PI/4);
-    let candidates= [ cand45 ];
-    // Also consider angles from lines out of "origin"
-    origin.lines.forEach(ln=>{
-      let other= (ln.start=== origin)? ln.end: ln.start;
-      let a= Math.atan2(other.y- oy, other.x- ox);
-      if(a<0) a+= 2*Math.PI;
-      candidates.push(a);                 // parallel
-      candidates.push( (a+ Math.PI)%(2*Math.PI) );  // opposite direction
-      candidates.push( (a+ Math.PI/2)%(2*Math.PI) );// perpendicular
-      candidates.push( (a+ 3*Math.PI/2)%(2*Math.PI));// perpendicular opposite
-    });
-
-    // Pick whichever is closest
-    let best= candidates[0];
-    let minDiff= Math.abs(inputAngle- best);
-    candidates.forEach(c=>{
-      let diff= Math.abs(inputAngle- c);
-      if(diff> Math.PI) diff= 2*Math.PI- diff; 
-      if(diff< minDiff){
-        minDiff= diff;
-        best= c;
-      }
-    });
-    let distance= Math.hypot(cx- ox, cy- oy);
-    cx= ox+ distance*Math.cos(best);
-    cy= oy+ distance*Math.sin(best);
+function getSnappedEndpoint(x,y){
+  // If extremely close => reuse
+  for(let ep of endpoints){
+    if(dist(ep,{x,y}) < 1e-6) return ep;
   }
-  return { x: cx, y: cy };
+  let found = findEndpoint(x,y);
+  if(found) return found;
+  let ep = { x, y, lines:[], selected:false };
+  endpoints.push(ep);
+  return ep;
+}
+function lineExists(ep1, ep2){
+  return lines.some(ln=>
+    (ln.start=== ep1 && ln.end=== ep2) ||
+    (ln.start=== ep2 && ln.end=== ep1)
+  );
 }
 
-// Snap dragging endpoint to existing endpoint
+// SHIFT line constraints => multiples of 45°, plus parallel/perp
+function applyConstraints(origin, curr, shiftHeld){
+  if(!shiftHeld) return { x: curr.x, y: curr.y };
+  let { x: ox, y: oy } = origin;
+  let { x: cx, y: cy } = curr;
+  let inputAngle = Math.atan2(cy- oy, cx- ox);
+  if(inputAngle<0) inputAngle += 2*Math.PI;
+
+  let cand45 = Math.round(inputAngle/(Math.PI/4))*(Math.PI/4);
+  let candidates= [ cand45 ];
+
+  origin.lines.forEach(ln=>{
+    let other = (ln.start=== origin)? ln.end : ln.start;
+    let a = Math.atan2(other.y- oy, other.x- ox);
+    if(a<0) a+= 2*Math.PI;
+    candidates.push(a);
+    candidates.push((a + Math.PI)%(2*Math.PI));
+    candidates.push((a + Math.PI/2)%(2*Math.PI));
+    candidates.push((a + 3*Math.PI/2)%(2*Math.PI));
+  });
+
+  let best= candidates[0];
+  let minDiff= Math.abs(inputAngle- best);
+  if(minDiff> Math.PI) minDiff= 2*Math.PI- minDiff;
+  candidates.forEach(c=>{
+    let diff= Math.abs(inputAngle- c);
+    if(diff> Math.PI) diff= 2*Math.PI- diff;
+    if(diff< minDiff){
+      minDiff= diff;
+      best= c;
+    }
+  });
+
+  let distance= Math.hypot(cx- ox, cy- oy);
+  cx= ox+ distance* Math.cos(best);
+  cy= oy+ distance* Math.sin(best);
+  return { x: cx, y: cy };
+}
 function snapDraggedEndpoint(pos, excludeList){
   for(let ep of endpoints){
     if(excludeList.includes(ep)) continue;
-    if(dist(ep, pos)<= snapRadius){
+    if(dist(ep,pos)<= snapRadius){
       return { x: ep.x, y: ep.y };
     }
   }
   return pos;
 }
 
+// BFS to gather the “chain” from hovered ep
+function findChainEndpoints(ep){
+  let chain= new Set();
+  let queue= [ ep ];
+  while(queue.length>0){
+    let current= queue.shift();
+    if(chain.has(current)) continue;
+    chain.add(current);
+    // Continue BFS if current=== ep or lines.length===2
+    if(current=== ep || current.lines.length===2){
+      current.lines.forEach(ln=>{
+        let nb= (ln.start=== current)? ln.end: ln.start;
+        if(!chain.has(nb)) queue.push(nb);
+      });
+    }
+  }
+  return Array.from(chain);
+}
+
 // ======================================================
 // Classes
 // ======================================================
-function lineExists(ep1, ep2){
-  return lines.some(ln=>
-    (ln.start=== ep1 && ln.end=== ep2)||
-    (ln.start=== ep2 && ln.end=== ep1)
-  );
-}
-
 class Line {
   constructor(startEp, endEp){
     this.start= startEp;
     this.end= endEp;
-    this.length= dist(startEp,endEp)/ pxPerCm;
+    this.length= dist(startEp, endEp)/ pxPerCm;
     startEp.lines.push(this);
     endEp.lines.push(this);
   }
   draw(){
-    ctx.strokeStyle="#333";
+    ctx.strokeStyle= "#333";
     ctx.lineWidth=2;
     ctx.beginPath();
     ctx.moveTo(this.start.x,this.start.y);
@@ -193,7 +211,6 @@ class Line {
     ctx.stroke();
   }
 }
-
 class Circle {
   constructor(centerEp, radius){
     this.center= centerEp;
@@ -211,56 +228,51 @@ class Circle {
     let arr= [];
     for(let i=0;i<n;i++){
       let angle= (2*Math.PI/n)* i;
-      let x= this.center.x+ this.radius* Math.cos(angle);
-      let y= this.center.y+ this.radius* Math.sin(angle);
+      let x= this.center.x+ this.radius*Math.cos(angle);
+      let y= this.center.y+ this.radius*Math.sin(angle);
       arr.push({ x,y, lines:[], selected:false, parentCircle:this });
     }
     return arr;
   }
   draw(){
-    ctx.strokeStyle="#FF5733";
+    ctx.strokeStyle= "#FF5733";
     ctx.lineWidth=2;
     ctx.beginPath();
-    ctx.arc(this.center.x,this.center.y,this.radius,0,2*Math.PI);
+    ctx.arc(this.center.x,this.center.y, this.radius,0,2*Math.PI);
     ctx.stroke();
-    ctx.fillStyle="#FF0000";
+    ctx.fillStyle= "#FF0000";
     this.samplePoints.forEach(pt=>{
       ctx.beginPath();
-      ctx.arc(pt.x,pt.y,6,0,2*Math.PI);
+      ctx.arc(pt.x, pt.y,6,0,2*Math.PI);
       ctx.fill();
     });
   }
 }
 
 // ======================================================
-// Merge Down (Space), Straighten (SHIFT+Space), Detach (CTRL+Space)
+// Merge (Space), Detach (CTRL+Space), Straighten (Shift+Space)
 // ======================================================
 function pointLineDistance(P,A,B){
-  let ABx= B.x- A.x, ABy= B.y- A.y;
-  let APx= P.x- A.x, APy= P.y- A.y;
+  let ABx= B.x- A.x; let ABy= B.y- A.y;
+  let APx= P.x- A.x; let APy= P.y- A.y;
   let ab2= ABx*ABx+ ABy*ABy;
-  let t= (APx*ABx+ APy*ABy)/ ab2;
+  let t= (APx*ABx + APy*ABy)/ ab2;
   if(t<0) t=0; if(t>1) t=1;
-  let projX= A.x+ t*ABx, projY= A.y+ t*ABy;
-  return dist(P, { x: projX, y: projY });
+  let px= A.x+ t*ABx; let py= A.y+ t*ABy;
+  return dist(P,{ x:px,y:py });
 }
 function projectPointOntoLine(P,A,B){
-  let ABx= B.x- A.x, ABy= B.y- A.y;
-  let APx= P.x- A.x, APy= P.y- A.y;
+  let ABx= B.x- A.x; let ABy= B.y- A.y;
+  let APx= P.x- A.x; let APy= P.y- A.y;
   let ab2= ABx*ABx+ ABy*ABy;
   let t= (APx*ABx + APy*ABy)/ ab2;
   if(t<0) t=0; if(t>1) t=1;
   return { x: A.x+ t*ABx, y: A.y+ t*ABy };
 }
-
 function splitLine(line, proj){
   let { start, end }= line;
-  // new endpoint at "proj"
   let epProj= getSnappedEndpoint(proj.x, proj.y);
-  if(dist(epProj,start)<1e-6|| dist(epProj,end)<1e-6){
-    return;
-  }
-  // remove original line
+  if(dist(epProj,start)<1e-6|| dist(epProj,end)<1e-6) return;
   let i1= start.lines.indexOf(line);
   if(i1>-1) start.lines.splice(i1,1);
   let i2= end.lines.indexOf(line);
@@ -274,19 +286,46 @@ function splitLine(line, proj){
   cleanupEndpoints();
 }
 
+/**
+ * Merge logic (Space) with additional step:
+ * If there are multiple endpoints at the same location as ep, 
+ * unify them as well (or near enough within threshold).
+ */
 function spaceMergeDownHoveredEndpoint(ep){
-  const threshold= 10;
+  const threshold=10;
+  
+  // Step 1: unify other endpoints that are at the same location or within threshold
+  // We do a pass to find all endpoints within threshold of ep
+  let toUnify= endpoints.filter( ept=> ept!== ep && dist(ept, ep)<= threshold );
+  toUnify.forEach( ept=>{
+    // merge ept => ep
+    ept.lines.forEach( ln=>{
+      if(ln.start=== ept){
+        ln.start= ep;
+        if(!ep.lines.includes(ln)) ep.lines.push(ln);
+      }
+      if(ln.end=== ept){
+        ln.end= ep;
+        if(!ep.lines.includes(ln)) ep.lines.push(ln);
+      }
+    });
+    let idx= endpoints.indexOf(ept);
+    if(idx>-1) endpoints.splice(idx,1);
+  });
+
+  // Step 2: attempt the "old" line merging logic 
+  // (i.e. if ep is near a line, project and unify)
   for(let line of lines){
     if(line.start=== ep|| line.end=== ep) continue;
     let d= pointLineDistance(ep, line.start, line.end);
     if(d<= threshold){
       let proj= projectPointOntoLine(ep, line.start, line.end);
-      if(dist(proj,line.start)>1e-6 && dist(proj,line.end)>1e-6){
+      if(dist(proj, line.start)>1e-6 && dist(proj, line.end)>1e-6){
         splitLine(line, proj);
       }
       let target= findEndpoint(proj.x, proj.y);
       if(target && target!== ep){
-        // merge ep => target
+        // unify ep => target
         ep.lines.forEach(ln=>{
           if(ln.start=== ep){
             ln.start= target;
@@ -300,55 +339,82 @@ function spaceMergeDownHoveredEndpoint(ep){
         let idx= endpoints.indexOf(ep);
         if(idx>-1) endpoints.splice(idx,1);
       } else {
-        // just place ep on that line
-        ep.x= proj.x; ep.y= proj.y;
+        ep.x= proj.x; 
+        ep.y= proj.y;
       }
+      cleanupEndpoints();
       draw();
       return;
     }
   }
+  cleanupEndpoints();
   draw();
 }
 
-function straightenEndpoint(ep){
-  // only if exactly 2 lines
-  if(!ep|| ep.lines.length!==2) return;
-  let l1= ep.lines[0], l2= ep.lines[1];
-  let A= (l1.start=== ep)? l1.end: l1.start;
-  let B= (l2.start=== ep)? l2.end: l2.start;
-  let proj= projectPointOntoLine(ep, A,B);
-  ep.x= proj.x; ep.y= proj.y;
-  draw();
-}
-
-// Detach (CTRL+Space): split lines into separate endpoints
+// forcibly create new endpoints for each line referencing ep => remove ep
 function detachHoveredEndpoint(ep){
   if(!ep) return;
   let linesCopy= ep.lines.slice();
   for(let ln of linesCopy){
+    let newEp= { x: ep.x, y: ep.y, lines:[], selected:false };
+    endpoints.push(newEp);
     if(ln.start=== ep){
-      let newEp= { x: ep.x, y: ep.y, lines:[], selected:false };
-      endpoints.push(newEp);
       ln.start= newEp;
       newEp.lines.push(ln);
     } else if(ln.end=== ep){
-      let newEp= { x: ep.x, y: ep.y, lines:[], selected:false };
-      endpoints.push(newEp);
       ln.end= newEp;
       newEp.lines.push(ln);
     }
   }
   let idx= endpoints.indexOf(ep);
   if(idx>-1) endpoints.splice(idx,1);
+  cleanupEndpoints();
+  draw();
+}
+
+// chain BFS => best-fit line
+function straightenChain(ep){
+  if(!ep) return;
+  let chain= findChainEndpoints(ep);
+  if(chain.length<2) return;
+  let sumX=0, sumY=0;
+  chain.forEach(p=> { sumX+= p.x; sumY+= p.y; });
+  let meanX= sumX/ chain.length;
+  let meanY= sumY/ chain.length;
+
+  let num=0, den=0;
+  chain.forEach(p=>{
+    let dx= p.x- meanX;
+    let dy= p.y- meanY;
+    num+= dx*dy;
+    den+= dx*dx;
+  });
+  let slope;
+  if(Math.abs(den)<1e-12) slope= null; // vertical
+  else slope= num/ den;
+
+  if(slope=== null){
+    chain.forEach(p=> p.x= meanX);
+  } else {
+    let c= meanY - slope* meanX;
+    chain.forEach(p=>{
+      let x0= p.x, y0= p.y;
+      let m= slope;
+      let d= (x0 + (y0- c)* m)/(1+ m*m);
+      p.x= d;
+      p.y= m*d+ c;
+    });
+  }
+  cleanupEndpoints();
   draw();
 }
 
 // ======================================================
-// Undo/Redo: Full Snapshots
+// Undo/Redo
 // ======================================================
 function snapshot(){
   let endpointsData= endpoints.map(ep=>({
-    x: ep.x,y: ep.y, selected: ep.selected||false
+    x: ep.x, y: ep.y, selected: ep.selected|| false
   }));
   let linesData= lines.map(ln=>({
     startIndex: endpoints.indexOf(ln.start),
@@ -358,7 +424,7 @@ function snapshot(){
     centerIndex: endpoints.indexOf(circle.center),
     radius: circle.radius,
     samplePoints: circle.samplePoints.map(sp=>({
-      x: sp.x,y: sp.y, selected: sp.selected||false
+      x: sp.x,y: sp.y, selected: sp.selected|| false
     }))
   }));
   return { endpointsData, linesData, circlesData };
@@ -368,16 +434,18 @@ function restoreSnapshot(snap){
   lines.length=0;
   circles.length=0;
   snap.endpointsData.forEach(ed=>{
-    endpoints.push({ x: ed.x,y: ed.y, lines:[], selected: ed.selected });
+    endpoints.push({ x: ed.x, y: ed.y, lines:[], selected: ed.selected });
   });
   snap.linesData.forEach(ld=>{
     let sEp= endpoints[ld.startIndex];
     let eEp= endpoints[ld.endIndex];
+    if(!sEp|| !eEp) return;
     let ln= new Line(sEp,eEp);
     lines.push(ln);
   });
   snap.circlesData.forEach(cd=>{
     let centerEp= endpoints[cd.centerIndex];
+    if(!centerEp) return;
     let circ= new Circle(centerEp, cd.radius);
     circ.samplePoints.length=0;
     cd.samplePoints.forEach(sp=>{
@@ -416,22 +484,33 @@ function drawGrid(){
   if(!labelsVisible) return;
   ctx.strokeStyle="#ddd";
   ctx.lineWidth=1;
-  for(let x=0;x<= canvas.width; x+= pxPerCm){
+
+  let leftX= -panOffset.x;
+  let topY=  -panOffset.y;
+  let rightX= leftX + canvas.width;
+  let bottomY= topY + canvas.height;
+
+  let startX= Math.floor(leftX/ pxPerCm)* pxPerCm;
+  let startY= Math.floor(topY / pxPerCm)* pxPerCm;
+  let endX=   Math.ceil(rightX/ pxPerCm)* pxPerCm;
+  let endY=   Math.ceil(bottomY/ pxPerCm)* pxPerCm;
+
+  for(let x= startX; x<= endX; x+= pxPerCm){
     ctx.beginPath();
-    ctx.moveTo(x,0);
-    ctx.lineTo(x, canvas.height);
+    ctx.moveTo(x, startY);
+    ctx.lineTo(x, endY);
     ctx.stroke();
   }
-  for(let y=0;y<= canvas.height; y+= pxPerCm){
+  for(let y= startY; y<= endY; y+= pxPerCm){
     ctx.beginPath();
-    ctx.moveTo(0,y);
-    ctx.lineTo(canvas.width,y);
+    ctx.moveTo(startX, y);
+    ctx.lineTo(endX, y);
     ctx.stroke();
   }
 }
 function drawVertexAngles(){
-  if(!showAngles|| !labelsVisible) return;
-  const arcRadius= 20;
+  if(!showAngles) return;
+  const arcRadius=20;
   endpoints.forEach(ep=>{
     if(ep.lines.length>=2){
       let angles= ep.lines.map(ln=>{
@@ -443,16 +522,17 @@ function drawVertexAngles(){
       angles.sort((a,b)=> a-b);
       for(let i=0;i< angles.length;i++){
         let a1= angles[i];
-        let a2= (i=== angles.length-1)? angles[0]+ 2*Math.PI: angles[i+1];
+        let a2= (i=== angles.length-1)? angles[0]+ 2*Math.PI : angles[i+1].valueOf();
         let gap= a2- a1;
+        if(gap<0) gap+= 2*Math.PI;
         if(gap> (5*Math.PI/180) && gap< Math.PI){
           ctx.beginPath();
-          ctx.strokeStyle="rgba(0,0,blue,0.7)";
+          ctx.strokeStyle="rgba(0,0,255,0.7)";
           ctx.arc(ep.x, ep.y, arcRadius, a1, a1+ gap);
           ctx.stroke();
           let mid= a1+ gap/2;
-          let tx= ep.x+(arcRadius+10)* Math.cos(mid);
-          let ty= ep.y+(arcRadius+10)* Math.sin(mid);
+          let tx= ep.x+ (arcRadius+10)* Math.cos(mid);
+          let ty= ep.y+ (arcRadius+10)* Math.sin(mid);
           ctx.save();
           ctx.font="12px Arial";
           ctx.fillStyle="rgba(0,0,0,0.9)";
@@ -480,8 +560,8 @@ function drawPreviewLabel(){
   let dx= currentPosLine.x- startEndpoint.x;
   let dy= currentPosLine.y- startEndpoint.y;
   let lenCm= (Math.hypot(dx,dy)/ pxPerCm).toFixed(2);
-  let angleDeg= (Math.atan2(dy,dx)*180/ Math.PI).toFixed(1);
-  let label="";
+  let angleDeg= (Math.atan2(dy,dx)* 180/ Math.PI).toFixed(1);
+  let label= "";
   if(showAngles && !showLineLengths) label= "Angle: "+ angleDeg+"°";
   else if(showLineLengths && !showAngles) label= "Length: "+ lenCm+" cm";
   else label= "Angle: "+ angleDeg+"° | "+ lenCm+" cm";
@@ -498,7 +578,7 @@ function drawPreviewCircleLabel(center, radius){
   ctx.save();
   ctx.font="12px Arial";
   ctx.fillStyle="rgba(0,0,0,0.8)";
-  ctx.fillText(label, center.x+ radius+10, center.y-10);
+  ctx.fillText(label, center.x+ radius+ 10, center.y- 10);
   ctx.restore();
 }
 function drawSelectionRectangle(){
@@ -518,10 +598,13 @@ function draw(){
   ctx.clearRect(0,0, canvas.width, canvas.height);
   ctx.save();
   ctx.translate(-panOffset.x, -panOffset.y);
-  if(labelsVisible) drawGrid();
+
+  // grid
+  drawGrid();
+
   lines.forEach(ln=> ln.draw());
-  circles.forEach(circ=> circ.draw());
-  // endpoints
+  circles.forEach(circle=> circle.draw());
+
   if(labelsVisible){
     endpoints.forEach(ep=>{
       if(ep.matchHover){
@@ -535,38 +618,33 @@ function draw(){
         ctx.strokeStyle="orange";
         ctx.lineWidth=4;
         ctx.beginPath();
-        ctx.arc(ep.x, ep.y,8,0,2*Math.PI);
+        ctx.arc(ep.x,ep.y,8,0,2*Math.PI);
         ctx.stroke();
       }
-      ctx.fillStyle= ep.selected? "#0000FF":"#FF0000";
+      if(ep.selected){
+        ctx.fillStyle="#800080";
+      } else {
+        if(ep.lines.length<2) ctx.fillStyle="#00FF00";
+        else ctx.fillStyle="#FF0000";
+      }
       ctx.beginPath();
-      ctx.arc(ep.x,ep.y,6,0,2*Math.PI);
+      ctx.arc(ep.x, ep.y,6,0,2*Math.PI);
       ctx.fill();
     });
   }
-  // SHIFT dragging line preview
-  endpoints.forEach(ep=>{
-    if(ep._dottedRay){
-      ctx.save();
-      ctx.setLineDash([4,4]);
-      ctx.strokeStyle="purple";
-      ctx.beginPath();
-      ctx.moveTo(ep._dottedRay.origin.x, ep._dottedRay.origin.y);
-      ctx.lineTo(ep.x, ep.y);
-      ctx.stroke();
-      ctx.restore();
-    }
-  });
+
   drawVertexAngles();
   drawExtraLineLabels();
+
   if(isSelecting) drawSelectionRectangle();
+
   if(isDrawingLine && startEndpoint && currentPosLine){
     ctx.strokeStyle="#aaa";
     ctx.lineWidth=2;
     ctx.setLineDash([5,3]);
     ctx.beginPath();
-    ctx.moveTo(startEndpoint.x,startEndpoint.y);
-    ctx.lineTo(currentPosLine.x,currentPosLine.y);
+    ctx.moveTo(startEndpoint.x, startEndpoint.y);
+    ctx.lineTo(currentPosLine.x, currentPosLine.y);
     ctx.stroke();
     ctx.setLineDash([]);
     drawPreviewLabel();
@@ -582,33 +660,40 @@ function draw(){
     ctx.setLineDash([]);
     drawPreviewCircleLabel(circleCenter, radius);
   }
+
   ctx.restore();
 }
 
 // ======================================================
-// Mouse Handlers
+// Mouse
 // ======================================================
 canvas.addEventListener("mousedown", e=>{
+  if(e.button===1){
+    isPanning= true;
+    panStart= { x:e.clientX, y:e.clientY };
+    oldPan= { x: panOffset.x, y: panOffset.y };
+    return;
+  }
   let pos= getMousePos(e);
 
-  // SHIFT+Right-click => toggle selection
+  // SHIFT+Right => toggle multi-select
   if(e.button===2 && e.shiftKey && !e.ctrlKey && !e.altKey){
-    let ep= endpoints.find(ep=> dist(ep,pos)<= snapRadius);
+    let ep= findEndpoint(pos.x,pos.y);
     if(ep){
       ep.selected= !ep.selected;
       draw();
     }
     return;
   }
-  // Right-click => single select
+  // Right => single select
   if(e.button===2 && !e.shiftKey && !e.ctrlKey && !e.altKey){
     endpoints.forEach(ep=> ep.selected= false);
-    let ep= endpoints.find(ep=> dist(ep,pos)<= snapRadius);
+    let ep= findEndpoint(pos.x,pos.y);
     if(ep) ep.selected= true;
     draw();
     return;
   }
-  // CTRL+ALT+Right-click => selection rectangle
+  // CTRL+ALT+Right => selection rect
   if(e.button===2 && e.ctrlKey && e.altKey){
     isSelecting= true;
     selectionStart= pos;
@@ -616,29 +701,27 @@ canvas.addEventListener("mousedown", e=>{
     draw();
     return;
   }
-  // If “V” => circle on left click, else line
+  // If “V” => circle, else line
   if(e.button===0 && !e.ctrlKey && !e.altKey){
     if(vKeyHeld){
-      // circle
       isDrawingCircle= true;
-      circleCenter= endpoints.find(ep=> dist(ep,pos)<= snapRadius) || getSnappedEndpoint(pos.x, pos.y);
-      currentPosCircle= { x: pos.x,y: pos.y};
+      circleCenter= findEndpoint(pos.x,pos.y) || getSnappedEndpoint(pos.x,pos.y);
+      currentPosCircle= { x: pos.x,y: pos.y };
       pushSnapshot();
       draw();
       return;
     } else {
-      // line
       isDrawingLine= true;
-      startEndpoint= endpoints.find(ep=> dist(ep,pos)<= snapRadius) || getSnappedEndpoint(pos.x,pos.y);
-      currentPosLine= { x: pos.x,y: pos.y};
+      startEndpoint= findEndpoint(pos.x,pos.y) || getSnappedEndpoint(pos.x,pos.y);
+      currentPosLine= { x: pos.x,y: pos.y };
       pushSnapshot();
       draw();
       return;
     }
   }
-  // CTRL+Left-click => drag endpoints
+  // CTRL+Left => drag endpoint
   if(e.button===0 && e.ctrlKey && !e.altKey){
-    let ep= endpoints.find(ep=> dist(ep,pos)<= snapRadius);
+    let ep= findEndpoint(pos.x,pos.y);
     if(ep){
       if(ep.selected){
         isDraggingEndpoint= true;
@@ -648,7 +731,7 @@ canvas.addEventListener("mousedown", e=>{
         draggedEndpoints=[ ep ];
       }
       dragStartPos= pos;
-      endpointsOriginalPos= draggedEndpoints.map(ept=>({ ept, x:ept.x, y:ept.y }));
+      endpointsOriginalPos= draggedEndpoints.map(ept=> ({ ept, x:ept.x,y:ept.y }));
       pushSnapshot();
       draw();
       return;
@@ -657,6 +740,14 @@ canvas.addEventListener("mousedown", e=>{
 });
 
 canvas.addEventListener("mousemove", e=>{
+  if(isPanning){
+    let dx= e.clientX- panStart.x;
+    let dy= e.clientY- panStart.y;
+    panOffset.x= oldPan.x- dx;
+    panOffset.y= oldPan.y- dy;
+    draw();
+    return;
+  }
   let pos= getMousePos(e);
   if(isSelecting){
     selectionCurrent= pos;
@@ -670,28 +761,20 @@ canvas.addEventListener("mousemove", e=>{
       let orig= endpointsOriginalPos.find(o=> o.ept=== ept);
       if(orig){
         let newPos= { x: orig.x+ dx, y: orig.y+ dy };
-        // SHIFT => partial angle constraints
         if(e.shiftKey && ept.lines.length>0){
-          let ln= ept.lines[0];
-          let angle= Math.atan2(ln.end.y- ln.start.y, ln.end.x- ln.start.x);
-          const thr= Math.PI/180*5;
-          // Snap to near 0°, 90°, etc. 
-          // But also see if we do a line-based approach
-          // For simplicity, we’ll reuse applyConstraints with "origin=orig" to incorporate line angles
-          newPos= applyConstraints({ x: orig.x,y: orig.y, lines:ept.lines }, newPos, true);
+          newPos= applyConstraints({ x: orig.x,y: orig.y, lines:ept.lines }, newPos,true);
         }
         newPos= snapDraggedEndpoint(newPos, draggedEndpoints);
-        ept.x= newPos.x; ept.y= newPos.y;
+        ept.x= newPos.x; 
+        ept.y= newPos.y;
       }
     });
-    // highlight merges
     endpoints.forEach(ep=>{
       if(!draggedEndpoints.includes(ep)){
         if(draggedEndpoints.some(de=> dist(ep,de)< snapRadius)) ep.matchHover= true;
         else delete ep.matchHover;
       }
     });
-    // recalc lengths
     draggedEndpoints.forEach(ept=>{
       ept.lines.forEach(ln=>{
         ln.length= dist(ln.start, ln.end)/ pxPerCm;
@@ -703,18 +786,16 @@ canvas.addEventListener("mousemove", e=>{
   if(isDrawingLine){
     let posC= applyConstraints(startEndpoint, pos, e.shiftKey);
     if(e.shiftKey && hoverEndpoint && hoverEndpoint!== startEndpoint){
-      // snap angle to the line from startEndpoint->hoverEndpoint
       let angle= Math.atan2(hoverEndpoint.y- startEndpoint.y, hoverEndpoint.x- startEndpoint.x);
       let distance= Math.hypot(pos.x- startEndpoint.x, pos.y- startEndpoint.y);
-      posC= { x: startEndpoint.x+ distance*Math.cos(angle), y: startEndpoint.y+ distance*Math.sin(angle) };
+      posC= { x: startEndpoint.x+ distance* Math.cos(angle), y: startEndpoint.y+ distance*Math.sin(angle) };
     }
-    currentPosLine= { x: posC.x,y: posC.y};
+    currentPosLine= { x: posC.x, y: posC.y };
     draw();
     return;
   }
   if(isDrawingCircle){
-    let posC= { x: pos.x,y: pos.y};
-    currentPosCircle= { x: posC.x,y: posC.y};
+    currentPosCircle= { x: pos.x, y: pos.y };
     draw();
     return;
   }
@@ -737,6 +818,10 @@ canvas.addEventListener("mousemove", e=>{
 });
 
 canvas.addEventListener("mouseup", e=>{
+  if(isPanning && e.button===1){
+    isPanning= false;
+    return;
+  }
   let pos= getMousePos(e);
   if(isSelecting){
     endpoints.forEach(ep=>{
@@ -750,13 +835,9 @@ canvas.addEventListener("mouseup", e=>{
     return;
   }
   if(isDraggingEndpoint && draggedEndpoints.length>0){
-    // Attempt merges
     draggedEndpoints.forEach(dep=>{
-      let near= endpoints.find(ep=> 
-        !draggedEndpoints.includes(ep) && dist(dep,ep)<= snapRadius
-      );
+      let near= endpoints.find(ep=> !draggedEndpoints.includes(ep) && dist(dep,ep)<= snapRadius );
       if(near){
-        // Merge dep => near
         dep.lines.forEach(ln=>{
           if(ln.start=== dep){
             ln.start= near;
@@ -772,7 +853,7 @@ canvas.addEventListener("mouseup", e=>{
       }
     });
     isDraggingEndpoint= false;
-    draggedEndpoints=[];
+    draggedEndpoints= [];
     endpoints.forEach(ep=> delete ep.matchHover);
     cleanupEndpoints();
     draw();
@@ -780,7 +861,7 @@ canvas.addEventListener("mouseup", e=>{
   }
   if(isDrawingLine){
     let finalPos= applyConstraints(startEndpoint, pos, e.shiftKey);
-    let endEp= endpoints.find(ep=> dist(ep, finalPos)<= snapRadius) || getSnappedEndpoint(finalPos.x, finalPos.y);
+    let endEp= findEndpoint(finalPos.x, finalPos.y) || getSnappedEndpoint(finalPos.x, finalPos.y);
     if(startEndpoint.x=== endEp.x && startEndpoint.y=== endEp.y){
       isDrawingLine= false;
       draw();
@@ -795,7 +876,7 @@ canvas.addEventListener("mouseup", e=>{
     return;
   }
   if(isDrawingCircle){
-    let radius= dist(circleCenter,pos);
+    let radius= dist(circleCenter, pos);
     if(radius<5){
       isDrawingCircle= false;
       draw();
@@ -821,6 +902,10 @@ window.addEventListener("keydown", e=>{
     labelsVisible= !labelsVisible;
     draw();
   }
+  if(e.key.toLowerCase()==="i"){
+    showAngles= !showAngles;
+    draw();
+  }
   if(e.ctrlKey && e.key.toLowerCase()==="a"){
     e.preventDefault();
     endpoints.forEach(ep=> ep.selected= true);
@@ -833,6 +918,31 @@ window.addEventListener("keydown", e=>{
   if(e.key.toLowerCase()==="v"){
     vKeyHeld= true;
     draw();
+  }
+  // SHIFT+SPACE => straighten chain
+  if(e.key===" " && e.shiftKey && !e.ctrlKey){
+    if(hoverEndpoint){
+      pushSnapshot();
+      straightenChain(hoverEndpoint);
+      e.preventDefault();
+    }
+  }
+  // SPACE => merge
+  if(e.key===" " && !e.shiftKey && !e.ctrlKey){
+    if(hoverEndpoint){
+      pushSnapshot();
+      spaceMergeDownHoveredEndpoint(hoverEndpoint);
+      e.preventDefault();
+    }
+  }
+  // CTRL+SPACE => detach
+  if(e.key===" " && e.ctrlKey && !e.shiftKey){
+    if(hoverEndpoint){
+      pushSnapshot();
+      detachHoveredEndpoint(hoverEndpoint);
+      e.preventDefault();
+      draw();
+    }
   }
   // CTRL+S => save
   if(e.ctrlKey && e.key.toLowerCase()==="s"){
@@ -853,17 +963,16 @@ window.addEventListener("keydown", e=>{
     savePNG();
   }
   // CTRL+Z => undo
-  if(e.ctrlKey && (e.key==="z"|| e.key==="Z")){
+  if(e.ctrlKey && (e.key==="z" || e.key==="Z")){
     e.preventDefault();
     undo();
   }
   // CTRL+Y => redo
-  if(e.ctrlKey && (e.key==="y"|| e.key==="Y")){
+  if(e.ctrlKey && (e.key==="y" || e.key==="Y")){
     e.preventDefault();
     redo();
   }
   if(e.key==="Delete"){
-    // remove circle if center or sample points are selected
     let circlesToRemove= new Set();
     endpoints.forEach(ep=>{
       if(ep.selected && ep.parentCircle) circlesToRemove.add(ep.parentCircle);
@@ -881,45 +990,13 @@ window.addEventListener("keydown", e=>{
     cleanupEndpoints();
     draw();
   }
-  // SPACE => mergeDown
-  if(e.key===" " && !e.ctrlKey && !e.shiftKey){
-    if(hoverEndpoint){
-      pushSnapshot();
-      spaceMergeDownHoveredEndpoint(hoverEndpoint);
-      e.preventDefault();
-    }
-  }
-  // SHIFT+SPACE => straighten if exactly 2 lines
-  if(e.key===" " && e.shiftKey && !e.ctrlKey){
-    if(hoverEndpoint){
-      pushSnapshot();
-      straightenEndpoint(hoverEndpoint);
-      e.preventDefault();
-    }
-  }
-  // CTRL+SPACE => detach
-  if(e.key===" " && e.ctrlKey && !e.shiftKey){
-    if(hoverEndpoint){
-      pushSnapshot();
-      detachHoveredEndpoint(hoverEndpoint);
-      e.preventDefault();
-      draw();
-    }
-  }
-  // "U" => toggle line length
+  // “U” => toggles line lengths
   if(e.key.toLowerCase()==="u"){
     showLineLengths= !showLineLengths;
     e.preventDefault();
     draw();
   }
-  // "I" => toggle angles
-  if(e.key.toLowerCase()==="i"){
-    showAngles= !showAngles;
-    e.preventDefault();
-    draw();
-  }
 });
-
 window.addEventListener("keyup", e=>{
   if(e.key==="Shift"){
     shiftIsHeld= false;
@@ -967,6 +1044,70 @@ function removeCircle(circle){
 // ======================================================
 // Save, Load, PNG
 // ======================================================
+function snapshot(){
+  let endpointsData= endpoints.map(ep=>({
+    x: ep.x, y: ep.y, selected: ep.selected|| false
+  }));
+  let linesData= lines.map(ln=>({
+    startIndex: endpoints.indexOf(ln.start),
+    endIndex: endpoints.indexOf(ln.end)
+  }));
+  let circlesData= circles.map(circle=>({
+    centerIndex: endpoints.indexOf(circle.center),
+    radius: circle.radius,
+    samplePoints: circle.samplePoints.map(sp=>({
+      x: sp.x,y: sp.y, selected: sp.selected|| false
+    }))
+  }));
+  return { endpointsData, linesData, circlesData };
+}
+function restoreSnapshot(snap){
+  endpoints.length=0;
+  lines.length=0;
+  circles.length=0;
+  snap.endpointsData.forEach(ed=>{
+    endpoints.push({ x: ed.x, y: ed.y, lines:[], selected: ed.selected });
+  });
+  snap.linesData.forEach(ld=>{
+    let sEp= endpoints[ld.startIndex];
+    let eEp= endpoints[ld.endIndex];
+    if(!sEp|| !eEp) return;
+    let ln= new Line(sEp,eEp);
+    lines.push(ln);
+  });
+  snap.circlesData.forEach(cd=>{
+    let centerEp= endpoints[cd.centerIndex];
+    if(!centerEp) return;
+    let circ= new Circle(centerEp, cd.radius);
+    circ.samplePoints.length=0;
+    cd.samplePoints.forEach(sp=>{
+      let spt= { x: sp.x,y: sp.y, lines:[], selected: sp.selected, parentCircle: circ };
+      circ.samplePoints.push(spt);
+      endpoints.push(spt);
+    });
+    circles.push(circ);
+  });
+  cleanupEndpoints();
+  draw();
+}
+function pushSnapshot(){
+  let data= snapshot();
+  undoStack.push(data);
+  redoStack.length=0;
+}
+function undo(){
+  if(undoStack.length<2) return;
+  undoStack.pop();
+  let data= undoStack[undoStack.length-1];
+  restoreSnapshot(data);
+}
+function redo(){
+  if(redoStack.length===0) return;
+  let data= redoStack.pop();
+  let current= snapshot();
+  undoStack.push(current);
+  restoreSnapshot(data);
+}
 function saveProject(){
   pushSnapshot();
   let data= snapshot();
@@ -985,7 +1126,7 @@ function loadProject(){
     let file= e.target.files[0];
     let reader= new FileReader();
     reader.onload= function(ev){
-      try{
+      try {
         let snapData= JSON.parse(ev.target.result);
         pushSnapshot();
         restoreSnapshot(snapData);
@@ -1021,7 +1162,7 @@ function savePNG(){
     tempCtx.strokeStyle="#FF5733";
     tempCtx.lineWidth=2;
     tempCtx.beginPath();
-    tempCtx.arc(circle.center.x, circle.center.y, circle.radius,0,2*Math.PI);
+    tempCtx.arc(circle.center.x, circle.center.y, circle.radius, 0, 2*Math.PI);
     tempCtx.stroke();
     tempCtx.fillStyle="#FF0000";
     circle.samplePoints.forEach(pt=>{
