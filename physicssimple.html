@@ -27,7 +27,7 @@
             background: rgba(0,0,0,0.5);
             padding: 10px;
             border-radius: 5px;
-            max-width: 350px;
+            max-width: 400px;
             overflow-y: auto;
             max-height: 90vh;
         }
@@ -78,6 +78,7 @@
             <li><strong>Press 'G':</strong> Toggle gravity on/off.</li>
             <li><strong>Press 'R' or Spacebar:</strong> Reset simulation.</li>
             <li><strong>Press 'ESC':</strong> Exit dragging or spawning mode.</li>
+            <li><strong>Press 'H':</strong> Toggle instructions and controls visibility.</li>
         </ul>
     </div>
     <div id="controls">
@@ -88,7 +89,7 @@
         <label for="mass">Mass: <span id="massValue">1.57</span></label>
         <input type="range" id="mass" min="0.1" max="10" step="0.1" value="1.57"><br><br>
       
-        <label for="mass">Radius: <span id="radiusValue">0.5</span></label>
+        <label for="radius">Radius: <span id="radiusValue">0.5</span></label>
         <input type="range" id="radius" min="0.1" max="10" step="0.1" value="0.5"><br><br>
 
         <label for="density">Density: <span id="densityValue">1.0</span></label>
@@ -102,6 +103,10 @@
 
         <label for="deformationScale">Deformation Scale: <span id="deformationScaleValue">0.0</span></label>
         <input type="range" id="deformationScale" min="0" max="0.5" step="0.01" value="0.0"><br><br>
+
+        <h3>Simulation Speed:</h3>
+        <label for="simSpeed">Speed Multiplier: <span id="simSpeedValue">1.0x</span></label>
+        <input type="range" id="simSpeed" min="0.1" max="4" step="0.1" value="1.0"><br><br>
     </div>
     <div id="fps">FPS: 0</div>
     <div id="message"></div>
@@ -112,6 +117,31 @@
         // Get Canvas and Context
         const canvas = document.getElementById('simulationCanvas');
         const ctx = canvas.getContext('2d');
+
+        // Cache DOM Elements for Performance
+        const bouncinessSlider = document.getElementById('bounciness');
+        const bouncinessValue = document.getElementById('bouncinessValue');
+
+        const massSlider = document.getElementById('mass');
+        const massValue = document.getElementById('massValue');
+
+        const radiusSlider = document.getElementById('radius');
+        const radiusValue = document.getElementById('radiusValue');
+
+        const densitySlider = document.getElementById('density');
+        const densityValue = document.getElementById('densityValue');
+
+        const frictionSlider = document.getElementById('friction');
+        const frictionValue = document.getElementById('frictionValue');
+
+        const deformationTimeSlider = document.getElementById('deformationTime');
+        const deformationTimeValue = document.getElementById('deformationTimeValue');
+
+        const deformationScaleSlider = document.getElementById('deformationScale');
+        const deformationScaleValue = document.getElementById('deformationScaleValue');
+
+        const simSpeedSlider = document.getElementById('simSpeed');
+        const simSpeedValue = document.getElementById('simSpeedValue');
 
         // Declare and Initialize viewSize and aspect
         const viewSize = 10.0; // Logical units
@@ -134,17 +164,21 @@
 
         // ====== 3. Physics Parameters ======
 
-        const dt = 0.016; // Fixed timestep (~60 Hz)
+        const baseDt = 0.016; // Fixed timestep (~60 Hz)
+        let speedMultiplier = 1.0; // Simulation speed multiplier
+        let dt = baseDt * speedMultiplier;
+
         let gravityEnabled = true;
         const gravity = -9.81; // Gravity acceleration
 
         // Initialize physical parameters with default values
-        let restitution = parseFloat(document.getElementById('bounciness').value); // Bounciness
-        let baseMass = parseFloat(document.getElementById('mass').value); // Base mass
-        let density = parseFloat(document.getElementById('density').value); // Density
-        let frictionCoefficient = parseFloat(document.getElementById('friction').value); // Friction
-        let deformationRegenerationTime = parseFloat(document.getElementById('deformationTime').value); // Time in seconds
-        let deformationScale = parseFloat(document.getElementById('deformationScale').value); // Scale of deformation
+        let restitution = parseFloat(bouncinessSlider.value); // Bounciness
+        let baseMass = parseFloat(massSlider.value); // Base mass
+        let baseRadius = parseFloat(radiusSlider.value); // Base radius
+        let density = parseFloat(densitySlider.value); // Density
+        let frictionCoefficient = parseFloat(frictionSlider.value); // Friction
+        let deformationRegenerationTime = parseFloat(deformationTimeSlider.value); // Time in seconds
+        let deformationScale = parseFloat(deformationScaleSlider.value); // Scale of deformation
 
         // ====== 4. Seedable PRNG ======
 
@@ -235,7 +269,7 @@
             circles = [];
             nextId = 1;
 
-            const radius = 0.5; // Slightly smaller
+            const radius = baseRadius; // Use base radius from UI
             const mass = baseMass; // Base mass
             const densityValue = density;
 
@@ -271,9 +305,9 @@
             }
 
             // Get radius and mass from UI
-            const radius = parseFloat(document.getElementById('radius').value);
-            const mass = parseFloat(document.getElementById('mass').value);
-            const densityValue = parseFloat(document.getElementById('density').value);
+            const radius = baseRadius; // Use baseRadius
+            const mass = baseMass; // Use baseMass
+            const densityValue = density; // Current density
 
             // Ensure no overlap by adjusting position if necessary
             let adjustedX = x;
@@ -426,14 +460,12 @@
                 isSpawning = true;
                 spawnStart = {x: simX, y: simY};
                 spawnEnd = {x: simX, y: simY};
-            } else { // Regular Right-click to spawn with random velocity
-                addCircle(simX, simY);
-                addCircle(simX, simY);
-                addCircle(simX, simY);
-                addCircle(simX, simY);
-                addCircle(simX, simY);
-                addCircle(simX, simY);
-                addCircle(simX, simY);
+            } else { // Regular Right-click to spawn multiple circles with random velocities
+                // Spawn multiple circles efficiently
+                const spawnCount = 5; // Number of circles to spawn on right-click
+                for (let i = 0; i < spawnCount; i++) {
+                    addCircle(simX, simY);
+                }
             }
         });
 
@@ -474,7 +506,7 @@
             const delta = (now - lastTime) / 1000; // Convert to seconds
             lastTime = now;
 
-            physicsAccumulator += delta;
+            physicsAccumulator += delta * speedMultiplier;
             fpsAccumulator += delta;
 
             frames++;
@@ -580,7 +612,7 @@
                     circle.x = left + circle.currentRadius;
                     circle.vx = -circle.vx * restitution;
                     // Apply deformation upon boundary collision
-                    if (circle.vx !== 0) {
+                    if (Math.abs(circle.vx) > 0.1) { // Threshold to avoid minor deformations
                         const deformationAmount = deformationScale;
                         circle.applyDeformation(deformationAmount);
                     }
@@ -590,7 +622,7 @@
                     circle.x = right - circle.currentRadius;
                     circle.vx = -circle.vx * restitution;
                     // Apply deformation upon boundary collision
-                    if (circle.vx !== 0) {
+                    if (Math.abs(circle.vx) > 0.1) { // Threshold to avoid minor deformations
                         const deformationAmount = deformationScale;
                         circle.applyDeformation(deformationAmount);
                     }
@@ -600,7 +632,7 @@
                     circle.y = bottom + circle.currentRadius;
                     circle.vy = -circle.vy * restitution;
                     // Apply deformation upon boundary collision
-                    if (circle.vy !== 0) {
+                    if (Math.abs(circle.vy) > 0.1) { // Threshold to avoid minor deformations
                         const deformationAmount = deformationScale;
                         circle.applyDeformation(deformationAmount);
                     }
@@ -610,7 +642,7 @@
                     circle.y = top - circle.currentRadius;
                     circle.vy = -circle.vy * restitution;
                     // Apply deformation upon boundary collision
-                    if (circle.vy !== 0) {
+                    if (Math.abs(circle.vy) > 0.1) { // Threshold to avoid minor deformations
                         const deformationAmount = deformationScale;
                         circle.applyDeformation(deformationAmount);
                     }
@@ -641,6 +673,7 @@
                 }
             }
         }
+
         // Function to toggle menu visibility
         function toggleMenu() {
             const menu = document.getElementById('controls');
@@ -650,15 +683,17 @@
                 menu2.style.display = 'block';
             } else {
                 menu.style.display = 'none'; // Hide the menu
-                menu2.style.display = 'none'; // Hide the menu
+                menu2.style.display = 'none'; // Hide the instructions
             }
         }
+
         // Keyboard event listener for toggling menu
         window.addEventListener('keydown', (e) => {
             if (e.key === 'h' || e.key === 'H') {
                 toggleMenu();
             }
         });
+
         // ====== 16. Draw Function ======
 
         function draw() {
@@ -678,10 +713,10 @@
             ctx.stroke();
 
             // Draw Circles and Velocity Vectors
+            ctx.lineWidth = 0.02; // Set once to reduce state changes
             for (let circle of circles) {
                 // Draw Velocity Vector
                 ctx.strokeStyle = '#FF0000';
-                ctx.lineWidth = 0.01;
                 ctx.beginPath();
                 ctx.moveTo(circle.x, circle.y);
                 ctx.lineTo(circle.x + circle.vx * 0.5, circle.y + circle.vy * 0.5);
@@ -691,7 +726,6 @@
                 ctx.beginPath();
                 ctx.arc(circle.x, circle.y, circle.currentRadius, 0, 2 * Math.PI);
                 ctx.strokeStyle = '#00FF00'; // Green outline
-                ctx.lineWidth = 0.02;
                 ctx.stroke();
             }
 
@@ -771,58 +805,52 @@
         // ====== 19. UI Controls Event Listeners ======
 
         // Bounciness Slider
-        const bouncinessSlider = document.getElementById('bounciness');
-        const bouncinessValue = document.getElementById('bouncinessValue');
         bouncinessSlider.addEventListener('input', function() {
             restitution = parseFloat(this.value);
             bouncinessValue.innerText = restitution.toFixed(2);
         });
 
         // Mass Slider
-        const massSlider = document.getElementById('mass');
-        const massValue = document.getElementById('massValue');
         massSlider.addEventListener('input', function() {
             baseMass = parseFloat(this.value);
             massValue.innerText = baseMass.toFixed(2);
         });
+
         // Radius Slider
-        const radiusSlider = document.getElementById('radius');
-        const radiusValue = document.getElementById('radiusValue');
         radiusSlider.addEventListener('input', function() {
             baseRadius = parseFloat(this.value);
             radiusValue.innerText = baseRadius.toFixed(2);
         });
 
         // Density Slider
-        const densitySlider = document.getElementById('density');
-        const densityValue = document.getElementById('densityValue');
         densitySlider.addEventListener('input', function() {
             density = parseFloat(this.value);
             densityValue.innerText = density.toFixed(2);
         });
 
         // Friction Slider
-        const frictionSlider = document.getElementById('friction');
-        const frictionValue = document.getElementById('frictionValue');
         frictionSlider.addEventListener('input', function() {
             frictionCoefficient = parseFloat(this.value);
             frictionValue.innerText = frictionCoefficient.toFixed(2);
         });
 
         // Deformation Regeneration Time Slider
-        const deformationTimeSlider = document.getElementById('deformationTime');
-        const deformationTimeValue = document.getElementById('deformationTimeValue');
         deformationTimeSlider.addEventListener('input', function() {
             deformationRegenerationTime = parseFloat(this.value);
             deformationTimeValue.innerText = deformationRegenerationTime.toFixed(1);
         });
 
         // Deformation Scale Slider
-        const deformationScaleSlider = document.getElementById('deformationScale');
-        const deformationScaleValue = document.getElementById('deformationScaleValue');
         deformationScaleSlider.addEventListener('input', function() {
             deformationScale = parseFloat(this.value);
             deformationScaleValue.innerText = deformationScale.toFixed(2);
+        });
+
+        // Simulation Speed Slider
+        simSpeedSlider.addEventListener('input', function() {
+            speedMultiplier = parseFloat(this.value);
+            dt = baseDt * speedMultiplier;
+            simSpeedValue.innerText = speedMultiplier.toFixed(1) + 'x';
         });
     </script>
 </body>
