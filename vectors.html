@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Drawing App – Enhanced Merge Points + Chain Straightening</title>
+  <title>Advanced Vector Drawing Application – Final Version</title>
   <style>
+    /* Reset default styles */
     body, html {
       margin: 0;
       padding: 0;
@@ -12,1185 +13,1747 @@
       user-select: none;
       font-family: Arial, sans-serif;
     }
+    /* Canvas Styling */
     #canvas {
       display: block;
-      background-color: #fff;
+      background-color: #FFFFFF;
     }
+    /* Alignment Status Display */
+    #alignmentStatus {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      background-color: rgba(255,255,255,0.8);
+      padding: 5px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    /* Selection Rectangle */
+    #selectionRect {
+      position: absolute;
+      pointer-events: none;
+      display: none;
+      z-index: 5;
+      border: 1px dashed #333;
+      background-color: rgba(0, 150, 255, 0.1);
+    }
+    /* Buttons */
+    button {
+      position: absolute;
+      bottom: 20px;
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      background-color: #008CBA;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      z-index: 10;
+    }
+    #saveButton { right: 20px; }
+    #saveProjectButton { right: 140px; }
+    #loadProjectButton { right: 260px; }
+    #exportSTLButton { right: 380px; }
+    #helpButton { bottom: auto; top: 10px; left: 10px; background-color: #4CAF50; }
+    #helpButton:hover { background-color: #357a38; }
+    /* Help Dialog */
+    #helpDialog {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(255,255,255,0.95);
+      padding: 20px;
+      border: 2px solid #333;
+      border-radius: 8px;
+      display: none;
+      z-index: 20;
+      max-width: 400px;
+      overflow-y: auto;
+      max-height: 80%;
+    }
+    #helpDialog h2 { margin-top: 0; }
+    #helpDialog ul { list-style-type: none; padding-left: 0; }
+    #helpDialog li { margin-bottom: 10px; }
+    #closeHelp {
+      padding: 5px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background-color: #008CBA;
+      color: white;
+    }
+    #closeHelp:hover { background-color: #005f6a; }
+    /* Background Image Controls – Centered */
+    #bgControls {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      z-index: 10;
+    }
+    #bgControls input[type="file"] { display: none; }
+    #bgUploadLabel {
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      background-color: #FF9800;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    #bgUploadLabel:hover { background-color: #E68900; }
+    #bgLockButton {
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      background-color: #757575;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    #bgLockButton.locked { background-color: #f44336; }
+    #bgLockButton.unlocked { background-color: #4CAF50; }
+    #bgLockButton::after { content: '🔒'; margin-left: 5px; }
+    #bgLockButton.unlocked::after { content: '🔓'; }
   </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
-<script>
-// ======================================================
-// Global Variables
-// ======================================================
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-canvas.addEventListener("contextmenu", e => e.preventDefault());
+  <div id="alignmentStatus">Alignment: None</div>
+  <div id="selectionRect"></div>
+  <button id="saveButton">Save Image 📷</button>
+  <button id="saveProjectButton">Save Project 🗂️</button>
+  <button id="loadProjectButton">Load Project 📂</button>
+  <button id="exportSTLButton">Export STL</button>
+  <button id="helpButton">Help ❓</button>
+  <div id="bgControls">
+    <label for="bgUpload" id="bgUploadLabel">Upload Background 🖼️</label>
+    <input type="file" id="bgUpload" accept="image/*">
+    <button id="bgLockButton" class="locked">Lock Background 🔒</button>
+  </div>
+  <div id="helpDialog">
+    <h2>Help Guide</h2>
+    <ul>
+      <li><strong>Left‑Click &amp; Drag:</strong> Draw a new line or move vertices (use Ctrl+LMB for moving).</li>
+      <li><strong>Right‑Click (no modifiers):</strong> Select/deselect a vertex or face. (If already selected, right‑click deselects.)</li>
+      <li><strong>Shift + Right‑Click (no drag):</strong> Toggle multi‑selection for vertices or faces.</li>
+      <li><strong>Shift + Right‑Click &amp; Drag:</strong> Draw a rectangular selection. Hold Alt to deselect within the rectangle.</li>
+      <li><strong>X key:</strong> Toggle horizontal alignment mode (non‑grid: “gravitate” X toward nearby vertices without forcing).</li>
+      <li><strong>Y key:</strong> Toggle vertical alignment mode (non‑grid: “gravitate” Y toward nearby vertices without forcing).</li>
+      <li><strong>G key:</strong> Toggle grid mode (snaps vertex creation and moves to grid intersections).</li>
+      <li><strong>H key:</strong> Cycle label display modes (0: full labels; 1: hide text; 2: hide arcs and text).</li>
+      <li><strong>Mouse Wheel on Selected Vertices/Face:</strong> Adjust the z‑height (vertices show their z‑height in a label).</li>
+      <li><strong>Export STL:</strong> Exports detected faces (triangulated) as an ASCII STL file for 3D printing.</li>
+      <li><strong>Ctrl+Z / Ctrl+Y:</strong> Undo/Redo.</li>
+      <li><strong>Middle Mouse Drag:</strong> Pan the canvas.</li>
+      <li><strong>Shift + Middle Mouse Drag:</strong> Rotate the background image.</li>
+      <li><strong>Alt + Left‑Click Drag:</strong> Enable slice mode (drag–cut snap) when held from the start.</li>
+      <li><strong>Note:</strong> Left‑click is solely for drawing/moving; selection is via right‑click.</li>
+    </ul>
+    <button id="closeHelp">Close</button>
+  </div>
+  <canvas id="canvas" width="1200" height="800"></canvas>
+  <script>
+    /* === Global Declarations and Variables === */
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const alignmentStatus = document.getElementById('alignmentStatus');
+    const selectionRect = document.getElementById('selectionRect');
 
-const pxPerCm = 35;
-const snapRadius = 15;
+    let panOffset = { x: 0, y: 0 };
+    let labelMode = 0; // 0 = full labels; 1 = hide text; 2 = hide arcs and text.
+    let isGridMode = false;
+    const gridSize = 35, gridColor = '#A9A9A9';
+    const snapRadius = 15, pxPerCm = 35;
+    const mergeThreshold = snapRadius * 0.5;
+    const selectionDragThreshold = 5;
+    const shapes = [];
+    const snapPoints = [];
+    const triangles = [];
+    const labels = []; // Not used for selection, only for text
+    let faces = [];    // Detected faces; each face is a triangle
 
-let endpoints = [];    // Each ep: { x, y, lines: [], selected: bool, parentCircle?: ... }
-let lines = [];
-let circles = [];
+    // State variables
+    let isDragging = false, isCtrlDragging = false;
+    let origin = { type: null, snapPoint: null, startSnapPoint: null, initialPositions: {} };
+    let currentVector = null;
+    let isPanning = false, panStart = { x: 0, y: 0 };
+    let selectedSnapPoints = [];
+    let selectedFaces = [];
+    let hoveredSnapPoint = null, hoveredLabel = null;
+    let dragStartPos = { x: 0, y: 0 }, hasDragged = false, currentMouseButton = null;
+    let isXAligned = false, isYAligned = false, alignmentErrorEnabled = false;
+    let isSelectionRectActive = false, selectionRectStart = { x: 0, y: 0 }, selectionRectCurrent = { x: 0, y: 0 };
+    let bgImage = null, bgImageX = 0, bgImageY = 0, bgImageScale = 1, bgImageRotation = 0, bgImageLocked = true;
+    let lastMouseEvent = null;
 
-let isPanning = false;
-let panOffset = { x:0, y:0 };
-let panStart = { x:0, y:0 };
-let oldPan = { x:0, y:0 };
-
-let isDrawingLine = false;
-let startEndpoint = null;
-let currentPosLine = { x:0, y:0 };
-
-let isDrawingCircle = false;
-let circleCenter = null;
-let currentPosCircle = { x:0, y:0 };
-
-let vKeyHeld = false;  // “V” => circle creation
-
-// Endpoint dragging
-let isDraggingEndpoint = false;
-let draggedEndpoints = [];
-let dragStartPos = { x:0, y:0 };
-let endpointsOriginalPos = [];
-
-// Selection rectangle
-let isSelecting = false;
-let selectionStart = null;
-let selectionCurrent = null;
-
-// Undo/Redo
-const undoStack = [];
-const redoStack = [];
-
-// Toggles
-let labelsVisible = true;     // toggled by “H”
-let showAngles = true;        // toggled by “I”
-let showLineLengths = false;  // toggled by “U”
-let shiftIsHeld = false;
-
-let hoverEndpoint = null;
-
-// ======================================================
-// Utility Functions
-// ======================================================
-function getMousePos(e){
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: e.clientX - rect.left + panOffset.x,
-    y: e.clientY - rect.top + panOffset.y
-  };
-}
-function dist(a,b){
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-function pointInRect(p, start, current){
-  let xMin = Math.min(start.x, current.x);
-  let xMax = Math.max(start.x, current.x);
-  let yMin = Math.min(start.y, current.y);
-  let yMax = Math.max(start.y, current.y);
-  return (p.x >= xMin && p.x <= xMax && p.y >= yMin && p.y <= yMax);
-}
-function findEndpoint(x,y){
-  for(let ep of endpoints){
-    if(dist(ep,{ x,y }) <= snapRadius) return ep;
-  }
-  return null;
-}
-function cleanupEndpoints(){
-  for(let i=endpoints.length-1; i>=0; i--){
-    if(endpoints[i].lines.length===0){
-      endpoints.splice(i,1);
+    // Undo/Redo
+    let undoStack = [];
+    let redoStack = [];
+    function getCurrentState() {
+      return {
+        snapPoints: snapPoints.map(sp => ({
+          id: sp.id,
+          x: sp.x,
+          y: sp.y,
+          zHeight: sp.zHeight,  // store z-height per vertex
+          type: sp.type,
+          rotationDirection: sp.rotationDirection
+        })),
+        shapes: shapes.map(shape => {
+          if (shape.type === 'line') {
+            return { type: 'line', id: shape.id, start: shape.start.id, end: shape.end.id };
+          }
+        }),
+        faces: faces.map(face => ({
+          vertices: [face.A.id, face.B.id, face.C.id].sort((a,b)=>a-b)
+        })),
+        bgImage: bgImage ? { src: bgImage.src, x: bgImageX, y: bgImageY, scale: bgImageScale, rotation: bgImageRotation } : null,
+        panOffset: { x: panOffset.x, y: panOffset.y }
+      };
     }
-  }
-}
-function getSnappedEndpoint(x,y){
-  // If extremely close => reuse
-  for(let ep of endpoints){
-    if(dist(ep,{x,y}) < 1e-6) return ep;
-  }
-  let found = findEndpoint(x,y);
-  if(found) return found;
-  let ep = { x, y, lines:[], selected:false };
-  endpoints.push(ep);
-  return ep;
-}
-function lineExists(ep1, ep2){
-  return lines.some(ln=>
-    (ln.start=== ep1 && ln.end=== ep2) ||
-    (ln.start=== ep2 && ln.end=== ep1)
-  );
-}
-
-// SHIFT line constraints => multiples of 45°, plus parallel/perp
-function applyConstraints(origin, curr, shiftHeld){
-  if(!shiftHeld) return { x: curr.x, y: curr.y };
-  let { x: ox, y: oy } = origin;
-  let { x: cx, y: cy } = curr;
-  let inputAngle = Math.atan2(cy- oy, cx- ox);
-  if(inputAngle<0) inputAngle += 2*Math.PI;
-
-  let cand45 = Math.round(inputAngle/(Math.PI/4))*(Math.PI/4);
-  let candidates= [ cand45 ];
-
-  origin.lines.forEach(ln=>{
-    let other = (ln.start=== origin)? ln.end : ln.start;
-    let a = Math.atan2(other.y- oy, other.x- ox);
-    if(a<0) a+= 2*Math.PI;
-    candidates.push(a);
-    candidates.push((a + Math.PI)%(2*Math.PI));
-    candidates.push((a + Math.PI/2)%(2*Math.PI));
-    candidates.push((a + 3*Math.PI/2)%(2*Math.PI));
-  });
-
-  let best= candidates[0];
-  let minDiff= Math.abs(inputAngle- best);
-  if(minDiff> Math.PI) minDiff= 2*Math.PI- minDiff;
-  candidates.forEach(c=>{
-    let diff= Math.abs(inputAngle- c);
-    if(diff> Math.PI) diff= 2*Math.PI- diff;
-    if(diff< minDiff){
-      minDiff= diff;
-      best= c;
+    function restoreState(state) {
+      snapPoints.length = 0;
+      shapes.length = 0;
+      faces.length = 0;
+      state.snapPoints.forEach(spData => {
+        const sp = new SnapPoint(spData.x, spData.y, spData.type);
+        sp.id = spData.id;
+        sp.zHeight = spData.zHeight || 0;
+        sp.rotationDirection = spData.rotationDirection;
+        snapPoints.push(sp);
+      });
+      state.shapes.forEach(shapeData => {
+        if (shapeData && shapeData.type === 'line') {
+          const startSP = snapPoints.find(sp => sp.id === shapeData.start);
+          const endSP = snapPoints.find(sp => sp.id === shapeData.end);
+          if (startSP && endSP) {
+            const line = new Line(startSP, endSP);
+            line.id = shapeData.id;
+            shapes.push(line);
+          }
+        }
+      });
+      state.faces.forEach(faceData => {
+        const verts = faceData.vertices.map(id => snapPoints.find(sp => sp.id === id));
+        if (verts.every(v => v)) {
+          const face = new Triangle(verts[0], verts[1], verts[2]);
+          faces.push(face);
+        }
+      });
+      if (state.bgImage) {
+        const img = new Image();
+        img.onload = function() {
+          bgImage = img;
+          bgImageX = state.bgImage.x;
+          bgImageY = state.bgImage.y;
+          bgImageScale = state.bgImage.scale;
+          bgImageRotation = state.bgImage.rotation;
+          draw();
+        };
+        img.src = state.bgImage.src;
+      } else { bgImage = null; }
+      panOffset.x = state.panOffset.x;
+      panOffset.y = state.panOffset.y;
+      cleanupTopology();
+      draw();
     }
-  });
-
-  let distance= Math.hypot(cx- ox, cy- oy);
-  cx= ox+ distance* Math.cos(best);
-  cy= oy+ distance* Math.sin(best);
-  return { x: cx, y: cy };
-}
-function snapDraggedEndpoint(pos, excludeList){
-  for(let ep of endpoints){
-    if(excludeList.includes(ep)) continue;
-    if(dist(ep,pos)<= snapRadius){
-      return { x: ep.x, y: ep.y };
+    function pushState() {
+      undoStack.push(getCurrentState());
+      redoStack = [];
     }
-  }
-  return pos;
-}
+    function undo() {
+      if (undoStack.length > 0) {
+        const state = undoStack.pop();
+        redoStack.push(getCurrentState());
+        restoreState(state);
+      }
+    }
+    function redo() {
+      if (redoStack.length > 0) {
+        const state = redoStack.pop();
+        undoStack.push(getCurrentState());
+        restoreState(state);
+      }
+    }
 
-// BFS to gather the “chain” from hovered ep
-function findChainEndpoints(ep){
-  let chain= new Set();
-  let queue= [ ep ];
-  while(queue.length>0){
-    let current= queue.shift();
-    if(chain.has(current)) continue;
-    chain.add(current);
-    // Continue BFS if current=== ep or lines.length===2
-    if(current=== ep || current.lines.length===2){
-      current.lines.forEach(ln=>{
-        let nb= (ln.start=== current)? ln.end: ln.start;
-        if(!chain.has(nb)) queue.push(nb);
+    // === Resize & Utility Functions ===
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      draw();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // When grid mode is active, snap the mouse position to the grid.
+    function getMousePos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      let pos = { x: evt.clientX - rect.left + panOffset.x, y: evt.clientY - rect.top + panOffset.y };
+      if (isGridMode) {
+        pos.x = Math.round(pos.x / gridSize) * gridSize;
+        pos.y = Math.round(pos.y / gridSize) * gridSize;
+      }
+      return pos;
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x - panOffset.x, 0 - panOffset.y);
+        ctx.lineTo(x - panOffset.x, canvas.height - panOffset.y);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0 - panOffset.x, y - panOffset.y);
+        ctx.lineTo(canvas.width - panOffset.x, y - panOffset.y);
+        ctx.stroke();
+      }
+    }
+
+    function dist(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function snapToGrid(angle) {
+      const degrees = angle * 180 / Math.PI;
+      const snappedDegrees = Math.round(degrees / 45) * 45;
+      return snappedDegrees * Math.PI / 180;
+    }
+
+    function drawArrow(from, to) {
+      if (!from || !to) return;
+      const headLength = 10;
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      ctx.strokeStyle = '#333333';
+      ctx.fillStyle = '#333333';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(to.x - panOffset.x, to.y - panOffset.y);
+      ctx.lineTo(to.x - panOffset.x - headLength * Math.cos(angle - Math.PI/6),
+                 to.y - panOffset.y - headLength * Math.sin(angle - Math.PI/6));
+      ctx.lineTo(to.x - panOffset.x - headLength * Math.cos(angle + Math.PI/6),
+                 to.y - panOffset.y - headLength * Math.sin(angle + Math.PI/6));
+      ctx.lineTo(to.x - panOffset.x, to.y - panOffset.y);
+      ctx.fill();
+    }
+
+    // === Helper Functions ===
+    function findNearbySnapPoint(x, y, exclude = []) {
+      let closest = null;
+      let minD = snapRadius;
+      snapPoints.forEach(sp => {
+        if (exclude.includes(sp)) return;
+        const d = Math.hypot(x - sp.x, y - sp.y);
+        if (d < minD) { minD = d; closest = sp; }
+      });
+      return closest;
+    }
+
+    function lineExists(sp1, sp2) {
+      return shapes.some(l => l.type === 'line' &&
+        ((l.start === sp1 && l.end === sp2) || (l.start === sp2 && l.end === sp1)));
+    }
+
+    // === Alignment Helpers (Non-Grid Mode) with "Gravitational" Effect ===
+    const alignTolerance = 10;
+    function alignXToNearestVertex(originalPos, currentPos) {
+      let candidate = null;
+      let bestDiff = Infinity;
+      snapPoints.forEach(sp => {
+        if (sp === origin.startSnapPoint) return;
+        if (Math.abs(sp.y - originalPos.y) < alignTolerance) {
+          let diff = Math.abs(sp.x - currentPos.x);
+          if (diff < bestDiff) { candidate = sp; bestDiff = diff; }
+        }
+      });
+      if (candidate && bestDiff < alignTolerance) {
+        let factor = (alignTolerance - bestDiff) / alignTolerance;
+        let newX = currentPos.x + (candidate.x - currentPos.x) * factor;
+        return { x: newX, y: originalPos.y };
+      } else {
+        return { x: currentPos.x, y: originalPos.y };
+      }
+    }
+    function alignYToNearestVertex(originalPos, currentPos) {
+      let candidate = null;
+      let bestDiff = Infinity;
+      snapPoints.forEach(sp => {
+        if (sp === origin.startSnapPoint) return;
+        if (Math.abs(sp.x - originalPos.x) < alignTolerance) {
+          let diff = Math.abs(sp.y - currentPos.y);
+          if (diff < bestDiff) { candidate = sp; bestDiff = diff; }
+        }
+      });
+      if (candidate && bestDiff < alignTolerance) {
+        let factor = (alignTolerance - bestDiff) / alignTolerance;
+        let newY = currentPos.y + (candidate.y - currentPos.y) * factor;
+        return { x: originalPos.x, y: newY };
+      } else {
+        return { x: originalPos.x, y: currentPos.y };
+      }
+    }
+
+    // === Enhanced Alignment Functions ===
+    function applyAlignmentConstraints(originalPos, currentPos, modifiers = {}) {
+      let newX, newY;
+      if (!isGridMode) {
+        if (isXAligned && !isYAligned) {
+          let aligned = alignXToNearestVertex(originalPos, currentPos);
+          newX = aligned.x;
+          newY = originalPos.y;
+        } else if (isYAligned && !isXAligned) {
+          let aligned = alignYToNearestVertex(originalPos, currentPos);
+          newX = originalPos.x;
+          newY = aligned.y;
+        } else if (isXAligned && isYAligned) {
+          let alignedX = alignXToNearestVertex(originalPos, currentPos);
+          let alignedY = alignYToNearestVertex(originalPos, currentPos);
+          newX = alignedX.x;
+          newY = alignedY.y;
+        } else {
+          newX = currentPos.x;
+          newY = currentPos.y;
+        }
+      } else {
+        newX = Math.round(currentPos.x / gridSize) * gridSize;
+        newY = Math.round(currentPos.y / gridSize) * gridSize;
+      }
+      if (modifiers.ctrl) {
+        const dx = newX - originalPos.x, dy = newY - originalPos.y;
+        let angle = Math.atan2(dy, dx);
+        angle = snapToGrid(angle);
+        const distance = Math.hypot(dx, dy);
+        newX = originalPos.x + distance * Math.cos(angle);
+        newY = originalPos.y + distance * Math.sin(angle);
+      }
+      if (alignmentErrorEnabled) {
+        const errorRange = 5;
+        newX += (Math.random() - 0.5) * 2 * errorRange;
+        newY += (Math.random() - 0.5) * 2 * errorRange;
+      }
+      return { x: newX, y: newY };
+    }
+
+    function snapToParallelLine(origin, current, mode) {
+      if (mode === 'x') {
+        current.y = origin.y;
+        let bestDiff = Infinity;
+        let targetLength = null;
+        shapes.forEach(line => {
+          if (line.type === 'line' && Math.abs(line.start.y - line.end.y) < 5) {
+            let len = Math.abs(line.start.x - line.end.x);
+            let diff = Math.abs(len - Math.abs(current.x - origin.x));
+            if (diff < bestDiff && diff < snapRadius) {
+              bestDiff = diff;
+              targetLength = len;
+            }
+          }
+        });
+        if (targetLength !== null) {
+          current.x = origin.x + (current.x - origin.x >= 0 ? targetLength : -targetLength);
+        }
+      } else if (mode === 'y') {
+        current.x = origin.x;
+        let bestDiff = Infinity;
+        let targetLength = null;
+        shapes.forEach(line => {
+          if (line.type === 'line' && Math.abs(line.start.x - line.end.x) < 5) {
+            let len = Math.abs(line.start.y - line.end.y);
+            let diff = Math.abs(len - Math.abs(current.y - origin.y));
+            if (diff < bestDiff && diff < snapRadius) {
+              bestDiff = diff;
+              targetLength = len;
+            }
+          }
+        });
+        if (targetLength !== null) {
+          current.y = origin.y + (current.y - origin.y >= 0 ? targetLength : -targetLength);
+        }
+      }
+      return current;
+    }
+
+    function projectPointOntoLine(P, A, B) {
+      const APx = P.x - A.x, APy = P.y - A.y;
+      const ABx = B.x - A.x, ABy = B.y - A.y;
+      const ab2 = ABx * ABx + ABy * ABy;
+      const ap_ab = APx * ABx + APy * ABy;
+      const t = ab2 ? ap_ab / ab2 : 0;
+      return { x: A.x + t * ABx, y: A.y + t * ABy };
+    }
+
+    function getLineIntersection(line1, line2) {
+      const x1 = line1.start.x, y1 = line1.start.y;
+      const x2 = line1.end.x, y2 = line1.end.y;
+      const x3 = line2.start.x, y3 = line2.start.y;
+      const x4 = line2.end.x, y4 = line2.end.y;
+      const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+      if (denom === 0) return null;
+      const Px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom;
+      const Py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom;
+      if (
+        Px >= Math.min(x1, x2) - 0.001 && Px <= Math.max(x1, x2) + 0.001 &&
+        Py >= Math.min(y1, y2) - 0.001 && Py <= Math.max(y1, y2) + 0.001 &&
+        Px >= Math.min(x3, x4) - 0.001 && Px <= Math.max(x3, x4) + 0.001 &&
+        Py >= Math.min(y3, y4) - 0.001 && Py <= Math.max(y3, y4) + 0.001
+      ) { 
+        return { x: Px, y: Py }; 
+      }
+      return null;
+    }
+
+    function cleanSnapPointConnections() {
+      snapPoints.forEach(sp => {
+        const unique = [];
+        sp.connectedLines.forEach(conn => {
+          if (!unique.some(u => u.line.id === conn.line.id && u.endPoint === conn.endPoint)) {
+            unique.push(conn);
+          }
+        });
+        sp.connectedLines = unique;
       });
     }
-  }
-  return Array.from(chain);
-}
-
-// ======================================================
-// Classes
-// ======================================================
-class Line {
-  constructor(startEp, endEp){
-    this.start= startEp;
-    this.end= endEp;
-    this.length= dist(startEp, endEp)/ pxPerCm;
-    startEp.lines.push(this);
-    endEp.lines.push(this);
-  }
-  draw(){
-    ctx.strokeStyle= "#333";
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.moveTo(this.start.x,this.start.y);
-    ctx.lineTo(this.end.x,this.end.y);
-    ctx.stroke();
-  }
-}
-class Circle {
-  constructor(centerEp, radius){
-    this.center= centerEp;
-    this.radius= radius;
-    this.samplePoints= this.calcPoints();
-    this.samplePoints.forEach(pt=>{
-      pt.parentCircle= this;
-      endpoints.push(pt);
-    });
-    circles.push(this);
-  }
-  calcPoints(){
-    let n= Math.ceil(this.radius/20);
-    n= Math.max(8, Math.min(n,64));
-    let arr= [];
-    for(let i=0;i<n;i++){
-      let angle= (2*Math.PI/n)* i;
-      let x= this.center.x+ this.radius*Math.cos(angle);
-      let y= this.center.y+ this.radius*Math.sin(angle);
-      arr.push({ x,y, lines:[], selected:false, parentCircle:this });
+    function removeDuplicateLines() {
+      const unique = [];
+      shapes.forEach(line => {
+        if (line.type !== 'line') return;
+        const key = [line.start.id, line.end.id].sort().join('-');
+        if (!unique.some(l => [l.start.id, l.end.id].sort().join('-') === key)) {
+          unique.push(line);
+        }
+      });
+      const nonLines = shapes.filter(s => s.type !== 'line');
+      shapes.length = 0;
+      shapes.push(...nonLines, ...unique);
     }
-    return arr;
-  }
-  draw(){
-    ctx.strokeStyle= "#FF5733";
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.arc(this.center.x,this.center.y, this.radius,0,2*Math.PI);
-    ctx.stroke();
-    ctx.fillStyle= "#FF0000";
-    this.samplePoints.forEach(pt=>{
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y,6,0,2*Math.PI);
-      ctx.fill();
-    });
-  }
-}
+    function cleanOrphanEdges() {
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        if (shapes[i].type === 'line') {
+          if (!snapPoints.includes(shapes[i].start) || !snapPoints.includes(shapes[i].end) || dist(shapes[i].start, shapes[i].end) < 1) {
+            shapes.splice(i, 1);
+          }
+        }
+      }
+    }
+    function removeDegenerateLines() {
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        if (shapes[i].type === 'line' && dist(shapes[i].start, shapes[i].end) < 1) {
+          shapes.splice(i, 1);
+        }
+      }
+    }
+    function cleanupTopology() {
+      cleanSnapPointConnections();
+      removeDuplicateLines();
+      cleanOrphanEdges();
+      removeDegenerateLines();
+    }
 
-// ======================================================
-// Merge (Space), Detach (CTRL+Space), Straighten (Shift+Space)
-// ======================================================
-function pointLineDistance(P,A,B){
-  let ABx= B.x- A.x; let ABy= B.y- A.y;
-  let APx= P.x- A.x; let APy= P.y- A.y;
-  let ab2= ABx*ABx+ ABy*ABy;
-  let t= (APx*ABx + APy*ABy)/ ab2;
-  if(t<0) t=0; if(t>1) t=1;
-  let px= A.x+ t*ABx; let py= A.y+ t*ABy;
-  return dist(P,{ x:px,y:py });
-}
-function projectPointOntoLine(P,A,B){
-  let ABx= B.x- A.x; let ABy= B.y- A.y;
-  let APx= P.x- A.x; let APy= P.y- A.y;
-  let ab2= ABx*ABx+ ABy*ABy;
-  let t= (APx*ABx + APy*ABy)/ ab2;
-  if(t<0) t=0; if(t>1) t=1;
-  return { x: A.x+ t*ABx, y: A.y+ t*ABy };
-}
-function splitLine(line, proj){
-  let { start, end }= line;
-  let epProj= getSnappedEndpoint(proj.x, proj.y);
-  if(dist(epProj,start)<1e-6|| dist(epProj,end)<1e-6) return;
-  let i1= start.lines.indexOf(line);
-  if(i1>-1) start.lines.splice(i1,1);
-  let i2= end.lines.indexOf(line);
-  if(i2>-1) end.lines.splice(i2,1);
-  let i3= lines.indexOf(line);
-  if(i3>-1) lines.splice(i3,1);
+    function mergeNearbySnapPoints() {
+      for (let i = 0; i < snapPoints.length; i++) {
+        for (let j = i + 1; j < snapPoints.length; j++) {
+          if (dist(snapPoints[i], snapPoints[j]) < mergeThreshold) {
+            let target = snapPoints[i];
+            let source = snapPoints[j];
+            source.connectedLines.forEach(conn => {
+              conn.line.setEndPoint(conn.endPoint, target);
+              target.addLine(conn.line, conn.endPoint);
+            });
+            snapPoints.splice(j, 1);
+            j--;
+          }
+        }
+      }
+      cleanupTopology();
+    }
 
-  let ln1= new Line(start, epProj);
-  let ln2= new Line(epProj, end);
-  lines.push(ln1, ln2);
-  cleanupEndpoints();
-}
+    // Auto-triangulation for quadrilaterals (or higher cycles)
+    function autoTriangulatePolygons() {
+      // For every combination of 4 snapPoints, check if they form a closed cycle.
+      // We order them by angle around their centroid and if consecutive points are connected, we have a cycle.
+      const n = snapPoints.length;
+      for (let a = 0; a < n; a++) {
+        for (let b = a+1; b < n; b++) {
+          for (let c = b+1; c < n; c++) {
+            for (let d = c+1; d < n; d++) {
+              const group = [snapPoints[a], snapPoints[b], snapPoints[c], snapPoints[d]];
+              // compute centroid
+              const cx = group.reduce((sum, sp) => sum + sp.x, 0)/4;
+              const cy = group.reduce((sum, sp) => sum + sp.y, 0)/4;
+              // sort by angle
+              group.sort((sp1, sp2) => Math.atan2(sp1.y-cy, sp1.x-cx) - Math.atan2(sp2.y-cy, sp2.x-cx));
+              // Check if cycle exists: every consecutive pair (and last-first) is connected by a line.
+              let cycle = true;
+              for (let i = 0; i < 4; i++) {
+                const sp1 = group[i];
+                const sp2 = group[(i+1)%4];
+                if (!lineExists(sp1, sp2)) { cycle = false; break; }
+              }
+              if (cycle) {
+                // Check if diagonal exists (group[0] to group[2]). If not, add it.
+                if (!lineExists(group[0], group[2])) {
+                  const diag = new Line(group[0], group[2]);
+                  shapes.push(diag);
+                  pushState();
+                  cleanupTopology();
+                  return; // Only one triangulation per call; then re-run draw().
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
-/**
- * Merge logic (Space) with additional step:
- * If there are multiple endpoints at the same location as ep, 
- * unify them as well (or near enough within threshold).
- */
-function spaceMergeDownHoveredEndpoint(ep){
-  const threshold=10;
+    // Deep Auto-Split Function
+    function autoSplitForVertex(vertex) {
+      let splitMade;
+      do {
+        splitMade = false;
+        for (let i = 0; i < shapes.length; i++) {
+          let line = shapes[i];
+          if (line.type === 'line' && line.start !== vertex && line.end !== vertex) {
+            let projection = projectPointOntoLine(vertex, line.start, line.end);
+            let d = dist(vertex, projection);
+            if (d < snapRadius) {
+              if (d > 0.1) {
+                vertex.move(projection.x, projection.y);
+              }
+              let result = line.splitAtPointUsing(vertex);
+              if (result.length > 0) {
+                splitMade = true;
+              }
+            }
+          }
+        }
+      } while (splitMade);
+    }
+
+    // === Class Definitions ===
+    class Shape {
+      constructor(type) { this.type = type; }
+      isPointInside(x, y) { return false; }
+      draw() { }
+      getSnapPoints() { return []; }
+    }
+
+    class SnapPoint extends Shape {
+      static nextId = 0;
+      constructor(x, y, type = 'standard') {
+        super('snapPoint');
+        this.id = SnapPoint.nextId++;
+        this.x = x;
+        this.y = y;
+        this.zHeight = 0;  // z-height for 3D adjustment
+        this.type = type;
+        this.connectedLines = [];
+        this.rotationDirection = 'clockwise';
+        this.trail = [];
+        this.temporary = false;
+      }
+      addLine(line, endPoint) {
+        this.connectedLines.push({ line, endPoint });
+      }
+      removeLine(line) {
+        this.connectedLines = this.connectedLines.filter(c => c.line !== line);
+      }
+      move(nx, ny, silent = false) {
+        this.x = nx;
+        this.y = ny;
+        if (!silent) this.connectedLines.forEach(conn => conn.line.updateCenter());
+      }
+      isNear(x, y) {
+        return Math.hypot(this.x - x, this.y - y) <= snapRadius;
+      }
+    }
+
+    class Line extends Shape {
+      static nextId = 0;
+      constructor(start, end) {
+        super('line');
+        this.id = Line.nextId++;
+        this.start = start;
+        this.end = end;
+        this.updateCenter();
+        this.start.addLine(this, 'start');
+        this.end.addLine(this, 'end');
+      }
+      updateCenter() {
+        this.center = { x: (this.start.x + this.end.x) / 2, y: (this.start.y + this.end.y) / 2 };
+      }
+      isPointInside(x, y) {
+        const d = pointLineDistance({ x, y }, this.start, this.end);
+        return d <= 6;
+      }
+      draw() {
+        if (!this.start || !this.end) return;
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.start.x - panOffset.x, this.start.y - panOffset.y);
+        ctx.lineTo(this.end.x - panOffset.x, this.end.y - panOffset.y);
+        ctx.stroke();
+        drawArrow(this.start, this.end);
+      }
+      getSnapPoints() { 
+        return [{ x: this.start.x, y: this.start.y }, { x: this.end.x, y: this.end.y }];
+      }
+      setEndPoint(endPoint, newPos) {
+        if (endPoint === 'start') {
+          if (newPos instanceof SnapPoint) {
+            this.start.removeLine(this);
+            this.start = newPos;
+            this.start.addLine(this, 'start');
+          } else {
+            this.start.move(newPos.x, newPos.y);
+          }
+        } else {
+          if (newPos instanceof SnapPoint) {
+            this.end.removeLine(this);
+            this.end = newPos;
+            this.end.addLine(this, 'end');
+          } else {
+            this.end.move(newPos.x, newPos.y);
+          }
+        }
+        this.updateCenter();
+      }
+      rotate(deltaAngle, anchor) {
+        const cos = Math.cos(deltaAngle), sin = Math.sin(deltaAngle);
+        let sx = this.start.x - anchor.x, sy = this.start.y - anchor.y;
+        let ex = this.end.x - anchor.x, ey = this.end.y - anchor.y;
+        this.start.move(sx * cos - sy * sin + anchor.x, sx * sin + sy * cos + anchor.y);
+        this.end.move(ex * cos - ey * sin + anchor.x, ex * sin + ey * cos + anchor.y);
+        this.updateCenter();
+      }
+      isPointOnLine(point, tolerance = 5) {
+        return pointLineDistance(point, this.start, this.end) <= tolerance;
+      }
+      splitAtPoint(point) {
+        if ((point.x === this.start.x && point.y === this.start.y) ||
+            (point.x === this.end.x && point.y === this.end.y)) return [];
+        let sp = findNearbySnapPoint(point.x, point.y);
+        if (!sp) {
+          sp = new SnapPoint(point.x, point.y);
+          sp.temporary = true;
+          snapPoints.push(sp);
+        }
+        if ((sp.x === this.start.x && sp.y === this.start.y) ||
+            (sp.x === this.end.x && sp.y === this.end.y)) return [];
+        if (lineExists(this.start, sp) && lineExists(sp, this.end)) {
+          const idx = shapes.findIndex(l => l.id === this.id);
+          if (idx > -1) shapes.splice(idx, 1);
+          return [];
+        }
+        const line1 = new Line(this.start, sp);
+        const line2 = new Line(sp, this.end);
+        shapes.push(line1, line2);
+        const idx = shapes.findIndex(l => l.id === this.id);
+        if (idx > -1) shapes.splice(idx, 1);
+        return [line1, line2];
+      }
+      splitAtPointUsing(snapPoint) {
+        if (snapPoint === this.start || snapPoint === this.end) return [];
+        if (lineExists(this.start, snapPoint) && lineExists(snapPoint, this.end)) {
+          const idx = shapes.findIndex(l => l.id === this.id);
+          if (idx > -1) shapes.splice(idx, 1);
+          return [];
+        }
+        const line1 = new Line(this.start, snapPoint);
+        const line2 = new Line(snapPoint, this.end);
+        shapes.push(line1, line2);
+        const idx = shapes.findIndex(l => l.id === this.id);
+        if (idx > -1) shapes.splice(idx, 1);
+        return [line1, line2];
+      }
+    }
+
+    class Triangle extends Shape {
+      static nextId = 0;
+      constructor(A, B, C) {
+        super('triangle');
+        this.id = Triangle.nextId++;
+        this.A = A;
+        this.B = B;
+        this.C = C;
+        this.updateCenter();
+      }
+      updateCenter() {
+        this.center = { x: (this.A.x + this.B.x + this.C.x) / 3, y: (this.A.y + this.B.y + this.C.y) / 3 };
+      }
+      // Increased tolerance for hit detection.
+      isPointInside(x, y) {
+        const areaOrig = computeTriangleArea(this.A, this.B, this.C);
+        const area1 = computeTriangleArea({ x, y }, this.B, this.C);
+        const area2 = computeTriangleArea(this.A, { x, y }, this.C);
+        const area3 = computeTriangleArea(this.A, this.B, { x, y });
+        return Math.abs(areaOrig - (area1 + area2 + area3)) < 3;
+      }
+      draw() {
+        // Faces rendered with a semi-transparent fill (z-height does not affect 2D view)
+        ctx.fillStyle = 'rgba(200,200,200,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(this.A.x - panOffset.x, this.A.y - panOffset.y);
+        ctx.lineTo(this.B.x - panOffset.x, this.B.y - panOffset.y);
+        ctx.lineTo(this.C.x - panOffset.x, this.C.y - panOffset.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      getSnapPoints() {
+        return [this.A, this.B, this.C];
+      }
+    }
+
+    function pointLineDistance(point, start, end) {
+      const A = point.x - start.x, B = point.y - start.y;
+      const C = end.x - start.x, D = end.y - start.y;
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+      let param = lenSq ? dot / lenSq : -1;
+      let xx, yy;
+      if (param < 0) { xx = start.x; yy = start.y; }
+      else if (param > 1) { xx = end.x; yy = end.y; }
+      else { xx = start.x + param * C; yy = start.y + param * D; }
+      const dx = point.x - xx, dy = point.y - yy;
+      return Math.hypot(dx, dy);
+    }
+
+    function computeTriangleArea(a, b, c) {
+      return Math.abs((a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) / 2);
+    }
+
+    function labelSide(P1, P2, lengthCm) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.font = '12px Arial';
+      const midX = (P1.x + P2.x) / 2, midY = (P1.y + P2.y) / 2;
+      const offset = 10;
+      const dx = P2.x - P1.x, dy = P2.y - P1.y;
+      const len = Math.hypot(dx, dy);
+      const ux = -dy / len, uy = dx / len;
+      const labelX = midX + offset * ux, labelY = midY + offset * uy;
+      ctx.fillText(`${lengthCm.toFixed(2)} cm`, labelX - panOffset.x - 25, labelY - panOffset.y - 5);
+      ctx.restore();
+    }
+
+    // Draw angle labels (as before)
+    function drawAnglesAtSnapPoint(sp) {
+      if (sp.connectedLines.length < 2) return;
+      cleanSnapPointConnections();
+      let angles = sp.connectedLines.map(conn => {
+        const other = (conn.endPoint === 'start') ? conn.line.end : conn.line.start;
+        return Math.atan2(other.y - sp.y, other.x - sp.x);
+      });
+      angles = angles.filter((a, i, arr) => arr.findIndex(x => Math.abs(x - a) < 0.01) === i);
+      if (angles.length < 2) return;
+      angles.sort((a, b) => a - b);
+      const baseRadius = 20;
+      for (let i = 0; i < angles.length; i++) {
+        let a1 = angles[i], a2 = angles[(i + 1) % angles.length];
+        if (i === angles.length - 1) a2 = angles[0] + 2 * Math.PI;
+        let diff = a2 - a1;
+        diff = diff < 0 ? diff + 2 * Math.PI : diff;
+        const diffDeg = diff * 180 / Math.PI;
+        if (diffDeg < 0.5) continue;
+        const radius = baseRadius + i * 5;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0,255,0,0.6)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4,4]);
+        ctx.beginPath();
+        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, radius, a1, a2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (labelMode === 0) {
+          const midAngle = (a1 + a2) / 2;
+          const labelX = sp.x + (radius + 10) * Math.cos(midAngle);
+          const labelY = sp.y + (radius + 10) * Math.sin(midAngle);
+          ctx.fillStyle = 'rgba(0,0,0,0.8)';
+          ctx.font = '12px Arial';
+          ctx.fillText(`${diffDeg.toFixed(1)}°`, labelX - panOffset.x - 10, labelY - panOffset.y - 5);
+        }
+        ctx.restore();
+      }
+    }
+
+    // Draw the z-height label for each snap point (non-selectable)
+    function drawZHeightLabels() {
+      ctx.save();
+      ctx.fillStyle = 'blue';
+      ctx.font = '10px Arial';
+      snapPoints.forEach(sp => {
+        // Draw z-height label a few pixels below the snap point
+        ctx.fillText(`z:${sp.zHeight}`, sp.x - panOffset.x + 8, sp.y - panOffset.y + 15);
+      });
+      ctx.restore();
+    }
+
+    function detectFaces() {
+      // Run auto-triangulation first so that any quadrilaterals become triangles.
+      autoTriangulatePolygons();
+      let detected = [];
+      snapPoints.forEach(A => {
+        const neighborsA = A.connectedLines.map(conn => conn.line[(conn.endPoint === 'start' ? 'end' : 'start')]);
+        neighborsA.forEach(B => {
+          if (B.id <= A.id) return;
+          const neighborsB = B.connectedLines.map(conn => conn.line[(conn.endPoint === 'start' ? 'end' : 'start')]);
+          neighborsB.forEach(C => {
+            if (C.id <= B.id || C === A) return;
+            const hasAB = A.connectedLines.some(conn => conn.line.start === B || conn.line.end === B);
+            const hasBC = B.connectedLines.some(conn => conn.line.start === C || conn.line.end === C);
+            const hasCA = C.connectedLines.some(conn => conn.line.start === A || conn.line.end === A);
+            if (hasAB && hasBC && hasCA && computeTriangleArea(A, B, C) > 1) {
+              const ids = [A.id, B.id, C.id].sort((a, b) => a - b);
+              if (!detected.some(face => face.ids.toString() === ids.toString())) {
+                let face = new Triangle(A, B, C);
+                detected.push({ face, ids });
+              }
+            }
+          });
+        });
+      });
+      faces = detected.map(d => d.face);
+    }
+
+    function drawFaces() {
+      detectFaces();
+      faces.forEach(face => face.draw());
+    }
+
+    function findFaceAt(x, y) {
+      for (let face of faces) {
+        if (face.isPointInside(x, y)) {
+          return face;
+        }
+      }
+      return null;
+    }
+
+function exportSTL() {
+  // Conversion factors
+  const pxToCm = 1 / pxPerCm;  // Convert pixels to centimeters (35px → 1cm)
+  const cmToMm = 10;            // Convert centimeters to millimeters (1cm → 10mm)
+  const scaleFactor = pxToCm * cmToMm; // Final scaling factor (35px → 10mm)
+
+  let stl = "solid model\n";
   
-  // Step 1: unify other endpoints that are at the same location or within threshold
-  // We do a pass to find all endpoints within threshold of ep
-  let toUnify= endpoints.filter( ept=> ept!== ep && dist(ept, ep)<= threshold );
-  toUnify.forEach( ept=>{
-    // merge ept => ep
-    ept.lines.forEach( ln=>{
-      if(ln.start=== ept){
-        ln.start= ep;
-        if(!ep.lines.includes(ln)) ep.lines.push(ln);
-      }
-      if(ln.end=== ept){
-        ln.end= ep;
-        if(!ep.lines.includes(ln)) ep.lines.push(ln);
-      }
-    });
-    let idx= endpoints.indexOf(ept);
-    if(idx>-1) endpoints.splice(idx,1);
-  });
-
-  // Step 2: attempt the "old" line merging logic 
-  // (i.e. if ep is near a line, project and unify)
-  for(let line of lines){
-    if(line.start=== ep|| line.end=== ep) continue;
-    let d= pointLineDistance(ep, line.start, line.end);
-    if(d<= threshold){
-      let proj= projectPointOntoLine(ep, line.start, line.end);
-      if(dist(proj, line.start)>1e-6 && dist(proj, line.end)>1e-6){
-        splitLine(line, proj);
-      }
-      let target= findEndpoint(proj.x, proj.y);
-      if(target && target!== ep){
-        // unify ep => target
-        ep.lines.forEach(ln=>{
-          if(ln.start=== ep){
-            ln.start= target;
-            if(!target.lines.includes(ln)) target.lines.push(ln);
-          }
-          if(ln.end=== ep){
-            ln.end= target;
-            if(!target.lines.includes(ln)) target.lines.push(ln);
-          }
-        });
-        let idx= endpoints.indexOf(ep);
-        if(idx>-1) endpoints.splice(idx,1);
-      } else {
-        ep.x= proj.x; 
-        ep.y= proj.y;
-      }
-      cleanupEndpoints();
-      draw();
-      return;
-    }
-  }
-  cleanupEndpoints();
-  draw();
-}
-
-// forcibly create new endpoints for each line referencing ep => remove ep
-function detachHoveredEndpoint(ep){
-  if(!ep) return;
-  let linesCopy= ep.lines.slice();
-  for(let ln of linesCopy){
-    let newEp= { x: ep.x, y: ep.y, lines:[], selected:false };
-    endpoints.push(newEp);
-    if(ln.start=== ep){
-      ln.start= newEp;
-      newEp.lines.push(ln);
-    } else if(ln.end=== ep){
-      ln.end= newEp;
-      newEp.lines.push(ln);
-    }
-  }
-  let idx= endpoints.indexOf(ep);
-  if(idx>-1) endpoints.splice(idx,1);
-  cleanupEndpoints();
-  draw();
-}
-
-// chain BFS => best-fit line
-function straightenChain(ep){
-  if(!ep) return;
-  let chain= findChainEndpoints(ep);
-  if(chain.length<2) return;
-  let sumX=0, sumY=0;
-  chain.forEach(p=> { sumX+= p.x; sumY+= p.y; });
-  let meanX= sumX/ chain.length;
-  let meanY= sumY/ chain.length;
-
-  let num=0, den=0;
-  chain.forEach(p=>{
-    let dx= p.x- meanX;
-    let dy= p.y- meanY;
-    num+= dx*dy;
-    den+= dx*dx;
-  });
-  let slope;
-  if(Math.abs(den)<1e-12) slope= null; // vertical
-  else slope= num/ den;
-
-  if(slope=== null){
-    chain.forEach(p=> p.x= meanX);
-  } else {
-    let c= meanY - slope* meanX;
-    chain.forEach(p=>{
-      let x0= p.x, y0= p.y;
-      let m= slope;
-      let d= (x0 + (y0- c)* m)/(1+ m*m);
-      p.x= d;
-      p.y= m*d+ c;
-    });
-  }
-  cleanupEndpoints();
-  draw();
-}
-
-// ======================================================
-// Undo/Redo
-// ======================================================
-function snapshot(){
-  let endpointsData= endpoints.map(ep=>({
-    x: ep.x, y: ep.y, selected: ep.selected|| false
-  }));
-  let linesData= lines.map(ln=>({
-    startIndex: endpoints.indexOf(ln.start),
-    endIndex: endpoints.indexOf(ln.end)
-  }));
-  let circlesData= circles.map(circle=>({
-    centerIndex: endpoints.indexOf(circle.center),
-    radius: circle.radius,
-    samplePoints: circle.samplePoints.map(sp=>({
-      x: sp.x,y: sp.y, selected: sp.selected|| false
-    }))
-  }));
-  return { endpointsData, linesData, circlesData };
-}
-function restoreSnapshot(snap){
-  endpoints.length=0;
-  lines.length=0;
-  circles.length=0;
-  snap.endpointsData.forEach(ed=>{
-    endpoints.push({ x: ed.x, y: ed.y, lines:[], selected: ed.selected });
-  });
-  snap.linesData.forEach(ld=>{
-    let sEp= endpoints[ld.startIndex];
-    let eEp= endpoints[ld.endIndex];
-    if(!sEp|| !eEp) return;
-    let ln= new Line(sEp,eEp);
-    lines.push(ln);
-  });
-  snap.circlesData.forEach(cd=>{
-    let centerEp= endpoints[cd.centerIndex];
-    if(!centerEp) return;
-    let circ= new Circle(centerEp, cd.radius);
-    circ.samplePoints.length=0;
-    cd.samplePoints.forEach(sp=>{
-      let spt= { x: sp.x,y: sp.y, lines:[], selected: sp.selected, parentCircle: circ };
-      circ.samplePoints.push(spt);
-      endpoints.push(spt);
-    });
-    circles.push(circ);
-  });
-  cleanupEndpoints();
-  draw();
-}
-function pushSnapshot(){
-  let data= snapshot();
-  undoStack.push(data);
-  redoStack.length=0;
-}
-function undo(){
-  if(undoStack.length<2) return;
-  undoStack.pop();
-  let data= undoStack[undoStack.length-1];
-  restoreSnapshot(data);
-}
-function redo(){
-  if(redoStack.length===0) return;
-  let data= redoStack.pop();
-  let current= snapshot();
-  undoStack.push(current);
-  restoreSnapshot(data);
-}
-
-// ======================================================
-// Draw
-// ======================================================
-function drawGrid(){
-  if(!labelsVisible) return;
-  ctx.strokeStyle="#ddd";
-  ctx.lineWidth=1;
-
-  let leftX= -panOffset.x;
-  let topY=  -panOffset.y;
-  let rightX= leftX + canvas.width;
-  let bottomY= topY + canvas.height;
-
-  let startX= Math.floor(leftX/ pxPerCm)* pxPerCm;
-  let startY= Math.floor(topY / pxPerCm)* pxPerCm;
-  let endX=   Math.ceil(rightX/ pxPerCm)* pxPerCm;
-  let endY=   Math.ceil(bottomY/ pxPerCm)* pxPerCm;
-
-  for(let x= startX; x<= endX; x+= pxPerCm){
-    ctx.beginPath();
-    ctx.moveTo(x, startY);
-    ctx.lineTo(x, endY);
-    ctx.stroke();
-  }
-  for(let y= startY; y<= endY; y+= pxPerCm){
-    ctx.beginPath();
-    ctx.moveTo(startX, y);
-    ctx.lineTo(endX, y);
-    ctx.stroke();
-  }
-}
-function drawVertexAngles(){
-  if(!showAngles) return;
-  const arcRadius=20;
-  endpoints.forEach(ep=>{
-    if(ep.lines.length>=2){
-      let angles= ep.lines.map(ln=>{
-        let other= (ln.start=== ep)? ln.end: ln.start;
-        let a= Math.atan2(other.y- ep.y, other.x- ep.x);
-        if(a<0) a+= 2*Math.PI;
-        return a;
-      });
-      angles.sort((a,b)=> a-b);
-      for(let i=0;i< angles.length;i++){
-        let a1= angles[i];
-        let a2= (i=== angles.length-1)? angles[0]+ 2*Math.PI : angles[i+1].valueOf();
-        let gap= a2- a1;
-        if(gap<0) gap+= 2*Math.PI;
-        if(gap> (5*Math.PI/180) && gap< Math.PI){
-          ctx.beginPath();
-          ctx.strokeStyle="rgba(0,0,255,0.7)";
-          ctx.arc(ep.x, ep.y, arcRadius, a1, a1+ gap);
-          ctx.stroke();
-          let mid= a1+ gap/2;
-          let tx= ep.x+ (arcRadius+10)* Math.cos(mid);
-          let ty= ep.y+ (arcRadius+10)* Math.sin(mid);
-          ctx.save();
-          ctx.font="12px Arial";
-          ctx.fillStyle="rgba(0,0,0,0.9)";
-          ctx.fillText((gap*180/Math.PI).toFixed(1)+"°", tx, ty);
-          ctx.restore();
-        }
-      }
-    }
-  });
-}
-function drawExtraLineLabels(){
-  if(!showLineLengths) return;
-  ctx.save();
-  ctx.font="12px Arial";
-  ctx.fillStyle="green";
-  lines.forEach(ln=>{
-    let midX= (ln.start.x+ ln.end.x)/2;
-    let midY= (ln.start.y+ ln.end.y)/2;
-    ctx.fillText(ln.length.toFixed(2)+" cm", midX, midY);
-  });
-  ctx.restore();
-}
-function drawPreviewLabel(){
-  if(!startEndpoint|| !currentPosLine|| !labelsVisible) return;
-  let dx= currentPosLine.x- startEndpoint.x;
-  let dy= currentPosLine.y- startEndpoint.y;
-  let lenCm= (Math.hypot(dx,dy)/ pxPerCm).toFixed(2);
-  let angleDeg= (Math.atan2(dy,dx)* 180/ Math.PI).toFixed(1);
-  let label= "";
-  if(showAngles && !showLineLengths) label= "Angle: "+ angleDeg+"°";
-  else if(showLineLengths && !showAngles) label= "Length: "+ lenCm+" cm";
-  else label= "Angle: "+ angleDeg+"° | "+ lenCm+" cm";
-  ctx.save();
-  ctx.font="12px Arial";
-  ctx.fillStyle="rgba(0,0,0,0.8)";
-  ctx.fillText(label, currentPosLine.x+10, currentPosLine.y-10);
-  ctx.restore();
-}
-function drawPreviewCircleLabel(center, radius){
-  if(!center|| !radius|| !labelsVisible) return;
-  let lenCm= (radius/ pxPerCm).toFixed(2);
-  let label= "Radius: "+ lenCm+" cm";
-  ctx.save();
-  ctx.font="12px Arial";
-  ctx.fillStyle="rgba(0,0,0,0.8)";
-  ctx.fillText(label, center.x+ radius+ 10, center.y- 10);
-  ctx.restore();
-}
-function drawSelectionRectangle(){
-  if(!isSelecting|| !selectionStart|| !selectionCurrent|| !labelsVisible) return;
-  ctx.save();
-  ctx.strokeStyle="rgba(0,191,255,0.8)";
-  ctx.lineWidth=1;
-  ctx.setLineDash([4,4]);
-  let x= Math.min(selectionStart.x, selectionCurrent.x);
-  let y= Math.min(selectionStart.y, selectionCurrent.y);
-  let w= Math.abs(selectionStart.x- selectionCurrent.x);
-  let h= Math.abs(selectionStart.y- selectionCurrent.y);
-  ctx.strokeRect(x,y,w,h);
-  ctx.restore();
-}
-function draw(){
-  ctx.clearRect(0,0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.translate(-panOffset.x, -panOffset.y);
-
-  // grid
-  drawGrid();
-
-  lines.forEach(ln=> ln.draw());
-  circles.forEach(circle=> circle.draw());
-
-  if(labelsVisible){
-    endpoints.forEach(ep=>{
-      if(ep.matchHover){
-        ctx.strokeStyle="#00FFFF";
-        ctx.lineWidth=3;
-        ctx.beginPath();
-        ctx.arc(ep.x, ep.y,10,0,2*Math.PI);
-        ctx.stroke();
-      }
-      if(ep=== hoverEndpoint){
-        ctx.strokeStyle="orange";
-        ctx.lineWidth=4;
-        ctx.beginPath();
-        ctx.arc(ep.x,ep.y,8,0,2*Math.PI);
-        ctx.stroke();
-      }
-      if(ep.selected){
-        ctx.fillStyle="#800080";
-      } else {
-        if(ep.lines.length<2) ctx.fillStyle="#00FF00";
-        else ctx.fillStyle="#FF0000";
-      }
-      ctx.beginPath();
-      ctx.arc(ep.x, ep.y,6,0,2*Math.PI);
-      ctx.fill();
-    });
-  }
-
-  drawVertexAngles();
-  drawExtraLineLabels();
-
-  if(isSelecting) drawSelectionRectangle();
-
-  if(isDrawingLine && startEndpoint && currentPosLine){
-    ctx.strokeStyle="#aaa";
-    ctx.lineWidth=2;
-    ctx.setLineDash([5,3]);
-    ctx.beginPath();
-    ctx.moveTo(startEndpoint.x, startEndpoint.y);
-    ctx.lineTo(currentPosLine.x, currentPosLine.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    drawPreviewLabel();
-  }
-  if(isDrawingCircle && circleCenter && currentPosCircle){
-    let radius= dist(circleCenter, currentPosCircle);
-    ctx.strokeStyle="#aaa";
-    ctx.lineWidth=2;
-    ctx.setLineDash([5,3]);
-    ctx.beginPath();
-    ctx.arc(circleCenter.x, circleCenter.y, radius,0,2*Math.PI);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    drawPreviewCircleLabel(circleCenter, radius);
-  }
-
-  ctx.restore();
-}
-
-// ======================================================
-// Mouse
-// ======================================================
-canvas.addEventListener("mousedown", e=>{
-  if(e.button===1){
-    isPanning= true;
-    panStart= { x:e.clientX, y:e.clientY };
-    oldPan= { x: panOffset.x, y: panOffset.y };
-    return;
-  }
-  let pos= getMousePos(e);
-
-  // SHIFT+Right => toggle multi-select
-  if(e.button===2 && e.shiftKey && !e.ctrlKey && !e.altKey){
-    let ep= findEndpoint(pos.x,pos.y);
-    if(ep){
-      ep.selected= !ep.selected;
-      draw();
-    }
-    return;
-  }
-  // Right => single select
-  if(e.button===2 && !e.shiftKey && !e.ctrlKey && !e.altKey){
-    endpoints.forEach(ep=> ep.selected= false);
-    let ep= findEndpoint(pos.x,pos.y);
-    if(ep) ep.selected= true;
-    draw();
-    return;
-  }
-  // CTRL+ALT+Right => selection rect
-  if(e.button===2 && e.ctrlKey && e.altKey){
-    isSelecting= true;
-    selectionStart= pos;
-    selectionCurrent= pos;
-    draw();
-    return;
-  }
-  // If “V” => circle, else line
-  if(e.button===0 && !e.ctrlKey && !e.altKey){
-    if(vKeyHeld){
-      isDrawingCircle= true;
-      circleCenter= findEndpoint(pos.x,pos.y) || getSnappedEndpoint(pos.x,pos.y);
-      currentPosCircle= { x: pos.x,y: pos.y };
-      pushSnapshot();
-      draw();
-      return;
-    } else {
-      isDrawingLine= true;
-      startEndpoint= findEndpoint(pos.x,pos.y) || getSnappedEndpoint(pos.x,pos.y);
-      currentPosLine= { x: pos.x,y: pos.y };
-      pushSnapshot();
-      draw();
-      return;
-    }
-  }
-  // CTRL+Left => drag endpoint
-  if(e.button===0 && e.ctrlKey && !e.altKey){
-    let ep= findEndpoint(pos.x,pos.y);
-    if(ep){
-      if(ep.selected){
-        isDraggingEndpoint= true;
-        draggedEndpoints= endpoints.filter(ept=> ept.selected);
-      } else {
-        isDraggingEndpoint= true;
-        draggedEndpoints=[ ep ];
-      }
-      dragStartPos= pos;
-      endpointsOriginalPos= draggedEndpoints.map(ept=> ({ ept, x:ept.x,y:ept.y }));
-      pushSnapshot();
-      draw();
-      return;
-    }
-  }
-});
-
-canvas.addEventListener("mousemove", e=>{
-  if(isPanning){
-    let dx= e.clientX- panStart.x;
-    let dy= e.clientY- panStart.y;
-    panOffset.x= oldPan.x- dx;
-    panOffset.y= oldPan.y- dy;
-    draw();
-    return;
-  }
-  let pos= getMousePos(e);
-  if(isSelecting){
-    selectionCurrent= pos;
-    draw();
-    return;
-  }
-  if(isDraggingEndpoint && draggedEndpoints.length>0){
-    let dx= pos.x- dragStartPos.x;
-    let dy= pos.y- dragStartPos.y;
-    draggedEndpoints.forEach(ept=>{
-      let orig= endpointsOriginalPos.find(o=> o.ept=== ept);
-      if(orig){
-        let newPos= { x: orig.x+ dx, y: orig.y+ dy };
-        if(e.shiftKey && ept.lines.length>0){
-          newPos= applyConstraints({ x: orig.x,y: orig.y, lines:ept.lines }, newPos,true);
-        }
-        newPos= snapDraggedEndpoint(newPos, draggedEndpoints);
-        ept.x= newPos.x; 
-        ept.y= newPos.y;
-      }
-    });
-    endpoints.forEach(ep=>{
-      if(!draggedEndpoints.includes(ep)){
-        if(draggedEndpoints.some(de=> dist(ep,de)< snapRadius)) ep.matchHover= true;
-        else delete ep.matchHover;
-      }
-    });
-    draggedEndpoints.forEach(ept=>{
-      ept.lines.forEach(ln=>{
-        ln.length= dist(ln.start, ln.end)/ pxPerCm;
-      });
-    });
-    draw();
-    return;
-  }
-  if(isDrawingLine){
-    let posC= applyConstraints(startEndpoint, pos, e.shiftKey);
-    if(e.shiftKey && hoverEndpoint && hoverEndpoint!== startEndpoint){
-      let angle= Math.atan2(hoverEndpoint.y- startEndpoint.y, hoverEndpoint.x- startEndpoint.x);
-      let distance= Math.hypot(pos.x- startEndpoint.x, pos.y- startEndpoint.y);
-      posC= { x: startEndpoint.x+ distance* Math.cos(angle), y: startEndpoint.y+ distance*Math.sin(angle) };
-    }
-    currentPosLine= { x: posC.x, y: posC.y };
-    draw();
-    return;
-  }
-  if(isDrawingCircle){
-    currentPosCircle= { x: pos.x, y: pos.y };
-    draw();
-    return;
-  }
-  if(!isDraggingEndpoint && !isDrawingLine && !isDrawingCircle && !isSelecting){
-    let newHover= null;
-    for(let ep of endpoints){
-      if(dist(ep,pos)<= snapRadius){
-        newHover= ep; 
-        break;
-      }
-    }
-    hoverEndpoint= newHover;
-  } else {
-    hoverEndpoint= null;
-  }
-  if(!isDraggingEndpoint){
-    endpoints.forEach(ep=> delete ep.matchHover);
-  }
-  draw();
-});
-
-canvas.addEventListener("mouseup", e=>{
-  if(isPanning && e.button===1){
-    isPanning= false;
-    return;
-  }
-  let pos= getMousePos(e);
-  if(isSelecting){
-    endpoints.forEach(ep=>{
-      if(pointInRect(ep, selectionStart, selectionCurrent)){
-        ep.selected= !ep.selected;
-      }
-    });
-    isSelecting= false;
-    selectionStart= selectionCurrent= null;
-    draw();
-    return;
-  }
-  if(isDraggingEndpoint && draggedEndpoints.length>0){
-    draggedEndpoints.forEach(dep=>{
-      let near= endpoints.find(ep=> !draggedEndpoints.includes(ep) && dist(dep,ep)<= snapRadius );
-      if(near){
-        dep.lines.forEach(ln=>{
-          if(ln.start=== dep){
-            ln.start= near;
-            if(!near.lines.includes(ln)) near.lines.push(ln);
-          }
-          if(ln.end=== dep){
-            ln.end= near;
-            if(!near.lines.includes(ln)) near.lines.push(ln);
-          }
-        });
-        let idx= endpoints.indexOf(dep);
-        if(idx>-1) endpoints.splice(idx,1);
-      }
-    });
-    isDraggingEndpoint= false;
-    draggedEndpoints= [];
-    endpoints.forEach(ep=> delete ep.matchHover);
-    cleanupEndpoints();
-    draw();
-    return;
-  }
-  if(isDrawingLine){
-    let finalPos= applyConstraints(startEndpoint, pos, e.shiftKey);
-    let endEp= findEndpoint(finalPos.x, finalPos.y) || getSnappedEndpoint(finalPos.x, finalPos.y);
-    if(startEndpoint.x=== endEp.x && startEndpoint.y=== endEp.y){
-      isDrawingLine= false;
-      draw();
-      return;
-    }
-    if(!lineExists(startEndpoint, endEp)){
-      let newLine= new Line(startEndpoint, endEp);
-      lines.push(newLine);
-    }
-    isDrawingLine= false;
-    draw();
-    return;
-  }
-  if(isDrawingCircle){
-    let radius= dist(circleCenter, pos);
-    if(radius<5){
-      isDrawingCircle= false;
-      draw();
-      return;
-    }
-    let newCircle= new Circle(circleCenter, radius);
-    circles.push(newCircle);
-    isDrawingCircle= false;
-    draw();
-    return;
-  }
-});
-
-// ======================================================
-// Keyboard
-// ======================================================
-window.addEventListener("keydown", e=>{
-  if(e.key==="Shift"){
-    shiftIsHeld= true;
-    draw();
-  }
-  if(e.key.toLowerCase()==="h"){
-    labelsVisible= !labelsVisible;
-    draw();
-  }
-  if(e.key.toLowerCase()==="i"){
-    showAngles= !showAngles;
-    draw();
-  }
-  if(e.ctrlKey && e.key.toLowerCase()==="a"){
-    e.preventDefault();
-    endpoints.forEach(ep=> ep.selected= true);
-    draw();
-  }
-  if(e.key==="Escape"){
-    endpoints.forEach(ep=> ep.selected= false);
-    draw();
-  }
-  if(e.key.toLowerCase()==="v"){
-    vKeyHeld= true;
-    draw();
-  }
-  // SHIFT+SPACE => straighten chain
-  if(e.key===" " && e.shiftKey && !e.ctrlKey){
-    if(hoverEndpoint){
-      pushSnapshot();
-      straightenChain(hoverEndpoint);
-      e.preventDefault();
-    }
-  }
-  // SPACE => merge
-  if(e.key===" " && !e.shiftKey && !e.ctrlKey){
-    if(hoverEndpoint){
-      pushSnapshot();
-      spaceMergeDownHoveredEndpoint(hoverEndpoint);
-      e.preventDefault();
-    }
-  }
-  // CTRL+SPACE => detach
-  if(e.key===" " && e.ctrlKey && !e.shiftKey){
-    if(hoverEndpoint){
-      pushSnapshot();
-      detachHoveredEndpoint(hoverEndpoint);
-      e.preventDefault();
-      draw();
-    }
-  }
-  // CTRL+S => save
-  if(e.ctrlKey && e.key.toLowerCase()==="s"){
-    e.preventDefault();
-    pushSnapshot();
-    saveProject();
-  }
-  // CTRL+L => load
-  if(e.ctrlKey && e.key.toLowerCase()==="l"){
-    e.preventDefault();
-    pushSnapshot();
-    loadProject();
-  }
-  // CTRL+P => PNG
-  if(e.ctrlKey && e.key.toLowerCase()==="p"){
-    e.preventDefault();
-    pushSnapshot();
-    savePNG();
-  }
-  // CTRL+Z => undo
-  if(e.ctrlKey && (e.key==="z" || e.key==="Z")){
-    e.preventDefault();
-    undo();
-  }
-  // CTRL+Y => redo
-  if(e.ctrlKey && (e.key==="y" || e.key==="Y")){
-    e.preventDefault();
-    redo();
-  }
-  if(e.key==="Delete"){
-    let circlesToRemove= new Set();
-    endpoints.forEach(ep=>{
-      if(ep.selected && ep.parentCircle) circlesToRemove.add(ep.parentCircle);
-    });
-    circlesToRemove.forEach(circle=> removeCircle(circle));
-    for(let i=endpoints.length-1;i>=0;i--){
-      if(endpoints[i].selected){
-        endpoints[i].lines.forEach(ln=>{
-          let idx= lines.indexOf(ln);
-          if(idx>-1) lines.splice(idx,1);
-        });
-        endpoints.splice(i,1);
-      }
-    }
-    cleanupEndpoints();
-    draw();
-  }
-  // “U” => toggles line lengths
-  if(e.key.toLowerCase()==="u"){
-    showLineLengths= !showLineLengths;
-    e.preventDefault();
-    draw();
-  }
-});
-window.addEventListener("keyup", e=>{
-  if(e.key==="Shift"){
-    shiftIsHeld= false;
-    draw();
-  }
-  if(e.key.toLowerCase()==="v"){
-    vKeyHeld= false;
-    draw();
-  }
-});
-
-// ======================================================
-// removeCircle
-// ======================================================
-function removeCircle(circle){
-  let idx= circles.indexOf(circle);
-  if(idx>-1) circles.splice(idx,1);
-  let cIdx= endpoints.indexOf(circle.center);
-  if(cIdx>-1){
-    endpoints[cIdx].lines.forEach(ln=>{
-      let li= lines.indexOf(ln);
-      if(li>-1) lines.splice(li,1);
-      let other= (ln.start=== endpoints[cIdx])? ln.end: ln.start;
-      let li2= other.lines.indexOf(ln);
-      if(li2>-1) other.lines.splice(li2,1);
-    });
-    endpoints.splice(cIdx,1);
-  }
-  for(let i=endpoints.length-1;i>=0;i--){
-    if(endpoints[i].parentCircle=== circle){
-      endpoints[i].lines.forEach(ln=>{
-        let li= lines.indexOf(ln);
-        if(li>-1) lines.splice(li,1);
-        let other= (ln.start=== endpoints[i])? ln.end: ln.start;
-        let li2= other.lines.indexOf(ln);
-        if(li2>-1) other.lines.splice(li2,1);
-      });
-      endpoints.splice(i,1);
-    }
-  }
-  cleanupEndpoints();
-  draw();
-}
-
-// ======================================================
-// Save, Load, PNG
-// ======================================================
-function snapshot(){
-  let endpointsData= endpoints.map(ep=>({
-    x: ep.x, y: ep.y, selected: ep.selected|| false
-  }));
-  let linesData= lines.map(ln=>({
-    startIndex: endpoints.indexOf(ln.start),
-    endIndex: endpoints.indexOf(ln.end)
-  }));
-  let circlesData= circles.map(circle=>({
-    centerIndex: endpoints.indexOf(circle.center),
-    radius: circle.radius,
-    samplePoints: circle.samplePoints.map(sp=>({
-      x: sp.x,y: sp.y, selected: sp.selected|| false
-    }))
-  }));
-  return { endpointsData, linesData, circlesData };
-}
-function restoreSnapshot(snap){
-  endpoints.length=0;
-  lines.length=0;
-  circles.length=0;
-  snap.endpointsData.forEach(ed=>{
-    endpoints.push({ x: ed.x, y: ed.y, lines:[], selected: ed.selected });
-  });
-  snap.linesData.forEach(ld=>{
-    let sEp= endpoints[ld.startIndex];
-    let eEp= endpoints[ld.endIndex];
-    if(!sEp|| !eEp) return;
-    let ln= new Line(sEp,eEp);
-    lines.push(ln);
-  });
-  snap.circlesData.forEach(cd=>{
-    let centerEp= endpoints[cd.centerIndex];
-    if(!centerEp) return;
-    let circ= new Circle(centerEp, cd.radius);
-    circ.samplePoints.length=0;
-    cd.samplePoints.forEach(sp=>{
-      let spt= { x: sp.x,y: sp.y, lines:[], selected: sp.selected, parentCircle: circ };
-      circ.samplePoints.push(spt);
-      endpoints.push(spt);
-    });
-    circles.push(circ);
-  });
-  cleanupEndpoints();
-  draw();
-}
-function pushSnapshot(){
-  let data= snapshot();
-  undoStack.push(data);
-  redoStack.length=0;
-}
-function undo(){
-  if(undoStack.length<2) return;
-  undoStack.pop();
-  let data= undoStack[undoStack.length-1];
-  restoreSnapshot(data);
-}
-function redo(){
-  if(redoStack.length===0) return;
-  let data= redoStack.pop();
-  let current= snapshot();
-  undoStack.push(current);
-  restoreSnapshot(data);
-}
-function saveProject(){
-  pushSnapshot();
-  let data= snapshot();
-  let json= JSON.stringify(data);
-  let blob= new Blob([json], { type:"application/json"});
-  let link= document.createElement("a");
-  link.download= "project.json";
-  link.href= URL.createObjectURL(blob);
-  link.click();
-}
-function loadProject(){
-  let input= document.createElement("input");
-  input.type= "file";
-  input.accept= "application/json";
-  input.onchange= function(e){
-    let file= e.target.files[0];
-    let reader= new FileReader();
-    reader.onload= function(ev){
-      try {
-        let snapData= JSON.parse(ev.target.result);
-        pushSnapshot();
-        restoreSnapshot(snapData);
-        cleanupEndpoints();
-        draw();
-      } catch(err){
-        alert("Failed to load project.");
-      }
+  faces.forEach(face => {
+    // Apply scaling to all dimensions equally
+    const a = {
+      x: face.A.x * scaleFactor,
+      y: face.A.y * scaleFactor,
+      z: face.A.zHeight * cmToMm  // Direct cm→mm conversion for Z
     };
-    reader.readAsText(file);
-  };
-  input.click();
-}
-function savePNG(){
-  pushSnapshot();
-  let tempCanvas= document.createElement("canvas");
-  tempCanvas.width= canvas.width;
-  tempCanvas.height= canvas.height;
-  let tempCtx= tempCanvas.getContext("2d");
-  tempCtx.fillStyle="#fff";
-  tempCtx.fillRect(0,0, tempCanvas.width, tempCanvas.height);
-  tempCtx.save();
-  tempCtx.translate(-panOffset.x, -panOffset.y);
-  lines.forEach(ln=>{
-    tempCtx.strokeStyle="#333";
-    tempCtx.lineWidth=2;
-    tempCtx.beginPath();
-    tempCtx.moveTo(ln.start.x, ln.start.y);
-    tempCtx.lineTo(ln.end.x, ln.end.y);
-    tempCtx.stroke();
+    const b = {
+      x: face.B.x * scaleFactor,
+      y: face.B.y * scaleFactor,
+      z: face.B.zHeight * cmToMm
+    };
+    const c = {
+      x: face.C.x * scaleFactor,
+      y: face.C.y * scaleFactor,
+      z: face.C.zHeight * cmToMm
+    };
+
+    // Bottom face (Z=0)
+    stl += facetString(
+      { x: a.x, y: a.y, z: 0 },
+      { x: c.x, y: c.y, z: 0 },
+      { x: b.x, y: b.y, z: 0 },
+      { x:0, y:0, z:-1 }
+    );
+    
+    // Top face
+    stl += facetString(a, b, c, { x:0, y:0, z:1 });
+    
+    // Side faces
+    stl += sideFacetString(a, b);
+    stl += sideFacetString(b, c);
+    stl += sideFacetString(c, a);
   });
-  circles.forEach(circle=>{
-    tempCtx.strokeStyle="#FF5733";
-    tempCtx.lineWidth=2;
-    tempCtx.beginPath();
-    tempCtx.arc(circle.center.x, circle.center.y, circle.radius, 0, 2*Math.PI);
-    tempCtx.stroke();
-    tempCtx.fillStyle="#FF0000";
-    circle.samplePoints.forEach(pt=>{
-      tempCtx.beginPath();
-      tempCtx.arc(pt.x, pt.y,6,0,2*Math.PI);
-      tempCtx.fill();
-    });
-  });
-  tempCtx.restore();
-  let link= document.createElement("a");
-  link.download= "drawing.png";
-  link.href= tempCanvas.toDataURL();
+  
+  stl += "endsolid model";
+  const blob = new Blob([stl], {type: "text/plain"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "model.stl";
   link.click();
 }
 
-// ======================================================
-// Resize & initial
-// ======================================================
-function resizeAndDraw(){
-  canvas.width= window.innerWidth;
-  canvas.height= window.innerHeight;
-  if(undoStack.length===0){
-    pushSnapshot();
-  }
-  draw();
+function sideFacetString(v1, v2) {
+  const bottom1 = { x: v1.x, y: v1.y, z: 0 };
+  const bottom2 = { x: v2.x, y: v2.y, z: 0 };
+  const top1 = { x: v1.x, y: v1.y, z: v1.z };
+  const top2 = { x: v2.x, y: v2.y, z: v2.z };
+  
+  // Calculate normal vector
+  const U = { 
+    x: top1.x - bottom1.x, 
+    y: top1.y - bottom1.y, 
+    z: top1.z - bottom1.z 
+  };
+  const V = { 
+    x: bottom2.x - bottom1.x, 
+    y: bottom2.y - bottom1.y, 
+    z: bottom2.z - bottom1.z 
+  };
+  
+  let normal = {
+    x: U.y * V.z - U.z * V.y,
+    y: U.z * V.x - U.x * V.z,
+    z: U.x * V.y - U.y * V.x
+  };
+  
+  // Normalize
+  const mag = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z) || 1;
+  normal.x /= mag; normal.y /= mag; normal.z /= mag;
+
+  // Create facets
+  let stl = "";
+  stl += facetString(bottom1, bottom2, top2, normal);
+  stl += facetString(bottom1, top2, top1, normal);
+  return stl;
 }
-window.addEventListener("resize", resizeAndDraw);
-resizeAndDraw();
-</script>
+
+function facetString(v1, v2, v3, normal) {
+  return `facet normal ${normal.x.toFixed(6)} ${normal.y.toFixed(6)} ${normal.z.toFixed(6)}\n` +
+         `  outer loop\n` +
+         `    vertex ${v1.x.toFixed(6)} ${v1.y.toFixed(6)} ${v1.z.toFixed(6)}\n` +
+         `    vertex ${v2.x.toFixed(6)} ${v2.y.toFixed(6)} ${v2.z.toFixed(6)}\n` +
+         `    vertex ${v3.x.toFixed(6)} ${v3.y.toFixed(6)} ${v3.z.toFixed(6)}\n` +
+         `  endloop\n` +
+         `endfacet\n`;
+}
+    // === Main Draw Function ===
+    function draw() {
+      cleanupTopology();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+      if (bgImage) {
+        ctx.save();
+        ctx.translate(bgImageX - panOffset.x, bgImageY - panOffset.y);
+        ctx.rotate(bgImageRotation);
+        ctx.scale(bgImageScale, bgImageScale);
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(bgImage, -bgImage.width/2, -bgImage.height/2);
+        ctx.restore();
+      }
+      drawFaces();
+      shapes.forEach(shape => shape.draw());
+      if (labelMode === 0) {
+        shapes.forEach(shape => {
+          if (shape.type === 'line') {
+            const len = dist(shape.start, shape.end);
+            labelSide(shape.start, shape.end, len / pxPerCm);
+          }
+        });
+      }
+      if (labelMode !== 2) {
+        snapPoints.forEach(sp => {
+          if (sp.connectedLines.length >= 2) {
+            drawAnglesAtSnapPoint(sp);
+          }
+        });
+      }
+      snapPoints.forEach(sp => {
+        ctx.fillStyle = '#FF0000';
+        ctx.beginPath();
+        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, 6, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+      selectedSnapPoints.forEach(sp => {
+        ctx.strokeStyle = '#00FFFF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(sp.x - panOffset.x, sp.y - panOffset.y, snapRadius, 0, 2 * Math.PI);
+        ctx.stroke();
+      });
+      selectedFaces.forEach(face => {
+        ctx.strokeStyle = 'magenta';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(face.A.x - panOffset.x, face.A.y - panOffset.y);
+        ctx.lineTo(face.B.x - panOffset.x, face.B.y - panOffset.y);
+        ctx.lineTo(face.C.x - panOffset.x, face.C.y - panOffset.y);
+        ctx.closePath();
+        ctx.stroke();
+      });
+      if (isDragging && currentVector && origin.type === 'line') {
+        ctx.strokeStyle = '#B0B0B0';
+        ctx.setLineDash([7,3]);
+        ctx.beginPath();
+        ctx.moveTo(origin.startSnapPoint.x - panOffset.x, origin.startSnapPoint.y - panOffset.y);
+        ctx.lineTo(currentVector.x - panOffset.x, currentVector.y - panOffset.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#333333';
+        ctx.beginPath();
+        ctx.arc(currentVector.x - panOffset.x, currentVector.y - panOffset.y, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      let alignmentText = 'None';
+      if (isXAligned && isYAligned) alignmentText = 'X & Y';
+      else if (isXAligned) alignmentText = 'X';
+      else if (isYAligned) alignmentText = 'Y';
+      alignmentStatus.textContent = `Alignment: ${alignmentText}` + (isGridMode ? " [Grid]" : "");
+      // Draw selection rectangle if active
+      if (isSelectionRectActive) {
+        const r = getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
+        selectionRect.style.left = `${r.x - panOffset.x}px`;
+        selectionRect.style.top = `${r.y - panOffset.y}px`;
+        selectionRect.style.width = `${r.width}px`;
+        selectionRect.style.height = `${r.height}px`;
+      }
+      // Draw z-height labels for vertices
+      drawZHeightLabels();
+    }
+
+    function getRectangleCoordinates(start, current) {
+      const x = Math.min(start.x, current.x);
+      const y = Math.min(start.y, current.y);
+      const width = Math.abs(current.x - start.x);
+      const height = Math.abs(current.y - start.y);
+      return { x, y, width, height };
+    }
+    function isPointInRect(sp, rect) {
+      return (sp.x >= rect.x - 1 && sp.x <= rect.x + rect.width + 1 &&
+              sp.y >= rect.y - 1 && sp.y <= rect.y + rect.height + 1);
+    }
+    function toggleSelection(snapPoint, mode = 'toggle') {
+      if (mode === 'toggle') {
+        const idx = selectedSnapPoints.findIndex(s => s.id === snapPoint.id);
+        if (idx === -1) { selectedSnapPoints.push(snapPoint); }
+        else { selectedSnapPoints.splice(idx, 1); }
+      } else if (mode === 'add') {
+        if (!selectedSnapPoints.some(s => s.id === snapPoint.id)) {
+          selectedSnapPoints.push(snapPoint);
+        }
+      }
+    }
+
+    // === Face Selection via Right Mouse ===
+    function handleFaceSelection(pos, shiftKey, altKey) {
+      let face = findFaceAt(pos.x, pos.y);
+      if (face) {
+        const idx = selectedFaces.findIndex(f => f.id === face.id);
+        if (shiftKey) {
+          if (idx === -1) { selectedFaces.push(face); }
+          else { selectedFaces.splice(idx, 1); }
+        } else {
+          if (idx > -1) { selectedFaces = []; }
+          else { selectedFaces = [face]; }
+        }
+        return true;
+      }
+      return false;
+    }
+
+    // === Main Mouse Event Handlers ===
+    canvas.addEventListener('mousedown', e => {
+      lastMouseEvent = e;
+      const pos = getMousePos(e);
+      dragStartPos = pos;
+      hasDragged = false;
+      currentMouseButton = e.button;
+      if (e.button === 1) {
+        isPanning = true;
+        panStart = { x: e.clientX, y: e.clientY };
+        canvas.style.cursor = 'grabbing';
+        e.preventDefault();
+        draw();
+        return;
+      }
+      if (e.button === 2) {
+        if (e.shiftKey) {
+          isSelectionRectActive = true;
+          selectionRectStart = pos;
+          selectionRectCurrent = pos;
+          selectionRect.style.display = 'block';
+          selectionRect.dataset.mode = e.altKey ? 'unselect' : 'select';
+          draw();
+          return;
+        }
+        if (handleFaceSelection(pos, e.shiftKey, e.altKey)) { pushState(); draw(); return; }
+        const sp = findNearbySnapPoint(pos.x, pos.y);
+        if (sp) {
+          if (e.shiftKey) {
+            toggleSelection(sp, 'toggle');
+          } else {
+            selectedSnapPoints = [sp];
+          }
+          pushState();
+          draw();
+          return;
+        }
+        // Right-click in empty space clears selections.
+        selectedSnapPoints = [];
+        selectedFaces = [];
+        pushState();
+        draw();
+        return;
+      }
+      if (e.button === 0 && e.ctrlKey && !e.altKey) {
+        const sp = findNearbySnapPoint(pos.x, pos.y);
+        if (sp) {
+          isDragging = true;
+          isCtrlDragging = true;
+          if (selectedSnapPoints.some(s => s.id === sp.id)) {
+            origin = { type: 'group', vertices: selectedSnapPoints.map(s => ({ vertex: s, initial: { x: s.x, y: s.y } })) };
+          } else {
+            origin = { type: 'snapPoint', snapPoint: sp, initialPosition: { x: sp.x, y: sp.y } };
+          }
+          currentVector = { x: sp.x, y: sp.y };
+          draw();
+          return;
+        }
+      }
+      if (e.button === 0 && e.shiftKey && !e.ctrlKey && !e.altKey) {
+        isDragging = true;
+        origin = { type: 'line', line: null, startSnapPoint: null };
+        const sp = findNearbySnapPoint(pos.x, pos.y);
+        let startSP = sp ? sp : new SnapPoint(pos.x, pos.y);
+        if (!sp) { startSP.temporary = true; snapPoints.push(startSP); }
+        origin.startSnapPoint = startSP;
+        currentVector = { x: pos.x, y: pos.y };
+        draw();
+        return;
+      }
+      if (e.button === 0 && !e.altKey && !e.ctrlKey && !e.shiftKey) {
+        isDragging = true;
+        isCtrlDragging = false;
+        origin = { type: 'line', line: null, startSnapPoint: null };
+        const sp = findNearbySnapPoint(pos.x, pos.y);
+        let startSP = sp ? sp : new SnapPoint(pos.x, pos.y);
+        if (!sp) { startSP.temporary = true; snapPoints.push(startSP); }
+        origin.startSnapPoint = startSP;
+        currentVector = { x: pos.x, y: pos.y };
+        draw();
+        return;
+      }
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      const pos = getMousePos(e);
+      hoveredSnapPoint = findNearbySnapPoint(pos.x, pos.y);
+      hoveredLabel = null;
+      for (let label of labels) {
+        if (pos.x >= label.x && pos.x <= label.x + label.width &&
+            pos.y >= label.y && pos.y <= label.y + label.height) {
+          hoveredLabel = label;
+          break;
+        }
+      }
+      if (isSelectionRectActive) {
+        hasDragged = true;
+        selectionRectCurrent = { x: pos.x, y: pos.y };
+        draw();
+        return;
+      }
+      if (isDragging) {
+        hasDragged = true;
+        if (isCtrlDragging) {
+          if (origin.type === 'group') {
+            origin.vertices.forEach(item => {
+              const dx = pos.x - dragStartPos.x;
+              const dy = pos.y - dragStartPos.y;
+              const newPos = { x: item.initial.x + dx, y: item.initial.y + dy };
+              item.vertex.move(newPos.x, newPos.y);
+            });
+          } else if (origin.type === 'snapPoint') {
+            let nx = pos.x, ny = pos.y;
+            let snappedToLine = false;
+            for (const line of shapes) {
+              if (line.type === 'line' &&
+                  line.start !== origin.snapPoint &&
+                  line.end !== origin.snapPoint) {
+                const projection = projectPointOntoLine({ x: nx, y: ny }, line.start, line.end);
+                const d = dist({ x: nx, y: ny }, projection);
+                if (d < snapRadius) {
+                  nx = projection.x;
+                  ny = projection.y;
+                  snappedToLine = true;
+                  break;
+                }
+              }
+            }
+            if (!snappedToLine) {
+              const near = findNearbySnapPoint(nx, ny, [origin.snapPoint]);
+              if (near) { nx = near.x; ny = near.y; }
+            }
+            const aligned = applyAlignmentConstraints({ x: origin.snapPoint.x, y: origin.snapPoint.y },
+                                                       { x: nx, y: ny },
+                                                       { ctrl: lastMouseEvent.ctrlKey });
+            origin.snapPoint.move(aligned.x, aligned.y);
+            currentVector = { x: aligned.x, y: aligned.y };
+          }
+        } else if (origin.type === 'line') {
+          let ex = pos.x, ey = pos.y;
+          if (isXAligned || isYAligned || (lastMouseEvent && lastMouseEvent.ctrlKey)) {
+            const origPos = { x: origin.startSnapPoint.x, y: origin.startSnapPoint.y };
+            const modifiers = { ctrl: lastMouseEvent ? lastMouseEvent.ctrlKey : false };
+            let adj = applyAlignmentConstraints(origPos, { x: ex, y: ey }, modifiers);
+            if (isXAligned) { adj = snapToParallelLine(origPos, adj, 'x'); }
+            else if (isYAligned) { adj = snapToParallelLine(origPos, adj, 'y'); }
+            ex = adj.x; ey = adj.y;
+          }
+          if (lastMouseEvent && lastMouseEvent.shiftKey) {
+            const dx = ex - origin.startSnapPoint.x;
+            const dy = ey - origin.startSnapPoint.y;
+            const angle = Math.atan2(dy, dx);
+            const snappedAngle = snapToGrid(angle);
+            ex = origin.startSnapPoint.x + Math.hypot(dx, dy) * Math.cos(snappedAngle);
+            ey = origin.startSnapPoint.y + Math.hypot(dx, dy) * Math.sin(snappedAngle);
+          }
+          const s = findNearbySnapPoint(ex, ey);
+          if (s) { ex = s.x; ey = s.y; }
+          currentVector = { x: ex, y: ey };
+        }
+      }
+      if (isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        panStart = { x: e.clientX, y: e.clientY };
+        panOffset.x += dx;
+        panOffset.y += dy;
+      }
+      draw();
+    });
+
+    canvas.addEventListener('mouseup', e => {
+      const pos = getMousePos(e);
+      currentMouseButton = null;
+      if (e.button === 1) {
+        isDragging = isPanning = false;
+        canvas.style.cursor = 'default';
+        draw();
+        return;
+      }
+      if (isSelectionRectActive) {
+        const dragDistance = Math.hypot(selectionRectCurrent.x - selectionRectStart.x,
+                                        selectionRectCurrent.y - selectionRectStart.y);
+        const isUnselectMode = selectionRect.dataset.mode === 'unselect';
+        if (dragDistance < selectionDragThreshold) {
+          const sp = findNearbySnapPoint(pos.x, pos.y);
+          if (sp) {
+            if (isUnselectMode) {
+              const index = selectedSnapPoints.findIndex(s => s.id === sp.id);
+              if (index !== -1) selectedSnapPoints.splice(index, 1);
+            } else {
+              toggleSelection(sp, 'toggle');
+            }
+          }
+        } else {
+          const r = getRectangleCoordinates(selectionRectStart, selectionRectCurrent);
+          const targets = snapPoints.filter(sp => isPointInRect(sp, r));
+          if (isUnselectMode) {
+            targets.forEach(sp => {
+              const index = selectedSnapPoints.findIndex(s => s.id === sp.id);
+              if (index !== -1) selectedSnapPoints.splice(index, 1);
+            });
+          } else {
+            const existingIds = new Set(selectedSnapPoints.map(sp => sp.id));
+            targets.forEach(sp => {
+              if (!existingIds.has(sp.id)) selectedSnapPoints.push(sp);
+            });
+          }
+        }
+        selectionRect.style.display = 'none';
+        selectionRect.dataset.mode = '';
+        isSelectionRectActive = false;
+        pushState();
+        draw();
+        return;
+      }
+      if (isDragging) {
+        if (!canvas.matches(':hover')) { isDragging = false; draw(); return; }
+        if (origin.type === 'line' && hasDragged && (isXAligned || isYAligned)) {
+          let origPos = { x: origin.startSnapPoint.x, y: origin.startSnapPoint.y };
+          let computed = applyAlignmentConstraints(origPos, currentVector, { ctrl: lastMouseEvent.ctrlKey });
+          if (isXAligned) computed = snapToParallelLine(origPos, computed, 'x');
+          else if (isYAligned) computed = snapToParallelLine(origPos, computed, 'y');
+          currentVector = computed;
+        }
+        if (isCtrlDragging) {
+          if (origin.type === 'group') {
+            origin.vertices.forEach(item => { autoSplitForVertex(item.vertex); });
+          } else {
+            autoSplitForVertex(origin.snapPoint);
+          }
+          mergeNearbySnapPoints();
+        } else if (origin.type === 'line' && hasDragged) {
+          let st = origin.startSnapPoint;
+          let endSP = findNearbySnapPoint(currentVector.x, currentVector.y);
+          if (!endSP) {
+            endSP = new SnapPoint(currentVector.x, currentVector.y);
+            endSP.temporary = false;
+            snapPoints.push(endSP);
+          }
+          if (!(st.x === endSP.x && st.y === endSP.y)) {
+            let endpoint = { x: currentVector.x, y: currentVector.y };
+            if (e.altKey) {
+              for (const existingLine of shapes) {
+                if (existingLine.type === 'line') {
+                  const distToLine = pointLineDistance(endpoint, existingLine.start, existingLine.end);
+                  if (distToLine <= snapRadius) {
+                    endpoint = projectPointOntoLine(endpoint, existingLine.start, existingLine.end);
+                    break;
+                  }
+                }
+              }
+            }
+            const newLine = new Line(st, endSP);
+            shapes.push(newLine);
+            if (e.altKey) {
+              shapes.slice().forEach(existingLine => {
+                if (existingLine.type === 'line' && existingLine !== newLine) {
+                  const intersection = getLineIntersection(newLine, existingLine);
+                  if (intersection) {
+                    let spMerge = findNearbySnapPoint(intersection.x, intersection.y);
+                    if (!spMerge) {
+                      spMerge = new SnapPoint(intersection.x, intersection.y);
+                      spMerge.temporary = false;
+                      snapPoints.push(spMerge);
+                    }
+                    newLine.splitAtPoint(spMerge);
+                    existingLine.splitAtPoint(spMerge);
+                  }
+                }
+              });
+            }
+            removeDuplicateLines();
+          }
+        } else {
+          let sp = findNearbySnapPoint(pos.x, pos.y);
+          if (!sp) {
+            outer:
+            for (let i = 0; i < shapes.length; i++) {
+              for (let j = i + 1; j < shapes.length; j++) {
+                const inter = getLineIntersection(shapes[i], shapes[j]);
+                if (inter && dist(inter, pos) < snapRadius) {
+                  sp = findNearbySnapPoint(inter.x, inter.y) || new SnapPoint(inter.x, inter.y);
+                  if (!findNearbySnapPoint(inter.x, inter.y)) {
+                    sp.temporary = false;
+                    snapPoints.push(sp);
+                  }
+                  shapes[i].splitAtPoint(sp);
+                  shapes[j].splitAtPoint(sp);
+                  break outer;
+                }
+              }
+            }
+          }
+          if (sp) {
+            autoSplitForVertex(sp);
+            mergeNearbySnapPoints();
+            if (e.button === 0 && lastMouseEvent && lastMouseEvent.shiftKey && !hasDragged) {
+              toggleSelection(sp, 'toggle');
+            } else if (e.button === 0) {
+              selectedSnapPoints = [sp];
+            }
+            draw();
+          } else {
+            selectedSnapPoints = [];
+            draw();
+          }
+        }
+        currentVector = null;
+        isDragging = false;
+        isCtrlDragging = false;
+        pushState();
+      }
+      draw();
+      updateAlignmentStatus();
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        panStart = { x: e.clientX, y: e.clientY };
+        panOffset.x += dx;
+        panOffset.y += dy;
+        draw();
+      }
+    });
+    window.addEventListener('mouseup', e => {
+      if (e.button === 1) { isPanning = false; canvas.style.cursor = 'default'; }
+    });
+
+    window.addEventListener('keydown', e => {
+      if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        undo();
+      } else if (e.ctrlKey && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        redo();
+      } else if (e.key.toLowerCase() === 'x' && !e.ctrlKey) {
+        e.preventDefault();
+        isXAligned = !isXAligned;
+        updateAlignmentStatus();
+      } else if (e.key.toLowerCase() === 'y' && !e.ctrlKey) {
+        e.preventDefault();
+        isYAligned = !isYAligned;
+        updateAlignmentStatus();
+      } else if (e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        isGridMode = !isGridMode;
+        updateAlignmentStatus();
+        draw();
+      } else if (e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        labelMode = (labelMode + 1) % 3;
+        draw();
+      } else if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        alignmentErrorEnabled = !alignmentErrorEnabled;
+        draw();
+      } else if (e.key === 'Delete') {
+        if (selectedSnapPoints.length > 0) {
+          const linesToDelete = new Set();
+          selectedSnapPoints.forEach(sp => sp.connectedLines.forEach(conn => linesToDelete.add(conn.line)));
+          const spsToDelete = [...selectedSnapPoints];
+          const deletedLines = [...linesToDelete];
+          deletedLines.forEach(line => {
+            const idx = shapes.findIndex(s => s.id === line.id);
+            if (idx > -1) shapes.splice(idx, 1);
+            [line.start, line.end].forEach(sp => sp.removeLine(line));
+          });
+          spsToDelete.forEach(sp => {
+            const idx = snapPoints.indexOf(sp);
+            if (idx > -1) snapPoints.splice(idx, 1);
+          });
+          pushState();
+          selectedSnapPoints = [];
+          draw();
+        }
+      } else if (e.key === 'Escape') {
+        selectedSnapPoints = [];
+        selectedFaces = [];
+        draw();
+      }
+    });
+
+    // Mousewheel for adjusting z-height on selected vertices.
+    canvas.addEventListener('wheel', e => {
+      if (selectedSnapPoints.length > 0 || selectedFaces.length > 0) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 5 : -5;
+        if (selectedSnapPoints.length > 0) {
+          selectedSnapPoints.forEach(sp => {
+            sp.zHeight = Math.max(0, sp.zHeight + delta);
+          });
+        } else if (selectedFaces.length > 0) {
+          const vertices = new Set();
+          selectedFaces.forEach(face => {
+            vertices.add(face.A);
+            vertices.add(face.B);
+            vertices.add(face.C);
+          });
+          vertices.forEach(v => {
+            v.zHeight = Math.max(0, v.zHeight + delta);
+          });
+        }
+        draw();
+      }
+    }, { passive: false });
+
+    function updateAlignmentStatus() {
+      let alignmentText = 'None';
+      if (isXAligned && isYAligned) alignmentText = 'X & Y';
+      else if (isXAligned) alignmentText = 'X';
+      else if (isYAligned) alignmentText = 'Y';
+      alignmentStatus.textContent = `Alignment: ${alignmentText}` + (isGridMode ? " [Grid]" : "");
+    }
+
+    // Export STL Button
+    const exportSTLButton = document.getElementById('exportSTLButton');
+    exportSTLButton.addEventListener('click', exportSTL);
+
+    // Background Image Controls
+    const bgUpload = document.getElementById('bgUpload');
+    const bgLockButton = document.getElementById('bgLockButton');
+    bgUpload.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          bgImage = img;
+          bgImageX = canvas.width / 2;
+          bgImageY = canvas.height / 2;
+          bgImageScale = 1;
+          bgImageRotation = 0;
+          draw();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    bgLockButton.addEventListener('click', () => {
+      bgImageLocked = !bgImageLocked;
+      if (bgImageLocked) {
+        bgLockButton.classList.remove('unlocked');
+        bgLockButton.classList.add('locked');
+        bgLockButton.textContent = 'Lock Background 🔒';
+      } else {
+        bgLockButton.classList.remove('locked');
+        bgLockButton.classList.add('unlocked');
+        bgLockButton.textContent = 'Unlock Background 🔓';
+      }
+    });
+
+    canvas.addEventListener('wheel', e => {
+      if (!bgImageLocked && bgImage && selectedFaces.length === 0 && selectedSnapPoints.length === 0) {
+        e.preventDefault();
+        const scaleAmount = e.deltaY < 0 ? 1.1 : 0.9;
+        bgImageScale *= scaleAmount;
+        bgImageScale = Math.max(0.1, Math.min(bgImageScale, 10));
+        draw();
+      }
+    }, { passive: false });
+
+    window.addEventListener('mousemove', e => {
+      if (isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        panStart = { x: e.clientX, y: e.clientY };
+        panOffset.x += dx;
+        panOffset.y += dy;
+        draw();
+      }
+    });
+    window.addEventListener('mouseup', e => {
+      if (e.button === 1) { isPanning = false; canvas.style.cursor = 'default'; }
+    });
+
+    const saveButton = document.getElementById('saveButton');
+    saveButton.addEventListener('click', () => {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.fillStyle = '#FFFFFF';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.drawImage(canvas, 0, 0);
+      const link = document.createElement('a');
+      link.download = 'canvas_image.png';
+      link.href = tempCanvas.toDataURL();
+      link.click();
+    });
+
+    const saveProjectButton = document.getElementById('saveProjectButton');
+    saveProjectButton.addEventListener('click', () => {
+      const project = {
+        snapPoints: snapPoints.map(sp => ({ id: sp.id, x: sp.x, y: sp.y, zHeight: sp.zHeight, type: sp.type, rotationDirection: sp.rotationDirection })),
+        shapes: shapes.map(shape => {
+          if (shape.type === 'line') {
+            return { type: 'line', id: shape.id, start: shape.start.id, end: shape.end.id };
+          }
+        }),
+        faces: faces.map(face => ({
+          vertices: [face.A.id, face.B.id, face.C.id].sort((a,b)=>a-b)
+        })),
+        bgImage: bgImage ? { src: bgImage.src, x: bgImageX, y: bgImageY, scale: bgImageScale, rotation: bgImageRotation } : null,
+        panOffset: panOffset
+      };
+      const blob = new Blob([JSON.stringify(project)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.download = 'project.json';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    });
+
+    const loadProjectButton = document.getElementById('loadProjectButton');
+    loadProjectButton.addEventListener('click', () => {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json';
+      fileInput.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          try {
+            const project = JSON.parse(event.target.result);
+            shapes.length = 0;
+            snapPoints.length = 0;
+            triangles.length = 0;
+            faces.length = 0;
+            selectedSnapPoints = [];
+            selectedFaces = [];
+            project.snapPoints.forEach(spData => {
+              const sp = new SnapPoint(spData.x, spData.y, spData.type);
+              sp.id = spData.id;
+              sp.zHeight = spData.zHeight || 0;
+              sp.rotationDirection = spData.rotationDirection;
+              snapPoints.push(sp);
+            });
+            project.shapes.forEach(shapeData => {
+              if (shapeData.type === 'line') {
+                const startSP = snapPoints.find(sp => sp.id === shapeData.start);
+                const endSP = snapPoints.find(sp => sp.id === shapeData.end);
+                if (startSP && endSP) {
+                  const line = new Line(startSP, endSP);
+                  line.id = shapeData.id;
+                  shapes.push(line);
+                }
+              }
+            });
+            project.faces.forEach(faceData => {
+              const verts = faceData.vertices.map(id => snapPoints.find(sp => sp.id === id));
+              if (verts.every(v => v)) {
+                const face = new Triangle(verts[0], verts[1], verts[2]);
+                faces.push(face);
+              }
+            });
+            if (project.bgImage) {
+              const img = new Image();
+              img.onload = function() {
+                bgImage = img;
+                bgImageX = project.bgImage.x;
+                bgImageY = project.bgImage.y;
+                bgImageScale = project.bgImage.scale;
+                bgImageRotation = project.bgImage.rotation;
+                draw();
+              };
+              img.src = project.bgImage.src;
+            } else { bgImage = null; }
+            panOffset = project.panOffset || { x: 0, y: 0 };
+            draw();
+            alert('Project loaded successfully!');
+          } catch (error) {
+            alert('Failed to load project: Invalid file.');
+            console.error(error);
+          }
+        };
+        reader.readAsText(file);
+      };
+      fileInput.click();
+    });
+
+    const helpButton = document.getElementById('helpButton');
+    const closeHelp = document.getElementById('closeHelp');
+    helpButton.addEventListener('click', () => { document.getElementById('helpDialog').style.display = 'block'; });
+    closeHelp.addEventListener('click', () => { document.getElementById('helpDialog').style.display = 'none'; });
+
+    console.log("Final Version loaded: Auto-triangulation is enabled so that only triangles are used for faces, z-height labels are visible for vertices, and undo/redo captures all state. All selection and alignment features remain intact.");
+    pushState();
+  </script>
 </body>
 </html>
