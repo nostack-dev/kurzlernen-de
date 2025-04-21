@@ -579,70 +579,87 @@ https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.min.js
                 await initializeTasks(); // Fallback to initialize tasks if an error occurs
             }
         }
+async function initializeTasks() {
+    const apiKey = "<DEIN_OPENAI_API_KEY>";  // hier deinen Key eintragen
 
-        function initializeTasks() {
-            // Aufgaben initialisieren
-            const initialReadText = `
-                <em>Das geheime Tagebuch</em><br><br>
-                Als ich an diesem verregneten Nachmittag auf den Dachboden stieg, erwartete ich nicht, mein Leben für immer zu verändern. Zwischen staubigen alten Kisten und vergessenen Erinnerungsstücken entdeckte ich ein ledergebundenes Buch. Es war alt, sehr alt, und der Einband trug keinen Titel. Neugierig öffnete ich es und begann zu lesen.<br><br>
-                Die Seiten waren mit handgeschriebenen Notizen gefüllt, die von Abenteuern, verborgenen Schätzen und mysteriösen Begegnungen erzählten. Je mehr ich las, desto mehr fühlte ich mich mit dem unbekannten Autor verbunden. War dies das Tagebuch eines meiner Vorfahren? Oder vielleicht das eines völlig Fremden? Eines war sicher: Dies war kein gewöhnliches Tagebuch.<br><br>
-                Plötzlich spürte ich eine leichte Brise, obwohl kein Fenster geöffnet war. Ein leises Flüstern erfüllte den Raum: "Folge den Zeichen..." Mein Herz schlug schneller. Sollte ich dem Rätsel folgen, das sich vor mir entfaltete? Mit klopfendem Herzen beschloss ich, mich auf das Abenteuer einzulassen.
-            `;
-
-            const initialWriteText = `
-                <strong>Abschreibtext:</strong><br>
-                "Ich konnte kaum glauben, was ich entdeckt hatte. Die Geheimnisse, die in diesem Tagebuch verborgen lagen, schienen älter zu sein als unsere Familie selbst. Jeder Satz, jede Zeichnung führte mich tiefer in ein Mysterium, das darauf wartete, gelüftet zu werden. Mutig entschied ich mich, dem Pfad zu folgen, auch wenn ich nicht wusste, wohin er mich führen würde."
-            `;
-
-            const mathTasks = [];
-            const multiplicationRange = { min: 1, max: 10 }; // Kleines Einmaleins
-            const divisionRange = { min: 1, max: 10 }; // Einfache Divisionen
-
-            // Generiere 10 einfache Matheaufgaben (5 Multiplikation, 5 Division)
-            for (let i = 0; i < 10; i++) {
-                if (i < 5) {
-                    // Multiplikation
-                    const num1 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
-                    const num2 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
-                    const operator = "*";
-                    mathTasks.push({ num1, num2, operator, userAnswer: "" });
-                } else {
-                    // Division (sicherstellen, dass das Ergebnis eine ganze Zahl ist)
-                    const divisor = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
-                    const quotient = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
-                    const dividend = divisor * quotient;
-                    const operator = "/";
-                    mathTasks.push({ num1: dividend, num2: divisor, operator, userAnswer: "" });
+    // 1) Vorlesetext generieren
+    const resp1 = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+                {
+                    role: "system",
+                    content: "Erzeuge einen spannend‑ruhigen Vorlesetext für Kinder (8–14) im HTML‑Format, 1–2 DIN‑A4‑Seiten, self‑contained mit Headline."
                 }
-            }
+            ],
+            temperature: 0.8,
+            max_tokens: 1500
+        })
+    });
+    const { choices: [ { message: { content: initialReadText } } ] } = await resp1.json();
 
-            storedTasks = {
-                task1: {
-                    readText: initialReadText,
-                    audioData: null,
-                    savedAudioURL: "",
-                },
-                task2: {
-                    writeText: initialWriteText,
-                    proofDataURL: null,
-                    savedProofURL: "",
-                },
-                task3: {
-                    mathTasks: mathTasks,
-                },
-                tasksCompleted: [false, false, false],
-                submitted: false
-            };
-            saveTasksToLocalStorage();
+    // 2) Abschreibtext generieren
+    const resp2 = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${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}`
+        },
+        body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+                {
+                    role: "system",
+                    content: "Erzeuge einen Abschreibtext zum zuvor generierten Vorlesetext, ca. 5–6 Sätze, im HTML‑Format."
+                }
+            ],
+            temperature: 0.8,
+            max_tokens: 300
+        })
+    });
+    const { choices: [ { message: { content: initialWriteText } } ] } = await resp2.json();
 
-            document.getElementById("readText").innerHTML = initialReadText;
-            document.getElementById("writeText").innerHTML = initialWriteText;
-            loadMathTasks();
-
-            document.getElementById("task1").classList.remove("hidden");
-            document.getElementById("task2").classList.add("hidden");
-            document.getElementById("task3").classList.add("hidden");
+    // 3) Mathe‑Tasks wie gehabt generieren
+    const mathTasks = [];
+    const multiplicationRange = { min: 1, max: 10 };
+    const divisionRange = { min: 1, max: 10 };
+    for (let i = 0; i < 10; i++) {
+        if (i < 5) {
+            const num1 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+            const num2 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+            mathTasks.push({ num1, num2, operator: "*", userAnswer: "" });
+        } else {
+            const divisor = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+            const quotient = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+            const dividend = divisor * quotient;
+            mathTasks.push({ num1: dividend, num2: divisor, operator: "/", userAnswer: "" });
         }
+    }
+
+    // 4) In storedTasks ablegen und UI befüllen
+    storedTasks = {
+        task1: { readText: initialReadText, audioData: null, savedAudioURL: "" },
+        task2: { writeText: initialWriteText, proofDataURL: null, savedProofURL: "" },
+        task3: { mathTasks },
+        tasksCompleted: [false, false, false],
+        submitted: false
+    };
+    await saveTasksToLocalStorage();
+
+    document.getElementById("readText").innerHTML = initialReadText;
+    document.getElementById("writeText").innerHTML = initialWriteText;
+    loadMathTasks();
+
+    // Erste Aufgabe einblenden
+    document.getElementById("task1").classList.remove("hidden");
+    document.getElementById("task2").classList.add("hidden");
+    document.getElementById("task3").classList.add("hidden");
+}
         function loadMathTasks() {
             const mathContainer = document.getElementById("mathTasks");
             mathContainer.innerHTML = ''; // Leeren des Containers für den Neuaufbau
