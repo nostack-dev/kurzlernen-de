@@ -580,86 +580,84 @@ https://cdn.jsdelivr.net/npm/recordrtc@5.6.2/RecordRTC.min.js
             }
         }
 async function initializeTasks() {
-    const apiKey = "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";  // hier deinen Key eintragen
+  // 1x Deinen echten Key in der Variablen, nicht client‑seitig auslesbar lassen!
+  const apiKey = "sk-<DEIN_RICHTIGER_KEY_HIER>";
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`
+  };
 
-    // 1) Vorlesetext generieren
-    const resp1 = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-                {
-                    role: "system",
-                    content: "Erzeuge einen spannend‑ruhigen Vorlesetext für Kinder (8–14) im HTML‑Format, 1–2 DIN‑A4‑Seiten, self‑contained mit Headline."
-                }
-            ],
-            temperature: 0.8,
-            max_tokens: 1500
-        })
-    });
-    const { choices: [ { message: { content: initialReadText } } ] } = await resp1.json();
+  // 1) Vorlesetext generieren
+  const resp1 = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "system",
+        content: "Erzeuge einen spannend‑ruhigen Vorlesetext für Kinder (8–14) im HTML‑Format, 1–2 DIN‑A4‑Seiten, self‑contained mit Headline."
+      }],
+      temperature: 0.8,
+      max_tokens: 1500
+    })
+  });
+  const j1 = await resp1.json();
+  const initialReadText = j1.choices[0].message.content;
 
-    // 2) Abschreibtext generieren
-    const resp2 = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer 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`
-        },
-        body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-                {
-                    role: "system",
-                    content: "Erzeuge einen Abschreibtext zum zuvor generierten Vorlesetext, ca. 5–6 Sätze, im HTML‑Format."
-                }
-            ],
-            temperature: 0.8,
-            max_tokens: 300
-        })
-    });
-    const { choices: [ { message: { content: initialWriteText } } ] } = await resp2.json();
+  // 2) Abschreibtext generieren
+  const resp2 = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "system",
+        content: "Erzeuge einen Abschreibtext zum zuvor generierten Vorlesetext, ca. 5–6 Sätze, im HTML‑Format."
+      }],
+      temperature: 0.8,
+      max_tokens: 300
+    })
+  });
+  const j2 = await resp2.json();
+  const initialWriteText = j2.choices[0].message.content;
 
-    // 3) Mathe‑Tasks wie gehabt generieren
-    const mathTasks = [];
-    const multiplicationRange = { min: 1, max: 10 };
-    const divisionRange = { min: 1, max: 10 };
-    for (let i = 0; i < 10; i++) {
-        if (i < 5) {
-            const num1 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
-            const num2 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
-            mathTasks.push({ num1, num2, operator: "*", userAnswer: "" });
-        } else {
-            const divisor = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
-            const quotient = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
-            const dividend = divisor * quotient;
-            mathTasks.push({ num1: dividend, num2: divisor, operator: "/", userAnswer: "" });
-        }
+  // 3) Mathe‑Tasks generieren (unverändert)
+  const mathTasks = [];
+  const multiplicationRange = { min: 1, max: 10 };
+  const divisionRange = { min: 1, max: 10 };
+  for (let i = 0; i < 10; i++) {
+    if (i < 5) {
+      const num1 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+      const num2 = Math.floor(Math.random() * (multiplicationRange.max - multiplicationRange.min + 1)) + multiplicationRange.min;
+      mathTasks.push({ num1, num2, operator: "*", userAnswer: "" });
+    } else {
+      const divisor = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+      const quotient = Math.floor(Math.random() * (divisionRange.max - divisionRange.min + 1)) + divisionRange.min;
+      const dividend = divisor * quotient;
+      mathTasks.push({ num1: dividend, num2: divisor, operator: "/", userAnswer: "" });
     }
+  }
 
-    // 4) In storedTasks ablegen und UI befüllen
-    storedTasks = {
-        task1: { readText: initialReadText, audioData: null, savedAudioURL: "" },
-        task2: { writeText: initialWriteText, proofDataURL: null, savedProofURL: "" },
-        task3: { mathTasks },
-        tasksCompleted: [false, false, false],
-        submitted: false
-    };
-    await saveTasksToLocalStorage();
+  // 4) In storedTasks ablegen und UI befüllen
+  storedTasks = {
+    task1: { readText: initialReadText, audioData: null, savedAudioURL: "" },
+    task2: { writeText: initialWriteText, proofDataURL: null, savedProofURL: "" },
+    task3: { mathTasks },
+    tasksCompleted: [false, false, false],
+    submitted: false
+  };
+  await saveTasksToLocalStorage();
 
-    document.getElementById("readText").innerHTML = initialReadText;
-    document.getElementById("writeText").innerHTML = initialWriteText;
-    loadMathTasks();
+  document.getElementById("readText").innerHTML = initialReadText;
+  document.getElementById("writeText").innerHTML = initialWriteText;
+  loadMathTasks();
 
-    // Erste Aufgabe einblenden
-    document.getElementById("task1").classList.remove("hidden");
-    document.getElementById("task2").classList.add("hidden");
-    document.getElementById("task3").classList.add("hidden");
+  // Erste Aufgabe einblenden
+  document.getElementById("task1").classList.remove("hidden");
+  document.getElementById("task2").classList.add("hidden");
+  document.getElementById("task3").classList.add("hidden");
 }
+
         function loadMathTasks() {
             const mathContainer = document.getElementById("mathTasks");
             mathContainer.innerHTML = ''; // Leeren des Containers für den Neuaufbau
