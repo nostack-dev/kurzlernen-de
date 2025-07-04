@@ -186,31 +186,37 @@ function key(cx,cy,cz){return `${cx},${cy},${cz}`;}
 
 /* ---------- Voxel-Operationen ---------- */
 function addVoxel(cx,cy,cz){
- const gx=Math.floor(cx-HALF),gy=Math.floor(cy-HALF),gz=Math.floor(cz-HALF);
- if(gx<0||gx>=GRID||gy<0||gy>=GRID||gz<0||gz>=GRID) return;
- const id=key(cx,cy,cz); if(voxels.has(id)) return;
+ const gx=Math.floor(cx-HALF),gy=Math.floor(cy-HALF),gz=Math.floor(cz-HALF);
+ if(gx<0||gx>=GRID||gy<0||gy>=GRID||gz<0||gz>=GRID) return;
+ const id=key(cx,cy,cz); if(voxels.has(id)) return;
 
- const mesh=new THREE.Mesh(new THREE.BoxGeometry(VS,VS,VS),matVoxel);
- mesh.position.set(cx,cy,cz); scene.add(mesh);
- const shadow=new THREE.Mesh(new THREE.BoxGeometry(VS*1.01,VS*1.01,VS*1.01),matShadow);
- shadow.position.copy(mesh.position); scene.add(shadow);
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(VS,VS,VS),matVoxel);
+ mesh.position.set(cx,cy,cz); scene.add(mesh);
+ const shadow=new THREE.Mesh(new THREE.BoxGeometry(VS*1.01,VS*1.01,VS*1.01),matShadow);
+ shadow.position.copy(mesh.position); scene.add(shadow);
 
- voxels.set(id,{mesh,gx,gy,gz});
+ voxels.set(id,{mesh, shadow, gx,gy,gz}); // Speichern Sie das Schattenobjekt
 }
 
 function removeVoxel(cx,cy,cz){
- const id=key(cx,cy,cz); if(!voxels.has(id)) return;
- const {mesh}=voxels.get(id);
- scene.remove(mesh); mesh.geometry.dispose();                // shadow entsorgen
- scene.remove(mesh.nextSibling);                            // einfache Referenz
- voxels.delete(id);
+ const id=key(cx,cy,cz); if(!voxels.has(id)) return;
+ const {mesh, shadow}=voxels.get(id); // Holen Sie auch das Schattenobjekt
+ scene.remove(mesh);
+ scene.remove(shadow); // Entfernen Sie das Schattenobjekt explizit
+ mesh.geometry.dispose();
+ shadow.geometry.dispose(); // Entsorgen Sie auch die Geometrie des Schattens
+ voxels.delete(id);
 }
 
 function clearAll(){
- voxels.forEach(v=>scene.remove(v.mesh));
- voxels.clear();
+ voxels.forEach(v=>{
+    scene.remove(v.mesh);
+    scene.remove(v.shadow); // Auch Schatten entfernen
+    v.mesh.geometry.dispose();
+    v.shadow.geometry.dispose(); // Geometrie entsorgen
+  });
+ voxels.clear();
 }
-
 /* ---------- JSON-I/O ---------- */
 function saveJSON(){
  const data=[...voxels.values()].map(v=>({gx:v.gx,gy:v.gy,gz:v.gz}));
