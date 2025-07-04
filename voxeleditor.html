@@ -100,11 +100,14 @@ input[type="color"]::-moz-color-swatch {
   <strong>Steuerung</strong><br>
   Rechte MT gehalten + Maus → Kamera drehen<br>
   WASD / E / Q → bewegen<br>
-  Linke MT → Voxel hinzuf./löschen<br>
-  **Alt + Mausrad → Zeichenebene hoch/runter (Gitter folgt)**<br>
+  Linke MT → Voxel hinzuf./löschen/zeichnen<br>
+  **Alt + Mausrad → Zeichenebene Y hoch/runter (Gitter folgt)**<br>
+  **Alt + Shift + Mausrad → Zeichenebene Z hoch/runter (Gitter folgt)**<br>
+  **Alt + Control + Mausrad → Zeichenebene X hoch/runter (Gitter folgt)**<br>
   **Shift + Linke MT gedrückt + Maus ziehen → Voxel ziehen zum Hinzufügen (Malen auf aktiver Ebene)**<br>
   **Control + Linke MT gedrückt + Maus ziehen → Voxel ziehen zum Hinzufügen (Stapeln)**<br>
-  Mausrad → Kamera Speed
+  Mausrad → Kamera Speed<br>
+  **Tab → Modus wechseln (Hinzufügen / Löschen / Zeichnen)**
  </div>
  <input type="file" id="fileInput" accept=".json">
 </div>
@@ -120,14 +123,24 @@ const VS = 1, HALF = VS * 0.5;
 let scene, cam, ren, gridHelper, boxHelper;
 const voxels = new Map();
 let cvs;
-let activeDrawingLevel = 0;
+let activeDrawingLevel = { x: 0, y: 0, z: 0 }; // Objekt für aktive Ebenen
+let currentDrawingAxis = 'y'; // Aktuelle Achse für Alt+Mausrad
+let currentShiftDragLevel = null; // Speichert die Ebene für den aktuellen Shift-Drag-Vorgang
 // Lade die Farbe aus dem Local Storage oder nutze Weiß als Standard
 let currentColor = localStorage.getItem('voxelEditorColor') || '#ffffff';
 // Lade die Gittergröße aus dem Local Storage oder nutze 10 als Standard
 let GRID = parseInt(localStorage.getItem('voxelEditorGridSize')) || 10;
 
 // Referenzen für Lichter, die Schatten werfen, um sie später anpassen zu können
-let mainDirectionalLight; 
+let mainDirectionalLight;
+
+// Modus-Enum
+const Modes = {
+    ADD: 'Hinzufügen',
+    DELETE: 'Löschen',
+    DRAW: 'Zeichnen'
+};
+let currentMode = Modes.ADD; // Standardmodus
 
 /* ---------- Initialisierung ---------- */
 window.onload = () => {
@@ -149,61 +162,53 @@ window.onload = () => {
     ren.shadowMap.type = THREE.PCFSoftShadowMap; // Weichere Schatten
 
     /* Licht */
-    // Verbesserte Beleuchtung
-    scene.add(new THREE.HemisphereLight(0xaaaaaa, 0x444444, 0.5)); // Himmel- und Bodenlicht
-    
-    mainDirectionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // Intensität leicht erhöht
-    mainDirectionalLight.position.set(5, 10, 7).normalize().multiplyScalar(50); // Position weiter weg für parallele Schatten
-    mainDirectionalLight.castShadow = true; // Licht wirft Schatten
-    mainDirectionalLight.shadow.mapSize.width = 1024; // Schattenauflösung erhöhen
+    // Verbesserte Beleuchtung, Intensität reduziert
+    scene.add(new THREE.HemisphereLight(0xaaaaaa, 0x444444, 0.3)); // Himmel- und Bodenlicht, Intensität 0.3
+
+    mainDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.7); // Intensität reduziert auf 0.7
+    mainDirectionalLight.position.set(5, 10, 7).normalize().multiplyScalar(50);
+    mainDirectionalLight.castShadow = true;
+    mainDirectionalLight.shadow.mapSize.width = 1024;
     mainDirectionalLight.shadow.mapSize.height = 1024;
     mainDirectionalLight.shadow.camera.near = 0.5;
     mainDirectionalLight.shadow.camera.far = 50;
-    // Schattenkamera an die Gittergröße anpassen
-    const d = GRID * VS * 0.7; // Angepasst an die Gittergröße
+    const d = GRID * VS * 0.7;
     mainDirectionalLight.shadow.camera.left = -d;
     mainDirectionalLight.shadow.camera.right = d;
     mainDirectionalLight.shadow.camera.top = d;
     mainDirectionalLight.shadow.camera.bottom = -d;
+    mainDirectionalLight.shadow.camera.updateProjectionMatrix();
     scene.add(mainDirectionalLight);
 
-    const d2 = new THREE.DirectionalLight(0xffffff, 0.3); d2.position.set(-5, -5, -7).normalize(); scene.add(d2);
-
-    // Schattenboden-Plane hinzufügen (einmalig beim Start)
-    const groundGeometry = new THREE.PlaneGeometry(GRID * VS * 2, GRID * VS * 2); // Größere Grundfläche
-    const groundMaterial = new THREE.MeshStandardMaterial({
-        color: 0x444444, // Dunklerer Boden
-        roughness: 0.9,
-        metalness: 0.0
-    });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(GRID * HALF, -0.01, GRID * HALF); // Leicht unterhalb der Basis
-    ground.receiveShadow = true; // Boden empfängt Schatten
-    ground.name = 'shadowGround'; // Namen geben, um es wiederzufinden
-    scene.add(ground);
-
+    const d2 = new THREE.DirectionalLight(0xffffff, 0.15); d2.position.set(-5, -5, -7).normalize(); scene.add(d2); // Intensität reduziert auf 0.15
 
     rebuildHelpers(); // Erstellt Grid und Box initial
     window.addEventListener('resize', onResize);
     updateGridHelperPosition();
 
     /* Steuerung */
-    let addMode = true, rotate = false, keys = {}, moveSpeed = 0.1, rotSpeed = 0.002;
+    let rotate = false, keys = {}, moveSpeed = 0.1, rotSpeed = 0.002;
     let euler = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ');
     let isShiftDragging = false;
     let isControlDragging = false;
 
-    const setMode = () => {
+    const setModeDisplay = () => {
         const m = document.getElementById('current-mode');
-        m.textContent = `Modus: ${addMode ? 'Hinzufügen' : 'Löschen'}`;
-        m.style.color = addMode ? '#81c784' : '#ef5350';
+        m.textContent = `Modus: ${currentMode}`;
+        switch (currentMode) {
+            case Modes.ADD: m.style.color = '#81c784'; break;
+            case Modes.DELETE: m.style.color = '#ef5350'; break;
+            case Modes.DRAW: m.style.color = '#ffa726'; break; // Orange für Zeichnen-Modus
+        }
     };
-    setMode();
+    setModeDisplay();
 
-    document.getElementById('modeToggle').onclick = () => { addMode = !addMode; setMode(); };
+    document.getElementById('modeToggle').onclick = () => {
+        cycleMode();
+        setModeDisplay();
+    };
     document.getElementById('clearBtn').onclick = clearAll;
-    document.getElementById('fillLevelBtn').onclick = fillActiveLevel; // Event-Listener für den Füllen-Button
+    document.getElementById('fillLevelBtn').onclick = fillActiveLevel;
     document.getElementById('saveBtn').onclick = saveJSON;
     document.getElementById('loadBtn').onclick = () => document.getElementById('fileInput').click();
     document.getElementById('fileInput').onchange = loadJSON;
@@ -212,18 +217,18 @@ window.onload = () => {
     // Gittergröße Slider Event Listener
     const gridSizeSlider = document.getElementById('grid-size-slider');
     const gridSizeDisplay = document.getElementById('grid-size-display');
-    gridSizeSlider.value = GRID; // Setze den Slider-Wert auf den geladenen GRID-Wert
+    gridSizeSlider.value = GRID;
     gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
     gridSizeSlider.oninput = (e) => {
         const newGridSize = parseInt(e.target.value, 10);
         if (newGridSize !== GRID) {
             GRID = newGridSize;
             gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
-            localStorage.setItem('voxelEditorGridSize', GRID); // Speichern im Local Storage
-            rebuildHelpers(); // Erstellt Gitter und Box neu
-            updateGridHelperPosition(); // Stellt sicher, dass das Gitter an der richtigen Höhe ist
+            localStorage.setItem('voxelEditorGridSize', GRID);
+            rebuildHelpers();
+            updateGridHelperPosition();
 
-            // Kameraposition und Blickrichtung anpassen, da sich das Gitter geändert hat
+            // Kameraposition und Blickrichtung anpassen
             cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
             cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
             // Auch Schattenkamera anpassen
@@ -238,10 +243,10 @@ window.onload = () => {
 
     // Farbauswahl Event Listener
     const colorPicker = document.getElementById('color-picker');
-    colorPicker.value = currentColor; // Setze den Picker auf die geladene Farbe
+    colorPicker.value = currentColor;
     colorPicker.oninput = (e) => {
         currentColor = e.target.value;
-        localStorage.setItem('voxelEditorColor', currentColor); // Speichern im Local Storage
+        localStorage.setItem('voxelEditorColor', currentColor);
     };
 
     cvs.oncontextmenu = e => e.preventDefault();
@@ -253,12 +258,31 @@ window.onload = () => {
         isShiftDragging = e.shiftKey;
         isControlDragging = e.ctrlKey || e.metaKey;
 
-        if (isShiftDragging) {
-            handleVoxelAction(e.clientX, e.clientY, addMode, true, false, activeDrawingLevel);
-        } else if (isControlDragging) {
-            handleVoxelAction(e.clientX, e.clientY, addMode, true, true);
+        // Bei Shift-Drag im Hinzufügen- oder Zeichen-Modus wird die Zeichenebene festgelegt
+        if (isShiftDragging && (currentMode === Modes.ADD || currentMode === Modes.DRAW)) {
+            const rect = cvs.getBoundingClientRect();
+            const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1,
+                -((e.clientY - rect.top) / rect.height) * 2 + 1);
+            const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, cam);
+            const objs = [...voxels.values()].map(v => v.mesh);
+            const hits = ray.intersectObjects(objs);
+
+            if (hits.length > 0) {
+                currentShiftDragLevel = Math.round(hits[0].object.position.y / VS - HALF);
+            } else {
+                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const p = new THREE.Vector3();
+                if (ray.ray.intersectPlane(plane, p)) {
+                    currentShiftDragLevel = 0;
+                } else {
+                    currentShiftDragLevel = 0;
+                }
+            }
+            currentShiftDragLevel = Math.max(0, Math.min(GRID - 1, currentShiftDragLevel));
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, false, currentShiftDragLevel);
         } else {
-            handleVoxelAction(e.clientX, e.clientY, addMode, false, true);
+            currentShiftDragLevel = null;
+            handleVoxelAction(e.clientX, e.clientY, currentMode, false, isControlDragging);
         }
     };
 
@@ -270,11 +294,19 @@ window.onload = () => {
             cam.quaternion.setFromEuler(euler);
         }
 
-        if (isShiftDragging && e.buttons & 1) {
-            handleVoxelAction(e.clientX, e.clientY, addMode, true, false, activeDrawingLevel);
+        if (isShiftDragging && e.buttons & 1 && currentShiftDragLevel !== null && (currentMode === Modes.ADD || currentMode === Modes.DRAW)) {
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, false, currentShiftDragLevel);
         }
-        else if (!isShiftDragging && isControlDragging && e.buttons & 1) {
-            handleVoxelAction(e.clientX, e.clientY, addMode, true, true);
+        else if (!isShiftDragging && isControlDragging && e.buttons & 1 && currentMode === Modes.ADD) {
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, true);
+        }
+        else if (!isShiftDragging && !isControlDragging && e.buttons & 1 && currentMode === Modes.DELETE) {
+            // Im Löschen-Modus reicht ein einfacher Drag
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, false);
+        }
+        else if (!isShiftDragging && !isControlDragging && e.buttons & 1 && currentMode === Modes.DRAW) {
+             // Im Zeichnen-Modus reicht ein einfacher Drag zum Einfärben
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, false);
         }
     };
 
@@ -282,13 +314,24 @@ window.onload = () => {
         if (e.button === 2) { rotate = false; document.exitPointerLock(); }
         isShiftDragging = false;
         isControlDragging = false;
+        currentShiftDragLevel = null;
     };
 
     cvs.addEventListener('wheel', e => {
         e.preventDefault();
+        const step = e.deltaY > 0 ? -1 : 1;
+
         if (e.altKey) {
-            const step = e.deltaY > 0 ? -1 : 1;
-            activeDrawingLevel += step;
+            if (e.shiftKey) {
+                currentDrawingAxis = 'z';
+                activeDrawingLevel.z = Math.max(0, Math.min(GRID - 1, activeDrawingLevel.z + step));
+            } else if (e.ctrlKey || e.metaKey) {
+                currentDrawingAxis = 'x';
+                activeDrawingLevel.x = Math.max(0, Math.min(GRID - 1, activeDrawingLevel.x + step));
+            } else {
+                currentDrawingAxis = 'y';
+                activeDrawingLevel.y = Math.max(0, Math.min(GRID - 1, activeDrawingLevel.y + step));
+            }
             updateGridHelperPosition();
         } else {
             moveSpeed *= e.deltaY < 0 ? 1.1 : 0.9;
@@ -299,8 +342,8 @@ window.onload = () => {
     window.onkeydown = e => {
         keys[e.code] = true;
         if (e.code === 'Tab') {
-            addMode = !addMode;
-            setMode();
+            cycleMode();
+            setModeDisplay();
             e.preventDefault();
         }
     };
@@ -334,26 +377,40 @@ function rebuildHelpers() {
 
     const size = GRID * VS;
 
-    gridHelper = new THREE.GridHelper(size, GRID, 0xaaaaaa, 0xcccccc);
-    gridHelper.position.set(size / 2, 0, size / 2);
+    if (currentDrawingAxis === 'y') {
+        gridHelper = new THREE.GridHelper(size, GRID, 0xaaaaaa, 0xcccccc);
+        gridHelper.position.set(size / 2, activeDrawingLevel.y * VS, size / 2);
+    } else if (currentDrawingAxis === 'x') {
+        gridHelper = new THREE.GridHelper(size, GRID, 0xaaaaaa, 0xcccccc);
+        gridHelper.rotation.z = Math.PI / 2;
+        gridHelper.position.set(activeDrawingLevel.x * VS, size / 2, size / 2);
+    } else if (currentDrawingAxis === 'z') {
+        gridHelper = new THREE.GridHelper(size, GRID, 0xaaaaaa, 0xcccccc);
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.position.set(size / 2, size / 2, activeDrawingLevel.z * VS);
+    }
     scene.add(gridHelper);
 
-    // BoxHelper bleibt unverändert
     const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size, size));
     boxHelper = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00ffff }));
     boxHelper.position.set(size / 2, size / 2, size / 2); scene.add(boxHelper);
 }
 
 function updateGridHelperPosition() {
-    activeDrawingLevel = Math.max(0, Math.min(GRID - 1, activeDrawingLevel));
-    if (gridHelper) {
-        gridHelper.position.y = activeDrawingLevel * VS;
-    }
+    rebuildHelpers();
 }
 
 function key(cx, cy, cz) { return `${cx},${cy},${cz}`; }
 
-function handleVoxelAction(clientX, clientY, currentAddMode, isDragging, isControlDown, fixedYLevel = null) {
+function cycleMode() {
+    switch (currentMode) {
+        case Modes.ADD: currentMode = Modes.DELETE; break;
+        case Modes.DELETE: currentMode = Modes.DRAW; break;
+        case Modes.DRAW: currentMode = Modes.ADD; break;
+    }
+}
+
+function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fixedYLevel = null) {
     const rect = cvs.getBoundingClientRect();
     const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1);
@@ -361,9 +418,9 @@ function handleVoxelAction(clientX, clientY, currentAddMode, isDragging, isContr
     const objs = [...voxels.values()].map(v => v.mesh);
     const hits = ray.intersectObjects(objs);
 
-    if (currentAddMode) {
-        let gx, gy, gz;
+    let gx, gy, gz;
 
+    if (mode === Modes.ADD) {
         if (isDragging && !isControlDown) { // MALEN-Modus (Shift-Drag)
             gy = fixedYLevel;
             const planeAtFixedLevel = new THREE.Plane(new THREE.Vector3(0, 1, 0), - (fixedYLevel * VS));
@@ -397,12 +454,32 @@ function handleVoxelAction(clientX, clientY, currentAddMode, isDragging, isContr
             }
         }
         addVoxel(gx, gy, gz);
-    } else if (hits.length) { // Löschen-Modus
-        const p = hits[0].object.position;
-        const gx = Math.round(p.x / VS - HALF);
-        const gy = Math.round(p.y / VS - HALF);
-        gz = Math.round(p.z / VS - HALF);
-        removeVoxel(gx, gy, gz);
+    } else if (mode === Modes.DELETE) {
+        if (hits.length) {
+            const p = hits[0].object.position;
+            gx = Math.round(p.x / VS - HALF);
+            gy = Math.round(p.y / VS - HALF);
+            gz = Math.round(p.z / VS - HALF);
+            removeVoxel(gx, gy, gz);
+        }
+    } else if (mode === Modes.DRAW) {
+        if (hits.length) {
+            const p = hits[0].object.position;
+            gx = Math.round(p.x / VS - HALF);
+            gy = Math.round(p.y / VS - HALF);
+            gz = Math.round(p.z / VS - HALF);
+            recolorVoxel(gx, gy, gz, currentColor);
+        } else if (isDragging && fixedYLevel !== null) { // Malen auf Ebene bei Draw-Modus
+             gy = fixedYLevel;
+            const planeAtFixedLevel = new THREE.Plane(new THREE.Vector3(0, 1, 0), - (fixedYLevel * VS));
+            const pointOnPlane = new THREE.Vector3();
+
+            if (ray.ray.intersectPlane(planeAtFixedLevel, pointOnPlane)) {
+                gx = Math.floor(pointOnPlane.x / VS);
+                gz = Math.floor(pointOnPlane.z / VS);
+                recolorVoxel(gx, gy, gz, currentColor); // Versuche, Voxel neu einzufärben oder hinzufügen
+            }
+        }
     }
 }
 
@@ -410,17 +487,21 @@ function handleVoxelAction(clientX, clientY, currentAddMode, isDragging, isContr
 function addVoxel(gx, gy, gz, color = currentColor) {
     const id = key(gx, gy, gz);
     if (gx < 0 || gx >= GRID || gy < 0 || gy >= GRID || gz < 0 || gz >= GRID) return;
-    if (voxels.has(id)) return;
+
+    if (voxels.has(id)) {
+        // Wenn Voxel bereits existiert, färbe ihn nur neu ein
+        recolorVoxel(gx, gy, gz, color);
+        return;
+    }
 
     const cx = (gx + HALF) * VS;
     const cy = (gy + HALF) * VS;
     const cz = (gz + HALF) * VS;
 
-    // NEU: MeshStandardMaterial für bessere Optik
     const material = new THREE.MeshStandardMaterial({
         color: color,
-        roughness: 0.7,
-        metalness: 0.1
+        roughness: 0.9,
+        metalness: 0.0
     });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(VS, VS, VS), material);
     mesh.position.set(cx, cy, cz);
@@ -430,6 +511,19 @@ function addVoxel(gx, gy, gz, color = currentColor) {
 
     voxels.set(id, { mesh, gx, gy, gz, color });
 }
+
+function recolorVoxel(gx, gy, gz, newColor) {
+    const id = key(gx, gy, gz);
+    if (!voxels.has(id)) {
+        // Wenn Voxel nicht existiert, füge ihn hinzu
+        addVoxel(gx, gy, gz, newColor);
+        return;
+    }
+    const voxel = voxels.get(id);
+    voxel.mesh.material.color.set(newColor);
+    voxel.color = newColor; // Farbe in den Voxeldaten aktualisieren
+}
+
 
 function removeVoxel(gx, gy, gz) {
     const id = key(gx, gy, gz);
@@ -455,9 +549,39 @@ function clearAll() {
 }
 
 function fillActiveLevel() {
-    for (let x = 0; x < GRID; x++) {
-        for (let z = 0; z < GRID; z++) {
-            addVoxel(x, activeDrawingLevel, z);
+    // Füllt die aktive Ebene basierend auf der aktuell ausgewählten Achse
+    if (currentDrawingAxis === 'y') {
+        for (let x = 0; x < GRID; x++) {
+            for (let z = 0; z < GRID; z++) {
+                const id = key(x, activeDrawingLevel.y, z);
+                if (voxels.has(id)) {
+                    recolorVoxel(x, activeDrawingLevel.y, z, currentColor);
+                } else {
+                    addVoxel(x, activeDrawingLevel.y, z, currentColor);
+                }
+            }
+        }
+    } else if (currentDrawingAxis === 'x') {
+        for (let y = 0; y < GRID; y++) {
+            for (let z = 0; z < GRID; z++) {
+                const id = key(activeDrawingLevel.x, y, z);
+                 if (voxels.has(id)) {
+                    recolorVoxel(activeDrawingLevel.x, y, z, currentColor);
+                } else {
+                    addVoxel(activeDrawingLevel.x, y, z, currentColor);
+                }
+            }
+        }
+    } else if (currentDrawingAxis === 'z') {
+        for (let x = 0; x < GRID; x++) {
+            for (let y = 0; y < GRID; y++) {
+                const id = key(x, y, activeDrawingLevel.z);
+                if (voxels.has(id)) {
+                    recolorVoxel(x, y, activeDrawingLevel.z, currentColor);
+                } else {
+                    addVoxel(x, y, activeDrawingLevel.z, currentColor);
+                }
+            }
         }
     }
 }
@@ -478,6 +602,10 @@ function loadJSON(e) {
                 gridSizeSlider.value = GRID;
                 gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
                 localStorage.setItem('voxelEditorGridSize', GRID); // Auch im Local Storage aktualisieren
+
+                // Setze activeDrawingLevel beim Laden auf die Standardwerte zurück
+                activeDrawingLevel = { x: 0, y: 0, z: 0 };
+                currentDrawingAxis = 'y'; // Standard-Achse beim Laden setzen
 
                 rebuildHelpers(); // Gitter und Box neu erstellen
                 updateGridHelperPosition(); // Gitter auf die aktuelle Ebene setzen
