@@ -3,13 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interaktiver Stromkreis 2.0: Ohm & Leistung</title>
+    <title>Interaktiver Stromkreis: Die einfache Variante</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
     <style>
+        :root {
+            --primary-green: #28a745;
+            --primary-blue: #007bff;
+            --text-dark: #2c3e50;
+            --text-light: #555;
+            --bg-light: #f9f9f9;
+            --bg-body: #eef2f7;
+            --border-color: #e0e0e0;
+            --shadow-light: 0 2px 10px rgba(0, 0, 0, 0.05);
+            --shadow-medium: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f0f2f5;
-            color: #333;
+            font-family: 'Inter', 'Arial', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-dark);
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -18,30 +32,53 @@
         }
         .container {
             background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            padding: 30px;
+            border-radius: 16px;
+            box-shadow: var(--shadow-medium);
+            padding: 40px;
             width: 100%;
-            max-width: 1000px; /* Etwas breiter für die Visualisierung */
+            max-width: 1200px;
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 30px;
         }
-        .formula-section {
-            background-color: #f9f9f9;
-            border-left: 5px solid #4CAF50;
-            padding: 20px;
-            border-radius: 8px;
+        h1 {
+            color: var(--primary-blue);
+        }
+        h2, h3 {
+            color: var(--text-dark);
+        }
+
+        .main-content {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                flex-direction: column;
+            }
+            .controls-panel, .visual-panel {
+                min-width: unset;
+                max-width: unset;
+                width: 100%;
+            }
+        }
+
+        .formula-section, .explanation-section {
+            background-color: var(--bg-light);
+            border-left: 6px solid var(--primary-green);
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 30px;
+            box-shadow: var(--shadow-light);
         }
         .formula {
-            font-size: 1.8em;
+            font-size: 2.2em;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--primary-blue);
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
         .fraction {
             display: inline-block;
@@ -52,178 +89,391 @@
             display: block;
         }
         .fraction .numerator {
-            padding-bottom: 2px;
-            border-bottom: 2px solid #333;
+            padding-bottom: 4px;
+            border-bottom: 2px solid var(--text-dark);
         }
         .fraction .denominator {
-            padding-top: 2px;
+            padding-top: 4px;
         }
+
+        /* Input Group with Numerical Input */
         .input-group {
             display: flex;
             align-items: center;
             gap: 15px;
             margin-bottom: 10px;
+            background-color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 5px rgba(0,0,0,0.03);
         }
         .input-group label {
-            min-width: 100px; /* Angepasst für bessere Ausrichtung */
+            min-width: 100px;
             font-weight: bold;
+            color: var(--text-dark);
+            font-size: 1.05em;
         }
+
         input[type="range"] {
-            width: 100%;
+            flex-grow: 1;
             -webkit-appearance: none;
-            height: 8px;
-            background: #ddd;
-            border-radius: 5px;
+            height: 12px;
+            background: #e0e0e0;
+            border-radius: 6px;
             outline: none;
             transition: opacity .2s;
+            margin: 0 10px;
         }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
-            background: #4CAF50;
-            cursor: pointer;
-            border: 2px solid #fff;
-            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            background: var(--primary-green);
+            cursor: grab;
+            border: 3px solid #ffffff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb:active {
+            cursor: grabbing;
+            background: #218838;
         }
         input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
-            background: #4CAF50;
-            cursor: pointer;
-            border: 2px solid #fff;
-            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            background: var(--primary-green);
+            cursor: grab;
+            border: 3px solid #ffffff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: background 0.2s, box-shadow 0.2s;
         }
-        .value-display {
-            min-width: 90px; /* Etwas breiter für Werte mit Einheiten */
-            text-align: right;
-            font-weight: bold;
-            color: #007bff;
+        input[type="range"]::-moz-range-thumb:active {
+            cursor: grabbing;
+            background: #218838;
         }
 
-        /* Neue Visualisierung Styles */
+        /* Numerical Input for Sliders */
+        .numerical-input {
+            width: 80px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.95em;
+            color: var(--text-dark);
+        }
+
+        .value-display {
+            min-width: 90px;
+            text-align: right;
+            font-weight: bold;
+            color: var(--primary-blue);
+            font-size: 1.1em;
+        }
+
+        /* Lock Button Styles */
+        .lock-button {
+            cursor: pointer;
+            color: #ccc; /* Default unlocked color */
+            font-size: 1.2em;
+            transition: color 0.2s ease-in-out;
+            margin-left: 10px;
+        }
+        .lock-button.locked {
+            color: var(--primary-blue); /* Locked color */
+        }
+        .lock-button:hover:not(.locked) {
+            color: #999;
+        }
+
+        /* Disabled input visual feedback */
+        .disabled-input {
+            background-color: #f0f0f0 !important;
+            cursor: not-allowed !important;
+            opacity: 0.7;
+        }
+        .disabled-input::-webkit-slider-thumb {
+            background: #999 !important;
+            cursor: not-allowed !important;
+        }
+        .disabled-input::-moz-range-thumb {
+            background: #999 !important;
+            cursor: not-allowed !important;
+        }
+
+        /* Visualisierung Styles */
         .circuit-visual-analogy {
             display: flex;
             align-items: center;
-            justify-content: center;
-            height: 200px;
-            background-color: #eef;
-            border-radius: 10px;
-            box-shadow: inset 0 0 8px rgba(0,0,0,0.1);
+            justify-content: space-between;
+            height: 300px;
+            background-color: #e6f3ff;
+            border-radius: 15px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.08);
             position: relative;
-            overflow: hidden; /* Für die fließenden Partikel */
+            overflow: hidden;
+            padding: 0 30px;
         }
         .pump, .resistor-area {
             background-color: #dde;
             border: 2px solid #bbb;
-            border-radius: 8px;
-            padding: 10px;
+            border-radius: 10px;
+            padding: 15px;
             text-align: center;
             font-weight: bold;
             color: #555;
-            flex-shrink: 0; /* Verhindert Schrumpfen */
+            flex-shrink: 0;
+            z-index: 10;
         }
         .pump {
-            width: 120px;
-            height: 80px;
+            width: 140px;
+            height: 40px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background-color: #d1e7dd; /* Light green */
-            border-color: #3b71ca;
+            background-color: #d1e7dd;
+            border-color: var(--primary-blue);
             color: #1a4f3b;
-            font-size: 0.9em;
+            font-size: 1.1em;
         }
         .resistor-area {
-            width: 150px; /* Fixed width for resistor */
-            height: 80px;
-            background-color: #f7e0d1; /* Light orange */
+            width: 180px;
+            height: 40px;
+            background-color: #f7e0d1;
             border-color: #e0a35f;
             color: #7b4f1f;
-            font-size: 0.9em;
-            position: relative;
+            font-size: 1.1em;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-        }
-        .pipe-segment {
-            height: 30px; /* Höhe der 'Rohre' */
-            background-color: #a8d5e8; /* Rohr-Farbe */
             position: relative;
-            overflow: hidden;
-            border-radius: 5px;
-            margin: 0 10px; /* Abstand zwischen Segmenten */
-            transition: width 0.3s ease-in-out; /* Für Breitenänderung des Widerstandsrohrs */
         }
-        .pipe-segment.horizontal {
-            flex-grow: 1; /* Füllt den Raum aus */
-        }
-        .pipe-segment.narrow {
-            background-color: #f9dcdc; /* Farbe für verengtes Rohr (Widerstand) */
-        }
-        .water-particle {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background-color: #007bff; /* Wasser-Farbe */
-            border-radius: 50%;
-            box-shadow: 0 0 3px #007bff;
-            animation: flow linear infinite;
-        }
-        @keyframes flow {
-            from { transform: translateX(-10px); }
-            to { transform: translateX(calc(100% + 10px)); } /* Geht ganz durch das Segment */
+        .resistor-area span {
+            position: relative;
+            z-index: 11;
         }
 
+        /* The actual "pipes" that form the circuit visually */
+        .circuit-pipe {
+            position: absolute;
+            background-color: #a8d5e8;
+            border-radius: 8px;
+            z-index: 0;
+        }
+
+        /* Top horizontal pipe */
+        .pipe-top {
+            top: calc(50% - 15px - 65px);
+            left: 0;
+            width: 100%;
+            height: 30px;
+            border-radius: 15px;
+            transform: translateY(-50%);
+            z-index: 0;
+        }
+        /* Bottom horizontal pipe */
+        .pipe-bottom {
+            bottom: calc(50% - 15px - 65px);
+            left: 0;
+            width: 100%;
+            height: 30px;
+            border-radius: 15px;
+            transform: translateY(50%);
+            z-index: 0;
+        }
+        /* Vertical pipes (left and right ends) */
+        .pipe-left-vertical, .pipe-right-vertical {
+            width: 30px;
+            height: calc(100% - 120px);
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 15px;
+            z-index: 0;
+        }
+        .pipe-left-vertical { left: 20px; }
+        .pipe-right-vertical { right: 20px; }
+
         .explanation {
-            margin-top: 20px;
+            margin-top: 25px;
             font-style: italic;
-            color: #555;
-            line-height: 1.5;
+            color: var(--text-light);
+            line-height: 1.6;
             text-align: center;
+            font-size: 1.05em;
         }
         .highlight {
             font-weight: bold;
-            color: #3b71ca;
+            color: var(--primary-blue);
         }
-        .flow-line {
+
+        /* FLOW ANIMATION - Electron Circles */
+        .flow-wrapper {
             position: absolute;
-            width: 100%;
-            height: 100%;
             top: 0;
             left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
         }
-        .flow-arrow {
+
+        .flow-electron {
             position: absolute;
-            width: 0;
-            height: 0;
-            border-top: 8px solid transparent;
-            border-bottom: 8px solid transparent;
-            border-left: 12px solid #555; /* Pfeilfarbe */
-            animation: moveArrow linear infinite;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: flowPath linear infinite;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+            background-color: #333; /* Default color for electrons */
         }
-        @keyframes moveArrow {
-            from { left: -20px; }
-            to { left: 100%; }
+
+        /* RESISTOR PIPE VISUAL - dynamic width */
+        .resistor-inner-pipe {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 30px; /* Same height as main pipes */
+            background-color: #a8d5e8; /* Base color for the pipe inside resistor */
+            border-radius: 5px;
+            transition: width 0.3s ease-in-out;
+            z-index: 1;
+        }
+
+        /* Keyframes for the continuous loop path - dynamic duration via JS */
+        @keyframes flowPath {
+            0% {
+                /* Start: Right after pump, entering top pipe */
+                left: calc(30px + 140px + 15px); /* Right edge of pump + half pipe width */
+                top: calc(50% - 80px); /* Top pipe center */
+                background-color: #333; /* Default color */
+            }
+            15% {
+                /* Before resistor, still in top pipe */
+                left: calc(100% - 30px - 180px - 15px); /* Left edge of resistor + half pipe width */
+                top: calc(50% - 80px); /* Top pipe center */
+                background-color: #333;
+            }
+            15.01% { /* Transition into resistor */
+                background-color: #c0392b; /* Red for heat */
+                box-shadow: 0 0 8px rgba(255,0,0,0.7);
+            }
+            35% {
+                /* After resistor, still red, before right vertical pipe */
+                left: calc(100% - 30px - 15px);
+                top: calc(50% - 80px); /* Top pipe center */
+                background-color: #c0392b;
+            }
+            35.01% { /* Transition out of resistor */
+                background-color: #333; /* Back to default */
+                box-shadow: 0 0 5px rgba(0,0,0,0.3);
+            }
+            42.5% { /* Middle of right vertical pipe */
+                left: calc(100% - 30px - 15px);
+                top: 50%; /* Vertical pipe center */
+                background-color: #333;
+            }
+            50% {
+                /* Bottom right corner */
+                left: calc(100% - 30px - 15px);
+                top: calc(50% + 80px); /* Bottom pipe center */
+                background-color: #333;
+            }
+            65% {
+                /* Bottom left corner */
+                left: calc(30px + 15px);
+                top: calc(50% + 80px); /* Bottom pipe center */
+                background-color: #333;
+            }
+            75% { /* Middle of left vertical pipe */
+                left: calc(30px + 15px);
+                top: 50%; /* Vertical pipe center */
+                background-color: #333;
+            }
+            85% {
+                /* Top left corner */
+                left: calc(30px + 15px);
+                top: calc(50% - 80px); /* Top pipe center */
+                background-color: #333;
+            }
+            100% {
+                /* Back to start */
+                left: calc(30px + 140px + 15px);
+                top: calc(50% - 80px); /* Top pipe center */
+                background-color: #333;
+            }
         }
     </style>
 </head>
 <body class="p-4">
     <div class="container">
-        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-6">Interaktiver Stromkreis 2.0: Ohm & Leistung</h1>
-        <p class="text-lg text-center text-gray-600 mb-8">
-            Verstehen Sie Elektrizität durch eine einfache Wasser-Analogie.
-            Ändern Sie die **Spannung (U)**, den **Strom (I)** und den **Widerstand (R)** mit den Schiebereglern und beobachten Sie die Auswirkungen auf den "Wasserfluss".
-        </p>
+        <h1 class="text-4xl font-extrabold text-center mb-8">Interaktiver Stromkreis</h1>
+
+        <div class="main-content">
+            <div class="controls-panel">
+                <h2 class="text-2xl font-bold mb-4">Stromkreis-Parameter</h2>
+
+                <div class="input-group">
+                    <label for="voltage">Spannung (U):</label>
+                    <input type="range" id="voltage" min="0.1" max="24" value="12" step="0.01">
+                    <input type="number" class="numerical-input" id="voltageNum" min="0.1" max="24" value="12" step="0.01">
+                    <span id="voltageValue" class="value-display">12.0 V</span>
+                    <i class="fas fa-lock lock-button" data-target="voltage"></i>
+                </div>
+
+                <div class="input-group">
+                    <label for="current">Strom (I):</label>
+                    <input type="range" id="current" min="0.01" max="20" value="1" step="0.01">
+                    <input type="number" class="numerical-input" id="currentNum" min="0.01" max="50" value="1" step="0.01">
+                    <span id="currentValue" class="value-display">1.00 A</span>
+                    <i class="fas fa-lock lock-button" data-target="current"></i>
+                </div>
+
+                <div class="input-group mt-6">
+                    <label for="resistance">Widerstand (R):</label>
+                    <input type="range" id="resistance" min="0.01" max="100" value="0.01" step="0.01">
+                    <input type="number" class="numerical-input" id="resistanceNum" min="0.1" max="100" value="12" step="0.01">
+                    <span id="resistanceValue" class="value-display">0.2 Ω</span>
+                    <i class="fas fa-lock lock-button" data-target="resistance"></i>
+                </div>
+
+                <div class="input-group mt-6 !py-3">
+                    <label class="text-xl font-bold text-gray-800">Leistung (P):</label>
+                    <span id="powerValue" class="value-display text-xl text-purple-700 ml-auto">12.0 W</span>
+                </div>
+            </div>
+
+            <div class="visual-panel">
+                <h2 class="text-2xl font-bold mb-4">Visualisierung: Elektornenfluss</h2>
+                <div class="circuit-visual-analogy" id="circuitVisual">
+                    <div class="circuit-pipe pipe-top"></div>
+                    <div class="circuit-pipe pipe-bottom"></div>
+                    <div class="circuit-pipe pipe-left-vertical"></div>
+                    <div class="circuit-pipe pipe-right-vertical"></div>
+
+                    <div class="pump">
+                        <span class="text-2xl">U</span>
+                    </div>
+                    <div class="resistor-area">
+                        <span class="text-2xl">R</span>
+                        <div class="resistor-inner-pipe" id="resistorPipe" style="width: 50px;"></div>
+                    </div>
+
+                    <div class="flow-wrapper" id="flowWrapper"></div>
+                </div>
+            </div>
+        </div>
 
         <div class="formula-section">
-            <h2 class="text-2xl font-bold text-gray-700 mb-4">Die Formeln: Ohmsches Gesetz & Leistung</h2>
-
+            <h2 class="text-2xl font-bold mb-4">Grundlagen: Ohmsches Gesetz & Leistung</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
                 <div>
                     <div class="formula">
@@ -252,217 +502,346 @@
             </div>
         </div>
 
-        <div class="formula-section">
-            <h2 class="text-2xl font-bold text-gray-700 mb-4">Einstellungen und Werte</h2>
-
-            <div class="input-group">
-                <label for="voltage">Spannung (U):</label>
-                <input type="range" id="voltage" min="1" max="24" value="12" step="0.1">
-                <span id="voltageValue" class="value-display">12.0 V</span>
-            </div>
-
-            <div class="input-group">
-                <label for="current">Strom (I):</label>
-                <input type="range" id="current" min="0.1" max="5" value="1" step="0.05">
-                <span id="currentValue" class="value-display">1.00 A</span>
-            </div>
-
-            <div class="input-group">
-                <label for="resistance">Widerstand (R):</label>
-                <input type="range" id="resistance" min="1" max="100" value="12" step="0.1">
-                <span id="resistanceValue" class="value-display">12.0 Ω</span>
-            </div>
-
-            <div class="input-group mt-6">
-                <label class="text-xl font-bold text-gray-800">Leistung (P):</label>
-                <span id="powerValue" class="value-display text-xl text-purple-700">12.0 W</span>
+        <div class="awg-recommendation-section formula-section">
+            <h2 class="text-2xl font-bold mb-4">Kabel-Empfehlung (AWG)</h2>
+            <div id="awgRecommendationOutput" class="text-center text-lg">
+                <p>Basierend auf dem aktuellen Strom (I) und einer maximalen Spannungstoleranz von <span id="voltageDropPercentageDisplay">3%</span>:</p>
+                <p>Empfohlener AWG-Leiter: <span id="recommendedAwg" class="font-bold text-primary-blue">N/A</span></p>
+                <p>Max. Länge bei <span id="maxLengthVoltageDropPercentage">3%</span> Spannungsabfall: <span id="maxAwgLength" class="font-bold text-primary-green">N/A</span></p>
+                <p class="text-sm text-gray-500 mt-2">
+                    (Ampacity @ 75°C Kupferdraht, Widerstand @ 20°C. Werte sind Richtwerte. Längere Kabel erfordern oft höhere AWG-Werte.)
+                </p>
             </div>
         </div>
 
-        <div class="formula-section">
-            <h2 class="text-2xl font-bold text-gray-700 mb-4">Visualisierung: Stromkreis als Wasserrohr</h2>
-            <div class="circuit-visual-analogy" id="circuitVisual">
-                <div class="pump">
-                    <span class="text-2xl">U</span>
-                    <span>(Spannung / Druck)</span>
-                </div>
-                <div class="pipe-segment horizontal" id="pipeSegment1">
-                    <div class="flow-line"></div>
-                </div>
-                <div class="resistor-area" id="resistorArea">
-                    <span class="text-2xl">R</span>
-                    <span>(Widerstand / Engpass)</span>
-                    <div class="pipe-segment narrow" id="resistorPipe" style="width: 100px;"></div>
-                </div>
-                <div class="pipe-segment horizontal" id="pipeSegment2">
-                    <div class="flow-line"></div>
-                </div>
-            </div>
-            <p class="explanation">
-                Stellen Sie sich den Stromkreis als ein **geschlossenes Wassersystem** vor:
-                <br>
-                - Die **Spannung (U)** ist wie eine <span class="highlight">Pumpe</span>, die das Wasser antreibt (den Druck erzeugt).
-                <br>
-                - Die **Stromstärke (I)** ist die <span class="highlight">Menge des Wassers, die pro Sekunde durch das Rohr fließt</span> (der Durchfluss).
-                <br>
-                - Der **Widerstand (R)** ist wie ein <span class="highlight">Engpass oder ein Hindernis im Rohr</span>.
-                <br><br>
-                Beobachten Sie, wie sich die **Geschwindigkeit und die Dichte der Wasserpartikel** sowie die **Breite des Widerstandsrohrs** ändern, wenn Sie die Werte anpassen.
-            </p>
-        </div>
-    </div>
+
 
     <script>
         const voltageInput = document.getElementById('voltage');
         const currentInput = document.getElementById('current');
         const resistanceInput = document.getElementById('resistance');
 
+        const voltageNumInput = document.getElementById('voltageNum');
+        const currentNumInput = document.getElementById('currentNum');
+        const resistanceNumInput = document.getElementById('resistanceNum');
+
         const voltageValueDisplay = document.getElementById('voltageValue');
         const currentValueDisplay = document.getElementById('currentValue');
         const resistanceValueDisplay = document.getElementById('resistanceValue');
         const powerValueDisplay = document.getElementById('powerValue');
 
-        const circuitVisual = document.getElementById('circuitVisual');
-        const pipeSegment1 = document.getElementById('pipeSegment1');
-        const pipeSegment2 = document.getElementById('pipeSegment2');
         const resistorPipe = document.getElementById('resistorPipe');
+        const flowWrapper = document.getElementById('flowWrapper');
 
-        let particleIntervals = []; // To keep track of intervals for cleaning up
-        const MAX_PARTICLES = 150; // Maximum particles in the entire system
+        const lockButtons = document.querySelectorAll('.lock-button');
+        const inputs = {
+            voltage: { range: voltageInput, num: voltageNumInput },
+            current: { range: currentInput, num: currentNumInput },
+            resistance: { range: resistanceInput, num: resistanceNumInput }
+        };
 
-        function updateValues(changedBy) {
-            let U = parseFloat(voltageInput.value);
-            let I = parseFloat(currentInput.value);
-            let R = parseFloat(resistanceInput.value);
+        // AWG recommendation elements
+        const recommendedAwgDisplay = document.getElementById('recommendedAwg');
+        const maxAwgLengthDisplay = document.getElementById('maxAwgLength');
+        const voltageDropPercentageDisplay1 = document.getElementById('voltageDropPercentageDisplay');
+        const voltageDropPercentageDisplay2 = document.getElementById('maxLengthVoltageDropPercentage');
 
-            // Logic to calculate remaining variable based on the one changed
-            if (changedBy === 'voltage') {
-                I = U / R;
-                // Ensure I stays within bounds after calculation
-                if (I < parseFloat(currentInput.min)) I = parseFloat(currentInput.min);
-                if (I > parseFloat(currentInput.max)) I = parseFloat(currentInput.max);
-                currentInput.value = I.toFixed(2);
-            } else if (changedBy === 'current') {
-                U = I * R;
-                // Ensure U stays within bounds after calculation
-                if (U < parseFloat(voltageInput.min)) U = parseFloat(voltageInput.min);
-                if (U > parseFloat(voltageInput.max)) U = parseFloat(voltageInput.max);
-                voltageInput.value = U.toFixed(1);
-            } else if (changedBy === 'resistance') {
-                I = U / R;
-                // Ensure I stays within bounds after calculation
-                if (I < parseFloat(currentInput.min)) I = parseFloat(currentInput.min);
-                if (I > parseFloat(currentInput.max)) I = parseFloat(currentInput.max);
-                currentInput.value = I.toFixed(2);
-            }
+        let lockedVariable = null; // Can be 'voltage', 'current', 'resistance', or null
+        let lastChangedInput = null; // To keep track of which slider was last adjusted (only for unlocked variables)
 
-            // Re-read values from inputs after potential clamping/updates to ensure consistency
-            U = parseFloat(voltageInput.value);
-            I = parseFloat(currentInput.value);
-            R = U / I; // R is always derived from U and I for consistency
+        const electrons = [];
+        const MAX_ELECTRONS = 100;
+        const VOLTAGE_DROP_PERCENTAGE = 3; // % allowed voltage drop for max length calculation
 
-            voltageInput.value = U.toFixed(1);
-            currentInput.value = I.toFixed(2);
-            resistanceInput.value = R.toFixed(1); // Update R slider to reflect derived value
+        // AWG Daten (Kupfer, 20°C Widerstand, 75°C Ampacity Richtwerte)
+        // Quelle: Angelehnt an typische Kupferdraht-Eigenschaften
+        const AWG_DATA = [
+            { awg: '30', ohmsPerMeter: 0.3386, ampacity: 0.8 },
+            { awg: '28', ohmsPerMeter: 0.2130, ampacity: 1.5 },
+            { awg: '26', ohmsPerMeter: 0.1339, ampacity: 2.5 },
+            { awg: '24', ohmsPerMeter: 0.08422, ampacity: 3.5 },
+            { awg: '22', ohmsPerMeter: 0.05296, ampacity: 5 },
+            { awg: '20', ohmsPerMeter: 0.03331, ampacity: 7 },
+            { awg: '18', ohmsPerMeter: 0.02095, ampacity: 10 },
+            { awg: '16', ohmsPerMeter: 0.01317, ampacity: 18 },
+            { awg: '14', ohmsPerMeter: 0.008286, ampacity: 25 },
+            { awg: '12', ohmsPerMeter: 0.005211, ampacity: 40 },
+            { awg: '10', ohmsPerMeter: 0.003277, ampacity: 55 },
+            { awg: '8', ohmsPerMeter: 0.002061, ampacity: 70 },
+            { awg: '6', ohmsPerMeter: 0.001296, ampacity: 100 },
+            { awg: '4', ohmsPerMeter: 0.0008152, ampacity: 135 },
+            { awg: '2', ohmsPerMeter: 0.0005127, ampacity: 175 },
+            { awg: '1', ohmsPerMeter: 0.0004066, ampacity: 195 },
+            { awg: '0 (1/0)', ohmsPerMeter: 0.0003223, ampacity: 230 },
+            { awg: '00 (2/0)', ohmsPerMeter: 0.0002553, ampacity: 275 },
+            { awg: '000 (3/0)', ohmsPerMeter: 0.0002027, ampacity: 325 },
+            { awg: '0000 (4/0)', ohmsPerMeter: 0.0001608, ampacity: 380 }
+        ];
 
-            const P = U * I;
+        function setControlsState() {
+            Object.keys(inputs).forEach(key => {
+                const isLocked = (key === lockedVariable);
+                inputs[key].range.disabled = isLocked;
+                inputs[key].num.disabled = isLocked;
 
-            voltageValueDisplay.textContent = `${U.toFixed(1)} V`;
-            currentValueDisplay.textContent = `${I.toFixed(2)} A`;
-            resistanceValueDisplay.textContent = `${R.toFixed(1)} Ω`;
-            powerValueDisplay.textContent = `${P.toFixed(1)} W`;
-
-            updateCircuitVisualization(U, I, R);
-        }
-
-        function updateCircuitVisualization(voltage, current, resistance) {
-            // Clear existing particles and intervals
-            particleIntervals.forEach(clearInterval);
-            particleIntervals = [];
-            pipeSegment1.innerHTML = '<div class="flow-line"></div>';
-            pipeSegment2.innerHTML = '<div class="flow-line"></div>';
-            resistorPipe.innerHTML = ''; // Resistor pipe gets particles directly
-
-            // 1. Particle Speed (based on Voltage)
-            // Higher voltage = faster particles
-            const minVoltage = parseFloat(voltageInput.min);
-            const maxVoltage = parseFloat(voltageInput.max);
-            const minSpeedDuration = 3000; // Slower (higher ms)
-            const maxSpeedDuration = 500;  // Faster (lower ms)
-            const speedDuration = maxSpeedDuration - ((voltage - minVoltage) / (maxVoltage - minVoltage)) * (maxSpeedDuration - minSpeedDuration);
-
-            // 2. Particle Density/Frequency (based on Current)
-            // Higher current = more particles injected more frequently
-            const minCurrent = parseFloat(currentInput.min);
-            const maxCurrent = parseFloat(currentInput.max);
-            const minInjectionInterval = 500; // Slower injection (fewer particles)
-            const maxInjectionInterval = 50;  // Faster injection (more particles)
-            const injectionInterval = minInjectionInterval - ((current - minCurrent) / (maxCurrent - minCurrent)) * (minInjectionInterval - maxInjectionInterval);
-            const particlesPerInjection = Math.max(1, Math.round(current * 2)); // More particles per burst for higher current
-
-            // 3. Resistor Pipe Width (based on Resistance)
-            // Higher resistance = narrower pipe
-            const minResistance = parseFloat(resistanceInput.min);
-            const maxResistance = parseFloat(resistanceInput.max);
-            const minPipeWidth = 10;  // Narrowest (high resistance)
-            const maxPipeWidth = 100; // Widest (low resistance)
-            const pipeWidth = maxPipeWidth - ((resistance - minResistance) / (maxResistance - minResistance)) * (maxPipeWidth - minPipeWidth);
-            resistorPipe.style.width = `${pipeWidth}px`;
-
-
-            // Function to create and animate a particle
-            function createAndAnimateParticle(container) {
-                const particle = document.createElement('div');
-                particle.className = 'water-particle';
-                // Random Y position within the pipe
-                particle.style.top = `${Math.random() * (container.offsetHeight - 8)}px`; // 8 is particle height
-                particle.style.animationDuration = `${speedDuration}ms`;
-                container.appendChild(particle);
-
-                // Remove particle once it finishes its animation cycle
-                particle.addEventListener('animationiteration', () => {
-                    particle.remove();
-                }, { once: true }); // Only run once per iteration if flow is infinite
-            }
-
-            // Start particle flow for pipeSegment1, resistorPipe, and pipeSegment2
-            // Inject particles into the relevant containers at the calculated frequency
-            const pipeSegments = [pipeSegment1, resistorPipe, pipeSegment2];
-
-            pipeSegments.forEach(segment => {
-                const interval = setInterval(() => {
-                    // Only inject if total particles are below MAX_PARTICLES to prevent browser overload
-                    if (document.querySelectorAll('.water-particle').length < MAX_PARTICLES) {
-                        for(let i = 0; i < particlesPerInjection; i++) {
-                            createAndAnimateParticle(segment);
-                        }
-                    }
-                }, injectionInterval);
-                particleIntervals.push(interval);
+                if (isLocked) {
+                    inputs[key].range.classList.add('disabled-input');
+                    inputs[key].num.classList.add('disabled-input');
+                } else {
+                    inputs[key].range.classList.remove('disabled-input');
+                    inputs[key].num.classList.remove('disabled-input');
+                }
             });
 
-            // Add flowing arrows to pipe segments (excluding resistor pipe itself as it's a visual "pipe")
-            const flowLines = document.querySelectorAll('.flow-line');
-            flowLines.forEach(line => {
-                line.innerHTML = ''; // Clear existing arrows
-                const arrowCount = Math.max(1, Math.round(current / 0.5)); // More arrows for higher current
-                for (let i = 0; i < arrowCount; i++) {
-                    const arrow = document.createElement('div');
-                    arrow.className = 'flow-arrow';
-                    arrow.style.animationDuration = `${speedDuration * 1.5}ms`; // Slightly slower than particles
-                    arrow.style.animationDelay = `${(speedDuration * 1.5 / arrowCount) * i}ms`; // Stagger arrows
-                    line.appendChild(arrow);
+            lockButtons.forEach(button => {
+                if (button.dataset.target === lockedVariable) {
+                    button.classList.add('locked');
+                } else {
+                    button.classList.remove('locked');
                 }
             });
         }
 
-        // Event Listeners
-        voltageInput.addEventListener('input', () => updateValues('voltage'));
-        currentInput.addEventListener('input', () => updateValues('current'));
-        resistanceInput.addEventListener('input', () => updateValues('resistance'));
+        function startFlowAnimation() {
+            while (flowWrapper.firstChild) {
+                flowWrapper.removeChild(flowWrapper.firstChild);
+            }
+            electrons.length = 0;
 
-        // Initial calculation and visualization on page load
-        updateValues('voltage'); // Start with voltage as the driving factor
+            const current = parseFloat(currentInput.value);
+            
+            const idealSpeed = 500;
+            let animationDuration = 0;
+            if (current > 0.01) { // A very small threshold to prevent division by zero or super fast animation
+                animationDuration = Math.max(0.5, idealSpeed / (current * 10));
+            } else {
+                animationDuration = 20; // Very slow/stopped if no current
+            }
+
+            const numElectronsToShow = Math.min(MAX_ELECTRONS, Math.max(0, Math.round(current * 5)));
+
+            for (let i = 0; i < numElectronsToShow; i++) {
+                const electron = document.createElement('div');
+                electron.classList.add('flow-electron');
+                electron.style.animationDuration = `${animationDuration}s`;
+                electron.style.animationDelay = `-${Math.random() * animationDuration}s`;
+                flowWrapper.appendChild(electron);
+                electrons.push(electron);
+            }
+        }
+
+        function updateResistorPipeVisual(resistance) {
+            const maxResistorWidth = 80;
+            const minResistorWidth = 5;
+
+            const minAllowedResistance = parseFloat(resistanceInput.min);
+            const maxAllowedResistance = parseFloat(resistanceInput.max);
+
+            // Logarithmic scaling for better visual representation of resistance range
+            // Adding 1 to avoid log(0) and shift the range slightly
+            const normalizedResistance = Math.log10(resistance + Math.abs(minAllowedResistance) + 1);
+            const normalizedMaxResistance = Math.log10(maxAllowedResistance + Math.abs(minAllowedResistance) + 1);
+
+            let visualWidth = maxResistorWidth - (normalizedResistance / normalizedMaxResistance) * (maxResistorWidth - minResistorWidth);
+            visualWidth = Math.max(minResistorWidth, Math.min(maxResistorWidth, visualWidth));
+
+            resistorPipe.style.width = `${visualWidth}px`;
+        }
+
+        function updateAWGRecommendation() {
+            const U = parseFloat(voltageInput.value);
+            const I = parseFloat(currentInput.value);
+
+            let recommendedAWG = null;
+            let maxRecomLength = 'N/A';
+
+            voltageDropPercentageDisplay1.textContent = `${VOLTAGE_DROP_PERCENTAGE}%`;
+            voltageDropPercentageDisplay2.textContent = `${VOLTAGE_DROP_PERCENTAGE}%`;
+
+
+            if (I > 0) {
+                // Find the smallest AWG (largest number) that can handle the current
+                for (let i = 0; i < AWG_DATA.length; i++) {
+                    if (I <= AWG_DATA[i].ampacity) {
+                        recommendedAWG = AWG_DATA[i];
+                        break;
+                    }
+                }
+
+                if (recommendedAWG) {
+                    const maxVoltageDrop = U * (VOLTAGE_DROP_PERCENTAGE / 100);
+                    // The wire resistance is for the *entire* cable (both ways)
+                    // So, if we consider it as the resistance of the *line*, then maxWireResistance / 2 * ohmsPerMeter for one-way length.
+                    // Or, maxRecomLength is the total length of the wire (round trip if powering a device)
+                    // For simplicity, let's assume maxWireResistance is for the total length of wire used in the circuit (e.g. from source to load and back)
+                    if (maxVoltageDrop > 0 && recommendedAWG.ohmsPerMeter > 0) {
+                         const maxAllowedWireResistance = maxVoltageDrop / I;
+                         maxRecomLength = maxAllowedWireResistance / recommendedAWG.ohmsPerMeter;
+                         maxRecomLength = maxRecomLength.toFixed(1) + ' m';
+                    } else {
+                        maxRecomLength = 'Sehr lang (>0V)'; // If U or I is tiny but non-zero, voltage drop could be near zero, leading to huge lengths.
+                    }
+                } else {
+                    recommendedAWG = { awg: 'Zu hoher Strom', ohmsPerMeter: 0, ampacity: 0 };
+                    maxRecomLength = 'N/A';
+                }
+            } else {
+                recommendedAWG = { awg: 'Kein Stromfluss', ohmsPerMeter: 0, ampacity: 0 };
+                maxRecomLength = 'Jede Länge (0 A)';
+            }
+            
+            recommendedAwgDisplay.textContent = recommendedAWG.awg;
+            maxAwgLengthDisplay.textContent = maxRecomLength;
+        }
+
+        function updateCircuit() {
+            let U = parseFloat(voltageInput.value);
+            let I = parseFloat(currentInput.value);
+            let R = parseFloat(resistanceInput.value);
+
+            // Ensure R and I are not zero for calculations to prevent division by zero
+            // If the user sets these to 0, clamp them to the minimum allowed by the slider.
+            if (R < parseFloat(resistanceInput.min)) R = parseFloat(resistanceInput.min);
+            if (I < parseFloat(currentInput.min)) I = parseFloat(currentInput.min);
+            if (U < parseFloat(voltageInput.min)) U = parseFloat(voltageInput.min);
+
+
+            if (lockedVariable === 'voltage') {
+                if (lastChangedInput === 'current') {
+                    R = U / I;
+                } else if (lastChangedInput === 'resistance') {
+                    I = U / R;
+                } else { // Fallback if no specific input changed (e.g., initial load or lock change)
+                    I = U / R; // Default to calculating I
+                }
+            } else if (lockedVariable === 'current') {
+                if (lastChangedInput === 'voltage') {
+                    R = U / I;
+                } else if (lastChangedInput === 'resistance') {
+                    U = I * R;
+                } else { // Fallback
+                    U = I * R; // Default to calculating U
+                }
+            } else if (lockedVariable === 'resistance') {
+                if (lastChangedInput === 'voltage') {
+                    I = U / R;
+                } else if (lastChangedInput === 'current') {
+                    U = I * R;
+                } else { // Fallback
+                    U = I * R; // Default to calculating U
+                }
+            } else { // No variable is locked
+                // Original behavior: if U or R changed, calculate I. If I changed, calculate U.
+                if (lastChangedInput === 'voltage' || lastChangedInput === 'resistance') {
+                    I = U / R;
+                } else if (lastChangedInput === 'current') {
+                    U = I * R;
+                } else { // Initial load, or if lastChangedInput is null
+                    I = U / R; // Default calculation if nothing specific changed
+                }
+            }
+
+            // Clamp values to their respective min/max after calculation
+            U = Math.min(parseFloat(voltageInput.max), Math.max(parseFloat(voltageInput.min), U));
+            I = Math.min(parseFloat(currentInput.max), Math.max(parseFloat(currentInput.min), I));
+            R = Math.min(parseFloat(resistanceInput.max), Math.max(parseFloat(resistanceInput.min), R));
+
+            // Update input elements' values
+            voltageInput.value = U;
+            currentInput.value = I;
+            resistanceInput.value = R;
+
+            // Update numerical input displays
+            voltageNumInput.value = U.toFixed(1);
+            currentNumInput.value = I.toFixed(2);
+            resistanceNumInput.value = R.toFixed(1);
+
+            // Update display values
+            voltageValueDisplay.textContent = `${U.toFixed(1)} V`;
+            currentValueDisplay.textContent = `${I.toFixed(2)} A`;
+            resistanceValueDisplay.textContent = `${R.toFixed(1)} Ω`;
+
+            const P = U * I;
+            powerValueDisplay.textContent = `${P.toFixed(1)} W`;
+
+            updateResistorPipeVisual(R);
+            startFlowAnimation();
+            setControlsState(); // Update lock button and input states
+            updateAWGRecommendation(); // Update AWG recommendation
+        }
+
+        // Event Listeners for sliders
+        voltageInput.addEventListener('input', () => {
+            if (lockedVariable !== 'voltage') {
+                lastChangedInput = 'voltage';
+                voltageNumInput.value = parseFloat(voltageInput.value).toFixed(1);
+                updateCircuit();
+            }
+        });
+        currentInput.addEventListener('input', () => {
+            if (lockedVariable !== 'current') {
+                lastChangedInput = 'current';
+                currentNumInput.value = parseFloat(currentInput.value).toFixed(2);
+                updateCircuit();
+            }
+        });
+        resistanceInput.addEventListener('input', () => {
+            if (lockedVariable !== 'resistance') {
+                lastChangedInput = 'resistance';
+                resistanceNumInput.value = parseFloat(resistanceInput.value).toFixed(1);
+                updateCircuit();
+            }
+        });
+
+        // Event Listeners for numerical inputs
+        voltageNumInput.addEventListener('change', (e) => {
+            if (lockedVariable !== 'voltage') {
+                let val = parseFloat(e.target.value);
+                val = Math.min(parseFloat(voltageInput.max), Math.max(parseFloat(voltageInput.min), val));
+                voltageInput.value = val;
+                voltageNumInput.value = val.toFixed(1);
+                lastChangedInput = 'voltage';
+                updateCircuit();
+            }
+        });
+        currentNumInput.addEventListener('change', (e) => {
+            if (lockedVariable !== 'current') {
+                let val = parseFloat(e.target.value);
+                val = Math.min(parseFloat(currentInput.max), Math.max(parseFloat(currentInput.min), val));
+                currentInput.value = val;
+                currentNumInput.value = val.toFixed(2);
+                lastChangedInput = 'current';
+                updateCircuit();
+            }
+        });
+        resistanceNumInput.addEventListener('change', (e) => {
+            if (lockedVariable !== 'resistance') {
+                let val = parseFloat(e.target.value);
+                val = Math.min(parseFloat(resistanceInput.max), Math.max(parseFloat(resistanceInput.min), val));
+                resistanceInput.value = val;
+                resistanceNumInput.value = val.toFixed(1);
+                lastChangedInput = 'resistance';
+                updateCircuit();
+            }
+        });
+
+        // Event Listeners for lock buttons
+        lockButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const target = e.currentTarget.dataset.target;
+                if (lockedVariable === target) {
+                    lockedVariable = null; // Unlock it
+                    lastChangedInput = target; // Set as last changed to trigger recalculation based on it being unlocked
+                } else {
+                    lockedVariable = target; // Lock this variable
+                    lastChangedInput = null; // Reset last changed, as we just locked one
+                }
+                updateCircuit(); // Recalculate based on new lock state
+            });
+        });
+
+        // Initial setup
+        updateCircuit(); // Initial calculation and display
     </script>
 </body>
 </html>
