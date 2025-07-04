@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktiver Stromkreis 2.0: Ohm & Leistung</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 1000px; /* Etwas breiter für die Visualisierung */
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        .formula-section {
+            background-color: #f9f9f9;
+            border-left: 5px solid #4CAF50;
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .formula {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .fraction {
+            display: inline-block;
+            vertical-align: middle;
+            text-align: center;
+        }
+        .fraction > span {
+            display: block;
+        }
+        .fraction .numerator {
+            padding-bottom: 2px;
+            border-bottom: 2px solid #333;
+        }
+        .fraction .denominator {
+            padding-top: 2px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        .input-group label {
+            min-width: 100px; /* Angepasst für bessere Ausrichtung */
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #ddd;
+            border-radius: 5px;
+            outline: none;
+            transition: opacity .2s;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        .value-display {
+            min-width: 90px; /* Etwas breiter für Werte mit Einheiten */
+            text-align: right;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        /* Neue Visualisierung Styles */
+        .circuit-visual-analogy {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            background-color: #eef;
+            border-radius: 10px;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden; /* Für die fließenden Partikel */
+        }
+        .pump, .resistor-area {
+            background-color: #dde;
+            border: 2px solid #bbb;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: #555;
+            flex-shrink: 0; /* Verhindert Schrumpfen */
+        }
+        .pump {
+            width: 120px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #d1e7dd; /* Light green */
+            border-color: #3b71ca;
+            color: #1a4f3b;
+            font-size: 0.9em;
+        }
+        .resistor-area {
+            width: 150px; /* Fixed width for resistor */
+            height: 80px;
+            background-color: #f7e0d1; /* Light orange */
+            border-color: #e0a35f;
+            color: #7b4f1f;
+            font-size: 0.9em;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .pipe-segment {
+            height: 30px; /* Höhe der 'Rohre' */
+            background-color: #a8d5e8; /* Rohr-Farbe */
+            position: relative;
+            overflow: hidden;
+            border-radius: 5px;
+            margin: 0 10px; /* Abstand zwischen Segmenten */
+            transition: width 0.3s ease-in-out; /* Für Breitenänderung des Widerstandsrohrs */
+        }
+        .pipe-segment.horizontal {
+            flex-grow: 1; /* Füllt den Raum aus */
+        }
+        .pipe-segment.narrow {
+            background-color: #f9dcdc; /* Farbe für verengtes Rohr (Widerstand) */
+        }
+        .water-particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #007bff; /* Wasser-Farbe */
+            border-radius: 50%;
+            box-shadow: 0 0 3px #007bff;
+            animation: flow linear infinite;
+        }
+        @keyframes flow {
+            from { transform: translateX(-10px); }
+            to { transform: translateX(calc(100% + 10px)); } /* Geht ganz durch das Segment */
+        }
+
+        .explanation {
+            margin-top: 20px;
+            font-style: italic;
+            color: #555;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #3b71ca;
+        }
+        .flow-line {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+        .flow-arrow {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+            border-left: 12px solid #555; /* Pfeilfarbe */
+            animation: moveArrow linear infinite;
+        }
+        @keyframes moveArrow {
+            from { left: -20px; }
+            to { left: 100%; }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container">
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-6">Interaktiver Stromkreis 2.0: Ohm & Leistung</h1>
+        <p class="text-lg text-center text-gray-600 mb-8">
+            Verstehen Sie Elektrizität durch eine einfache Wasser-Analogie.
+            Ändern Sie die **Spannung (U)**, den **Strom (I)** und den **Widerstand (R)** mit den Schiebereglern und beobachten Sie die Auswirkungen auf den "Wasserfluss".
+        </p>
+
+        <div class="formula-section">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">Die Formeln: Ohmsches Gesetz & Leistung</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
+                <div>
+                    <div class="formula">
+                        I = <span class="fraction"><span class="numerator">U</span><span class="denominator">R</span></span>
+                    </div>
+                    <p class="text-sm text-gray-500 text-center">Stromstärke = Spannung / Widerstand</p>
+                </div>
+                <div>
+                    <div class="formula">
+                        R = <span class="fraction"><span class="numerator">U</span><span class="denominator">I</span></span>
+                    </div>
+                    <p class="text-sm text-gray-500 text-center">Widerstand = Spannung / Stromstärke</p>
+                </div>
+                <div>
+                    <div class="formula">
+                        U = I * R
+                    </div>
+                    <p class="text-sm text-gray-500 text-center">Spannung = Stromstärke * Widerstand</p>
+                </div>
+                <div>
+                    <div class="formula">
+                        P = U * I
+                    </div>
+                    <p class="text-sm text-gray-500 text-center">Leistung = Spannung * Stromstärke</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="formula-section">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">Einstellungen und Werte</h2>
+
+            <div class="input-group">
+                <label for="voltage">Spannung (U):</label>
+                <input type="range" id="voltage" min="1" max="24" value="12" step="0.1">
+                <span id="voltageValue" class="value-display">12.0 V</span>
+            </div>
+
+            <div class="input-group">
+                <label for="current">Strom (I):</label>
+                <input type="range" id="current" min="0.1" max="5" value="1" step="0.05">
+                <span id="currentValue" class="value-display">1.00 A</span>
+            </div>
+
+            <div class="input-group">
+                <label for="resistance">Widerstand (R):</label>
+                <input type="range" id="resistance" min="1" max="100" value="12" step="0.1">
+                <span id="resistanceValue" class="value-display">12.0 Ω</span>
+            </div>
+
+            <div class="input-group mt-6">
+                <label class="text-xl font-bold text-gray-800">Leistung (P):</label>
+                <span id="powerValue" class="value-display text-xl text-purple-700">12.0 W</span>
+            </div>
+        </div>
+
+        <div class="formula-section">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">Visualisierung: Stromkreis als Wasserrohr</h2>
+            <div class="circuit-visual-analogy" id="circuitVisual">
+                <div class="pump">
+                    <span class="text-2xl">U</span>
+                    <span>(Spannung / Druck)</span>
+                </div>
+                <div class="pipe-segment horizontal" id="pipeSegment1">
+                    <div class="flow-line"></div>
+                </div>
+                <div class="resistor-area" id="resistorArea">
+                    <span class="text-2xl">R</span>
+                    <span>(Widerstand / Engpass)</span>
+                    <div class="pipe-segment narrow" id="resistorPipe" style="width: 100px;"></div>
+                </div>
+                <div class="pipe-segment horizontal" id="pipeSegment2">
+                    <div class="flow-line"></div>
+                </div>
+            </div>
+            <p class="explanation">
+                Stellen Sie sich den Stromkreis als ein **geschlossenes Wassersystem** vor:
+                <br>
+                - Die **Spannung (U)** ist wie eine <span class="highlight">Pumpe</span>, die das Wasser antreibt (den Druck erzeugt).
+                <br>
+                - Die **Stromstärke (I)** ist die <span class="highlight">Menge des Wassers, die pro Sekunde durch das Rohr fließt</span> (der Durchfluss).
+                <br>
+                - Der **Widerstand (R)** ist wie ein <span class="highlight">Engpass oder ein Hindernis im Rohr</span>.
+                <br><br>
+                Beobachten Sie, wie sich die **Geschwindigkeit und die Dichte der Wasserpartikel** sowie die **Breite des Widerstandsrohrs** ändern, wenn Sie die Werte anpassen.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const voltageInput = document.getElementById('voltage');
+        const currentInput = document.getElementById('current');
+        const resistanceInput = document.getElementById('resistance');
+
+        const voltageValueDisplay = document.getElementById('voltageValue');
+        const currentValueDisplay = document.getElementById('currentValue');
+        const resistanceValueDisplay = document.getElementById('resistanceValue');
+        const powerValueDisplay = document.getElementById('powerValue');
+
+        const circuitVisual = document.getElementById('circuitVisual');
+        const pipeSegment1 = document.getElementById('pipeSegment1');
+        const pipeSegment2 = document.getElementById('pipeSegment2');
+        const resistorPipe = document.getElementById('resistorPipe');
+
+        let particleIntervals = []; // To keep track of intervals for cleaning up
+        const MAX_PARTICLES = 150; // Maximum particles in the entire system
+
+        function updateValues(changedBy) {
+            let U = parseFloat(voltageInput.value);
+            let I = parseFloat(currentInput.value);
+            let R = parseFloat(resistanceInput.value);
+
+            // Logic to calculate remaining variable based on the one changed
+            if (changedBy === 'voltage') {
+                I = U / R;
+                // Ensure I stays within bounds after calculation
+                if (I < parseFloat(currentInput.min)) I = parseFloat(currentInput.min);
+                if (I > parseFloat(currentInput.max)) I = parseFloat(currentInput.max);
+                currentInput.value = I.toFixed(2);
+            } else if (changedBy === 'current') {
+                U = I * R;
+                // Ensure U stays within bounds after calculation
+                if (U < parseFloat(voltageInput.min)) U = parseFloat(voltageInput.min);
+                if (U > parseFloat(voltageInput.max)) U = parseFloat(voltageInput.max);
+                voltageInput.value = U.toFixed(1);
+            } else if (changedBy === 'resistance') {
+                I = U / R;
+                // Ensure I stays within bounds after calculation
+                if (I < parseFloat(currentInput.min)) I = parseFloat(currentInput.min);
+                if (I > parseFloat(currentInput.max)) I = parseFloat(currentInput.max);
+                currentInput.value = I.toFixed(2);
+            }
+
+            // Re-read values from inputs after potential clamping/updates to ensure consistency
+            U = parseFloat(voltageInput.value);
+            I = parseFloat(currentInput.value);
+            R = U / I; // R is always derived from U and I for consistency
+
+            voltageInput.value = U.toFixed(1);
+            currentInput.value = I.toFixed(2);
+            resistanceInput.value = R.toFixed(1); // Update R slider to reflect derived value
+
+            const P = U * I;
+
+            voltageValueDisplay.textContent = `${U.toFixed(1)} V`;
+            currentValueDisplay.textContent = `${I.toFixed(2)} A`;
+            resistanceValueDisplay.textContent = `${R.toFixed(1)} Ω`;
+            powerValueDisplay.textContent = `${P.toFixed(1)} W`;
+
+            updateCircuitVisualization(U, I, R);
+        }
+
+        function updateCircuitVisualization(voltage, current, resistance) {
+            // Clear existing particles and intervals
+            particleIntervals.forEach(clearInterval);
+            particleIntervals = [];
+            pipeSegment1.innerHTML = '<div class="flow-line"></div>';
+            pipeSegment2.innerHTML = '<div class="flow-line"></div>';
+            resistorPipe.innerHTML = ''; // Resistor pipe gets particles directly
+
+            // 1. Particle Speed (based on Voltage)
+            // Higher voltage = faster particles
+            const minVoltage = parseFloat(voltageInput.min);
+            const maxVoltage = parseFloat(voltageInput.max);
+            const minSpeedDuration = 3000; // Slower (higher ms)
+            const maxSpeedDuration = 500;  // Faster (lower ms)
+            const speedDuration = maxSpeedDuration - ((voltage - minVoltage) / (maxVoltage - minVoltage)) * (maxSpeedDuration - minSpeedDuration);
+
+            // 2. Particle Density/Frequency (based on Current)
+            // Higher current = more particles injected more frequently
+            const minCurrent = parseFloat(currentInput.min);
+            const maxCurrent = parseFloat(currentInput.max);
+            const minInjectionInterval = 500; // Slower injection (fewer particles)
+            const maxInjectionInterval = 50;  // Faster injection (more particles)
+            const injectionInterval = minInjectionInterval - ((current - minCurrent) / (maxCurrent - minCurrent)) * (minInjectionInterval - maxInjectionInterval);
+            const particlesPerInjection = Math.max(1, Math.round(current * 2)); // More particles per burst for higher current
+
+            // 3. Resistor Pipe Width (based on Resistance)
+            // Higher resistance = narrower pipe
+            const minResistance = parseFloat(resistanceInput.min);
+            const maxResistance = parseFloat(resistanceInput.max);
+            const minPipeWidth = 10;  // Narrowest (high resistance)
+            const maxPipeWidth = 100; // Widest (low resistance)
+            const pipeWidth = maxPipeWidth - ((resistance - minResistance) / (maxResistance - minResistance)) * (maxPipeWidth - minPipeWidth);
+            resistorPipe.style.width = `${pipeWidth}px`;
+
+
+            // Function to create and animate a particle
+            function createAndAnimateParticle(container) {
+                const particle = document.createElement('div');
+                particle.className = 'water-particle';
+                // Random Y position within the pipe
+                particle.style.top = `${Math.random() * (container.offsetHeight - 8)}px`; // 8 is particle height
+                particle.style.animationDuration = `${speedDuration}ms`;
+                container.appendChild(particle);
+
+                // Remove particle once it finishes its animation cycle
+                particle.addEventListener('animationiteration', () => {
+                    particle.remove();
+                }, { once: true }); // Only run once per iteration if flow is infinite
+            }
+
+            // Start particle flow for pipeSegment1, resistorPipe, and pipeSegment2
+            // Inject particles into the relevant containers at the calculated frequency
+            const pipeSegments = [pipeSegment1, resistorPipe, pipeSegment2];
+
+            pipeSegments.forEach(segment => {
+                const interval = setInterval(() => {
+                    // Only inject if total particles are below MAX_PARTICLES to prevent browser overload
+                    if (document.querySelectorAll('.water-particle').length < MAX_PARTICLES) {
+                        for(let i = 0; i < particlesPerInjection; i++) {
+                            createAndAnimateParticle(segment);
+                        }
+                    }
+                }, injectionInterval);
+                particleIntervals.push(interval);
+            });
+
+            // Add flowing arrows to pipe segments (excluding resistor pipe itself as it's a visual "pipe")
+            const flowLines = document.querySelectorAll('.flow-line');
+            flowLines.forEach(line => {
+                line.innerHTML = ''; // Clear existing arrows
+                const arrowCount = Math.max(1, Math.round(current / 0.5)); // More arrows for higher current
+                for (let i = 0; i < arrowCount; i++) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'flow-arrow';
+                    arrow.style.animationDuration = `${speedDuration * 1.5}ms`; // Slightly slower than particles
+                    arrow.style.animationDelay = `${(speedDuration * 1.5 / arrowCount) * i}ms`; // Stagger arrows
+                    line.appendChild(arrow);
+                }
+            });
+        }
+
+        // Event Listeners
+        voltageInput.addEventListener('input', () => updateValues('voltage'));
+        currentInput.addEventListener('input', () => updateValues('current'));
+        resistanceInput.addEventListener('input', () => updateValues('resistance'));
+
+        // Initial calculation and visualization on page load
+        updateValues('voltage'); // Start with voltage as the driving factor
+    </script>
+</body>
+</html>
