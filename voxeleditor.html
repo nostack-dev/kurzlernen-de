@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voxel Editor (Fixiert 10x10x10) mit Fly-by Steuerung & Korrektem Grid Snap & Schatten-Outline</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; height: 100vh; background-color: #282c34; color: #e0e0e0; }
+        #controls {
+            padding: 15px;
+            background: #3a3f47;
+            border-bottom: 1px solid #4a4f57;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border-radius: 0 0 8px 8px;
+            z-index: 20; /* Über dem Info-Box */
+        }
+        #controls button, #controls label {
+            padding: 10px 20px;
+            border: none;
+            background: #555c66;
+            color: #e0e0e0;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: background 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        #controls button:hover { background: #6a727f; transform: translateY(-1px); }
+        #controls button:active { background: #4a5058; transform: translateY(0); }
+        #grid-size-display, #current-mode {
+            margin-left: 5px;
+            font-weight: bold;
+            color: #90caf9;
+            min-width: 80px;
+            text-align: center;
+        }
+        #current-mode { color: #81c784; }
+
+        #container { flex-grow: 1; position: relative; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .info-box {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #e0e0e0;
+            pointer-events: none; /* Macht es nicht interaktiv, damit Mausereignisse durchgehen */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            line-height: 1.5;
+            z-index: 10;
+        }
+        .info-box strong { color: #90caf9; }
+
+        #fileInput {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            #controls { flex-direction: column; align-items: stretch; }
+            #controls button, #controls label { width: auto; text-align: center; }
+            .info-box {
+                position: static;
+                margin: 10px;
+                background: rgba(0, 0, 0, 0.7);
+            }
+            body { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label>Gittergröße:</label>
+        <span id="grid-size-display">10x10x10</span>
+
+        <button id="modeToggle">Modus wechseln</button>
+        <span id="current-mode">Modus: Hinzufügen</span>
+
+        <button id="clearBtn">Alles löschen</button>
+        <button id="saveBtn">Projekt speichern (JSON)</button>
+        <button id="loadBtn">Projekt laden (JSON)</button>
+        <button id="exportStlBtn">STL Export</button>
+    </div>
+    <div id="container">
+        <canvas id="voxelCanvas"></canvas>
+        <div class="info-box">
+            <strong>Steuerung:</strong><br>
+            <strong>Rechte Maustaste gedrückt halten + Maus bewegen:</strong> Kamera blicken<br>
+            <strong>WASD:</strong> Vorwärts/Rückwärts/Links/Rechts bewegen (relativ zur Kamera)<br>
+            <strong>E:</strong> **Hoch** bewegen (globale Y-Achse)<br>
+            <strong>Q:</strong> **Runter** bewegen (globale Y-Achse)<br>
+            <strong>Linke Maustaste:</strong> Voxel hinzufügen/löschen (mit Grid Snap)<br>
+            <strong>Mausrad:</strong> Bewegungsgeschwindigkeit ändern
+        </div>
+        <input type="file" id="fileInput" accept=".json">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // Dies ist eine modifizierte Version aus Three.js r128 examples/js/utils/BufferGeometryUtils.js,
+        // angepasst, um direkt im globalen THREE-Namespace zu existieren, ohne ES Module Syntax.
+        // Die 'is'-Arrow-Funktion wurde in eine reguläre Funktion umgewandelt, um Syntaxfehler zu vermeiden.
+        // **Fix für RangeError: offset is out of bounds:** Die Array-Größenberechnung wurde korrigiert,
+        // indem die kumulative Länge aller Attribut-Arrays berücksichtigt wird.
+        THREE.BufferGeometryUtils = {
+
+            // Merges a number of geometries into a single new BufferGeometry.
+            // Does not destroy the input geometries.
+            // Attributes are merged in the order of the original geometries.
+            // If 'use=undefined' (the default) then all attributes are merged.
+            // If 'use' is an array of strings then only the specified attributes are merged.
+            mergeBufferGeometries: function ( geometries, use ) {
+
+                var is = function ( array, attribute ) {
+                    for ( var i = 0; i < array.length; i ++ ) {
+                        if ( array[ i ] === attribute ) return true;
+                    }
+                    return false;
+                };
+
+                var attributes = {};
+                var mergedGeometry = new THREE.BufferGeometry();
+                
+                // NEU: Berechnen Sie die Gesamtanzahl der Elemente pro Attribut über alle Geometrien hinweg
+                var totalCounts = {}; 
+
+                for ( var i = 0; i < geometries.length; i ++ ) {
+
+                    var geometry = geometries[ i ];
+                    var attributesMap = geometry.attributes;
+
+                    // Fallback für alte Geometrie-Typen (falls vorhanden), konvertiert sie in BufferGeometry
+                    if ( geometry.isBufferGeometry === false ) {
+                        attributesMap = new THREE.BufferGeometry().fromGeometry( geometry ).attributes;
+                    }
+
+                    for ( var name in attributesMap ) {
+                        if ( use === undefined || is( use, name ) ) {
+                            if ( attributes[ name ] === undefined ) {
+                                attributes[ name ] = [];
+                                totalCounts[ name ] = 0; // Initialisiere Zähler für dieses Attribut
+                            }
+                            attributes[ name ].push( attributesMap[ name ] );
+                            // Wichtig: Addiere die LÄNGE des Arrays, nicht die Anzahl der Elemente (count * itemSize)
+                            totalCounts[ name ] += attributesMap[ name ].array.length; 
+                        }
+                    }
+                }
+
+                for ( var name in attributes ) {
+                    var attribute = attributes[ name ][ 0 ]; // Verwenden Sie das erste Attribut für itemSize und constructor
+                    // Korrigierte Berechnung der Array-Größe: Verwenden Sie totalCounts für die korrekte Gesamtgröße
+                    var array = new attribute.array.constructor( totalCounts[ name ] ); 
+                    var offset = 0;
+
+                    for ( var i = 0; i < attributes[ name ].length; i ++ ) {
+
+                        var currentAttribute = attributes[ name ][ i ];
+                        var currentArray = currentAttribute.array;
+
+                        array.set( currentArray, offset );
+                        offset += currentArray.length;
+
+                    }
+
+                    mergedGeometry.setAttribute( name, new THREE.BufferAttribute( array, attribute.itemSize, attribute.normalized ) );
+
+                }
+
+                return mergedGeometry;
+
+            },
+
+            // Converts a BufferGeometry to a non-indexed BufferGeometry.
+            // That is, it creates new sets of positions, normals, etc., so that
+            // the `index` attribute is no longer needed.
+            toNonIndexed: function ( geometry ) {
+
+                if ( geometry.index === null ) {
+
+                    console.warn( 'THREE.BufferGeometryUtils.toNonIndexed(): Geometry is already non-indexed.' );
+                    return geometry;
+
+                }
+
+                var geometry2 = new THREE.BufferGeometry();
+
+                var attributes = geometry.attributes;
+                for ( var name in attributes ) {
+
+                    var attribute = attributes[ name ];
+                    var array = attribute.array;
+                    var itemSize = attribute.itemSize;
+                    var normalized = attribute.normalized;
+
+                    var array2 = new array.constructor( geometry.index.count * itemSize );
+                    for ( var i = 0; i < geometry.index.count; i ++ ) {
+
+                        var index = geometry.index.getX( i );
+                        for ( var j = 0; j < itemSize; j ++ ) {
+
+                            array2[ i * itemSize + j ] = array[ index * itemSize + j ];
+
+                        }
+
+                    }
+
+                    geometry2.setAttribute( name, new THREE.BufferAttribute( array2, itemSize, normalized ) );
+
+                }
+
+                return geometry2;
+
+            },
+
+            computeTangents: function ( geometry ) {
+
+                var index = geometry.index;
+                var attributes = geometry.attributes;
+
+                // based on http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-13-normal-mapping/
+
+                if ( ! ( attributes.position && attributes.normal && attributes.uv ) ) {
+
+                    console.warn( 'THREE.BufferGeometryUtils: Missing attributes.position, attributes.normal or attributes.uv. Cannot compute tangents.' );
+                    return null;
+
+                }
+
+                var positions = attributes.position.array;
+                var normals = attributes.normal.array;
+                var uvs = attributes.uv.array;
+
+                var nVertices = positions.length / 3;
+
+                if ( attributes.tangent === undefined ) {
+
+                    geometry.setAttribute( 'tangent', new THREE.BufferAttribute( new Float32Array( 4 * nVertices ), 4 ) );
+
+                }
+
+                var tangents = attributes.tangent.array;
+
+                var tan1 = [], tan2 = [];
+
+                for ( var i = 0; i < nVertices; i ++ ) {
+
+                    tan1[ i ] = new THREE.Vector3();
+                    tan2[ i ] = new THREE.Vector3();
+
+                }
+
+                var vA = new THREE.Vector3(),
+                    vB = new THREE.Vector3(),
+                    vC = new THREE.Vector3(),
+
+                    uvA = new THREE.Vector2(),
+                    uvB = new THREE.Vector2(),
+                    uvC = new THREE.Vector2(),
+
+                    sdir = new THREE.Vector3(),
+                    tdir = new THREE.Vector3();
+
+                function handleTriangle( a, b, c ) {
+
+                    vA.fromArray( positions, a * 3 );
+                    vB.fromArray( positions, b * 3 );
+                    vC.fromArray( positions, c * 3 );
+
+                    uvA.fromArray( uvs, a * 2 );
+                    uvB.fromArray( uvs, b * 2 );
+                    uvC.fromArray( uvs, c * 2 );
+
+                    var x1 = vB.x - vA.x;
+                    var y1 = vB.y - vA.y;
+                    var z1 = vB.z - vA.z;
+
+                    var x2 = vC.x - vA.x;
+                    var y2 = vC.y - vA.y;
+                    var z2 = vC.z - vA.z;
+
+                    var s1 = uvB.x - uvA.x;
+                    var t1 = uvB.y - uvA.y;
+
+                    var s2 = uvC.x - uvA.x;
+                    var t2 = uvC.y - uvA.y;
+
+                    var r = 1.0 / ( s1 * t2 - s2 * t1 );
+
+                    if ( r === Infinity ) { // catch singular point cases
+
+                        r = 0;
+
+                    }
+
+                    // malformed input can cause NaN in the calculations below
+                    // we'll check for this after the calculations and reset to 0
+
+                    sdir.set(
+                        ( x1 * t2 - x2 * t1 ) * r,
+                        ( y1 * t2 - y2 * t1 ) * r,
+                        ( z1 * t2 - z2 * t1 ) * r
+                    );
+                    tdir.set(
+                        ( x2 * s1 - x1 * s2 ) * r,
+                        ( y2 * s1 - y1 * s2 ) * r,
+                        ( z2 * s1 - z1 * s2 ) * r
+                    );
+
+                    if ( sdir.x === NaN || sdir.y === NaN || sdir.z === NaN ||
+                         tdir.x === NaN || tdir.y === NaN || tdir.z === NaN ) {
+
+                        sdir.set( 0, 0, 0 );
+                        tdir.set( 0, 0, 0 );
+
+                    }
+
+                    tan1[ a ].add( sdir );
+                    tan1[ b ].add( sdir );
+                    tan1[ c ].add( sdir );
+
+                    tan2[ a ].add( tdir );
+                    tan2[ b ].add( tdir );
+                    tan2[ c ].add( tdir );
+
+                }
+
+                var groups = geometry.groups;
+
+                if ( groups.length === 0 ) {
+
+                    groups = [ { start: 0, count: index.count, materialIndex: 0 } ];
+
+                }
+
+                for ( var i = 0, il = groups.length; i < il; i ++ ) {
+
+                    var group = groups[ i ];
+
+                    var start = group.start;
+                    var count = group.count;
+
+                    for ( var j = start, jl = start + count; j < jl; j += 3 ) {
+
+                        handleTriangle( index.getX( j + 0 ), index.getX( j + 1 ), index.getX( j + 2 ) );
+
+                    }
+
+                }
+
+                var tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+                var n = new THREE.Vector3(), n2 = new THREE.Vector3();
+                var w, t, test;
+
+                function handleVertex( v ) {
+
+                    n.fromArray( normals, v * 3 );
+                    n2.copy( n );
+
+                    t = tan1[ v ];
+
+                    // Gram-Schmidt orthogonalize
+                    tmp.copy( t );
+                    tmp.sub( n.multiplyScalar( n.dot( t ) ) ).normalize();
+
+                    // calculate handedness
+                    tmp2.crossVectors( n2, t );
+                    test = tmp2.dot( tan2[ v ] );
+                    w = ( test < 0.0 ) ? - 1.0 : 1.0;
+
+                    tangents[ v * 4 + 0 ] = tmp.x;
+                    tangents[ v * 4 + 1 ] = tmp.y;
+                    tangents[ v * 4 + 2 ] = tmp.z;
+                    tangents[ v * 4 + 3 ] = w;
+
+                }
+
+                for ( var i = 0, il = nVertices; i < il; i ++ ) {
+
+                    handleVertex( i );
+
+                }
+
+                return geometry;
+
+            },
+
+            // This will merge geometries into a single geometry that is suitable for a GL_TRIANGLES draw mode.
+            // This means that the index buffer of the merged geometry will not exist.
+            // This method is useful if you need to build up an unindexed geometry for a custom Shader.
+            mergeGeometries: function ( geometries, use ) {
+
+                var mergedGeometry = this.mergeBufferGeometries( geometries, use );
+                return this.toNonIndexed( mergedGeometry );
+
+            }
+        };
+    </script>
+
+
+    <script>
+        // Dies ist eine modifizierte Version aus Three.js r128 examples/js/exporters/STLExporter.js,
+        // angepasst, um direkt im globalen THREE-Namespace zu existieren, ohne ES Module Syntax.
+        THREE.STLExporter = function () {};
+
+        THREE.STLExporter.prototype = {
+
+            constructor: THREE.STLExporter,
+
+            parse: function () { // geometry is removed from here
+                var vector = new THREE.Vector3();
+                var normalMatrixWorld = new THREE.Matrix3();
+
+                return function parse( geometry ) {
+
+                    var triangles = [];
+
+                    // Ensure the geometry has normals before trying to export
+                    if (!geometry.attributes.normal) {
+                        geometry.computeVertexNormals();
+                        console.warn("STLExporter: computeVertexNormals() called on geometry because no normals were found.");
+                    }
+
+                    if ( geometry.isBufferGeometry ) {
+
+                        var positionAttribute = geometry.attributes.position;
+                        var normalAttribute = geometry.attributes.normal; // Should exist after computeVertexNormals()
+
+                        // STL exporter typically expects non-indexed geometry.
+                        // If it's indexed, we need to "unindex" it first for safe iteration.
+                        // Marching Cubes sollte bereits non-indexed sein, aber zur Sicherheit lassen wir dies drin.
+                        let processedGeometry = geometry;
+                        if (geometry.index !== null) {
+                            processedGeometry = THREE.BufferGeometryUtils.toNonIndexed(geometry);
+                            positionAttribute = processedGeometry.attributes.position;
+                            normalAttribute = processedGeometry.attributes.normal;
+                            console.log("STLExporter: Geometry was indexed, converted to non-indexed for export.");
+                        }
+
+
+                        if ( positionAttribute.itemSize === 3 && normalAttribute.itemSize === 3 ) {
+
+                            // Iterate over triangles (3 vertices per triangle)
+                            for ( var i = 0; i < positionAttribute.count; i += 3 ) {
+
+                                // Normal for the face (assuming flat shading, so one normal for 3 vertices)
+                                // The STLExporter typically takes the normal of the first vertex of the triangle
+                                // as the face normal for binary STL. This is fine for manifold meshes.
+                                vector.set(
+                                    normalAttribute.getX( i ),
+                                    normalAttribute.getY( i ),
+                                    normalAttribute.getZ( i )
+                                ).applyMatrix3( normalMatrixWorld ).normalize(); // Apply matrix if object has scale/rotation (not for merged)
+
+                                triangles.push(
+                                    vector.x, vector.y, vector.z, // Normal
+                                    positionAttribute.getX( i ), positionAttribute.getY( i ), positionAttribute.getZ( i ), // Vertex 1
+                                    positionAttribute.getX( i + 1 ), positionAttribute.getY( i + 1 ), positionAttribute.getZ( i + 1 ), // Vertex 2
+                                    positionAttribute.getX( i + 2 ), positionAttribute.getY( i + 2 ), positionAttribute.getZ( i + 2 )  // Vertex 3
+                                );
+
+                            }
+
+                        } else {
+                            console.error( 'THREE.STLExporter: Position or Normal attribute has incorrect itemSize (expected 3).' );
+                        }
+
+                    } else {
+                        console.error( 'THREE.STLExporter: Only BufferGeometry is supported.' );
+                    }
+
+                    var output = new DataView( new ArrayBuffer( 80 + 4 + ( triangles.length / 12 ) * 50 ) ); // 80 == header, 4 == count, 12 values per triangle (3 normal + 9 vertices)
+                    output.setUint32( 80, triangles.length / 12, true ); // Number of triangles
+
+                    var offset = 84;
+                    for ( var i = 0; i < triangles.length; i += 12 ) { // 12 floats per triangle (normal + 3 vertices)
+
+                        output.setFloat32( offset, triangles[ i ], true ); offset += 4;   // Normal X
+                        output.setFloat32( offset, triangles[ i + 1 ], true ); offset += 4; // Normal Y
+                        output.setFloat32( offset, triangles[ i + 2 ], true ); offset += 4; // Normal Z
+
+                        output.setFloat32( offset, triangles[ i + 3 ], true ); offset += 4; // Vertex 1 X
+                        output.setFloat32( offset, triangles[ i + 4 ], true ); offset += 4; // Vertex 1 Y
+                        output.setFloat32( offset, triangles[ i + 5 ], true ); offset += 4; // Vertex 1 Z
+
+                        output.setFloat32( offset, triangles[ i + 6 ], true ); offset += 4; // Vertex 2 X
+                        output.setFloat32( offset, triangles[ i + 7 ], true ); offset += 4; // Vertex 2 Y
+                        output.setFloat32( offset, triangles[ i + 8 ], true ); offset += 4; // Vertex 2 Z
+
+                        output.setFloat32( offset, triangles[ i + 9 ], true ); offset += 4; // Vertex 3 X
+                        output.setFloat32( offset, triangles[ i + 10 ], true ); offset += 4; // Vertex 3 Y
+                        output.setFloat32( offset, triangles[ i + 11 ], true ); offset += 4; // Vertex 3 Z
+
+                        output.setUint16( offset, 0, true ); offset += 2; // attribute byte count (always 0 for binary STL)
+
+                    }
+
+                    return output.buffer;
+
+                };
+
+            }()
+
+        };
+    </script>
+
+    <script>
+        // Dies ist eine vereinfachte, statische Marching Cubes Implementierung für Three.js.
+        // Sie generiert eine BufferGeometry, die die Oberfläche eines 3D-Volumens darstellt.
+        // Dadurch werden interne Flächen eliminiert, was für den STL-Export entscheidend ist.
+        THREE.MarchingCubesUtility = (function() {
+
+            // Helper zur Erzeugung einer THREE.BufferGeometry aus Vertices und Faces
+            function createBufferGeometry(vertices) { // Nur Vertices nötig, da Faces implizit als Dreiergruppen
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(vertices.length);
+                const normals = new Float32Array(vertices.length);
+
+                for (let i = 0; i < vertices.length; i += 9) { // Jeder "Face" sind 3 Vertices (9 floats)
+                    const vA = new THREE.Vector3(vertices[i], vertices[i+1], vertices[i+2]);
+                    const vB = new THREE.Vector3(vertices[i+3], vertices[i+4], vertices[i+5]);
+                    const vC = new THREE.Vector3(vertices[i+6], vertices[i+7], vertices[i+8]);
+
+                    // Berechne die Flächennormale
+                    const cb = new THREE.Vector3().subVectors(vC, vB);
+                    const ab = new THREE.Vector3().subVectors(vA, vB);
+                    const normal = new THREE.Vector3().crossVectors(cb, ab).normalize();
+
+                    // Setze Positionen und Normalen
+                    positions[i] = vA.x; positions[i+1] = vA.y; positions[i+2] = vA.z;
+                    positions[i+3] = vB.x; positions[i+4] = vB.y; positions[i+5] = vB.z;
+                    positions[i+6] = vC.x; positions[i+7] = vC.y; positions[i+8] = vC.z;
+
+                    normals[i] = normal.x; normals[i+1] = normal.y; normals[i+2] = normal.z;
+                    normals[i+3] = normal.x; normals[i+4] = normal.y; normals[i+5] = normal.z;
+                    normals[i+6] = normal.x; normals[i+7] = normal.y; normals[i+8] = normal.z;
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+                
+                return geometry;
+            }
+
+            // Marching Cubes Edge Table (vordefiniert für MC Algorithmus)
+            // Beschreibt, welche Kanten für jede Würfelkonfiguration geschnitten werden.
+            const edgeTable = [
+                0x0, 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
+                0x803, 0x90a, 0xa00, 0xb09, 0xc05, 0xd0c, 0xe06, 0xf0f,
+                0x109, 0x100, 0x30a, 0x303, 0x50f, 0x506, 0x70c, 0x705,
+                0x90a, 0x903, 0xb09, 0xb00, 0xd0c, 0xd05, 0xf0f, 0xf06,
+                0x203, 0x20a, 0x000, 0x109, 0x605, 0x60c, 0x406, 0x50f,
+                0xa00, 0xa09, 0x803, 0x90a, 0xe06, 0xe0f, 0xc05, 0xd0c,
+                0x30a, 0x303, 0x109, 0x100, 0x70c, 0x705, 0x50f, 0x506,
+                0xb09, 0xb00, 0x90a, 0x903, 0xf0f, 0xf06, 0xd0c, 0xd05,
+                0x406, 0x40f, 0x605, 0x70c, 0x000, 0x109, 0x203, 0x30a,
+                0xc05, 0xc0c, 0xe06, 0xf0f, 0x803, 0x90a, 0xa00, 0xb09,
+                0x50f, 0x506, 0x70c, 0x705, 0x109, 0x100, 0x30a, 0x303,
+                0xd0c, 0xd05, 0xf0f, 0xf06, 0x90a, 0x903, 0xb09, 0xb00,
+                0x605, 0x60c, 0x406, 0x50f, 0x203, 0x20a, 0x000, 0x109,
+                0xe06, 0xe0f, 0xc05, 0xd0c, 0xa00, 0xa09, 0x803, 0x90a,
+                0x70c, 0x705, 0x50f, 0x506, 0x30a, 0x303, 0x109, 0x100,
+                0xf0f, 0xf06, 0xd0c, 0xd05, 0xb09, 0xb00, 0x90a, 0x903
+            ];
+
+            // Marching Cubes Triangle Table (vordefiniert für MC Algorithmus)
+            // Beschreibt, welche Dreiecke für jede Würfelkonfiguration gebildet werden.
+            // Ein "-1" zeigt das Ende der Dreiecke für eine Konfiguration an.
+            const triTable = [
+                [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 8, 3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 1, 9,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 8, 3, 9, 8, 1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 2, 10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 8, 3, 1, 2, 10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 9, 2, 10, 0, 2, 9,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 2, 8, 3, 2, 10, 8, 10, 9, 8,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 11, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 11, 2, 8, 11, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 9, 0, 2, 3, 11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 11, 2, 1, 9, 11, 8, 11, 1,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 10, 1, 11, 10, 3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 10, 1, 0, 11, 10, 8, 11, 0,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 9, 0, 3, 11, 9, 10, 9, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 9, 10, 11, 8, 9, 11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 4, 7, 8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 4, 3, 0, 7, 3, 4,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 1, 9, 8, 4, 7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 4, 1, 9, 4, 7, 1, 3, 7, 1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 2, 10, 8, 4, 7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 4, 7, 3, 0, 4, 1, 2, 10,-1,-1,-1,-1,-1,-1,-1],
+                [ 9, 2, 10, 9, 0, 2, 8, 4, 7,-1,-1,-1,-1,-1,-1,-1],
+                [ 2, 10, 9, 2, 7, 10, 7, 4, 10, 7, 3, 4,-1,-1,-1,-1],
+                [ 4, 7, 3, 4, 8, 11, 11, 3, 2,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 11, 2, 0, 8, 11, 4, 7, 8,-1,-1,-1,-1,-1,-1,-1],
+                [ 9, 0, 1, 8, 4, 7, 2, 3, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 4, 1, 9, 4, 7, 1, 3, 7, 1, 11, 2, 3, 8, 11, 4,-1],
+                [ 10, 1, 3, 10, 3, 11, 4, 7, 8,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 11, 4, 0, 10, 11, 4, 8, 11, 1, 10, 0,-1,-1,-1,-1],
+                [ 4, 7, 9, 4, 9, 11, 9, 10, 11, 3, 11, 9, 0, 3, 9,-1],
+                [ 4, 7, 9, 4, 9, 11, 9, 10, 11, 8, 4, 11,-1,-1,-1,-1],
+                [ 5, 6, 11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 8, 3, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 9, 0, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 8, 3, 1, 9, 8, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 2, 10, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 8, 3, 1, 2, 10, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 9, 2, 10, 9, 0, 2, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 2, 10, 9, 2, 8, 10, 8, 3, 10, 5, 6, 11,-1,-1,-1,-1],
+                [ 6, 0, 3, 11, 0, 6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 8, 6, 11, 8, 0, 6, 0, 3, 6,-1,-1,-1,-1,-1,-1,-1],
+                [ 1, 9, 0, 6, 11, 0, 11, 3, 0,-1,-1,-1,-1,-1,-1,-1],
+                [ 11, 3, 6, 11, 8, 3, 9, 8, 11, 1, 9, 11,-1,-1,-1,-1],
+                [ 10, 1, 3, 10, 3, 6, 6, 11, 3,-1,-1,-1,-1,-1,-1,-1],
+                [ 11, 6, 8, 11, 8, 0, 0, 1, 8, 10, 1, 0,-1,-1,-1,-1],
+                [ 3, 6, 11, 3, 0, 6, 9, 0, 3, 10, 9, 3,-1,-1,-1,-1],
+                [ 11, 6, 8, 11, 8, 9, 10, 11, 9,-1,-1,-1,-1,-1,-1,-1],
+                [ 7, 8, 4, 11, 5, 6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 4, 7, 3, 0, 4, 11, 5, 6,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 1, 9, 8, 4, 7, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 4, 1, 9, 4, 7, 1, 3, 7, 1, 11, 5, 6,-1,-1,-1,-1],
+                [ 1, 2, 10, 8, 4, 7, 5, 6, 11,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 0, 4, 3, 4, 7, 1, 2, 10, 5, 6, 11,-1,-1,-1,-1],
+                [ 9, 0, 2, 9, 2, 10, 8, 4, 7, 5, 6, 11,-1,-1,-1,-1],
+                [ 2, 10, 9, 2, 7, 10, 7, 4, 10, 7, 3, 4, 5, 6, 11,-1],
+                [ 5, 6, 0, 5, 0, 3, 0, 11, 3, 4, 7, 8,-1,-1,-1,-1],
+                [ 7, 8, 4, 6, 8, 7, 0, 3, 8, 11, 0, 6,-1,-1,-1,-1],
+                [ 9, 0, 1, 5, 6, 11, 4, 7, 8, 3, 11, 2,-1,-1,-1,-1],
+                [ 1, 9, 4, 1, 4, 7, 4, 3, 7, 11, 2, 3, 11, 5, 6, 11,-1],
+                [ 10, 1, 3, 10, 3, 11, 4, 7, 8, 6, 5, 11,-1,-1,-1,-1],
+                [ 11, 6, 8, 11, 8, 0, 0, 1, 8, 10, 1, 0,-1,-1,-1,-1],
+                [ 7, 9, 0, 7, 11, 9, 11, 10, 9, 4, 7, 11, 0, 3, 11, 6,-1],
+                [ 7, 11, 9, 7, 9, 4, 11, 10, 9, 8, 11, 4,-1,-1,-1,-1],
+                [ 6, 5, 9, 6, 9, 10, 10, 9, 1,-1,-1,-1,-1,-1,-1,-1],
+                [ 0, 8, 3, 6, 5, 9, 6, 9, 10, 10, 9, 1,-1,-1,-1,-1],
+                [ 10, 0, 1, 10, 6, 0, 6, 5, 0,-1,-1,-1,-1,-1,-1,-1],
+                [ 10, 8, 3, 10, 3, 5, 5, 3, 1, 6, 5, 10,-1,-1,-1,-1],
+                [ 1, 2, 6, 1, 6, 5, 5, 6, 10,-1,-1,-1,-1,-1,-1,-1],
+                [ 3, 0, 8, 2, 6, 1, 2, 5, 6, 1, 5, 2, 10, 1, 6,-1],
+                [ 0, 2, 9, 0, 10, 2, 10, 6, 2, 10, 9, 6, 6, 5, 9,-1],
+                [ 8, 3, 2, 8, 2, 6, 8, 6, 5, 6, 2, 10,-1,-1,-1,-1],
+                [ 9, 5, 6, 9, 6, 11, 11, 6, 2, 11, 2, 3,-1,-1,-1,-1],
+                [ 0, 11, 2, 0, 8, 11, 9, 5, 6, 9, 6, 11,-1,-1,-1,-1],
+                [ 0, 1, 5, 0, 5, 6, 0, 6, 11, 11, 6, 2, 11, 2, 0,-1],
+                [ 11, 3, 8, 11, 8, 1, 11, 1, 5, 1, 9, 5,-1,-1,-1,-1],
+                [ 10, 3, 2, 10, 11, 3, 11, 5, 3, 6, 5, 11,-1,-1,-1,-1],
+                [ 0, 8, 11, 0, 11, 5, 0, 5, 10, 10, 5, 1,-1,-1,-1,-1],
+                [ 1, 9, 5, 1, 5, 11, 1, 11, 2, 3, 2, 11, 3, 11, 9,-1],
+                [ 9, 5, 11, 9, 11, 8, 11, 2, 8, 3, 8, 2,-1,-1,-1,-1],
+                [ 4, 7, 8, 9, 5, 6, 9, 6, 10,-1,-1,-1,-1,-1,-1,-1],
+                [ 4, 3, 0, 7, 3, 4, 5, 6, 10, 5, 10, 9,-1,-1,-1,-1],
+                [ 0, 1, 10, 0, 10, 6, 0, 6, 5, 8, 4, 7,-1,-1,-1,-1],
+                [ 7, 3, 1, 7, 1, 9, 7, 9, 4, 5, 6, 10, 5, 10, 1,-1],
+                [ 8, 4, 7, 1, 2, 6, 1, 6, 5, 5, 6, 10,-1,-1,-1,-1],
+                [ 2, 10, 1, 2, 6, 10, 6, 5, 10, 3, 0, 4, 3, 4, 7,-1],
+                [ 9, 0, 2, 9, 2, 10, 10, 6, 2, 10, 9, 6, 4, 7, 8,-1,-1,-1],
+                [ 2, 10, 9, 2, 7, 10, 7, 4, 10, 7, 3, 4, 8, 4, 7,-1],
+                [ 9, 5, 6, 9, 6, 11, 11, 6, 2, 11, 2, 3, 4, 7, 8,-1],
+                [ 0, 11, 2, 0, 8, 11, 4, 7, 8, 5, 6, 11, 5, 11, 9,-1],
+                [ 0, 1, 5, 0, 5, 6, 0, 6, 11, 11, 6, 2, 11, 2, 0, 8, 4, 7,-1],
+                [ 1, 9, 4, 1, 4, 7, 4, 3, 7, 11, 2, 3, 11, 5, 6, 11, 8, 11,-1],
+                [ 10, 3, 2, 10, 11, 3, 11, 5, 3, 6, 5, 11, 4, 7, 8,-1,-1,-1],
+                [ 6, 8, 7, 6, 11, 8, 11, 0, 8, 10, 1, 0, 10, 6, 0, 11, 5, 10,-1],
+                [ 7, 9, 0, 7, 11, 9, 11, 10, 9, 4, 7, 11, 0, 3, 11, 6,-1,-1],
+                [ 4, 7, 9, 4, 9, 11, 9, 10, 11, 8, 4, 11, 11, 6, 8,-1,-1,-1],
+                [ 5, 8, 4, 5, 0, 8, 5, 1, 0, 10, 2, 3, 10, 3, 11, 10, 11, 6,-1],
+                [ 3, 5, 6, 3, 6, 10, 3, 10, 2, 0, 4, 7, 0, 7, 8,-1,-1,-1],
+                [ 1, 9, 0, 1, 0, 4, 1, 4, 7, 5, 6, 10, 5, 10, 2,-1,-1,-1],
+                [ 7, 3, 1, 7, 1, 5, 7, 5, 6, 7, 6, 10, 4, 7, 5,-1,-1,-1],
+                [ 1, 2, 6, 1, 6, 5, 5, 6, 10, 3, 11, 7, 3, 7, 8,-1,-1,-1],
+                [ 7, 8, 3, 7, 3, 1, 7, 1, 2, 7, 2, 6, 7, 6, 5, 10, 1, 2,-1],
+                [ 0, 2, 9, 0, 10, 2, 10, 6, 2, 10, 9, 6, 4, 7, 8, 4, 8, 3,-1],
+                [ 7, 3, 2, 7, 2, 10, 7, 10, 6, 7, 6, 5, 4, 7, 5,-1,-1,-1],
+                [ 6, 11, 2, 6, 2, 3, 6, 3, 8, 6, 8, 9, 6, 9, 5,-1,-1,-1],
+                [ 0, 11, 2, 0, 8, 11, 9, 5, 6, 9, 6, 11,-1,-1,-1,-1],
+                [ 0, 1, 5, 0, 5, 6, 0, 6, 11, 11, 6, 2, 11, 2, 0, 8, 4, 7,-1],
+                [ 8, 1, 9, 8, 9, 5, 8, 5, 11, 8, 11, 2, 8, 2, 3, 11, 5, 2,-1],
+                [ 10, 3, 2, 10, 11, 3, 11, 5, 3, 6, 5, 11, 4, 7, 8,-1,-1,-1],
+                [ 6, 8, 7, 6, 11, 8, 11, 0, 8, 10, 1, 0, 10, 6, 0, 11, 5, 10,-1],
+                [ 7, 9, 0, 7, 11, 9, 11, 10, 9, 4, 7, 11, 0, 3, 11, 6,-1,-1],
+                [ 4, 7, 9, 4, 9, 11, 9, 10, 11, 8, 4, 11, 11, 6, 8,-1,-1,-1],
+                [ 5, 10, 6, 4, 8, 7, 9, 1, 0, 9, 0, 10, 10, 0, 2,-1,-1,-1],
+                [ 8, 0, 3, 7, 4, 0, 7, 0, 10, 7, 10, 6, 7, 6, 5, 10, 0, 4,-1],
+                [ 10, 0, 1, 10, 6, 0, 6, 5, 0, 4, 7, 8, 4, 8, 3,-1,-1,-1],
+                [ 1, 9, 4, 1, 4, 7, 4, 3, 7, 10, 6, 5, 10, 5, 1,-1,-1,-1],
+                [ 4, 7, 8, 1, 2, 6, 1, 6, 5, 5, 6, 10,-1,-1,-1,-1],
+                [ 2, 10, 1, 2, 6, 10, 6, 5, 10, 3, 0, 4, 3, 4, 7,-1],
+                [ 9, 0, 2, 9, 2, 10, 10, 6, 2, 10, 9, 6, 4, 7, 8,-1,-1,-1],
+                [ 2, 10, 9, 2, 7, 10, 7, 4, 10, 7, 3, 4, 8, 4, 7,-1],
+                [ 9, 5, 6, 9, 6, 11, 11, 6, 2, 11, 2, 3, 4, 7, 8,-1],
+                [ 0, 11, 2, 0, 8, 11, 4, 7, 8, 5, 6, 11, 5, 11, 9,-1],
+                [ 0, 1, 5, 0, 5, 6, 0, 6, 11, 11, 6, 2, 11, 2, 0, 8, 4, 7,-1],
+                [ 1, 9, 4, 1, 4, 7, 4, 3, 7, 11, 2, 3, 11, 5, 6, 11, 8, 11,-1],
+                [ 10, 3, 2, 10, 11, 3, 11, 5, 3, 6, 5, 11, 4, 7, 8,-1,-1,-1],
+                [ 6, 8, 7, 6, 11, 8, 11, 0, 8, 10, 1, 0, 10, 6, 0, 11, 5, 10,-1],
+                [ 7, 9, 0, 7, 11, 9, 11, 10, 9, 4, 7, 11, 0, 3, 11, 6,-1,-1],
+                [ 4, 7, 9, 4, 9, 11, 9, 10, 11, 8, 4, 11, 11, 6, 8,-1,-1,-1],
+                [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
+            ];
+
+            return {
+                // volumeData ist ein 1D-Array (Uint8Array)
+                // dx, dy, dz sind die Dimensionen des 3D-Gitters
+                // isolevel ist der Schwellenwert (z.B. 0.5 oder 1.0)
+                generateGeometry: function(volumeData, dx, dy, dz, isolevel) {
+                    const outputVertices = []; // Sammelt alle Dreiecks-Vertices (nicht indiziert)
+
+                    // Helper function to get value from 3D array
+                    function getVoxel(x, y, z) {
+                        if (x < 0 || y < 0 || z < 0 || x >= dx || y >= dy || z >= dz) return 0;
+                        return volumeData[x + y * dx + z * dx * dy];
+                    }
+
+                    // Interpolate vertex position
+                    function interpolateVertex(p1, p2, val1, val2, isolevel) {
+                        // Lineare Interpolation
+                        const mu = (isolevel - val1) / (val2 - val1);
+                        return new THREE.Vector3(
+                            p1.x + mu * (p2.x - p1.x),
+                            p1.y + mu * (p2.y - p1.y),
+                            p1.z + mu * (p2.z - p1.z)
+                        );
+                    }
+
+                    for (let z = 0; z < dz - 1; z++) {
+                        for (let y = 0; y < dy - 1; y++) {
+                            for (let x = 0; x < dx - 1; x++) {
+
+                                // Get the 8 corner values of the current cube
+                                // Reihenfolge der Eckpunkte:
+                                // 0: (x, y, z)
+                                // 1: (x+1, y, z)
+                                // 2: (x+1, y, z+1)
+                                // 3: (x, y, z+1)
+                                // 4: (x, y+1, z)
+                                // 5: (x+1, y+1, z)
+                                // 6: (x+1, y+1, z+1)
+                                // 7: (x, y+1, z+1)
+                                const cubeValues = [
+                                    getVoxel(x, y, z),
+                                    getVoxel(x + 1, y, z),
+                                    getVoxel(x + 1, y, z + 1),
+                                    getVoxel(x, y, z + 1),
+                                    getVoxel(x, y + 1, z),
+                                    getVoxel(x + 1, y + 1, z),
+                                    getVoxel(x + 1, y + 1, z + 1),
+                                    getVoxel(x, y + 1, z + 1)
+                                ];
+
+                                // Calculate the cube index (bitwise OR based on values > isolevel)
+                                let cubeIndex = 0;
+                                if (cubeValues[0] > isolevel) cubeIndex |= 1;
+                                if (cubeValues[1] > isolevel) cubeIndex |= 2;
+                                if (cubeValues[2] > isolevel) cubeIndex |= 4;
+                                if (cubeValues[3] > isolevel) cubeIndex |= 8;
+                                if (cubeValues[4] > isolevel) cubeIndex |= 16;
+                                if (cubeValues[5] > isolevel) cubeIndex |= 32;
+                                if (cubeValues[6] > isolevel) cubeIndex |= 64;
+                                if (cubeValues[7] > isolevel) cubeIndex |= 128;
+
+                                // If no surface exists, continue
+                                if (edgeTable[cubeIndex] === 0) continue;
+
+                                // Get positions of the 8 corners of the current cube
+                                // Diese P-Punkte sind die Eckpunkte des aktuellen 1x1x1-Marching-Cubes-Würfels.
+                                const p = [
+                                    new THREE.Vector3(x, y, z),
+                                    new THREE.Vector3(x + 1, y, z),
+                                    new THREE.Vector3(x + 1, y, z + 1),
+                                    new THREE.Vector3(x, y, z + 1),
+                                    new THREE.Vector3(x, y + 1, z),
+                                    new THREE.Vector3(x + 1, y + 1, z),
+                                    new THREE.Vector3(x + 1, y + 1, z + 1),
+                                    new THREE.Vector3(x, y + 1, z + 1)
+                                ];
+
+                                // Interpolate vertices along the 12 edges
+                                // vertList MUSS 12 Elemente haben, da triTable Indizes 0-11 verwendet.
+                                // Die Werte werden nur gesetzt, wenn die Kante tatsächlich geschnitten wird.
+                                const vertList = new Array(12);
+
+                                // Kanten sind in fester Reihenfolge definiert
+                                // (siehe Marching Cubes Algorithmus Spezifikationen)
+                                // Kante 0: (p0, p1) - (x,y,z) to (x+1,y,z)
+                                if ((edgeTable[cubeIndex] & 1) > 0) vertList[0] = interpolateVertex(p[0], p[1], cubeValues[0], cubeValues[1], isolevel);
+                                // Kante 1: (p1, p2) - (x+1,y,z) to (x+1,y,z+1)
+                                if ((edgeTable[cubeIndex] & 2) > 0) vertList[1] = interpolateVertex(p[1], p[2], cubeValues[1], cubeValues[2], isolevel);
+                                // Kante 2: (p2, p3) - (x+1,y,z+1) to (x,y,z+1)
+                                if ((edgeTable[cubeIndex] & 4) > 0) vertList[2] = interpolateVertex(p[2], p[3], cubeValues[2], cubeValues[3], isolevel);
+                                // Kante 3: (p3, p0) - (x,y,z+1) to (x,y,z)
+                                if ((edgeTable[cubeIndex] & 8) > 0) vertList[3] = interpolateVertex(p[3], p[0], cubeValues[3], cubeValues[0], isolevel);
+                                // Kante 4: (p4, p5) - (x,y+1,z) to (x+1,y+1,z)
+                                if ((edgeTable[cubeIndex] & 16) > 0) vertList[4] = interpolateVertex(p[4], p[5], cubeValues[4], cubeValues[5], isolevel);
+                                // Kante 5: (p5, p6) - (x+1,y+1,z) to (x+1,y+1,z+1)
+                                if ((edgeTable[cubeIndex] & 32) > 0) vertList[5] = interpolateVertex(p[5], p[6], cubeValues[5], cubeValues[6], isolevel);
+                                // Kante 6: (p6, p7) - (x+1,y+1,z+1) to (x,y+1,z+1)
+                                if ((edgeTable[cubeIndex] & 64) > 0) vertList[6] = interpolateVertex(p[6], p[7], cubeValues[6], cubeValues[7], isolevel);
+                                // Kante 7: (p7, p4) - (x,y+1,z+1) to (x,y+1,z)
+                                if ((edgeTable[cubeIndex] & 128) > 0) vertList[7] = interpolateVertex(p[7], p[4], cubeValues[7], cubeValues[4], isolevel);
+                                // Kante 8: (p0, p4) - (x,y,z) to (x,y+1,z)
+                                if ((edgeTable[cubeIndex] & 256) > 0) vertList[8] = interpolateVertex(p[0], p[4], cubeValues[0], cubeValues[4], isolevel);
+                                // Kante 9: (p1, p5) - (x+1,y,z) to (x+1,y+1,z)
+                                if ((edgeTable[cubeIndex] & 512) > 0) vertList[9] = interpolateVertex(p[1], p[5], cubeValues[1], cubeValues[5], isolevel);
+                                // Kante 10: (p2, p6) - (x+1,y,z+1) to (x+1,y+1,z+1)
+                                if ((edgeTable[cubeIndex] & 1024) > 0) vertList[10] = interpolateVertex(p[2], p[6], cubeValues[2], cubeValues[6], isolevel);
+                                // Kante 11: (p3, p7) - (x,y,z+1) to (x,y+1,z+1)
+                                if ((edgeTable[cubeIndex] & 2048) > 0) vertList[11] = interpolateVertex(p[3], p[7], cubeValues[3], cubeValues[7], isolevel);
+
+
+                                // Build triangles
+                                const currentTriangles = triTable[cubeIndex];
+                                for (let k = 0; currentTriangles[k] !== -1; k += 3) {
+                                    const v1 = vertList[currentTriangles[k]];
+                                    const v2 = vertList[currentTriangles[k + 1]];
+                                    const v3 = vertList[currentTriangles[k + 2]];
+
+                                    // Fügen Sie die interpolierten 3D-Punkte direkt zur outputVertices-Liste hinzu.
+                                    // Wir erstellen eine nicht-indizierte Geometrie.
+                                    outputVertices.push(v1.x, v1.y, v1.z);
+                                    outputVertices.push(v2.x, v2.y, v2.z);
+                                    outputVertices.push(v3.x, v3.y, v3.z);
+                                }
+                            }
+                        }
+                    }
+
+                    // Erzeuge die BufferGeometry aus den gesammelten Vertices.
+                    // Die Normalen werden in createBufferGeometry berechnet.
+                    return createBufferGeometry(outputVertices);
+                }
+            };
+        })();
+    </script>
+
+    <script>
+        // --- Globale Variablen ---
+        let scene, camera, renderer;
+        const FIXED_GRID_SIZE = 10;
+        const voxelSize = 1;
+
+        // Outline Parameter
+        const shadowOutlineScale = 1.08;
+        const shadowOutlineOpacity = 0.3;
+
+        let gridHelper, boundingBoxHelper;
+        const voxels = new Map(); // Map zum Speichern der Voxel (z.B. "x,y,z" -> { voxelMesh, shadowOutlineMesh })
+
+        // NEU: Internes Gitter für Marching Cubes
+        // Wir verwenden 10x10x10, d.h. Indizes 0-9 in jeder Dimension.
+        // Ein Uint8Array ist effizient für 0/1 Werte.
+        const voxelGrid = new Uint8Array(FIXED_GRID_SIZE * FIXED_GRID_SIZE * FIXED_GRID_SIZE).fill(0);
+
+        let isAddingMode = true;
+        let currentModeDisplay = document.getElementById('current-mode');
+
+        // Kamera-Steuerung Variablen
+        let isRightMouseDown = false;
+        const keys = {};
+        let moveSpeed = 0.1;
+        const rotationSpeed = 0.002;
+        let cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+        // Materialien
+        const voxelMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        const shadowOutlineMaterial = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: shadowOutlineOpacity,
+            side: THREE.BackSide
+        });
+
+        // --- Initialisierung der 3D-Szene ---
+        function init() {
+            const container = document.getElementById('container');
+            const canvas = document.getElementById('voxelCanvas');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x282c34);
+
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(FIXED_GRID_SIZE * 0.6, FIXED_GRID_SIZE * 0.7, FIXED_GRID_SIZE * 0.8);
+            camera.lookAt(FIXED_GRID_SIZE / 2, FIXED_GRID_SIZE / 2, FIXED_GRID_SIZE / 2);
+            cameraEuler.setFromQuaternion(camera.quaternion); // Initialisiert cameraEuler korrekt
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.7);
+            directionalLight1.position.set(1, 1, 1).normalize();
+            scene.add(directionalLight1);
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight2.position.set(-1, -1, -1).normalize();
+            scene.add(directionalLight2);
+
+            updateGridAndBoundingBox();
+
+            window.addEventListener('resize', onWindowResize);
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            canvas.addEventListener('pointerdown', onPointerDown);
+            canvas.addEventListener('pointermove', onPointerMove);
+            canvas.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            canvas.addEventListener('wheel', onMouseWheel);
+
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
+            animate();
+        }
+
+        // --- Gitter und Begrenzungsbox aktualisieren (korrekte Ausrichtung) ---
+        function updateGridAndBoundingBox() {
+            if (gridHelper) {
+                scene.remove(gridHelper);
+            }
+            if (boundingBoxHelper) {
+                scene.remove(boundingBoxHelper);
+            }
+
+            const currentGridSize = FIXED_GRID_SIZE;
+            const totalGridDimension = currentGridSize * voxelSize;
+
+            gridHelper = new THREE.GridHelper(totalGridDimension, currentGridSize, 0xaaaaaa, 0xcccccc);
+            // KORREKTUR: Verschiebe das Gitter um die halbe Voxelgröße in X und Z,
+            // und um die halbe Gesamthöhe in Y, um es mit den Voxelzentren auszurichten.
+            // Das Gitter soll den Bereich 0 bis `totalGridDimension` abdecken.
+            // Voxel-Mittelpunkte sind 0.5, 1.5, ..., N-0.5.
+            // Der Gitterursprung ist bei 0,0,0. Das Gitter selbst geht von -size/2 bis +size/2.
+            // Wir müssen es also um size/2 in X und Z verschieben, damit es bei 0 beginnt.
+            // Für Y liegt das Gitter auf der Ebene Y=0, unsere Voxel beginnen aber bei Y=0.5.
+            // Die Box ist auch um ihren Mittelpunkt zentriert.
+            gridHelper.position.set(totalGridDimension / 2, 0, totalGridDimension / 2); // Y=0 für den Boden
+            scene.add(gridHelper);
+
+            const boxGeometry = new THREE.BoxGeometry(totalGridDimension, totalGridDimension, totalGridDimension);
+            const boxEdges = new THREE.EdgesGeometry(boxGeometry);
+            boundingBoxHelper = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x00ffff }));
+            // KORREKTUR: Die Bounding Box muss um ihren halben Durchmesser verschoben werden,
+            // um bei (0,0,0) zu beginnen, da die Voxel-Indizes bei 0 beginnen.
+            boundingBoxHelper.position.set(totalGridDimension / 2, totalGridDimension / 2, totalGridDimension / 2);
+            scene.add(boundingBoxHelper);
+        }
+
+        // --- Animationsschleife ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const actualMoveSpeed = moveSpeed;
+
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+
+            const right = new THREE.Vector3();
+            right.crossVectors(direction, camera.up);
+
+            if (keys['KeyW']) camera.position.addScaledVector(direction, actualMoveSpeed);
+            if (keys['KeyS']) camera.position.addScaledVector(direction, -actualMoveSpeed);
+            if (keys['KeyA']) camera.position.addScaledVector(right, -actualMoveSpeed);
+            if (keys['KeyD']) camera.position.addScaledVector(right, actualMoveSpeed);
+            if (keys['KeyE']) camera.position.y += actualMoveSpeed;
+            if (keys['KeyQ']) camera.position.y -= actualMoveSpeed;
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Fenstergröße anpassen ---
+        function onWindowResize() {
+            const container = document.getElementById('container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // --- Pointer-Down Event-Handler ---
+        function onPointerDown(event) {
+            if (event.button === 0) { // Linke Maustaste für Voxel-Interaktion
+                const rect = renderer.domElement.getBoundingClientRect();
+                const mouse = new THREE.Vector2(
+                    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                    -((event.clientY - rect.top) / rect.height) * 2 + 1
+                );
+
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, camera);
+
+                const intersectableObjects = [];
+                voxels.forEach(val => {
+                    intersectableObjects.push(val.voxelMesh);
+                });
+
+                let targetPosition = null;
+
+                const intersects = raycaster.intersectObjects(intersectableObjects);
+
+                if (isAddingMode) {
+                    if (intersects.length > 0) {
+                        const intersect = intersects[0];
+                        // Finde die genaue Position des getroffenen Punkts auf der Oberfläche des Voxels
+                        // und addiere/subtrahiere die Normale um die halbe Voxelgröße.
+                        // Der intersect.point liegt *auf* der Oberfläche.
+                        // intersect.face.normal ist die Normale der getroffenen Fläche.
+                        // Wir wollen den Mittelpunkt des NEUEN Voxels bestimmen.
+                        // Wenn wir ein Voxel treffen, das z.B. bei (X.5, Y.5, Z.5) zentriert ist
+                        // und die obere Fläche treffen (Normal (0,1,0)), dann ist der intersect.point
+                        // z.B. (X.5, Y.5 + 0.5, Z.5). Wenn wir jetzt die Normale addieren,
+                        // landen wir bei (X.5, Y.5 + 0.5 + 1, Z.5) = (X.5, Y.5 + 1.5, Z.5).
+                        // Das ist der Mittelpunkt des Voxels DARÜBER.
+                        targetPosition = new THREE.Vector3().copy(intersect.object.position)
+                            .add(intersect.face.normal.clone().multiplyScalar(voxelSize));
+
+                    } else {
+                        // Wenn nichts getroffen wird, projiziere auf die XZ-Ebene (Boden)
+                        // Die Ebene des Bodens bei Y=0. Unsere Voxel sind um ihren Mittelpunkt zentriert,
+                        // d.h. ein Voxel bei Grid Y=0 hat seinen Mittelpunkt bei Y=0.5 * voxelSize.
+                        // Seine Unterseite ist bei Y=0.
+                        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Ebene Y=0
+                        const intersectPoint = new THREE.Vector3();
+                        raycaster.ray.intersectPlane(plane, intersectPoint);
+
+                        if (intersectPoint) {
+                            // Target position ist der Mittelpunkt des ersten Voxels über der Ebene
+                            targetPosition = new THREE.Vector3(
+                                intersectPoint.x,
+                                0.5 * voxelSize, // Setze Y auf den Mittelpunkt des untersten Voxels
+                                intersectPoint.z
+                            );
+                        }
+                    }
+
+                    if (targetPosition) {
+                        // Snap to grid für den Mittelpunkt des Voxels
+                        const snappedX = Math.round(targetPosition.x / voxelSize) * voxelSize - (voxelSize / 2);
+                        const snappedY = Math.round(targetPosition.y / voxelSize) * voxelSize - (voxelSize / 2);
+                        const snappedZ = Math.round(targetPosition.z / voxelSize) * voxelSize - (voxelSize / 2);
+
+                        addVoxel(snappedX + voxelSize / 2, snappedY + voxelSize / 2, snappedZ + voxelSize / 2);
+                    }
+
+                } else { // Löschen-Modus
+                    if (intersects.length > 0) {
+                        const intersect = intersects[0];
+                        removeVoxel(intersect.object.position.x, intersect.object.position.y, intersect.object.position.z);
+                    }
+                }
+            } else if (event.button === 2) { // Rechte Maustaste für Kamera-Blick
+                isRightMouseDown = true;
+                renderer.domElement.requestPointerLock();
+            }
+        }
+
+        // --- Pointer-Move Event-Handler (für Kamera-Blick) ---
+        function onPointerMove(event) {
+            if (isRightMouseDown) {
+                const deltaX = event.movementX || 0;
+                const deltaY = event.movementY || 0;
+
+                cameraEuler.y -= deltaX * rotationSpeed;
+                cameraEuler.x -= deltaY * rotationSpeed;
+                cameraEuler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraEuler.x));
+
+                camera.quaternion.setFromEuler(cameraEuler);
+            }
+        }
+
+        // --- Pointer-Up Event-Handler ---
+        function onPointerUp(event) {
+            if (event.button === 2) {
+                isRightMouseDown = false;
+                document.exitPointerLock();
+            }
+        }
+
+        // --- Keyboard Event-Handler ---
+        function onKeyDown(event) {
+            keys[event.code] = true;
+        }
+
+        function onKeyUp(event) {
+            keys[event.code] = false;
+        }
+
+        // --- Mausrad Event-Handler ---
+        function onMouseWheel(event) {
+            event.preventDefault();
+            if (event.deltaY < 0) {
+                moveSpeed *= 1.1;
+            } else {
+                moveSpeed *= 0.9;
+            }
+            moveSpeed = Math.max(0.01, Math.min(10, moveSpeed));
+        }
+
+        // --- Voxel hinzufügen ---
+        function addVoxel(x, y, z) {
+            const currentGridSize = FIXED_GRID_SIZE;
+            const halfVoxel = voxelSize / 2;
+
+            // Konvertieren der Weltkoordinaten (Mittelpunkt des Voxels) zu Gitterindizes
+            // Weltkoordinate 0.5 (voxelSize=1) sollte GridX=0 ergeben.
+            // Math.floor statt Math.round, da wir den "Startpunkt" des Grid-Würfels benötigen.
+            // Der Mittelpunkt des Voxels (x,y,z) minus die halbe Voxelgröße ergibt die Ecke des Voxels.
+            const gridX = Math.floor(x - halfVoxel);
+            const gridY = Math.floor(y - halfVoxel);
+            const gridZ = Math.floor(z - halfVoxel);
+
+            if (gridX < 0 || gridX >= currentGridSize ||
+                gridY < 0 || gridY >= currentGridSize ||
+                gridZ < 0 || gridZ >= currentGridSize) {
+                console.warn(`Voxel at ${x},${y},${z} (grid: ${gridX},${gridY},${gridZ}) is outside of fixed grid size ${currentGridSize}x${currentGridSize}x${currentGridSize}.`);
+                return;
+            }
+
+            const key = `${x},${y},${z}`;
+            if (voxels.has(key)) {
+                return;
+            }
+
+            const voxelGeometry = new THREE.BoxGeometry(voxelSize, voxelSize, voxelSize);
+            const shadowOutlineGeometry = new THREE.BoxGeometry(voxelSize * shadowOutlineScale, voxelSize * shadowOutlineScale, voxelSize * shadowOutlineScale);
+            
+            const voxelMesh = new THREE.Mesh(voxelGeometry, voxelMaterial);
+            voxelMesh.position.set(x, y, z);
+            scene.add(voxelMesh);
+
+            const shadowOutlineMesh = new THREE.Mesh(shadowOutlineGeometry, shadowOutlineMaterial);
+            shadowOutlineMesh.position.copy(voxelMesh.position);
+            scene.add(shadowOutlineMesh);
+
+            voxels.set(key, { voxelMesh, shadowOutlineMesh });
+
+            // NEU: Voxel im internen Gitter setzen
+            const index = gridX + gridY * FIXED_GRID_SIZE + gridZ * FIXED_GRID_SIZE * FIXED_GRID_SIZE;
+            voxelGrid[index] = 1; // 1 für gefüllt
+        }
+
+        // --- Voxel entfernen ---
+        function removeVoxel(x, y, z) {
+            const key = `${x},${y},${z}`;
+            if (voxels.has(key)) {
+                const { voxelMesh, shadowOutlineMesh } = voxels.get(key);
+                scene.remove(voxelMesh);
+                if (voxelMesh.geometry) voxelMesh.geometry.dispose();
+                if (voxelMesh.material) voxelMesh.material.dispose();
+                scene.remove(shadowOutlineMesh);
+                if (shadowOutlineMesh.geometry) shadowOutlineMesh.geometry.dispose();
+                if (shadowOutlineMesh.material) shadowOutlineMesh.material.dispose();
+                voxels.delete(key);
+
+                // NEU: Voxel im internen Gitter entfernen
+                const halfVoxel = voxelSize / 2;
+                const gridX = Math.floor(x - halfVoxel);
+                const gridY = Math.floor(y - halfVoxel);
+                const gridZ = Math.floor(z - halfVoxel);
+
+                if (gridX >= 0 && gridX < FIXED_GRID_SIZE &&
+                    gridY >= 0 && gridY < FIXED_GRID_SIZE &&
+                    gridZ >= 0 && gridZ < FIXED_GRID_SIZE) {
+                    const index = gridX + gridY * FIXED_GRID_SIZE + gridZ * FIXED_GRID_SIZE * FIXED_GRID_SIZE;
+                    voxelGrid[index] = 0; // 0 für leer
+                }
+            }
+        }
+
+        // --- Alle Voxel löschen ---
+        function clearAllVoxels() {
+            Array.from(voxels.values()).forEach(({ voxelMesh, shadowOutlineMesh }) => {
+                scene.remove(voxelMesh);
+                if (voxelMesh.geometry) voxelMesh.geometry.dispose();
+                if (voxelMesh.material) voxelMesh.material.dispose();
+                scene.remove(shadowOutlineMesh);
+                if (shadowOutlineMesh.geometry) shadowOutlineMesh.geometry.dispose();
+                if (shadowOutlineMesh.material) shadowOutlineMesh.material.dispose();
+            });
+            voxels.clear();
+            // NEU: Gitter zurücksetzen
+            voxelGrid.fill(0);
+        }
+
+        // --- Speichern der Voxel-Daten als JSON-Datei ---
+        function saveVoxels() {
+            const voxelData = [];
+            // Speichern der Gitterindizes, da Marching Cubes damit arbeitet
+            // Umkehrung der Konvertierung von Weltkoordinaten zu Gitterindizes
+            const halfVoxel = voxelSize / 2;
+            voxels.forEach(val => {
+                const gridX = Math.floor(val.voxelMesh.position.x - halfVoxel);
+                const gridY = Math.floor(val.voxelMesh.position.y - halfVoxel);
+                const gridZ = Math.floor(val.voxelMesh.position.z - halfVoxel);
+                voxelData.push({ gx: gridX, gy: gridY, gz: gridZ });
+            });
+            const dataStr = JSON.stringify(voxelData, null, 2);
+
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'voxel_model.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert('Modell als JSON-Datei gespeichert!');
+        }
+
+        // --- Laden der Voxel-Daten aus einer JSON-Datei ---
+        function loadVoxels() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const voxelData = JSON.parse(e.target.result);
+                    clearAllVoxels(); // Stellt auch das voxelGrid zurück
+
+                    // Konvertiere Gitterindizes zurück in Weltkoordinaten (Mittelpunkte)
+                    const halfVoxel = voxelSize / 2;
+                    voxelData.forEach(gPos => {
+                        // Die geladenen gx, gy, gz sind die Startkoordinaten des 1x1x1 Marching Cubes Würfels.
+                        // Um den Mittelpunkt eines 1x1x1 Voxels in unserem Weltkoordinatensystem zu erhalten,
+                        // addieren wir 0.5.
+                        const worldX = gPos.gx * voxelSize + halfVoxel;
+                        const worldY = gPos.gy * voxelSize + halfVoxel;
+                        const worldZ = gPos.gz * voxelSize + halfVoxel;
+                        addVoxel(worldX, worldY, worldZ); // addVoxel aktualisiert jetzt das voxelGrid
+                    });
+                    alert('Modell aus JSON-Datei geladen!');
+                } catch (error) {
+                    alert('Fehler beim Parsen der JSON-Datei. Stelle sicher, dass es eine gültige Voxel-Model-JSON ist.');
+                    console.error('File load error:', error);
+                }
+            };
+            reader.readAsText(file);
+
+            event.target.value = ''; // Setzt den Dateieingabewert zurück
+        }
+
+        // --- STL Export ---
+        function exportSTL() {
+            if (voxels.size === 0) {
+                alert("Keine Voxel zum Exportieren vorhanden!");
+                return;
+            }
+
+            // Sicherstellen, dass Marching Cubes Utility verfügbar ist
+            if (typeof THREE.MarchingCubesUtility === 'undefined' || typeof THREE.MarchingCubesUtility.generateGeometry !== 'function') {
+                alert("Interner Fehler: THREE.MarchingCubesUtility ist nicht verfügbar. Bitte Konsole prüfen.");
+                console.error("THREE.MarchingCubesUtility.generateGeometry is not available. Ensure internal script is correctly defined.");
+                return;
+            }
+            if (typeof THREE.STLExporter === 'undefined') {
+                alert("Interner Fehler: THREE.STLExporter ist nicht verfügbar. Bitte Konsole prüfen.");
+                console.error("THREE.STLExporter is not defined. Ensure internal script is correctly defined.");
+                return;
+            }
+
+            let finalGeometry = null;
+            try {
+                // Generiere die Geometrie mit Marching Cubes aus dem internen Voxel-Gitter
+                // Die Marching Cubes Generierung geht von 0 bis FIXED_GRID_SIZE-1.
+                // Die Marching Cubes Utility erzeugt Dreiecke innerhalb eines Raums von (0,0,0) bis (N,N,N).
+                finalGeometry = THREE.MarchingCubesUtility.generateGeometry(
+                    voxelGrid,
+                    FIXED_GRID_SIZE,
+                    FIXED_GRID_SIZE,
+                    FIXED_GRID_SIZE,
+                    0.5 // isolevel: Schwellenwert für die Oberfläche
+                );
+                
+                if (!finalGeometry || finalGeometry.attributes.position.count === 0) {
+                    alert("Marching Cubes konnte keine gültige Geometrie erstellen. Möglicherweise keine zusammenhängenden Voxel oder nur einzelne Voxel?");
+                    console.warn("Marching Cubes generated an empty or invalid geometry.");
+                    return;
+                }
+
+                // Die Marching Cubes Geometrie ist standardmäßig in einem 1x1x1 Gitter skaliert.
+                // Sie muss mit unserer 'voxelSize' skaliert werden.
+                // Marching Cubes generiert Punkte, die an den Kanten des logischen Marching Cubes Würfels liegen.
+                // Wenn ein Marching Cubes Gitter von (0,0,0) bis (N,N,N) geht, dann 
+                // ist das Marching Cubes-Modell typischerweise in diesem Bereich.
+                // Unsere Voxel-Mittelpunkte sind bei X.5, Y.5, Z.5 (für voxelSize=1).
+                // Die Marching Cubes Geometrie beginnt effektiv bei (0,0,0) und geht bis (FIXED_GRID_SIZE, FIXED_GRID_SIZE, FIXED_GRID_SIZE).
+                // Um es korrekt zu positionieren (damit z.B. die Oberfläche eines Voxels bei (0,0,0) auch mit dem sichtbaren Voxel übereinstimmt),
+                // müssen wir es um die halbe Voxelgröße in jede Richtung verschieben,
+                // da die Marching Cubes Punkte an den Ecken der Gitterzellen liegen,
+                // während unsere sichtbaren Voxel um ihren Mittelpunkt (X.5, Y.5, Z.5) zentriert sind.
+                // Beispiel: Ein Voxel bei (0,0,0) im Grid hat Mittelpunkt (0.5,0.5,0.5).
+                // Marching Cubes erzeugt Fläche bei X=0, Y=0, Z=0.
+                // Verschiebe um +0.5 * voxelSize
+                finalGeometry.translate(voxelSize / 2, voxelSize / 2, voxelSize / 2);
+                
+                // Skalieren Sie die Marching Cubes Geometrie auf die tatsächliche Voxelgröße
+                // (Dies wurde bereits durch die MarchingCubesUtility selbst gehandhabt, wenn p[x] etc. direkt verwendet werden,
+                // aber eine explizite Skalierung hier ist sicherer, falls MC internal nur 1x1 verwendet.)
+                // Im aktuellen MarchingCubesUtility Code ist die Skalierung bereits implizit, da p[x] die tatsächlichen Weltkoordinaten sind.
+                // Eine zusätzliche Skalierung hier würde das Modell zu groß machen.
+                // finalGeometry.scale(voxelSize, voxelSize, voxelSize); // DIESE ZEILE WÄRE FALSCH, da P-Vektoren schon mit Weltkoordinaten arbeiten
+
+
+                // Zentrieren des gesamten Modells um den Ursprung für den Export (gute Praxis für STL)
+                finalGeometry.computeBoundingBox();
+                const boundingBox = finalGeometry.boundingBox;
+                const center = new THREE.Vector3();
+                boundingBox.getCenter(center);
+                finalGeometry.translate(-center.x, -center.y, -center.z);
+
+            } catch (e) {
+                console.error("Fehler beim Erstellen des 3D-Modells mit Marching Cubes:", e);
+                alert("Fehler beim Erstellen des 3D-Modells aus den Voxeln. Details in der Konsole. (Marching Cubes Fehler)");
+                return;
+            }
+            
+            // Normale sollten von MarchingCubesUtility bereits berechnet worden sein.
+            // Aber zur Sicherheit, falls die Marching Cubes Implementation das nicht tut,
+            // können wir es hier nochmals aufrufen.
+            if (!finalGeometry.attributes.normal) {
+                finalGeometry.computeVertexNormals();
+                console.warn("STLExporter: computeVertexNormals() called on Marching Cubes geometry.");
+            }
+
+            const exporter = new THREE.STLExporter();
+            const result = exporter.parse(finalGeometry);
+
+            const blob = new Blob([result], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'voxel_model.stl';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert("STL-Datei erfolgreich exportiert! Bitte überprüfen Sie sie in Ihrem Slicer.");
+        }
+
+        // --- Event Listener für UI-Elemente ---
+        document.getElementById('modeToggle').addEventListener('click', () => {
+            isAddingMode = !isAddingMode;
+            currentModeDisplay.textContent = `Modus: ${isAddingMode ? 'Hinzufügen' : 'Löschen'}`;
+            currentModeDisplay.style.color = isAddingMode ? '#81c784' : '#ef5350';
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', clearAllVoxels);
+        document.getElementById('saveBtn').addEventListener('click', saveVoxels);
+        document.getElementById('loadBtn').addEventListener('click', loadVoxels);
+        document.getElementById('exportStlBtn').addEventListener('click', exportSTL);
+
+        // --- Start der Anwendung ---
+        window.onload = function () {
+            init();
+        };
+    </script>
+</body>
+</html>
