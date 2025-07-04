@@ -100,36 +100,49 @@ window.onload=() =>{
 
  cvs.oncontextmenu=e=>e.preventDefault();
 
- cvs.onpointerdown=e=>{
-   if(e.button===2){rotate=true; cvs.requestPointerLock(); return;}
-   if(e.button!==0) return;
-   /* Raycast */
-   const rect=cvs.getBoundingClientRect();
-   const mouse=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,
-                                 -((e.clientY-rect.top)/rect.height)*2+1);
-   const ray=new THREE.Raycaster(); ray.setFromCamera(mouse,cam);
-   const objs=[...voxels.values()].map(v=>v.mesh);
-   const hits=ray.intersectObjects(objs);
-   let target=null;
-   if(addMode){
-     if(hits.length){
-       target=hits[0].object.position.clone()
-              .add(hits[0].face.normal.clone().multiplyScalar(VS));
-     }else{
-       const plane=new THREE.Plane(new THREE.Vector3(0,1,0),0), p=new THREE.Vector3();
-       if(ray.ray.intersectPlane(plane,p)) target=new THREE.Vector3(p.x,HALF,p.z);
-     }
-     if(target){
-       const sx=Math.round(target.x/VS)*VS,
-             sy=Math.round(target.y/VS)*VS,
-             sz=Math.round(target.z/VS)*VS;
-       addVoxel(sx,sy,sz);
-     }
-   }else if(hits.length){
-     const p=hits[0].object.position;
-     removeVoxel(p.x,p.y,p.z);
-   }
- };
+cvs.onpointerdown=e=>{
+   if(e.button===2){rotate=true; cvs.requestPointerLock(); return;}
+   if(e.button!==0) return;
+   /* Raycast */
+   const rect=cvs.getBoundingClientRect();
+   const mouse=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,
+                                 -((e.clientY-rect.top)/rect.height)*2+1);
+   const ray=new THREE.Raycaster(); ray.setFromCamera(mouse,cam);
+   const objs=[...voxels.values()].map(v=>v.mesh);
+   const hits=ray.intersectObjects(objs);
+   
+   if(addMode){
+     if(hits.length){
+       // Berechnung der Gitterkoordinaten des neuen Voxels basierend auf dem getroffenen Voxel und der Normalen
+       const hitVoxel = voxels.get(key(
+         Math.round(hits[0].object.position.x / VS - HALF), // Konvertiere Mittelpunkt zurück zu gx
+         Math.round(hits[0].object.position.y / VS - HALF), // Konvertiere Mittelpunkt zurück zu gy
+         Math.round(hits[0].object.position.z / VS - HALF)  // Konvertiere Mittelpunkt zurück zu gz
+       ));
+       const normal = hits[0].face.normal;
+       const newGx = hitVoxel.gx + normal.x;
+       const newGy = hitVoxel.gy + normal.y;
+       const newGz = hitVoxel.gz + normal.z;
+       addVoxel(newGx,newGy,newGz);
+     }else{
+       // Wenn keine Voxel getroffen wurden (z.B. erster Klick auf die Grundebene)
+       const plane=new THREE.Plane(new THREE.Vector3(0,1,0),0), p=new THREE.Vector3();
+       if(ray.ray.intersectPlane(plane,p)){
+         const gx = Math.floor(p.x / VS); // Bodenzellen-Koordinate
+         const gy = 0; // Auf der Grundebene
+         const gz = Math.floor(p.z / VS); // Bodenzellen-Koordinate
+         addVoxel(gx,gy,gz);
+       }
+     }
+   }else if(hits.length){
+     const p=hits[0].object.position;
+     // Um Voxel zu entfernen, den Mittelpunkt zurück in Gitterkoordinaten umwandeln
+     const gx = Math.round(p.x / VS - HALF);
+     const gy = Math.round(p.y / VS - HALF);
+     const gz = Math.round(p.z / VS - HALF);
+     removeVoxel(gx,gy,gz);
+   }
+};
  cvs.onpointermove=e=>{
    if(!rotate)return;
    euler.y-=e.movementX*rotSpeed;
@@ -183,31 +196,35 @@ function rebuildHelpers(){
 }
 
 function key(cx,cy,cz){return `${cx},${cy},${cz}`;}
-
 /* ---------- Voxel-Operationen ---------- */
-function addVoxel(cx,cy,cz){
- const gx=Math.floor(cx-HALF),gy=Math.floor(cy-HALF),gz=Math.floor(cz-HALF);
+function addVoxel(gx,gy,gz){ // Akzeptiert jetzt Gitterkoordinaten
+ const id=key(gx,gy,gz); // Schlüssel basiert auf Gitterkoordinaten
  if(gx<0||gx>=GRID||gy<0||gy>=GRID||gz<0||gz>=GRID) return;
- const id=key(cx,cy,cz); if(voxels.has(id)) return;
+ if(voxels.has(id)) return;
+
+ // Berechne den Mittelpunkt (cx, cy, cz) aus den Gitterkoordinaten
+ const cx = (gx + HALF) * VS;
+ const cy = (gy + HALF) * VS;
+ const cz = (gz + HALF) * VS;
 
  const mesh=new THREE.Mesh(new THREE.BoxGeometry(VS,VS,VS),matVoxel);
  mesh.position.set(cx,cy,cz); scene.add(mesh);
  const shadow=new THREE.Mesh(new THREE.BoxGeometry(VS*1.01,VS*1.01,VS*1.01),matShadow);
  shadow.position.copy(mesh.position); scene.add(shadow);
 
- voxels.set(id,{mesh, shadow, gx,gy,gz}); // Speichern Sie das Schattenobjekt
+ voxels.set(id,{mesh, shadow, gx,gy,gz}); // Speichere gx, gy, gz
 }
 
-function removeVoxel(cx,cy,cz){
- const id=key(cx,cy,cz); if(!voxels.has(id)) return;
- const {mesh, shadow}=voxels.get(id); // Holen Sie auch das Schattenobjekt
+function removeVoxel(gx,gy,gz){ // Akzeptiert jetzt Gitterkoordinaten
+ const id=key(gx,gy,gz); // Schlüssel basiert auf Gitterkoordinaten
+ if(!voxels.has(id)) return;
+ const {mesh, shadow}=voxels.get(id);
  scene.remove(mesh);
- scene.remove(shadow); // Entfernen Sie das Schattenobjekt explizit
+ scene.remove(shadow);
  mesh.geometry.dispose();
- shadow.geometry.dispose(); // Entsorgen Sie auch die Geometrie des Schattens
+ shadow.geometry.dispose();
  voxels.delete(id);
 }
-
 function clearAll(){
  voxels.forEach(v=>{
     scene.remove(v.mesh);
