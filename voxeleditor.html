@@ -159,8 +159,15 @@ cvs.onpointerdown=e=>{
    moveSpeed=Math.max(0.01,Math.min(10,moveSpeed));
  },{passive:false});
 
- window.onkeydown=e=>keys[e.code]=true;
- window.onkeyup  =e=>keys[e.code]=false;
+  window.onkeydown=e=>{
+    keys[e.code]=true;
+    if (e.code === 'Tab') {
+      addMode = !addMode;
+      setMode();
+      e.preventDefault(); // Verhindert das Scrollen der Seite bei Leertaste
+    }
+  };
+ window.onkeyup  =e=>keys[e.code]=false;
 
  /* Render-Loop */
  (function loop(){
@@ -234,25 +241,23 @@ function clearAll(){
   });
  voxels.clear();
 }
-/* ---------- JSON-I/O ---------- */
-function saveJSON(){
- const data=[...voxels.values()].map(v=>({gx:v.gx,gy:v.gy,gz:v.gz}));
- const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
- const url=URL.createObjectURL(blob), a=document.createElement('a');
- a.href=url; a.download='voxel_model.json'; a.click(); URL.revokeObjectURL(url);
-}
 
 function loadJSON(e){
- const f=e.target.files[0]; if(!f) return;
- const r=new FileReader();
- r.onload=ev=>{
-   try{ const arr=JSON.parse(ev.target.result); clearAll();
-     arr.forEach(o=>addVoxel((o.gx+0.5)*VS,(o.gy+0.5)*VS,(o.gz+0.5)*VS));
-   }catch(err){alert('Ungültige JSON');}
- };
- r.readAsText(f); e.target.value='';
+ const f=e.target.files[0]; if(!f) return;
+ const r=new FileReader();
+ r.onload=ev=>{
+   try{ const arr=JSON.parse(ev.target.result); clearAll();
+     arr.forEach(o=>addVoxel((o.gx+0.5)*VS,(o.gy+0.5)*VS,(o.gz+0.5)*VS));
+   }catch(err){alert('Ungültige JSON');}
+ };
+ r.readAsText(f); e.target.value='';
 }
-
+function saveJSON(){
+ const data=[...voxels.values()].map(v=>({gx:v.gx,gy:v.gy,gz:v.gz}));
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob), a=document.createElement('a');
+ a.href=url; a.download='voxel_model.json'; a.click(); URL.revokeObjectURL(url);
+}
 /* ---------- STL-Export ---------- */
 function exportSTL(){
  if(voxels.size===0){alert('Keine Voxel'); return;}
