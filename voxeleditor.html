@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Voxel-Editor – Verbesserter Export & Rendering</title>
 <style>
-/* ... (UNCHANGED CSS FROM YOUR BASELINE) ... */
 body{margin:0;overflow:hidden;font-family:sans-serif;display:flex;flex-direction:column;height:100vh;background:#282c34;color:#e0e0e0}
 #controls{padding:14px;background:#3a3f47;border-bottom:1px solid #4a4f57;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center}
 #controls button,#controls label{padding:8px 18px;border:none;border-radius:5px;font-size:1em;background:#555c66;color:#e0e0e0;cursor:pointer}
@@ -193,7 +192,7 @@ input[type="color"]::-moz-color-swatch {
     <button id="saveBtn">Projekt speichern</button>
     <button id="loadBtn">Projekt laden</button>
     <button id="exportStlBtn">STL Export</button>
-    <button id="helpToggleBtn">Hilfe</button> </div>
+    <button id="generateTerrainBtn">Gelände generieren</button> <button id="helpToggleBtn">Hilfe</button> </div>
 
 <div id="container">
     <canvas id="voxelCanvas"></canvas>
@@ -228,9 +227,9 @@ input[type="color"]::-moz-color-swatch {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
 
 <script>
 /* ---------- Konstanten ---------- */
@@ -296,26 +295,20 @@ window.onload = () => {
     if (typeof THREE.STLExporter === 'undefined') {
         console.warn("WARNUNG: THREE.STLExporter ist nicht definiert. Der STL Export wird fehlschlagen.");
     }
-
-
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x282c34);
-
     cam = new THREE.PerspectiveCamera(75, cont.clientWidth / cont.clientHeight, 0.1, 1000);
     // Kameraposition an die Gittergröße anpassen
     cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
     cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
-
     ren = new THREE.WebGLRenderer({ canvas: cvs, antialias: true });
     ren.setSize(cont.clientWidth, cont.clientHeight);
     ren.setPixelRatio(window.devicePixelRatio);
     ren.shadowMap.enabled = true;
     ren.shadowMap.type = THREE.PCFSoftShadowMap; // Weichere Schatten
-
     /* Licht */
     // Verbesserte Beleuchtung, Intensität reduziert
     scene.add(new THREE.HemisphereLight(0xaaaaaa, 0x444444, 0.3)); // Himmel- und Bodenlicht, Intensität 0.3
-
     mainDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.7); // Intensität reduziert auf 0.7
     mainDirectionalLight.position.set(5, 10, 7).normalize().multiplyScalar(50);
     mainDirectionalLight.castShadow = true;
@@ -330,18 +323,16 @@ window.onload = () => {
     mainDirectionalLight.shadow.camera.bottom = -d;
     mainDirectionalLight.shadow.camera.updateProjectionMatrix();
     scene.add(mainDirectionalLight);
-
-    const d2 = new THREE.DirectionalLight(0xffffff, 0.15); d2.position.set(-5, -5, -7).normalize(); scene.add(d2); // Intensität reduziert auf 0.15
-
+    const d2 = new THREE.DirectionalLight(0xffffff, 0.15);
+    d2.position.set(-5, -5, -7).normalize();
+    scene.add(d2); // Intensität reduziert auf 0.15
     rebuildHelpers(); // Erstellt Grid und Box initial
     window.addEventListener('resize', onResize);
     onResize(); // Initial call to set size
     updateGridHelperPosition();
-
     /* Steuerung */
     let keys = {}, moveSpeed = 0.1, rotSpeed = 0.002;
     let euler = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ');
-    
     const setModeDisplay = () => {
         const m = document.getElementById('current-mode');
         m.textContent = `Modus: ${currentMode}`;
@@ -352,7 +343,6 @@ window.onload = () => {
         }
     };
     setModeDisplay();
-
     document.getElementById('modeToggle').onclick = () => {
         cycleMode();
         setModeDisplay();
@@ -385,6 +375,8 @@ window.onload = () => {
     document.getElementById('loadBtn').onclick = () => document.getElementById('fileInput').click();
     document.getElementById('fileInput').onchange = loadJSON;
     document.getElementById('exportStlBtn').onclick = exportSTL;
+
+    document.getElementById('generateTerrainBtn').onclick = generateTerrain; // Event listener for the new button
 
     // Gittergröße Slider Event Listener
     const gridSizeSlider = document.getElementById('grid-size-slider');
@@ -799,6 +791,15 @@ function executeCommand(command, reverse = false) {
                         addVoxel(v.gx, v.gy, v.gz, v.color, true);
                     }
                 });
+            }
+            break;
+        case 'terrainGenerate':
+            if (reverse) {
+                clearAllInternal(true); // Clear current scene
+                oldState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add voxels from oldState
+            } else {
+                clearAllInternal(true); // Clear current scene
+                newState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add voxels from newState
             }
             break;
     }
@@ -1252,6 +1253,134 @@ function exportSTL() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+function resetCameraPosition() {
+    cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
+    cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
+}
+
+// 2D Value Noise Implementation (based on your C++ Simple1DNoise and common noise principles)
+class ValueNoise2D {
+    constructor(seed = Date.now()) {
+        this.perm = new Array(512);
+        this.gradient = new Array(512);
+        this.seed(seed);
+    }
+
+    seed(seed) {
+        const rand = new Math.seedrandom(seed); // Using a seeded random number generator
+        const p = new Array(256);
+        for (let i = 0; i < 256; i++) {
+            p[i] = Math.floor(rand() * 256);
+        }
+
+        for (let i = 0; i < 256; i++) {
+            this.perm[i] = p[i];
+            this.perm[i + 256] = p[i];
+        }
+
+        // Initialize gradients for 2D (8 directions are common for value noise)
+        for (let i = 0; i < 256; i++) {
+            let angle = rand() * 2 * Math.PI;
+            this.gradient[i] = [Math.cos(angle), Math.sin(angle)];
+            this.gradient[i + 256] = this.gradient[i]; // Duplicate for convenience
+        }
+    }
+
+    // Helper functions similar to C++
+    mix(a, b, t) {
+        return a * (1 - t) + b * t;
+    }
+
+    smoothstep(t) {
+        return t * t * (3 - 2 * t);
+    }
+
+    eval(x, y) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+
+        const u = this.smoothstep(x);
+        const v = this.smoothstep(y);
+
+        // Indices for the 4 corners
+        const AA = this.perm[this.perm[X] + Y];
+        const BA = this.perm[this.perm[X + 1] + Y];
+        const AB = this.perm[this.perm[X] + Y + 1];
+        const BB = this.perm[this.perm[X + 1] + Y + 1];
+
+        // Values at the 4 corners (random values from 0-1)
+        const valAA = this.gradient[AA][0] * 0.5 + 0.5; // Scale to 0-1 range
+        const valBA = this.gradient[BA][0] * 0.5 + 0.5;
+        const valAB = this.gradient[AB][0] * 0.5 + 0.5;
+        const valBB = this.gradient[BB][0] * 0.5 + 0.5;
+
+
+        return this.mix(
+            this.mix(valAA, valBA, u),
+            this.mix(valAB, valBB, u),
+            v
+        );
+    }
+}
+
+let noise2D = new ValueNoise2D(); // Global instance of the noise generator
+
+function generateTerrain() {
+    // Capture the state before terrain generation for undo/redo
+    const oldState = [...voxels.values()].map(v => ({ gx: v.gx, gy: v.gy, gz: v.gz, color: v.color }));
+
+    clearAllInternal(true); // Clear existing voxels without adding to history
+
+    const terrainHeightScale = 15; // Max height for terrain (can be adjusted)
+    const frequency = 0.05; // Controls the "zoom" of the noise (smaller = more zoomed out)
+    const octaves = 4; // Number of noise layers
+    const lacunarity = 2.0; // How much frequency increases per octave
+    const gain = 0.5; // How much amplitude decreases per octave
+
+    for (let x = 0; x < GRID; x++) {
+        for (let z = 0; z < GRID; z++) {
+            let totalNoise = 0;
+            let maxAmplitude = 0;
+            let currentFrequency = frequency;
+            let currentAmplitude = 1.0;
+
+            // Apply multiple octaves of noise (Fractal Brownian Motion)
+            for (let i = 0; i < octaves; i++) {
+                totalNoise += noise2D.eval(x * currentFrequency, z * currentFrequency) * currentAmplitude;
+                maxAmplitude += currentAmplitude;
+                currentFrequency *= lacunarity;
+                currentAmplitude *= gain;
+            }
+
+            // Normalize noise to 0-1 and scale to desired height
+            const normalizedNoise = totalNoise / maxAmplitude;
+            const height = Math.floor(normalizedNoise * terrainHeightScale);
+
+            for (let y = 0; y < height; y++) {
+                let voxelColor;
+                // Placeholder colors - user needs to provide actual ranges
+                if (y < terrainHeightScale * 0.2) { // Example: Water
+                    voxelColor = 0x6495ED; // CornflowerBlue
+                } else if (y < terrainHeightScale * 0.6) { // Example: Earth
+                    voxelColor = 0x8B4513; // SaddleBrown
+                } else { // Example: Grass
+                    voxelColor = 0x708237; // OliveDrab
+                }
+                addVoxel(x, y, z, voxelColor, true); // Add with fromHistory = true
+            }
+        }
+    }
+    rebuildHelpers(); // Update helpers to new terrain size
+    resetCameraPosition(); // Reset camera to view new terrain
+
+    // Capture the state after terrain generation
+    const newState = [...voxels.values()].map(v => ({ gx: v.gx, gy: v.gy, gz: v.gz, color: v.color }));
+    addCommand('terrainGenerate', null, null, null, null, null, oldState, newState); // Add as a single command
 }
 </script>
 </body>
