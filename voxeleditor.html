@@ -382,7 +382,7 @@ input[type="color"]::-moz-color-swatch {
         <h3>Gitter & Größe</h3>
         <div class="control-group">
             <label for="grid-size-slider">Gittergröße:</label>
-            <input type="range" id="grid-size-slider" min="5" max="30" value="10">
+            <input type="range" id="grid-size-slider" min="15" max="300" value="15">
             <span id="grid-size-display">10×10×10</span>
         </div>
         <button id="fillLevelBtn">Ebene füllen</button>
@@ -399,8 +399,7 @@ input[type="color"]::-moz-color-swatch {
             <div id="color-preset-2" class="color-preset-box"></div>
             <div id="color-preset-3" class="color-preset-box"></div>
         </div>
-        <button id="modeToggle">Modus wechseln</button>
-        <span id="current-mode" data-mode="Hinzufügen">Modus: Hinzufügen</span>
+        <button id="current-mode" data-mode="Hinzufügen">Modus: Hinzufügen</button>
     </div>
 
     <div class="control-panel">
@@ -457,7 +456,7 @@ input[type="color"]::-moz-color-swatch {
 <script>
 /* ---------- Konstanten ---------- */
 const VS = 1, HALF = VS * 0.5;
-const MIN_GRID_SIZE_ABSOLUTE = 5; // Absolute minimum grid size
+const MIN_GRID_SIZE_ABSOLUTE = 15; // Absolute minimum grid size
 
 /* ---------- globale Variablen ---------- */
 let scene, cam, ren, gridHelper, boxHelper;
@@ -504,9 +503,6 @@ const MAX_HISTORY_SIZE = 100; // Limit history to prevent excessive memory usage
 // Referenz zum Container, um den Viewport-Rand zu steuern
 let container;
 
-// Highlight mesh for hovered face
-let highlightMesh;
-const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x90caf9, transparent: true, opacity: 0.3, depthTest: false }); // Subtle blue, translucent
 
 
 /* ---------- Initialisierung ---------- */
@@ -569,12 +565,6 @@ window.onload = () => {
     onResize(); // Initial call to set size
     updateGridHelperPosition();
 
-    // Initialize highlight mesh
-    const planeGeometry = new THREE.PlaneGeometry(VS, VS);
-    highlightMesh = new THREE.Mesh(planeGeometry, highlightMaterial);
-    highlightMesh.renderOrder = 999; // Render on top of other objects
-    // Do not add to scene initially, add when a face is highlighted
-
     /* Steuerung */
     let keys = {}, moveSpeed = 0.1, rotSpeed = 0.002;
     let euler = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ');
@@ -589,7 +579,7 @@ window.onload = () => {
     };
     setModeDisplay();
 
-    document.getElementById('modeToggle').onclick = () => {
+    document.getElementById('current-mode').onclick = () => {
         cycleMode();
         setModeDisplay();
     };
@@ -760,9 +750,6 @@ window.onload = () => {
         }
         if (e.button !== 0) return; // Only proceed if it's the left mouse button
 
-        // Hide highlight mesh on click
-        scene.remove(highlightMesh);
-
         // Set drag flags
         isShiftDragging = e.shiftKey;
         isControlDragging = e.ctrlKey || e.metaKey;
@@ -804,48 +791,6 @@ window.onload = () => {
             euler.x -= e.movementY * rotSpeed;
             euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
             cam.quaternion.setFromEuler(euler);
-        } else {
-            // Face highlighting logic
-            const rect = cvs.getBoundingClientRect();
-            const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1,
-                                            -((e.clientY - rect.top) / rect.height) * 2 + 1);
-            const ray = new THREE.Raycaster();
-            ray.setFromCamera(mouse, cam);
-            
-            const objs = [...voxels.values()].map(v => v.mesh);
-            const hits = ray.intersectObjects(objs);
-
-            if (hits.length > 0) {
-                const hit = hits[0];
-                const faceNormal = hit.face.normal;
-                const voxelPosition = hit.object.position;
-
-                // Calculate the position of the center of the hit face
-                const faceCenter = new THREE.Vector3()
-                    .copy(voxelPosition)
-                    .add(faceNormal.multiplyScalar(HALF * VS));
-
-                // Position the highlight mesh
-                highlightMesh.position.copy(faceCenter);
-
-                // Orient the highlight mesh to align with the face normal
-                // Create a quaternion to represent the rotation from Z-axis to the face normal
-                const quaternion = new THREE.Quaternion();
-                // Ensure the plane is initially aligned with XY, then rotate it to face the normal
-                // Face normals are unit vectors. This aligns the Z-axis of the plane (which is its normal) with the face normal.
-                quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), faceNormal);
-                highlightMesh.quaternion.copy(quaternion);
-
-                // Add to scene if not already there
-                if (!highlightMesh.parent) {
-                    scene.add(highlightMesh);
-                }
-            } else {
-                // No voxel hit, remove highlight
-                if (highlightMesh.parent) {
-                    scene.remove(highlightMesh);
-                }
-            }
         }
 
         if (e.buttons & 1) { // Left mouse button is down (for dragging actions)
@@ -870,10 +815,6 @@ window.onload = () => {
         currentShiftDragLevel = null; // Reset fixed level
         currentDrawingAxis = 'y'; // Reset drawing axis to default
 
-        // Hide highlight mesh on mouse up
-        if (highlightMesh.parent) {
-            scene.remove(highlightMesh);
-        }
     };
 
     cvs.addEventListener('wheel', e => {
@@ -927,13 +868,6 @@ window.onload = () => {
         }
     };
     window.onkeyup = e => keys[e.code] = false;
-
-    // Remove highlight mesh when mouse leaves the canvas
-    cvs.onpointerleave = () => {
-        if (highlightMesh.parent) {
-            scene.remove(highlightMesh);
-        }
-    };
 
     /* Render-Loop */
     (function loop() {
