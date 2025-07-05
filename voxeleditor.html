@@ -5,53 +5,210 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Voxel-Editor – Verbesserter Export & Rendering</title>
 <style>
-body{margin:0;overflow:hidden;font-family:sans-serif;display:flex;flex-direction:column;height:100vh;background:#282c34;color:#e0e0e0}
-#controls{padding:14px;background:#3a3f47;border-bottom:1px solid #4a4f57;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center}
-#controls button,#controls label{padding:8px 18px;border:none;border-radius:5px;font-size:1em;background:#555c66;color:#e0e0e0;cursor:pointer}
-#controls button:hover{background:#6a727f}
-#grid-size-display,#current-mode{font-weight:700;color:#90caf9}
-#current-mode{color:#81c784}
-#container{flex:1;position:relative}
-canvas{width:100%;height:100%}
-.info-box{
-    position:absolute;
-    bottom:18px;
-    left:18px;
-    padding:12px;
-    border-radius:8px;
-    font-size:.85em;
-    background:rgba(0,0,0,.6);
-    pointer-events:none;
-    /* Default to hidden, will be controlled by JS based on local storage */
+/* Reset and Base Styles */
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* More modern font */
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #282c34;
+    color: #e0e0e0;
+    font-size: 13.5px; /* Slightly smaller default font size */
+}
+
+/* Controls Container - Adjusted for single row, minimal height */
+#controls {
+    padding: 6px 10px; /* Reduced padding for minimal height */
+    background: #3a3f47;
+    border-bottom: 1px solid #4a4f57;
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping if window is too small, though we aim for one line */
+    gap: 12px; /* Reduced gap between control groups */
+    align-items: center; /* Vertically center items in the row */
+    justify-content: flex-start; /* Align items to the start */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow for depth */
+    min-height: 45px; /* Ensure a minimum height for buttons */
+}
+
+/* Control Panel Style - Adjusted to act as horizontal groups */
+.control-panel {
+    background: #2f333a; /* Darker background for groups */
+    border: 1px solid #4a4f57;
+    border-radius: 8px; /* Softer corners */
+    padding: 6px 10px; /* Reduced padding inside panels for compactness */
+    margin: 0; /* No external margin */
+    display: flex; /* Use flexbox for items within the panel */
+    flex-direction: row; /* Arrange items horizontally */
+    gap: 10px; /* Reduced gap between items inside a group */
+    align-items: center; /* Vertically center items in the group */
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.1); /* Inner shadow for depth */
+    flex-shrink: 0; /* Prevent panels from shrinking */
+}
+
+.control-panel h3 {
+    color: #90caf9; /* Header color */
+    font-size: 1.05em; /* Slightly smaller header font */
+    margin: 0; /* Remove margins */
+    padding: 0 8px 0 0; /* Reduced padding to separate from controls */
+    border-right: 1px solid #4a4f57; /* Vertical separator */
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+/* Common Button and Label Styles */
+#controls button,
+.control-group label {
+    padding: 7px 15px; /* Slightly adjusted padding for buttons */
+    border: none;
+    border-radius: 6px; /* Slightly larger border-radius for softer look */
+    font-size: 0.9em; /* Slightly smaller font for compactness */
+    background: #555c66;
+    color: #e0e0e0;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease; /* Smooth transitions */
+    white-space: nowrap; /* Prevent text wrapping inside buttons */
+    display: inline-flex; /* Use flexbox for button content */
+    align-items: center; /* Center text vertically */
+    justify-content: center; /* Center text horizontally */
+}
+
+/* Button Hover and Active States - Adjusted for "normal" look */
+#controls button:hover {
+    background: #6a727f;
+    transform: translateY(-1px); /* Subtle lift on hover */
+    box-shadow: none; /* No shadow on hover */
+}
+
+#controls button:active {
+    transform: translateY(0); /* Return to normal on click */
+    background-color: #4a4f57; /* Darker on active */
+    box-shadow: none; /* No shadow on active */
+}
+
+/* Remove default focus outline for a cleaner look */
+#controls button:focus,
+input:focus {
+    outline: none; /* Remove default blue outline */
+    box-shadow: 0 0 0 2px rgba(144, 202, 249, 0.5); /* Custom subtle focus ring */
+}
+
+
+/* Grid Size Display */
+#grid-size-display {
+    font-weight: 700;
+    color: #90caf9;
+    min-width: 70px; /* Slightly smaller consistent width */
+    text-align: center;
+    background: #4a4f57; /* Darker background for distinction */
+    padding: 7px 8px; /* Reduced padding */
+    border-radius: 6px;
+    font-size: 0.9em; /* Match button font size */
+}
+
+/* Current Mode Display - Subtle border/highlight */
+#current-mode {
+    font-weight: 700;
+    color: #81c784; /* Default green */
+    padding: 7px 12px; /* Reduced padding */
+    border-radius: 6px;
+    background: #4a4f57; /* Darker background for distinction */
+    display: inline-block;
+    min-width: 110px; /* Slightly smaller consistent width */
+    text-align: center;
+    border: 1px solid #90caf9; /* Thinner border for subtle highlight */
+    box-shadow: 0 0 4px rgba(144, 202, 249, 0.3); /* Subtle glow for highlight */
+    transition: all 0.2s ease;
+    font-size: 0.9em; /* Match button font size */
+}
+/* Specific colors for modes - make sure these override the default #81c784 above when set by JS */
+#current-mode[data-mode="Hinzufügen"] { color: #81c784; border-color: #81c784; box-shadow: 0 0 4px rgba(129, 199, 132, 0.3); }
+#current-mode[data-mode="Löschen"] { color: #ef5350; border-color: #ef5350; box-shadow: 0 0 4px rgba(239, 83, 80, 0.3); }
+#current-mode[data-mode="Zeichnen"] { color: #ffa726; border-color: #ffa726; box-shadow: 0 0 4px rgba(255, 167, 38, 0.3); }
+
+
+/* Main Container for Canvas and Info Box */
+#container {
+    flex: 1;
+    position: relative;
+    overflow: hidden; /* Ensure nothing spills out */
+    border: 3px solid transparent; /* Default transparent border */
+    transition: border-color 0.3s ease-in-out; /* Smooth transition */
+}
+/* Border styles for different modes - NOW APPLIED TO ALL SIDES */
+#container[data-mode="Hinzufügen"] { border-color: rgba(129, 199, 132, 0.6); } /* Green, slightly transparent */
+#container[data-mode="Löschen"] { border-color: rgba(239, 83, 80, 0.6); } /* Red, slightly transparent */
+#container[data-mode="Zeichnen"] { border-color: rgba(255, 167, 38, 0.6); } /* Orange, slightly transparent */
+
+
+canvas {
+    width: 100%;
+    height: 100%;
+    display: block; /* Remove extra space below canvas */
+}
+
+/* Info Box */
+.info-box {
+    position: absolute;
+    bottom: 20px; /* Increased bottom spacing */
+    left: 20px; /* Increased left spacing */
+    padding: 15px; /* More padding */
+    border-radius: 10px; /* Softer corners */
+    font-size: 0.8em; /* Slightly smaller font for less obtrusiveness */
+    background: rgba(0, 0, 0, 0.7); /* Slightly darker background */
+    color: #f0f0f0; /* Lighter text for contrast */
+    pointer-events: none;
+    line-height: 1.6; /* Better readability */
+    max-width: 350px; /* Limit width */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3); /* Clearer shadow */
+    display: none; /* Controlled by JS */
+}
+
+.info-box strong {
+    color: #90caf9;
+    font-weight: bold;
+    margin-bottom: 5px; /* Spacing below title */
+    display: block;
+}
+
+#fileInput {
     display: none;
 }
-.info-box strong{color:#90caf9}
-#fileInput{display:none}
 
-/* Slider-Stil */
+/* Slider Style */
 input[type="range"] {
     -webkit-appearance: none;
-    width: 150px;
-    height: 8px;
+    appearance: none;
+    width: 140px; /* Slightly narrower */
+    height: 9px; /* Slightly thinner track */
     background: #4a4f57;
     border-radius: 5px;
     outline: none;
-    opacity: 0.8;
-    transition: opacity .2s;
-    margin-left: 10px;
-    margin-right: 10px;
+    opacity: 0.9; /* Slightly less opaque */
+    transition: opacity .2s, background-color .2s;
+    margin-left: 6px; /* Reduced margin */
+    margin-right: 6px; /* Reduced margin */
 }
+
 input[type="range"]:hover {
     opacity: 1;
+    background-color: #555c66; /* Darker on hover */
 }
+
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 20px;
+    width: 20px; /* Slightly smaller thumb */
     height: 20px;
     border-radius: 50%;
     background: #90caf9;
     cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3); /* Subtle shadow on thumb */
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+    background: #6faee5; /* Lighter blue on hover */
+    transform: scale(1.05);
 }
 input[type="range"]::-moz-range-thumb {
     width: 20px;
@@ -59,33 +216,45 @@ input[type="range"]::-moz-range-thumb {
     border-radius: 50%;
     background: #90caf9;
     cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.2s ease, transform 0.1s ease;
 }
+input[type="range"]::-moz-range-thumb:hover {
+    background: #6faee5;
+    transform: scale(1.05);
+}
+
 /* Color Picker Styling - MADE ROUND */
 input[type="color"] {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    width: 38px;
-    height: 38px;
+    width: 36px; /* Slightly smaller */
+    height: 36px;
     border: none;
     border-radius: 50%; /* Made round */
     background-color: transparent;
     cursor: pointer;
     padding: 0;
     vertical-align: middle;
+    box-shadow: 0 0 0 2px #555c66; /* Border as shadow for cleaner look */
+    transition: box-shadow 0.2s ease;
+}
+input[type="color"]:hover {
+    box-shadow: 0 0 0 3px #90caf9; /* Blue hover border */
 }
 input[type="color"]::-webkit-color-swatch-wrapper {
     padding: 0;
 }
 input[type="color"]::-webkit-color-swatch {
-    border: 1px solid #555c66;
+    border: none; /* No internal border */
     border-radius: 50%; /* Made round */
 }
 input[type="color"]::-moz-color-swatch-wrapper {
     padding: 0;
 }
 input[type="color"]::-moz-color-swatch {
-    border: 1px solid #555c66;
+    border: none;
     border-radius: 50%; /* Made round */
 }
 
@@ -109,55 +278,73 @@ input[type="color"]::-moz-color-swatch {
     padding: 30px;
     border-radius: 8px;
     text-align: center;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* Stronger shadow */
+    max-width: 450px; /* Slightly wider modal */
     color: #e0e0e0;
 }
 
 .modal-content h3 {
     margin-top: 0;
+    margin-bottom: 15px;
     color: #90caf9;
+    font-size: 1.3em;
+}
+
+.modal-content p {
+    font-size: 1.05em;
+    line-height: 1.5;
 }
 
 .modal-buttons {
     margin-top: 25px;
     display: flex;
-    justify-content: space-around;
-    gap: 10px;
+    justify-content: center; /* Center buttons */
+    gap: 15px; /* More space between buttons */
 }
 
 .modal-buttons button {
-    padding: 10px 20px;
+    padding: 12px 25px; /* Larger buttons */
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 1em;
-    flex-grow: 1;
+    font-size: 1.05em;
+    flex-grow: 0; /* Don't force growth */
+    min-width: 120px; /* Minimum width for consistency */
+    transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .modal-buttons button.confirm-save {
     background-color: #4CAF50; /* Green */
     color: white;
 }
+.modal-buttons button.confirm-save:hover {
+    background-color: #45a049;
+    transform: translateY(-1px);
+}
 
 .modal-buttons button.confirm-no-save {
     background-color: #f44336; /* Red */
     color: white;
+}
+.modal-buttons button.confirm-no-save:hover {
+    background-color: #da190b;
+    transform: translateY(-1px);
 }
 
 .modal-buttons button.cancel {
     background-color: #555c66; /* Grey */
     color: #e0e0e0;
 }
-
-.modal-buttons button:hover {
-    opacity: 0.9;
+.modal-buttons button.cancel:hover {
+    background-color: #6a727f;
+    transform: translateY(-1px);
 }
+
 
 /* Style for the preset color boxes - KEPT RECTANGULAR */
 .color-preset-box {
-    width: 38px;
-    height: 38px;
+    width: 34px; /* Slightly smaller */
+    height: 34px;
     border-radius: 5px; /* Kept rectangular */
     border: 2px solid #555c66;
     cursor: pointer;
@@ -173,26 +360,62 @@ input[type="color"]::-moz-color-swatch {
     border-color: #90caf9;
     box-shadow: 0 0 8px rgba(144, 202, 249, 0.7);
 }
+
+/* Grouping for better organization */
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Reduced space between items in a group */
+    flex-shrink: 0; /* Prevent individual groups from shrinking */
+}
+
+/* Adjust labels to align with inputs */
+.control-group label {
+    margin-right: -5px; /* Pull label closer to input */
+}
+
 </style>
 </head>
 <body>
 <div id="controls">
-    <label for="grid-size-slider">Gittergröße:</label>
-    <input type="range" id="grid-size-slider" min="5" max="30" value="10">
-    <span id="grid-size-display">10×10×10</span>
-    <label for="color-picker">Farbe:</label>
-    <input type="color" id="color-picker" value="#ffffff">
-    <div id="color-preset-1" class="color-preset-box"></div>
-    <div id="color-preset-2" class="color-preset-box"></div>
-    <div id="color-preset-3" class="color-preset-box"></div>
+    <div class="control-panel">
+        <h3>Gitter & Größe</h3>
+        <div class="control-group">
+            <label for="grid-size-slider">Gittergröße:</label>
+            <input type="range" id="grid-size-slider" min="5" max="30" value="10">
+            <span id="grid-size-display">10×10×10</span>
+        </div>
+        <button id="fillLevelBtn">Ebene füllen</button>
+    </div>
 
-    <button id="modeToggle">Modus wechseln</button><span id="current-mode">Modus: Hinzufügen</span>
-    <button id="clearBtn">Alles löschen</button>
-    <button id="fillLevelBtn">Ebene füllen</button>
-    <button id="saveBtn">Projekt speichern</button>
-    <button id="loadBtn">Projekt laden</button>
-    <button id="exportStlBtn">STL Export</button>
-    <button id="generateTerrainBtn">Gelände generieren</button> <button id="helpToggleBtn">Hilfe</button> </div>
+    <div class="control-panel">
+        <h3>Farbe & Modus</h3>
+        <div class="control-group">
+            <label for="color-picker">Farbe:</label>
+            <input type="color" id="color-picker" value="#ffffff">
+        </div>
+        <div class="control-group">
+            <div id="color-preset-1" class="color-preset-box"></div>
+            <div id="color-preset-2" class="color-preset-box"></div>
+            <div id="color-preset-3" class="color-preset-box"></div>
+        </div>
+        <button id="modeToggle">Modus wechseln</button>
+        <span id="current-mode" data-mode="Hinzufügen">Modus: Hinzufügen</span>
+    </div>
+
+    <div class="control-panel">
+        <h3>Projekt Operationen</h3>
+        <button id="saveBtn">Projekt speichern</button>
+        <button id="loadBtn">Projekt laden</button>
+        <button id="exportStlBtn">STL Export</button>
+        <button id="clearBtn">Alles löschen</button>
+    </div>
+
+    <div class="control-panel">
+        <h3>Hilfe</h3>
+        <button id="helpToggleBtn">Hilfe anzeigen/ausblenden</button>
+    </div>
+</div>
 
 <div id="container">
     <canvas id="voxelCanvas"></canvas>
@@ -227,17 +450,18 @@ input[type="color"]::-moz-color-swatch {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
 
 <script>
 /* ---------- Konstanten ---------- */
 const VS = 1, HALF = VS * 0.5;
+const MIN_GRID_SIZE_ABSOLUTE = 5; // Absolute minimum grid size
 
 /* ---------- globale Variablen ---------- */
 let scene, cam, ren, gridHelper, boxHelper;
-const voxels = new Map(); // Stores { color: hex_color } for each voxel, not the mesh
+const voxels = new Map();
 let cvs;
 let activeDrawingLevel = { x: 0, y: 0, z: 0 }; // Objekt für aktive Ebenen
 let currentDrawingAxis = 'y'; // Aktuelle Achse für Alt+Mausrad
@@ -264,11 +488,6 @@ let isShiftDragging = false;
 let isControlDragging = false;
 let rotate = false; // Moved to global as it's used across handlers
 
-// Performance optimization: Single mesh for all voxels
-let voxelGeometry;
-let voxelMesh;
-let meshMaterial; // Material for the combined mesh
-
 // Modus-Enum
 const Modes = {
     ADD: 'Hinzufügen',
@@ -282,9 +501,17 @@ const history = [];
 let historyPointer = -1;
 const MAX_HISTORY_SIZE = 100; // Limit history to prevent excessive memory usage
 
+// Referenz zum Container, um den Viewport-Rand zu steuern
+let container;
+
+// Highlight mesh for hovered face
+let highlightMesh;
+const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x90caf9, transparent: true, opacity: 0.3, depthTest: false }); // Subtle blue, translucent
+
+
 /* ---------- Initialisierung ---------- */
 window.onload = () => {
-    const cont = document.getElementById('container');
+    container = document.getElementById('container'); // Get container reference here
     cvs = document.getElementById('voxelCanvas');
 
     // Make sure THREE is defined here before using it
@@ -300,20 +527,26 @@ window.onload = () => {
     if (typeof THREE.STLExporter === 'undefined') {
         console.warn("WARNUNG: THREE.STLExporter ist nicht definiert. Der STL Export wird fehlschlagen.");
     }
+
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x282c34);
-    cam = new THREE.PerspectiveCamera(75, cont.clientWidth / cont.clientHeight, 0.1, 1000);
+
+    cam = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
     // Kameraposition an die Gittergröße anpassen
     cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
     cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
+
     ren = new THREE.WebGLRenderer({ canvas: cvs, antialias: true });
-    ren.setSize(cont.clientWidth, cont.clientHeight);
+    ren.setSize(container.clientWidth, container.clientHeight);
     ren.setPixelRatio(window.devicePixelRatio);
     ren.shadowMap.enabled = true;
     ren.shadowMap.type = THREE.PCFSoftShadowMap; // Weichere Schatten
+
     /* Licht */
     // Verbesserte Beleuchtung, Intensität reduziert
     scene.add(new THREE.HemisphereLight(0xaaaaaa, 0x444444, 0.3)); // Himmel- und Bodenlicht, Intensität 0.3
+
     mainDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.7); // Intensität reduziert auf 0.7
     mainDirectionalLight.position.set(5, 10, 7).normalize().multiplyScalar(50);
     mainDirectionalLight.castShadow = true;
@@ -328,40 +561,34 @@ window.onload = () => {
     mainDirectionalLight.shadow.camera.bottom = -d;
     mainDirectionalLight.shadow.camera.updateProjectionMatrix();
     scene.add(mainDirectionalLight);
-    const d2 = new THREE.DirectionalLight(0xffffff, 0.15);
-    d2.position.set(-5, -5, -7).normalize();
-    scene.add(d2); // Intensität reduziert auf 0.15
 
-    // Initialize voxel rendering components
-    meshMaterial = new THREE.MeshStandardMaterial({
-        vertexColors: true, // Enable vertex colors to render different voxel colors
-        roughness: 0.9,
-        metalness: 0.0
-    });
-    voxelGeometry = new THREE.BufferGeometry(); // Start with an empty geometry
-    voxelMesh = new THREE.Mesh(voxelGeometry, meshMaterial);
-    voxelMesh.castShadow = true;
-    voxelMesh.receiveShadow = true;
-    scene.add(voxelMesh);
-    updateVoxelGeometry(); // Initial empty geometry
+    const d2 = new THREE.DirectionalLight(0xffffff, 0.15); d2.position.set(-5, -5, -7).normalize(); scene.add(d2); // Intensität reduziert auf 0.15
 
     rebuildHelpers(); // Erstellt Grid und Box initial
     window.addEventListener('resize', onResize);
     onResize(); // Initial call to set size
     updateGridHelperPosition();
+
+    // Initialize highlight mesh
+    const planeGeometry = new THREE.PlaneGeometry(VS, VS);
+    highlightMesh = new THREE.Mesh(planeGeometry, highlightMaterial);
+    highlightMesh.renderOrder = 999; // Render on top of other objects
+    // Do not add to scene initially, add when a face is highlighted
+
     /* Steuerung */
     let keys = {}, moveSpeed = 0.1, rotSpeed = 0.002;
     let euler = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ');
+    
     const setModeDisplay = () => {
         const m = document.getElementById('current-mode');
         m.textContent = `Modus: ${currentMode}`;
-        switch (currentMode) {
-            case Modes.ADD: m.style.color = '#81c784'; break;
-            case Modes.DELETE: m.style.color = '#ef5350'; break;
-            case Modes.DRAW: m.style.color = '#ffa726'; break; // Orange für Zeichnen-Modus
-        }
+        m.setAttribute('data-mode', currentMode); // Set data-mode attribute for CSS styling
+
+        // Update container border based on mode
+        container.setAttribute('data-mode', currentMode);
     };
     setModeDisplay();
+
     document.getElementById('modeToggle').onclick = () => {
         cycleMode();
         setModeDisplay();
@@ -395,15 +622,25 @@ window.onload = () => {
     document.getElementById('fileInput').onchange = loadJSON;
     document.getElementById('exportStlBtn').onclick = exportSTL;
 
-    document.getElementById('generateTerrainBtn').onclick = generateTerrain; // Event listener for the new button
-
     // Gittergröße Slider Event Listener
     const gridSizeSlider = document.getElementById('grid-size-slider');
     const gridSizeDisplay = document.getElementById('grid-size-display');
     gridSizeSlider.value = GRID;
     gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
+
+    // Set initial min slider value
+    updateGridSliderMin(); // Call initially to set the correct min based on current voxels
+    
     gridSizeSlider.oninput = (e) => {
-        const newGridSize = parseInt(e.target.value, 10);
+        let newGridSize = parseInt(e.target.value, 10);
+        const minAllowedGridSize = calculateMinGridSize();
+
+        // Clamp the newGridSize to ensure it's not smaller than the minimum required
+        if (newGridSize < minAllowedGridSize) {
+            newGridSize = minAllowedGridSize;
+            gridSizeSlider.value = newGridSize; // Update slider position
+        }
+
         if (newGridSize !== GRID) {
             GRID = newGridSize;
             gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
@@ -495,6 +732,7 @@ window.onload = () => {
 
     // Load initial visibility state from Local Storage
     // Default to 'false' (hidden) if not found in Local Storage
+    // FIX: Corrected localStorage.Item to localStorage.getItem
     const helpVisible = localStorage.getItem('voxelEditorHelpVisible');
     if (helpVisible === 'true') {
         infoBox.style.display = 'block';
@@ -522,6 +760,9 @@ window.onload = () => {
         }
         if (e.button !== 0) return; // Only proceed if it's the left mouse button
 
+        // Hide highlight mesh on click
+        scene.remove(highlightMesh);
+
         // Set drag flags
         isShiftDragging = e.shiftKey;
         isControlDragging = e.ctrlKey || e.metaKey;
@@ -535,19 +776,19 @@ window.onload = () => {
             const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1,
                 -((e.clientY - rect.top) / rect.height) * 2 + 1);
             const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, cam);
-            // Use voxelMesh for raycasting, which represents the combined geometry
-            const hits = ray.intersectObject(voxelMesh);
+            const objs = [...voxels.values()].map(v => v.mesh);
+            const hits = ray.intersectObjects(objs);
 
             // Determine the axis and initial fixed level
             if (e.altKey && e.shiftKey) { // Alt+Shift (Z-Achse)
                 currentDrawingAxis = 'z';
-                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].point.z / VS) : activeDrawingLevel.z;
+                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].object.position.z / VS - HALF) : activeDrawingLevel.z;
             } else if (e.altKey && (e.ctrlKey || e.metaKey)) { // Alt+Control (X-Achse)
                 currentDrawingAxis = 'x';
-                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].point.x / VS) : activeDrawingLevel.x;
+                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].object.position.x / VS - HALF) : activeDrawingLevel.x;
             } else { // Shift only (Y-Achse) - default
                 currentDrawingAxis = 'y';
-                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].point.y / VS) : activeDrawingLevel.y;
+                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].object.position.y / VS - HALF) : activeDrawingLevel.y;
             }
             // Clamp the initial fixed level to grid boundaries
             currentShiftDragLevel = Math.max(0, Math.min(GRID - 1, currentShiftDragLevel));
@@ -563,6 +804,48 @@ window.onload = () => {
             euler.x -= e.movementY * rotSpeed;
             euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
             cam.quaternion.setFromEuler(euler);
+        } else {
+            // Face highlighting logic
+            const rect = cvs.getBoundingClientRect();
+            const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1,
+                                            -((e.clientY - rect.top) / rect.height) * 2 + 1);
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(mouse, cam);
+            
+            const objs = [...voxels.values()].map(v => v.mesh);
+            const hits = ray.intersectObjects(objs);
+
+            if (hits.length > 0) {
+                const hit = hits[0];
+                const faceNormal = hit.face.normal;
+                const voxelPosition = hit.object.position;
+
+                // Calculate the position of the center of the hit face
+                const faceCenter = new THREE.Vector3()
+                    .copy(voxelPosition)
+                    .add(faceNormal.multiplyScalar(HALF * VS));
+
+                // Position the highlight mesh
+                highlightMesh.position.copy(faceCenter);
+
+                // Orient the highlight mesh to align with the face normal
+                // Create a quaternion to represent the rotation from Z-axis to the face normal
+                const quaternion = new THREE.Quaternion();
+                // Ensure the plane is initially aligned with XY, then rotate it to face the normal
+                // Face normals are unit vectors. This aligns the Z-axis of the plane (which is its normal) with the face normal.
+                quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), faceNormal);
+                highlightMesh.quaternion.copy(quaternion);
+
+                // Add to scene if not already there
+                if (!highlightMesh.parent) {
+                    scene.add(highlightMesh);
+                }
+            } else {
+                // No voxel hit, remove highlight
+                if (highlightMesh.parent) {
+                    scene.remove(highlightMesh);
+                }
+            }
         }
 
         if (e.buttons & 1) { // Left mouse button is down (for dragging actions)
@@ -586,6 +869,11 @@ window.onload = () => {
         isControlDragging = false;
         currentShiftDragLevel = null; // Reset fixed level
         currentDrawingAxis = 'y'; // Reset drawing axis to default
+
+        // Hide highlight mesh on mouse up
+        if (highlightMesh.parent) {
+            scene.remove(highlightMesh);
+        }
     };
 
     cvs.addEventListener('wheel', e => {
@@ -618,11 +906,16 @@ window.onload = () => {
             setModeDisplay();
             e.preventDefault();
         } else if (e.ctrlKey || e.metaKey) { // Check for Ctrl or Cmd key
-            if (e.code === 'KeyY' || (e.code === 'KeyZ' && e.shiftKey)) {
-                redo();
+            // Universal Undo/Redo using e.key (character output)
+            if (e.key === 'z' || e.key === 'Z') { // Ctrl+Z or Ctrl+Shift+Z (for Z character)
+                if (e.shiftKey) { // Ctrl+Shift+Z for Redo
+                    redo();
+                } else { // Ctrl+Z for Undo
+                    undo();
+                }
                 e.preventDefault(); // Prevent browser undo/redo
-            } else if (e.code === 'KeyZ') {
-                undo();
+            } else if (e.key === 'y' || e.key === 'Y') { // Ctrl+Y for Redo
+                redo();
                 e.preventDefault(); // Prevent browser undo/redo
             }
         } else if (e.code === 'Digit1') {
@@ -634,6 +927,13 @@ window.onload = () => {
         }
     };
     window.onkeyup = e => keys[e.code] = false;
+
+    // Remove highlight mesh when mouse leaves the canvas
+    cvs.onpointerleave = () => {
+        if (highlightMesh.parent) {
+            scene.remove(highlightMesh);
+        }
+    };
 
     /* Render-Loop */
     (function loop() {
@@ -654,9 +954,9 @@ window.onload = () => {
 
 /* ---------- Hilfsfunktionen ---------- */
 function onResize() {
-    const c = document.getElementById('container');
-    cam.aspect = c.clientWidth / c.clientHeight; cam.updateProjectionMatrix();
-    ren.setSize(c.clientWidth, c.clientHeight);
+    // Use the global 'container' variable here
+    cam.aspect = container.clientWidth / container.clientHeight; cam.updateProjectionMatrix();
+    ren.setSize(container.clientWidth, container.clientHeight);
 }
 
 function rebuildHelpers() {
@@ -736,6 +1036,7 @@ function addCommand(type, gx, gy, gz, oldColor = null, newColor = null, oldState
         history.shift();
         historyPointer--;
     }
+    updateGridSliderMin(); // Re-evaluate min grid size after any voxel addition/deletion
 }
 
 function executeCommand(command, reverse = false) {
@@ -786,14 +1087,14 @@ function executeCommand(command, reverse = false) {
                 // Apply the fill operation (forward)
                 // To apply the forward state, we clear current voxels that are not in newState
                 // and then add/recolor according to newState.
-                const currentVoxelKeys = new Set([...voxels.keys()]); // Use .keys() for direct keys
+                const currentVoxelKeys = new Set([...voxels.values()].map(v => key(v.gx, v.gy, v.gz)));
                 const newStateKeys = new Set(newState.map(v => key(v.gx, v.gy, v.gz)));
                 
                 // Remove voxels that are currently present but not in the newState
                 currentVoxelKeys.forEach(id => {
                     if (!newStateKeys.has(id)) {
-                        const parts = id.split(',').map(Number);
-                        removeVoxel(parts[0], parts[1], parts[2], true);
+                        const { gx, gy, gz } = voxels.get(id);
+                        removeVoxel(gx, gy, gz, true);
                     }
                 });
 
@@ -808,23 +1109,13 @@ function executeCommand(command, reverse = false) {
                 });
             }
             break;
-        case 'terrainGenerate':
-            if (reverse) {
-                clearAllInternal(true); // Clear current scene
-                oldState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add voxels from oldState
-            } else {
-                clearAllInternal(true); // Clear current scene
-                newState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add voxels from newState
-            }
-            break;
     }
-    updateVoxelGeometry(); // Always update geometry after executing a command
+    updateGridSliderMin(); // Re-evaluate min grid size after any undo/redo operation
 }
 
 function undo() {
     if (historyPointer >= 0) {
-        const command = history[historyPointer];
-        executeCommand(command, true); // Execute in reverse
+        executeCommand(history[historyPointer], true); // Execute in reverse
         historyPointer--;
     }
 }
@@ -832,8 +1123,48 @@ function undo() {
 function redo() {
     if (historyPointer < history.length - 1) {
         historyPointer++;
-        const command = history[historyPointer];
-        executeCommand(command, false); // Execute normally
+        executeCommand(history[historyPointer], false); // Execute forward
+    }
+}
+
+
+function calculateMinGridSize() {
+    if (voxels.size === 0) {
+        return MIN_GRID_SIZE_ABSOLUTE;
+    }
+    let maxX = 0, maxY = 0, maxZ = 0;
+    voxels.forEach(v => {
+        maxX = Math.max(maxX, v.gx);
+        maxY = Math.max(maxY, v.gy);
+        maxZ = Math.max(maxZ, v.gz);
+    });
+    // The grid size needs to be 1 more than the max coordinate to contain it
+    return Math.max(MIN_GRID_SIZE_ABSOLUTE, maxX + 1, maxY + 1, maxZ + 1);
+}
+
+function updateGridSliderMin() {
+    const gridSizeSlider = document.getElementById('grid-size-slider');
+    const minAllowedGridSize = calculateMinGridSize();
+    gridSizeSlider.min = minAllowedGridSize;
+    
+    // If the current GRID value is less than the new min, update it
+    if (GRID < minAllowedGridSize) {
+        GRID = minAllowedGridSize;
+        gridSizeSlider.value = GRID;
+        document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
+        localStorage.setItem('voxelEditorGridSize', GRID);
+        rebuildHelpers();
+        updateGridHelperPosition();
+
+        // Adjust camera and shadow camera if grid size changed
+        cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
+        cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
+        const d_shadow = GRID * VS * 0.7;
+        mainDirectionalLight.shadow.camera.left = -d_shadow;
+        mainDirectionalLight.shadow.camera.right = d_shadow;
+        mainDirectionalLight.shadow.camera.top = d_shadow;
+        mainDirectionalLight.shadow.camera.bottom = -d_shadow;
+        mainDirectionalLight.shadow.camera.updateProjectionMatrix();
     }
 }
 
@@ -843,8 +1174,8 @@ function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fi
     const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, cam);
-    // Raycast against the single combined voxel mesh
-    const hits = ray.intersectObject(voxelMesh);
+    const objs = [...voxels.values()].map(v => v.mesh);
+    const hits = ray.intersectObjects(objs);
 
     let targetGx, targetGy, targetGz;
 
@@ -908,9 +1239,9 @@ function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fi
 
     } else if (isControlDown && isDragging && mode === Modes.ADD) { // Control-Drag (stacking add)
         if (hits.length) {
-            const hitVoxelGx = Math.round(hits[0].point.x / VS - HALF);
-            const hitVoxelGy = Math.round(hits[0].point.y / VS - HALF);
-            const hitVoxelGz = Math.round(hits[0].point.z / VS - HALF);
+            const hitVoxelGx = Math.round(hits[0].object.position.x / VS - HALF);
+            const hitVoxelGy = Math.round(hits[0].object.position.y / VS - HALF);
+            const hitVoxelGz = Math.round(hits[0].object.position.z / VS - HALF);
             const normal = hits[0].face.normal;
 
             targetGx = hitVoxelGx + normal.x;
@@ -944,7 +1275,7 @@ function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fi
 
     } else { // Default action (non-shift, non-control click or drag) - operate freely in 3D
         if (hits.length) {
-            const p = hits[0].point; // Use the intersection point for more accurate grid cell
+            const p = hits[0].object.position;
             targetGx = Math.round(p.x / VS - HALF);
             targetGy = Math.round(p.y / VS - HALF);
             targetGz = Math.round(p.z / VS - HALF);
@@ -970,22 +1301,14 @@ function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fi
                     addVoxel(targetGx, targetGy, targetGz);
                 }
             } else if (mode === Modes.DELETE) {
-                // For delete, use the exact hit voxel's coordinates
-                const hitVoxelGx = Math.round(hits[0].point.x / VS - HALF);
-                const hitVoxelGy = Math.round(hits[0].point.y / VS - HALF);
-                const hitVoxelGz = Math.round(hits[0].point.z / VS - HALF);
-                if (voxels.has(key(hitVoxelGx, hitVoxelGy, hitVoxelGz))) {
-                    removeVoxel(hitVoxelGx, hitVoxelGy, hitVoxelGz);
+                if (voxels.has(key(targetGx, targetGy, targetGz))) {
+                    removeVoxel(targetGx, targetGy, targetGz);
                 }
             } else if (mode === Modes.DRAW) {
-                // For draw, use the exact hit voxel's coordinates
-                const hitVoxelGx = Math.round(hits[0].point.x / VS - HALF);
-                const hitVoxelGy = Math.round(hits[0].point.y / VS - HALF);
-                const hitVoxelGz = Math.round(hits[0].point.z / VS - HALF);
-                if (voxels.has(key(hitVoxelGx, hitVoxelGy, hitVoxelGz))) {
-                    const existingVoxel = voxels.get(key(hitVoxelGx, hitVoxelGy, hitVoxelGz));
+                if (voxels.has(key(targetGx, targetGy, targetGz))) {
+                    const existingVoxel = voxels.get(key(targetGx, targetGy, targetGz));
                     if (existingVoxel.color !== currentColor) {
-                        recolorVoxel(hitVoxelGx, hitVoxelGy, hitVoxelGz, currentColor);
+                        recolorVoxel(targetGx, targetGy, targetGz, currentColor);
                     }
                 }
             }
@@ -995,7 +1318,7 @@ function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fi
                 const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p = new THREE.Vector3();
                 if (ray.ray.intersectPlane(plane, p)) {
                     targetGx = Math.round(p.x / VS - HALF);
-                    targetGy = 0; // Fixed at Y=0 for default ground placement
+                    targetGy = 0; // Fixed at Y=0
                     targetGz = Math.round(p.z / VS - HALF);
 
                     // Clamp coordinates to grid boundaries
@@ -1023,60 +1346,6 @@ function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fi
 
 
 /* ---------- Voxel-Operationen ---------- */
-// Function to update the single BufferGeometry for all voxels
-function updateVoxelGeometry() {
-    const geometriesToMerge = [];
-
-    voxels.forEach((voxelData, id) => {
-        const gx = parseInt(id.split(',')[0]);
-        const gy = parseInt(id.split(',')[1]);
-        const gz = parseInt(id.split(',')[2]);
-
-        const boxGeometry = new THREE.BoxGeometry(VS, VS, VS);
-
-        // Apply translation to the individual box geometry
-        const matrix = new THREE.Matrix4().makeTranslation(
-            (gx + HALF) * VS,
-            (gy + HALF) * VS,
-            (gz + HALF) * VS
-        );
-        boxGeometry.applyMatrix4(matrix);
-
-        // Set vertex colors for THIS boxGeometry
-        const color = new THREE.Color(voxelData.color);
-        const positionCount = boxGeometry.attributes.position.count;
-        const colorsArray = new Float32Array(positionCount * 3); // 3 components per vertex (r, g, b)
-        for (let i = 0; i < positionCount; i++) {
-            color.toArray(colorsArray, i * 3);
-        }
-        boxGeometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
-        
-        geometriesToMerge.push(boxGeometry);
-    });
-
-    if (voxelGeometry) {
-        // Dispose of the old geometry to free up memory
-        voxelGeometry.dispose();
-    }
-
-    if (geometriesToMerge.length > 0) {
-        // Merge all individual box geometries into one
-        voxelGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometriesToMerge);
-    } else {
-        // If no voxels, create an empty BufferGeometry
-        voxelGeometry = new THREE.BufferGeometry();
-    }
-    
-    // Update the mesh's geometry
-    voxelMesh.geometry = voxelGeometry;
-
-    // Ensure bounding box/sphere are computed for frustum culling
-    if (voxelGeometry.attributes.position && voxelGeometry.attributes.position.count > 0) {
-        voxelGeometry.computeBoundingBox();
-        voxelGeometry.computeBoundingSphere();
-    }
-}
-
 // The `fromHistory` parameter prevents adding operations triggered by undo/redo to the history again
 function addVoxel(gx, gy, gz, color = currentColor, fromHistory = false) {
     const id = key(gx, gy, gz);
@@ -1088,12 +1357,26 @@ function addVoxel(gx, gy, gz, color = currentColor, fromHistory = false) {
         return;
     }
 
-    voxels.set(id, { color: color });
+    const cx = (gx + HALF) * VS;
+    const cy = (gy + HALF) * VS;
+    const cz = (gz + HALF) * VS;
+
+    const material = new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.9,
+        metalness: 0.0
+    });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(VS, VS, VS), material);
+    mesh.position.set(cx, cy, cz);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    voxels.set(id, { mesh, gx, gy, gz, color });
 
     if (!fromHistory) {
         addCommand('add', gx, gy, gz, null, color);
     }
-    updateVoxelGeometry();
 }
 
 function recolorVoxel(gx, gy, gz, newColor, fromHistory = false) {
@@ -1105,12 +1388,12 @@ function recolorVoxel(gx, gy, gz, newColor, fromHistory = false) {
     const oldColor = voxel.color;
     if (oldColor === newColor) return; // No change, no history entry
 
+    voxel.mesh.material.color.set(newColor);
     voxel.color = newColor; // Update color in voxel data
 
     if (!fromHistory) {
         addCommand('recolor', gx, gy, gz, oldColor, newColor);
     }
-    updateVoxelGeometry();
 }
 
 
@@ -1118,28 +1401,39 @@ function removeVoxel(gx, gy, gz, fromHistory = false) {
     const id = key(gx, gy, gz);
     if (!voxels.has(id)) return;
 
-    const { color } = voxels.get(id); // Get color before deleting for history
+    const { mesh, color } = voxels.get(id);
+    scene.remove(mesh);
+    mesh.geometry.dispose();
+    if (mesh.material) {
+        mesh.material.dispose();
+    }
     voxels.delete(id);
 
     if (!fromHistory) {
         addCommand('delete', gx, gy, gz, color); // Store color for redo/undo
     }
-    updateVoxelGeometry();
 }
 
 // Internal function for clearing, used by undo/redo and the confirmation dialog
 function clearAllInternal(fromHistory = false) {
+    voxels.forEach(v => {
+        scene.remove(v.mesh);
+        v.mesh.geometry.dispose();
+        if (v.mesh.material) {
+            v.mesh.material.dispose();
+        }
+    });
     voxels.clear();
-    updateVoxelGeometry();
+
+    if (!fromHistory) { // Only update slider min if not part of history operation
+        updateGridSliderMin();
+    }
 }
 
 // Public function that triggers the confirmation or directly clears if fromHistory
 function clearAll(fromHistory = false) {
     if (!fromHistory) {
-        const oldState = [...voxels.entries()].map(([id, data]) => {
-            const parts = id.split(',').map(Number);
-            return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
-        });
+        const oldState = [...voxels.values()].map(v => ({ gx: v.gx, gy: v.gy, gz: v.gz, color: v.color }));
         addCommand('clearAll', null, null, null, null, null, oldState);
     }
     clearAllInternal(fromHistory); // Call the internal function to do the actual clearing
@@ -1147,12 +1441,9 @@ function clearAll(fromHistory = false) {
 
 function fillActiveLevel(fromHistory = false) {
     // Capture the state before the fill operation for undo
-    const oldState = [...voxels.entries()].map(([id, data]) => {
-        const parts = id.split(',').map(Number);
-        return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
-    });
+    const oldState = [...voxels.values()].map(v => ({ gx: v.gx, gy: v.gy, gz: v.gz, color: v.color }));
 
-    const changes = []; // To store operations for history
+    const voxelsToProcess = []; // Store operations (add or recolor)
 
     for (let x = 0; x < GRID; x++) {
         for (let z = 0; z < GRID; z++) {
@@ -1170,27 +1461,29 @@ function fillActiveLevel(fromHistory = false) {
 
             if (existingVoxel) {
                 if (existingVoxel.color !== currentColor) {
-                    changes.push({ type: 'recolor', gx, gy, gz, oldColor: existingVoxel.color, newColor: currentColor });
-                    voxels.set(id, { color: currentColor }); // Apply change immediately to the map
+                    voxelsToProcess.push({ type: 'recolor', gx, gy, gz, newColor: currentColor });
                 }
             } else {
-                changes.push({ type: 'add', gx, gy, gz, newColor: currentColor });
-                voxels.set(id, { color: currentColor }); // Apply change immediately to the map
+                voxelsToProcess.push({ type: 'add', gx, gy, gz, newColor: currentColor });
             }
         }
     }
-    
-    // Capture the state *after* the fill operation for redo
-    const newState = [...voxels.entries()].map(([id, data]) => {
-        const parts = id.split(',').map(Number);
-        return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
+
+    // Now apply changes for the current "fill" action
+    voxelsToProcess.forEach(op => {
+        if (op.type === 'add') {
+            addVoxel(op.gx, op.gy, op.gz, op.newColor, true); // True for fromHistory
+        } else if (op.type === 'recolor') {
+            recolorVoxel(op.gx, op.gy, op.gz, op.newColor, true); // True for fromHistory
+        }
     });
 
+    // Capture the state *after* the fill operation for redo
+    const newState = [...voxels.values()].map(v => ({ gx: v.gx, gy: v.gy, gz: v.gz, color: v.color }));
+
     if (!fromHistory) {
-        // For fillLevel, oldState and newState describe the full state change
         addCommand('fillLevel', null, null, null, null, null, oldState, newState);
     }
-    updateVoxelGeometry(); // Update geometry once after all changes
 }
 
 
@@ -1199,9 +1492,8 @@ function saveJSON() {
         gridSize: GRID,
         voxels: []
     };
-    voxels.forEach((v, id) => {
-        const parts = id.split(',').map(Number);
-        data.voxels.push({ gx: parts[0], gy: parts[1], gz: parts[2], color: v.color });
+    voxels.forEach(v => {
+        data.voxels.push({ gx: v.gx, gy: v.gy, gz: v.gz, color: v.color });
     });
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1224,14 +1516,38 @@ function loadJSON(event) {
             const data = JSON.parse(e.target.result);
             if (data.gridSize && data.voxels) {
                 // Clear current scene and history before loading new project
-                clearAllInternal(true); // Clear without adding to history
+                clearAll(true); // Clear without adding to history
                 history.length = 0; // Clear undo/redo history completely
                 historyPointer = -1;
 
                 GRID = data.gridSize;
+                // Clamp loaded GRID to ensure it's at least MIN_GRID_SIZE_ABSOLUTE
+                if (GRID < MIN_GRID_SIZE_ABSOLUTE) {
+                    GRID = MIN_GRID_SIZE_ABSOLUTE;
+                }
+                
                 document.getElementById('grid-size-slider').value = GRID;
                 document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
                 localStorage.setItem('voxelEditorGridSize', GRID);
+                
+                // Add voxels first, then update min slider, then potentially adjust GRID again if needed
+                data.voxels.forEach(v => {
+                    addVoxel(v.gx, v.gy, v.gz, v.color, true); // Add without history, so addCommand doesn't update min here
+                });
+
+                // After all voxels are loaded, calculate and set the slider's minimum
+                updateGridSliderMin(); 
+                
+                // Ensure GRID is large enough for loaded voxels (in case loaded grid was too small)
+                const minRequiredGridSize = calculateMinGridSize();
+                if (GRID < minRequiredGridSize) {
+                    GRID = minRequiredGridSize;
+                    document.getElementById('grid-size-slider').value = GRID;
+                    document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
+                    localStorage.setItem('voxelEditorGridSize', GRID);
+                }
+
+
                 rebuildHelpers(); // Rebuild helpers with new grid size
                 updateGridHelperPosition();
 
@@ -1246,10 +1562,6 @@ function loadJSON(event) {
                 mainDirectionalLight.shadow.camera.updateProjectionMatrix();
 
 
-                data.voxels.forEach(v => {
-                    voxels.set(key(v.gx, v.gy, v.gz), { color: v.color });
-                });
-                updateVoxelGeometry(); // Update geometry once after all voxels are loaded
                 console.log('Projekt erfolgreich geladen!');
             } else {
                 alert('Ungültiges Dateiformat. Die JSON-Datei muss "gridSize" und "voxels" enthalten.');
@@ -1277,13 +1589,32 @@ function exportSTL() {
 
     const exporter = new THREE.STLExporter(); // Use THREE.STLExporter as it's attached to THREE
 
-    // Use the already combined voxelGeometry
-    if (!voxelGeometry || voxelGeometry.attributes.position.count === 0) {
+    const geometries = [];
+
+    voxels.forEach(v => {
+        // Create a temporary mesh for each voxel to get its geometry and transform
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(VS, VS, VS));
+        mesh.position.copy(v.mesh.position);
+        mesh.updateMatrixWorld(true); // Ensure matrix is up-to-date
+        geometries.push(mesh.geometry.clone().applyMatrix4(mesh.matrixWorld));
+    });
+
+    let mergedGeometry;
+    if (geometries.length > 0) {
+        // Ensure BufferGeometryUtils is available.
+        if (typeof THREE.BufferGeometryUtils === 'undefined') {
+            console.error("THREE.BufferGeometryUtils ist nicht definiert. Der Export ist nicht möglich.");
+            alert("Fehler: BufferGeometryUtils konnte nicht geladen werden. Der Export ist nicht möglich.");
+            return;
+        }
+        mergedGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometries);
+    } else {
         alert('Keine Voxel zum Exportieren vorhanden!');
         return;
     }
 
-    const stlString = exporter.parse(voxelMesh); // Pass the mesh directly
+    const dummyMesh = new THREE.Mesh(mergedGeometry);
+    const stlString = exporter.parse(dummyMesh);
 
     const blob = new Blob([stlString], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -1294,156 +1625,6 @@ function exportSTL() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-}
-
-function resetCameraPosition() {
-    cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
-    cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
-}
-
-// 2D Value Noise Implementation (based on your C++ Simple1DNoise and common noise principles)
-class ValueNoise2D {
-    constructor(seed = Date.now()) {
-        this.perm = new Array(512);
-        this.gradient = new Array(512);
-        this.seed(seed);
-    }
-
-    seed(seed) {
-        const rand = new Math.seedrandom(seed); // Using a seeded random number generator
-        const p = new Array(256);
-        for (let i = 0; i < 256; i++) {
-            p[i] = Math.floor(rand() * 256);
-        }
-
-        for (let i = 0; i < 256; i++) {
-            this.perm[i] = p[i];
-            this.perm[i + 256] = p[i];
-        }
-
-        // Initialize gradients for 2D (8 directions are common for value noise)
-        for (let i = 0; i < 256; i++) {
-            let angle = rand() * 2 * Math.PI;
-            this.gradient[i] = [Math.cos(angle), Math.sin(angle)];
-            this.gradient[i + 256] = this.gradient[i]; // Duplicate for convenience
-        }
-    }
-
-    // Helper functions similar to C++
-    mix(a, b, t) {
-        return a * (1 - t) + b * t;
-    }
-
-    smoothstep(t) {
-        return t * t * (3 - 2 * t);
-    }
-
-    eval(x, y) {
-        const X = Math.floor(x) & 255;
-        const Y = Math.floor(y) & 255;
-
-        x -= Math.floor(x);
-        y -= Math.floor(y);
-
-        const u = this.smoothstep(x);
-        const v = this.smoothstep(y);
-
-        // Indices for the 4 corners
-        const AA = this.perm[this.perm[X] + Y];
-        const BA = this.perm[this.perm[X + 1] + Y];
-        const AB = this.perm[this.perm[X] + Y + 1];
-        const BB = this.perm[this.perm[X + 1] + Y + 1];
-
-        // Values at the 4 corners (random values from 0-1)
-        // Using `gradient[index][0]` to get a value; typical Perlin/Value noise interpolation
-        // for value noise usually involves a direct random value at each grid point.
-        // For simplicity and to match common JS noise implementations, we can generate a random value at each corner
-        // or use the gradient's x component scaled. The current gradient approach is more typical for Perlin.
-        // Let's use `value(corner_index)` to represent values at grid points.
-        // For actual "Value Noise", we would generate values at grid points and interpolate.
-        // Your current `gradient` and `perm` structure is closer to Perlin.
-        // For true Value noise, simpler would be:
-        // const valAA = this._valueTable[AA];
-        // const valBA = this._valueTable[BA];
-        // const valAB = this._valueTable[AB];
-        // const valBB = this._valueTable[BB];
-        // However, if the current `gradient[AA][0] * 0.5 + 0.5` gives acceptable results, let's keep it.
-        // It effectively converts a gradient (which is usually -1 to 1 for Perlin) to 0-1 for a value.
-
-        const valAA = this.gradient[AA][0] * 0.5 + 0.5; // Scale to 0-1 range
-        const valBA = this.gradient[BA][0] * 0.5 + 0.5;
-        const valAB = this.gradient[AB][0] * 0.5 + 0.5;
-        const valBB = this.gradient[BB][0] * 0.5 + 0.5;
-
-
-        return this.mix(
-            this.mix(valAA, valBA, u),
-            this.mix(valAB, valBB, u),
-            v
-        );
-    }
-}
-
-let noise2D = new ValueNoise2D(); // Global instance of the noise generator
-
-function generateTerrain() {
-    // Capture the state before terrain generation for undo/redo
-    const oldState = [...voxels.entries()].map(([id, data]) => {
-        const parts = id.split(',').map(Number);
-        return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
-    });
-
-    clearAllInternal(true); // Clear existing voxels without adding to history
-
-    const terrainHeightScale = 15; // Max height for terrain (can be adjusted)
-    const frequency = 0.05; // Controls the "zoom" of the noise (smaller = more zoomed out)
-    const octaves = 4; // Number of noise layers
-    const lacunarity = 2.0; // How much frequency increases per octave
-    const gain = 0.5; // How much amplitude decreases per octave
-
-    for (let x = 0; x < GRID; x++) {
-        for (let z = 0; z < GRID; z++) {
-            let totalNoise = 0;
-            let maxAmplitude = 0;
-            let currentFrequency = frequency;
-            let currentAmplitude = 1.0;
-
-            // Apply multiple octaves of noise (Fractal Brownian Motion)
-            for (let i = 0; i < octaves; i++) {
-                totalNoise += noise2D.eval(x * currentFrequency, z * currentFrequency) * currentAmplitude;
-                maxAmplitude += currentAmplitude;
-                currentFrequency *= lacunarity;
-                currentAmplitude *= gain;
-            }
-
-            // Normalize noise to 0-1 and scale to desired height
-            const normalizedNoise = totalNoise / maxAmplitude;
-            const height = Math.floor(normalizedNoise * terrainHeightScale);
-
-            for (let y = 0; y < height; y++) {
-                let voxelColor;
-                // Placeholder colors - user needs to provide actual ranges
-                if (y < terrainHeightScale * 0.2) { // Example: Water
-                    voxelColor = 0x6495ED; // CornflowerBlue
-                } else if (y < terrainHeightScale * 0.6) { // Example: Earth
-                    voxelColor = 0x8B4513; // SaddleBrown
-                } else { // Example: Grass
-                    voxelColor = 0x708237; // OliveDrab
-                }
-                voxels.set(key(x, y, z), { color: voxelColor }); // Add directly to map
-            }
-        }
-    }
-    updateVoxelGeometry(); // Update geometry once after all voxels are added
-    rebuildHelpers(); // Update helpers to new terrain size
-    resetCameraPosition(); // Reset camera to view new terrain
-
-    // Capture the state after terrain generation
-    const newState = [...voxels.entries()].map(([id, data]) => {
-        const parts = id.split(',').map(Number);
-        return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
-    });
-    addCommand('terrainGenerate', null, null, null, null, null, oldState, newState); // Add as a single command
 }
 </script>
 </body>
