@@ -9,10 +9,27 @@ body{margin:0;overflow:hidden;font-family:sans-serif;display:flex;flex-direction
 #controls{padding:14px;background:#3a3f47;border-bottom:1px solid #4a4f57;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center}
 #controls button,#controls label{padding:8px 18px;border:none;border-radius:5px;font-size:1em;background:#555c66;color:#e0e0e0;cursor:pointer}
 #controls button:hover{background:#6a727f}
-#grid-size-display,#current-mode{font-weight:700;color:#90caf9}
-#current-mode{color:#81c784}
-#container{flex:1;position:relative}
-canvas{width:100%;height:100%}
+#grid-size-display{font-weight:700;color:#90caf9}
+#current-mode{
+    font-weight:700;
+    color:#81c784;
+    min-width: 160px; /* Fixed width */
+    max-width: 160px; /* Fixed width */
+    text-align: center; /* Center the text */
+}
+#container{
+    flex:1;
+    position:relative;
+    border: 2px solid transparent; /* Default border for the container */
+    box-sizing: border-box; /* Ensure border doesn't push content out */
+    overflow: hidden; /* Prevent canvas border from overflowing if issues persist */
+}
+canvas{
+    width:100%;
+    height:100%;
+    display: block; /* Ensure canvas behaves as a block element */
+    box-sizing: border-box; /* Ensure border (if added back) doesn't push content out */
+}
 .info-box{
     position:absolute;
     bottom:18px;
@@ -173,12 +190,27 @@ input[type="color"]::-moz-color-swatch {
     border-color: #90caf9;
     box-shadow: 0 0 8px rgba(144, 202, 249, 0.7);
 }
+
+/* Style for the new terrain controls panel */
+#terrainControlsPanel {
+    background: #3a3f47;
+    padding: 14px;
+    margin-top: 10px;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid #4a4f57;
+    transition: all 0.3s ease-in-out;
+}
 </style>
 </head>
 <body>
 <div id="controls">
     <label for="grid-size-slider">Gittergröße:</label>
-    <input type="range" id="grid-size-slider" min="5" max="30" value="10">
+    <input type="range" id="grid-size-slider" min="5" max="90" value="10">
     <span id="grid-size-display">10×10×10</span>
     <label for="color-picker">Farbe:</label>
     <input type="color" id="color-picker" value="#ffffff">
@@ -192,7 +224,30 @@ input[type="color"]::-moz-color-swatch {
     <button id="saveBtn">Projekt speichern</button>
     <button id="loadBtn">Projekt laden</button>
     <button id="exportStlBtn">STL Export</button>
-    <button id="generateTerrainBtn">Gelände generieren</button> <button id="helpToggleBtn">Hilfe</button> </div>
+
+    <label for="fly-speed-slider">Fluggeschwindigkeit:</label>
+    <input type="range" id="fly-speed-slider" min="0.01" max="2.0" step="0.01" value="0.1">
+    <span id="fly-speed-display">0.10</span>
+    
+    <button id="toggleTerrainControlsBtn">Gelände-Optionen</button>
+    <button id="helpToggleBtn">Hilfe</button>
+</div>
+
+<div id="terrainControlsPanel" style="display:none;">
+    <button id="generateTerrainBtn">Gelände generieren</button>
+    <label for="terrain-height-scale">Höhe:</label>
+    <input type="number" id="terrain-height-scale" value="10" min="1" step="1">
+    <label for="terrain-frequency">Frequenz:</label>
+    <input type="number" id="terrain-frequency" value="0.05" min="0.001" max="0.5" step="0.001">
+    <label for="terrain-octaves">Oktaven:</label>
+    <input type="number" id="terrain-octaves" value="4" min="1" max="10" step="1">
+    <label for="terrain-lacunarity">Lacunarity:</label>
+    <input type="number" id="terrain-lacunarity" value="2.0" min="1.0" max="4.0" step="0.1">
+    <label for="terrain-gain">Gain:</label>
+    <input type="number" id="terrain-gain" value="0.5" min="0.1" max="1.0" step="0.01">
+    <label for="terrain-seed">Seed:</label>
+    <input type="text" id="terrain-seed" placeholder="Zahl oder Text">
+</div>
 
 <div id="container">
     <canvas id="voxelCanvas"></canvas>
@@ -237,13 +292,16 @@ const VS = 1, HALF = VS * 0.5;
 
 /* ---------- globale Variablen ---------- */
 let scene, cam, ren, gridHelper, boxHelper;
+let euler; // Declare euler globally
 const voxels = new Map(); // Stores { color: hex_color } for each voxel, not the mesh
 let cvs;
+let containerDiv; // Reference to the container div
 let activeDrawingLevel = { x: 0, y: 0, z: 0 }; // Objekt für aktive Ebenen
 let currentDrawingAxis = 'y'; // Aktuelle Achse für Alt+Mausrad
 let currentShiftDragLevel = null; // Speichert die Ebene für den aktuellen Shift-Drag-Vorgang
 // Lade die Farbe aus dem Local Storage oder nutze Weiß als Standard
 let currentColor = localStorage.getItem('voxelEditorColor') || '#ffffff';
+let moveSpeed = localStorage.getItem('moveSpeed') || 0.1;
 // Lade die Gittergröße aus dem Local Storage oder nutze 10 als Standard
 let GRID = parseInt(localStorage.getItem('voxelEditorGridSize')) || 10;
 
@@ -282,9 +340,20 @@ const history = [];
 let historyPointer = -1;
 const MAX_HISTORY_SIZE = 100; // Limit history to prevent excessive memory usage
 
+// Global terrain parameters (can be adjusted by UI)
+let terrainHeightScale = 10;
+let terrainFrequency = 0.05;
+let terrainOctaves = 4;
+let terrainLacunarity = 2.0;
+let terrainGain = 0.5;
+let terrainSeed = ''; // Empty string means random seed
+let hasUserTypedSeed = false; // Flag to track if user has manually set the seed
+// Global instance of the noise generator
+let noise2D;
+
 /* ---------- Initialisierung ---------- */
 window.onload = () => {
-    const cont = document.getElementById('container');
+    containerDiv = document.getElementById('container'); // Get reference to the container div
     cvs = document.getElementById('voxelCanvas');
 
     // Make sure THREE is defined here before using it
@@ -302,12 +371,12 @@ window.onload = () => {
     }
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x282c34);
-    cam = new THREE.PerspectiveCamera(75, cont.clientWidth / cont.clientHeight, 0.1, 1000);
+    cam = new THREE.PerspectiveCamera(75, containerDiv.clientWidth / containerDiv.clientHeight, 0.1, 1000);
     // Kameraposition an die Gittergröße anpassen
     cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
     cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
     ren = new THREE.WebGLRenderer({ canvas: cvs, antialias: true });
-    ren.setSize(cont.clientWidth, cont.clientHeight);
+    ren.setSize(containerDiv.clientWidth, containerDiv.clientHeight);
     ren.setPixelRatio(window.devicePixelRatio);
     ren.shadowMap.enabled = true;
     ren.shadowMap.type = THREE.PCFSoftShadowMap; // Weichere Schatten
@@ -351,14 +420,28 @@ window.onload = () => {
     updateGridHelperPosition();
     /* Steuerung */
     let keys = {}, moveSpeed = 0.1, rotSpeed = 0.002;
-    let euler = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ');
+    euler = new THREE.Euler().setFromQuaternion(cam.quaternion, 'YXZ'); // Initialize euler here
     const setModeDisplay = () => {
         const m = document.getElementById('current-mode');
         m.textContent = `Modus: ${currentMode}`;
+        let borderColor;
         switch (currentMode) {
-            case Modes.ADD: m.style.color = '#81c784'; break;
-            case Modes.DELETE: m.style.color = '#ef5350'; break;
-            case Modes.DRAW: m.style.color = '#ffa726'; break; // Orange für Zeichnen-Modus
+            case Modes.ADD:
+                m.style.color = '#81c784'; // Green
+                borderColor = '#81c784';
+                break;
+            case Modes.DELETE:
+                m.style.color = '#ef5350'; // Red
+                borderColor = '#ef5350';
+                break;
+            case Modes.DRAW:
+                m.style.color = '#ffa726'; // Orange
+                borderColor = '#ffa726';
+                break;
+        }
+        // Apply the border color to the container div
+        if (containerDiv) { // Ensure containerDiv is defined
+            containerDiv.style.border = `2px solid ${borderColor}`; // 2px solid border with dynamic color
         }
     };
     setModeDisplay();
@@ -395,7 +478,29 @@ window.onload = () => {
     document.getElementById('fileInput').onchange = loadJSON;
     document.getElementById('exportStlBtn').onclick = exportSTL;
 
-    document.getElementById('generateTerrainBtn').onclick = generateTerrain; // Event listener for the new button
+    // Terrain Generation Button Logic
+    document.getElementById('generateTerrainBtn').onclick = () => {
+        // Warning if scene is not empty
+        if (voxels.size > 0) {
+            const confirmGenerate = confirm("Das Generieren von Gelände wird alle vorhandenen Würfel löschen. Möchten Sie fortfahren?");
+            if (!confirmGenerate) {
+                return; // User cancelled
+            }
+        }
+
+        const seedInput = document.getElementById('terrain-seed');
+
+        // If the user hasn't manually typed a seed OR if they typed and then cleared it
+        if (!hasUserTypedSeed || seedInput.value === '') {
+            terrainSeed = Date.now().toString() + Math.random().toString(36).substring(2, 15);
+            seedInput.value = terrainSeed; // Display the new random seed
+            hasUserTypedSeed = false; // Reset the flag, as this is now an auto-generated seed
+        } else {
+            // User has manually typed and the field is not empty, so use their custom seed.
+            // terrainSeed is already updated by the oninput handler.
+        }
+        generateTerrain();
+    };
 
     // Gittergröße Slider Event Listener
     const gridSizeSlider = document.getElementById('grid-size-slider');
@@ -403,19 +508,52 @@ window.onload = () => {
     gridSizeSlider.value = GRID;
     gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
     gridSizeSlider.oninput = (e) => {
-        const newGridSize = parseInt(e.target.value, 10);
+        let newGridSize = parseInt(e.target.value, 10);
+
+        // Calculate max coordinate among existing voxels
+        let maxCoord = 0;
+        voxels.forEach((data, k) => {
+            const [x, y, z] = k.split(',').map(Number);
+            maxCoord = Math.max(maxCoord, x, y, z);
+        });
+
+        const minPossibleGridSize = Math.max(5, maxCoord + 1); // Grid must be at least 5
+
+        if (newGridSize < minPossibleGridSize) {
+            newGridSize = minPossibleGridSize;
+            // Update the slider value to clamp it visually
+            gridSizeSlider.value = newGridSize;
+        }
+
         if (newGridSize !== GRID) {
+            const oldGrid = GRID;
+            const oldVoxelsState = [...voxels.entries()].map(([id, data]) => {
+                const parts = id.split(',').map(Number);
+                return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
+            });
+
             GRID = newGridSize;
             gridSizeDisplay.textContent = `${GRID}×${GRID}×${GRID}`;
             localStorage.setItem('voxelEditorGridSize', GRID);
+
+            // No need to remove voxels explicitly as newGridSize is clamped to contain all existing ones.
+
+            // Add to history
+            const newVoxelsState = [...voxels.entries()].map(([id, data]) => {
+                const parts = id.split(',').map(Number);
+                return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
+            });
+            addCommand('resizeGrid', null, null, null, null, null, oldVoxelsState, newVoxelsState, { oldGrid: oldGrid, newGrid: GRID });
+
+            // Update rendering and camera
+            updateVoxelGeometry();
             rebuildHelpers();
             updateGridHelperPosition();
 
-            // Kameraposition und Blickrichtung anpassen
+            // Adjust camera position and lookAt relative to the new grid size
             cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
             cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
-            // Auch Schattenkamera anpassen
-            const d_shadow = GRID * VS * 0.7; // Renamed to avoid conflict with 'd' in loop
+            const d_shadow = GRID * VS * 0.7;
             mainDirectionalLight.shadow.camera.left = -d_shadow;
             mainDirectionalLight.shadow.camera.right = d_shadow;
             mainDirectionalLight.shadow.camera.top = d_shadow;
@@ -512,6 +650,62 @@ window.onload = () => {
         }
     };
 
+    // Fly Speed Slider
+    const flySpeedSlider = document.getElementById('fly-speed-slider');
+    const flySpeedDisplay = document.getElementById('fly-speed-display');
+    // Load initial fly speed from local storage
+    moveSpeed = parseFloat(localStorage.getItem('voxelEditorFlySpeed')) || 0.1;
+    flySpeedSlider.value = moveSpeed;
+    flySpeedDisplay.textContent = moveSpeed.toFixed(2);
+    flySpeedSlider.oninput = (e) => {
+        moveSpeed = parseFloat(e.target.value);
+        flySpeedDisplay.textContent = moveSpeed.toFixed(2);
+        localStorage.setItem('voxelEditorFlySpeed', moveSpeed.toString()); // Save to local storage
+    };
+
+    // Terrain Parameters Inputs
+    // These consts are local to window.onload. The generateTerrain function will use the global variables directly.
+    const terrainHeightScaleInput = document.getElementById('terrain-height-scale');
+    const terrainFrequencyInput = document.getElementById('terrain-frequency');
+    const terrainOctavesInput = document.getElementById('terrain-octaves');
+    const terrainLacunarityInput = document.getElementById('terrain-lacunarity');
+    const terrainGainInput = document.getElementById('terrain-gain');
+    const terrainSeedInput = document.getElementById('terrain-seed'); // Still need this to get value initially
+
+    terrainHeightScaleInput.value = terrainHeightScale;
+    terrainFrequencyInput.value = terrainFrequency;
+    terrainOctavesInput.value = terrainOctaves;
+    terrainLacunarityInput.value = terrainLacunarity;
+    terrainGainInput.value = terrainGain;
+    terrainSeedInput.value = terrainSeed;
+
+    // Add oninput listeners for terrain parameters to update global variables
+    terrainHeightScaleInput.oninput = (e) => terrainHeightScale = parseFloat(e.target.value);
+    terrainFrequencyInput.oninput = (e) => terrainFrequency = parseFloat(e.target.value);
+    terrainOctavesInput.oninput = (e) => terrainOctaves = parseInt(e.target.value, 10);
+    terrainLacunarityInput.oninput = (e) => terrainLacunarity = parseFloat(e.target.value);
+    terrainGainInput.oninput = (e) => terrainGain = parseFloat(e.target.value);
+    terrainSeedInput.oninput = (e) => {
+        terrainSeed = e.target.value;
+        hasUserTypedSeed = (e.target.value !== ''); // Set flag if user types anything
+    };
+
+    // Initialize noise2D globally
+    noise2D = new ValueNoise2D(terrainSeed); // Initialized with default (random) seed if terrainSeed is empty
+
+    // Toggle Terrain Controls Panel
+    const toggleTerrainControlsBtn = document.getElementById('toggleTerrainControlsBtn');
+    const terrainControlsPanel = document.getElementById('terrainControlsPanel');
+
+    toggleTerrainControlsBtn.onclick = () => {
+        if (terrainControlsPanel.style.display === 'none') {
+            terrainControlsPanel.style.display = 'flex';
+        } else {
+            terrainControlsPanel.style.display = 'none';
+        }
+    };
+
+
     cvs.oncontextmenu = e => e.preventDefault();
 
     cvs.onpointerdown = e => {
@@ -522,58 +716,64 @@ window.onload = () => {
         }
         if (e.button !== 0) return; // Only proceed if it's the left mouse button
 
-        // Set drag flags
         isShiftDragging = e.shiftKey;
         isControlDragging = e.ctrlKey || e.metaKey;
 
-        // If it's a simple click (no shift/control)
         if (!isShiftDragging && !isControlDragging) {
-            handleVoxelAction(e.clientX, e.clientY, currentMode, false, false); // Single placement
-        } else if (isShiftDragging) {
-            // Determine the fixed level based on hit or current drawing level
+            // Single click for any mode
+            handleVoxelAction(e.clientX, e.clientY, currentMode, false, false);
+        } else if (isShiftDragging && currentMode === Modes.ADD) {
+            // Shift-Drag in ADD mode for fixed level
+            // Determine the initial fixed level based on hit or activeDrawingLevel
             const rect = cvs.getBoundingClientRect();
             const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1,
                 -((e.clientY - rect.top) / rect.height) * 2 + 1);
             const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, cam);
-            // Use voxelMesh for raycasting, which represents the combined geometry
             const hits = ray.intersectObject(voxelMesh);
+            
+            let initialFixedLevel;
+            let axisToFix = 'y'; // Default
 
-            // Determine the axis and initial fixed level
-            if (e.altKey && e.shiftKey) { // Alt+Shift (Z-Achse)
-                currentDrawingAxis = 'z';
-                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].point.z / VS) : activeDrawingLevel.z;
-            } else if (e.altKey && (e.ctrlKey || e.metaKey)) { // Alt+Control (X-Achse)
-                currentDrawingAxis = 'x';
-                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].point.x / VS) : activeDrawingLevel.x;
-            } else { // Shift only (Y-Achse) - default
-                currentDrawingAxis = 'y';
-                currentShiftDragLevel = hits.length > 0 ? Math.round(hits[0].point.y / VS) : activeDrawingLevel.y;
+            if (e.altKey && e.shiftKey) { // Alt+Shift (Z-Axis)
+                axisToFix = 'z';
+                initialFixedLevel = hits.length > 0 ? Math.floor(hits[0].point.z / VS) : activeDrawingLevel.z;
+            } else if (e.altKey && (e.ctrlKey || e.metaKey)) { // Alt+Control (X-Axis)
+                axisToFix = 'x';
+                initialFixedLevel = hits.length > 0 ? Math.floor(hits[0].point.x / VS) : activeDrawingLevel.x;
+            } else { // Shift only (Y-Axis) - default
+                axisToFix = 'y';
+                initialFixedLevel = hits.length > 0 ? Math.floor(hits[0].point.y / VS) : activeDrawingLevel.y;
             }
-            // Clamp the initial fixed level to grid boundaries
-            currentShiftDragLevel = Math.max(0, Math.min(GRID - 1, currentShiftDragLevel));
+            currentShiftDragLevel = Math.max(0, Math.min(GRID - 1, initialFixedLevel));
+            currentDrawingAxis = axisToFix; // Store the axis that's being fixed
 
-            // Perform the initial action on drag start for Shift-dragging
             handleVoxelAction(e.clientX, e.clientY, currentMode, true, false, currentShiftDragLevel, currentDrawingAxis);
+        } else if (isShiftDragging && (currentMode === Modes.DELETE || currentMode === Modes.DRAW)) {
+            // Shift-Drag in DELETE or DRAW mode (now allows action on plane if no voxel is hit)
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, false);
+        } else if (isControlDragging && currentMode === Modes.ADD) {
+            // Control-Drag for stacking in ADD mode
+            handleVoxelAction(e.clientX, e.clientY, currentMode, true, true);
         }
     };
 
     cvs.onpointermove = e => {
-        if (rotate) { // Camera rotation with Right Mouse Button
+        if (rotate) {
             euler.y -= e.movementX * rotSpeed;
             euler.x -= e.movementY * rotSpeed;
             euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
             cam.quaternion.setFromEuler(euler);
         }
 
-        if (e.buttons & 1) { // Left mouse button is down (for dragging actions)
-            if (isShiftDragging && currentShiftDragLevel !== null) {
-                // Shift-Drag: Apply action on the fixed level (for ADD, DELETE, DRAW)
+        if (e.buttons & 1) { // Left mouse button is down
+            if (isShiftDragging && currentMode === Modes.ADD) {
                 handleVoxelAction(e.clientX, e.clientY, currentMode, true, false, currentShiftDragLevel, currentDrawingAxis);
+            } else if (isShiftDragging && (currentMode === Modes.DELETE || currentMode === Modes.DRAW)) {
+                handleVoxelAction(e.clientX, e.clientY, currentMode, true, false);
             } else if (isControlDragging && currentMode === Modes.ADD) {
-                // Control-Drag (stacking add) - only in ADD mode
                 handleVoxelAction(e.clientX, e.clientY, currentMode, true, true);
             }
-            // Note: Normal left-click (single placement) does not trigger on move
+            // No action for regular click/drag if not in shift/control modes, single clicks are handled on pointerdown
         }
     };
 
@@ -608,6 +808,9 @@ window.onload = () => {
             // Adjusted sensitivity for camera speed
             moveSpeed *= e.deltaY < 0 ? 1.05 : 0.95; // Smaller steps for finer control
             moveSpeed = Math.max(0.005, Math.min(2, moveSpeed)); // Tighter min/max range
+            flySpeedSlider.value = moveSpeed; // Update slider
+            flySpeedDisplay.textContent = moveSpeed.toFixed(2); // Update display
+            localStorage.setItem('voxelEditorFlySpeed', moveSpeed.toString()); // Save to local storage
         }
     }, { passive: false });
 
@@ -638,7 +841,8 @@ window.onload = () => {
     /* Render-Loop */
     (function loop() {
         requestAnimationFrame(loop);
-        const dir = new THREE.Vector3(); cam.getWorldDirection(dir);
+        const dir = new THREE.Vector3();
+        cam.getWorldDirection(dir);
         const right = new THREE.Vector3().crossVectors(dir, cam.up);
         const up = new THREE.Vector3().copy(cam.up); // Get the camera's up direction
 
@@ -648,15 +852,17 @@ window.onload = () => {
         if (keys.KeyD) cam.position.addScaledVector(right, moveSpeed);
         if (keys.KeyE) cam.position.addScaledVector(up, moveSpeed); // Move along camera's local up
         if (keys.KeyQ) cam.position.addScaledVector(up, -moveSpeed); // Move along camera's local down
+
         ren.render(scene, cam);
     })();
 };
 
 /* ---------- Hilfsfunktionen ---------- */
 function onResize() {
-    const c = document.getElementById('container');
-    cam.aspect = c.clientWidth / c.clientHeight; cam.updateProjectionMatrix();
-    ren.setSize(c.clientWidth, c.clientHeight);
+    // Use containerDiv for sizing
+    cam.aspect = containerDiv.clientWidth / containerDiv.clientHeight;
+    cam.updateProjectionMatrix();
+    ren.setSize(containerDiv.clientWidth, containerDiv.clientHeight);
 }
 
 function rebuildHelpers() {
@@ -665,7 +871,6 @@ function rebuildHelpers() {
         console.error("THREE is not defined in rebuildHelpers. Cannot rebuild helpers.");
         return;
     }
-
     if (gridHelper) scene.remove(gridHelper);
     if (boxHelper) scene.remove(boxHelper);
 
@@ -687,20 +892,29 @@ function rebuildHelpers() {
 
     const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size, size));
     boxHelper = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00ffff }));
-    boxHelper.position.set(size / 2, size / 2, size / 2); scene.add(boxHelper);
+    boxHelper.position.set(size / 2, size / 2, size / 2);
+    scene.add(boxHelper);
 }
 
 function updateGridHelperPosition() {
     rebuildHelpers();
 }
 
-function key(cx, cy, cz) { return `${cx},${cy},${cz}`; }
+function key(cx, cy, cz) {
+    return `${cx},${cy},${cz}`;
+}
 
 function cycleMode() {
     switch (currentMode) {
-        case Modes.ADD: currentMode = Modes.DELETE; break;
-        case Modes.DELETE: currentMode = Modes.DRAW; break;
-        case Modes.DRAW: currentMode = Modes.ADD; break;
+        case Modes.ADD:
+            currentMode = Modes.DELETE;
+            break;
+        case Modes.DELETE:
+            currentMode = Modes.DRAW;
+            break;
+        case Modes.DRAW:
+            currentMode = Modes.ADD;
+            break;
     }
 }
 
@@ -722,13 +936,13 @@ function setActivePreset(index) {
     }
 }
 
-function addCommand(type, gx, gy, gz, oldColor = null, newColor = null, oldState = null, newState = null) {
+function addCommand(type, gx, gy, gz, oldColor = null, newColor = null, oldState = null, newState = null, commandData = null) {
     // Clear redo history
     if (historyPointer < history.length - 1) {
         history.splice(historyPointer + 1);
     }
 
-    history.push({ type, gx, gy, gz, oldColor, newColor, oldState, newState });
+    history.push({ type, gx, gy, gz, oldColor, newColor, oldState, newState, commandData });
     historyPointer++;
 
     // Limit history size
@@ -739,37 +953,36 @@ function addCommand(type, gx, gy, gz, oldColor = null, newColor = null, oldState
 }
 
 function executeCommand(command, reverse = false) {
-    const { type, gx, gy, gz, oldColor, newColor, oldState, newState } = command;
-    
+    const { type, gx, gy, gz, oldColor, newColor, oldState, newState, commandData } = command;
     switch (type) {
         case 'add':
             if (reverse) {
-                removeVoxel(gx, gy, gz, true); // true to prevent re-adding to history
+                removeVoxel(gx, gy, gz, true, false); // true for fromHistory, false to not update geometry immediately
             } else {
-                addVoxel(gx, gy, gz, newColor, true); // true to prevent re-adding to history
+                addVoxel(gx, gy, gz, newColor, true, false); // true for fromHistory, false to not update geometry immediately
             }
             break;
         case 'delete':
             if (reverse) {
-                addVoxel(gx, gy, gz, oldColor, true); // Re-add with original color
+                addVoxel(gx, gy, gz, oldColor, true, false); // Re-add with original color
             } else {
-                removeVoxel(gx, gy, gz, true);
+                removeVoxel(gx, gy, gz, true, false);
             }
             break;
         case 'recolor':
             if (reverse) {
-                recolorVoxel(gx, gy, gz, oldColor, true);
+                recolorVoxel(gx, gy, gz, oldColor, true, false);
             } else {
-                recolorVoxel(gx, gy, gz, newColor, true);
+                recolorVoxel(gx, gy, gz, newColor, true, false);
             }
             break;
         case 'clearAll':
             if (reverse) {
                 // Restore old state from command's oldState
-                clearAllInternal(true); // Clear current state first without history
-                oldState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true));
+                clearAllInternal(true, false); // Clear current state first without history and no geometry update
+                oldState.forEach(v => voxels.set(key(v.gx, v.gy, v.gz), { color: v.color })); // Directly add to map
             } else {
-                clearAllInternal(true); // Clear directly without history
+                clearAllInternal(true, false); // Clear directly without history and no geometry update
             }
             break;
         case 'fillLevel':
@@ -779,52 +992,55 @@ function executeCommand(command, reverse = false) {
                 // To restore the state, we first remove all voxels that are in the newState
                 // and then add back all voxels that were in the oldState.
                 newState.forEach(v => {
-                    removeVoxel(v.gx, v.gy, v.gz, true); // Remove voxels that were part of the 'new state' (the fill)
+                    voxels.delete(key(v.gx, v.gy, v.gz)); // Remove directly from map
                 });
-                oldState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add back voxels from the 'old state'
+                oldState.forEach(v => voxels.set(key(v.gx, v.gy, v.gz), { color: v.color })); // Add directly to map
             } else {
                 // Apply the fill operation (forward)
                 // To apply the forward state, we clear current voxels that are not in newState
                 // and then add/recolor according to newState.
                 const currentVoxelKeys = new Set([...voxels.keys()]); // Use .keys() for direct keys
                 const newStateKeys = new Set(newState.map(v => key(v.gx, v.gy, v.gz)));
-                
-                // Remove voxels that are currently present but not in the newState
-                currentVoxelKeys.forEach(id => {
-                    if (!newStateKeys.has(id)) {
-                        const parts = id.split(',').map(Number);
-                        removeVoxel(parts[0], parts[1], parts[2], true);
-                    }
-                });
 
-                // Add or recolor voxels as per newState
-                newState.forEach(v => {
-                    const existing = voxels.get(key(v.gx, v.gy, v.gz));
-                    if (existing) {
-                        recolorVoxel(v.gx, v.gy, v.gz, v.color, true);
-                    } else {
-                        addVoxel(v.gx, v.gy, v.gz, v.color, true);
+                currentVoxelKeys.forEach(k => {
+                    if (!newStateKeys.has(k)) {
+                        voxels.delete(k); // Remove directly from map
                     }
                 });
+                newState.forEach(v => voxels.set(key(v.gx, v.gy, v.gz), { color: v.color })); // Add directly to map
             }
             break;
         case 'terrainGenerate':
             if (reverse) {
-                clearAllInternal(true); // Clear current scene
-                oldState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add voxels from oldState
+                // Revert to oldState: clear current voxels, then add oldState voxels
+                clearAllInternal(true, false); // Clear without history and no geometry update
+                oldState.forEach(v => voxels.set(key(v.gx, v.gy, v.gz), { color: v.color })); // Directly add to map
             } else {
-                clearAllInternal(true); // Clear current scene
-                newState.forEach(v => addVoxel(v.gx, v.gy, v.gz, v.color, true)); // Add voxels from newState
+                // Apply newState: clear current voxels, then add newState voxels
+                clearAllInternal(true, false); // Clear without history and no geometry update
+                newState.forEach(v => voxels.set(key(v.gx, v.gy, v.gz), { color: v.color })); // Directly add to map
             }
             break;
+        case 'resizeGrid':
+            const targetGridSize = reverse ? commandData.oldGrid : commandData.newGrid;
+            GRID = targetGridSize;
+            document.getElementById('grid-size-slider').value = GRID;
+            document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
+            localStorage.setItem('voxelEditorGridSize', GRID);
+
+            clearAllInternal(true, false); // Clear current state without history (as we're reverting/applying)
+            const targetState = reverse ? oldState : newState;
+            targetState.forEach(v => voxels.set(key(v.gx, v.gy, v.gz), { color: v.color }));
+            break;
     }
-    updateVoxelGeometry(); // Always update geometry after executing a command
+    updateVoxelGeometry(); // Update geometry once after the command is fully processed
+    rebuildHelpers(); // Ensure helpers reflect the new state (especially for fillLevel, terrainGenerate)
+    // resetCameraPosition(); // Reset camera only for large structural changes like clearAll/terrainGenerate. Or perhaps not.
 }
 
 function undo() {
     if (historyPointer >= 0) {
-        const command = history[historyPointer];
-        executeCommand(command, true); // Execute in reverse
+        executeCommand(history[historyPointer], true); // true for reverse
         historyPointer--;
     }
 }
@@ -832,378 +1048,376 @@ function undo() {
 function redo() {
     if (historyPointer < history.length - 1) {
         historyPointer++;
-        const command = history[historyPointer];
-        executeCommand(command, false); // Execute normally
+        executeCommand(history[historyPointer], false); // false for forward
+    }
+}
+
+// Function to add a voxel (mesh creation handled by updateVoxelGeometry)
+function addVoxel(x, y, z, colorHex, fromHistory = false, triggerGeometryUpdate = true) {
+    const k = key(x, y, z);
+    if (!voxels.has(k)) {
+        if (!fromHistory) {
+            addCommand('add', x, y, z, null, colorHex);
+        }
+    } else if (voxels.get(k).color !== colorHex) {
+        // Voxel exists but color is different, treat as recolor
+        const oldColor = voxels.get(k).color;
+        if (!fromHistory) {
+            addCommand('recolor', x, y, z, oldColor, colorHex);
+        }
+    } else {
+        // Voxel exists and color is same, nothing to do unless from history (then just update map)
+        voxels.set(k, { color: colorHex }); // Ensure the map is correctly updated even if no change for history
+        return; // No change needed, prevent geometry update if color is identical
+    }
+    voxels.set(k, { color: colorHex });
+    if (triggerGeometryUpdate) {
+        updateVoxelGeometry();
     }
 }
 
 
-function handleVoxelAction(clientX, clientY, mode, isDragging, isControlDown, fixedLevel = null, fixedAxis = null) {
+// Function to remove a voxel
+function removeVoxel(x, y, z, fromHistory = false, triggerGeometryUpdate = true) {
+    const k = key(x, y, z);
+    if (voxels.has(k)) {
+        const oldColor = voxels.get(k).color;
+        if (!fromHistory) {
+            addCommand('delete', x, y, z, oldColor, null);
+        }
+        voxels.delete(k);
+        if (triggerGeometryUpdate) {
+            updateVoxelGeometry();
+        }
+    }
+}
+
+// Function to recolor a voxel (used internally for history commands)
+function recolorVoxel(x, y, z, newColorHex, fromHistory = false, triggerGeometryUpdate = true) {
+    const k = key(x, y, z);
+    if (voxels.has(k)) {
+        const oldColor = voxels.get(k).color;
+        if (!fromHistory) {
+            addCommand('recolor', x, y, z, oldColor, newColorHex);
+        }
+        voxels.set(k, { color: newColorHex });
+        if (triggerGeometryUpdate) {
+            updateVoxelGeometry();
+        }
+    }
+}
+
+function handleVoxelAction(clientX, clientY, mode, isDragging, isStackingAdd, fixedLevel = null, fixedAxis = null) {
     const rect = cvs.getBoundingClientRect();
     const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, cam);
-    // Raycast against the single combined voxel mesh
+    let hitVoxel = null; // This will store the {gx, gy, gz} of the target voxel
+
     const hits = ray.intersectObject(voxelMesh);
 
-    let targetGx, targetGy, targetGz;
-
-    if (fixedLevel !== null && fixedAxis !== null) { // Shift-Drag: actions confined to a fixed plane
-        let planeNormal = new THREE.Vector3();
-        let planeConstant;
-
-        // Define the plane based on fixedAxis and fixedLevel
-        if (fixedAxis === 'y') {
-            planeNormal.set(0, 1, 0);
-            planeConstant = - (fixedLevel * VS); // Y-level in world coordinates
-        } else if (fixedAxis === 'x') {
-            planeNormal.set(1, 0, 0);
-            planeConstant = - (fixedLevel * VS); // X-level in world coordinates
-        } else if (fixedAxis === 'z') {
-            planeNormal.set(0, 0, 1);
-            planeConstant = - (fixedLevel * VS); // Z-level in world coordinates
-        }
-
-        const fixedPlane = new THREE.Plane(planeNormal, planeConstant);
-        const intersectionPoint = new THREE.Vector3();
-
-        if (ray.ray.intersectPlane(fixedPlane, intersectionPoint)) {
-            // Convert intersection point to grid coordinates, applying half-voxel offset for centering
-            targetGx = Math.round(intersectionPoint.x / VS - HALF);
-            targetGy = Math.round(intersectionPoint.y / VS - HALF);
-            targetGz = Math.round(intersectionPoint.z / VS - HALF);
-
-            // Correct the coordinate that defines the fixed plane
-            if (fixedAxis === 'y') targetGy = fixedLevel;
-            else if (fixedAxis === 'x') targetGx = fixedLevel;
-            else if (fixedAxis === 'z') targetGz = fixedLevel;
-
-            // Clamp coordinates to grid boundaries (always apply after calculation)
-            targetGx = Math.max(0, Math.min(GRID - 1, targetGx));
-            targetGy = Math.max(0, Math.min(GRID - 1, targetGy));
-            targetGz = Math.max(0, Math.min(GRID - 1, targetGz));
-
-            const voxelAtTarget = voxels.get(key(targetGx, targetGy, targetGz));
-
-            if (mode === Modes.ADD) {
-                if (voxelAtTarget) {
-                    if (voxelAtTarget.color !== currentColor) {
-                        recolorVoxel(targetGx, targetGy, targetGz, currentColor);
+    if (mode === Modes.ADD) {
+        if (isStackingAdd) { // Ctrl-Drag for stacking add (only for ADD mode)
+            if (hits.length > 0) {
+                const hit = hits[0];
+                const gx = Math.floor(hit.point.x / VS);
+                const gz = Math.floor(hit.point.z / VS);
+                let highestY = -1;
+                for (let y = 0; y < GRID; y++) {
+                    if (voxels.has(key(gx, y, gz))) {
+                        highestY = y;
                     }
-                } else {
-                    addVoxel(targetGx, targetGy, targetGz);
                 }
-            } else if (mode === Modes.DELETE) {
-                if (voxelAtTarget) {
-                    removeVoxel(targetGx, targetGy, targetGz);
-                }
-            } else if (mode === Modes.DRAW) {
-                if (voxelAtTarget && voxelAtTarget.color !== currentColor) {
-                    recolorVoxel(targetGx, targetGy, targetGz, currentColor);
-                }
-            }
-        } else {
-            return; // Ray did not intersect the fixed plane
-        }
-
-    } else if (isControlDown && isDragging && mode === Modes.ADD) { // Control-Drag (stacking add)
-        if (hits.length) {
-            const hitVoxelGx = Math.round(hits[0].point.x / VS - HALF);
-            const hitVoxelGy = Math.round(hits[0].point.y / VS - HALF);
-            const hitVoxelGz = Math.round(hits[0].point.z / VS - HALF);
-            const normal = hits[0].face.normal;
-
-            targetGx = hitVoxelGx + normal.x;
-            targetGy = hitVoxelGy + normal.y;
-            targetGz = hitVoxelGz + normal.z;
-        } else {
-            // If control-dragging on empty space, treat as adding to layer 0
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p = new THREE.Vector3();
-            if (ray.ray.intersectPlane(plane, p)) {
-                targetGx = Math.round(p.x / VS - HALF);
-                targetGy = 0; // Fixed at Y=0
-                targetGz = Math.round(p.z / VS - HALF);
+                hitVoxel = { gx: gx, gy: highestY + 1, gz: gz };
             } else {
-                return;
+                // If Ctrl-dragging in empty space, place at activeDrawingLevel
+                let planeNormal, planeConstant;
+                planeNormal = new THREE.Vector3(0, 1, 0);
+                planeConstant = activeDrawingLevel.y * VS + HALF; // Plane at the center of the active level
+                const plane = new THREE.Plane(planeNormal, -planeConstant);
+                const intersectionPoint = new THREE.Vector3();
+                ray.ray.intersectPlane(plane, intersectionPoint);
+                if (intersectionPoint) {
+                    hitVoxel = {
+                        gx: Math.floor(intersectionPoint.x / VS),
+                        gy: activeDrawingLevel.y, // Fixed Y
+                        gz: Math.floor(intersectionPoint.z / VS)
+                    };
+                }
+            }
+        } else if (isDragging && isShiftDragging && fixedLevel !== null && fixedAxis !== null) {
+            // Shift-Drag in ADD mode for fixed level
+            let planeNormal, planeConstant;
+            if (fixedAxis === 'y') {
+                planeNormal = new THREE.Vector3(0, 1, 0);
+                planeConstant = fixedLevel * VS + HALF;
+            } else if (fixedAxis === 'x') {
+                planeNormal = new THREE.Vector3(1, 0, 0);
+                planeConstant = fixedLevel * VS + HALF;
+            } else if (fixedAxis === 'z') {
+                planeNormal = new THREE.Vector3(0, 0, 1);
+                planeConstant = fixedLevel * VS + HALF;
+            }
+            const plane = new THREE.Plane(planeNormal, -planeConstant);
+            const intersectionPoint = new THREE.Vector3();
+            ray.ray.intersectPlane(plane, intersectionPoint);
+
+            if (intersectionPoint) {
+                hitVoxel = {
+                    gx: Math.floor(intersectionPoint.x / VS),
+                    gy: Math.floor(intersectionPoint.y / VS),
+                    gz: Math.floor(intersectionPoint.z / VS)
+                };
+                // Override the coordinate for the fixed axis
+                if (fixedAxis === 'y') hitVoxel.gy = fixedLevel;
+                if (fixedAxis === 'x') hitVoxel.gx = fixedLevel;
+                if (fixedAxis === 'z') hitVoxel.gz = fixedLevel;
+            }
+        } else { // Normal single click or regular drag (no Shift/Ctrl) in ADD mode
+            if (hits.length > 0) {
+                const hit = hits[0];
+                const point = hit.point.clone();
+                const face = hit.face.normal;
+                hitVoxel = {
+                    gx: Math.floor((point.x + face.x * 0.01) / VS),
+                    gy: Math.floor((point.y + face.y * 0.01) / VS),
+                    gz: Math.floor((point.z + face.z * 0.01) / VS)
+                };
+            } else {
+                // If clicking in empty space, place at activeDrawingLevel Y plane
+                let planeNormal = new THREE.Vector3(0, 1, 0);
+                let planeConstant = activeDrawingLevel.y * VS + HALF;
+                const plane = new THREE.Plane(planeNormal, -planeConstant);
+                const intersectionPoint = new THREE.Vector3();
+                ray.ray.intersectPlane(plane, intersectionPoint);
+                if (intersectionPoint) {
+                    hitVoxel = {
+                        gx: Math.floor(intersectionPoint.x / VS),
+                        gy: activeDrawingLevel.y,
+                        gz: Math.floor(intersectionPoint.z / VS)
+                    };
+                }
             }
         }
+    } else { // Modes.DELETE or Modes.DRAW
+        if (hits.length > 0) {
+            const hit = hits[0];
+            const p = hit.point.clone();
+            const n = hit.face.normal;
+
+            // Nudge the hit point slightly inwards based on the face normal
+            // This ensures we correctly identify the voxel that was hit,
+            // even if the hit point is exactly on a voxel boundary due to floating point precision.
+            p.sub(n.clone().multiplyScalar(0.01));
+
+            hitVoxel = {
+                gx: Math.floor(p.x / VS),
+                gy: Math.floor(p.y / VS),
+                gz: Math.floor(p.z / VS)
+            };
+        } else if (isDragging && isShiftDragging) { // Only for Shift-Drag in empty space for DELETE/DRAW
+            // If no existing voxel is hit, but we are shift-dragging,
+            // we project onto the active drawing plane to determine the target voxel.
+            // This allows 'erasing' or 'drawing' on an invisible plane.
+            let planeNormal, planeConstant;
+            if (currentDrawingAxis === 'y') {
+                planeNormal = new THREE.Vector3(0, 1, 0);
+                planeConstant = activeDrawingLevel.y * VS + HALF;
+            } else if (currentDrawingAxis === 'x') {
+                planeNormal = new THREE.Vector3(1, 0, 0);
+                planeConstant = activeDrawingLevel.x * VS + HALF;
+            } else if (currentDrawingAxis === 'z') {
+                planeNormal = new THREE.Vector3(0, 0, 1);
+                planeConstant = activeDrawingLevel.z * VS + HALF;
+            }
+            const plane = new THREE.Plane(planeNormal, -planeConstant);
+            const intersectionPoint = new THREE.Vector3();
+            ray.ray.intersectPlane(plane, intersectionPoint);
+
+            if (intersectionPoint) {
+                hitVoxel = {
+                    gx: Math.floor(intersectionPoint.x / VS),
+                    gy: Math.floor(intersectionPoint.y / VS),
+                    gz: Math.floor(intersectionPoint.z / VS)
+                };
+                // Crucially, set the coordinate for the current drawing axis to the active drawing level
+                // as this is the "plane" where the action is meant to occur if no voxel is hit.
+                if (currentDrawingAxis === 'y') hitVoxel.gy = activeDrawingLevel.y;
+                if (currentDrawingAxis === 'x') hitVoxel.gx = activeDrawingLevel.x;
+                if (currentDrawingAxis === 'z') hitVoxel.gz = activeDrawingLevel.z;
+            }
+        }
+    }
+
+    if (hitVoxel) {
         // Clamp coordinates to grid boundaries
-        targetGx = Math.max(0, Math.min(GRID - 1, targetGx));
-        targetGy = Math.max(0, Math.min(GRID - 1, targetGy));
-        targetGz = Math.max(0, Math.min(GRID - 1, targetGz));
+        const x = Math.max(0, Math.min(GRID - 1, hitVoxel.gx));
+        const y = Math.max(0, Math.min(GRID - 1, hitVoxel.gy));
+        const z = Math.max(0, Math.min(GRID - 1, hitVoxel.gz));
 
-        // Only add if the target position is empty or color is different
-        const voxelAtTarget = voxels.get(key(targetGx, targetGy, targetGz));
-        if (voxelAtTarget) {
-            if (voxelAtTarget.color !== currentColor) {
-                recolorVoxel(targetGx, targetGy, targetGz, currentColor);
-            }
-        } else {
-            addVoxel(targetGx, targetGy, targetGz);
+        // Ensure the calculated coordinates are within bounds before attempting action
+        if (x < 0 || x >= GRID || y < 0 || y >= GRID || z < 0 || z >= GRID) {
+            return; // Do nothing if out of bounds
         }
 
-    } else { // Default action (non-shift, non-control click or drag) - operate freely in 3D
-        if (hits.length) {
-            const p = hits[0].point; // Use the intersection point for more accurate grid cell
-            targetGx = Math.round(p.x / VS - HALF);
-            targetGy = Math.round(p.y / VS - HALF);
-            targetGz = Math.round(p.z / VS - HALF);
+        const voxelKey = key(x, y, z);
+        const hasVoxel = voxels.has(voxelKey);
 
-            if (mode === Modes.ADD) {
-                const normal = hits[0].face.normal;
-                targetGx = targetGx + normal.x;
-                targetGy = targetGy + normal.y;
-                targetGz = targetGz + normal.z;
-            }
-            // Clamp coordinates to grid boundaries
-            targetGx = Math.max(0, Math.min(GRID - 1, targetGx));
-            targetGy = Math.max(0, Math.min(GRID - 1, targetGy));
-            targetGz = Math.max(0, Math.min(GRID - 1, targetGz));
-
-            if (mode === Modes.ADD) {
-                const voxelAtTarget = voxels.get(key(targetGx, targetGy, targetGz));
-                if (voxelAtTarget) {
-                    if (voxelAtTarget.color !== currentColor) {
-                        recolorVoxel(targetGx, targetGy, targetGz, currentColor);
-                    }
-                } else {
-                    addVoxel(targetGx, targetGy, targetGz);
+        switch (mode) {
+            case Modes.ADD:
+                // Call addVoxel. It handles if voxel exists and color is same/different.
+                addVoxel(x, y, z, currentColor);
+                break;
+            case Modes.DELETE:
+                if (hasVoxel) {
+                    removeVoxel(x, y, z);
                 }
-            } else if (mode === Modes.DELETE) {
-                // For delete, use the exact hit voxel's coordinates
-                const hitVoxelGx = Math.round(hits[0].point.x / VS - HALF);
-                const hitVoxelGy = Math.round(hits[0].point.y / VS - HALF);
-                const hitVoxelGz = Math.round(hits[0].point.z / VS - HALF);
-                if (voxels.has(key(hitVoxelGx, hitVoxelGy, hitVoxelGz))) {
-                    removeVoxel(hitVoxelGx, hitVoxelGy, hitVoxelGz);
+                break;
+            case Modes.DRAW:
+                if (hasVoxel) {
+                    recolorVoxel(x, y, z, currentColor);
                 }
-            } else if (mode === Modes.DRAW) {
-                // For draw, use the exact hit voxel's coordinates
-                const hitVoxelGx = Math.round(hits[0].point.x / VS - HALF);
-                const hitVoxelGy = Math.round(hits[0].point.y / VS - HALF);
-                const hitVoxelGz = Math.round(hits[0].point.z / VS - HALF);
-                if (voxels.has(key(hitVoxelGx, hitVoxelGy, hitVoxelGz))) {
-                    const existingVoxel = voxels.get(key(hitVoxelGx, hitVoxelGy, hitVoxelGz));
-                    if (existingVoxel.color !== currentColor) {
-                        recolorVoxel(hitVoxelGx, hitVoxelGy, hitVoxelGz, currentColor);
-                    }
-                }
-            }
-        } else {
-            // If nothing is hit, and it's ADD mode, default to layer 0 for single clicks/drags without shift/ctrl
-            if (mode === Modes.ADD) {
-                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p = new THREE.Vector3();
-                if (ray.ray.intersectPlane(plane, p)) {
-                    targetGx = Math.round(p.x / VS - HALF);
-                    targetGy = 0; // Fixed at Y=0 for default ground placement
-                    targetGz = Math.round(p.z / VS - HALF);
-
-                    // Clamp coordinates to grid boundaries
-                    targetGx = Math.max(0, Math.min(GRID - 1, targetGx));
-                    targetGy = Math.max(0, Math.min(GRID - 1, targetGy));
-                    targetGz = Math.max(0, Math.min(GRID - 1, targetGz));
-
-                    const voxelAtTarget = voxels.get(key(targetGx, targetGy, targetGz));
-                    if (voxelAtTarget) {
-                        if (voxelAtTarget.color !== currentColor) {
-                            recolorVoxel(targetGx, targetGy, targetGz, currentColor);
-                        }
-                    } else {
-                        addVoxel(targetGx, targetGy, targetGz);
-                    }
-                } else {
-                    return; // Ray did not intersect the default plane (e.g., looking too far up)
-                }
-            } else { // For DELETE and DRAW, if nothing is hit, do nothing
-                return;
-            }
+                break;
         }
     }
 }
 
 
-/* ---------- Voxel-Operationen ---------- */
-// Function to update the single BufferGeometry for all voxels
-function updateVoxelGeometry() {
-    const geometriesToMerge = [];
-
-    voxels.forEach((voxelData, id) => {
-        const gx = parseInt(id.split(',')[0]);
-        const gy = parseInt(id.split(',')[1]);
-        const gz = parseInt(id.split(',')[2]);
-
-        const boxGeometry = new THREE.BoxGeometry(VS, VS, VS);
-
-        // Apply translation to the individual box geometry
-        const matrix = new THREE.Matrix4().makeTranslation(
-            (gx + HALF) * VS,
-            (gy + HALF) * VS,
-            (gz + HALF) * VS
-        );
-        boxGeometry.applyMatrix4(matrix);
-
-        // Set vertex colors for THIS boxGeometry
-        const color = new THREE.Color(voxelData.color);
-        const positionCount = boxGeometry.attributes.position.count;
-        const colorsArray = new Float32Array(positionCount * 3); // 3 components per vertex (r, g, b)
-        for (let i = 0; i < positionCount; i++) {
-            color.toArray(colorsArray, i * 3);
-        }
-        boxGeometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
-        
-        geometriesToMerge.push(boxGeometry);
-    });
-
-    if (voxelGeometry) {
-        // Dispose of the old geometry to free up memory
-        voxelGeometry.dispose();
-    }
-
-    if (geometriesToMerge.length > 0) {
-        // Merge all individual box geometries into one
-        voxelGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometriesToMerge);
-    } else {
-        // If no voxels, create an empty BufferGeometry
-        voxelGeometry = new THREE.BufferGeometry();
-    }
-    
-    // Update the mesh's geometry
-    voxelMesh.geometry = voxelGeometry;
-
-    // Ensure bounding box/sphere are computed for frustum culling
-    if (voxelGeometry.attributes.position && voxelGeometry.attributes.position.count > 0) {
-        voxelGeometry.computeBoundingBox();
-        voxelGeometry.computeBoundingSphere();
-    }
-}
-
-// The `fromHistory` parameter prevents adding operations triggered by undo/redo to the history again
-function addVoxel(gx, gy, gz, color = currentColor, fromHistory = false) {
-    const id = key(gx, gy, gz);
-    if (gx < 0 || gx >= GRID || gy < 0 || gy >= GRID || gz < 0 || gz >= GRID) return;
-
-    if (voxels.has(id)) {
-        // If voxel already exists, recolor it instead of re-adding
-        recolorVoxel(gx, gy, gz, color, fromHistory);
-        return;
-    }
-
-    voxels.set(id, { color: color });
-
-    if (!fromHistory) {
-        addCommand('add', gx, gy, gz, null, color);
-    }
-    updateVoxelGeometry();
-}
-
-function recolorVoxel(gx, gy, gz, newColor, fromHistory = false) {
-    const id = key(gx, gy, gz);
-    if (!voxels.has(id)) {
-        return;
-    }
-    const voxel = voxels.get(id);
-    const oldColor = voxel.color;
-    if (oldColor === newColor) return; // No change, no history entry
-
-    voxel.color = newColor; // Update color in voxel data
-
-    if (!fromHistory) {
-        addCommand('recolor', gx, gy, gz, oldColor, newColor);
-    }
-    updateVoxelGeometry();
-}
-
-
-function removeVoxel(gx, gy, gz, fromHistory = false) {
-    const id = key(gx, gy, gz);
-    if (!voxels.has(id)) return;
-
-    const { color } = voxels.get(id); // Get color before deleting for history
-    voxels.delete(id);
-
-    if (!fromHistory) {
-        addCommand('delete', gx, gy, gz, color); // Store color for redo/undo
-    }
-    updateVoxelGeometry();
-}
-
-// Internal function for clearing, used by undo/redo and the confirmation dialog
-function clearAllInternal(fromHistory = false) {
-    voxels.clear();
-    updateVoxelGeometry();
-}
-
-// Public function that triggers the confirmation or directly clears if fromHistory
-function clearAll(fromHistory = false) {
+function clearAllInternal(fromHistory = false, triggerGeometryUpdate = true) {
     if (!fromHistory) {
         const oldState = [...voxels.entries()].map(([id, data]) => {
             const parts = id.split(',').map(Number);
             return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
         });
-        addCommand('clearAll', null, null, null, null, null, oldState);
+        addCommand('clearAll', null, null, null, null, null, oldState, []);
     }
-    clearAllInternal(fromHistory); // Call the internal function to do the actual clearing
+    voxels.clear();
+    if (triggerGeometryUpdate) {
+        updateVoxelGeometry();
+    }
+    rebuildHelpers(); // Ensure helpers are reset or updated appropriately
 }
 
-function fillActiveLevel(fromHistory = false) {
-    // Capture the state before the fill operation for undo
+function clearAll() {
+    clearAllInternal(false, true); // User initiated clear, adds to history and updates geometry
+}
+
+
+function fillActiveLevel() {
+    // Capture the current state before the fill for undo/redo
     const oldState = [...voxels.entries()].map(([id, data]) => {
         const parts = id.split(',').map(Number);
         return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
     });
 
-    const changes = []; // To store operations for history
-
     for (let x = 0; x < GRID; x++) {
         for (let z = 0; z < GRID; z++) {
             let gx, gy, gz;
             if (currentDrawingAxis === 'y') {
-                gx = x; gy = activeDrawingLevel.y; gz = z;
+                gx = x;
+                gy = activeDrawingLevel.y;
+                gz = z;
             } else if (currentDrawingAxis === 'x') {
-                gx = activeDrawingLevel.x; gy = x; gz = z; // x becomes fixed, y and z iterate
-            } else if (currentDrawingAxis === 'z') {
-                gx = x; gy = z; gz = activeDrawingLevel.z; // z becomes fixed, x and y iterate
+                gx = activeDrawingLevel.x;
+                gy = x; // Use x as y-coordinate for horizontal plane
+                gz = z; // Use z as z-coordinate
             }
-
-            const id = key(gx, gy, gz);
-            const existingVoxel = voxels.get(id);
-
-            if (existingVoxel) {
-                if (existingVoxel.color !== currentColor) {
-                    changes.push({ type: 'recolor', gx, gy, gz, oldColor: existingVoxel.color, newColor: currentColor });
-                    voxels.set(id, { color: currentColor }); // Apply change immediately to the map
-                }
-            } else {
-                changes.push({ type: 'add', gx, gy, gz, newColor: currentColor });
-                voxels.set(id, { color: currentColor }); // Apply change immediately to the map
+            else if (currentDrawingAxis === 'z') {
+                gx = x;
+                gy = z; // Use z as y-coordinate for horizontal plane
+                gz = activeDrawingLevel.z;
             }
+            // Use direct map manipulation to avoid repeated geometry updates
+            voxels.set(key(gx, gy, gz), { color: currentColor });
         }
     }
-    
-    // Capture the state *after* the fill operation for redo
+    updateVoxelGeometry(); // Update geometry once after all voxels are added/modified
+
+    // Capture the new state after the fill for undo/redo
     const newState = [...voxels.entries()].map(([id, data]) => {
         const parts = id.split(',').map(Number);
         return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
     });
+    addCommand('fillLevel', null, null, null, null, null, oldState, newState);
+}
 
-    if (!fromHistory) {
-        // For fillLevel, oldState and newState describe the full state change
-        addCommand('fillLevel', null, null, null, null, null, oldState, newState);
+
+// Performance critical function: combines all individual voxel geometries into one
+function updateVoxelGeometry() {
+    const geometries = [];
+    const colors = [];
+    const tempBox = new THREE.BoxGeometry(VS, VS, VS); // Re-use geometry object
+
+    voxels.forEach((dataValue, k) => { // Corrected: value first, then key
+        const [x, y, z] = k.split(',').map(Number);
+        const color = new THREE.Color(dataValue.color); // Access color from the dataValue object
+
+        const instanceGeometry = tempBox.clone();
+        instanceGeometry.translate(x * VS + HALF, y * VS + HALF, z * VS + HALF);
+        geometries.push(instanceGeometry);
+
+        // Assign color to each vertex of the instance
+        const colorArray = [];
+        for (let i = 0; i < instanceGeometry.attributes.position.count; i++) {
+            colorArray.push(color.r, color.g, color.b);
+        }
+        instanceGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
+    });
+
+    if (voxelMesh) {
+        scene.remove(voxelMesh); // Remove old mesh
+        voxelMesh.geometry.dispose(); // Dispose old geometry to free memory
     }
-    updateVoxelGeometry(); // Update geometry once after all changes
+
+    if (geometries.length > 0) {
+        voxelGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometries, true); // Merge geometries, keep colors
+        // The material should have vertexColors: true
+        voxelMesh = new THREE.Mesh(voxelGeometry, meshMaterial);
+        voxelMesh.castShadow = true;
+        voxelMesh.receiveShadow = true;
+        scene.add(voxelMesh);
+    } else {
+        // If no voxels, create an empty geometry to avoid errors
+        voxelGeometry = new THREE.BufferGeometry();
+        voxelMesh = new THREE.Mesh(voxelGeometry, meshMaterial);
+        voxelMesh.castShadow = true;
+        voxelMesh.receiveShadow = true;
+        scene.add(voxelMesh);
+    }
 }
 
 
 function saveJSON() {
-    const data = {
-        gridSize: GRID,
-        voxels: []
-    };
-    voxels.forEach((v, id) => {
-        const parts = id.split(',').map(Number);
-        data.voxels.push({ gx: parts[0], gy: parts[1], gz: parts[2], color: v.color });
+    const data = {};
+    voxels.forEach((value, key) => {
+        data[key] = value.color; // Save color value directly
     });
-    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+
+    const settings = {
+        gridSize: GRID,
+        cameraPosition: cam.position.toArray(),
+        cameraQuaternion: cam.quaternion.toArray(),
+        activeDrawingLevel: activeDrawingLevel,
+        currentDrawingAxis: currentDrawingAxis,
+        currentColor: currentColor,
+        presetColors: presetColors,
+        activePresetIndex: activePresetIndex,
+        terrainHeightScale: terrainHeightScale,
+        terrainFrequency: terrainFrequency,
+        terrainOctaves: terrainOctaves,
+        terrainLacunarity: terrainLacunarity,
+        terrainGain: terrainGain,
+        terrainSeed: terrainSeed,
+        moveSpeed: moveSpeed // Save fly speed
+    };
+
+    const projectData = {
+        voxels: data,
+        settings: settings
+    };
+
+    const json = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1221,71 +1435,115 @@ function loadJSON(event) {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const data = JSON.parse(e.target.result);
-            if (data.gridSize && data.voxels) {
-                // Clear current scene and history before loading new project
-                clearAllInternal(true); // Clear without adding to history
-                history.length = 0; // Clear undo/redo history completely
-                historyPointer = -1;
+            const projectData = JSON.parse(e.target.result);
+            const loadedVoxels = projectData.voxels;
+            const loadedSettings = projectData.settings;
 
-                GRID = data.gridSize;
+            // Clear current state and history before loading new project
+            clearAllInternal(true, false); // Clear without adding to history and no geometry update
+
+            // Load voxels
+            for (const k in loadedVoxels) {
+                // Ensure correct format for color
+                const colorValue = loadedVoxels[k];
+                const parts = k.split(',').map(Number);
+                if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                     // Directly add to map, deferring geometry update
+                    voxels.set(key(parts[0], parts[1], parts[2]), { color: colorValue });
+                }
+            }
+            updateVoxelGeometry(); // Update geometry once after all voxels are loaded
+
+            // Load settings
+            if (loadedSettings) {
+                GRID = loadedSettings.gridSize !== undefined ? loadedSettings.gridSize : 10;
                 document.getElementById('grid-size-slider').value = GRID;
                 document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
-                localStorage.setItem('voxelEditorGridSize', GRID);
-                rebuildHelpers(); // Rebuild helpers with new grid size
+                rebuildHelpers(); // Rebuild helpers for new grid size
                 updateGridHelperPosition();
 
-                // Adjust camera for new grid size
-                cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
-                cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
-                const d_shadow = GRID * VS * 0.7;
-                mainDirectionalLight.shadow.camera.left = -d_shadow;
-                mainDirectionalLight.shadow.camera.right = d_shadow;
-                mainDirectionalLight.shadow.camera.top = d_shadow;
-                mainDirectionalLight.shadow.camera.bottom = -d_shadow;
-                mainDirectionalLight.shadow.camera.updateProjectionMatrix();
+                if (loadedSettings.cameraPosition) {
+                    cam.position.fromArray(loadedSettings.cameraPosition);
+                }
+                if (loadedSettings.cameraQuaternion) {
+                    cam.quaternion.fromArray(loadedSettings.cameraQuaternion);
+                    // Update Euler angles for pointer lock control
+                    euler.setFromQuaternion(cam.quaternion, 'YXZ');
+                }
+                if (loadedSettings.activeDrawingLevel) {
+                    activeDrawingLevel = { ...loadedSettings.activeDrawingLevel };
+                }
+                if (loadedSettings.currentDrawingAxis) {
+                    currentDrawingAxis = loadedSettings.currentDrawingAxis;
+                }
+                updateGridHelperPosition(); // Rebuild with correct drawing axis
+
+                currentColor = loadedSettings.currentColor || '#ffffff';
+                document.getElementById('color-picker').value = currentColor;
+
+                if (loadedSettings.presetColors) {
+                    for(let i = 0; i < loadedSettings.presetColors.length && i < presetColors.length; i++) {
+                        presetColors[i] = loadedSettings.presetColors[i];
+                        document.getElementById(`color-preset-${i + 1}`).style.backgroundColor = presetColors[i];
+                    }
+                }
+                // Re-apply active preset status
+                setActivePreset(loadedSettings.activePresetIndex !== undefined ? loadedSettings.activePresetIndex : -1);
+
+                // Load terrain parameters
+                terrainHeightScale = loadedSettings.terrainHeightScale !== undefined ? loadedSettings.terrainHeightScale : 10;
+                terrainFrequency = loadedSettings.terrainFrequency !== undefined ? loadedSettings.terrainFrequency : 0.05;
+                terrainOctaves = loadedSettings.octaves !== undefined ? loadedSettings.octaves : 4; // Corrected to octaves
+                terrainLacunarity = loadedSettings.terrainLacunarity !== undefined ? loadedSettings.terrainLacunarity : 2.0;
+                terrainGain = loadedSettings.terrainGain !== undefined ? loadedSettings.terrainGain : 0.5;
+                terrainSeed = loadedSettings.terrainSeed !== undefined ? loadedSettings.terrainSeed : '';
+
+                document.getElementById('terrain-height-scale').value = terrainHeightScale;
+                document.getElementById('terrain-frequency').value = terrainFrequency;
+                document.getElementById('terrain-octaves').value = terrainOctaves;
+                document.getElementById('terrain-lacunarity').value = terrainLacunarity;
+                document.getElementById('terrain-gain').value = terrainGain;
+                document.getElementById('terrain-seed').value = terrainSeed;
+                // Update hasUserTypedSeed based on loaded terrainSeed
+                hasUserTypedSeed = (terrainSeed !== '');
 
 
-                data.voxels.forEach(v => {
-                    voxels.set(key(v.gx, v.gy, v.gz), { color: v.color });
-                });
-                updateVoxelGeometry(); // Update geometry once after all voxels are loaded
-                console.log('Projekt erfolgreich geladen!');
-            } else {
-                alert('Ungültiges Dateiformat. Die JSON-Datei muss "gridSize" und "voxels" enthalten.');
+                // Load fly speed
+                if (loadedSettings.moveSpeed !== undefined) {
+                    moveSpeed = loadedSettings.moveSpeed;
+                    document.getElementById('fly-speed-slider').value = moveSpeed;
+                    document.getElementById('fly-speed-display').textContent = moveSpeed.toFixed(2);
+                }
+
+                // Re-initialize noise generator with loaded seed
+                noise2D = new ValueNoise2D(terrainSeed);
             }
+
+            // After loading, ensure history is reset or cleared to avoid issues with old state
+            history.length = 0;
+            historyPointer = -1;
+
+            console.log('Project loaded successfully.');
+            resetCameraPosition(); // Reset camera to view loaded terrain/voxels
         } catch (error) {
-            console.error('Fehler beim Laden der JSON-Datei:', error);
-            alert('Fehler beim Laden der Datei. Stellen Sie sicher, dass es eine gültige JSON-Datei ist.');
+            console.error('Error loading JSON file:', error);
+            alert('Fehler beim Laden der Datei. Stellen Sie sicher, dass es sich um eine gültige Voxel-Projekt-JSON-Datei handelt.');
         }
     };
     reader.readAsText(file);
 }
 
+
 function exportSTL() {
-    if (voxels.size === 0) {
+    if (!voxelMesh || voxelMesh.geometry.attributes.position.count === 0) {
         alert('Keine Voxel zum Exportieren vorhanden!');
         return;
     }
 
-    // Ensure STLExporter is available. It should be if scripts are loaded correctly.
-    if (typeof THREE.STLExporter === 'undefined') {
-        console.error("THREE.STLExporter ist nicht definiert. Der STL Export ist nicht möglich.");
-        alert("Fehler: STLExporter konnte nicht geladen werden. Der Export ist nicht möglich.");
-        return;
-    }
+    const exporter = new THREE.STLExporter();
+    const result = exporter.parse(voxelMesh); // Parse the combined mesh
 
-    const exporter = new THREE.STLExporter(); // Use THREE.STLExporter as it's attached to THREE
-
-    // Use the already combined voxelGeometry
-    if (!voxelGeometry || voxelGeometry.attributes.position.count === 0) {
-        alert('Keine Voxel zum Exportieren vorhanden!');
-        return;
-    }
-
-    const stlString = exporter.parse(voxelMesh); // Pass the mesh directly
-
-    const blob = new Blob([stlString], { type: 'text/plain' });
+    const blob = new Blob([result], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1296,133 +1554,113 @@ function exportSTL() {
     URL.revokeObjectURL(url);
 }
 
-function resetCameraPosition() {
-    cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
-    cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
-}
-
-// 2D Value Noise Implementation (based on your C++ Simple1DNoise and common noise principles)
+// Simple 2D Value Noise implementation
 class ValueNoise2D {
-    constructor(seed = Date.now()) {
-        this.perm = new Array(512);
-        this.gradient = new Array(512);
-        this.seed(seed);
+    constructor(seed = '') {
+        this.seed = seed;
+        this.random = new Math.seedrandom(this.seed);
     }
 
-    seed(seed) {
-        const rand = new Math.seedrandom(seed); // Using a seeded random number generator
-        const p = new Array(256);
-        for (let i = 0; i < 256; i++) {
-            p[i] = Math.floor(rand() * 256);
-        }
-
-        for (let i = 0; i < 256; i++) {
-            this.perm[i] = p[i];
-            this.perm[i + 256] = p[i];
-        }
-
-        // Initialize gradients for 2D (8 directions are common for value noise)
-        for (let i = 0; i < 256; i++) {
-            let angle = rand() * 2 * Math.PI;
-            this.gradient[i] = [Math.cos(angle), Math.sin(angle)];
-            this.gradient[i + 256] = this.gradient[i]; // Duplicate for convenience
-        }
+    // Generates a random value between 0 and 1 using the seeded randomizer
+    _rand() {
+        return this.random();
     }
 
-    // Helper functions similar to C++
-    mix(a, b, t) {
-        return a * (1 - t) + b * t;
-    }
-
-    smoothstep(t) {
+    // Smoothstep interpolation
+    _smoothstep(t) {
         return t * t * (3 - 2 * t);
     }
 
-    eval(x, y) {
-        const X = Math.floor(x) & 255;
-        const Y = Math.floor(y) & 255;
+    // Linear interpolation
+    _lerp(a, b, t) {
+        return a + t * (b - a);
+    }
 
-        x -= Math.floor(x);
-        y -= Math.floor(y);
+    // Main FBM (Fractal Brownian Motion) function
+    fbm(x, z, octaves, lacunarity, gain) {
+        let total = 0;
+        let frequency = this.initialFrequency; // Use an initial frequency for scaling
+        let amplitude = 1;
+        let maxAmplitude = 0; // Used to normalize the result later
 
-        const u = this.smoothstep(x);
-        const v = this.smoothstep(y);
+        // Set initial frequency based on global terrainFrequency
+        // This is a crucial part of controlling the "zoom" of the noise.
+        // Higher initialFrequency means "busier" noise for the same terrain size.
+        // Multiply by GRID to normalize it relative to the grid size, so 0.05 is consistent.
+        frequency = terrainFrequency;
 
-        // Indices for the 4 corners
-        const AA = this.perm[this.perm[X] + Y];
-        const BA = this.perm[this.perm[X + 1] + Y];
-        const AB = this.perm[this.perm[X] + Y + 1];
-        const BB = this.perm[this.perm[X + 1] + Y + 1];
+        for (let i = 0; i < octaves; i++) {
+            // Get the integer coordinates of the grid cell
+            const x0 = Math.floor(x * frequency);
+            const z0 = Math.floor(z * frequency);
+            const x1 = x0 + 1;
+            const z1 = z0 + 1;
 
-        // Values at the 4 corners (random values from 0-1)
-        // Using `gradient[index][0]` to get a value; typical Perlin/Value noise interpolation
-        // for value noise usually involves a direct random value at each grid point.
-        // For simplicity and to match common JS noise implementations, we can generate a random value at each corner
-        // or use the gradient's x component scaled. The current gradient approach is more typical for Perlin.
-        // Let's use `value(corner_index)` to represent values at grid points.
-        // For actual "Value Noise", we would generate values at grid points and interpolate.
-        // Your current `gradient` and `perm` structure is closer to Perlin.
-        // For true Value noise, simpler would be:
-        // const valAA = this._valueTable[AA];
-        // const valBA = this._valueTable[BA];
-        // const valAB = this._valueTable[AB];
-        // const valBB = this._valueTable[BB];
-        // However, if the current `gradient[AA][0] * 0.5 + 0.5` gives acceptable results, let's keep it.
-        // It effectively converts a gradient (which is usually -1 to 1 for Perlin) to 0-1 for a value.
+            // Get the fractional parts
+            const fx = (x * frequency) - x0;
+            const fz = (z * frequency) - z0;
 
-        const valAA = this.gradient[AA][0] * 0.5 + 0.5; // Scale to 0-1 range
-        const valBA = this.gradient[BA][0] * 0.5 + 0.5;
-        const valAB = this.gradient[AB][0] * 0.5 + 0.5;
-        const valBB = this.gradient[BB][0] * 0.5 + 0.5;
+            // Get the 4 corner values (pseudo-random based on integer coordinates)
+            // Need a consistent way to generate values for given integer coords
+            const val00 = this._value(x0, z0);
+            const val10 = this._value(x1, z0);
+            const val01 = this._value(x0, z1);
+            const val11 = this._value(x1, z1);
 
+            // Interpolate in X direction
+            const ix0 = this._lerp(val00, val10, this._smoothstep(fx));
+            const ix1 = this._lerp(val01, val11, this._smoothstep(fz));
 
-        return this.mix(
-            this.mix(valAA, valBA, u),
-            this.mix(valAB, valBB, u),
-            v
-        );
+            // Interpolate in Z direction
+            total += this._lerp(ix0, ix1, this._smoothstep(fz)) * amplitude;
+
+            maxAmplitude += amplitude; // Accumulate max possible amplitude
+
+            // Apply lacunarity and gain for the next octave
+            frequency *= lacunarity;
+            amplitude *= gain;
+        }
+
+        // Normalize the total to be between 0 and 1, then scale to -1 to 1 for typical noise range
+        // If maxAmplitude is 0 (e.g., octaves = 0), avoid division by zero.
+        if (maxAmplitude === 0) return 0;
+        return (total / maxAmplitude) * 2 - 1; // Normalize to -1 to 1 range
+    }
+
+    // Generates a pseudo-random value for integer coordinates
+    _value(x, y) {
+        // Simple hash function for reproducibility based on seed
+        this.random = new Math.seedrandom(`${this.seed}-${x}-${y}`);
+        return this._rand();
     }
 }
 
-let noise2D = new ValueNoise2D(); // Global instance of the noise generator
 
 function generateTerrain() {
-    // Capture the state before terrain generation for undo/redo
     const oldState = [...voxels.entries()].map(([id, data]) => {
         const parts = id.split(',').map(Number);
         return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
     });
 
-    clearAllInternal(true); // Clear existing voxels without adding to history
+    clearAllInternal(true, false); // Clear existing voxels without history and without immediate geometry update
 
-    const terrainHeightScale = 15; // Max height for terrain (can be adjusted)
-    const frequency = 0.05; // Controls the "zoom" of the noise (smaller = more zoomed out)
-    const octaves = 4; // Number of noise layers
-    const lacunarity = 2.0; // How much frequency increases per octave
-    const gain = 0.5; // How much amplitude decreases per octave
+    // Re-initialize noise generator with current seed before generating terrain
+    noise2D = new ValueNoise2D(terrainSeed);
 
     for (let x = 0; x < GRID; x++) {
         for (let z = 0; z < GRID; z++) {
-            let totalNoise = 0;
-            let maxAmplitude = 0;
-            let currentFrequency = frequency;
-            let currentAmplitude = 1.0;
+            // Get noise value for this (x,z) coordinate
+            // Noise output is typically -1 to 1, scale it to 0 to 1, then to desired height
+            const noiseVal = (noise2D.fbm(x, z, terrainOctaves, terrainLacunarity, terrainGain) + 1) * 0.5;
+            let terrainHeight = Math.floor(noiseVal * terrainHeightScale);
 
-            // Apply multiple octaves of noise (Fractal Brownian Motion)
-            for (let i = 0; i < octaves; i++) {
-                totalNoise += noise2D.eval(x * currentFrequency, z * currentFrequency) * currentAmplitude;
-                maxAmplitude += currentAmplitude;
-                currentFrequency *= lacunarity;
-                currentAmplitude *= gain;
-            }
+            // Ensure terrainHeight is at least 1, so there's always a base layer
+            terrainHeight = Math.max(1, Math.min(GRID, terrainHeight));
 
-            // Normalize noise to 0-1 and scale to desired height
-            const normalizedNoise = totalNoise / maxAmplitude;
-            const height = Math.floor(normalizedNoise * terrainHeightScale);
-
-            for (let y = 0; y < height; y++) {
+            for (let y = 0; y < terrainHeight; y++) {
                 let voxelColor;
                 // Placeholder colors - user needs to provide actual ranges
+                // Adjusted these thresholds to be relative to the actual terrainHeightScale
                 if (y < terrainHeightScale * 0.2) { // Example: Water
                     voxelColor = 0x6495ED; // CornflowerBlue
                 } else if (y < terrainHeightScale * 0.6) { // Example: Earth
@@ -1443,8 +1681,18 @@ function generateTerrain() {
         const parts = id.split(',').map(Number);
         return { gx: parts[0], gy: parts[1], gz: parts[2], color: data.color };
     });
-    addCommand('terrainGenerate', null, null, null, null, null, oldState, newState); // Add as a single command
+    addCommand('terrainGenerate', null, null, null, null, null, oldState, newState);
 }
+
+function resetCameraPosition() {
+    cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5);
+    cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
+    // Ensure Euler angles are also reset to match the new camera orientation for pointer lock
+    if (euler) { // Check if euler is defined before using
+        euler.setFromQuaternion(cam.quaternion, 'YXZ');
+    }
+}
+
 </script>
 </body>
 </html>
