@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.I. Geschichtenerzähler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Verbessert die Lesbarkeit des Story-Textes */
+        #story-text p {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl mx-auto bg-gray-800 rounded-lg shadow-lg p-8 space-y-6">
+        <div class="text-center">
+            <h1 class="text-3xl font-bold text-white">A.I. Geschichtenerzähler</h1>
+            <p class="text-gray-400 mt-2">Ihre Idee wird sofort in eine Geschichte verwandelt und erzählt.</p>
+        </div>
+
+        <!-- Eingabebereich -->
+        <div class="space-y-4">
+            <label for="story-prompt" class="block text-sm font-medium text-gray-300">Ihre Idee für die Geschichte:</label>
+            <textarea id="story-prompt" rows="3" class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="z.B. Ein einsamer Leuchtturmwärter findet eine mysteriöse Flaschenpost..."></textarea>
+            <button id="generate-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                   <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                </svg>
+                Geschichte erstellen & anhören
+            </button>
+        </div>
+
+        <!-- Lade- & Statusanzeige -->
+        <div id="status-container" class="hidden flex flex-col items-center justify-center space-y-2 text-center">
+            <div id="loader" class="loader"></div>
+            <p id="status-text" class="text-gray-400">A.I. schreibt und spricht...</p>
+        </div>
+
+        <!-- Ergebnisbereich -->
+        <div id="result-container" class="hidden space-y-6">
+            <div>
+                <h2 class="text-2xl font-bold border-b border-gray-700 pb-2 mb-4">Ihre Geschichte</h2>
+                <div id="story-text" class="bg-gray-900/50 rounded-md p-4 max-h-96 overflow-y-auto text-gray-300 leading-relaxed"></div>
+            </div>
+            <div>
+                <h3 class="text-xl font-semibold mb-2">Anhören:</h3>
+                <audio id="audio-player" controls class="w-full"></audio>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const storyPromptInput = document.getElementById('story-prompt');
+            const generateButton = document.getElementById('generate-button');
+            const statusContainer = document.getElementById('status-container');
+            const statusText = document.getElementById('status-text');
+            const resultContainer = document.getElementById('result-container');
+            const storyTextDiv = document.getElementById('story-text');
+            const audioPlayer = document.getElementById('audio-player');
+
+            const elevenLabsApiKey = "sk_8f587d47268015a2c524e5aa1bac036f95cf8bfd9d68a162";
+            const geminiApiKey = ""; // Wird von der Umgebung bereitgestellt
+
+            let mediaSource = null;
+            let sourceBuffer = null;
+            let audioQueue = [];
+            let isAppending = false;
+
+            generateButton.addEventListener('click', async () => {
+                const prompt = storyPromptInput.value.trim();
+                if (!prompt) {
+                    alert("Bitte geben Sie eine Idee für die Geschichte ein.");
+                    return;
+                }
+
+                // UI zurücksetzen
+                resultContainer.classList.add('hidden');
+                generateButton.disabled = true;
+                generateButton.classList.add('opacity-50', 'cursor-not-allowed');
+                statusContainer.classList.remove('hidden');
+                statusText.textContent = "A.I. schreibt Geschichte...";
+
+                try {
+                    // 1. Geschichte mit Gemini generieren
+                    const story = await generateStoryWithGemini(prompt);
+                    storyTextDiv.innerHTML = story.replace(/\n/g, '<p>'); // Ersetzt Zeilenumbrüche durch Absätze
+                    resultContainer.classList.remove('hidden');
+                    
+                    statusText.textContent = "Verbinde mit Sprachdienst...";
+
+                    // 2. Audio-Streaming mit ElevenLabs starten
+                    await streamAudioWithElevenLabs(story);
+
+                } catch (error) {
+                    console.error("Ein Fehler ist aufgetreten:", error);
+                    alert("Ein Fehler ist aufgetreten: " + error.message);
+                    statusContainer.classList.add('hidden');
+                } finally {
+                    generateButton.disabled = false;
+                    generateButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            });
+
+            async function generateStoryWithGemini(prompt) {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+                const requestBody = {
+                    contents: [{
+                        parts: [{
+                            text: `Schreibe eine lange, detaillierte und spannende Geschichte basierend auf dieser Idee: "${prompt}". Die Geschichte sollte mindestens 400 Wörter lang sein und einen klaren Anfang, einen spannenden Hauptteil und einen befriedigenden Schluss haben.`
+                        }]
+                    }]
+                };
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
+                if (!response.ok) throw new Error(`Gemini API Fehler: ${response.statusText}`);
+                const data = await response.json();
+                if (data.candidates && data.candidates.length > 0) {
+                    return data.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error("Keine Geschichte von Gemini erhalten.");
+                }
+            }
+
+            async function streamAudioWithElevenLabs(textToSpeak) {
+                mediaSource = new MediaSource();
+                audioPlayer.src = URL.createObjectURL(mediaSource);
+
+                mediaSource.addEventListener('sourceopen', async () => {
+                    URL.revokeObjectURL(audioPlayer.src); // Speicher freigeben
+                    sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+                    
+                    const voiceId = '2OcnG4mH3jIMtWz3vKus';
+                    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`;
+                    const headers = { "Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": elevenLabsApiKey };
+                    const data = { text: textToSpeak, model_id: "eleven_multilingual_v2" };
+
+                    try {
+                        const response = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(data) });
+                        if (!response.ok) throw new Error(`ElevenLabs API Fehler: ${response.statusText}`);
+                        
+                        statusText.textContent = "A.I. spricht...";
+
+                        const reader = response.body.getReader();
+                        
+                        sourceBuffer.addEventListener('updateend', () => {
+                            isAppending = false;
+                            if (audioQueue.length > 0) {
+                                appendNextChunk();
+                            }
+                        });
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                // Warten bis der letzte Chunk angehängt wurde, dann den Stream beenden
+                                const checkBuffer = setInterval(() => {
+                                    if (!isAppending) {
+                                        clearInterval(checkBuffer);
+                                        mediaSource.endOfStream();
+                                        statusContainer.classList.add('hidden');
+                                    }
+                                }, 100);
+                                break;
+                            }
+                            audioQueue.push(value);
+                            if (!isAppending) {
+                                appendNextChunk();
+                            }
+                        }
+                    } catch (error) {
+                         console.error("Fehler beim Audio-Streaming:", error);
+                         alert("Fehler beim Audio-Streaming: " + error.message);
+                         statusContainer.classList.add('hidden');
+                    }
+                });
+            }
+            
+            function appendNextChunk() {
+                if (audioQueue.length > 0 && !isAppending && sourceBuffer && !sourceBuffer.updating) {
+                    isAppending = true;
+                    const chunk = audioQueue.shift();
+                    try {
+                        sourceBuffer.appendBuffer(chunk);
+                    } catch (error) {
+                        console.error("Fehler beim Anhängen des Buffers:", error);
+                        isAppending = false;
+                    }
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
