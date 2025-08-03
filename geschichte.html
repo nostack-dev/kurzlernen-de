@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="dracula">
+<html lang="de" data-theme="silk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -48,6 +48,20 @@
         }
         #story-text p {
             margin-bottom: 1rem;
+        }
+        /* Styles for the collapsible text */
+        #story-text-container {
+            max-height: 10rem; /* Initial collapsed height */
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        #story-text-container.expanded {
+            max-height: 100rem; /* Expanded height, large enough to fit the content */
+        }
+        .collapse-button {
+            display: block;
+            margin-top: 1rem;
+            text-align: center;
         }
     </style>
 </head>
@@ -188,11 +202,19 @@
                 <div id="result-container" class="hidden space-y-6">
                     <div>
                         <h2 class="text-2xl font-bold border-b border-base-content/20 pb-2 mb-4 text-white">Ihre Geschichte</h2>
-                        <div id="story-text" class="bg-base-300 rounded-md p-4 max-h-96 overflow-y-auto text-gray-300 leading-relaxed"></div>
+                        <div id="story-text-container">
+                             <div id="story-text" class="bg-base-300 rounded-md p-4 max-h-full overflow-y-auto text-gray-300 leading-relaxed"></div>
+                        </div>
+                        <button id="collapse-toggle" class="collapse-button text-primary font-bold">Mehr lesen</button>
                     </div>
-                    <div>
-                        <h3 class="text-xl font-semibold mb-2">Anhören:</h3>
-                        <audio id="audio-player" controls class="w-full"></audio>
+                    <div class="flex flex-col md:flex-row gap-4 justify-between items-center">
+                        <div class="w-full">
+                            <h3 class="text-xl font-semibold mb-2">Anhören:</h3>
+                            <audio id="audio-player" controls class="w-full"></audio>
+                        </div>
+                        <button id="download-button" class="btn btn-secondary w-full md:w-auto mt-4 md:mt-0">
+                            Audio herunterladen
+                        </button>
                     </div>
                 </div>
             </div>
@@ -225,6 +247,7 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         let userId = '';
+        let audioBlob = null; // Speichert den Audio-Blob zum Herunterladen
 
         // UI Elemente
         const storyPromptInput = document.getElementById('story-prompt');
@@ -232,9 +255,12 @@
         const statusContainer = document.getElementById('status-container');
         const statusText = document.getElementById('status-text');
         const resultContainer = document.getElementById('result-container');
+        const storyTextContainer = document.getElementById('story-text-container');
         const storyTextDiv = document.getElementById('story-text');
         const audioPlayer = document.getElementById('audio-player');
         const messageBox = document.getElementById('message-box');
+        const downloadButton = document.getElementById('download-button');
+        const collapseToggleButton = document.getElementById('collapse-toggle');
 
         // Funktion zur Anzeige von Nachrichten, die alert() ersetzt
         function showMessage(text, type = 'info') {
@@ -281,6 +307,40 @@
             }
         });
 
+        // Funktion zum Wiederherstellen der Story aus dem localStorage
+        function restoreStoryFromLocalStorage() {
+            try {
+                const savedStory = localStorage.getItem('lastStory');
+                if (savedStory) {
+                    const { text, audioDataUrl } = JSON.parse(savedStory);
+                    if (storyTextDiv) {
+                        storyTextDiv.innerHTML = text.replace(/\n/g, '<p>');
+                    }
+                    if (audioPlayer) {
+                        audioPlayer.src = audioDataUrl;
+                    }
+                    if (resultContainer) {
+                        resultContainer.classList.remove('hidden');
+                    }
+                    showMessage("Vorherige Geschichte aus dem Speicher wiederhergestellt.", 'info');
+                }
+            } catch (error) {
+                console.error("Fehler beim Wiederherstellen aus localStorage:", error);
+            }
+        }
+
+        // Initialisierung
+        document.addEventListener('DOMContentLoaded', () => {
+            restoreStoryFromLocalStorage();
+            if (storyTextContainer) {
+                storyTextContainer.classList.remove('expanded');
+            }
+            if (collapseToggleButton) {
+                collapseToggleButton.textContent = 'Mehr lesen';
+            }
+        });
+
+
         generateButton.addEventListener('click', async () => {
             const prompt = storyPromptInput.value.trim();
             if (!prompt) {
@@ -296,6 +356,10 @@
             }
             if (statusContainer) statusContainer.classList.remove('hidden');
             if (statusText) statusText.textContent = "A.I. schreibt Geschichte...";
+            
+            // Lösche vorherige Daten aus localStorage, um zu zeigen, dass neue generiert wird
+            localStorage.removeItem('lastStory');
+            audioBlob = null;
 
             try {
                 // 1. Geschichte mit Gemini generieren
@@ -305,16 +369,28 @@
                 
                 if (statusText) statusText.textContent = "Verbinde mit Sprachdienst...";
 
-                // 2. Audio-Streaming mit ElevenLabs starten
-                await streamAudioWithElevenLabs(story);
+                // 2. Audio-Streaming mit ElevenLabs starten und speichern
+                const audioDataUrl = await streamAudioWithElevenLabs(story);
 
-                // 3. Geschichte in Firestore speichern
+                // 3. Story und Audio in localStorage speichern
+                localStorage.setItem('lastStory', JSON.stringify({
+                    text: story,
+                    audioDataUrl: audioDataUrl
+                }));
+                
+                // 4. Geschichte in Firestore speichern
                 await addDoc(collection(db, `artifacts/${appId}/users/${userId}/stories`), {
                     title: prompt,
                     text: story,
                     createdAt: serverTimestamp()
                 });
                 showMessage("Geschichte erfolgreich erstellt und gespeichert!", 'success');
+                if (storyTextContainer) {
+                    storyTextContainer.classList.remove('expanded');
+                }
+                if (collapseToggleButton) {
+                    collapseToggleButton.textContent = 'Mehr lesen';
+                }
 
             } catch (error) {
                 console.error("Ein Fehler ist aufgetreten:", error);
@@ -348,13 +424,7 @@
         }
 
         async function streamAudioWithElevenLabs(textToSpeak) {
-            mediaSource = new MediaSource();
-            if (audioPlayer) audioPlayer.src = URL.createObjectURL(mediaSource);
-
-            mediaSource.addEventListener('sourceopen', async () => {
-                if (audioPlayer) URL.revokeObjectURL(audioPlayer.src);
-                sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
-                
+            return new Promise(async (resolve, reject) => {
                 const voiceId = '2OcnG4mH3jIMtWz3vKus';
                 const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`;
                 const headers = { "Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": elevenLabsApiKey };
@@ -362,42 +432,53 @@
 
                 try {
                     const response = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(data) });
-                    if (!response.ok) throw new Error(`ElevenLabs API Fehler: ${response.statusText}`);
+                    if (!response.ok) {
+                        return reject(new Error(`ElevenLabs API Fehler: ${response.statusText}`));
+                    }
                     
                     if (statusText) statusText.textContent = "A.I. spricht...";
-
                     const reader = response.body.getReader();
-                    
-                    if (sourceBuffer) {
+                    const audioChunks = [];
+
+                    mediaSource = new MediaSource();
+                    if (audioPlayer) audioPlayer.src = URL.createObjectURL(mediaSource);
+
+                    mediaSource.addEventListener('sourceopen', async () => {
+                        URL.revokeObjectURL(audioPlayer.src);
+                        sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+                        
                         sourceBuffer.addEventListener('updateend', () => {
                             isAppending = false;
                             if (audioQueue.length > 0) {
                                 appendNextChunk();
                             }
                         });
-                    }
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) {
-                            const checkBuffer = setInterval(() => {
-                                if (!isAppending && mediaSource) {
-                                    clearInterval(checkBuffer);
-                                    mediaSource.endOfStream();
-                                    if (statusContainer) statusContainer.classList.add('hidden');
-                                }
-                            }, 100);
-                            break;
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                const finalBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
+                                audioBlob = finalBlob;
+                                mediaSource.endOfStream();
+                                statusContainer.classList.add('hidden');
+                                const audioDataUrl = URL.createObjectURL(finalBlob);
+                                if (audioPlayer) audioPlayer.src = audioDataUrl;
+                                resolve(audioDataUrl);
+                                break;
+                            }
+                            audioChunks.push(value);
+                            audioQueue.push(value);
+                            if (!isAppending) {
+                                appendNextChunk();
+                            }
                         }
-                        audioQueue.push(value);
-                        if (!isAppending) {
-                            appendNextChunk();
-                        }
-                    }
+                    });
+
                 } catch (error) {
                     console.error("Fehler beim Audio-Streaming:", error);
                     showMessage("Fehler beim Audio-Streaming: " + error.message, 'error');
-                    if (statusContainer) statusContainer.classList.add('hidden');
+                    statusContainer.classList.add('hidden');
+                    reject(error);
                 }
             });
         }
@@ -414,6 +495,34 @@
                 }
             }
         }
+
+        // Download-Funktion
+        downloadButton.addEventListener('click', () => {
+            if (audioBlob) {
+                const url = URL.createObjectURL(audioBlob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `geschichte-${Date.now()}.mp3`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showMessage("Audio wird heruntergeladen...", 'info');
+            } else {
+                showMessage("Keine Story zum Herunterladen gefunden. Bitte generieren Sie zuerst eine.", 'error');
+            }
+        });
+
+        // Toggle-Funktion für den Story-Text
+        collapseToggleButton.addEventListener('click', () => {
+            if (storyTextContainer.classList.contains('expanded')) {
+                storyTextContainer.classList.remove('expanded');
+                collapseToggleButton.textContent = 'Mehr lesen';
+            } else {
+                storyTextContainer.classList.add('expanded');
+                collapseToggleButton.textContent = 'Weniger lesen';
+            }
+        });
     </script>
 </body>
 </html>
