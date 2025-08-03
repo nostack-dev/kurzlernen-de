@@ -240,13 +240,14 @@
         // Globale Variablen, die vom Canvas-Environment bereitgestellt werden
         // Fallback-Werte für die lokale Entwicklung hinzugefügt, um Initialisierungsfehler zu vermeiden
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "dummy-api-key",
-            authDomain: "dummy-project.firebaseapp.com",
-            projectId: "dummy-project",
-            storageBucket: "dummy-project.appspot.com",
-            messagingSenderId: "1234567890",
-            appId: "1:1234567890:web:abcdef1234567890",
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9-mpyAu9W6oiVtB0fYG8E6YFvTAsjtAA", 
+            authDomain: "voxelshaper.firebaseapp.com", 
+            projectId: "voxelshaper",
+            storageBucket: "voxelshaper.appspot.com", 
+            messagingSenderId: "1053689247573",
+            appId: "1:1053689247573:web:f7960c7f8c2e8849e8e1dc",
+            measurementId: "G-QJ5CNKZ5DR"
         };
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
 
