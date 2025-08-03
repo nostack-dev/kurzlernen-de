@@ -18,51 +18,6 @@
         .bg-pattern {
             background-image: url("data:image/svg+xml,%3Csvg width='42' height='44' viewBox='0 0 42 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='Page-1' fill='none' fill-rule='evenodd'%3E%3Cg id='brick-wall' fill='%235A6270' fill-opacity='0.1'%3E%3Cpath d='M0 0h42v44H0V0zm1 1h40v20H1V1zM0 23h42v20H0V23zm1 1h40v20H1V24z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
-        /* Custom message box style to replace alert() */
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            color: white;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out;
-        }
-        .message-box.show {
-            opacity: 1;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        #story-text p {
-            margin-bottom: 1rem;
-        }
-        /* Styles for the collapsible text */
-        #story-text-container {
-            max-height: 10rem; /* Initial collapsed height */
-            overflow: hidden;
-            transition: max-height 0.5s ease-in-out;
-        }
-        #story-text-container.expanded {
-            max-height: 100rem; /* Expanded height, large enough to fit the content */
-        }
-        .collapse-button {
-            display: block;
-            margin-top: 1rem;
-            text-align: center;
-        }
     </style>
 </head>
 <body class="bg-base-100 text-base-content min-h-screen">
@@ -81,7 +36,7 @@
     </div>
 
     <!-- Message box to replace alert() -->
-    <div id="message-box" class="message-box hidden"></div>
+    <div id="message-box" class="toast toast-end hidden"></div>
     
     <div id="app-container">
         <!-- Landing Page Section -->
@@ -203,8 +158,8 @@
                         <!-- Eingabebereich -->
                         <div class="space-y-4">
                             <label for="story-prompt" class="block text-sm font-medium text-base-content/70">Ihre Idee für die Geschichte:</label>
-                            <textarea id="story-prompt" rows="3" class="w-full bg-base-300 border border-base-content/20 rounded-md p-3 text-base-content placeholder-base-content/50 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="z.B. Ein einsamer Leuchtturmwärter findet eine mysteriöse Flaschenpost..."></textarea>
-                            <button id="generate-button" class="w-full bg-primary hover:bg-primary-focus text-primary-content font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out flex items-center justify-center">
+                            <textarea id="story-prompt" rows="3" class="w-full textarea textarea-bordered bg-base-300 border-base-content/20 rounded-md p-3 text-base-content placeholder-base-content/50 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="z.B. Ein einsamer Leuchtturmwärter findet eine mysteriöse Flaschenpost..."></textarea>
+                            <button id="generate-button" class="w-full btn btn-primary font-bold py-3 px-4 transition duration-300 ease-in-out flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path>
                                 </svg>
@@ -214,7 +169,7 @@
                 
                         <!-- Lade- & Statusanzeige -->
                         <div id="status-container" class="hidden flex flex-col items-center justify-center space-y-2 text-center">
-                            <div id="loader" class="loader"></div>
+                            <span id="loader" class="loading loading-dots loading-lg"></span>
                             <p id="status-text" class="text-base-content/70">A.I. schreibt und spricht...</p>
                         </div>
                 
@@ -222,10 +177,15 @@
                         <div id="result-container" class="hidden space-y-6">
                             <div>
                                 <h2 class="text-2xl font-bold border-b border-base-content/20 pb-2 mb-4 text-white">Ihre Geschichte</h2>
-                                <div id="story-text-container" class="bg-base-300 rounded-md p-4 overflow-hidden text-base-content/70 leading-relaxed max-h-[10rem]">
-                                     <div id="story-text" class="h-full w-full overflow-y-auto"></div>
+                                <div class="collapse collapse-plus bg-base-300 rounded-md">
+                                    <input type="checkbox" id="collapse-toggle-input" /> 
+                                    <div class="collapse-title text-xl font-medium text-primary">
+                                        Vorschau
+                                    </div>
+                                    <div id="story-text-container" class="collapse-content overflow-y-auto max-h-60">
+                                         <div id="story-text" class="prose max-w-full text-base-content leading-relaxed"></div>
+                                    </div>
                                 </div>
-                                <button id="collapse-toggle" class="collapse-button text-primary font-bold">Mehr lesen</button>
                             </div>
                             <div class="space-y-4">
                                 <h3 class="text-xl font-semibold mt-4">Anhören:</h3>
@@ -264,7 +224,7 @@
         const audioPlayer = document.getElementById('audio-player');
         const messageBox = document.getElementById('message-box');
         const downloadButton = document.getElementById('download-button');
-        const collapseToggleButton = document.getElementById('collapse-toggle');
+        const collapseToggleInput = document.getElementById('collapse-toggle-input');
 
         // Funktion zum Wechseln der Seiten
         function showPage(page) {
@@ -292,22 +252,23 @@
         // Funktion zur Anzeige von Nachrichten
         function showMessage(text, type = 'info') {
             if (messageBox) {
-                messageBox.textContent = text;
-                messageBox.classList.remove('hidden', 'bg-error', 'bg-success', 'bg-primary');
-                messageBox.classList.add('show');
+                const toast = document.createElement('div');
+                toast.classList.add('alert', 'fade-out');
+
                 if (type === 'error') {
-                     messageBox.classList.add('bg-error');
+                    toast.classList.add('alert-error');
+                    toast.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>${text}</span>`;
                 } else if (type === 'success') {
-                     messageBox.classList.add('bg-success');
+                    toast.classList.add('alert-success');
+                    toast.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>${text}</span>`;
                 } else {
-                     messageBox.classList.add('bg-primary');
+                    toast.classList.add('alert-info');
+                    toast.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-info shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>${text}</span>`;
                 }
                 
+                messageBox.appendChild(toast);
                 setTimeout(() => {
-                    messageBox.classList.remove('show');
-                    setTimeout(() => {
-                        messageBox.classList.add('hidden');
-                    }, 500);
+                    toast.remove();
                 }, 5000);
             }
         }
@@ -327,7 +288,6 @@
                     if (resultContainer) {
                         resultContainer.classList.remove('hidden');
                     }
-                     // Zeige Toast-Nachricht nur, wenn eine Story wiederhergestellt wurde
                     if(text && audioDataUrl) {
                         showMessage("Vorherige Geschichte aus dem Speicher wiederhergestellt.", 'info');
                     }
@@ -339,13 +299,7 @@
 
         // Initialisierung
         document.addEventListener('DOMContentLoaded', () => {
-             // restoreStoryFromLocalStorage(); // Wird nun nur auf der Generator-Seite aufgerufen
-            if (storyTextContainer) {
-                storyTextContainer.classList.remove('expanded');
-            }
-            if (collapseToggleButton) {
-                collapseToggleButton.textContent = 'Mehr lesen';
-            }
+            // Die Wiederherstellung wird jetzt in showPage('generator') aufgerufen
         });
 
         generateButton.addEventListener('click', async () => {
@@ -390,11 +344,8 @@
                 }));
                 
                 showMessage("Geschichte erfolgreich erstellt und abspielbereit!", 'success');
-                if (storyTextContainer) {
-                    storyTextContainer.classList.remove('expanded');
-                }
-                if (collapseToggleButton) {
-                    collapseToggleButton.textContent = 'Mehr lesen';
+                if(collapseToggleInput) {
+                    collapseToggleInput.checked = false; // Text beim Neugenerieren einklappen
                 }
 
             } catch (error) {
@@ -482,17 +433,6 @@
                 showMessage("Audio wird heruntergeladen...", 'info');
             } else {
                 showMessage("Keine Story zum Herunterladen gefunden. Bitte generieren Sie zuerst eine.", 'error');
-            }
-        });
-
-        // Toggle-Funktion für den Story-Text
-        collapseToggleButton.addEventListener('click', () => {
-            if (storyTextContainer.classList.contains('expanded')) {
-                storyTextContainer.classList.remove('expanded');
-                collapseToggleButton.textContent = 'Mehr lesen';
-            } else {
-                storyTextContainer.classList.add('expanded');
-                collapseToggleButton.textContent = 'Weniger lesen';
             }
         });
     </script>
