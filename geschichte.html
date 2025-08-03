@@ -238,7 +238,6 @@
         import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Globale Variablen, die vom Canvas-Environment bereitgestellt werden
-        // Fallback-Werte für die lokale Entwicklung hinzugefügt, um Initialisierungsfehler zu vermeiden
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "dummy-api-key",
