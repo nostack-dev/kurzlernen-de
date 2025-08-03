@@ -240,14 +240,13 @@
         // Globale Variablen, die vom Canvas-Environment bereitgestellt werden
         // Fallback-Werte für die lokale Entwicklung hinzugefügt, um Initialisierungsfehler zu vermeiden
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = {
-            apiKey: "AIzaSyB9-mpyAu9W6oiVtB0fYG8E6YFvTAsjtAA", 
-            authDomain: "voxelshaper.firebaseapp.com", 
-            projectId: "voxelshaper",
-            storageBucket: "voxelshaper.appspot.com", 
-            messagingSenderId: "1053689247573",
-            appId: "1:1053689247573:web:f7960c7f8c2e8849e8e1dc",
-            measurementId: "G-QJ5CNKZ5DR"
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "dummy-api-key",
+            authDomain: "dummy-project.firebaseapp.com",
+            projectId: "dummy-project",
+            storageBucket: "dummy-project.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef1234567890",
         };
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
 
@@ -353,7 +352,7 @@
         generateButton.addEventListener('click', async () => {
             const prompt = storyPromptInput.value.trim();
             if (!prompt) {
-                showMessage("Bitte geben Sie eine Idee für die Geschichte ein.", 'error');
+                showMessage("Bitte gib eine Idee für deine Geschichte ein.", 'info'); // Geändert zu 'info'
                 return;
             }
 
@@ -452,40 +451,19 @@
                     const reader = response.body.getReader();
                     const audioChunks = [];
 
-                    mediaSource = new MediaSource();
-                    if (audioPlayer) audioPlayer.src = URL.createObjectURL(mediaSource);
-
-                    mediaSource.addEventListener('sourceopen', async () => {
-                        URL.revokeObjectURL(audioPlayer.src);
-                        sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
-                        
-                        sourceBuffer.addEventListener('updateend', () => {
-                            isAppending = false;
-                            if (audioQueue.length > 0) {
-                                appendNextChunk();
-                            }
-                        });
-
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                const finalBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
-                                audioBlob = finalBlob;
-                                mediaSource.endOfStream();
-                                statusContainer.classList.add('hidden');
-                                const audioDataUrl = URL.createObjectURL(finalBlob);
-                                if (audioPlayer) audioPlayer.src = audioDataUrl;
-                                resolve(audioDataUrl);
-                                break;
-                            }
-                            audioChunks.push(value);
-                            audioQueue.push(value);
-                            if (!isAppending) {
-                                appendNextChunk();
-                            }
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            const finalBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
+                            audioBlob = finalBlob;
+                            const audioDataUrl = URL.createObjectURL(finalBlob);
+                            if (audioPlayer) audioPlayer.src = audioDataUrl;
+                            statusContainer.classList.add('hidden');
+                            resolve(audioDataUrl);
+                            break;
                         }
-                    });
-
+                        audioChunks.push(value);
+                    }
                 } catch (error) {
                     console.error("Fehler beim Audio-Streaming:", error);
                     showMessage("Fehler beim Audio-Streaming: " + error.message, 'error');
@@ -495,19 +473,6 @@
             });
         }
         
-        function appendNextChunk() {
-            if (audioQueue.length > 0 && !isAppending && sourceBuffer && !sourceBuffer.updating) {
-                isAppending = true;
-                const chunk = audioQueue.shift();
-                try {
-                    sourceBuffer.appendBuffer(chunk);
-                } catch (error) {
-                    console.error("Fehler beim Anhängen des Buffers:", error);
-                    isAppending = false;
-                }
-            }
-        }
-
         // Download-Funktion
         downloadButton.addEventListener('click', () => {
             if (audioBlob) {
