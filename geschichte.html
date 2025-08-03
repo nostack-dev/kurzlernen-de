@@ -1,491 +1,2215 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="forest">
+<html lang="de" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Christian Hohlfeld's Story Hub</title>
-    <!-- Tailwind CSS und DaisyUI über CDN -->
-    <script src="https://cdn.tailwindcss.com?plugins=typography,forms"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@latest/dist/full.css" rel="stylesheet" type="text/css" />
-    <!-- Google Font: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .bg-pattern {
-            background-image: url("data:image/svg+xml,%3Csvg width='42' height='44' viewBox='0 0 42 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='Page-1' fill='none' fill-rule='evenodd'%3E%3Cg id='brick-wall' fill='%235A6270' fill-opacity='0.1'%3E%3Cpath d='M0 0h42v44H0V0zm1 1h40v20H1V1zM0 23h42v20H0V23zm1 1h40v20H1V24z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        }
-        /* Custom message box style to replace alert() */
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            color: white;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out;
-        }
-        .message-box.show {
-            opacity: 1;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        #story-text p {
-            margin-bottom: 1rem;
-        }
-        /* Styles for the collapsible text */
-        #story-text-container {
-            max-height: 10rem; /* Initial collapsed height */
-            overflow: hidden;
-            transition: max-height 0.5s ease-in-out;
-        }
-        #story-text-container.expanded {
-            max-height: 100rem; /* Expanded height, large enough to fit the content */
-        }
-        .collapse-button {
-            display: block;
-            margin-top: 1rem;
-            text-align: center;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta property="og:title" content="VoxelShaper – Create in 3D, Effortlessly" />
+<meta property="og:description" content="A powerful, intuitive voxel-based 3D editor – made for makers, artists, and coders." />
+<meta property="og:image" content="https://voxelshaper.com/preview.png" />
+<meta property="og:url" content="https://voxelshaper.com/" />
+<meta property="og:type" content="website" />
+<meta name="viewport"
+      content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAAANl..."/>
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="VoxelShaper – Create in 3D, Effortlessly">
+<meta name="twitter:description" content="A powerful, intuitive voxel-based 3D editor – made for makers, artists, and coders.">
+<meta name="twitter:image" content="https://voxelshaper.com/preview.png">
+<title>VoxelShaper – Voxel Editor & 3D Print Exporter</title>
+
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    box-sizing: border-box;
+    touch-action: auto;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+}
+#container, #voxelCanvas {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+}
+.touch-indicator { animation: pulse 0.5s; }
+@keyframes pulse {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.2; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+input[type="color"]::-moz-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-moz-color-swatch { border: none; border-radius: 50%; }
+.color-preset-box::-webkit-color-swatch-wrapper { padding: 0; }
+.color-preset-box::-webkit-color-swatch { border: none; border-radius: 0.375rem; }
+.color-preset-box::-moz-color-swatch-wrapper { padding: 0; }
+.color-preset-box::-moz-color-swatch { border: none; border-radius: 0.375rem; }
+
+#toast-container {
+    position: fixed;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    pointer-events: none;
+}
+
+#toast-container.toast-end {
+    bottom: 1rem;
+    right: 1rem;
+    align-items: flex-end;
+}
+
+@media (max-width: 768px) {
+    #toast-container {
+        top: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 2rem);
+        max-width: 300px;
+        align-items: center;
+    }
+    #toast-container.toast-end {
+        bottom: auto;
+        right: auto;
+    }
+}
+
+.toast .alert {
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+    transform: translateY(20px);
+}
+
+.toast .alert.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+    .toast .alert {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+    .toast .alert svg {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+    .toast .alert strong {
+        font-size: 0.9rem;
+    }
+    .toast .alert span {
+        font-size: 0.8rem;
+    }
+    .toast .alert .close-btn {
+        font-size: 1rem;
+        padding: 0.25rem;
+    }
+}
+.mobile-btn {
+    width: 64px;
+    height: 64px;
+    font-size: 2rem;
+    border-radius: 50%;
+    background-color: var(--fallback-b3, oklch(var(--b3)/1));
+    color: var(--fallback-bc, oklch(var(--bc)/1));
+    border: 2px solid var(--fallback-bc, oklch(var(--bc)/1));
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.mobile-btn:hover {
+    background-color: oklch(var(--bc)/0.2);
+}
+
+.mobile-btn:active {
+    transform: scale(0.95);
+}
+
+#mobile-controls {
+    gap: 1rem;
+}
+</style>
 </head>
-<body class="bg-base-100 text-base-content min-h-screen">
+<body class="bg-base-100 min-h-screen text-base-content flex flex-col">
+<button id="menuToggle" aria-label="Menü umschalten" class="fixed top-4 right-4 z-[1500] w-10 h-10 text-xl leading-10 text-center bg-base-300 text-base-content border-none rounded-lg cursor-pointer shadow-md hover:bg-base-content/20 lg:hidden">☰</button>
 
-    <!-- Navbar -->
-    <div class="navbar bg-base-100 shadow-xl z-50">
-        <div class="container mx-auto">
-            <div class="flex-1">
-                <a class="btn btn-ghost text-xl font-bold text-primary" onclick="showPage('landing')">Story Hub</a>
-            </div>
-            <div class="flex-none">
-                <a onclick="scrollToSection('pricing-section')" class="btn btn-ghost">Preise</a>
-                <a onclick="showPage('generator')" class="btn btn-primary ml-2">Jetzt starten</a>
-            </div>
+<div id="controls" class="flex flex-wrap items-center justify-center gap-3 p-4 bg-base-200 border-b border-base-content/20 hidden md:flex">
+    <label for="grid-size-slider" class="text-base-content">Gittergröße:</label>
+    <input type="range" id="grid-size-slider" min="5" max="180" value="10" aria-label="Gittergröße anpassen" class="range range-xs w-36">
+    <span id="grid-size-display" class="font-bold text-primary">10×10×10</span>
+    
+    <label for="color-picker" class="text-base-content">Farbe:</label>
+    <input type="color" id="color-picker" value="#ffffff" aria-label="Aktuelle Farbe wählen" class="input input-bordered w-10 h-10 p-0 rounded-full cursor-pointer border-base-content/20">
+    <input type="color" id="color-preset-1" class="color-preset-box w-10 h-10 rounded-md border-2 border-base-content/20 cursor-pointer transition-all duration-200 hover:scale-110" value="#E4002B" aria-label="Voreingestellte Farbe 1">
+    <input type="color" id="color-preset-2" class="color-preset-box w-10 h-10 rounded-md border-2 border-base-content/20 cursor-pointer transition-all duration-200 hover:scale-110" value="#00A040" aria-label="Voreingestellte Farbe 2">
+    <input type="color" id="color-preset-3" class="color-preset-box w-10 h-10 rounded-md border-2 border-base-content/20 cursor-pointer flex items-center justify-center shadow-lg hover:bg-base-content/20" value="#0057B8" aria-label="Voreingestellte Farbe 3">
+
+    <button id="modeToggle" aria-label="Modus wechseln" class="btn btn-sm btn-neutral">Modus wechseln</button><span id="current-mode" class="font-bold text-success min-w-40 text-center">Modus: Hinzufügen</span>
+    <button id="clearBtn" aria-label="Alles löschen" class="btn btn-sm btn-neutral">Alles löschen</button>
+    <button id="fillLevelBtn" aria-label="Ebene füllen" class="btn btn-sm btn-neutral">Ebene füllen</button>
+    <button id="saveBtn" aria-label="Projekt speichern" aria-describedby="save-description" class="btn btn-sm btn-neutral">Projekt speichern</button>
+    <div id="save-description" class="sr-only">Speichert das aktuelle Projekt als JSON-Datei</div>
+    <button id="loadBtn" aria-label="Projekt laden" class="btn btn-sm btn-neutral">Projekt laden</button>
+    <button id="exportStlBtn" aria-label="STL Export" class="btn btn-sm btn-neutral">STL Export</button>
+    <button id="undoBtn" aria-label="Rückgängig machen" class="btn btn-sm btn-neutral">Wiederherstellen</button>
+    <button id="redoBtn" aria-label="Wiederherstellen" class="btn btn-sm btn-neutral">Wiederherstellen</button>
+    <label for="fly-speed-slider" class="text-base-content">Fluggeschwindigkeit:</label>
+    <input type="range" id="fly-speed-slider" min="0.01" max="1.0" step="0.01" value="0.1" aria-label="Fluggeschwindigkeit anpassen" class="range range-xs w-36">
+    <span id="fly-speed-display" class="font-bold text-primary">0.10</span>
+
+    <button id="resetCameraBtn" aria-label="Kamera zurücksetzen" class="btn btn-sm btn-neutral">Zur Szene zurückkehren</button>
+    
+    <button id="loadImageTemplateBtn" aria-label="Bild als Vorlage laden" class="btn btn-sm btn-neutral">Bild als Vorlage laden</button>
+    <button id="removeImageTemplateBtn" class="btn btn-sm btn-neutral hidden" aria-label="Bildvorlage entfernen">Bildvorlage entfernen</button>
+    <input type="file" id="imageFileInput" accept="image/*" class="hidden">
+
+    <button id="loginLogoutBtn" aria-label="Anmelden oder Abmelden" class="btn btn-sm btn-info">Anmelden</button>
+    <span id="userIdDisplay" class="font-bold text-info ml-2 mr-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-xs flex items-center gap-1"></span>
+    <button id="uploadToHubBtn" aria-label="Auf Hub hochladen" class="btn btn-sm btn-warning hidden">Auf Hub hochladen</button>
+    <button id="goToHubBtn" aria-label="Zum VoxelShaper Hub wechseln" class="btn btn-sm btn-secondary">Zum Hub</button>
+</div>
+
+<div id="container" class="flex-1 relative border-2 border-transparent box-border overflow-hidden touch-none">
+    <canvas id="voxelCanvas" class="w-full h-full block box-border"></canvas>
+    <div id="touch-indicator" class="touch-indicator absolute w-10 h-10 rounded-full bg-blue-500/30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none hidden z-[2000]"></div>
+    <input type="file" id="fileInput" accept=".json" class="hidden">
+</div>
+
+<dialog id="clearConfirmationModal" class="modal">
+    <div class="modal-box bg-base-200 text-base-content p-8 text-center shadow-xl max-w-md">
+        <h3 class="font-bold text-lg text-primary mb-4">Projekt löschen</h3>
+        <p class="py-4">Möchten Sie das aktuelle Projekt speichern, bevor Sie alle Voxel löschen?</p>
+        <div class="modal-buttons flex justify-around gap-4 mt-6">
+            <button id="saveAndClearBtn" class="confirm-save btn btn-success flex-1">Speichern & Löschen</button>
+            <button id="clearWithoutSaveBtn" class="confirm-no-save btn btn-error flex-1">Ohne Speichern löschen</button>
+            <button id="cancelClearBtn" class="cancel btn btn-ghost flex-1">Abbrechen</button>
         </div>
     </div>
+</dialog>
 
-    <!-- Message box to replace alert() -->
-    <div id="message-box" class="message-box hidden"></div>
-    
-    <div id="app-container">
-        <!-- Landing Page Section -->
-        <div id="landing-page">
-            <div class="hero min-h-[calc(100vh-64px)] bg-pattern">
-                <div class="hero-content text-center">
-                    <div class="max-w-3xl">
-                        <h1 class="text-5xl md:text-7xl font-extrabold text-white leading-tight mb-4">
-                            Verwandle Deine Ideen in fesselnde Hörgeschichten.
-                        </h1>
-                        <p class="text-lg md:text-xl text-base-content mb-8">
-                            Mit modernster KI-Stimme von ElevenLabs.
-                        </p>
-                        <div class="space-x-4">
-                            <a onclick="scrollToSection('pricing-section')" class="btn btn-primary btn-lg shadow-lg">Entdecke die Preise</a>
-                            <a onclick="showPage('generator')" class="btn btn-secondary btn-lg shadow-lg">Direkt starten</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-    
-            <!-- Pricing Section -->
-            <section id="pricing-section" class="py-20 md:py-28 bg-base-200">
-                <div class="container mx-auto px-4">
-                    <div class="text-center mb-16">
-                        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">Preisgestaltung</h2>
-                        <p class="text-lg text-base-content max-w-xl mx-auto">
-                            Erstelle einzigartige Geschichten mit unserem flexiblen Credit-System.
-                        </p>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                        <!-- Einzelkauf Card -->
-                        <div class="card bg-base-100 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-base-content/20">
-                            <div class="card-body text-center">
-                                <h3 class="card-title justify-center text-3xl font-bold text-primary">Einzelkauf</h3>
-                                <p class="text-sm text-base-content uppercase tracking-widest mt-2">Der Probe-Credit</p>
-                                <div class="py-8">
-                                    <span class="text-5xl font-extrabold text-white">19,99 €</span>
-                                    <span class="text-xl text-base-content"> / Credit</span>
-                                </div>
-                                <ul class="text-left text-base-content space-y-2 mb-6">
-                                    <li><span class="text-success mr-2">✓</span> 10-Minuten-Story</li>
-                                    <li><span class="text-success mr-2">✓</span> Perfekt zum Ausprobieren</li>
-                                    <li><span class="text-success mr-2">✓</span> Kein Abo</li>
-                                    <li class="text-error"><span class="text-error mr-2">✗</span> Kein Mengenrabatt</li>
-                                </ul>
-                                <div class="card-actions justify-center">
-                                    <button class="btn btn-primary btn-lg w-full">Jetzt 1 Credit kaufen</button>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 3er Paket Card -->
-                        <div class="card bg-base-300 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-primary">
-                            <div class="card-body text-center">
-                                <h3 class="card-title justify-center text-3xl font-bold text-primary">3er Paket</h3>
-                                <p class="text-sm text-primary uppercase tracking-widest mt-2">Beliebtester Preis</p>
-                                <div class="py-8">
-                                    <span class="text-5xl font-extrabold text-white">49,99 €</span>
-                                    <span class="text-xl text-base-content"> / 3 Credits</span>
-                                </div>
-                                <ul class="text-left text-base-content space-y-2 mb-6">
-                                    <li><span class="text-success mr-2">✓</span> 3 x 10-Minuten-Stories</li>
-                                    <li><span class="text-success mr-2">✓</span> Günstiger als Einzelkauf</li>
-                                    <li><span class="text-success mr-2">✓</span> Flexibel einsetzbar</li>
-                                    <li><span class="text-success mr-2">✓</span> Ideal für kleine Projekte</li>
-                                </ul>
-                                <div class="card-actions justify-center">
-                                    <button class="btn btn-secondary btn-lg w-full">3 Credits kaufen</button>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 5er Paket Card -->
-                        <div class="card bg-base-100 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-base-content/20">
-                            <div class="card-body text-center">
-                                <h3 class="card-title justify-center text-3xl font-bold text-primary">5er Paket</h3>
-                                <p class="text-sm text-base-content uppercase tracking-widest mt-2">Bestes Angebot</p>
-                                <div class="py-8">
-                                    <span class="text-5xl font-extrabold text-white">69,99 €</span>
-                                    <span class="text-xl text-base-content"> / 5 Credits</span>
-                                </div>
-                                <ul class="text-left text-base-content space-y-2 mb-6">
-                                    <li><span class="text-success mr-2">✓</span> 5 x 10-Minuten-Stories</li>
-                                    <li><span class="text-success mr-2">✓</span> Größter Rabatt pro Story</li>
-                                    <li><span class="text-success mr-2">✓</span> Perfekt für Autoren</li>
-                                    <li><span class="text-success mr-2">✓</span> Langfristig sparen</li>
-                                </ul>
-                                <div class="card-actions justify-center">
-                                    <button class="btn btn-primary btn-lg w-full">5 Credits kaufen</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+<dialog id="uploadProjectModal" class="modal">
+    <div class="upload-modal-content modal-box bg-base-200 text-base-content p-8 shadow-xl max-w-xl w-11/12 text-left">
+        <h3 class="font-bold text-lg text-primary text-center mb-6">Projekt auf Hub hochladen</h3>
+        <label for="uploadTitle" class="label block mb-2 font-bold">Titel:</label>
+        <input type="text" id="uploadTitle" placeholder="Ein aussagekräftiger Titel für Ihr Projekt" maxlength="100" class="input input-bordered w-full bg-base-300 border-base-content/20 mb-4">
 
-            <!-- Footer -->
-            <footer class="footer items-center p-4 bg-neutral text-neutral-content">
-                <aside class="items-center grid-flow-col">
-                    <p>Copyright © 2025 - Christian Hohlfeld</p>
-                </aside>
-            </footer>
+        <label for="uploadDescription" class="label block mb-2 font-bold">Beschreibung:</label>
+        <textarea id="uploadDescription" placeholder="Beschreiben Sie Ihr Projekt kurz" maxlength="500" class="textarea textarea-bordered w-full bg-base-300 border-base-content/20 h-24 mb-4 resize-y"></textarea>
+
+        <label for="uploadCategory" class="label block mb-2 font-bold">Kategorie:</label>
+        <select id="uploadCategory" class="select select-bordered w-full bg-base-300 border-base-content/20 mb-4" required>
+            <option value="" disabled selected>Kategorie auswählen</option>
+        </select>
+
+        <label for="uploadTags" class="label block mb-2 font-bold">Tags (Komma-getrennt):</label>
+        <input type="text" id="uploadTags" placeholder="z.B. Haus, Baum, Auto, Gebäude" maxlength="100" class="input input-bordered w-full bg-base-300 border-base-content/20 mb-4">
+
+        <label class="label block mb-2 font-bold">Sichtbarkeit:</label>
+        <div class="radio-group flex gap-4 mb-4">
+            <label class="flex items-center font-normal">
+                <input type="radio" name="uploadVisibility" value="public" checked class="radio radio-primary mr-2"> Öffentlich
+            </label>
+            <label class="flex items-center font-normal">
+                <input type="radio" name="uploadVisibility" value="private" class="radio radio-primary mr-2"> Privat
+            </label>
         </div>
 
-        <!-- Story Generator Page Section -->
-        <div id="generator-page" class="hidden">
-            <section class="py-20 md:py-28 bg-base-100 min-h-screen flex flex-col justify-center items-center">
-                <div class="container mx-auto px-4 text-center">
-                    <button onclick="showPage('landing')" class="btn btn-ghost mb-8 text-base-content/70 hover:text-base-content">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                        Zurück zur Startseite
-                    </button>
-                    <h2 class="text-4xl md:text-5xl font-bold mb-4 text-white">Jetzt deine erste Geschichte erschaffen</h2>
-                    <p class="text-lg text-base-content max-w-2xl mx-auto mb-8">
-                        Gib deine Idee ein und lass die KI deine Worte zum Leben erwecken.
-                    </p>
-                    <div class="w-full max-w-2xl mx-auto bg-base-200 rounded-lg shadow-lg p-8 space-y-6">
-                        <!-- Eingabebereich -->
-                        <div class="space-y-4">
-                            <label for="story-prompt" class="block text-sm font-medium text-base-content/70">Ihre Idee für die Geschichte:</label>
-                            <textarea id="story-prompt" rows="3" class="w-full bg-base-300 border border-base-content/20 rounded-md p-3 text-base-content placeholder-base-content/50 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="z.B. Ein einsamer Leuchtturmwärter findet eine mysteriöse Flaschenpost..."></textarea>
-                            <button id="generate-button" class="w-full bg-primary hover:bg-primary-focus text-primary-content font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                   <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path>
-                                </svg>
-                                Geschichte erstellen & anhören
-                            </button>
-                        </div>
-                
-                        <!-- Lade- & Statusanzeige -->
-                        <div id="status-container" class="hidden flex flex-col items-center justify-center space-y-2 text-center">
-                            <div id="loader" class="loader"></div>
-                            <p id="status-text" class="text-base-content/70">A.I. schreibt und spricht...</p>
-                        </div>
-                
-                        <!-- Ergebnisbereich -->
-                        <div id="result-container" class="hidden space-y-6">
-                            <div>
-                                <h2 class="text-2xl font-bold border-b border-base-content/20 pb-2 mb-4 text-white">Ihre Geschichte</h2>
-                                <div id="story-text-container" class="bg-base-300 rounded-md p-4 overflow-hidden text-base-content/70 leading-relaxed max-h-[10rem]">
-                                     <div id="story-text" class="h-full w-full overflow-y-auto"></div>
-                                </div>
-                                <button id="collapse-toggle" class="collapse-button text-primary font-bold">Mehr lesen</button>
-                            </div>
-                            <div class="space-y-4">
-                                <h3 class="text-xl font-semibold mt-4">Anhören:</h3>
-                                <audio id="audio-player" controls class="w-full"></audio>
-                                <button id="download-button" class="btn btn-secondary w-full">
-                                    Audio herunterladen
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+        <div class="upload-modal-buttons flex justify-around gap-4 mt-6">
+            <button id="uploadConfirmBtn" class="upload-confirm btn btn-success flex-1">Hochladen</button>
+            <button id="uploadCancelBtn" class="upload-cancel btn btn-ghost flex-1">Abbrechen</button>
         </div>
     </div>
+</dialog>
 
-
-    <!-- Scripts -->
-    <script type="module">
-        // Globale Variablen
-        const elevenLabsApiKey = "sk_8f587d47268015a2c524e5aa1bac036f95cf8bfd9d68a162";
-        const geminiApiKey = "AIzaSyD3uQ6BnGsliYAtfRh9r0jdBUq03KEfFO0";
-
-        let audioBlob = null;
+<dialog id="exportStlModal" class="modal">
+    <div class="modal-box bg-base-200 text-base-content p-8 text-left shadow-xl max-w-md">
+        <h3 class="font-bold text-lg text-primary mb-4">STL Export Optionen</h3>
+        <p class="mb-4">Bitte wählen Sie die Einheit für den Export. Jedes Voxel wird als 1x1x1 Einheit exportiert.</p>
         
-        // UI Elemente
-        const landingPage = document.getElementById('landing-page');
-        const generatorPage = document.getElementById('generator-page');
-        const storyPromptInput = document.getElementById('story-prompt');
-        const generateButton = document.getElementById('generate-button');
-        const statusContainer = document.getElementById('status-container');
-        const statusText = document.getElementById('status-text');
-        const resultContainer = document.getElementById('result-container');
-        const storyTextContainer = document.getElementById('story-text-container');
-        const storyTextDiv = document.getElementById('story-text');
-        const audioPlayer = document.getElementById('audio-player');
-        const messageBox = document.getElementById('message-box');
-        const downloadButton = document.getElementById('download-button');
-        const collapseToggleButton = document.getElementById('collapse-toggle');
+        <div class="form-control mb-4">
+            <label class="label cursor-pointer">
+                <span class="label-text">1 Voxel = 1 mm</span>
+                <input type="radio" name="export-unit" class="radio radio-primary" value="mm" checked />
+            </label>
+        </div>
+        <div class="form-control mb-6">
+            <label class="label cursor-pointer">
+                <span class="label-text">1 Voxel = 1 cm</span>
+                <input type="radio" name="export-unit" class="radio radio-primary" value="cm" />
+            </label>
+        </div>
 
-        // Funktion zum Wechseln der Seiten
-        function showPage(page) {
-            if (page === 'landing') {
-                landingPage.classList.remove('hidden');
-                generatorPage.classList.add('hidden');
-            } else if (page === 'generator') {
-                landingPage.classList.add('hidden');
-                generatorPage.classList.remove('hidden');
-                // Scroll zum Generator-Abschnitt
-                generatorPage.scrollIntoView({ behavior: 'smooth' });
+        <div class="modal-action">
+            <button id="confirmStlExportBtn" class="btn btn-success">Exportieren</button>
+            <button id="cancelStlExportBtn" class="btn btn-ghost">Abbrechen</button>
+        </div>
+    </div>
+</dialog>
+
+<dialog id="authModal" class="modal">
+    <div class="auth-modal-content modal-box bg-base-200 text-base-content p-8 shadow-xl max-w-lg w-11/12 text-center">
+        <h3 class="font-bold text-lg text-primary mb-6">Anmelden bei VoxelShaper Hub</h3>
+        <div class="provider-buttons flex flex-col gap-3">
+            <button id="signInGoogleBtn" class="google btn btn-error text-white">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Icon" class="w-5 h-5">
+                Mit Google anmelden
+            </button>
+            <button id="signInGithubBtn" class="github btn bg-neutral text-neutral-content hover:bg-neutral-focus">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/github.svg" alt="GitHub Icon" class="w-5 h-5">
+                Mit GitHub anmelden
+            </button>
+            <button id="showEmailLoginFormBtn" class="email btn btn-info">
+                Mit E-Mail anmelden
+            </button>
+        </div>
+
+        <div id="emailLoginForm" class="email-login-form mt-6 pt-6 border-t border-base-content/20 hidden">
+            <form id="emailAuthForm">
+                <input type="email" id="emailInput" placeholder="E-Mail" autocomplete="email" class="input input-bordered w-full bg-base-300 border-base-content/20 mb-3">
+                <input type="password" id="passwordInput" placeholder="Passwort" autocomplete="current-password" class="input input-bordered w-full bg-base-300 border-base-content/20 mb-3">
+                <button type="submit" id="emailSignInBtn" class="btn btn-primary w-full">Anmelden</button>
+                <button type="button" id="emailSignUpBtn" class="btn btn-secondary w-full mt-2">Registrieren</button>
+            </form>
+        </div>
+
+        <div class="close-button-container mt-6">
+            <button id="authModalCloseBtn" class="btn btn-ghost">Schließen</button>
+        </div>
+    </div>
+</dialog>
+
+<div id="toast-container" class="toast toast-end z-50"></div>
+
+<div id="mobile-controls" class="hidden md:hidden flex-col gap-3 fixed bottom-4 right-4 z-[1000]">
+    <button class="mobile-btn" id="mobile-undo" aria-label="Rückgängig machen">↺</button>
+    <button class="mobile-btn" id="mobile-redo" aria-label="Wiederholen">↻</button>
+    <button class="mobile-btn" id="mobile-save" aria-label="Speichern">💾</button>
+    <button class="mobile-btn" id="mobile-camera" aria-label="Kamera zurücksetzen">📷</button>
+
+    <button class="mobile-btn" id="mobile-mode-toggle" aria-label="Modus wechseln">
+        <span id="mobile-mode-icon" class="fas fa-plus"></span>
+    </button>
+
+    <button class="mobile-btn" id="mobile-color-picker-btn" aria-label="Farbe auswählen">🎨</button>
+    <input type="color" id="mobile-color-input" value="#ffffff" class="hidden w-0 h-0 opacity-0 absolute pointer-events-none">
+    
+    <button class="mobile-btn" id="mobile-level-up" aria-label="Ebene erhöhen">⬆️</button>
+    <button class="mobile-btn" id="mobile-level-down" aria-label="Ebene verringern">⬇️</button>
+    
+    <button class="mobile-btn" id="mobile-login-logout" aria-label="Anmelden oder Abmelden">🔑</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+        getAuth,
+        setPersistence,
+        browserLocalPersistence,
+        signInWithCustomToken,
+        onAuthStateChanged,
+        signOut,
+        GoogleAuthProvider,
+        GithubAuthProvider,
+        signInWithPopup,
+        createUserWithEmailAndPassword,
+        signInWithEmailAndPassword
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+        getFirestore,
+        doc,
+        getDoc,
+        collection,
+        addDoc,
+        serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window.firebase = {
+        initializeApp,
+        getAuth,
+        signInWithCustomToken,
+        onAuthStateChanged,
+        setPersistence,
+        browserLocalPersistence,
+        signOut,
+        GoogleAuthProvider,
+        GithubAuthProvider,
+        signInWithPopup,
+        createUserWithEmailAndPassword,
+        signInWithEmailAndPassword,
+        getFirestore,
+        doc,
+        getDoc,
+        collection,
+        addDoc,
+        serverTimestamp
+    };
+
+    const FIREBASE_API_KEY = "AIzaSyB9-mpyAu9W6oiVtB0fYG8E6YFvTAsjtAA"; 
+
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        apiKey: FIREBASE_API_KEY,
+        authDomain: "voxelshaper.firebaseapp.com",
+        projectId: "voxelshaper",
+        storageBucket: "voxelshaper.firebasestorage.app", 
+        messagingSenderId: "1053689247573",
+        appId: "1:1053689247573:web:f7960c7f8c2e8849e8e1dc",
+        measurementId: "G-QJCNKZ5DR"
+    };
+    window.firebaseConfig = firebaseConfig;
+</script>
+
+<script>
+const VS = 1, HALF = VS * 0.5;
+const CHUNK_SIZE = 16;
+const VOX_BITS = 10;
+const VOX_MASK = (1 << VOX_BITS) - 1;
+const SHIFT_X  = VOX_BITS * 2;
+const SHIFT_Y  = VOX_BITS;
+
+function key(x, y, z) { return ((x << SHIFT_X) | (y << SHIFT_Y) | z) >>> 0; }
+function parseKey(k) { return [(k >>> SHIFT_X) & VOX_MASK, (k >>> SHIFT_Y) & VOX_MASK, k & VOX_MASK]; }
+
+const VOXEL_DRAG_THRESHOLD = 1;
+const PINCH_ZOOM_MULT = 40;
+const TAP_DIST_TH = 10;
+const MOVE_PX = 10;
+const DT_MS = 250;
+
+const ROTATE_SPEED_TOUCH_MOBILE = 0.008;
+const PAN_SPEED_TOUCH_MOBILE = 0.2;
+const PINCH_ZOOM_MULT_MOBILE = 80;
+
+const ROTATE_SPEED_TOUCH_DESKTOP = 0.004;
+const PAN_SPEED_TOUCH_DESKTOP = 0.1;
+const PINCH_ZOOM_MULT_DESKTOP = 40;
+
+
+let activePointers = new Map();
+let gestureState = { type: 'none', startDist: 0, startMid: { x: 0, y: 0 }, lastMid: { x: 0, y: 0 }, lastDist: 0, startTime: 0, initialPointerCount: 0 };
+let tapCandidate = null;
+let doubleTapDragActive = false;
+let touchIndicator;
+
+let scene, cam, ren, gridHelper, boxHelper;
+let rotSpeed = 0.004;
+let euler;
+const voxels = new Map();
+const chunks = new Map();
+
+let cvs, containerDiv;
+let activeDrawingLevel = { x: 0, y: 0, z: 0 };
+let currentDrawingAxis = 'y';
+
+let currentColor = localStorage.getItem('voxelEditorColor') || '#ffffff';
+let moveSpeed = parseFloat(localStorage.getItem('voxelEditorFlySpeed') || '0.1');
+let GRID = parseInt(localStorage.getItem('voxelEditorGridSize') || '10');
+
+activeDrawingLevel.x = Number(localStorage.getItem('voxelEditorActiveDrawingLevelX') || '0');
+if (!Number.isFinite(activeDrawingLevel.x)) activeDrawingLevel.x = 0;
+activeDrawingLevel.x = Math.floor(Math.max(0, Math.min(GRID - 1, activeDrawingLevel.x)));
+
+activeDrawingLevel.y = Number(localStorage.getItem('voxelEditorActiveDrawingLevelY') || '0');
+if (!Number.isFinite(activeDrawingLevel.y)) activeDrawingLevel.y = 0;
+activeDrawingLevel.y = Math.floor(Math.max(0, Math.min(GRID - 1, activeDrawingLevel.y)));
+
+activeDrawingLevel.z = Number(localStorage.getItem('voxelEditorActiveDrawingLevelZ') || '0');
+if (!Number.isFinite(activeDrawingLevel.z)) activeDrawingLevel.z = 0;
+activeDrawingLevel.z = Math.floor(Math.max(0, Math.min(GRID - 1, activeDrawingLevel.z)));
+
+currentDrawingAxis = localStorage.getItem('voxelEditorCurrentDrawingAxis') || 'y';
+
+const presetColors = [
+    localStorage.getItem('voxelPresetColor1') || '#E4002B',
+    localStorage.getItem('voxelPresetColor2') || '#00A040',
+    localStorage.getItem('voxelPresetColor3') || '#0057B8'
+];
+let activePresetIndex = -1;
+let presetBoxes = [];
+
+let mainDirectionalLight, fillDirectionalLight, hemisphereLight;
+let isShiftDragging = false;
+let isControlDragging = false;
+let isPointerLocked = false;
+let lastActionVoxelCoords = null;
+let initialClickPos = null;
+let initialTargetVoxelCoords = null;
+let isDragging = false;
+let firstMoveAfterLock = true;
+let mouseMovementX = 0;
+let mouseMovementY = 0;
+
+const dummy = new THREE.Object3D();
+const previewVoxelGeometry = new THREE.BoxGeometry(VS, VS, VS);
+const previewVoxelMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false });
+previewVoxelMaterial.polygonOffset = true;
+previewVoxelMaterial.polygonOffsetFactor = -1;
+let previewVoxelMesh = new THREE.Mesh(previewVoxelGeometry, previewVoxelMaterial);
+
+const Modes = {
+    ADD: 'Hinzufügen',
+    DELETE: 'Löschen',
+    DRAW: 'Zeichnen',
+};
+
+const ModeIcons = {
+    ADD: 'fas fa-plus',
+    DELETE: 'fas fa-eraser',
+    DRAW: 'fas fa-paint-brush'
+};
+
+const AxisIcons = {
+    x: 'fas fa-arrows-alt-h',
+    y: 'fas fa-arrows-alt-v',
+    z: 'fas fa-arrows-alt'
+};
+
+let currentMode = Modes.ADD;
+
+let history = [];
+let historyPointer = -1;
+const MAX_HISTORY_SIZE = 100;
+
+let currentStrokeVoxels = new Map();
+let voxelsAtDragStart = null;
+
+let previewLineInstancedMesh;
+const maxPreviewInstances = 180 * 3;
+let previewLineVoxels = [];
+
+let templateImageMesh = null;
+let templateImageData = null;
+
+let isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+let initialDragVoxelWorldPos = null;
+let dragAxisLock = null;
+let initialDragVoxelCoords = null;
+let initialDragYLevel = null;
+
+let projectTitle = '';
+let projectDescription = '';
+let projectCategory = 'Allgemein';
+let projectTags = [];
+let projectRemixOf = '';
+let projectSourceJsonUrl = '';
+let projectVisibility = 'public';
+
+const predefinedCategories = ["Spielzeug", "Dekoration", "Funktional", "Kunst", "Allgemein", "Charaktere", "Fahrzeuge", "Natur", "Architektur", "Abstrakt"];
+
+// Create a custom geometry for the brick with studs and hollow bottom.
+function createBrickGeometry(width, height, depth) {
+    const geometriesToMerge = [];
+
+    // Dimensions of a real 1x1 brick in mm
+    const REAL_BRICK_WIDTH = 8;
+    const REAL_BRICK_HEIGHT = 9.6;
+    const REAL_STUD_DIAMETER = 4.8;
+    const REAL_STUD_HEIGHT = 1.7;
+    const REAL_WALL_THICKNESS = 1.2;
+
+    // Scaling factor to fit the VS=1 unit
+    const SCALE = width / REAL_BRICK_WIDTH;
+
+    // Scaled dimensions based on the real brick proportions
+    const brickHeight = REAL_BRICK_HEIGHT * SCALE;
+    const studRadius = (REAL_STUD_DIAMETER / 2) * SCALE;
+    const studHeight = REAL_STUD_HEIGHT * SCALE;
+    const wallThickness = REAL_WALL_THICKNESS * SCALE;
+
+    const topPlateHeight = brickHeight - studHeight;
+    const bottomCavityDepth = (height * 0.5) - (topPlateHeight / 2) - wallThickness;
+
+    // Main Body:
+    // This is the solid part of the brick, which includes the top surface and the walls.
+    const bodyHeight = brickHeight - studHeight - wallThickness;
+    const bodyGeometry = new THREE.BoxGeometry(width, bodyHeight, width);
+    bodyGeometry.translate(0, bodyHeight / 2 + wallThickness, 0);
+    geometriesToMerge.push(bodyGeometry);
+
+    // Top Plate (where the stud sits)
+    const topPlateGeometry = new THREE.BoxGeometry(width, wallThickness, width);
+    topPlateGeometry.translate(0, bodyHeight + wallThickness, 0);
+    geometriesToMerge.push(topPlateGeometry);
+
+    // Top Stud
+    const stud = new THREE.CylinderGeometry(studRadius, studRadius, studHeight, 16);
+    stud.translate(0, bodyHeight + wallThickness + studHeight/2, 0);
+    geometriesToMerge.push(stud);
+
+    // Bottom Cavity Walls
+    const cavityWallHeight = bottomCavityDepth + wallThickness;
+    const cavityInnerWidth = width - 2 * wallThickness;
+
+    // Front Wall
+    const frontWall = new THREE.BoxGeometry(width, wallThickness, wallThickness);
+    frontWall.translate(0, bottomCavityDepth/2, (width/2) - (wallThickness/2));
+    geometriesToMerge.push(frontWall);
+
+    // Back Wall
+    const backWall = new THREE.BoxGeometry(width, wallThickness, wallThickness);
+    backWall.translate(0, bottomCavityDepth/2, -(width/2) + (wallThickness/2));
+    geometriesToMerge.push(backWall);
+
+    // Left Wall
+    const leftWall = new THREE.BoxGeometry(wallThickness, wallThickness, cavityInnerWidth);
+    leftWall.translate(-(width/2) + (wallThickness/2), bottomCavityDepth/2, 0);
+    geometriesToMerge.push(leftWall);
+
+    // Right Wall
+    const rightWall = new THREE.BoxGeometry(wallThickness, wallThickness, cavityInnerWidth);
+    rightWall.translate((width/2) - (wallThickness/2), bottomCavityDepth/2, 0);
+    geometriesToMerge.push(rightWall);
+    
+    // Bottom inner cylinder (anti-stud)
+    const antiStudHeight = cavityWallHeight - wallThickness;
+    const antiStudRadius = studRadius * 0.9;
+    const antiStud = new THREE.CylinderGeometry(antiStudRadius, antiStudRadius, antiStudHeight, 16);
+    antiStud.translate(0, bottomCavityDepth - (antiStudHeight/2) + (wallThickness/2), 0);
+    geometriesToMerge.push(antiStud);
+
+
+    // Merge all parts into a single geometry
+    const mergedGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometriesToMerge);
+
+    // Position correction to align the bottom of the brick to y=0
+    mergedGeometry.computeBoundingBox();
+    mergedGeometry.translate(0, -mergedGeometry.boundingBox.min.y, 0);
+
+    return mergedGeometry;
+}
+
+
+// Create a single, shared material for all voxels
+const voxelMaterial = new THREE.MeshStandardMaterial({
+    roughness: 0.7,
+    metalness: 0.1
+});
+
+const defaultVoxelGeometry = createBrickGeometry(VS, VS, VS);
+
+function getChunkCoords(gx, gy, gz) { return { cx: Math.floor(gx / CHUNK_SIZE), cy: Math.floor(gy / CHUNK_SIZE), cz: Math.floor(gz / CHUNK_SIZE) }; }
+function getChunkKey(cx, cy, cz) { return `${cx},${cy},${cz}`; }
+
+class VoxelChunk {
+    constructor(chunkX, chunkY, chunkZ, chunkSize, scene) {
+        this.chunkX = chunkX; this.chunkY = chunkY; this.chunkZ = chunkZ; this.scene = scene; this.chunkSize = chunkSize;
+        this.offsetX = chunkX * chunkSize * VS; this.offsetY = chunkY * chunkSize * VS; this.offsetZ = chunkZ * chunkSize * VS;
+        this.voxels = new Map(); this.globalToLocalInstanceIdMap = new Map();
+        const maxInstancesInChunk = chunkSize * chunkSize * chunkSize;
+        this.instancedMesh = new THREE.InstancedMesh(defaultVoxelGeometry, voxelMaterial, maxInstancesInChunk);
+        this.instancedMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(maxInstancesInChunk * 3), 3);
+        this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.instancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+        this.instancedMesh.castShadow = true; this.instancedMesh.receiveShadow = true; this.instancedMesh.count = 0;
+        this.instancedMesh.position.set(this.offsetX, this.offsetY, this.offsetZ);
+        this.scene.add(this.instancedMesh);
+        this.boundingBox = new THREE.Box3(
+            new THREE.Vector3(this.offsetX, this.offsetY, this.offsetZ),
+            new THREE.Vector3(this.offsetX + chunkSize * VS, this.offsetY + chunkSize * VS, this.offsetZ + chunkSize * VS)
+        );
+    }
+    getLocalKey(gx, gy, gz) { return key(gx % this.chunkSize, gy % this.chunkSize, gz % this.chunkSize); }
+    addVoxel(gx, gy, gz, colorHex) {
+        const lKey = this.getLocalKey(gx, gy, gz); const gKey = key(gx, gy, gz);
+        if (this.voxels.has(lKey)) {
+            const instanceId = this.voxels.get(lKey).instanceId;
+            this.voxels.set(lKey, { color: colorHex, instanceId }); this.updateInstanceColor(instanceId, colorHex);
+        } else {
+            const instanceId = this.instancedMesh.count++;
+            this.voxels.set(lKey, { color: colorHex, instanceId }); this.globalToLocalInstanceIdMap.set(gKey, instanceId);
+            dummy.position.set((gx % this.chunkSize) * VS + HALF, (gy % this.chunkSize) * VS + HALF, (gz % this.chunkSize) * VS + HALF);
+            dummy.updateMatrix(); this.instancedMesh.setMatrixAt(instanceId, dummy.matrix);
+            this.updateInstanceColor(instanceId, colorHex);
+            this.instancedMesh.instanceMatrix.needsUpdate = true; this.instancedMesh.instanceColor.needsUpdate = true;
+        }
+    }
+    removeVoxel(gx, gy, gz) {
+        const lKey = this.getLocalKey(gx, gy, gz); const gKey = key(gx, gy, gz);
+        if (!this.voxels.has(lKey)) return;
+        const { instanceId: removedId } = this.voxels.get(lKey);
+        this.voxels.delete(lKey); this.globalToLocalInstanceIdMap.delete(gKey);
+        const lastId = this.instancedMesh.count - 1;
+        if (removedId !== lastId) {
+            let lastVoxelLKey = null;
+            for (const [lk, data] of this.voxels.entries()) { if (data.instanceId === lastId) { lastVoxelLKey = lk; break; } }
+            if (lastVoxelLKey !== null) {
+                const tempMatrix = new THREE.Matrix4(); this.instancedMesh.getMatrixAt(lastId, tempMatrix);
+                this.instancedMesh.setMatrixAt(removedId, tempMatrix);
+                this.updateInstanceColor(removedId, this.voxels.get(lastVoxelLKey).color);
+                this.voxels.get(lastVoxelLKey).instanceId = removedId;
+                const [lx, ly, lz] = parseKey(lastVoxelLKey);
+                this.globalToLocalInstanceIdMap.set(key(this.chunkX * this.chunkSize + lx, this.chunkY * this.chunkSize + ly, this.chunkZ * this.chunkSize + lz), removedId);
             }
         }
-        window.showPage = showPage;
+        this.instancedMesh.count--;
+        this.instancedMesh.instanceMatrix.needsUpdate = true; this.instancedMesh.instanceColor.needsUpdate = true;
+    }
+    recolorVoxel(gx, gy, gz, newColorHex) {
+        const lKey = this.getLocalKey(gx, gy, gz);
+        if (!this.voxels.has(lKey)) return;
+        const { instanceId } = this.voxels.get(lKey);
+        this.voxels.set(lKey, { color: newColorHex, instanceId: instanceId });
+        this.updateInstanceColor(instanceId, newColorHex);
+    }
+    dispose() {
+        this.scene.remove(this.instancedMesh);
+        this.instancedMesh.geometry.dispose(); 
+        // Note: Do not dispose of the material here as it's shared globally
+        this.instancedMesh = null; this.voxels.clear(); this.globalToLocalInstanceIdMap.clear();
+    }
+}
 
-        // Funktion zum Scrollen zu einer Sektion
-        function scrollToSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            if (section) {
-                section.scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-        window.scrollToSection = scrollToSection;
+function onResize() {
+    cam.aspect = containerDiv.clientWidth / containerDiv.clientHeight; cam.updateProjectionMatrix();
+    ren.setSize(containerDiv.clientWidth, containerDiv.clientHeight);
+    ren.setPixelRatio(isMobile ? Math.min(1.5, window.devicePixelRatio) : window.devicePixelRatio);
+}
 
-        // Funktion zur Anzeige von Nachrichten
-        function showMessage(text, type = 'info') {
-            if (messageBox) {
-                messageBox.textContent = text;
-                messageBox.classList.remove('hidden', 'bg-error', 'bg-success', 'bg-primary');
-                messageBox.classList.add('show');
-                if (type === 'error') {
-                     messageBox.classList.add('bg-error');
-                } else if (type === 'success') {
-                     messageBox.classList.add('bg-success');
-                } else {
-                     messageBox.classList.add('bg-primary');
-                }
-                
-                setTimeout(() => {
-                    messageBox.classList.remove('show');
-                    setTimeout(() => {
-                        messageBox.classList.add('hidden');
-                    }, 500);
-                }, 5000);
-            }
-        }
+function handleGesture() {
+    const pointers = [...activePointers.values()];
+    if (pointers.length === 0) return;
 
-        // Funktion zum Wiederherstellen der Story aus dem localStorage
-        function restoreStoryFromLocalStorage() {
-            try {
-                const savedStory = localStorage.getItem('lastStory');
-                if (savedStory) {
-                    const { text, audioDataUrl } = JSON.parse(savedStory);
-                    if (storyTextDiv) {
-                        storyTextDiv.innerHTML = text.replace(/\n/g, '<p>');
-                    }
-                    if (audioPlayer) {
-                        audioPlayer.src = audioDataUrl;
-                    }
-                    if (resultContainer) {
-                        resultContainer.classList.remove('hidden');
-                    }
-                    // Meldung entfernt
-                }
-            } catch (error) {
-                console.error("Fehler beim Wiederherstellen aus localStorage:", error);
-            }
-        }
+    if (pointers.length === 1) {
+        const p = pointers[0];
+        const rotateSpeed = isMobile ? ROTATE_SPEED_TOUCH_MOBILE : ROTATE_SPEED_TOUCH_DESKTOP;
+        
+        euler.y += (p.x - gestureState.lastMid.x) * rotateSpeed;
+        euler.x -= (p.y - gestureState.lastMid.y) * rotateSpeed;
+        
+        euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+        cam.quaternion.setFromEuler(euler);
+        gestureState.lastMid = { x: p.x, y: p.y };
+        return;
+    }
 
-        // Initialisierung
-        document.addEventListener('DOMContentLoaded', () => {
-            restoreStoryFromLocalStorage();
-            if (storyTextContainer) {
-                storyTextContainer.classList.remove('expanded');
-            }
-            if (collapseToggleButton) {
-                collapseToggleButton.textContent = 'Mehr lesen';
-            }
-        });
+    if (pointers.length >= 2) {
+        const [p0, p1] = pointers;
+        const midX = (p0.x + p1.x) * 0.5;
+        const midY = (p0.y + p1.y) * 0.5;
+        const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
 
-        generateButton.addEventListener('click', async () => {
-            const prompt = storyPromptInput.value.trim();
-            if (!prompt) {
-                showMessage("Bitte gib eine Idee für deine Geschichte ein.", 'info');
-                return;
+        if (gestureState.type === 'none') {
+            const dMid = Math.hypot(midX - gestureState.startMid.x, midY - gestureState.startMid.y);
+            const PINCH_REL_TH = 0.05;
+            const relDelta = Math.abs(dist - gestureState.startDist) / gestureState.startDist;
+            if (relDelta > PINCH_REL_TH) {
+                gestureState.type = 'pinch';
+            } else if (dMid > MOVE_PX) {
+                gestureState.type = 'pan';
             }
-
-            // UI zurücksetzen
-            if (resultContainer) resultContainer.classList.add('hidden');
-            if (generateButton) {
-                generateButton.disabled = true;
-                generateButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-            if (statusContainer) statusContainer.classList.remove('hidden');
-            if (statusText) statusText.textContent = "A.I. schreibt Geschichte...";
+            return;
+        } else if (gestureState.type === 'pinch') {
+            const pinchZoomMult = isMobile ? PINCH_ZOOM_MULT_MOBILE : PINCH_ZOOM_MULT_DESKTOP;
+            const zoomDelta = (dist / gestureState.lastDist - 1) * pinchZoomMult * moveSpeed;
+            cam.position.addScaledVector(cam.getWorldDirection(new THREE.Vector3()), zoomDelta);
+            gestureState.lastDist = dist;
+        } else if (gestureState.type === 'pan') {
+            const panSpeed = isMobile ? PAN_SPEED_TOUCH_MOBILE : PAN_SPEED_TOUCH_DESKTOP;
+            const dx = (midX - gestureState.lastMid.x) * panSpeed;
+            const dy = (midY - gestureState.lastMid.y) * panSpeed;
             
-            // Lösche vorherige Daten aus localStorage
-            localStorage.removeItem('lastStory');
-            audioBlob = null;
+            const right = new THREE.Vector3().crossVectors(cam.getWorldDirection(new THREE.Vector3()), cam.up).normalize();
+            cam.position.addScaledVector(right, dx);
+            cam.position.addScaledVector(new THREE.Vector3(0, 1, 0), dy);
+            
+            gestureState.lastMid = { x: midX, y: midY };
+        }
+    }
+}
 
-            try {
-                // 1. Geschichte mit Gemini generieren
-                const story = await generateStoryWithGemini(prompt);
-                if (storyTextDiv) storyTextDiv.innerHTML = story.replace(/\n/g, '<p>');
-                if (resultContainer) resultContainer.classList.remove('hidden');
-                
-                if (statusText) statusText.textContent = "Verbinde mit Sprachdienst...";
+function releasePointer(id, eventType) {
+    activePointers.delete(id);
+    if (activePointers.size < 2) {
+        gestureState.type = 'none';
+        if (activePointers.size === 1) { const last = [...activePointers.values()][0]; gestureState.lastMid = { x: last.x, y: last.y }; }
+    }
+    if (activePointers.size === 0) {
+        doubleTapDragActive = false; lastActionVoxelCoords = null; touchIndicator.style.display = 'none';
+        initialDragVoxelWorldPos = null; dragAxisLock = null; initialDragVoxelCoords = null;
+    }
+}
 
-                // 2. Audio-Streaming mit ElevenLabs starten und speichern
-                const audioDataUrl = await streamAudioWithElevenLabs(story);
+function rebuildHelpers() {
+    if (gridHelper) scene.remove(gridHelper); if (boxHelper) scene.remove(boxHelper);
+    const size = GRID * VS;
+    if (isMobile) {
+        gridHelper = new THREE.GridHelper(size, GRID, 0x444444, 0x444444 ); gridHelper.position.set(size / 2, activeDrawingLevel.y * VS, size / 2);
+    } else {
+        if (currentDrawingAxis === 'y') {
+            gridHelper = new THREE.GridHelper(size, GRID, 0x444444, 0x444444 ); gridHelper.position.set(size / 2, activeDrawingLevel.y * VS, size / 2);
+        } else if (currentDrawingAxis === 'x') {
+            gridHelper = new THREE.GridHelper(size, GRID, 0x444444, 0x444444); gridHelper.rotation.z = Math.PI / 2; gridHelper.position.set(activeDrawingLevel.x * VS, size / 2, size / 2);
+        } else if (currentDrawingAxis === 'z') {
+            gridHelper = new THREE.GridHelper(size, GRID, 0x444444, 0x444444); gridHelper.rotation.x = Math.PI / 2; gridHelper.position.set(size / 2, size / 2, activeDrawingLevel.z * VS);
+        }
+    }
+    scene.add(gridHelper);
+    const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size, size));
+    boxHelper = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00ffff }));
+    boxHelper.position.set(size / 2, size / 2, size / 2); scene.add(boxHelper);
+}
 
-                // 3. Story und Audio in localStorage speichern
-                localStorage.setItem('lastStory', JSON.stringify({
-                    text: story,
-                    audioDataUrl: audioDataUrl
-                }));
-                
-                showMessage("Geschichte erfolgreich erstellt und gespeichert!", 'success');
-                if (storyTextContainer) {
-                    storyTextContainer.classList.remove('expanded');
-                }
-                if (collapseToggleButton) {
-                    collapseToggleButton.textContent = 'Mehr lesen';
-                }
+function updateGridHelperPosition() {
+    rebuildHelpers();
+    localStorage.setItem('voxelEditorActiveDrawingLevelX', activeDrawingLevel.x);
+    localStorage.setItem('voxelEditorActiveDrawingLevelY', activeDrawingLevel.y);
+    localStorage.setItem('voxelEditorActiveDrawingLevelZ', activeDrawingLevel.z);
+    localStorage.setItem('voxelEditorCurrentDrawingAxis', currentDrawingAxis);
+}
 
-            } catch (error) {
-                console.error("Ein Fehler ist aufgetreten:", error);
-                showMessage("Ein Fehler ist aufgetreten: " + error.message, 'error');
-                if (statusContainer) statusContainer.classList.add('hidden');
-            } finally {
-                if (generateButton) {
-                    generateButton.disabled = false;
-                    generateButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
-            }
+function cycleMode() {
+    const activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT' || activeElement.tagName === 'TEXTAREA')) {
+        return;
+    }
+    switch (currentMode) {
+        case Modes.ADD: currentMode = Modes.DELETE; break;
+        case Modes.DELETE: currentMode = Modes.DRAW; break;
+        case Modes.DRAW: currentMode = Modes.ADD; break;
+    }
+    document.getElementById('current-mode').textContent = `Modus: ${currentMode}`;
+    const mobileModeIcon = document.getElementById('mobile-mode-icon');
+    if (mobileModeIcon) {
+        mobileModeIcon.className = ModeIcons[currentMode];
+    }
+    lastActionVoxelCoords = null; updatePreviewVoxel(0, 0, 0, false);
+}
+
+function setActivePreset(index) {
+    if (index >= 0 && index < presetColors.length) {
+        currentColor = presetColors[index];
+        document.getElementById('color-picker').value = currentColor;
+        const mobileColorInput = document.getElementById('mobile-color-input');
+        if (mobileColorInput) mobileColorInput.value = currentColor;
+        localStorage.setItem('voxelEditorColor', currentColor);
+        presetBoxes.forEach((box, i) => {
+            if (i === index) { box.classList.add('active', 'border-primary', 'shadow-lg', 'shadow-primary/50'); }
+            else { box.classList.remove('active', 'border-primary', 'shadow-lg', 'shadow-primary/50'); }
         });
+        activePresetIndex = index;
+        if (previewVoxelMesh.visible) {
+            previewVoxelMaterial.color.set(currentColor);
+        }
+    }
+}
 
-        async function generateStoryWithGemini(prompt) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
-            const requestBody = {
-                contents: [{
-                    parts: [{
-                        text: `Schreibe eine lange, detaillierte und spannende Geschichte basierend auf dieser Idee: "${prompt}". Die Geschichte sollte mindestens 400 Wörter lang sein und einen klaren Anfang, einen spannenden Hauptteil und einen befriedigenden Schluss haben.`
-                    }]
-                }]
-            };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
-            if (!response.ok) throw new Error(`Gemini API Fehler: ${response.statusText}`);
-            const data = await response.json();
-            if (data.candidates && data.candidates.length > 0) {
-                return data.candidates[0].content.parts[0].text;
-            } else {
-                throw new Error("Keine Geschichte von Gemini erhalten.");
+function savePresetColor(index, colorValue) {
+    if (index >= 0 && index < presetColors.length) {
+        presetColors[index] = colorValue;
+        localStorage.setItem(`voxelPresetColor${index + 1}`, colorValue);
+        if (activePresetIndex === index) {
+            currentColor = colorValue;
+            document.getElementById('color-picker').value = currentColor;
+            const mobileColorInput = document.getElementById('mobile-color-input');
+            if (mobileColorInput) mobileColorInput.value = currentColor;
+            localStorage.setItem('voxelEditorColor', currentColor);
+        }
+    }
+}
+
+function applyVoxelState(state) {
+    for (const chunk of chunks.values()) chunk.dispose();
+    chunks.clear(); voxels.clear();
+    state.forEach(v => _addSingleVoxel(v.gx, v.gy, v.gz, v.color));
+}
+
+function addCommand(type, oldState = null, newState = null, commandData = null) {
+    if (historyPointer < history.length - 1) history.splice(historyPointer + 1);
+    history.push({ type, oldState, newState, commandData }); historyPointer++;
+    if (history.length > MAX_HISTORY_SIZE) { history.shift(); historyPointer--; }
+}
+
+function executeCommand(command, reverse = false) {
+    const { type, oldState, newState, commandData } = command;
+    switch (type) {
+        case 'batch': applyVoxelState(reverse ? oldState : newState); break;
+        case 'clearAll': clearAllInternal(true); if (reverse) applyVoxelState(oldState); break;
+        case 'fillLevel': applyVoxelState(reverse ? oldState : newState); break;
+        case 'resizeGrid':
+            GRID = reverse ? commandData.oldGrid : commandData.newGrid;
+            document.getElementById('grid-size-slider').value = GRID;
+            document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
+            localStorage.setItem('voxelEditorGridSize', GRID);
+            applyVoxelState(reverse ? oldState : newState); break;
+    }
+    rebuildHelpers();
+}
+
+function undo() { if (historyPointer >= 0) { executeCommand(history[historyPointer], true); historyPointer--; } }
+function redo() { if (historyPointer < history.length - 1) { historyPointer++; executeCommand(history[historyPointer], false); } }
+
+function _addSingleVoxel(gx, gy, gz, colorHex) {
+    const gKey = key(gx, gy, gz); voxels.set(gKey, { color: colorHex });
+    const { cx, cy, cz } = getChunkCoords(gx, gy, gz); const cKey = getChunkKey(cx, cy, cz);
+    let chunk = chunks.get(cKey);
+    if (!chunk) { chunk = new VoxelChunk(cx, cy, cz, CHUNK_SIZE, scene); chunks.set(cKey, chunk); }
+    chunk.addVoxel(gx, gy, gz, colorHex);
+}
+
+function _removeSingleVoxel(gx, gy, gz) {
+    const gKey = key(gx, gy, gz); if (!voxels.has(gKey)) return;
+    voxels.delete(gKey);
+    const { cx, cy, cz } = getChunkCoords(gx, gy, gz); const cKey = getChunkKey(cx, cy, cz);
+    if (chunks.has(cKey)) {
+        const chunk = chunks.get(cKey); chunk.removeVoxel(gx, gy, gz);
+        if (chunk.instancedMesh.count === 0) { chunk.dispose(); chunks.delete(cKey); }
+    }
+}
+
+function _recolorSingleVoxel(gx, gy, gz, newColorHex) {
+    const gKey = key(gx, gy, gz); if (!voxels.has(gKey)) return;
+    voxels.set(gKey, { color: newColorHex });
+    const { cx, cy, cz } = getChunkCoords(gx, gy, gz); const cKey = getChunkKey(cx, cy, cz);
+    if (chunks.has(cKey)) chunks.get(cKey).recolorVoxel(gx, gy, gz, newColorHex);
+}
+
+function performVoxelModification(gx, gy, gz, mode, newColor) {
+    const gKey = key(gx, gy, gz);
+    const hasVoxel = voxels.has(gKey);
+
+    gx = Math.max(0, Math.min(GRID - 1, gx));
+    gy = Math.max(0, Math.min(GRID - 1, gy));
+    gz = Math.max(0, Math.min(GRID - 1, gz));
+
+    switch (mode) {
+        case Modes.ADD:
+            if (!hasVoxel) {
+                _addSingleVoxel(gx, gy, gz, newColor);
             }
+            break;
+        case Modes.DELETE:
+            if (hasVoxel) {
+                _removeSingleVoxel(gx, gy, gz);
+            }
+            break;
+        case Modes.DRAW:
+            if (hasVoxel) {
+                if (voxels.get(gKey).color !== newColor) {
+                    _recolorSingleVoxel(gx, gy, gz, newColor);
+                }
+            }
+            break;
+    }
+}
+
+function updatePreviewVoxel(x, y, z, visible) {
+    if (previewVoxelMesh) {
+        if (visible) {
+            previewVoxelMesh.position.set(x * VS + HALF, y * VS + HALF, z * VS + HALF);
+            previewVoxelMesh.visible = true;
+            previewVoxelMaterial.color.set(currentColor);
+            previewVoxelMaterial.opacity = (currentMode === Modes.DELETE) ? 0.2 : 0.5;
+        } else {
+            previewVoxelMesh.visible = false;
+        }
+    }
+}
+
+function calculateRayTargetVoxelCoords(clientX, clientY) {
+    if (isPointerLocked) return null;
+
+    const rect = cvs.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, cam);
+
+    const objectsToIntersect = Array.from(chunks.values()).map(chunk => chunk.instancedMesh);
+    if (templateImageMesh) {
+        templateImageMesh.raycast = function() {};
+    }
+
+    const intersects = raycaster.intersectObjects(objectsToIntersect);
+
+    if (intersects.length > 0) {
+        const hit = intersects[0];
+        const hitNormal = hit.face.normal.clone();
+        const intersectionPoint = hit.point;
+
+        if (!Number.isFinite(intersectionPoint.x) || !Number.isFinite(intersectionPoint.y) || !Number.isFinite(intersectionPoint.z)) {
+            return null;
         }
 
-        async function streamAudioWithElevenLabs(textToSpeak) {
-            return new Promise(async (resolve, reject) => {
-                const voiceId = '2OcnG4mH3jIMtWz3vKus';
-                const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`;
-                const headers = { "Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": elevenLabsApiKey };
-                const data = { text: textToSpeak, model_id: "eleven_multilingual_v2" };
+        const epsilon = 0.001;
+        const adjustedPoint = intersectionPoint.clone().addScaledVector(hitNormal, -epsilon);
 
-                try {
-                    const response = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(data) });
-                    if (!response.ok) {
-                        return reject(new Error(`ElevenLabs API Fehler: ${response.statusText}`));
-                    }
-                    
-                    if (statusText) statusText.textContent = "A.I. spricht...";
-                    const reader = response.body.getReader();
-                    const audioChunks = [];
+        const hitVoxelX = Math.floor(adjustedPoint.x / VS);
+        const hitVoxelY = Math.floor(adjustedPoint.y / VS);
+        const hitVoxelZ = Math.floor(adjustedPoint.z / VS);
+        
+        const result = { gx: Number(hitVoxelX), gy: Number(hitVoxelY), gz: Number(hitVoxelZ), faceNormal: hitNormal, hitExistingVoxel: true };
+        if (!Number.isFinite(result.gx) || !Number.isFinite(result.gy) || !Number.isFinite(result.gz)) {
+            return null;
+        }
+        return result;
+    } else {
+        let planeNormal = new THREE.Vector3();
+        let planeConstant = 0;
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) {
-                            const finalBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
-                            audioBlob = finalBlob;
-                            const audioDataUrl = URL.createObjectURL(finalBlob);
-                            if (audioPlayer) audioPlayer.src = audioDataUrl;
-                            statusContainer.classList.add('hidden');
-                            resolve(audioDataUrl);
-                            break;
-                        }
-                        audioChunks.push(value);
-                    }
-                } catch (error) {
-                    console.error("Fehler beim Audio-Streaming:", error);
-                    showMessage("Fehler beim Audio-Streaming: " + error.message, 'error');
-                    statusContainer.classList.add('hidden');
-                    reject(error);
+        if (currentDrawingAxis === 'y') {
+            planeNormal.set(0, 1, 0);
+            planeConstant = -(activeDrawingLevel.y * VS);
+        } else if (currentDrawingAxis === 'x') {
+            planeNormal.set(1, 0, 0);
+            planeConstant = -(activeDrawingLevel.x * VS);
+        } else if (currentDrawingAxis === 'z') {
+            planeNormal.set(0, 0, 1);
+            planeConstant = -(activeDrawingLevel.z * VS);
+        }
+
+        const drawingPlane = new THREE.Plane(planeNormal, planeConstant);
+        const intersectionPoint = new THREE.Vector3();
+
+        if (raycaster.ray.intersectPlane(drawingPlane, intersectionPoint)) {
+            if (!Number.isFinite(intersectionPoint.x) || !Number.isFinite(intersectionPoint.y) || !Number.isFinite(intersectionPoint.z)) {
+                return null;
+            }
+
+            let gx = Math.floor(intersectionPoint.x / VS);
+            let gy = Math.floor(intersectionPoint.y / VS);
+            let gz = Math.floor(intersectionPoint.z / VS);
+
+            if (currentDrawingAxis === 'y') gy = activeDrawingLevel.y;
+            else if (currentDrawingAxis === 'x') gx = activeDrawingLevel.x;
+            else if (currentDrawingAxis === 'z') gz = activeDrawingLevel.z;
+
+            gx = Number(gx);
+            gy = Number(gy);
+            gz = Number(gz);
+
+            if (!Number.isFinite(gx) || !Number.isFinite(gy) || !Number.isFinite(gz)) {
+                return null;
+            }
+
+            const result = { gx: gx, gy: gy, gz: gz, faceNormal: null, hitExistingVoxel: false };
+            return result;
+        }
+    }
+    return null;
+}
+
+function clearAllInternal(fromHistory = false) {
+    if (!fromHistory) {
+        const oldState = [...voxels.entries()].map(([id, data]) => { const p = parseKey(id); return { gx: p[0], gy: p[1], gz: p[2], color: data.color }; });
+        addCommand('clearAll', oldState, []);
+    }
+    for (const chunk of chunks.values()) chunk.dispose();
+    chunks.clear(); voxels.clear(); rebuildHelpers();
+}
+function clearAll() { clearAllInternal(false); }
+
+function fillActiveLevel() {
+    const oldState = [...voxels.entries()].map(([id, data]) => { const p = parseKey(id); return { gx: p[0], gy: p[1], gz: p[2], color: data.color }; });
+    const voxelsToRemove = [];
+    for (let x = 0; x < GRID; x++) { for (let z = 0; z < GRID; z++) {
+        let gx, gy, gz;
+        if (currentDrawingAxis === 'y') { gx = x; gy = activeDrawingLevel.y; gz = z; }
+        else if (currentDrawingAxis === 'x') { gx = activeDrawingLevel.x; gy = x; gz = z; }
+        else if (currentDrawingAxis === 'z') { gx = x; gy = z; gz = activeDrawingLevel.z; }
+        const k = key(gx, gy, gz); if (voxels.has(k)) voxelsToRemove.push(k);
+    }}
+    voxelsToRemove.forEach(k => { const [gx, gy, gz] = parseKey(k); _removeSingleVoxel(gx, gy, gz); });
+    const newState = [];
+    for (let x = 0; x < GRID; x++) { for (let z = 0; z < GRID; z++) {
+        let gx, gy, gz;
+        if (currentDrawingAxis === 'y') { gx = x; gy = activeDrawingLevel.y; gz = z; }
+        else if (currentDrawingAxis === 'x') { gx = activeDrawingLevel.x; gy = x; gz = z; }
+        else if (currentDrawingAxis === 'z') { gx = x; gy = z; gz = activeDrawingLevel.z; }
+        _addSingleVoxel(gx, gy, gz, currentColor); newState.push({ gx, gy, gz, color: currentColor, dimX: 1, dimY: 1, dimZ: 1 });
+    }}
+    addCommand('fillLevel', oldState, newState);
+}
+
+function saveJSON() {
+    const data = {};
+    voxels.forEach((value, k) => {
+        const [gx, gy, gz] = parseKey(k);
+        data[`${gx},${gy},${gz}`] = value.color;
+    });
+
+    const settings = {
+        gridSize: GRID,
+        cameraPosition: cam.position.toArray(),
+        cameraQuaternion: cam.quaternion.toArray(),
+        activeDrawingLevel: activeDrawingLevel,
+        currentDrawingAxis: currentDrawingAxis,
+        currentColor: currentColor,
+        presetColors: presetColors,
+        activePresetIndex: activePresetIndex,
+        moveSpeed: moveSpeed,
+        templateImageData: templateImageData
+    };
+
+    const fileContent = {
+        title: projectTitle,
+        description: projectDescription,
+        category: projectCategory,
+        tags: projectTags,
+        remixOf: projectRemixOf,
+        sourceJsonUrl: projectSourceJsonUrl,
+        visibility: projectVisibility,
+        fileName: `${projectTitle.replace(/\s+/g, "_") || "voxel_project"}.json`,
+        timestamp: new Date().toISOString(),
+
+        projectData: {
+            settings: settings,
+            voxels: data
+        }
+    };
+
+    const blob = new Blob([JSON.stringify(fileContent, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileContent.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Speichern erfolgreich', 'Projekt als JSON-Datei gespeichert.', 'success', 5000);
+}
+
+function resetToDefaultProject() {
+    clearAllInternal(true); GRID = 10;
+    document.getElementById('grid-size-slider').value = GRID; document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`; localStorage.setItem('voxelEditorGridSize', GRID);
+    currentColor = '#ffffff'; document.getElementById('color-picker').value = currentColor; localStorage.setItem('voxelEditorColor', currentColor);
+    const mobileColorInput = document.getElementById('mobile-color-input');
+    if (mobileColorInput) mobileColorInput.value = currentColor;
+
+    activeDrawingLevel = { x: 0, y: 0, z: 0 }; currentDrawingAxis = 'y';
+    localStorage.setItem('voxelEditorActiveDrawingLevelX', activeDrawingLevel.x);
+    localStorage.setItem('voxelEditorActiveDrawingLevelY', activeDrawingLevel.y);
+    localStorage.setItem('voxelEditorActiveDrawingLevelZ', activeDrawingLevel.z);
+    localStorage.setItem('voxelEditorCurrentDrawingAxis', currentDrawingAxis);
+    moveSpeed = 0.1; document.getElementById('fly-speed-slider').value = moveSpeed; document.getElementById('fly-speed-display').textContent = moveSpeed.toFixed(2); localStorage.setItem('voxelEditorFlySpeed', moveSpeed);
+    presetColors[0] = '#E4002B'; presetColors[1] = '#00A040'; presetColors[2] = '#0057B8';
+    localStorage.setItem('voxelPresetColor1', presetColors[0]); localStorage.setItem('voxelPresetColor2', presetColors[1]); localStorage.setItem('voxelPresetColor3', presetColors[2]);
+    presetBoxes.forEach((box, i) => { box.value = presetColors[i]; box.classList.remove('active', 'border-primary', 'shadow-lg', 'shadow-primary/50'); });
+    activePresetIndex = -1; removeImageTemplate(true); history.length = 0; historyPointer = -1;
+    resetCameraPosition(); showToast('Projekt zurückgesetzt', 'Das Projekt wurde auf den Standardzustand zurückgesetzt.', 'info', 5000);
+}
+
+function loadProjectData(projectData) {
+    try {
+        const loadedVoxels = projectData.projectData ? projectData.projectData.voxels : projectData.voxels;
+        const loadedSettings = projectData.projectData ? projectData.projectData.settings : projectData.settings;
+        clearAllInternal(true); removeImageTemplate(true);
+        projectTitle = projectData.title || ''; projectDescription = projectData.description || '';
+        projectCategory = projectData.category || 'Allgemein';
+        projectTags = Array.isArray(projectData.tags) ? projectData.tags : (typeof projectData.tags === 'string' ? projectData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '') : []);
+        projectRemixOf = projectData.remixOf || ''; projectSourceJsonUrl = projectData.sourceJsonUrl || ''; projectVisibility = projectData.visibility || 'public';
+
+        if (loadedSettings) {
+            GRID = loadedSettings.gridSize !== undefined ? loadedSettings.gridSize : 10;
+            document.getElementById('grid-size-slider').value = GRID; document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`; localStorage.setItem('voxelEditorGridSize', GRID);
+        }
+        for (const k in loadedVoxels) {
+            const colorValue = loadedVoxels[k]; const parts = k.split(',').map(Number);
+            if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                const gx = parts[0]; const gy = parts[1]; const gz = parts[2];
+                if (gx >= 0 && gx < GRID && gy >= 0 && gy < GRID && gz >= 0 && gz < GRID) _addSingleVoxel(gx, gy, gz, colorValue);
+            }
+        }
+        if (loadedSettings) {
+            if (loadedSettings.cameraPosition) cam.position.fromArray(loadedSettings.cameraPosition);
+            if (loadedSettings.cameraQuaternion) { cam.quaternion.fromArray(loadedSettings.cameraQuaternion); euler.setFromQuaternion(cam.quaternion, 'YXZ'); }
+            if (loadedSettings.activeDrawingLevel) {
+                activeDrawingLevel = {
+                    x: Number(loadedSettings.activeDrawingLevel.x || 0),
+                    y: Number(loadedSettings.activeDrawingLevel.y || 0),
+                    z: Number(loadedSettings.activeDrawingLevel.z || 0)
+                };
+                if (!Number.isFinite(activeDrawingLevel.x)) activeDrawingLevel.x = 0;
+                if (!Number.isFinite(activeDrawingLevel.y)) activeDrawingLevel.y = 0;
+                if (!Number.isFinite(activeDrawingLevel.z)) activeDrawingLevel.z = 0;
+
+                activeDrawingLevel.x = Math.floor(Math.max(0, Math.min(GRID - 1, activeDrawingLevel.x)));
+                activeDrawingLevel.y = Math.floor(Math.max(0, Math.min(GRID - 1, activeDrawingLevel.y)));
+                activeDrawingLevel.z = Math.floor(Math.max(0, Math.min(GRID - 1, activeDrawingLevel.z)));
+
+                localStorage.setItem('voxelEditorActiveDrawingLevelX', activeDrawingLevel.x);
+                localStorage.setItem('voxelEditorActiveDrawingLevelY', activeDrawingLevel.y);
+                localStorage.setItem('voxelEditorActiveDrawingLevelZ', activeDrawingLevel.z);
+            }
+            if (loadedSettings.currentDrawingAxis) { currentDrawingAxis = loadedSettings.currentDrawingAxis; localStorage.setItem('voxelEditorCurrentDrawingAxis', currentDrawingAxis); }
+            updateGridHelperPosition();
+            currentColor = loadedSettings.currentColor || '#ffffff'; document.getElementById('color-picker').value = currentColor;
+            const mobileColorInput = document.getElementById('mobile-color-input');
+            if (mobileColorInput) mobileColorInput.value = currentColor;
+
+            if (loadedSettings.presetColors) {
+                for(let i = 0; i < loadedSettings.presetColors.length && i < presetColors.length; i++) {
+                    presetColors[i] = loadedSettings.presetColors[i]; document.getElementById(`color-preset-${i + 1}`).value = presetColors[i]; localStorage.setItem(`voxelPresetColor${i + 1}`, presetColors[i]);
                 }
-            });
+            }
+            setActivePreset(loadedSettings.activePresetIndex !== undefined ? loadedSettings.activePresetIndex : -1);
+            if (loadedSettings.moveSpeed !== undefined) {
+                moveSpeed = loadedSettings.moveSpeed; document.getElementById('fly-speed-slider').value = moveSpeed; document.getElementById('fly-speed-display').textContent = moveSpeed.toFixed(2); localStorage.setItem('voxelEditorFlySpeed', moveSpeed);
+            }
+            if (loadedSettings.templateImageData) {
+                templateImageData = loadedSettings.templateImageData;
+                new THREE.TextureLoader().load(templateImageData.src, (texture) => {
+                    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true, depthWrite: false });
+                    const geometry = new THREE.PlaneGeometry(templateImageData.scaledWidth, templateImageData.scaledHeight);
+                    if (templateImageMesh) { scene.remove(templateImageMesh); templateImageMesh.geometry.dispose(); templateImageMesh.material.dispose(); }
+                    templateImageMesh = new THREE.Mesh(geometry, material);
+                    templateImageMesh.position.fromArray(templateImageData.position); templateImageMesh.rotation.fromArray(templateImageData.rotation); templateImageMesh.scale.fromArray(templateImageData.scale);
+                    templateImageMesh.renderOrder = -1; scene.add(templateImageMesh);
+                    document.getElementById('removeImageTemplateBtn').classList.remove('hidden');
+                }, undefined, (err) => { templateImageMesh = null; templateImageData = null; document.getElementById('removeImageTemplateBtn').classList.add('hidden'); });
+            }
+        }
+        history.length = 0; historyPointer = -1;
+        resetCameraPosition();
+    } catch (error) {
+        showToast('Fehler', 'Fehler beim Laden der Datei. Stellen Sie sicher, dass es sich um eine gültige JSON-Datei handelt. Fehler: ' + error.message, 'error', 5000);
+        resetToDefaultProject();
+    }
+}
+
+async function loadProjectFromModelId(modelId) {
+    showToast('Lade Projekt', `Lade Projekt mit ID: ${modelId}...`, 'info', 5000);
+    try {
+        const docSnap = await window.firebase.getDoc(window.firebase.doc(db, "models", modelId));
+        if (docSnap.exists()) {
+            const pData = docSnap.data();
+            const isPublic = pData.visibility === 'public';
+            const isOwner = auth.currentUser && auth.currentUser.uid === pData.uploaderUid;
+            if (isPublic || isOwner) {
+                if (pData && pData.projectData) {
+                    projectRemixOf = modelId; projectSourceJsonUrl = window.location.href;
+                    loadProjectData(pData);
+                    showToast('Projekt geladen', `Projekt "${docSnap.data().title}" erfolgreich geladen.`, 'success', 5000);
+                } else { showToast('Fehler', 'Projektdaten im Dokument nicht gefunden.', 'error', 5000); resetToDefaultProject(); }
+            } else { showToast('Zugriff verweigert', 'Sie haben keine Berechtigung, dieses private Projekt zu laden.', 'error', 5000); resetToDefaultProject(); }
+        } else { showToast('Projekt nicht gefunden', `Kein Projekt mit ID "${modelId}" gefunden.`, 'warning', 5000); resetToDefaultProject(); }
+    } catch (error) {
+        if (error.code === 'permission-denied') showToast('Zugriff verweigert', `Berechtigungsfehler beim Laden des Projekts. Stellen Sie sicher, dass das Modell öffentlich ist oder Sie der Eigentümer sind.`, 'error', 5000);
+        else showToast('Fehler', `Fehler beim Laden des Projekts: ${error.message}`, 'error', 5000);
+        resetToDefaultProject();
+    }
+}
+
+function loadJSON(event) {
+    const file = event.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const projectData = JSON.parse(e.target.result);
+            projectRemixOf = ''; projectSourceJsonUrl = ''; loadProjectData(projectData);
+        } catch (error) {
+            showToast('Fehler', 'Fehler beim Parsen der Datei. Stellen Sie sicher, dass es sich um eine gültige JSON-Datei handelt. Fehler: ' + error.message, 'error', 5000);
+            resetToDefaultProject();
+        }
+    };
+    reader.readAsText(file);
+}
+
+function openStlExportModal() {
+    if (voxels.size === 0) { showToast('Export fehlgeschlagen', 'Keine Voxel zum Exportieren vorhanden!', 'warning', 5000); return; }
+    document.getElementById('exportStlModal').showModal();
+}
+
+async function exportSTL(unit) {
+    if (voxels.size === 0) { showToast('Export fehlgeschlagen', 'Keine Voxel zum Exportieren vorhanden!', 'warning', 5000); return; }
+    showToast('Exportiere STL', 'Erzeuge STL-Modell...', 'info', 5000);
+    
+    let scaleFactor = 1;
+    if (unit === 'cm') {
+        scaleFactor = 10; // 1 Voxel = 1cm, so 10mm
+    }
+    
+    const geometriesToMerge = [];
+    const tempBoxGeometry = createBrickGeometry(VS * scaleFactor, VS * scaleFactor, VS * scaleFactor);
+
+    voxels.forEach((data, k) => {
+        const [x, y, z] = parseKey(k);
+        dummy.position.set((x * VS + HALF) * scaleFactor, (y * VS + HALF) * scaleFactor, (z * VS + HALF) * scaleFactor);
+        dummy.updateMatrix();
+        const instanceGeometry = tempBoxGeometry.clone();
+        instanceGeometry.applyMatrix4(dummy.matrix);
+        geometriesToMerge.push(instanceGeometry);
+    });
+
+    const mergedGeometry = geometriesToMerge.length > 0 ? THREE.BufferGeometryUtils.mergeBufferGeometries(geometriesToMerge, true) : new THREE.BufferGeometry();
+    const tempMesh = new THREE.Mesh(mergedGeometry);
+    if (typeof THREE.STLExporter === 'undefined') { showToast('Export fehlgeschlagen', 'STLExporter-Bibliothek nicht geladen.', 'error', 5000); return; }
+    const exporter = new THREE.STLExporter();
+    const result = exporter.parse(tempMesh);
+    const blob = new Blob([result], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'voxel_model.stl';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    tempBoxGeometry.dispose(); if (mergedGeometry) mergedGeometry.dispose();
+    showToast('Export erfolgreich', `STL-Modell erfolgreich exportiert! (1 Voxel = 1 ${unit})`, 'success', 5000);
+    document.getElementById('exportStlModal').close();
+}
+
+
+function showToast(title, message, type = 'info', duration = 5000) {
+    const toast = document.createElement('div');
+    toast.className = `alert shadow-lg ${type === 'info' ? 'alert-info' : type === 'success' ? 'alert-success' : type === 'error' ? 'alert-error' : type === 'warning' ? 'alert-warning' : ''}`;
+    toast.innerHTML = `
+        ${type === 'info' ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>' : ''}
+        ${type === 'success' ? '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>' : ''}
+        ${type === 'error' ? '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>' : ''}
+        ${type === 'warning' ? '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>' : ''}
+        <div><strong>${title}</strong><br><span>${message}</span></div><button class="close-btn btn btn-ghost btn-sm">&times;</button>`;
+    toastContainer.appendChild(toast);
+    void toast.offsetWidth; toast.classList.add('show');
+    toast.querySelector('.close-btn').addEventListener('click', () => { toast.classList.remove('show'); toast.addEventListener('transitionend', () => toast.remove(), { once: true }); });
+    setTimeout(() => { if (toast.parentNode) { toast.classList.remove('show'); toast.addEventListener('transitionend', () => toast.remove(), { once: true }); } }, duration);
+}
+
+function resetCameraPosition() {
+    cam.position.set(GRID * 1.0, GRID * 1.2, GRID * 1.5); cam.lookAt(GRID / 2, GRID / 2, GRID / 2);
+    if (euler) euler.setFromQuaternion(cam.quaternion, 'YXZ');
+}
+
+function loadImageTemplate() {
+    document.getElementById('imageFileInput').click();
+}
+
+function handleImageFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const base64Image = e.target.result;
+        const img = new Image();
+        img.onload = () => {
+            const aspectRatio = img.width / img.height;
+            const planeWidth = GRID * VS;
+            const planeHeight = planeWidth / aspectRatio;
+
+            if (templateImageMesh) {
+                scene.remove(templateImageMesh);
+                templateImageMesh.geometry.dispose();
+                templateImageMesh.material.dispose();
+            }
+
+            const texture = new THREE.TextureLoader().load(base64Image);
+            const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true, depthWrite: false });
+            const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+            templateImageMesh = new THREE.Mesh(geometry, material);
+
+            templateImageMesh.position.set((GRID * VS) / 2, (GRID * VS) / 2, -0.001);
+            templateImageMesh.rotation.set(0, 0, 0);
+
+            templateImageMesh.renderOrder = -1; scene.add(templateImageMesh);
+            templateImageData = {
+                src: base64Image,
+                position: templateImageMesh.position.toArray(),
+                rotation: templateImageMesh.rotation.toArray(),
+                scale: [1, 1, 1],
+                scaledWidth: planeWidth,
+                scaledHeight: planeHeight
+            };
+            document.getElementById('removeImageTemplateBtn').classList.remove('hidden');
+            showToast('Bildvorlage geladen', 'Bild als Vorlage erfolgreich geladen.', 'success', 5000);
+        };
+        img.onerror = (err) => {
+            showToast('Fehler', 'Bild konnte nicht geladen werden. Ungültiges Bildformat?', 'error', 5000);
+            templateImageMesh = null;
+            templateImageData = null;
+            document.getElementById('removeImageTemplateBtn').classList.add('hidden');
+        };
+        img.src = base64Image;
+    };
+    reader.onerror = (err) => {
+        showToast('Fehler', 'Fehler beim Lesen der Bilddatei.', 'error', 5000);
+    };
+    reader.readAsDataURL(file);
+
+    event.target.value = '';
+}
+function removeImageTemplate(fromLoad = false) {
+    if (templateImageMesh) {
+        scene.remove(templateImageMesh); templateImageMesh.geometry.dispose(); templateImageMesh.material.dispose();
+        templateImageMesh = null; templateImageData = null; document.getElementById('removeImageTemplateBtn').classList.add('hidden');
+        if (!fromLoad) showToast('Bildvorlage entfernt', 'Bildvorlage erfolgreich entfernt.', 'info', 5000);
+    }
+}
+
+function getCurrentBlockDimensions() {
+    return { dimX: 1, dimY: 1, dimZ: 1 };
+}
+
+async function loginLogout() {
+    if (auth.currentUser) { try { await window.firebase.signOut(auth); showToast('Abgemeldet', 'Sie wurden erfolgreich abgemeldet.', 'info', 5000); } catch (e) { showToast('Fehler beim Abmelden', `Fehler: ${e.message}`, 'error', 5000); } }
+    else openAuthModal();
+}
+
+function openUploadModal() {
+    if (!currentUserId) { openAuthModal(); return; }
+    if (voxels.size === 0) { showToast('Upload fehlgeschuldert', 'Die Szene ist leer. Bitte erstellen Sie zuerst ein Modell.', 'warning', 5000); return; }
+    document.getElementById('uploadTitle').value = projectTitle; document.getElementById('uploadDescription').value = projectDescription;
+    document.getElementById('uploadCategory').value = projectCategory; document.getElementById('uploadTags').value = projectTags.join(', ');
+    document.querySelector(`input[name="uploadVisibility"][value="${projectVisibility}"]`).checked = true;
+    const uploadCategorySelect = document.getElementById('uploadCategory');
+    uploadCategorySelect.innerHTML = '<option value="" disabled selected>Kategorie auswählen</option>';
+    predefinedCategories.forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; uploadCategorySelect.appendChild(opt); });
+    uploadCategorySelect.value = projectCategory;
+    document.getElementById('uploadProjectModal').showModal();
+}
+
+async function uploadProjectToHub() {
+    if (!currentUserId) { showToast('Fehler', 'Nicht angemeldet. Bitte melden Sie sich an, um hochzuladen.', 'error', 5000); return; }
+    if (voxels.size === 0) { showToast('Upload fehlgeschuldert', 'Die Szene ist leer. Bitte erstellen Sie zuerst ein Modell.', 'warning', 5000); return; }
+    const title = document.getElementById('uploadTitle').value.trim();
+    const description = document.getElementById('uploadDescription').value.trim();
+    const category = document.getElementById('uploadCategory').value;
+    const tags = document.getElementById('uploadTags').value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+    const visibility = document.querySelector('input[name="uploadVisibility"]:checked').value;
+    if (!title) { showToast('Fehler', 'Bitte geben Sie einen Titel für Ihr Projekt ein.', 'warning', 5000); return; }
+    if (!category) { showToast('Fehler', 'Bitte wählen Sie eine Kategorie für Ihr Projekt aus.', 'warning', 5000); 'warning'; return; }
+    showToast('Lade hoch...', 'Ihr Projekt wird hochgeladen. Bitte warten Sie...', 'info', 5000);
+    try {
+        const voxelMap = {}; voxels.forEach((v, k) => { const [gx, gy, gz] = parseKey(k); voxelMap[`${gx},${gy},${gz}`] = v.color; });
+        const firestoreSafeSettings = {
+            gridSize: GRID, cameraPosition: cam.position.toArray(), cameraQuaternion: cam.quaternion.toArray(),
+            activeDrawingLevel: activeDrawingLevel, currentDrawingAxis: currentDrawingAxis, currentColor: currentColor,
+            presetColors: presetColors, activePresetIndex: activePresetIndex, moveSpeed: moveSpeed,
+            templateImageData: null
+        };
+        const firestoreDocument = {
+            title: title, description: description, category: category, tags: tags, visibility: visibility,
+            remixOf: projectRemixOf || "", sourceJsonUrl: projectSourceJsonUrl || "",
+            fileName: `${title.replace(/\s+/g, "_")}.json`, downloads: 0, rating: 0, ratingCount: 0, verified: false,
+            userId: currentUserId, uploaderEmail: currentUser?.email || "", uploaderUid: currentUser?.uid || "",
+            uploaderPhotoURL: currentUser?.photoURL || "", timestamp: window.firebase.serverTimestamp(),
+            projectData: {
+                description: description, remixOf: projectRemixOf || "", sourceJsonUrl: projectSourceJsonUrl || "",
+                settings: firestoreSafeSettings, activeDrawingLevel: firestoreSafeSettings.activeDrawingLevel, activePresetIndex: firestoreSafeSettings.activePresetIndex,
+                cameraPosition: firestoreSafeSettings.cameraPosition, cameraQuaternion: firestoreSafeSettings.cameraQuaternion,
+                currentColor: firestoreSafeSettings.currentColor, currentDrawingAxis: firestoreSafeSettings.currentDrawingAxis,
+                gridSize: firestoreSafeSettings.gridSize, moveSpeed: firestoreSafeSettings.moveSpeed, presetColors: firestoreSafeSettings.presetColors, templateImageData: null, voxels: voxelMap
+            }
+        };
+        const docRef = await window.firebase.addDoc(window.firebase.collection(db, "models"), firestoreDocument);
+        projectTitle = title; projectDescription = description; projectCategory = category; projectTags = tags; projectVisibility = visibility;
+        if (!projectSourceJsonUrl) projectSourceJsonUrl = `https://hub.voxelshaper.com?modelId=${docRef.id}`;
+        showToast('Erfolgreich hochgeladen', `Ihr Projekt wurde erfolgreich hochgeladen! ID: ${docRef.id}`, 'success', 5000);
+    } catch (e) { showToast('Fehler beim Hochladen', `Fehler: ${e.message}`, 'error', 5000); }
+    finally { document.getElementById('uploadProjectModal').close(); }
+}
+
+function openAuthModal() { document.getElementById('authModal').showModal(); document.getElementById('emailLoginForm').classList.add('hidden'); }
+function closeAuthModal() { document.getElementById('authModal').close(); cvs.focus(); }
+
+window.signInWithGoogle = async function() { try { await window.firebase.signInWithPopup(auth, new window.firebase.GoogleAuthProvider()); showToast('Anmeldung erfolgreich', 'Mit Google angemeldet.', 'success', 5000); closeAuthModal(); } catch (e) { showToast('Anmeldefehler', `Google: ${e.message}`, 'error', 5000); } }
+window.signInWithGithub = async function() { try { await window.firebase.signInWithPopup(auth, new window.firebase.GithubAuthProvider()); showToast('Anmeldung erfolgreich', 'Mit GitHub angemeldet.', 'success', 5000); closeAuthModal(); } catch (e) { showToast('Anmelmelfehler', `GitHub: ${e.message}`, 'error', 5000); } }
+window.signInEmailPassword = async function() { const email = document.getElementById('emailInput').value; const password = document.getElementById('passwordInput').value; try { await window.firebase.signInWithEmailAndPassword(auth, email, password); showToast('Anmeldung erfolgreich', 'Mit E-Mail angemeldet.', 'success', 5000); closeAuthModal(); } catch (e) { showToast('Anmeldefehler', `E-Mail: ${e.message}`, 'error', 5000); } }
+window.signUpEmailPassword = async function() { const email = document.getElementById('emailInput').value; const password = document.getElementById('passwordInput').value; try { await window.firebase.createUserWithEmailAndPassword(auth, email, password); showToast('Registrierung erfolgreich', 'Konto erstellt und angemeldet.', 'success', 5000); closeAuthModal(); } catch (e) { showToast('Registrierungsfehler', `E-Mail: ${e.message}`, 'error', 5000); } }
+
+function closeAllModals() {
+    const modals = ['clearConfirmationModal', 'uploadProjectModal', 'authModal', 'exportStlModal'];
+    modals.forEach(id => { const modal = document.getElementById(id); if (modal && modal.open) modal.close(); });
+}
+window.closeAllModals = closeAllModals;
+
+function onPointerLockChange() {
+    if (document.pointerLockElement === cvs) { isPointerLocked = true; firstMoveAfterLock = true; mouseMovementX = mouseMovementY = 0; updatePreviewVoxel(0,0,0,false); euler.setFromQuaternion(cam.quaternion, 'YXZ'); }
+    else { isPointerLocked = false; }
+}
+
+function onMouseWheel(e) {
+    e.preventDefault();
+    if (e.altKey) {
+        if (!isMobile && (currentMode === Modes.ADD || currentMode === Modes.DRAW)) {
+            if (e.shiftKey) { activeDrawingLevel.z = Math.max(0, Math.min(GRID - 1, activeDrawingLevel.z - Math.sign(e.deltaY))); currentDrawingAxis = 'z'; }
+            else if (e.ctrlKey) { activeDrawingLevel.x = Math.max(0, Math.min(GRID - 1, activeDrawingLevel.x - Math.sign(e.deltaY))); currentDrawingAxis = 'x'; }
+            else { activeDrawingLevel.y = Math.max(0, Math.min(GRID - 1, activeDrawingLevel.y - Math.sign(e.deltaY))); currentDrawingAxis = 'y'; }
+            updateGridHelperPosition();
+        } else {
+            cam.position.addScaledVector(cam.getWorldDirection(new THREE.Vector3()), e.deltaY * 0.005 * moveSpeed * 5);
+        }
+    } else {
+        moveSpeed = Math.max(0.01, Math.min(1.0, moveSpeed - Math.sign(e.deltaY) * 0.01));
+        document.getElementById('fly-speed-slider').value = moveSpeed; document.getElementById('fly-speed-display').textContent = moveSpeed.toFixed(2); localStorage.setItem('voxelEditorFlySpeed', moveSpeed);
+    }
+}
+
+const keyboard = {};
+function onKeyDown(e) {
+    const activeModals = ['authModal', 'uploadProjectModal', 'clearConfirmationModal', 'exportStlModal'].some(id => document.getElementById(id).open);
+    if (activeModals) { if (e.key === 'Escape') { closeAllModals(); e.preventDefault(); } return; }
+    keyboard[e.key.toLowerCase()] = true;
+    if (e.key === 'Shift') isShiftDragging = true;
+    if (e.key === 'Control' || e.metaKey) isControlDragging = true;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+    if (((e.ctrlKey || e.metaKey) && e.key === 'y') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z')) { e.preventDefault(); redo(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'd') e.preventDefault();
+    if (e.key === ' ') { e.preventDefault(); cycleMode(); }
+    switch (e.key) { case '1': setActivePreset(0); break; case '2': setActivePreset(1); break; case '3': setActivePreset(2); break; }
+}
+
+function onKeyUp(e) {
+    keyboard[e.key.toLowerCase()] = false;
+    if (e.key === 'Shift') isShiftDragging = false;
+    if (e.key === 'Control' || e.metaKey) isControlDragging = false;
+}
+
+function onPointerLeave(e) {
+    if (pointerIsDown && isDragging) {
+        if (currentStrokeVoxels.size > 0) {
+            const oldState = [];
+            const newState = [];
+            for (const [gKey, change] of currentStrokeVoxels.entries()) {
+                const [gx, gy, gz] = parseKey(gKey);
+                oldState.push({ gx, gy, gz, color: change.originalColor });
+                newState.push({ gx, gy, gz, color: change.finalColor });
+            }
+            if (oldState.length > 0) {
+                addCommand('batch', oldState, newState);
+            }
+        }
+    }
+    pointerIsDown = false;
+    isDragging = false;
+    doubleTapDragActive = false;
+    lastActionVoxelCoords = null;
+    initialClickPos = null;
+    initialTargetVoxelCoords = null;
+    voxelsAtDragStart = null;
+    currentStrokeVoxels.clear();
+    updatePreviewVoxel(0, 0, 0, false);
+    dragAxisLock = null;
+    initialDragVoxelCoords = null;
+    initialDragYLevel = null;
+    
+    if (e.pointerType === 'touch') {
+        releasePointer(e.pointerId, e);
+    }
+}
+
+let pointerIsDown = false;
+let rightMouseButtonDown = false;
+let lastX, lastY;
+let suppressNextTap = false;
+
+function getVoxelsOnLine(start, end) {
+    if (!start || !Number.isFinite(start.gx) || !Number.isFinite(start.gy) || !Number.isFinite(start.gz) ||
+        !end || !Number.isFinite(end.gx) || !Number.isFinite(end.gy) || !Number.isFinite(end.gz)) {
+        return [];
+    }
+    const voxelsOnLine = [];
+    let x1 = start.gx, y1 = start.gy, z1 = start.gz;
+    let x2 = end.gx, y2 = end.gy, z2 = end.gz;
+    let dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1), dz = Math.abs(z2 - z1);
+    let sx = (x1 < x2) ? 1 : -1, sy = (y1 < y2) ? 1 : -1, sz = (z1 < z2) ? 1 : -1;
+    let dm = Math.max(dx, dy, dz);
+    let x = x1, y = y1, z = z1;
+    let p1 = 2 * dy - dm, p2 = 2 * dz - dm;
+
+    for (let i = 0; i <= dm; i++) {
+        const clampedX = Math.max(0, Math.min(GRID - 1, x));
+        const clampedY = Math.max(0, Math.min(GRID - 1, y));
+        const clampedZ = Math.max(0, Math.min(GRID - 1, z));
+        voxelsOnLine.push({ gx: clampedX, gy: clampedY, gz: clampedZ });
+        
+        if (dm === dx) { y += sy * (p1 > 0); p1 += 2 * dy; z += sz * (p2 > 0); p2 += 2 * dz; }
+        else if (dm === dy) { x += sx * (p1 > 0); p1 += 2 * dx; z += sz * (p2 > 0); p2 += 2 * dz; }
+        else { x += sx * (p1 > 0); p1 += 2 * dy; y += sy * (p2 > 0); p2 += 2 * dx; }
+        if (dm === dx) x += sx; else if (dm === dy) y += sy; else z += sz;
+    }
+    return voxelsOnLine;
+}
+
+function onPointerUp(e) {
+    if (e.button === 2) {
+        rightMouseButtonDown = false;
+        document.exitPointerLock();
+        return;
+    }
+    
+    const totalMovedDist = initialClickPos ? Math.hypot(e.clientX - initialClickPos.x, e.clientY - initialClickPos.y) : 0;
+
+    const wasDrag = (totalMovedDist > MOVE_PX) || isDragging;
+
+    if (wasDrag) {
+        if (currentStrokeVoxels.size > 0) {
+            const oldState = [];
+            const newState = [];
+            for (const [gKey, change] of currentStrokeVoxels.entries()) {
+                const [gx, gy, gz] = parseKey(gKey);
+                oldState.push({ gx, gy, gz, color: change.originalColor });
+                newState.push({ gx, gy, gz, color: change.finalColor });
+            }
+            if (oldState.length > 0) {
+                addCommand('batch', oldState, newState);
+            }
+        }
+    } else {
+        if (initialTargetVoxelCoords) {
+            const finalVoxelCoords = { ...initialTargetVoxelCoords };
+
+            const rawTargetAtDown = calculateRayTargetVoxelCoords(initialClickPos.x, initialClickPos.y);
+            if (currentMode === Modes.ADD && rawTargetAtDown && rawTargetAtDown.faceNormal) {
+                finalVoxelCoords.gx = rawTargetAtDown.gx + Math.round(rawTargetAtDown.faceNormal.x);
+                finalVoxelCoords.gy = rawTargetAtDown.gy + Math.round(rawTargetAtDown.faceNormal.y);
+                finalVoxelCoords.gz = rawTargetAtDown.gz + Math.round(rawTargetAtDown.faceNormal.z);
+                
+                finalVoxelCoords.gx = Math.max(0, Math.min(GRID - 1, finalVoxelCoords.gx));
+                finalVoxelCoords.gy = Math.max(0, Math.min(GRID - 1, finalVoxelCoords.gy));
+                finalVoxelCoords.gz = Math.max(0, Math.min(GRID - 1, finalVoxelCoords.gz));
+            }
+
+            const gKey = key(finalVoxelCoords.gx, finalVoxelCoords.gy, finalVoxelCoords.gz);
+            const initialColor = voxelsAtDragStart.has(gKey) ? voxelsAtDragStart.get(gKey).color : null;
+            
+            performVoxelModification(finalVoxelCoords.gx, finalVoxelCoords.gy, finalVoxelCoords.gz, currentMode, currentColor);
+            
+            const newColor = voxels.has(gKey) ? voxels.get(gKey).color : null;
+            if (initialColor !== newColor || (currentMode === Modes.ADD && initialColor === null && newColor !== null)) {
+                addCommand('batch', [{ gx: finalVoxelCoords.gx, gy: finalVoxelCoords.gy, gz: finalVoxelCoords.gz, color: initialColor }], [{ gx: finalVoxelCoords.gx, gy: finalVoxelCoords.gy, gz: finalVoxelCoords.gz, color: newColor }]);
+            }
+        }
+    }
+
+    pointerIsDown = false;
+    isDragging = false;
+    doubleTapDragActive = false;
+    lastActionVoxelCoords = null;
+    initialClickPos = null;
+    initialTargetVoxelCoords = null;
+    voxelsAtDragStart = null;
+    currentStrokeVoxels.clear();
+    updatePreviewVoxel(0, 0, 0, false);
+    dragAxisLock = null;
+    initialDragVoxelCoords = null;
+    initialDragYLevel = null;
+    
+    if (e.pointerType === 'touch') {
+        releasePointer(e.pointerId, e);
+    }
+}
+
+function onPointerDown(e) {
+    if (e.button === 2) {
+        e.preventDefault();
+        rightMouseButtonDown = true;
+        cvs.focus();
+        cvs.requestPointerLock();
+        return;
+    }
+    if (isPointerLocked) return;
+
+    if (e.button === 0 && e.altKey) { 
+        const hitResult = calculateRayTargetVoxelCoords(e.clientX, e.clientY);
+        if (hitResult && hitResult.hitExistingVoxel) {
+            const gKey = key(hitResult.gx, hitResult.gy, hitResult.gz);
+            if (voxels.has(gKey)) {
+                const pickedColor = voxels.get(gKey).color;
+                currentColor = pickedColor;
+                document.getElementById('color-picker').value = pickedColor;
+                const mobileColorInput = document.getElementById('mobile-color-input');
+                if (mobileColorInput) mobileColorInput.value = pickedColor;
+                localStorage.setItem('voxelEditorColor', pickedColor);
+                presetBoxes.forEach(box => box.classList.remove('active', 'border-primary', 'shadow-lg', 'shadow-primary/50')); activePresetIndex = -1;
+                showToast('Farbe aufgenommen', `Farbe: ${pickedColor}`, 'info', 2000);
+            }
+        }
+        return; 
+    }
+
+    voxelsAtDragStart = new Map(voxels);
+    currentStrokeVoxels.clear();
+    dragAxisLock = null;
+    isDragging = false;
+    initialDragVoxelCoords = null;
+    initialDragYLevel = null;
+
+    initialClickPos = { x: e.clientX, y: e.clientY };
+    pointerIsDown = true;
+
+    initialTargetVoxelCoords = calculateRayTargetVoxelCoords(e.clientX, e.clientY);
+    if (initialTargetVoxelCoords && (!Number.isFinite(initialTargetVoxelCoords.gx) || !Number.isFinite(initialTargetVoxelCoords.gy) || !Number.isFinite(initialTargetVoxelCoords.gz))) {
+        pointerIsDown = false; initialClickPos = null; initialTargetVoxelCoords = null;
+        return;
+    }
+    
+    if (initialTargetVoxelCoords && currentMode === Modes.ADD) {
+        if (initialTargetVoxelCoords.hitExistingVoxel) {
+            initialDragYLevel = initialTargetVoxelCoords.gy + Math.round(initialTargetVoxelCoords.faceNormal.y);
+        } else {
+            initialDragYLevel = initialTargetVoxelCoords.gy;
+        }
+    }
+
+
+    if (e.pointerType === 'touch') {
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pointerType: e.pointerType });
+        touchIndicator.style.display = 'block'; touchIndicator.style.left = `${e.clientX}px`; touchIndicator.style.top = `${e.clientY}px`;
+        const now = performance.now();
+
+        if (activePointers.size > 1) {
+            initialTargetVoxelCoords = null;
+            currentStrokeVoxels.clear();
+            updatePreviewVoxel(0, 0, 0, false);
+            doubleTapDragActive = false;
+            isDragging = false;
+            initialDragVoxelCoords = null;
+            initialDragYLevel = null;
+            
+            const pointersArr = [...activePointers.values()];
+            const [p0, p1] = pointersArr;
+            const midX = (p0.x + p1.x) * 0.5; const midY = (p0.y + p1.y) * 0.5; const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+            gestureState.type = 'none'; gestureState.startMid = gestureState.lastMid = { x: midX, y: midY };
+            gestureState.startDist = gestureState.lastDist = dist;
+            gestureState.initialPointerCount = activePointers.size;
+            return;
+        }
+
+        lastActionVoxelCoords = null; currentStrokeVoxels.clear();
+        updatePreviewVoxel(0, 0, 0, false);
+        gestureState.initialPointerCount = activePointers.size;
+        if (activePointers.size === 1) { gestureState.type = 'rotate'; gestureState.lastMid = { x: e.clientX, y: e.clientY }; }
+        
+        if (initialTargetVoxelCoords) {
+            isDragging = true;
+            initialDragVoxelCoords = { ...initialTargetVoxelCoords };
+            lastActionVoxelCoords = { ...initialTargetVoxelCoords };
+            
+            const gKey = key(initialTargetVoxelCoords.gx, initialTargetVoxelCoords.gy, initialTargetVoxelCoords.gz);
+            const initialColor = voxelsAtDragStart.has(gKey) ? voxelsAtDragStart.get(gKey).color : null;
+            
+            performVoxelModification(initialTargetVoxelCoords.gx, initialTargetVoxelCoords.gy, initialTargetVoxelCoords.gz, currentMode, currentColor);
+            const finalColor = voxels.has(gKey) ? voxels.get(gKey).color : null;
+            currentStrokeVoxels.set(gKey, { originalColor: initialColor, finalColor: finalColor });
+        }
+        return;
+    }
+
+    if (e.pointerType === 'mouse' && e.button === 0) {
+        lastX = e.clientX; lastY = e.clientY;
+        updatePreviewVoxel(0, 0, 0, false);
+    }
+}
+
+function onPointerMove(e) {
+    e.preventDefault();
+    if (isPointerLocked) return;
+
+    if (e.pointerType === 'touch' && activePointers.has(e.pointerId)) {
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pointerType: e.pointerType });
+        if (activePointers.size > 1) {
+            handleGesture();
+            updatePreviewVoxel(0, 0, 0, false);
+            return;
+        }
+    }
+
+    lastX = e.clientX;
+    lastY = e.clientY;
+
+    const currentMovedDist = initialClickPos ? Math.hypot(e.clientX - initialClickPos.x, e.clientY - initialClickPos.y) : 0;
+    
+    const shouldStartDrag = pointerIsDown && (currentMovedDist > MOVE_PX);
+
+    let currentRayHit = calculateRayTargetVoxelCoords(e.clientX, e.clientY);
+    let currentTargetVoxelCoords = null;
+
+    if (currentRayHit) {
+        let gx = currentRayHit.gx;
+        let gy = currentRayHit.gy;
+        let gz = currentRayHit.gz;
+
+        // Corrected logic for add mode preview and placement
+        if (currentMode === Modes.ADD) {
+            if (currentRayHit.hitExistingVoxel) {
+                gx = currentRayHit.gx + Math.round(currentRayHit.faceNormal.x);
+                gy = currentRayHit.gy + Math.round(currentRayHit.faceNormal.y);
+                gz = currentRayHit.gz + Math.round(currentRayHit.faceNormal.z);
+            } else {
+                 if (currentDrawingAxis === 'y') {
+                    gy = activeDrawingLevel.y;
+                } else if (currentDrawingAxis === 'x') {
+                    gx = activeDrawingLevel.x;
+                } else if (currentDrawingAxis === 'z') {
+                    gz = activeDrawingLevel.z;
+                }
+            }
         }
         
-        // Download-Funktion
-        downloadButton.addEventListener('click', () => {
-            if (audioBlob) {
-                const url = URL.createObjectURL(audioBlob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `geschichte-${Date.now()}.mp3`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                showMessage("Audio wird heruntergeladen...", 'info');
+        gx = Math.floor(gx);
+        gy = Math.floor(gy);
+        gz = Math.floor(gz);
+
+        gx = Math.max(0, Math.min(GRID - 1, gx));
+        gy = Math.max(0, Math.min(GRID - 1, gy));
+        gz = Math.max(0, Math.min(GRID - 1, gz));
+
+        if (Number.isFinite(gx) && Number.isFinite(gy) && Number.isFinite(gz)) {
+            currentTargetVoxelCoords = { gx: gx, gy: gy, gz: gz };
+        } else {
+            currentTargetVoxelCoords = null;
+        }
+    }
+    
+    if (pointerIsDown && currentTargetVoxelCoords) {
+        if (!isDragging && shouldStartDrag) {
+            isDragging = true;
+            if (initialTargetVoxelCoords) {
+                lastActionVoxelCoords = { ...initialTargetVoxelCoords };
+                
+                const gKey = key(initialTargetVoxelCoords.gx, initialTargetVoxelCoords.gy, initialTargetVoxelCoords.gz);
+                const initialColor = voxelsAtDragStart.has(gKey) ? voxelsAtDragStart.get(gKey).color : null;
+                performVoxelModification(initialTargetVoxelCoords.gx, initialTargetVoxelCoords.gy, initialTargetVoxelCoords.gz, currentMode, currentColor);
+                const finalColor = voxels.has(gKey) ? voxels.get(gKey).color : null;
+                currentStrokeVoxels.set(gKey, { originalColor: initialColor, finalColor: finalColor });
+            }
+        }
+        
+        if (isDragging) {
+            const startPointForLine = lastActionVoxelCoords;
+            const endPointForLine = { ...currentTargetVoxelCoords };
+            
+            // Apply the layer lock for ADD mode
+            if (currentMode === Modes.ADD && initialDragYLevel !== null) {
+                endPointForLine.gy = initialDragYLevel;
+            }
+
+            let pathVoxels = getVoxelsOnLine(startPointForLine, endPointForLine);
+
+            if (currentMode === Modes.DELETE || currentMode === Modes.DRAW) {
+                pathVoxels = pathVoxels.filter(voxel => voxelsAtDragStart.has(key(voxel.gx, voxel.gy, voxel.gz)));
+            }
+
+            for (let i = 0; i < pathVoxels.length; i++) {
+                const voxel = pathVoxels[i];
+                const gKey = key(voxel.gx, voxel.gy, voxel.gz);
+                const initialColorOfStroke = voxelsAtDragStart.has(gKey) ? voxelsAtDragStart.get(gKey).color : null;
+                
+                performVoxelModification(voxel.gx, voxel.gy, voxel.gz, currentMode, currentColor);
+                
+                const finalColorAfterModification = voxels.has(gKey) ? voxels.get(gKey).color : null;
+
+                if (!currentStrokeVoxels.has(gKey)) {
+                     currentStrokeVoxels.set(gKey, { originalColor: initialColorOfStroke, finalColor: finalColorAfterModification });
+                } else {
+                    currentStrokeVoxels.get(gKey).finalColor = finalColorAfterModification;
+                }
+            }
+            lastActionVoxelCoords = { ...endPointForLine };
+            updatePreviewVoxel(currentTargetVoxelCoords.gx, currentTargetVoxelCoords.gy, currentTargetVoxelCoords.gz, true);
+
+        } else {
+            if (currentTargetVoxelCoords) {
+                let showPreview = false;
+                const gKeyAtPreview = key(currentTargetVoxelCoords.gx, currentTargetVoxelCoords.gy, currentTargetVoxelCoords.gz);
+                const hasVoxelAtPreview = voxels.has(gKeyAtPreview);
+
+                if (currentMode === Modes.ADD) {
+                    if (!hasVoxelAtPreview) { showPreview = true; }
+                } else if (currentMode === Modes.DELETE || currentMode === Modes.DRAW) {
+                    if (hasVoxelAtPreview) { showPreview = true; }
+                }
+                updatePreviewVoxel(currentTargetVoxelCoords.gx, currentTargetVoxelCoords.gy, currentTargetVoxelCoords.gz, showPreview);
             } else {
-                showMessage("Keine Story zum Herunterladen gefunden. Bitte generieren Sie zuerst eine.", 'error');
+                updatePreviewVoxel(0, 0, 0, false);
+            }
+        }
+    } else {
+        if (currentRayHit) {
+            let hoverPreviewCoords = { gx: currentRayHit.gx, gy: currentRayHit.gy, gz: currentRayHit.gz };
+            if (currentMode === Modes.ADD) {
+                if (currentRayHit.hitExistingVoxel) {
+                    hoverPreviewCoords.gx += Math.round(currentRayHit.faceNormal.x);
+                    hoverPreviewCoords.gy += Math.round(currentRayHit.faceNormal.y);
+                    hoverPreviewCoords.gz += Math.round(currentRayHit.faceNormal.z);
+                } else {
+                    if (currentDrawingAxis === 'y') {
+                        hoverPreviewCoords.gy = activeDrawingLevel.y;
+                    } else if (currentDrawingAxis === 'x') {
+                        hoverPreviewCoords.gx = activeDrawingLevel.x;
+                    } else if (currentDrawingAxis === 'z') {
+                        hoverPreviewCoords.gz = activeDrawingLevel.z;
+                    }
+                }
+            }
+            
+            hoverPreviewCoords.gx = Math.floor(hoverPreviewCoords.gx);
+            hoverPreviewCoords.gy = Math.floor(hoverPreviewCoords.gy);
+            hoverPreviewCoords.gz = Math.floor(hoverPreviewCoords.gz);
+
+            hoverPreviewCoords.gx = Math.max(0, Math.min(GRID - 1, hoverPreviewCoords.gx));
+            hoverPreviewCoords.gy = Math.max(0, Math.min(GRID - 1, hoverPreviewCoords.gy));
+            hoverPreviewCoords.gz = Math.max(0, Math.min(GRID - 1, hoverPreviewCoords.gz));
+            
+            let showPreview = false;
+            const gKeyAtPreview = key(hoverPreviewCoords.gx, currentTargetVoxelCoords.gy, currentTargetVoxelCoords.gz);
+            const hasVoxelAtPreview = voxels.has(gKeyAtPreview);
+
+            if (currentMode === Modes.ADD) {
+                if (!hasVoxelAtPreview) { showPreview = true; }
+            } else if (currentMode === Modes.DELETE || currentMode === Modes.DRAW) {
+                if (hasVoxelAtPreview) { showPreview = true; }
+            }
+            updatePreviewVoxel(hoverPreviewCoords.gx, hoverPreviewCoords.gy, hoverPreviewCoords.gz, showPreview);
+        } else {
+            updatePreviewVoxel(0, 0, 0, false);
+        }
+    }
+    
+    if (e.pointerType === 'touch' && activePointers.size === 1 && !isDragging) {
+        handleGesture();
+    }
+}
+
+
+function cycleDrawingAxis() {
+    const axes = ['x', 'y', 'z'];
+    const currentIndex = axes.indexOf(currentDrawingAxis);
+    currentDrawingAxis = axes[(currentIndex + 1) % axes.length];
+    updateGridHelperPosition();
+    showToast('Zeichenachse', `Achse: ${currentDrawingAxis.toUpperCase()}`, 'info', 1500);
+}
+
+function moveDrawingLevel(direction) {
+    if (currentMode !== Modes.ADD && currentMode !== Modes.DRAW) {
+        showToast('Hinweis', 'Ebenensteuerung nur im Hinzufügen- oder Zeichenmodus verfügbar.', 'warning', 2000);
+        return;
+    }
+    let level = activeDrawingLevel[currentDrawingAxis];
+
+    if (!Number.isFinite(level)) {
+        level = 0;
+        activeDrawingLevel[currentDrawingAxis] = level;
+    }
+
+    level += direction;
+    level = Math.max(0, Math.min(GRID - 1, level));
+    activeDrawingLevel[currentDrawingAxis] = level;
+    updateGridHelperPosition();
+    showToast('Zeichenebene', `Achse: ${currentDrawingAxis.toUpperCase()}, Ebene: ${level}`, 'info', 1500);
+}
+
+
+window.onload = async function() {
+    closeAllModals();
+    try {
+        cvs = document.getElementById('voxelCanvas'); containerDiv = document.getElementById('container');
+        touchIndicator = document.getElementById('touch-indicator');
+        toastContainer = document.getElementById('toast-container');
+        scene = new THREE.Scene(); scene.background = new THREE.Color(0x282c34);
+        cam = new THREE.PerspectiveCamera(75, containerDiv.clientWidth / containerDiv.clientHeight, 0.1, 1000);
+        resetCameraPosition(); euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        ren = new THREE.WebGLRenderer({ canvas: cvs, antialias: true });
+        ren.setSize(containerDiv.clientWidth, containerDiv.clientHeight);
+        isMobile = window.matchMedia('(max-width: 768px)').matches;
+        ren.setPixelRatio(isMobile ? Math.min(1.5, window.devicePixelRatio) : window.devicePixelRatio);
+        ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+      
+        scene.add(new THREE.AmbientLight(0x606060));
+        mainDirectionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        mainDirectionalLight.position.set(10, 20, 15); mainDirectionalLight.castShadow = true;
+        mainDirectionalLight.shadow.mapSize.width = mainDirectionalLight.shadow.mapSize.height = 2048;
+        mainDirectionalLight.shadow.camera.near = 0.5; mainDirectionalLight.shadow.camera.far = 50;
+        mainDirectionalLight.shadow.camera.left = -30; mainDirectionalLight.shadow.camera.right = 30;
+        mainDirectionalLight.shadow.camera.top = 30; mainDirectionalLight.shadow.camera.bottom = -30;
+        mainDirectionalLight.shadow.bias = -0.0005; mainDirectionalLight.shadow.normalBias = 0.02;
+        scene.add(mainDirectionalLight);
+        const secondDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        secondDirectionalLight.position.set(-10, 10, -15);
+        scene.add(secondDirectionalLight);
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
+        
+        scene.add(previewVoxelMesh); updatePreviewVoxel(0,0,0,false);
+        rebuildHelpers();
+
+        window.addEventListener('resize', onResize);
+        containerDiv.addEventListener('pointerdown', onPointerDown);
+        containerDiv.addEventListener('pointermove', onPointerMove);
+        containerDiv.addEventListener('pointerup', onPointerUp);
+        containerDiv.addEventListener('pointercancel', onPointerUp);
+        containerDiv.addEventListener('pointerleave', onPointerLeave);
+        containerDiv.addEventListener('wheel', onMouseWheel, { passive: false });
+        document.addEventListener('keydown', onKeyDown); document.addEventListener('keyup', onKeyUp);
+        document.addEventListener('pointerlockchange', onPointerLockChange, false);
+        containerDiv.addEventListener('mousemove', (e) => {
+            if (isPointerLocked) {
+                mouseMovementX = e.movementX;
+                mouseMovementY = e.movementY;
+                e.preventDefault();
+            }
+        });
+        containerDiv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        document.getElementById('grid-size-slider').addEventListener('input', (e) => {
+            const oldGrid = GRID;
+            const newGrid = parseInt(e.target.value);
+
+            if (newGrid < oldGrid) {
+                let voxelsWouldBeLost = false;
+                for (const [id, data] of voxels.entries()) {
+                    const p = parseKey(id);
+                    if (p[0] >= newGrid || p[1] >= newGrid || p[2] >= newGrid) {
+                        voxelsWouldBeLost = true;
+                        break;
+                    }
+                }
+
+                if (voxelsWouldBeLost) {
+                    showToast('Warnung', 'Gittergröße kann nicht reduziert werden, da sonst vorhandene Voxel außerhalb des Rasters verloren gehen würden.', 'warning', 5000);
+                    e.target.value = oldGrid;
+                    document.getElementById('grid-size-display').textContent = `${oldGrid}×${oldGrid}×${oldGrid}`;
+                    return;
+                }
+            }
+            
+            const oldVoxelState = [...voxels.entries()].map(([id, data]) => { const p = parseKey(id); return { gx: p[0], gy: p[1], gz: p[2], color: data.color }; });
+            for (const chunk of chunks.values()) chunk.dispose(); chunks.clear(); voxels.clear();
+            oldVoxelState.filter(v => v.gx < newGrid && v.gy < newGrid && v.gz < newGrid).forEach(v => _addSingleVoxel(v.gx, v.gy, v.gz, v.color));
+            GRID = newGrid; document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`; localStorage.setItem('voxelEditorGridSize', GRID);
+            addCommand('resizeGrid', oldVoxelState, [...voxels.entries()].map(([id, data]) => { const p = parseKey(id); return { gx: p[0], gy: p[1], gz: p[2], color: data.color }; }), { oldGrid: oldGrid, newGrid: GRID });
+            rebuildHelpers(); resetCameraPosition();
+        });
+
+        document.getElementById('color-picker').addEventListener('input', (e) => {
+            currentColor = e.target.value; localStorage.setItem('voxelEditorColor', currentColor);
+            const mobileColorInput = document.getElementById('mobile-color-input');
+            if (mobileColorInput) mobileColorInput.value = currentColor;
+            presetBoxes.forEach(box => box.classList.remove('active', 'border-primary', 'shadow-lg', 'shadow-primary/50')); activePresetIndex = -1;
+            if (previewVoxelMesh.visible) {
+                previewVoxelMaterial.color.set(currentColor);
             }
         });
 
-        // Toggle-Funktion für den Story-Text
-        collapseToggleButton.addEventListener('click', () => {
-            if (storyTextContainer.classList.contains('expanded')) {
-                storyTextContainer.classList.remove('expanded');
-                collapseToggleButton.textContent = 'Mehr lesen';
-            } else {
-                storyTextContainer.classList.add('expanded');
-                collapseToggleButton.textContent = 'Weniger lesen';
+        presetBoxes = [document.getElementById('color-preset-1'), document.getElementById('color-preset-2'), document.getElementById('color-preset-3')];
+        presetColors.forEach((color, i) => {
+            const box = presetBoxes[i]; box.value = color;
+            box.addEventListener('click', (e) => setActivePreset(i));
+            box.addEventListener('input', (e) => savePresetColor(i, e.target.value));
+        });
+        if (activePresetIndex !== -1) setActivePreset(activePresetIndex); else document.getElementById('color-picker').value = currentColor;
+
+        document.getElementById('modeToggle').addEventListener('click', cycleMode);
+        document.getElementById('current-mode').textContent = `Modus: ${currentMode}`;
+
+        document.getElementById('clearBtn').addEventListener('click', () => document.getElementById('clearConfirmationModal').showModal());
+        document.getElementById('saveAndClearBtn').addEventListener('click', () => { saveJSON(); clearAll(); document.getElementById('clearConfirmationModal').close(); });
+        document.getElementById('clearWithoutSaveBtn').addEventListener('click', () => { clearAll(); document.getElementById('clearConfirmationModal').close(); });
+        document.getElementById('cancelClearBtn').addEventListener('click', () => document.getElementById('clearConfirmationModal').close());
+        document.getElementById('clearConfirmationModal').addEventListener('cancel', () => document.getElementById('clearConfirmationModal').close());
+
+        document.getElementById('fillLevelBtn').addEventListener('click', fillActiveLevel);
+        document.getElementById('saveBtn').addEventListener('click', saveJSON);
+        document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+        document.getElementById('fileInput').addEventListener('change', loadJSON);
+        document.getElementById('exportStlBtn').addEventListener('click', openStlExportModal);
+        document.getElementById('confirmStlExportBtn').addEventListener('click', () => {
+            const selectedUnit = document.querySelector('input[name="export-unit"]:checked').value;
+            exportSTL(selectedUnit);
+        });
+        document.getElementById('cancelStlExportBtn').addEventListener('click', () => document.getElementById('exportStlModal').close());
+
+        document.getElementById('undoBtn').addEventListener('click', undo);
+        document.getElementById('redoBtn').addEventListener('click', redo);
+
+        document.getElementById('fly-speed-slider').addEventListener('input', (e) => {
+            moveSpeed = parseFloat(e.target.value); document.getElementById('fly-speed-display').textContent = moveSpeed.toFixed(2); localStorage.setItem('voxelEditorFlySpeed', moveSpeed);
+        });
+
+        document.getElementById('resetCameraBtn').addEventListener('click', resetCameraPosition);
+        
+        document.getElementById('loadImageTemplateBtn').addEventListener('click', loadImageTemplate);
+        document.getElementById('imageFileInput').addEventListener('change', handleImageFileSelect);
+        document.getElementById('removeImageTemplateBtn').addEventListener('click', removeImageTemplate);
+
+        const mediaQuery = window.matchMedia('(max-width: 768px)');
+        function handleMediaQueryChange(e) {
+            isMobile = e.matches;
+            const controlsPanel = document.getElementById('controls');
+            const mobileControls = document.getElementById('mobile-controls');
+            
+            if (e.matches) {
+                controlsPanel.classList.add('hidden');
+                mobileControls.classList.remove('hidden');
+                mobileControls.classList.add('flex');
+                toastContainer.classList.remove('toast-end');
+                toastContainer.classList.add('toast-top-center');
+            }
+            else {
+                controlsPanel.classList.remove('hidden');
+                controlsPanel.classList.add('flex');
+                mobileControls.classList.add('hidden');
+                mobileControls.classList.remove('flex');
+                toastContainer.classList.remove('toast-top-center');
+                toastContainer.classList.add('toast-end');
+            }
+            onResize();
+            rebuildHelpers();
+            const mobileModeIcon = document.getElementById('mobile-mode-icon');
+            if (mobileModeIcon) {
+                mobileModeIcon.className = ModeIcons[currentMode];
+            }
+        }
+        mediaQuery.addListener(handleMediaQueryChange); handleMediaQueryChange(mediaQuery);
+
+        document.getElementById('mobile-undo').addEventListener('click', (e) => { e.stopPropagation(); undo(); });
+        document.getElementById('mobile-redo').addEventListener('click', (e) => { e.stopPropagation(); redo(); });
+        document.getElementById('mobile-save').addEventListener('click', (e) => { e.stopPropagation(); saveJSON(); });
+        document.getElementById('mobile-camera').addEventListener('click', (e) => { e.stopPropagation(); resetCameraPosition(); });
+        document.getElementById('mobile-mode-toggle').addEventListener('click', (e) => { e.stopPropagation(); cycleMode(); });
+        
+        const mobileColorPickerBtn = document.getElementById('mobile-color-picker-btn');
+        const mobileColorInput = document.getElementById('mobile-color-input');
+        
+        mobileColorPickerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mobileColorInput.click();
+        });
+
+        mobileColorInput.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+            localStorage.setItem('voxelEditorColor', currentColor);
+            document.getElementById('color-picker').value = currentColor;
+            presetBoxes.forEach(box => box.classList.remove('active', 'border-primary', 'shadow-lg', 'shadow-primary/50'));
+            activePresetIndex = -1;
+            if (previewVoxelMesh.visible) {
+                previewVoxelMaterial.color.set(currentColor);
             }
         });
-    </script>
+        mobileColorInput.addEventListener('change', (e) => {
+            currentColor = e.target.value;
+            localStorage.setItem('voxelEditorColor', currentColor);
+            document.getElementById('color-picker').value = currentColor;
+            presetBoxes.forEach(box => box.classList.remove('active', 'border-primary', 'shadow-lg', 'shadow-primary/50'));
+            activePresetIndex = -1;
+            if (previewVoxelMesh.visible) {
+                previewVoxelMaterial.color.set(currentColor);
+            }
+        });
+
+        mobileColorInput.value = currentColor;
+
+        document.getElementById('mobile-level-up').addEventListener('click', (e) => { e.stopPropagation(); moveDrawingLevel(1); });
+        document.getElementById('mobile-level-down').addEventListener('click', (e) => { e.stopPropagation(); moveDrawingLevel(-1); });
+        
+        document.getElementById('mobile-login-logout').addEventListener('click', (e) => { e.stopPropagation(); loginLogout(); });
+
+        document.getElementById('grid-size-slider').value = GRID; document.getElementById('grid-size-display').textContent = `${GRID}×${GRID}×${GRID}`;
+        document.getElementById('color-picker').value = currentColor;
+        document.getElementById('fly-speed-slider').value = moveSpeed; document.getElementById('fly-speed-display').textContent = moveSpeed.toFixed(2);
+        
+        document.getElementById('mobile-mode-icon').className = ModeIcons[currentMode];
+
+        const app = window.firebase.initializeApp(window.firebaseConfig);
+        auth = window.firebase.getAuth(app); db = window.firebase.getFirestore(app);
+        const loginLogoutBtn = document.getElementById('loginLogoutBtn');
+        const uploadToHubBtn = document.getElementById('uploadToHubBtn');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const goToHubBtn = document.getElementById('goToHubBtn');
+        let projectLoadedFromUrl = false;
+
+        predefinedCategories.forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; document.getElementById('uploadCategory').appendChild(opt); });
+
+        window.firebase.setPersistence(auth, window.firebase.browserLocalPersistence)
+            .then(async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    try { await window.firebase.signInWithCustomToken(auth, __initial_auth_token); }
+                    catch (e) { showToast('Anmeldefehler', `Fehler beim Anmelden mit Token: ${e.message}. Bitte versuchen Sie es erneut.`, 'error', 5000); }
+                } else {
+                }
+
+                window.firebase.onAuthStateChanged(auth, async (user) => {
+                    currentUserId = user ? user.uid : null; currentUser = user;
+                    loginLogoutBtn.textContent = user ? 'Abmelden' : 'Anmelden';
+                    userIdDisplay.innerHTML = user ? `<img src="${user.photoURL || 'https://placehold.co/24x24/cccccc/000000?text=U'}" alt="User Avatar" class="w-6 h-6 rounded-full align-middle">` : '';
+                    uploadToHubBtn.classList.toggle('hidden', !user);
+                    document.getElementById('mobile-login-logout').textContent = user ? '🚪' : '';
+                    if (user) document.getElementById('authModal').close();
+
+                    if (!projectLoadedFromUrl) {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const modelId = urlParams.get('modelId'); const encodedJson = urlParams.get('projectJson');
+                        if (modelId) { await loadProjectFromModelId(modelId); projectLoadedFromUrl = true; }
+                        else if (encodedJson) {
+                            try {
+                                const decodedJson = decodeURIComponent(encodedJson);
+                                loadProjectData(JSON.parse(decodedJson));
+                                showToast('Projekt geladen', 'Projekt erfolgreich aus URL-Parameter geladen.', 'success', 5000);
+                                projectLoadedFromUrl = true;
+                            } catch (e) { showToast('Fehler', 'Fehler beim Laden des Projekts aus der URL. Ungültige oder beschädigte Projektdaten. Fehler: ' + e.message, 'error', 5000); resetToDefaultProject(); }
+                        } else { projectRemixOf = ''; projectSourceJsonUrl = ''; }
+                    }
+                });
+                animate();
+            })
+            .catch((e) => { showToast('Anmeldefehler', `Fehler bei der Anmeldungspersistenz: ${e.message}.`, 'error', 10000); animate(); });
+
+        document.getElementById('goToHubBtn').addEventListener('click', () => window.open('https://hub.voxelshaper.com', '_blank'));
+        loginLogoutBtn.addEventListener('click', loginLogout);
+        document.getElementById('authModal').addEventListener('click', (e) => { if (e.target === document.getElementById('authModal')) closeAuthModal(); });
+        document.getElementById('authModalCloseBtn').addEventListener('click', closeAuthModal);
+        document.getElementById('signInGoogleBtn').addEventListener('click', window.signInWithGoogle);
+        document.getElementById('signInGithubBtn').addEventListener('click', window.signInGithub);
+        document.getElementById('emailSignInBtn').addEventListener('click', window.signInEmailPassword);
+        document.getElementById('emailSignUpBtn').addEventListener('click', window.signUpEmailPassword);
+        document.getElementById('showEmailLoginFormBtn').addEventListener('click', () => document.getElementById('emailLoginForm').classList.remove('hidden'));
+        document.getElementById('uploadToHubBtn').addEventListener('click', openUploadModal);
+        document.getElementById('uploadProjectModal').addEventListener('click', (e) => { if (e.target === document.getElementById('uploadProjectModal')) { document.getElementById('uploadProjectModal').close(); cvs.focus(); } });
+        document.getElementById('uploadConfirmBtn').addEventListener('click', uploadProjectToHub);
+        document.getElementById('uploadCancelBtn').addEventListener('click', () => { document.getElementById('uploadProjectModal').close(); cvs.focus(); });
+    } catch (e) { showToast('Schwerer Fehler', `Ein unerwarteter Fehler ist aufgetreten: ${e.message}.`, 'error', 10000); }
+};
+
+const frustum = new THREE.Frustum(); const tempCameraMatrix = new THREE.Matrix4();
+function animate() {
+    requestAnimationFrame(animate);
+    if (isPointerLocked) {
+        if (firstMoveAfterLock) {
+            firstMoveAfterLock = false;
+            mouseMovementX = mouseMovementY = 0;
+            return;
+        }
+        euler.y -= (mouseMovementX || 0) * rotSpeed;
+        euler.x -= (mouseMovementY || 0) * rotSpeed;
+        euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+        cam.quaternion.setFromEuler(euler);
+        mouseMovementX = mouseMovementY = 0;
+        const camDir = new THREE.Vector3(); cam.getWorldDirection(camDir);
+        const rightDir = new THREE.Vector3().crossVectors(camDir, cam.up).normalize();
+        const upVec = new THREE.Vector3(0, 1, 0); const currMoveSpeed = moveSpeed * 0.5;
+        if (keyboard['w']) cam.position.addScaledVector(camDir, currMoveSpeed);
+        if (keyboard['s']) cam.position.addScaledVector(camDir, -currMoveSpeed);
+        if (keyboard['a']) cam.position.addScaledVector(rightDir, -currMoveSpeed);
+        if (keyboard['d']) cam.position.addScaledVector(rightDir, currMoveSpeed);
+        if (keyboard['e']) cam.position.addScaledVector(upVec, currMoveSpeed);
+        if (keyboard['q']) cam.position.addScaledVector(upVec, -currMoveSpeed);
+    }
+    cam.updateMatrixWorld(); tempCameraMatrix.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(tempCameraMatrix);
+    for (const chunk of chunks.values()) chunk.instancedMesh.visible = frustum.intersectsBox(chunk.boundingBox);
+    ren.render(scene, cam);
+}
+</script>
 </body>
 </html>
