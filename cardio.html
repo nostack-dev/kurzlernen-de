@@ -2,267 +2,648 @@
 <html lang="de" data-theme="winter">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Z2 Mobile Log</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Z2 Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
-  :root{ --font: Inter, ui-sans-serif, system-ui }
-  body{ font-family: var(--font) }
-  .mono{ font-variant-numeric: tabular-nums }
-  .thumb{ width:100%; max-width:240px; border-radius:1rem; display:block }
-  .wrap{ white-space:pre-wrap; word-break:break-word }
+  :root { --font: Inter, ui-sans-serif, system-ui; }
+  body { font-family: var(--font); }
+  .mono { font-variant-numeric: tabular-nums; }
+  .thumb { width: 6rem; height: 6rem; object-fit: cover; border-radius: 0.75rem; border: 1px solid oklch(var(--n) / 0.1); }
+  .wrap { word-break: break-word; white-space: pre-wrap; }
+  .btn-active-tone { @apply !bg-primary !text-primary-content; }
 </style>
 </head>
-<body class="bg-base-200 min-h-screen">
+<body class="bg-base-200 min-h-screen pb-16">
 
-<!-- Top Bar -->
-<div class="navbar bg-base-100 shadow-sm sticky top-0 z-30">
+<!-- Nav & Header -->
+<div class="navbar bg-base-100 shadow-lg sticky top-0 z-30 px-4 sm:px-8 py-3">
   <div class="flex-1">
-    <span class="btn btn-ghost text-lg font-extrabold">Z2 Log 📸</span>
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl font-extrabold text-primary">Z2 Log</span>
+      <span class="badge badge-lg font-semibold badge-outline text-xs sm:text-sm">V4.0</span>
+    </div>
   </div>
-  <div class="flex-none">
-    <select id="themeSel" class="select select-bordered select-xs mr-2">
-      <option>winter</option><option>cupcake</option><option>emerald</option><option>corporate</option><option>dracula</option><option>night</option>
-    </select>
-    <button id="btnExport" class="btn btn-xs">Export</button>
+  <div class="flex-none gap-2">
+    <!-- Settings Dropdown -->
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37-2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.527.32.956.638 1.407 1.056z" />
+        </svg>
+      </div>
+      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-4 shadow bg-base-100 rounded-box w-64">
+        <li class="menu-title">Einstellungen</li>
+        <li class="p-2">
+          <label class="label"><span class="label-text">Theme</span></label>
+          <select id="themeSel" class="select select-bordered select-sm w-full">
+            <option>winter</option><option>cupcake</option><option>emerald</option>
+            <option>corporate</option><option>dracula</option><option>night</option>
+          </select>
+        </li>
+        <li class="p-2">
+          <label class="label"><span class="label-text">Ton (Motivation)</span></label>
+          <div class="join w-full">
+            <button class="join-item btn btn-sm" data-tone="gentle">gentle</button>
+            <button class="join-item btn btn-sm" data-tone="cheeky">cheeky</button>
+            <button class="join-item btn btn-sm" data-tone="spicy">spicy</button>
+          </div>
+        </li>
+        <li class="p-2">
+          <label class="label"><span class="label-text">Wochenziel (Minuten)</span></label>
+          <input id="weeklyTarget" type="number" class="input input-sm input-bordered w-full" value="140" />
+        </li>
+        <li><button id="btnSaveSettings" class="btn btn-sm btn-primary mt-2 w-full">Speichern</button></li>
+      </ul>
+    </div>
   </div>
 </div>
 
-<!-- Main -->
-<div class="max-w-md mx-auto px-3 py-4 space-y-4">
+<!-- Main Content Area -->
+<div class="container mx-auto px-4 py-8 md:max-w-4xl">
 
-  <!-- Capture -->
-  <section class="card bg-base-100 shadow">
-    <div class="card-body gap-3">
-      <h2 class="card-title text-base">1) Foto aufnehmen</h2>
-      <input id="camera" type="file" accept="image/*" capture="environment" class="file-input file-input-bordered w-full" />
-      <img id="preview" class="thumb mt-2 hidden" alt="Vorschau" />
-      <button id="btnOcr" class="btn btn-primary w-full">OCR starten</button>
-      <div id="ocrStatus" class="text-sm opacity-70"></div>
-      <progress id="ocrProg" class="progress w-full hidden"></progress>
-      <details class="mt-1">
-        <summary class="text-sm cursor-pointer">OCR-Text anzeigen</summary>
-        <pre id="rawText" class="wrap text-xs opacity-80 p-2 bg-base-200 rounded"></pre>
-      </details>
-    </div>
-  </section>
-
-  <!-- Form -->
-  <section class="card bg-base-100 shadow">
-    <div class="card-body gap-3">
-      <h2 class="card-title text-base">2) Werte prüfen</h2>
-      <div class="form-control">
-        <label class="label"><span class="label-text">Ø Puls (bpm)</span></label>
-        <input id="f_hr" type="number" inputmode="numeric" class="input input-bordered" placeholder="115" />
-      </div>
-      <div class="form-control">
-        <label class="label"><span class="label-text">Dauer (Minuten)</span></label>
-        <input id="f_dur" type="number" step="0.1" inputmode="decimal" class="input input-bordered" placeholder="20" />
-      </div>
-      <div class="grid grid-cols-2 gap-2">
-        <div class="form-control">
-          <label class="label"><span class="label-text">Speed (km/h)</span></label>
-          <input id="f_speed" type="number" step="0.1" inputmode="decimal" class="input input-bordered" />
-        </div>
-        <div class="form-control">
-          <label class="label"><span class="label-text">Watt</span></label>
-          <input id="f_watt" type="number" step="1" inputmode="numeric" class="input input-bordered" />
+  <!-- User Info & Hero -->
+  <div class="mb-8">
+    <div class="p-6 bg-gradient-to-br from-base-100 to-base-200 rounded-2xl shadow-xl border border-base-300">
+      <div class="flex items-center space-x-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-primary" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.38 0 2.5 1.12 2.5 2.5S13.38 10.5 12 10.5 9.5 9.38 9.5 8 10.62 5.5 12 5.5zm-2 14.24v-1.74c0-1.66 1.34-3 3-3h2.36c1.66 0 3 1.34 3 3v1.74c-1.37.95-3.04 1.5-4.86 1.5s-3.49-.55-4.86-1.5z"/></svg>
+        <div class="flex-1">
+          <h1 class="text-xl sm:text-2xl font-bold">Hallo, Christian </h1>
+          <p class="text-sm opacity-70">Konstanz, Deutschland</p>
+          <p class="mt-2 text-sm italic opacity-80">Dein Weg zu besserer Mitochondrienfunktion. 🔥</p>
         </div>
       </div>
-      <input id="f_notes" type="text" class="input input-bordered" placeholder="Notiz (optional)" />
-      <div class="flex gap-2">
-        <button id="btnQuick" class="btn btn-outline w-1/2">Quick 115/20</button>
-        <button id="btnSave" class="btn btn-success w-1/2">Speichern</button>
+    </div>
+  </div>
+
+  <!-- Stats Grid -->
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
+      <div class="card-body p-5">
+        <h2 class="card-title text-sm opacity-80">Wochenminuten</h2>
+        <div id="wkMin" class="text-3xl font-extrabold mono text-primary">0</div>
+        <progress id="wkProg" class="progress progress-primary w-full" value="0" max="100"></progress>
+        <div id="wkMsg" class="text-xs opacity-70 mt-1">Los geht's.</div>
       </div>
-      <div id="saveMsg" class="text-sm opacity-70"></div>
+    </div>
+    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
+      <div class="card-body p-5">
+        <h2 class="card-title text-sm opacity-80">Streak</h2>
+        <div id="streak" class="text-3xl font-extrabold mono text-secondary">0 🔥</div>
+        <div class="text-xs opacity-70">Konsekutive Tage</div>
+        <div id="nextBadge" class="badge badge-outline mt-2 text-xs">next  bei 3🔥</div>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
+      <div class="card-body p-5">
+        <h2 class="card-title text-sm opacity-80">Level</h2>
+        <div id="level" class="text-3xl font-extrabold mono text-accent">Lv 1</div>
+        <progress id="xpProg" class="progress progress-secondary w-full" value="0" max="100"></progress>
+        <div id="xpLbl" class="text-xs opacity-70 mt-1">0 / 100 XP</div>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
+      <div class="card-body p-5">
+        <h2 class="card-title text-sm opacity-80">Total Sessions</h2>
+        <div id="totalSessions" class="text-3xl font-extrabold mono text-info">0</div>
+        <div class="text-xs opacity-70">Gespeicherte Einträge</div>
+      </div>
     </div>
   </section>
 
-  <!-- Log -->
-  <section class="card bg-base-100 shadow">
-    <div class="card-body gap-2">
-      <div class="flex items-center justify-between">
-        <h2 class="card-title text-base">3) Einträge</h2>
-        <label class="btn btn-sm">
-          Import
-          <input id="importFile" type="file" accept="application/json" class="hidden">
-        </label>
-      </div>
-      <div id="emptyHint" class="text-sm opacity-70">Noch keine Einträge.</div>
-      <div id="list" class="space-y-2"></div>
-      <button id="btnClear" class="btn btn-sm btn-error">Alles löschen</button>
+  <!-- Action Panel: Photo, OCR, Form -->
+  <section class="bg-base-100 rounded-2xl shadow-xl p-6 mb-8 border border-base-300">
+    <h2 class="text-xl font-bold mb-4">1. Session erfassen</h2>
+
+    <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+      <input id="fileInput" type="file" accept="image/*" multiple capture="environment"
+             class="file-input file-input-bordered file-input-primary w-full sm:max-w-xs" />
+      <button id="btnOcr" class="btn btn-primary w-full sm:w-auto">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5v14H5V5h14m0-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z"/><path d="M11.5 13.5v-1h-1v1H9.5V11h-1v1h-1v1.5h1v1h1v1.5h1v-1.5h1v-1.5zM15 16h-4v-1h4v1zm-4-4h4v-1h-4v1z"/></svg>
+        Daten erkennen
+      </button>
+    </div>
+    <div id="thumbs" class="mt-4 flex flex-wrap gap-3"></div>
+    <progress id="ocrProg" class="progress progress-primary w-full mt-4 hidden" value="0" max="100"></progress>
+    <div id="ocrStatus" class="text-sm opacity-70 mt-2"></div>
+
+    <div class="divider my-4"></div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
+        <input id="f_hr" type="number" inputmode="numeric" placeholder="z.B. 115" class="input input-bordered w-full" />
+      </label>
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text">Dauer (Minuten)</span></div>
+        <input id="f_dur" type="number" step="0.1" inputmode="decimal" placeholder="z.B. 20" class="input input-bordered w-full" />
+      </label>
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text">Speed (km/h)</span></div>
+        <input id="f_speed" type="number" step="0.1" inputmode="decimal" placeholder="optional" class="input input-bordered w-full" />
+      </label>
+      <label class="form-control w-full">
+        <div class="label"><span class="label-text">Watt</span></div>
+        <input id="f_watt" type="number" step="1" inputmode="numeric" placeholder="optional" class="input input-bordered w-full" />
+      </label>
+    </div>
+    <label class="form-control w-full mt-4">
+      <div class="label"><span class="label-text">Notizen (optional)</span></div>
+      <input id="f_notes" type="text" placeholder="Hitze, Koffein, Medikinet…" class="input input-bordered w-full" />
+    </label>
+    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+      <button id="btnSave" class="btn btn-success flex-1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7zM7 7h10v1H7V7zm0 2h10v1H7V9zm0 2h10v1H7v-1z"/></svg>
+        Eintrag speichern
+      </button>
+      <button id="btnQuick115" class="btn btn-outline flex-1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm-1 15v-6h2v6zm2-8h-2v-2h2z"/></svg>
+        Quick-Fill: 115 / 20 min
+      </button>
     </div>
   </section>
 
+  <!-- Log Table & Badges -->
+  <section class="bg-base-100 rounded-2xl shadow-xl p-6 border border-base-300">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <h2 class="text-xl font-bold">2. Deine Sessions</h2>
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12c0 4.41 3.59 8 8 8s8-3.59 8-8-3.59-8-8-8-8 3.59-8 8zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/><path d="M12 4v-2c-5.52 0-10 4.48-10 10s4.48 10 10 10v-2c-4.41 0-8-3.59-8-8s3.59-8 8-8zM17 11h-4V7h-2v4H7v2h4v4h2v-4h4z"/></svg>
+          Daten-Tools
+        </div>
+        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-48">
+          <li><button id="btnExport" class="btn btn-ghost btn-sm">Export (JSON)</button></li>
+          <li>
+            <label class="btn btn-ghost btn-sm cursor-pointer">
+              Import
+              <input id="importFile" type="file" accept="application/json" class="hidden">
+            </label>
+          </li>
+          <li><button id="btnClear" class="btn btn-ghost btn-sm text-error">Alle Einträge löschen</button></li>
+        </ul>
+      </div>
+    </div>
+    <div class="overflow-x-auto mt-2">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Datum</th><th>Min</th><th>Ø HR</th><th>Speed</th><th>Watt</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="mt-8">
+      <h3 class="text-lg font-bold mb-2">Deine Achievements</h3>
+      <div id="badges" class="flex flex-wrap gap-2"></div>
+    </div>
+  </section>
 </div>
 
-<!-- Toasts -->
-<div class="toast toast-center z-40" id="toasts" style="inset:auto 0.75rem 0.75rem 0.75rem"></div>
+<!-- TOAST -->
+<div class="toast toast-end z-40" id="toasts"></div>
+
+<!-- MODAL: Badge unlocked -->
+<dialog id="badgeModal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg">🎉 Neuer Badge!</h3>
+    <p id="badgeModalTxt" class="py-2"></p>
+    <div class="modal-action">
+      <form method="dialog"><button class="btn">Nice</button></form>
+    </div>
+  </div>
+</dialog>
+
+<!-- MODAL: Confirm Delete -->
+<dialog id="deleteModal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg text-error">⚠️ Eintrag löschen?</h3>
+    <p class="py-2">Möchten Sie diesen Eintrag wirklich unwiderruflich löschen?</p>
+    <div class="modal-action">
+      <button id="btnConfirmDelete" class="btn btn-error">Löschen</button>
+      <form method="dialog"><button class="btn">Abbrechen</button></form>
+    </div>
+  </div>
+</dialog>
 
 <script>
-  /* ========= Helpers / Storage ========= */
-  const $ = sel => document.querySelector(sel);
-  const LS_KEY = 'z2_mobile_entries_v1';
-  const THEME_KEY = 'z2_mobile_theme';
-  const load = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch(e){ return []; } };
-  const save = (arr) => localStorage.setItem(LS_KEY, JSON.stringify(arr));
-  const toast = (msg, cls='alert-info') => {
-    const div = document.createElement('div');
-    div.className = `alert ${cls}`; div.innerHTML = `<span>${msg}</span>`;
-    $('#toasts').appendChild(div); setTimeout(()=>div.remove(), 2200);
-  };
+/* ====== State & Storage ====== */
+const LS = {
+  entries: 'z2_fun_entries_v1',
+  settings: 'z2_fun_settings_v1',
+  meta: 'z2_fun_meta_v1'
+};
+const defSettings = { tone: 'cheeky', weeklyTarget: 140, theme: 'winter' };
 
-  /* ========= Minimal OCR Parsing ========= */
-  function plaus(n,min,max){ return typeof n==='number' && isFinite(n) && n>=min && n<=max; }
-  function parseOCRText(txt){
-    const t = txt.replace(/\s+/g,' ').toLowerCase();
-    let hr=null, dur=null, speed=null, watt=null;
+// Fixed: These variables need to be declared globally before functions use them.
+let settings = load(LS.settings, defSettings);
+let entries = load(LS.entries, []);
+let meta = load(LS.meta, { xp: 0, level: 1, unlocked: [] });
 
-    // HR
-    const hrRe = [/(\d{2,3})\s?(?:bpm|bmp)\b/, /avg[^0-9]{0,3}hr[^0-9]{0,3}(\d{2,3})\b/, /(puls|pulse|herz)[^0-9]{0,3}(\d{2,3})\b/];
-    for(const re of hrRe){ const m=t.match(re); if(m){ const v=parseInt(m[1]||m[2],10); if(plaus(v,60,200)){ hr=v; break; } } }
+function load(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch(e){ return fallback; }
+}
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function nowTS(){ return Date.now(); }
 
-    // Dauer (H:MM:SS | MM:SS | "20 min")
-    const cands=[];
-    const mHMS=t.match(/\b(\d{1,2}):(\d{2}):(\d{2})\b/);
-    if(mHMS){ cands.push(parseInt(mHMS[1])*60 + parseInt(mHMS[2]) + parseInt(mHMS[3])/60); }
-    const mMS=t.match(/\b(\d{1,2}):(\d{2})\b/);
-    if(mMS && parseInt(mMS[2])<60){ cands.push(parseInt(mMS[1]) + parseInt(mMS[2])/60); }
-    const mMin=t.match(/(\d{1,3})\s?(?:min|minute|minutes)\b/);
-    if(mMin){ cands.push(parseInt(mMin[1])); }
-    const dlist=cands.filter(v=>plaus(v,8,120)).sort((a,b)=>a-b);
-    if(dlist.length) dur = dlist[Math.floor(dlist.length/2)];
-
-    // Speed km/h
-    const mSpd=t.match(/(\d{1,2}(?:[\.,]\d)?)\s?(?:km\/h|kmh|kph)\b/);
-    if(mSpd){ let v=parseFloat(mSpd[1].replace(',','.')); if(plaus(v,3,25)) speed=Number(v.toFixed(2)); }
-
-    // Watt
-    const mW=t.match(/(\d{2,4})\s?w\b/);
-    if(mW){ let v=parseInt(mW[1],10); if(plaus(v,30,800)) watt=v; }
-
-    return {hr, dur, speed, watt, raw:txt};
+/* ====== Tone dictionaries (PG-13 spicy) ====== */
+const TONES = {
+  gentle: {
+    wk: ["Let’s roll.", "Ruhig starten – beständig bleiben.", "Guter Flow – Zone-2 liebt Konstanz.", "Stark! Der Trend gefällt.", "On fire (auf leise Art). Weiter so!"],
+    save: ["Schöner Eintrag. Kleine Schritte, großer Effekt.", "Konstant ist König. Sauber erledigt.", "Fein dosiert, fein geliefert.", "Sehr gut – Mitochondrien sagen Danke."],
+    progress: ["Aufwärmphase","Du bist dabei","Kommt ins Rollen","Fast da","Goldene Konstanz!"]
+  },
+  cheeky: {
+    wk: ["Ok, Anlasser gezündet.", "Motor schnurrt. Mehr davon.", "Zone-2 Enjoyer detected.", "Cardio greift – nice!", "Well well… look who’s consistent 😎"],
+    save: ["Logged. Clean like a whistle.", "Another brick in the aerobic wall.", "Chef’s kiss – genau so.", "Mint. Keep stacking."],
+    progress: ["Low-key","Wird warm","Nice groove","Baller-mode light","Consistency beast!"]
+  },
+  spicy: {
+    wk: ["Startschuss. Keine Ausreden.", "Okay, du bist auf der Bahn.", "Das brennt angenehm – weiter.", "Stabiler Grind, Respekt.", "Well, well… you’ve got guts."],
+    save: ["Logged. No fluff.", "Disziplin > Motivation. Good call.", "Werk getan. Nächster.", "Solid. Keep the heat on."],
+    progress: ["Couch-escape","Wach werden","It’s cooking","Nearly there","Certified machine"]
   }
+};
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
-  /* ========= UI Bindings ========= */
-  const entries = load();
+/* ====== Elements ====== */
+const el = {
+  themeSel: document.getElementById('themeSel'),
+  weeklyTarget: document.getElementById('weeklyTarget'),
+  btnSaveSettings: document.getElementById('btnSaveSettings'),
+  wkMin: document.getElementById('wkMin'),
+  wkProg: document.getElementById('wkProg'),
+  wkMsg: document.getElementById('wkMsg'),
+  streak: document.getElementById('streak'),
+  nextBadge: document.getElementById('nextBadge'),
+  level: document.getElementById('level'),
+  xpLbl: document.getElementById('xpLbl'),
+  xpProg: document.getElementById('xpProg'),
+  totalSessions: document.getElementById('totalSessions'),
+  fileInput: document.getElementById('fileInput'),
+  thumbs: document.getElementById('thumbs'),
+  btnOcr: document.getElementById('btnOcr'),
+  ocrStatus: document.getElementById('ocrStatus'),
+  ocrProg: document.getElementById('ocrProg'),
+  f_hr: document.getElementById('f_hr'),
+  f_dur: document.getElementById('f_dur'),
+  f_speed: document.getElementById('f_speed'),
+  f_watt: document.getElementById('f_watt'),
+  f_notes: document.getElementById('f_notes'),
+  btnSave: document.getElementById('btnSave'),
+  btnQuick115: document.getElementById('btnQuick115'),
+  rows: document.getElementById('rows'),
+  btnExport: document.getElementById('btnExport'),
+  importFile: document.getElementById('importFile'),
+  btnClear: document.getElementById('btnClear'),
+  badges: document.getElementById('badges'),
+  toasts: document.getElementById('toasts'),
+  badgeModal: document.getElementById('badgeModal'),
+  badgeModalTxt: document.getElementById('badgeModalTxt'),
+  deleteModal: document.getElementById('deleteModal'),
+  btnConfirmDelete: document.getElementById('btnConfirmDelete'),
+};
+const toneBtns = Array.from(document.querySelectorAll('[data-tone]'));
 
-  function renderList(){
-    const list = $('#list'); list.innerHTML='';
-    $('#emptyHint').classList.toggle('hidden', entries.length>0);
-    for(const [i,e] of entries.entries()){
-      const d = new Date(e.ts);
-      const card = document.createElement('div');
-      card.className = 'rounded-box p-3 bg-base-200';
-      card.innerHTML = `
-        <div class="text-sm mono">${d.toLocaleDateString()} • ${d.toLocaleTimeString()}</div>
-        <div class="text-base font-semibold">${e.hr??'—'} bpm · ${e.dur??'—'} min</div>
-        <div class="text-sm opacity-80">Speed: ${e.speed??'—'} km/h · Watt: ${e.watt??'—'}</div>
-        <div class="text-sm">${e.notes?e.notes:' '}</div>
-        <div class="mt-2"><button class="btn btn-xs btn-ghost text-error" data-i="${i}">löschen</button></div>
-      `;
-      list.appendChild(card);
+/* ====== Helpers ====== */
+function toast(msg, cls='alert-info'){
+  const div = document.createElement('div');
+  div.className = `alert ${cls}`;
+  div.innerHTML = `<span>${msg}</span>`;
+  el.toasts.appendChild(div);
+  setTimeout(()=>div.remove(), 3200);
+}
+function confettiBurst(){
+  try { confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch(e){}
+}
+function isSameDay(tsA, tsB){
+  const a = new Date(tsA), b = new Date(tsB);
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function dayKey(ts){ const d=new Date(ts); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
+
+/* ====== OCR Parsing ====== */
+function addThumb(file){
+  const url = URL.createObjectURL(file);
+  const img = document.createElement('img');
+  img.src = url; img.className = 'thumb';
+  el.thumbs.appendChild(img);
+}
+function plaus(n,min,max){ return typeof n==='number' && isFinite(n) && n>=min && n<=max; }
+
+function parseOCRText(text){
+  const t = text.replace(/\s+/g,' ').toLowerCase();
+  let hr=null, dur=null, speed=null, watt=null, distance=null;
+
+  const hrRe = [/(\d{2,3})\s?(?:bpm|bmp)\b/, /avg[^0-9]{0,3}hr[^0-9]{0,3}(\d{2,3})\b/, /(puls|pulse|herz)[^0-9]{0,4}(\d{2,3})\b/];
+  for(const re of hrRe){ const m=t.match(re); if(m){ const v=parseInt(m[1]??m[2],10); if(plaus(v,60,200)){ hr=v; break; } } }
+
+  const hms=t.match(/\b(\d{1,2}):(\d{2}):(\d{2})\b/);
+  const ms=t.match(/\b(\d{1,2}):(\d{2})\b/);
+  const min=t.match(/(\d{1,3})\s?(min|minute|minutes)\b/);
+  const cands=[];
+  if(hms){ cands.push(parseInt(hms[1])*60 + parseInt(hms[2]) + parseInt(hms[3])/60); }
+  if(ms && parseInt(ms[2])<60){ cands.push(parseInt(ms[1]) + parseInt(ms[2])/60); }
+  if(min){ cands.push(parseInt(min[1])); }
+  const c = cands.filter(v=>plaus(v,8,120)).sort((a,b)=>a-b);
+  if(c.length) dur = c[Math.floor(c.length/2)];
+
+  const mSpd = t.match(/(\d{1,2}(?:[\.,]\d)?)\s?(km\/h|kmh|kph)\b/);
+  if(mSpd){ speed = parseFloat(mSpd[1].replace(',','.')); if(!plaus(speed,3,25)) speed=null; }
+
+  const mW = t.match(/(\d{2,4})\s?w\b/);
+  if(mW){ watt = parseInt(mW[1],10); if(!plaus(watt,30,800)) watt=null; }
+
+  const mDist = t.match(/(\d+(?:[\.,]\d+)?)\s?km\b/);
+  if(mDist){ distance = parseFloat(mDist[1].replace(',','.')); if(!plaus(distance,0.2,100)) distance=null; }
+  if(distance!=null && dur!=null && speed==null){
+    const kmh = distance/(dur/60); if(plaus(kmh,3,25)) speed=kmh;
+  }
+  return { hr, dur, speed:speed!=null?Number(speed.toFixed(2)):null, watt, raw:t };
+}
+
+/* ====== Render Badges ====== */
+const BADGE_DEF = [
+  { id:'first', name:'First Step', cond:(s)=>s.total>=1, desc:'Erster Eintrag gespeichert.' },
+  { id:'streak3', name:'Tiny Streak', cond:(s)=>s.streak>=3, desc:'3 Tage am Stück.' },
+  { id:'streak7', name:'Weekly Flame', cond:(s)=>s.streak>=7, desc:'7 Tage am Stück.' },
+  { id:'streak14', name:'Fortnight Fire', cond:(s)=>s.streak>=14, desc:'14 Tage am Stück.' },
+  { id:'streak30', name:'Iron Habit', cond:(s)=>s.streak>=30, desc:'30 Tage am Stück.' },
+  { id:'hrPro', name:'HR Sniper', cond:(s)=>s.hrHits>=10, desc:'10× im Sweetspot (113–117 bpm).' },
+  { id:'pb', name:'PB Hunter', cond:(s)=>s.pbCount>=3, desc:'3 Personal Bests.' },
+  { id:'vol140', name:'Weekly 140', cond:(s)=>s.weekMin>=140, desc:'≥140 Minuten in 7 Tagen.' },
+  { id:'vol210', name:'Weekly 210', cond:(s)=>s.weekMin>=210, desc:'≥210 Minuten in 7 Tagen.' }
+];
+
+function renderBadges(stats){
+  const currentlyUnlocked = new Set(BADGE_DEF.filter(b => b.cond(stats)).map(b => b.id));
+  const previousUnlocked = new Set(meta.unlocked || []);
+
+  el.badges.innerHTML='';
+  for(const b of BADGE_DEF){
+    const isNowUnlocked = currentlyUnlocked.has(b.id);
+    const node = document.createElement('div');
+    node.className = `badge ${isNowUnlocked?'badge-primary':'badge-ghost'} gap-1 cursor-pointer`;
+    node.textContent = isNowUnlocked ? `🏅 ${b.name}` : `🔒 ${b.name}`;
+    node.title = b.desc;
+    el.badges.appendChild(node);
+
+    // Check for newly unlocked badges to show the modal
+    if (isNowUnlocked && !previousUnlocked.has(b.id)) {
+      el.badgeModalTxt.textContent = `🎉 Neuer Badge! 🏅 ${b.name} — ${b.desc}`;
+      el.badgeModal.showModal?.();
+      confettiBurst();
     }
-    list.querySelectorAll('[data-i]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const idx = Number(btn.getAttribute('data-i'));
-        if(confirm('Eintrag löschen?')){ entries.splice(idx,1); save(entries); renderList(); toast('Gelöscht.','alert-warning'); }
-      });
-    });
   }
 
-  // Theme
-  const savedTheme = localStorage.getItem(THEME_KEY);
-  if(savedTheme) { document.documentElement.setAttribute('data-theme', savedTheme); $('#themeSel').value = savedTheme; }
-  $('#themeSel').addEventListener('change', ()=>{
-    const th = $('#themeSel').value;
-    document.documentElement.setAttribute('data-theme', th);
-    localStorage.setItem(THEME_KEY, th);
-  });
+  // Update meta.unlocked to reflect the current state
+  meta.unlocked = Array.from(currentlyUnlocked);
+  save(LS.meta, meta);
+}
 
-  // Camera preview
-  $('#camera').addEventListener('change', ()=>{
-    const f = $('#camera').files?.[0];
-    if(!f){ $('#preview').classList.add('hidden'); return; }
-    const url = URL.createObjectURL(f);
-    $('#preview').src = url; $('#preview').classList.remove('hidden');
-    $('#ocrStatus').textContent = 'Bereit für OCR.';
-  });
+/* ====== Stats / XP / Streak ====== */
+function computeStats(){
+  const now = nowTS();
+  const last7 = entries.filter(e => (now - e.ts) <= 7*86400000);
+  const weekMin = Math.round(last7.reduce((a,e)=>a + (Number(e.dur)||0), 0));
+  const byDay = new Map();
+  for(const e of entries){
+    const k = dayKey(e.ts);
+    byDay.set(k, (byDay.get(k)||0) + 1);
+  }
+  let streak=0; let d = new Date(); d.setHours(0,0,0,0);
+  while(byDay.has(dayKey(d.getTime()))){ streak++; d = new Date(d.getTime()-86400000); }
+  const hrHits = entries.filter(e=>Number(e.hr)>=113 && Number(e.hr)<=117).length;
+  let pbCount=0;
+  let bestSpeed=null, bestWatt=null;
+  for(const e of entries.slice().sort((a,b)=>a.ts-b.ts)){
+    const inBand = Number(e.hr)>=112 && Number(e.hr)<=118;
+    const s = Number(e.speed)||null, w = Number(e.watt)||null;
+    let pb=false;
+    if(inBand && s!=null){ if(bestSpeed==null || s>bestSpeed){ if(bestSpeed!=null) pb=true; bestSpeed=s; } }
+    if(inBand && w!=null){ if(bestWatt==null || w>bestWatt){ if(bestWatt!=null) pb=true; bestWatt=w; } }
+    if(pb) pbCount++;
+  }
+  return { weekMin, streak, hrHits, pbCount, total: entries.length };
+}
 
-  // OCR
-  $('#btnOcr').addEventListener('click', async ()=>{
-    const f = $('#camera').files?.[0];
-    if(!f){ toast('Erst ein Foto aufnehmen.', 'alert-warning'); return; }
-    $('#ocrProg').classList.remove('hidden'); $('#ocrProg').value = 0;
-    $('#ocrStatus').textContent = 'Erkenne Text…';
-    const res = await Tesseract.recognize(f, 'eng', { logger: m => {
-      if(m.status==='recognizing text' && m.progress!=null){ $('#ocrProg').value = Math.round(m.progress*100); }
-    }});
-    $('#ocrProg').classList.add('hidden');
+function updateXP(entry){
+  let xp = Math.min(Number(entry.dur)||0, 30);
+  if(Number(entry.hr)>=113 && Number(entry.hr)<=117) xp += 5;
+  const band = entries.filter(e=>Number(e.hr)>=112 && Number(e.hr)<=118);
+  const prev = band.slice(1);
+  const s = Number(entry.speed)||null, w = Number(entry.watt)||null;
+  let prevBestS = null, prevBestW = null;
+  for(const e of prev){
+    if(e.speed!=null) prevBestS = Math.max(prevBestS??e.speed, e.speed);
+    if(e.watt!=null) prevBestW = Math.max(prevBestW??e.watt, e.watt);
+  }
+  if(s!=null && (prevBestS==null || s>prevBestS)) xp += 10;
+  if(w!=null && (prevBestW==null || w>prevBestW)) xp += 10;
+
+  meta.xp = (meta.xp||0) + xp;
+  while(meta.xp >= 100){ meta.level = (meta.level||1) + 1; meta.xp -= 100; confettiBurst(); }
+  save(LS.meta, meta);
+}
+
+function applyStats(){
+  const stats = computeStats();
+  const target = Number(settings.weeklyTarget)||140;
+  const pct = Math.max(0, Math.min(100, Math.round(stats.weekMin/target*100)));
+  el.wkMin.textContent = `${stats.weekMin} / ${target} min`;
+  el.wkProg.value = pct;
+  const tone = TONES[settings.tone]||TONES.cheeky;
+  const msgIdx = pct>=100?4 : pct>=75?3 : pct>=50?2 : pct>=25?1 : 0;
+  el.wkMsg.textContent = tone.wk[msgIdx];
+
+  el.streak.textContent = `${stats.streak}?`;
+  const next = stats.streak<3?3 : stats.streak<7?7 : stats.streak<14?14 : stats.streak<30?30 : '∞';
+  el.nextBadge.textContent = next==='∞' ? 'Alle Streak-Badges freigeschaltet' : `Next Badge bei ${next} 🔥`;
+
+  el.level.textContent = `Lv ${meta.level||1}`;
+  el.xpLbl.textContent = `${meta.xp||0} / 100 XP`;
+  el.xpProg.value = meta.xp||0;
+  el.totalSessions.textContent = entries.length;
+
+  renderBadges(stats);
+}
+
+/* ====== Render Table ====== */
+function renderTable(){
+  el.rows.innerHTML='';
+  // Sort by date, newest first
+  const sortedEntries = entries.slice().sort((a,b)=>b.ts-a.ts);
+  for(const [i,e] of sortedEntries.entries()){
+    const d = new Date(e.ts);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${d.toLocaleDateString()}</td>
+      <td class="mono">${e.dur??'—'}</td>
+      <td class="mono">${e.hr??'—'}</td>
+      <td class="mono">${e.speed??'—'}</td>
+      <td class="mono">${e.watt??'—'}</td>
+      <td><button data-ts="${e.ts}" class="btn btn-xs btn-ghost text-error btn-delete">löschen</button></td>
+    `;
+    el.rows.appendChild(tr);
+  }
+  el.rows.querySelectorAll('.btn-delete').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ts = Number(btn.getAttribute('data-ts'));
+      el.deleteModal.showModal();
+      el.btnConfirmDelete.onclick = () => {
+        entries = entries.filter(e => e.ts !== ts);
+        save(LS.entries, entries);
+        renderTable();
+        applyStats();
+        el.deleteModal.close();
+      };
+    });
+  });
+}
+
+/* ====== Save Entry ====== */
+function saveEntry(obj){
+  const e = {
+    ts: nowTS(),
+    hr: obj.hr!=null? Number(obj.hr):null,
+    dur: obj.dur!=null? Number(obj.dur):null,
+    speed: obj.speed!=null? Number(obj.speed):null,
+    watt: obj.watt!=null? Number(obj.watt):null,
+    notes: obj.notes||null
+  };
+  if(e.hr==null && e.dur==null && e.speed==null && e.watt==null){
+    toast('Bitte mind. Puls oder Dauer angeben.', 'alert-warning'); return;
+  }
+  entries.unshift(e);
+  save(LS.entries, entries);
+  renderTable();
+  updateXP(e);
+  applyStats();
+  const t = TONES[settings.tone]||TONES.cheeky;
+  toast(pick(t.save), 'alert-success');
+}
+
+/* ====== OCR Flow ====== */
+el.fileInput.addEventListener('change', ()=>{
+  el.thumbs.innerHTML=''; el.ocrProg.classList.add('hidden'); el.ocrStatus.textContent='';
+  const files = Array.from(el.fileInput.files||[]);
+  files.slice(0,6).forEach(addThumb);
+  if(files.length > 0) el.btnOcr.disabled = false;
+  else el.btnOcr.disabled = true;
+});
+
+el.btnOcr.addEventListener('click', async ()=>{
+  const files = Array.from(el.fileInput.files||[]);
+  if(!files.length){ toast('Bitte zuerst Fotos wählen.', 'alert-warning'); return; }
+  el.btnOcr.disabled = true;
+  el.ocrProg.classList.remove('hidden'); el.ocrProg.value=0; el.ocrStatus.textContent='OCR läuft…';
+  let merged = { hr:null, dur:null, speed:null, watt:null, raw:'' };
+  for(let i=0;i<files.length;i++){
+    const f = files[i];
+    const res = await Tesseract.recognize(f, 'eng', {
+      logger: m => { if(m.status==='recognizing text' && m.progress!=null){ el.ocrProg.value = Math.round(((i+m.progress)/files.length)*100); } }
+    });
     const text = res?.data?.text || '';
-    $('#rawText').textContent = text.trim();
+    merged.raw += (merged.raw?'\n----\n':'') + text;
     const p = parseOCRText(text);
-    if(p.hr!=null) $('#f_hr').value = p.hr;
-    if(p.dur!=null) $('#f_dur').value = Number(p.dur.toFixed(1));
-    if(p.speed!=null) $('#f_speed').value = p.speed;
-    if(p.watt!=null) $('#f_watt').value = p.watt;
-    $('#ocrStatus').textContent = 'OCR fertig. Werte ggf. anpassen & speichern.';
-  });
+    merged.hr = merged.hr ?? p.hr;
+    merged.dur = merged.dur ?? p.dur;
+    merged.speed = merged.speed ?? p.speed;
+    merged.watt = merged.watt ?? p.watt;
+  }
+  el.ocrStatus.textContent='OCR fertig. Werte prüfen & speichern.';
+  if(merged.hr!=null) el.f_hr.value = merged.hr;
+  if(merged.dur!=null) el.f_dur.value = Number(merged.dur.toFixed(1));
+  if(merged.speed!=null) el.f_speed.value = merged.speed;
+  if(merged.watt!=null) el.f_watt.value = merged.watt;
+  el.btnOcr.disabled = false;
+});
 
-  // Quick 115/20
-  $('#btnQuick').addEventListener('click', ()=>{
-    $('#f_hr').value = 115; $('#f_dur').value = 20;
-    toast('Quick-Fill gesetzt.','alert-info');
+/* ====== Settings / Theme ====== */
+function applySettingsUI(){
+  el.weeklyTarget.value = settings.weeklyTarget;
+  el.themeSel.value = settings.theme || 'winter';
+  document.documentElement.setAttribute('data-theme', el.themeSel.value);
+  toneBtns.forEach(b=>{
+    b.classList.toggle('btn-active-tone', b.dataset.tone===settings.tone);
   });
+}
+toneBtns.forEach(b=>b.addEventListener('click', ()=>{
+  settings.tone = b.dataset.tone;
+  applySettingsUI();
+}));
+el.btnSaveSettings.addEventListener('click', ()=>{
+  settings.weeklyTarget = Math.max(20, Number(el.weeklyTarget.value)||140);
+  settings.theme = el.themeSel.value;
+  save(LS.settings, settings);
+  toast('Einstellungen gespeichert.', 'alert-info');
+  applyStats();
+});
+el.themeSel.addEventListener('change', ()=>{
+  settings.theme = el.themeSel.value;
+  document.documentElement.setAttribute('data-theme', settings.theme);
+  save(LS.settings, settings);
+});
 
-  // Save
-  $('#btnSave').addEventListener('click', ()=>{
-    const e = {
-      ts: Date.now(),
-      hr: $('#f_hr').value ? Number($('#f_hr').value) : null,
-      dur: $('#f_dur').value ? Number($('#f_dur').value) : null,
-      speed: $('#f_speed').value ? Number($('#f_speed').value) : null,
-      watt: $('#f_watt').value ? Number($('#f_watt').value) : null,
-      notes: $('#f_notes').value || null
-    };
-    if(e.hr==null && e.dur==null && e.speed==null && e.watt==null){ toast('Mind. Puls oder Dauer angeben.','alert-warning'); return; }
-    entries.unshift(e); save(entries); renderList();
-    $('#saveMsg').textContent = 'Gespeichert. Good job.';
-    setTimeout(()=>$('#saveMsg').textContent='', 1500);
-    toast('Logged. Keep stacking.','alert-success');
-  });
+/* ====== Export / Import / Clear ====== */
+el.btnExport.addEventListener('click', ()=>{
+  const payload = { version:1, settings, entries, meta };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='z2_project.json'; a.click(); URL.revokeObjectURL(url);
+});
+el.importFile.addEventListener('change', ()=>{
+  const f = el.importFile.files?.[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=> {
+    try{
+      const obj = JSON.parse(r.result);
+      if(!obj || !Array.isArray(obj.entries)) throw new Error('Ungültiges Projekt');
+      settings = Object.assign({}, defSettings, obj.settings||{});
+      entries = obj.entries||[];
+      meta = Object.assign({ xp:0, level:1, unlocked:[] }, obj.meta||{});
+      save(LS.settings, settings); save(LS.entries, entries); save(LS.meta, meta);
+      applySettingsUI(); renderTable(); applyStats();
+      toast('Projekt importiert.', 'alert-success'); confettiBurst();
+    }catch(e){ toast('Import fehlgeschlagen: '+e.message, 'alert-error'); }
+  };
+  r.readAsText(f);
+});
+el.btnClear.addEventListener('click', ()=>{
+  if(!confirm('Wirklich alle Einträge löschen?')) return;
+  entries = []; meta = { xp:0, level:1, unlocked:[] };
+  save(LS.entries, entries); save(LS.meta, meta);
+  renderTable(); applyStats();
+  toast('Alles gelöscht.', 'alert-warning');
+});
 
-  // Export / Import / Clear
-  $('#btnExport').addEventListener('click', ()=>{
-    const payload = { version:1, entries };
-    const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='z2_mobile_project.json'; a.click(); URL.revokeObjectURL(url);
+/* ====== Quick Fill & Save ====== */
+el.btnQuick115.addEventListener('click', ()=>{
+  el.f_hr.value = 115; el.f_dur.value = 20;
+});
+el.btnSave.addEventListener('click', ()=>{
+  saveEntry({
+    hr: el.f_hr.value || null,
+    dur: el.f_dur.value || null,
+    speed: el.f_speed.value || null,
+    watt: el.f_watt.value || null,
+    notes: el.f_notes.value || null
   });
-  $('#importFile').addEventListener('change', ()=>{
-    const f = $('#importFile').files?.[0]; if(!f) return;
-    const r = new FileReader();
-    r.onload = ()=>{
-      try{
-        const obj = JSON.parse(r.result);
-        if(!obj || !Array.isArray(obj.entries)) throw new Error('Ungültiges Projekt');
-        entries.splice(0, entries.length, ...obj.entries);
-        save(entries); renderList(); toast('Import ok.','alert-success');
-      }catch(e){ toast('Import fehlgeschlagen.','alert-error'); }
-    };
-    r.readAsText(f);
-  });
-  $('#btnClear').addEventListener('click', ()=>{
-    if(!confirm('Wirklich alles löschen?')) return;
-    entries.splice(0, entries.length); save(entries); renderList(); toast('Alles gelöscht.','alert-warning');
-  });
+});
 
-  // First render
-  renderList();
+/* ====== INIT ====== */
+applySettingsUI();
+renderTable();
+applyStats();
+el.btnOcr.disabled = true;
 </script>
 </body>
 </html>
+?
