@@ -58,12 +58,23 @@
             100% { transform: translate(0, 100vh) rotate(720deg); opacity: 0; }
         }
         
-        /* Verbesserungen für die mobile Ansicht */
+        /* Verbesserungen für die mobile Ansicht und Tabelle */
         @media (max-width: 420px){
             .hide-xs { display: none; }
-            table th, table td { white-space: nowrap; }
+            table th, table td { white-space: normal; } /* Wichtige Änderung */
             .stat { margin-bottom: 0.5rem; }
             .stats { flex-wrap: wrap; }
+        }
+        
+        /* Weitere Anpassungen für die Tabelle */
+        .sessions-table-container {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .sessions-table-container table {
+            width: 100%;
+            min-width: 600px; /* Optional, falls die Tabelle zu schmal wird */
         }
     </style>
 </head>
@@ -74,7 +85,7 @@
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
             <div>
                 <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
-                <p class="text-sm opacity-70">Schnelle Eingabe mit Gamification.</p>
+                <p class="text-sm opacity-70">Schnelle Eingabe mit Gamification. Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983</p>
             </div>
             <div class="flex items-center gap-2">
                 <label class="label text-sm">Theme</label>
@@ -156,12 +167,11 @@
                 <button id="btnExport" class="btn btn-sm join-item">Export</button>
                 <input id="fileImport" class="hidden" type="file" accept="application/json">
                 <button id="btnImport" class="btn btn-sm join-item">Importieren</button>
-                <button id="btnWipeAll" class="btn btn-error btn-sm join-item">Sessions löschen</button>
             </div>
         </div>
 
         <!-- Tabelle -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto sessions-table-container">
             <table class="table w-full table-zebra">
                 <thead>
                     <tr>
@@ -170,7 +180,7 @@
                         <th class="text-xs md:text-sm">Ø Puls</th>
                         <th class="hide-xs text-xs md:text-sm">Watt</th>
                         <th class="hide-xs text-xs md:text-sm">Distanz (km)</th>
-                        <th class="hide-xs text-xs md:text-sm">Kcal</th>
+                        <th class="text-xs md:text-sm">Kcal</th>
                         <th class="text-xs md:text-sm">Notizen</th>
                         <th></th>
                     </tr>
@@ -283,6 +293,8 @@
         // - Möglichkeit zum Bearbeiten von Sessions hinzugefügt.
         // - Zentrale Funktion zur Aktualisierung aller UI-Elemente und Metriken nach jeder Änderung.
         // - Vereinfachtes manuelles Eingabemodal für Hinzufügen und Bearbeiten.
+        // - Kalorienberechnung integriert.
+        // - Sessions-Tabelle für bessere mobile Ansicht angepasst.
 
         // ========= Globale Variablen und Konstanten =========
         const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; // Aktualisierter Version-Schlüssel
@@ -453,6 +465,38 @@
         }
 
         /**
+         * Schätzt die verbrannten Kalorien basierend auf den Session-Daten.
+         * Formel basiert auf MET-Werten, Puls und Körpergewicht.
+         * @param {object} session Die Session-Daten.
+         * @param {number} bodyWeight Körpergewicht in kg.
+         * @returns {number} Die geschätzten Kalorien.
+         */
+        function calculateCalories(session, bodyWeight) {
+            if (!session.duration || !bodyWeight) return 0;
+            
+            let met;
+            if (session.watt) {
+                // Näherungsweise MET-Werte für stationäres Fahrradfahren basierend auf Watt
+                if (session.watt < 50) met = 3.5;
+                else if (session.watt < 100) met = 5.8;
+                else if (session.watt < 160) met = 7.0;
+                else met = 8.5;
+            } else if (session.hr) {
+                // Näherungsweise MET-Werte basierend auf Puls (Anstrengung)
+                if (session.hr < 100) met = 3.0;
+                else if (session.hr < 130) met = 5.0;
+                else if (session.hr < 150) met = 7.0;
+                else if (session.hr < 170) met = 8.5;
+                else met = 10.0;
+            } else {
+                met = 5.0; // Standard MET-Wert, falls keine Daten vorhanden
+            }
+
+            // Formel: MET * 3.5 * Körpergewicht (kg) / 200 * Dauer (Minuten)
+            return (met * 3.5 * bodyWeight / 200) * session.duration;
+        }
+
+        /**
          * Berechnet die XP basierend auf der Session.
          * @param {object} session Die Session-Daten.
          * @returns {number} Die berechneten XP.
@@ -474,6 +518,11 @@
         function handleDataChange(highlightId = null) {
             const user = state.users[state.activeUserId];
             
+            // Sessions mit Kalorien anreichern, bevor Metriken berechnet werden
+            user.sessions.forEach(session => {
+                session.calories = calculateCalories(session, user.settings.bodyWeight);
+            });
+
             // 1. Metriken neu berechnen
             let totalEntries = user.sessions.length;
             let totalXp = 0;
@@ -680,7 +729,7 @@
                         <td class="text-xs md:text-sm">${session.hr || '-'}</td>
                         <td class="hide-xs text-xs md:text-sm">${session.watt || '-'}</td>
                         <td class="hide-xs text-xs md:text-sm">${(session.distance ? session.distance.toFixed(1) : '-')}</td>
-                        <td class="hide-xs text-xs md:text-sm">${(session.calories ? Math.floor(session.calories) : '-')}</td>
+                        <td class="text-xs md:text-sm">${(session.calories ? Math.floor(session.calories) : '-')}</td>
                         <td class="text-xs md:text-sm row-note">${session.note || '-'}</td>
                         <td class="flex gap-1">
                             <button class="btn btn-xs btn-circle btn-info btn-outline btn-edit" data-id="${session.id}">
@@ -765,22 +814,18 @@
                         handleDataChange(); // Zentrale Funktion für konsistentes Update
                     }
                 } catch (err) {
-                    alert('Import fehlgeschlagen: Ungültige Datei.');
+                    // Statt alert ein Modal anzeigen
+                    const dlg = document.getElementById('dlgConfirm');
+                    document.getElementById('confirmTitle').textContent = 'Import fehlgeschlagen';
+                    document.getElementById('confirmText').textContent = 'Ungültige Datei. Bitte überprüfe das Format.';
+                    document.getElementById('confirmOk').style.display = 'none';
+                    document.getElementById('confirmCancel').textContent = 'Schließen';
+                    dlg.showModal();
+                    
                     console.error('Import-Fehler:', err);
                 }
             };
             reader.readAsText(file);
-        }
-
-        /**
-         * Löscht nur die Sessions des aktiven Benutzers und setzt Metriken sowie Belohnungen zurück.
-         */
-        async function wipeAllData() {
-            if (await showConfirmDialog('Alle Sessions löschen?', 'Dieser Vorgang kann nicht rückgängig gemacht werden. Bist du sicher?')) {
-                const user = state.users[state.activeUserId];
-                user.sessions = [];
-                handleDataChange(); // Zentrale Funktion für konsistentes Update
-            }
         }
 
         // ========= Event-Listener und Initialisierung =========
@@ -799,11 +844,12 @@
             const btnExport = document.getElementById('btnExport');
             const btnImport = document.getElementById('btnImport');
             const fileImport = document.getElementById('fileImport');
-            const btnWipeAll = document.getElementById('btnWipeAll');
             const quickLevelRange = document.getElementById('quickLevel');
             const wattValueSpan = document.getElementById('wattValue');
             const btnSaveSession = document.getElementById('btnSaveSession');
             const dlgNewSession = document.getElementById('dlgNewSession');
+            const bodyWeightInput = document.getElementById('bodyWeight');
+            const weeklyTargetInput = document.getElementById('weeklyTarget');
 
             // Theme-Wechsel
             themeSelect.addEventListener('change', (e) => {
@@ -821,14 +867,13 @@
             // Benutzer-Einstellungen speichern
             btnSaveSettings.addEventListener('click', () => {
                 const user = state.users[state.activeUserId];
-                user.settings.bodyWeight = document.getElementById('bodyWeight').value;
-                user.settings.weeklyTarget = document.getElementById('weeklyTarget').value;
+                user.settings.bodyWeight = parseFloat(bodyWeightInput.value);
+                user.settings.weeklyTarget = parseInt(weeklyTargetInput.value);
                 user.settings.quickLevel = parseInt(quickLevelRange.value);
                 user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
                 user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
                 saveState();
-                calculateAndRenderKPIs();
-                alert('Einstellungen gespeichert!');
+                handleDataChange();
             });
 
             // Watt-Anzeige bei Schieberegler-Bewegung aktualisieren
@@ -892,7 +937,7 @@
             // Event-Listener für Speichern aus dem Modal
             btnSaveSession.addEventListener('click', saveSessionFromModal);
 
-            // Import/Export/Löschen
+            // Import/Export
             btnExport.addEventListener('click', exportData);
             btnImport.addEventListener('click', () => fileImport.click());
             fileImport.addEventListener('change', (e) => {
@@ -900,7 +945,6 @@
                     importData(e.target.files[0]);
                 }
             });
-            btnWipeAll.addEventListener('click', wipeAllData);
         }
 
         /**
