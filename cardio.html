@@ -75,7 +75,6 @@
         }
         .sessions-table-container table {
             width: 100%;
-            /* min-width: 600px; */ /* Removed to allow shrinking on small screens */
         }
     </style>
 </head>
@@ -283,9 +282,12 @@
         // The table layout has been improved, and key UI elements are now more
         // fluid and adapt to different viewport sizes. The export functionality
         // now uses the Web Share API with a download fallback.
+        // The script now also implements a persistent device ID to allow
+        // deletion only for entries created on the same device.
 
         // ========= Global Variables and Constants =========
         const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; 
+        const DEVICE_ID_KEY = 'z2log_device_id';
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2, 10);
         
@@ -309,6 +311,7 @@
         // Application state. Loaded on start and saved on changes.
         let state;
         let sessionBeingEdited = null; // Stores the ID of the session being edited
+        let deviceId; // Unique identifier for this device
 
         // ========= Persistence =========
         /**
@@ -354,6 +357,19 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
 
+        /**
+         * Retrieves or creates a unique, persistent device ID.
+         * This ID is used to verify that an entry was created on this device.
+         */
+        function getDeviceId() {
+            let id = localStorage.getItem(DEVICE_ID_KEY);
+            if (!id) {
+                id = crypto.randomUUID();
+                localStorage.setItem(DEVICE_ID_KEY, id);
+            }
+            return id;
+        }
+
         // ========= UI Helper Functions =========
         /**
          * Displays a custom confirmation dialog.
@@ -369,22 +385,24 @@
                 const confirmCancel = document.getElementById('confirmCancel');
                 const confirmOk = document.getElementById('confirmOk');
 
+                // Clone nodes to remove old event listeners
+                const newConfirmOk = confirmOk.cloneNode(true);
+                confirmOk.parentNode.replaceChild(newConfirmOk, confirmOk);
+                const newConfirmCancel = confirmCancel.cloneNode(true);
+                confirmCancel.parentNode.replaceChild(newConfirmCancel, confirmCancel);
+                
                 const handleConfirm = () => {
                     dlg.close();
-                    confirmOk.removeEventListener('click', handleConfirm);
-                    confirmCancel.removeEventListener('click', handleCancel);
                     resolve(true);
                 };
 
                 const handleCancel = () => {
                     dlg.close();
-                    confirmOk.removeEventListener('click', handleConfirm);
-                    confirmCancel.removeEventListener('click', handleCancel);
                     resolve(false);
                 };
 
-                confirmOk.addEventListener('click', handleConfirm);
-                confirmCancel.addEventListener('click', handleCancel);
+                newConfirmOk.addEventListener('click', handleConfirm);
+                newConfirmCancel.addEventListener('click', handleCancel);
                 dlg.showModal();
             });
         }
@@ -572,7 +590,8 @@
         function addSession(sessionData) {
             const user = state.users[state.activeUserId];
             const sessionId = uid();
-            const session = { id: sessionId, ...sessionData, createdAt: nowISO() };
+            // Add the deviceId to the session object
+            const session = { id: sessionId, deviceId: deviceId, ...sessionData, createdAt: nowISO() };
             user.sessions.push(session);
             handleDataChange(sessionId);
         }
@@ -592,13 +611,29 @@
         }
 
         /**
-         * Deletes a session.
+         * Deletes a session if the device ID matches.
          * @param {string} sessionId The ID of the session to delete.
          */
-        function deleteSession(sessionId) {
+        async function deleteSession(sessionId) {
             const user = state.users[state.activeUserId];
-            user.sessions = user.sessions.filter(s => s.id !== sessionId);
-            handleDataChange();
+            const sessionToDelete = user.sessions.find(s => s.id === sessionId);
+
+            if (!sessionToDelete) {
+                // Entry not found
+                return;
+            }
+
+            // Check if the current device ID matches the session's device ID
+            if (sessionToDelete.deviceId !== deviceId) {
+                showConfirmDialog('Löschen nicht möglich', 'Dieser Eintrag kann nur von dem Gerät gelöscht werden, auf dem er erstellt wurde.');
+                return;
+            }
+
+            const isConfirmed = await showConfirmDialog('Eintrag löschen?', 'Möchtest du diesen Eintrag wirklich löschen?');
+            if (isConfirmed) {
+                user.sessions = user.sessions.filter(s => s.id !== sessionId);
+                handleDataChange();
+            }
         }
 
         /**
@@ -710,6 +745,7 @@
             tbody.innerHTML = user.sessions.map(session => {
                 const date = new Date(session.date);
                 const isHighlighted = session.id === highlightId ? 'new-entry-highlight' : '';
+                const isDeletable = session.deviceId === deviceId; // Check if the entry can be deleted
                 return `
                     <tr class="${isHighlighted}">
                         <td class="text-xs md:text-sm">${date.toLocaleDateString()}</td>
@@ -723,9 +759,12 @@
                             <button class="btn btn-xs btn-circle btn-info btn-outline btn-edit" data-id="${session.id}">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
+                            ${isDeletable ? `
                             <button class="btn btn-xs btn-circle btn-error btn-outline btn-delete" data-id="${session.id}">
                                 <i class="fa-solid fa-trash-can"></i>
-                            </button>
+                            </button>` : `<button class="btn btn-xs btn-circle btn-ghost" disabled>
+                                <i class="fa-solid fa-trash-can text-gray-400"></i>
+                            </button>`}
                         </td>
                     </tr>
                 `;
@@ -751,7 +790,7 @@
             }).join('');
         }
         
-        // ========= Helper Functions (Date) =========
+        // ========= Helper Functions (Date) and Data Import/Export/Share =========
         /**
          * Checks if two dates are in the same week.
          * @param {Date} date1 Date 1.
@@ -771,21 +810,21 @@
             return week1 === week2 && d1.getFullYear() === d2.getFullYear();
         }
 
-        // ========= Data Import/Export/Share =========
         /**
          * Exports the state as a JSON file or shares it via Web Share API.
          */
         async function exportData() {
             const json = JSON.stringify(state, null, 2);
             const backupFilename = `z2log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            const file = new File([json], backupFilename, { type: 'application/json' });
 
-            // Use Web Share API if available
-            if (navigator.share) {
+            // Use Web Share API if available and supports files
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
                     await navigator.share({
                         title: 'Z2 Log Daten-Backup',
                         text: 'Hier ist dein Backup der Z2 Log App.',
-                        url: `data:application/json,${encodeURIComponent(json)}`,
+                        files: [file],
                     });
                     console.log('Data shared successfully.');
                 } catch (error) {
@@ -976,6 +1015,7 @@
 
         // ========= Application Initialization =========
         window.addEventListener('load', () => {
+            deviceId = getDeviceId(); // Get or create the device ID on load
             state = loadState();
             setupEventListeners();
             renderAll();
