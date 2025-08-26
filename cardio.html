@@ -164,8 +164,7 @@
         <div class="flex items-center justify-between mb-2">
             <h2 class="text-lg font-semibold">Deine Sessions</h2>
             <div class="join">
-                <button id="btnExport" class="btn btn-sm join-item">Export</button>
-                <button id="btnExportMail" class="btn btn-sm join-item">Per E-Mail senden</button>
+                <button id="btnExport" class="btn btn-sm join-item">Exportieren (als Datei)</button>
                 <input id="fileImport" class="hidden" type="file" accept="application/json">
                 <button id="btnImport" class="btn btn-sm join-item">Importieren</button>
             </div>
@@ -250,14 +249,6 @@
         </div>
     </dialog>
     
-    <!-- Bild-Viewer -->
-    <dialog id="dlgImage" class="modal">
-        <div class="modal-box p-2 max-w-2xl">
-            <img id="viewImg" class="w-full h-auto rounded-md" alt="Bild" />
-            <form method="dialog" class="mt-2"><button class="btn w-full">Schließen</button></form>
-        </div>
-    </dialog>
-
     <!-- Bestätigungsdialog -->
     <dialog id="dlgConfirm" class="modal">
         <div class="modal-box">
@@ -285,21 +276,14 @@
 
     <script type="module">
         // Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983
-        // Dieses Skript wurde komplett von Grund auf neu geschrieben, um eine 
-        // robuste und gut kommentierte Version der App zu erstellen.
-        // Es implementiert die Persistenz, die Gamification-Logik und die 
-        // Interaktionen mit der Benutzeroberfläche.
-        //
-        // Wichtigste Änderungen in dieser Version:
-        // - Möglichkeit zum Bearbeiten von Sessions hinzugefügt.
-        // - Zentrale Funktion zur Aktualisierung aller UI-Elemente und Metriken nach jeder Änderung.
-        // - Vereinfachtes manuelles Eingabemodal für Hinzufügen und Bearbeiten.
-        // - Kalorienberechnung integriert.
-        // - Sessions-Tabelle für bessere mobile Ansicht angepasst.
-        // - E-Mail-Export der Daten hinzugefügt
+        // Dieses Skript wurde überarbeitet, um den Export großer Datenmengen zu ermöglichen.
+        // Der direkte E-Mail-Export per "mailto:"-Link wurde entfernt, da er bei 
+        // großen Datensätzen aufgrund der URL-Längenbegrenzung nicht zuverlässig ist.
+        // Die "Exportieren"-Funktion speichert nun zuverlässig eine JSON-Datei,
+        // die dann manuell an E-Mails angehängt werden kann.
 
         // ========= Globale Variablen und Konstanten =========
-        const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; // Aktualisierter Version-Schlüssel
+        const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; 
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2, 10);
         
@@ -787,7 +771,8 @@
 
         // ========= Daten-Import/Export =========
         /**
-         * Exportiert den Zustand als JSON-Datei.
+         * Exportiert den Zustand als JSON-Datei. Dies ist die zuverlässige Methode
+         * auch für große Datensätze.
          */
         function exportData() {
             const json = JSON.stringify(state, null, 2);
@@ -800,24 +785,6 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        }
-
-        /**
-         * Sendet den Zustand per E-Mail als JSON-Textkörper.
-         */
-        function exportDataViaMail() {
-            const json = JSON.stringify(state, null, 2);
-            const subject = 'Z2 Log – Cardio App Daten-Backup';
-            const body = `Hallo Christian,\n\nhier ist das Backup deiner Cardio App Daten. Du kannst diesen Text in eine Datei mit der Endung .json kopieren und in der App importieren.\n\n*** WICHTIGER HINWEIS ***\nWenn der Text zu lang ist, kann die E-Mail-App möglicherweise nicht geöffnet werden. In diesem Fall verwende bitte die Export-Funktion (Speichern als Datei).\n\nDaten:\n\n${json}`;
-            
-            const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            
-            // Check if the link is too long (some browsers/email clients have limits)
-            if (mailtoLink.length > 2000) {
-                showConfirmDialog('E-Mail-Export zu lang', 'Der Datensatz ist zu groß für den direkten E-Mail-Export. Bitte verwende stattdessen die "Exportieren"-Funktion.');
-            } else {
-                window.location.href = mailtoLink;
-            }
         }
 
         /**
@@ -862,13 +829,11 @@
             const btnQuickSession = document.getElementById('btnQuickSession');
             const tbody = document.getElementById('tbodySessions');
             const btnExport = document.getElementById('btnExport');
-            const btnExportMail = document.getElementById('btnExportMail');
             const btnImport = document.getElementById('btnImport');
             const fileImport = document.getElementById('fileImport');
             const quickLevelRange = document.getElementById('quickLevel');
             const wattValueSpan = document.getElementById('wattValue');
             const btnSaveSession = document.getElementById('btnSaveSession');
-            const dlgNewSession = document.getElementById('dlgNewSession');
             const bodyWeightInput = document.getElementById('bodyWeight');
             const weeklyTargetInput = document.getElementById('weeklyTarget');
 
@@ -960,7 +925,6 @@
 
             // Import/Export
             btnExport.addEventListener('click', exportData);
-            btnExportMail.addEventListener('click', exportDataViaMail);
             btnImport.addEventListener('click', () => fileImport.click());
             fileImport.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
