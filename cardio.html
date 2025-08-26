@@ -22,7 +22,6 @@
         const REWARDS_COLLECTION = 'rewards';
         
         const nowISO = () => new Date().toISOString();
-        const uid = () => Math.random().toString(36).slice(2, 10);
 
         // --- Firebase initialization (using provided globals) ---
         // These global variables are provided by the canvas environment.
@@ -35,20 +34,15 @@
         let userId = null;
         let isAuthReady = false;
         let localState = {
-            activeUserId: 'default',
             users: {},
-            sessions: [],
-            rewards: []
+            sessions: []
         };
         let sessionBeingEdited = null;
 
         // --- UI elements
         const themeSelect = document.getElementById('themeSelect');
-        const userSelect = document.getElementById('userSelect');
         const btnSaveSettings = document.getElementById('btnSaveSettings');
-        const btnNewUser = document.getElementById('btnNewUser');
-        const btnCreateUser = document.getElementById('btnCreateUser');
-        const newUserNameInput = document.getElementById('newUserName');
+        const btnCreateNewUser = document.getElementById('btnCreateNewUser');
         const btnQuickSession = document.getElementById('btnQuickSession');
         const tbody = document.getElementById('tbodySessions');
         const btnExport = document.getElementById('btnExport');
@@ -60,6 +54,7 @@
         const bodyWeightInput = document.getElementById('bodyWeight');
         const weeklyTargetInput = document.getElementById('weeklyTarget');
         const userIdDisplay = document.getElementById('userIdDisplay');
+        const newSessionBtn = document.getElementById('btnNewSession');
 
         // --- Persistence Functions ---
         /**
@@ -94,7 +89,10 @@
          * Saves user settings to Firestore.
          */
         async function saveUserSetting() {
-            if (!userId) return;
+            if (!userId || !localState.users[userId]) {
+                console.error("Cannot save settings: User ID or data not available.");
+                return;
+            }
             const userDocRef = doc(db, `/artifacts/${appId}/users/${userId}/private`, 'user-data');
             try {
                 await setDoc(userDocRef, {
@@ -113,7 +111,10 @@
          * @param {object} sessionData The data for the session.
          */
         async function saveSessionToFirestore(sessionData) {
-            if (!userId) return;
+            if (!userId) {
+                console.error("Cannot save session: User ID not available.");
+                return;
+            }
             const sessionRef = doc(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`, sessionData.id);
             try {
                 await setDoc(sessionRef, sessionData, { merge: true });
@@ -128,7 +129,10 @@
          * @param {string} sessionId The ID of the session to delete.
          */
         async function deleteSessionFromFirestore(sessionId) {
-            if (!userId) return;
+            if (!userId) {
+                console.error("Cannot delete session: User ID not available.");
+                return;
+            }
             const sessionRef = doc(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`, sessionId);
             try {
                 await deleteDoc(sessionRef);
@@ -193,7 +197,7 @@
         // --- Gamification & Logic ---
         const REWARDS = [
             { id: 'first_session', title: 'Erster Eintrag', desc: 'Absolviere deine erste Trainingseinheit.', icon: 'fas fa-medal', condition: (metrics) => metrics.totalEntries >= 1 },
-            { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (metrics) => metrics.weekMinutes >= (localState.users[userId].settings.weeklyTarget || 75) },
+            { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (metrics) => metrics.weekMinutes >= (localState.users[userId]?.settings?.weeklyTarget || 75) },
             { id: '10_sessions', title: 'Zehn Sessions', desc: 'Absolviere 10 Trainingseinheiten.', icon: 'fas fa-fire-extinguisher', condition: (metrics) => metrics.totalEntries >= 10 },
             { id: 'first_streak', title: 'Erster Streak', desc: 'Trainiere an zwei aufeinanderfolgenden Tagen.', icon: 'fas fa-bolt', condition: (metrics) => metrics.streakCount >= 2 },
             { id: 'level_5', title: 'Level 5', desc: 'Erreiche Level 5.', icon: 'fas fa-star', condition: (metrics) => metrics.level >= 5 },
@@ -241,7 +245,7 @@
          * Centralized function to recalculate metrics and UI.
          */
         function handleDataChange() {
-            if (!userId) return;
+            if (!userId || !localState.users[userId]) return;
             
             const user = localState.users[userId];
             const sessions = localState.sessions;
@@ -310,9 +314,10 @@
                 console.error("User not authenticated.");
                 return;
             }
-            const sessionId = doc(collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`)).id;
-            const session = { id: sessionId, ...sessionData, userId: userId, createdAt: nowISO() };
-            await saveSessionToFirestore(session);
+            const sessionsCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`);
+            const newSessionRef = doc(sessionsCollectionRef);
+            const session = { id: newSessionRef.id, ...sessionData, userId: userId, createdAt: nowISO() };
+            await setDoc(newSessionRef, session);
         }
 
         async function updateSession(sessionId, newData) {
@@ -381,10 +386,7 @@
         
         // --- UI Rendering ---
         function renderUsers() {
-            const userSelect = document.getElementById('userSelect');
-            userSelect.innerHTML = `
-                <option value="${userId}" selected>Christian</option>
-            `;
+            // No longer rendering a dropdown, just the user ID
             userIdDisplay.textContent = `User ID: ${userId}`;
         }
 
@@ -519,7 +521,13 @@
                     const importedData = JSON.parse(e.target.result);
                     if (await showConfirmDialog('Daten importieren?', 'Möchtest du diese Daten wirklich importieren?')) {
                         // Assuming the imported file has sessions and user settings
+                        if (!importedData.userSettings || !importedData.sessions) {
+                            throw new Error("Invalid file format.");
+                        }
+
+                        // Update local state and save settings
                         localState.users[userId].settings = importedData.userSettings;
+                        await saveUserSetting();
                         
                         // Clear existing sessions and import new ones
                         const existingSessionRefs = await getDocs(collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`));
@@ -551,19 +559,30 @@
         // --- Event Listeners and Initialization ---
         function setupEventListeners() {
             themeSelect.addEventListener('change', (e) => {
-                localState.users[userId].settings.theme = e.target.value;
-                document.documentElement.setAttribute('data-theme', e.target.value);
-                saveUserSetting();
+                if (localState.users[userId]) {
+                    localState.users[userId].settings.theme = e.target.value;
+                    document.documentElement.setAttribute('data-theme', e.target.value);
+                    saveUserSetting();
+                }
             });
 
             btnSaveSettings.addEventListener('click', () => {
-                const user = localState.users[userId];
-                user.settings.bodyWeight = parseFloat(bodyWeightInput.value);
-                user.settings.weeklyTarget = parseInt(weeklyTargetInput.value);
-                user.settings.quickLevel = parseInt(quickLevelRange.value);
-                user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
-                user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
-                saveUserSetting();
+                if (localState.users[userId]) {
+                    const user = localState.users[userId];
+                    user.settings.bodyWeight = parseFloat(bodyWeightInput.value);
+                    user.settings.weeklyTarget = parseInt(weeklyTargetInput.value);
+                    user.settings.quickLevel = parseInt(quickLevelRange.value);
+                    user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
+                    user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
+                    saveUserSetting();
+                }
+            });
+            
+            btnCreateNewUser.addEventListener('click', async () => {
+                 if (await showConfirmDialog('Neuen Benutzer erstellen?', 'Möchtest du wirklich einen neuen, leeren Benutzer erstellen? Dein aktueller Benutzer wird abgemeldet.')) {
+                    await signOut(auth); // Sign out of the current anonymous user
+                    await signInAnonymously(auth); // Sign in with a new anonymous user, triggering onAuthStateChanged
+                 }
             });
 
             quickLevelRange.addEventListener('input', (e) => {
@@ -571,18 +590,22 @@
             });
             
             btnQuickSession.addEventListener('click', () => {
-                const user = localState.users[userId];
-                const session = {
-                    date: nowISO().substring(0, 10),
-                    watt: getWattValue(parseInt(user.settings.quickLevel)),
-                    hr: parseInt(user.settings.quickHr),
-                    duration: parseInt(user.settings.quickDuration),
-                    distance: null,
-                    calories: null,
-                    note: 'Schnelleingabe'
-                };
-                addSession(session);
+                if (localState.users[userId]) {
+                    const user = localState.users[userId];
+                    const session = {
+                        date: nowISO().substring(0, 10),
+                        watt: getWattValue(parseInt(user.settings.quickLevel)),
+                        hr: parseInt(user.settings.quickHr),
+                        duration: parseInt(user.settings.quickDuration),
+                        distance: null,
+                        calories: null,
+                        note: 'Schnelleingabe'
+                    };
+                    addSession(session);
+                }
             });
+
+            newSessionBtn.addEventListener('click', () => openSessionModal());
 
             tbody.addEventListener('click', (e) => {
                 const target = e.target.closest('button');
@@ -634,7 +657,16 @@
                     const userData = await loadUserData();
                     if (userData) {
                         localState.users[userId] = userData;
-                        renderSettings(); // Render settings immediately
+                        renderAll();
+                    } else {
+                         // Create initial data for a new user if none exists
+                        localState.users[userId] = {
+                           settings: { weeklyTarget: 140, theme: 'dracula', bodyWeight: 100, quickLevel: 1, quickDuration: 20, quickHr: 115 },
+                           metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
+                           rewards: []
+                        };
+                        renderAll();
+                        saveUserSetting(); // Save the initial state
                     }
                     
                     // Listen for real-time updates to sessions
@@ -709,11 +741,10 @@
                 </select>
             </div>
         </div>
-
+        
         <!-- User Settings -->
         <div class="flex flex-wrap items-center gap-2 mb-3">
-            <label class="label text-sm whitespace-nowrap">Benutzer</label>
-            <select id="userSelect" class="select select-bordered select-sm" disabled></select>
+             <button id="btnCreateNewUser" class="btn btn-sm btn-primary">Neuen Benutzer erstellen</button>
             <div class="ml-auto flex flex-wrap items-center gap-2">
                 <label class="label text-sm whitespace-nowrap">Körpergewicht (kg)</label>
                 <input id="bodyWeight" type="number" min="0" class="input input-bordered input-sm w-24" placeholder="z.B. 75" />
@@ -778,6 +809,7 @@
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
             <h2 class="text-lg font-semibold whitespace-nowrap">Deine Sessions</h2>
             <div class="flex flex-wrap gap-2">
+                <button id="btnNewSession" class="btn btn-sm btn-info">Manuell eintragen</button>
                 <button id="btnExport" class="btn btn-sm">Export/Teilen</button>
                 <input id="fileImport" class="hidden" type="file" accept="application/json">
                 <button id="btnImport" class="btn btn-sm">Importieren</button>
@@ -802,7 +834,6 @@
                 <tbody id="tbodySessions"></tbody>
             </table>
         </div>
-
     </div>
     
     <!-- Modals -->
