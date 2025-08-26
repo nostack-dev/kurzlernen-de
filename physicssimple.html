@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Deterministic 2D Physics Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 320px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 400px;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+        #fps {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        #message {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: none;
+            font-size: 14px;
+        }
+        /* Scrollbar Styling for Controls */
+        #controls::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #controls::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        #controls::-webkit-scrollbar-thumb {
+            background-color: rgba(255,255,255,0.3);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="simulationCanvas"></canvas>
+    <div id="instructions">
+        <h3>Controls:</h3>
+        <ul>
+            <li><strong>Right-Click:</strong> Add a new circle with deterministic random velocity.</li>
+            <li><strong>Alt + Right-Click & Drag:</strong> Spawn a circle with a custom velocity vector.</li>
+            <li><strong>Left-Click & Drag:</strong> Drag an existing circle to set its velocity.</li>
+            <li><strong>Press 'G':</strong> Toggle gravity on/off.</li>
+            <li><strong>Press 'R' or Spacebar:</strong> Reset simulation.</li>
+            <li><strong>Press 'ESC':</strong> Exit dragging or spawning mode.</li>
+            <li><strong>Press 'H':</strong> Toggle instructions and controls visibility.</li>
+        </ul>
+    </div>
+    <div id="controls">
+        <h3>Physical Parameters:</h3>
+        <label for="bounciness">Bounciness (Restitution): <span id="bouncinessValue">0.25</span></label>
+        <input type="range" id="bounciness" min="0" max="2" step="0.01" value="0.25"><br><br>
+
+        <label for="mass">Mass: <span id="massValue">1.57</span></label>
+        <input type="range" id="mass" min="0.1" max="10" step="0.1" value="1.57"><br><br>
+      
+        <label for="radius">Radius: <span id="radiusValue">0.5</span></label>
+        <input type="range" id="radius" min="0.1" max="10" step="0.1" value="0.5"><br><br>
+
+        <label for="density">Density: <span id="densityValue">1.0</span></label>
+        <input type="range" id="density" min="0.1" max="1000" step="0.1" value="1.0"><br><br>
+
+        <label for="friction">Friction: <span id="frictionValue">0.05</span></label>
+        <input type="range" id="friction" min="0" max="1" step="0.01" value="0.05"><br><br>
+
+        <label for="deformationTime">Deformation Regeneration Time (s): <span id="deformationTimeValue">0.0</span></label>
+        <input type="range" id="deformationTime" min="0.5" max="5" step="0.1" value="0.0"><br><br>
+
+        <label for="deformationScale">Deformation Scale: <span id="deformationScaleValue">0.0</span></label>
+        <input type="range" id="deformationScale" min="0" max="0.5" step="0.01" value="0.0"><br><br>
+
+        <h3>Simulation Speed:</h3>
+        <label for="simSpeed">Speed Multiplier: <span id="simSpeedValue">1.0x</span></label>
+        <input type="range" id="simSpeed" min="0.1" max="4" step="0.1" value="1.0"><br><br>
+    </div>
+    <div id="fps">FPS: 0</div>
+    <div id="message"></div>
+
+    <script>
+        // ====== 1. Declaration and Initialization ======
+
+        // Get Canvas and Context
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Cache DOM Elements for Performance
+        const bouncinessSlider = document.getElementById('bounciness');
+        const bouncinessValue = document.getElementById('bouncinessValue');
+
+        const massSlider = document.getElementById('mass');
+        const massValue = document.getElementById('massValue');
+
+        const radiusSlider = document.getElementById('radius');
+        const radiusValue = document.getElementById('radiusValue');
+
+        const densitySlider = document.getElementById('density');
+        const densityValue = document.getElementById('densityValue');
+
+        const frictionSlider = document.getElementById('friction');
+        const frictionValue = document.getElementById('frictionValue');
+
+        const deformationTimeSlider = document.getElementById('deformationTime');
+        const deformationTimeValue = document.getElementById('deformationTimeValue');
+
+        const deformationScaleSlider = document.getElementById('deformationScale');
+        const deformationScaleValue = document.getElementById('deformationScaleValue');
+
+        const simSpeedSlider = document.getElementById('simSpeed');
+        const simSpeedValue = document.getElementById('simSpeedValue');
+
+        // Declare and Initialize viewSize and aspect
+        const viewSize = 10.0; // Logical units
+        let aspect = canvas.width / canvas.height; // Initialize aspect
+
+        // ====== 2. Canvas Resizing ======
+
+        // Set Canvas to Full Window Size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            aspect = canvas.width / canvas.height;
+        }
+
+        // Initial resize to set up the canvas
+        resizeCanvas();
+
+        // Update 'aspect' on window resize
+        window.addEventListener('resize', resizeCanvas);
+
+        // ====== 3. Physics Parameters ======
+
+        const baseDt = 0.016; // Fixed timestep (~60 Hz)
+        let speedMultiplier = 1.0; // Simulation speed multiplier
+        let dt = baseDt * speedMultiplier;
+
+        let gravityEnabled = true;
+        const gravity = -9.81; // Gravity acceleration
+
+        // Initialize physical parameters with default values
+        let restitution = parseFloat(bouncinessSlider.value); // Bounciness
+        let baseMass = parseFloat(massSlider.value); // Base mass
+        let baseRadius = parseFloat(radiusSlider.value); // Base radius
+        let density = parseFloat(densitySlider.value); // Density
+        let frictionCoefficient = parseFloat(frictionSlider.value); // Friction
+        let deformationRegenerationTime = parseFloat(deformationTimeSlider.value); // Time in seconds
+        let deformationScale = parseFloat(deformationScaleSlider.value); // Scale of deformation
+
+        // ====== 4. Seedable PRNG ======
+
+        class PRNG {
+            constructor(seed = 12345) {
+                this.m = 0x80000000; // 2**31
+                this.a = 1103515245;
+                this.c = 12345;
+                this.state = seed ? seed : Math.floor(Math.random() * (this.m - 1));
+            }
+
+            nextInt() {
+                this.state = (this.a * this.state + this.c) % this.m;
+                return this.state;
+            }
+
+            nextFloat() {
+                // Returns a float between 0 (inclusive) and 1 (exclusive)
+                return this.nextInt() / (this.m - 1);
+            }
+
+            nextRange(start, end) {
+                // Returns a float between start (inclusive) and end (exclusive)
+                return start + this.nextFloat() * (end - start);
+            }
+
+            nextSign() {
+                // Returns either -1 or 1
+                return this.nextInt() % 2 === 0 ? -1 : 1;
+            }
+        }
+
+        const prng = new PRNG(123456); // Fixed seed for determinism
+
+        // ====== 5. Circle Class ======
+
+        class Circle {
+            constructor(id, x, y, vx, vy, radius, mass, density) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.baseRadius = radius; // Original radius
+                this.currentRadius = radius; // Current radius (may be deformed)
+                this.mass = mass; // Current mass
+                this.density = density; // Density
+                this.isDeformed = false; // Flag to check if currently deformed
+                this.deformationTimer = 0; // Time left for regeneration
+                this.pressure = 0; // Accumulated pressure
+            }
+
+            // Method to apply deformation
+            applyDeformation(scale) {
+                if (!this.isDeformed) {
+                    this.currentRadius += scale;
+                    this.mass = this.density * Math.PI * this.currentRadius * this.currentRadius;
+                    this.isDeformed = true;
+                    this.deformationTimer = deformationRegenerationTime;
+                }
+            }
+
+            // Method to update deformation
+            updateDeformation(dt) {
+                if (this.isDeformed) {
+                    this.deformationTimer -= dt;
+                    if (this.deformationTimer <= 0) {
+                        // Regenerate to base radius
+                        this.currentRadius = this.baseRadius;
+                        this.mass = this.density * Math.PI * this.currentRadius * this.currentRadius;
+                        this.isDeformed = false;
+                        this.deformationTimer = 0;
+                        this.pressure = 0; // Reset pressure
+                    }
+                }
+            }
+        }
+
+        // ====== 6. Simulation State ======
+
+        let initialState = [];
+        let circles = [];
+        let nextId = 1;
+
+        // Initialize with two circles
+        function initializeSimulation() {
+            initialState = [];
+            circles = [];
+            nextId = 1;
+
+            const radius = baseRadius; // Use base radius from UI
+            const mass = baseMass; // Base mass
+            const densityValue = density;
+
+            const obj1 = new Circle(nextId++, -3.0, 0.0, 1.5, 0.0, radius, mass, densityValue);
+            const obj2 = new Circle(nextId++, 3.0, 0.0, -1.5, 0.0, radius, mass, densityValue);
+
+            // Deep copy for initial state
+            initialState.push(JSON.parse(JSON.stringify(obj1)));
+            initialState.push(JSON.parse(JSON.stringify(obj2)));
+
+            circles.push(obj1);
+            circles.push(obj2);
+        }
+
+        initializeSimulation();
+
+        // ====== 7. Dragging Variables ======
+
+        let isDragging = false;
+        let draggedCircle = null;
+        let dragStart = {x: 0, y: 0};
+        let dragEnd = {x: 0, y: 0};
+        let isSpawning = false; // Flag for spawn drag
+        let spawnStart = {x: 0, y: 0};
+        let spawnEnd = {x: 0, y: 0};
+
+        // ====== 8. Add Circle Function ======
+
+        function addCircle(x, y, vx = prng.nextRange(-2.0, 2.0), vy = prng.nextRange(-2.0, 2.0)) {
+            if (circles.length >= 1000) {
+                showMessage("Maximum number of circles reached.");
+                return;
+            }
+
+            // Get radius and mass from UI
+            const radius = baseRadius; // Use baseRadius
+            const mass = baseMass; // Use baseMass
+            const densityValue = density; // Current density
+
+            // Ensure no overlap by adjusting position if necessary
+            let adjustedX = x;
+            let adjustedY = y;
+            let attempts = 0;
+            const maxAttempts = 100;
+            while (isOverlapping(adjustedX, adjustedY, radius) && attempts < maxAttempts) {
+                // Shift position slightly upwards to avoid overlap
+                adjustedY += radius + 0.1;
+                attempts++;
+            }
+
+            // If after max attempts still overlapping, adjust randomly within bounds
+            if (isOverlapping(adjustedX, adjustedY, radius)) {
+                adjustedX = prng.nextRange(-viewSize * aspect + radius, viewSize * aspect - radius);
+                adjustedY = prng.nextRange(-viewSize + radius, viewSize - radius);
+            }
+
+            const newCircle = new Circle(nextId++, adjustedX, adjustedY, vx, vy, radius, mass, densityValue);
+            circles.push(newCircle);
+        }
+
+        // Function to check overlap
+        function isOverlapping(x, y, radius) {
+            for (let circle of circles) {
+                const dx = x - circle.x;
+                const dy = y - circle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < (radius + circle.currentRadius)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // ====== 9. Reset Simulation ======
+
+        function resetSimulation() {
+            initializeSimulation();
+        }
+
+        // ====== 10. Toggle Gravity ======
+
+        function toggleGravity() {
+            gravityEnabled = !gravityEnabled;
+        }
+
+        // ====== 11. Handle Mouse Events ======
+
+        // Left-click & Drag: Drag existing circle to set velocity
+        canvas.addEventListener('mousedown', function(e) {
+            if (e.button === 0 && !e.altKey) { // Left-click without Alt
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left) / canvas.width * 2 - 1;
+                const mouseY = 1 - (e.clientY - rect.top) / canvas.height * 2;
+
+                // Convert to simulation coordinates
+                const simX = mouseX * viewSize * aspect;
+                const simY = mouseY * viewSize;
+
+                // Find if clicked on any circle
+                for (let circle of circles) {
+                    const dx = simX - circle.x;
+                    const dy = simY - circle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance <= circle.currentRadius) {
+                        isDragging = true;
+                        draggedCircle = circle;
+                        dragStart = {x: simX, y: simY};
+                        dragEnd = {x: simX, y: simY};
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Mouse move on canvas
+        canvas.addEventListener('mousemove', function(e) {
+            if (isDragging && draggedCircle) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left) / canvas.width * 2 - 1;
+                const mouseY = 1 - (e.clientY - rect.top) / canvas.height * 2;
+
+                // Convert to simulation coordinates
+                const simX = mouseX * viewSize * aspect;
+                const simY = mouseY * viewSize;
+
+                dragEnd = {x: simX, y: simY};
+            }
+
+            if (isSpawning) { // Handle spawn drag
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left) / canvas.width * 2 - 1;
+                const mouseY = 1 - (e.clientY - rect.top) / canvas.height * 2;
+
+                // Convert to simulation coordinates
+                const simX = mouseX * viewSize * aspect;
+                const simY = mouseY * viewSize;
+
+                spawnEnd = {x: simX, y: simY};
+            }
+        });
+
+        // Mouse up on window to ensure drag release even when outside canvas
+        window.addEventListener('mouseup', function(e) {
+            // Left-click release
+            if (e.button === 0 && isDragging && draggedCircle) { // Left-click release
+                const dx = dragEnd.x - dragStart.x;
+                const dy = dragEnd.y - dragStart.y;
+
+                // Set velocity based on drag vector
+                const velocityScale = 30.0; // Tunable factor
+                draggedCircle.vx = dx * velocityScale;
+                draggedCircle.vy = dy * velocityScale;
+
+                isDragging = false;
+                draggedCircle = null;
+            }
+
+            // Right-click release during spawn drag
+            if (e.button === 2 && isSpawning) { // Right-click release
+                const dx = spawnEnd.x - spawnStart.x;
+                const dy = spawnEnd.y - spawnStart.y;
+
+                // Set velocity based on drag vector
+                const velocityScale = 1.0; // Tunable factor
+                const vx = dx * velocityScale;
+                const vy = dy * velocityScale;
+
+                addCircle(spawnStart.x, spawnStart.y, vx, vy);
+
+                isSpawning = false;
+                spawnStart = {x: 0, y: 0};
+                spawnEnd = {x: 0, y: 0};
+            }
+        });
+
+        // Right-click to spawn circle
+        canvas.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) / canvas.width * 2 - 1;
+            const mouseY = 1 - (e.clientY - rect.top) / canvas.height * 2;
+
+            // Convert to simulation coordinates
+            const simX = mouseX * viewSize * aspect;
+            const simY = mouseY * viewSize;
+
+            if (e.altKey) { // Alt + Right-click for spawn with drag
+                isSpawning = true;
+                spawnStart = {x: simX, y: simY};
+                spawnEnd = {x: simX, y: simY};
+            } else { // Regular Right-click to spawn multiple circles with random velocities
+                // Spawn multiple circles efficiently
+                const spawnCount = 5; // Number of circles to spawn on right-click
+                for (let i = 0; i < spawnCount; i++) {
+                    addCircle(simX, simY);
+                }
+            }
+        });
+
+        // ====== 12. Handle Keyboard Events ======
+
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'g' || e.key === 'G') {
+                toggleGravity();
+            }
+            if (e.key === 'r' || e.key === 'R' || e.key === ' ') {
+                resetSimulation();
+            }
+            if (e.key === 'Escape') {
+                if (isDragging) {
+                    isDragging = false;
+                    draggedCircle = null;
+                }
+                if (isSpawning) {
+                    isSpawning = false;
+                    spawnStart = {x: 0, y: 0};
+                    spawnEnd = {x: 0, y: 0};
+                }
+            }
+        });
+
+        // ====== 13. FPS Calculation ======
+
+        let lastTime = performance.now();
+        let frames = 0;
+        let fps = 0;
+        let physicsAccumulator = 0.0;
+        let fpsAccumulator = 0.0;
+
+        // ====== 14. Simulation Loop ======
+
+        function simulationStep() {
+            const now = performance.now();
+            const delta = (now - lastTime) / 1000; // Convert to seconds
+            lastTime = now;
+
+            physicsAccumulator += delta * speedMultiplier;
+            fpsAccumulator += delta;
+
+            frames++;
+            if (fpsAccumulator >= 1.0) {
+                fps = frames / fpsAccumulator;
+                frames = 0;
+                fpsAccumulator -= 1.0;
+                document.getElementById('fps').innerText = `FPS: ${fps.toFixed(2)}`;
+            }
+
+            // Fixed Timestep Integration for Physics
+            while (physicsAccumulator >= dt) {
+                updatePhysics();
+                physicsAccumulator -= dt;
+            }
+
+            draw();
+            requestAnimationFrame(simulationStep);
+        }
+
+        // ====== 15. Physics Update Function ======
+
+        function updatePhysics() {
+            // Apply physics to each circle
+            for (let circle of circles) {
+                // Apply friction
+                circle.vx += -frictionCoefficient * circle.vx * dt;
+                circle.vy += -frictionCoefficient * circle.vy * dt;
+
+                // Apply gravity if enabled
+                if (gravityEnabled) {
+                    circle.vy += gravity * dt;
+                }
+
+                // Update position
+                circle.x += circle.vx * dt;
+                circle.y += circle.vy * dt;
+
+                // Update deformation
+                circle.updateDeformation(dt);
+            }
+
+            // Collision Detection and Resolution
+            for (let i = 0; i < circles.length; i++) {
+                for (let j = i + 1; j < circles.length; j++) {
+                    const c1 = circles[i];
+                    const c2 = circles[j];
+                    const dx = c2.x - c1.x;
+                    const dy = c2.y - c1.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const minDist = c1.currentRadius + c2.currentRadius;
+
+                    if (distance < minDist && distance > 0) {
+                        // Resolve overlap
+                        const overlap = minDist - distance;
+                        const nx = dx / distance;
+                        const ny = dy / distance;
+
+                        // Adjust positions to resolve overlap
+                        const totalMass = c1.mass + c2.mass;
+                        c1.x -= nx * (overlap * (c2.mass / totalMass));
+                        c1.y -= ny * (overlap * (c2.mass / totalMass));
+                        c2.x += nx * (overlap * (c1.mass / totalMass));
+                        c2.y += ny * (overlap * (c1.mass / totalMass));
+
+                        // Calculate relative velocity
+                        const dvx = c2.vx - c1.vx;
+                        const dvy = c2.vy - c1.vy;
+                        const relVel = dvx * nx + dvy * ny;
+
+                        if (relVel < 0) {
+                            // Calculate impulse scalar
+                            const e = restitution; // Coefficient of restitution (bounciness)
+                            const impulse = (-(1 + e) * relVel) / (1 / c1.mass + 1 / c2.mass);
+
+                            // Apply impulse to the velocities
+                            c1.vx -= (impulse / c1.mass) * nx;
+                            c1.vy -= (impulse / c1.mass) * ny;
+                            c2.vx += (impulse / c2.mass) * nx;
+                            c2.vy += (impulse / c2.mass) * ny;
+                        }
+
+                        // Apply deformation based on collision
+                        const collisionSpeed = Math.sqrt(relVel * relVel);
+                        if (collisionSpeed > 0.5) { // Threshold to avoid minor deformations
+                            const deformationAmount = deformationScale * (collisionSpeed / 10); // Scale deformation
+                            c1.applyDeformation(deformationAmount);
+                            c2.applyDeformation(deformationAmount);
+                        }
+                    }
+                }
+
+                // Boundary Collision Detection
+                const left = -viewSize * aspect;
+                const right = viewSize * aspect;
+                const bottom = -viewSize;
+                const top = viewSize;
+
+                const circle = circles[i];
+
+                // Left Boundary
+                if (circle.x - circle.currentRadius < left) {
+                    circle.x = left + circle.currentRadius;
+                    circle.vx = -circle.vx * restitution;
+                    // Apply deformation upon boundary collision
+                    if (Math.abs(circle.vx) > 0.1) { // Threshold to avoid minor deformations
+                        const deformationAmount = deformationScale;
+                        circle.applyDeformation(deformationAmount);
+                    }
+                }
+                // Right Boundary
+                if (circle.x + circle.currentRadius > right) {
+                    circle.x = right - circle.currentRadius;
+                    circle.vx = -circle.vx * restitution;
+                    // Apply deformation upon boundary collision
+                    if (Math.abs(circle.vx) > 0.1) { // Threshold to avoid minor deformations
+                        const deformationAmount = deformationScale;
+                        circle.applyDeformation(deformationAmount);
+                    }
+                }
+                // Bottom Boundary
+                if (circle.y - circle.currentRadius < bottom) {
+                    circle.y = bottom + circle.currentRadius;
+                    circle.vy = -circle.vy * restitution;
+                    // Apply deformation upon boundary collision
+                    if (Math.abs(circle.vy) > 0.1) { // Threshold to avoid minor deformations
+                        const deformationAmount = deformationScale;
+                        circle.applyDeformation(deformationAmount);
+                    }
+                }
+                // Top Boundary
+                if (circle.y + circle.currentRadius > top) {
+                    circle.y = top - circle.currentRadius;
+                    circle.vy = -circle.vy * restitution;
+                    // Apply deformation upon boundary collision
+                    if (Math.abs(circle.vy) > 0.1) { // Threshold to avoid minor deformations
+                        const deformationAmount = deformationScale;
+                        circle.applyDeformation(deformationAmount);
+                    }
+                }
+
+                // Accumulate pressure based on overlapping circles
+                // Simple approximation: count number of overlapping circles and increase pressure
+                let overlapCount = 0;
+                for (let j = 0; j < circles.length; j++) {
+                    if (j === i) continue;
+                    const other = circles[j];
+                    const dx = other.x - circle.x;
+                    const dy = other.y - circle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < (circle.currentRadius + other.currentRadius)) {
+                        overlapCount++;
+                    }
+                }
+                if (overlapCount > 0) {
+                    // Increase pressure proportionally
+                    circle.pressure += 0.001 * overlapCount;
+                    // Apply additional friction based on pressure
+                    circle.vx += -circle.vx * circle.pressure;
+                    circle.vy += -circle.vy * circle.pressure;
+                } else {
+                    // Gradually reduce pressure
+                    circle.pressure *= 0.95;
+                }
+            }
+        }
+
+        // Function to toggle menu visibility
+        function toggleMenu() {
+            const menu = document.getElementById('controls');
+            const menu2 = document.getElementById('instructions');
+            if (menu.style.display === 'none') {
+                menu.style.display = 'block'; // Show the menu
+                menu2.style.display = 'block';
+            } else {
+                menu.style.display = 'none'; // Hide the menu
+                menu2.style.display = 'none'; // Hide the instructions
+            }
+        }
+
+        // Keyboard event listener for toggling menu
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                toggleMenu();
+            }
+        });
+
+        // ====== 16. Draw Function ======
+
+        function draw() {
+            // Clear Canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Set up coordinate system
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(canvas.width / (2 * viewSize * aspect), -canvas.height / (2 * viewSize));
+
+            // Draw Boundaries
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 0.02;
+            ctx.beginPath();
+            ctx.rect(-viewSize * aspect, -viewSize, 2 * viewSize * aspect, 2 * viewSize);
+            ctx.stroke();
+
+            // Draw Circles and Velocity Vectors
+            ctx.lineWidth = 0.02; // Set once to reduce state changes
+            for (let circle of circles) {
+                // Draw Velocity Vector
+                ctx.strokeStyle = '#FF0000';
+                ctx.beginPath();
+                ctx.moveTo(circle.x, circle.y);
+                ctx.lineTo(circle.x + circle.vx * 0.5, circle.y + circle.vy * 0.5);
+                ctx.stroke();
+
+                // Draw Circle as green outline
+                ctx.beginPath();
+                ctx.arc(circle.x, circle.y, circle.currentRadius, 0, 2 * Math.PI);
+                ctx.strokeStyle = '#00FF00'; // Green outline
+                ctx.stroke();
+            }
+
+            // Draw Spawn Velocity Vector if Spawning
+            if (isSpawning) {
+                // Draw velocity vector similar to dragging existing circles
+                ctx.strokeStyle = '#FF0000'; // Red color for velocity vector
+                ctx.lineWidth = 0.01;
+                ctx.beginPath();
+                ctx.moveTo(spawnStart.x, spawnStart.y);
+                ctx.lineTo(spawnEnd.x, spawnEnd.y);
+                ctx.stroke();
+
+                // Draw arrowhead for velocity vector
+                const dx = spawnEnd.x - spawnStart.x;
+                const dy = spawnEnd.y - spawnStart.y;
+                const angle = Math.atan2(dy, dx);
+                const arrowLength = 0.3;
+                const arrowAngle = Math.PI / 6;
+
+                ctx.beginPath();
+                ctx.moveTo(spawnEnd.x, spawnEnd.y);
+                ctx.lineTo(spawnEnd.x - arrowLength * Math.cos(angle - arrowAngle),
+                           spawnEnd.y - arrowLength * Math.sin(angle - arrowAngle));
+                ctx.lineTo(spawnEnd.x - arrowLength * Math.cos(angle + arrowAngle),
+                           spawnEnd.y - arrowLength * Math.sin(angle + arrowAngle));
+                ctx.lineTo(spawnEnd.x, spawnEnd.y);
+                ctx.fillStyle = '#FF0000';
+                ctx.fill();
+            }
+
+            // Draw Drag Line if Dragging Existing Circle
+            if (isDragging && draggedCircle) {
+                ctx.strokeStyle = '#FF0000'; // Red color for velocity vector
+                ctx.lineWidth = 0.01;
+                ctx.beginPath();
+                ctx.moveTo(dragStart.x, dragStart.y);
+                ctx.lineTo(dragEnd.x, dragEnd.y);
+                ctx.stroke();
+
+                // Draw arrowhead for velocity vector
+                const dx = dragEnd.x - dragStart.x;
+                const dy = dragEnd.y - dragStart.y;
+                const angle = Math.atan2(dy, dx);
+                const arrowLength = 0.3;
+                const arrowAngle = Math.PI / 6;
+
+                ctx.beginPath();
+                ctx.moveTo(dragEnd.x, dragEnd.y);
+                ctx.lineTo(dragEnd.x - arrowLength * Math.cos(angle - arrowAngle),
+                           dragEnd.y - arrowLength * Math.sin(angle - arrowAngle));
+                ctx.lineTo(dragEnd.x - arrowLength * Math.cos(angle + arrowAngle),
+                           dragEnd.y - arrowLength * Math.sin(angle + arrowAngle));
+                ctx.lineTo(dragEnd.x, dragEnd.y);
+                ctx.fillStyle = '#FF0000';
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // ====== 17. Start Simulation Loop ======
+
+        requestAnimationFrame(simulationStep);
+
+        // ====== 18. UI Message Function ======
+
+        function showMessage(msg) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerText = msg;
+            messageDiv.style.display = 'block';
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 2000); // Display for 2 seconds
+        }
+
+        // ====== 19. UI Controls Event Listeners ======
+
+        // Bounciness Slider
+        bouncinessSlider.addEventListener('input', function() {
+            restitution = parseFloat(this.value);
+            bouncinessValue.innerText = restitution.toFixed(2);
+        });
+
+        // Mass Slider
+        massSlider.addEventListener('input', function() {
+            baseMass = parseFloat(this.value);
+            massValue.innerText = baseMass.toFixed(2);
+        });
+
+        // Radius Slider
+        radiusSlider.addEventListener('input', function() {
+            baseRadius = parseFloat(this.value);
+            radiusValue.innerText = baseRadius.toFixed(2);
+        });
+
+        // Density Slider
+        densitySlider.addEventListener('input', function() {
+            density = parseFloat(this.value);
+            densityValue.innerText = density.toFixed(2);
+        });
+
+        // Friction Slider
+        frictionSlider.addEventListener('input', function() {
+            frictionCoefficient = parseFloat(this.value);
+            frictionValue.innerText = frictionCoefficient.toFixed(2);
+        });
+
+        // Deformation Regeneration Time Slider
+        deformationTimeSlider.addEventListener('input', function() {
+            deformationRegenerationTime = parseFloat(this.value);
+            deformationTimeValue.innerText = deformationRegenerationTime.toFixed(1);
+        });
+
+        // Deformation Scale Slider
+        deformationScaleSlider.addEventListener('input', function() {
+            deformationScale = parseFloat(this.value);
+            deformationScaleValue.innerText = deformationScale.toFixed(2);
+        });
+
+        // Simulation Speed Slider
+        simSpeedSlider.addEventListener('input', function() {
+            speedMultiplier = parseFloat(this.value);
+            dt = baseDt * speedMultiplier;
+            simSpeedValue.innerText = speedMultiplier.toFixed(1) + 'x';
+        });
+    </script>
+</body>
+</html>

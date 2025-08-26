@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Touch Position Verification Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* ==================== RESET & BASE STYLES ==================== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      touch-action: none; /* Disable default touch actions */
+      user-select: none;  /* Disable text selection */
+      font-family: Arial, sans-serif;
+    }
+
+    /* ==================== SVG CANVAS ==================== */
+    svg {
+      width: 100%;
+      height: 100%;
+      background-color: #f0f0f0;
+      position: relative;
+    }
+
+    /* ==================== TOUCH POINT STYLES ==================== */
+    .touch-point {
+      fill: rgba(255, 0, 0, 0.6);
+      stroke: #ff0000;
+      stroke-width: 1;
+      pointer-events: none; /* Prevent touch points from capturing events */
+    }
+
+    /* ==================== DEBUG WINDOW ==================== */
+    #debugWindow {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      width: 300px;
+      max-height: 200px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      font-size: 12px;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-y: auto;
+      display: none; /* Hidden by default */
+      z-index: 1000;
+      user-select: text; /* Allow text selection */
+    }
+
+    #debugWindow.show {
+      display: block;
+    }
+
+    /* ==================== TOGGLE DEBUG BUTTON ==================== */
+    #toggleDebugBtn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 12px;
+      cursor: pointer;
+      z-index: 1001;
+      font-size: 14px;
+    }
+
+    /* ==================== INSTRUCTIONS ==================== */
+    #instructions {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 999;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+
+    #instructions h2 {
+      margin-bottom: 10px;
+    }
+
+    #instructions p {
+      margin-bottom: 15px;
+    }
+
+    #instructions button {
+      padding: 8px 16px;
+      font-size: 14px;
+      border: none;
+      border-radius: 5px;
+      background-color: #007BFF;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    #instructions button:hover {
+      background-color: #0056b3;
+    }
+
+    /* ==================== DOWNLOAD LOG BUTTON ==================== */
+    #downloadLogBtn {
+      position: fixed;
+      bottom: 220px; /* Positioned above the debug window */
+      right: 10px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 12px;
+      cursor: pointer;
+      z-index: 1001;
+      font-size: 14px;
+      display: none; /* Hidden initially */
+    }
+
+    #downloadLogBtn.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- ==================== SVG CANVAS ==================== -->
+  <svg id="svgCanvas" viewBox="0 0 800 600">
+    <!-- Touch points will be dynamically added here -->
+    <g id="touchPoints"></g>
+  </svg>
+
+  <!-- ==================== DEBUG WINDOW ==================== -->
+  <div id="debugWindow">
+    <strong>Debug Console</strong>
+    <div id="debugContent" style="margin-top:5px;"></div>
+  </div>
+
+  <!-- ==================== TOGGLE DEBUG BUTTON ==================== -->
+  <button id="toggleDebugBtn">Toggle Debug</button>
+
+  <!-- ==================== DOWNLOAD LOG BUTTON ==================== -->
+  <button id="downloadLogBtn">Download Logs</button>
+
+  <!-- ==================== INSTRUCTIONS ==================== -->
+  <div id="instructions">
+    <h2>Touch Position Verification Tool</h2>
+    <p>Touch anywhere on the canvas to see the touch position.</p>
+    <button id="closeInstructions">Start Testing</button>
+  </div>
+
+  <!-- ==================== JAVASCRIPT ==================== -->
+  <script>
+    // ==================== CONFIGURATION ====================
+    const TOUCH_POINT_RADIUS = 10;
+
+    // ==================== STATE VARIABLES ====================
+    const svg = document.getElementById('svgCanvas');
+    const touchPointsGroup = document.getElementById('touchPoints');
+    const debugWindow = document.getElementById('debugWindow');
+    const debugContent = document.getElementById('debugContent');
+    const toggleDebugBtn = document.getElementById('toggleDebugBtn');
+    const instructions = document.getElementById('instructions');
+    const closeInstructionsBtn = document.getElementById('closeInstructions');
+    const downloadLogBtn = document.getElementById('downloadLogBtn');
+
+    let logEntries = []; // Array to store log messages
+
+    // ==================== DEBUGGING FUNCTIONS ====================
+    function logDebug(message) {
+      const msg = document.createElement('div');
+      msg.textContent = message;
+      debugContent.appendChild(msg);
+      debugContent.scrollTop = debugContent.scrollHeight;
+      logEntries.push(message);
+      console.log(message); // Also log to browser console
+    }
+
+    // ==================== INITIAL SETUP ====================
+    function init() {
+      // Event Listeners
+      svg.addEventListener('touchstart', handleTouchStart, {passive: false});
+      svg.addEventListener('touchmove', handleTouchMove, {passive: false});
+      svg.addEventListener('touchend', handleTouchEnd, {passive: false});
+      svg.addEventListener('touchcancel', handleTouchEnd, {passive: false});
+      svg.addEventListener('mousedown', handleMouseDown);
+      svg.addEventListener('mousemove', handleMouseMove);
+      svg.addEventListener('mouseup', handleMouseUp);
+
+      // Debug Toggle
+      toggleDebugBtn.addEventListener('click', () => {
+        debugWindow.classList.toggle('show');
+        downloadLogBtn.classList.toggle('show');
+      });
+
+      // Close Instructions
+      closeInstructionsBtn.addEventListener('click', () => {
+        instructions.style.display = 'none';
+      });
+
+      // Download Logs
+      downloadLogBtn.addEventListener('click', downloadLogs);
+
+      logDebug('Initialized Touch Position Verification Tool');
+    }
+
+    // ==================== TOUCH EVENT HANDLERS ====================
+    function handleTouchStart(e) {
+      e.preventDefault();
+      const touches = e.changedTouches;
+      for (let touch of touches) {
+        const touchId = touch.identifier;
+        const {x, y} = getTouchPosition(touch);
+        addTouchPoint(touchId, x, y);
+        logDebug(`Touch Start - ID: ${touchId}, X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}`);
+      }
+    }
+
+    function handleTouchMove(e) {
+      e.preventDefault();
+      const touches = e.changedTouches;
+      for (let touch of touches) {
+        const touchId = touch.identifier;
+        const {x, y} = getTouchPosition(touch);
+        moveTouchPoint(touchId, x, y);
+        logDebug(`Touch Move - ID: ${touchId}, X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}`);
+      }
+    }
+
+    function handleTouchEnd(e) {
+      e.preventDefault();
+      const touches = e.changedTouches;
+      for (let touch of touches) {
+        const touchId = touch.identifier;
+        removeTouchPoint(touchId);
+        logDebug(`Touch End - ID: ${touchId}`);
+      }
+    }
+
+    // ==================== MOUSE EVENT HANDLERS ====================
+    let isMouseDown = false;
+    const mouseId = 'mouse';
+
+    function handleMouseDown(e) {
+      if (e.button !== 0) return; // Only respond to left-click
+      e.preventDefault();
+      isMouseDown = true;
+      const {x, y} = getMousePosition(e);
+      addTouchPoint(mouseId, x, y);
+      logDebug(`Mouse Down - ID: ${mouseId}, X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}`);
+    }
+
+    function handleMouseMove(e) {
+      if (!isMouseDown) return;
+      e.preventDefault();
+      const {x, y} = getMousePosition(e);
+      moveTouchPoint(mouseId, x, y);
+      logDebug(`Mouse Move - ID: ${mouseId}, X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}`);
+    }
+
+    function handleMouseUp(e) {
+      if (!isMouseDown) return;
+      e.preventDefault();
+      isMouseDown = false;
+      removeTouchPoint(mouseId);
+      logDebug(`Mouse Up - ID: ${mouseId}`);
+    }
+
+    // ==================== TOUCH POINT FUNCTIONS ====================
+    function addTouchPoint(id, x, y) {
+      // Create a circle to represent the touch point
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', x);
+      circle.setAttribute('cy', y);
+      circle.setAttribute('r', TOUCH_POINT_RADIUS);
+      circle.setAttribute('id', `touch-${id}`);
+      circle.classList.add('touch-point');
+      touchPointsGroup.appendChild(circle);
+    }
+
+    function moveTouchPoint(id, x, y) {
+      const circle = document.getElementById(`touch-${id}`);
+      if (circle) {
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+      }
+    }
+
+    function removeTouchPoint(id) {
+      const circle = document.getElementById(`touch-${id}`);
+      if (circle) {
+        touchPointsGroup.removeChild(circle);
+      }
+    }
+
+    // ==================== UTILITY FUNCTIONS ====================
+    function getTouchPosition(touch) {
+      const rect = svg.getBoundingClientRect();
+      const x = (touch.clientX - rect.left) * (800 / rect.width); // 800 is SVG viewBox width
+      const y = (touch.clientY - rect.top) * (600 / rect.height); // 600 is SVG viewBox height
+      return {x, y};
+    }
+
+    function getMousePosition(e) {
+      const rect = svg.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (800 / rect.width); // 800 is SVG viewBox width
+      const y = (e.clientY - rect.top) * (600 / rect.height); // 600 is SVG viewBox height
+      return {x, y};
+    }
+
+    // ==================== LOG DOWNLOAD FUNCTION ====================
+    function downloadLogs() {
+      const blob = new Blob([logEntries.join('\n')], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'touch_logs.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ==================== INITIALIZE ====================
+    init();
+
+    // ==================== INSTRUCTIONS ====================
+    // Instructions are handled via HTML elements and do not require JavaScript.
+  </script>
+</body>
+</html>

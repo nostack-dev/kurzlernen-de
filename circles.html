@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Drawing Circles and Lines</title>
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: #f0f0f0; 
+}
+
+.container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  background-image: 
+    linear-gradient(to right, lightgray 1px, transparent 1px),
+    linear-gradient(to bottom, lightgray 1px, transparent 1px);
+  background-size: 25px 25px; 
+  cursor: grab; 
+}
+
+.container:active {
+  cursor: grabbing;
+}
+
+.fixed-point {
+  width: 1px;
+  height: 1px;
+  background-color: gray;
+  position: absolute;
+  display: none; 
+}
+
+.line {
+  position: absolute;
+  background-color: black; 
+  transform-origin: 0 0; 
+  height: 1px; 
+}
+
+.vector {
+  position: absolute;
+  background-color: red;
+  width: 1px;
+}
+
+.circle {
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.drawn-circle { 
+  border: 1px solid black;
+}
+
+.handle {
+  width: 10px;
+  height: 10px;
+  background-color: red;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 100%; 
+  transform: translate(0, -50%);
+  cursor: grab;
+}
+
+.controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+}
+
+.container { 
+  cursor: crosshair;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="fixed-point"></div>
+  <div class="circle"></div>
+  <div class="line"></div> 
+</div>
+
+<div class="controls">
+  Grid Size: <span id="grid-size">25</span>
+  <button id="increase-grid">+</button>
+  <button id="decrease-grid">-</button>
+  <button id="undo">Undo</button>
+  <button id="redo">Redo</button>
+</div>
+
+<script>
+const container = document.querySelector('.container');
+const fixedPoint = document.querySelector('.fixed-point');
+const circle = document.querySelector('.circle');
+const line = document.querySelector('.line');
+const gridSizeDisplay = document.getElementById('grid-size');
+const increaseGridBtn = document.getElementById('increase-grid');
+const decreaseGridBtn = document.getElementById('decrease-grid');
+const undoBtn = document.getElementById('undo');
+const redoBtn = document.getElementById('redo');
+
+let gridSize = 25;
+let isDragging = false;
+let isDrawingLine = false; 
+let isResizing = false;
+let isPanning = false; // Add panning flag
+let initialX, initialY; 
+let originX, originY;   
+let offsetX = 0;
+let offsetY = 0; 
+let resizingCircle = null; 
+let lastRadius = 0; 
+let history = []; 
+let historyIndex = -1; 
+let scale = 1; 
+
+gridSizeDisplay.textContent = gridSize;
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+increaseGridBtn.addEventListener('click', () => {
+  gridSize += 5;
+  gridSizeDisplay.textContent = gridSize;
+  updateBackgroundGrid();
+});
+
+decreaseGridBtn.addEventListener('click', () => {
+  gridSize = Math.max(5, gridSize - 5); 
+  gridSizeDisplay.textContent = gridSize;
+  updateBackgroundGrid();
+});
+
+function updateBackgroundGrid() {
+  container.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+}
+
+undoBtn.addEventListener('click', () => {
+  if (historyIndex >= 0) {
+    historyIndex--;
+    redrawFromHistory();
+  }
+});
+
+redoBtn.addEventListener('click', () => {
+  if (historyIndex < history.length - 1) {
+    historyIndex++;
+    redrawFromHistory();
+  }
+});
+
+function redrawFromHistory() {
+  container.innerHTML = ''; 
+  container.appendChild(fixedPoint); 
+  container.appendChild(circle); 
+  container.appendChild(line); 
+
+  for (let i = 0; i <= historyIndex; i++) {
+    const elementData = history[i];
+    const element = document.createElement('div');
+    element.classList.add(elementData.class);
+    for (const [style, value] of Object.entries(elementData.styles)) {
+      element.style[style] = value;
+    }
+    container.appendChild(element);
+
+    if (elementData.class === 'circle') {
+      const handle = document.createElement('div');
+      handle.classList.add('handle');
+      element.appendChild(handle);
+      addHandleListeners(element); 
+    }
+  }
+}
+
+document.addEventListener('mousedown', (e) => {
+  if (e.button === 0 && e.altKey) { 
+    const newCircle = drawCircle(lastRadius * 2, e.clientY, e.clientX);
+    addToHistory(newCircle);
+  } else if (e.button === 0 && e.ctrlKey) {
+    isResizing = true;
+    resizingCircle = e.target.closest('.drawn-circle'); 
+    if (resizingCircle) {
+      originX = resizingCircle.offsetLeft + resizingCircle.offsetWidth / 2;
+      originY = resizingCircle.offsetTop + resizingCircle.offsetHeight / 2;
+    }
+  } else if (e.button === 0) { 
+    isDragging = true;
+    initialX = e.clientX;
+    initialY = e.clientY;
+    originX = e.clientX; 
+    originY = e.clientY;
+    fixedPoint.style.left = `${originX}px`; 
+    fixedPoint.style.top = `${originY}px`;
+    fixedPoint.style.display = 'block'; 
+
+    circle.style.width = `${lastRadius * 2}px`;
+    circle.style.height = `${lastRadius * 2}px`;
+    circle.style.left = `${originX}px`; 
+    circle.style.top = `${originY}px`; 
+
+  } else if (e.button === 1) { // Middle mouse button for panning
+    isPanning = true;
+    offsetX = container.offsetLeft - e.clientX;
+    offsetY = container.offsetTop - e.clientY;
+  } else if (e.button === 2) { 
+    isDrawingLine = true;
+    initialX = e.clientX;
+    initialY = e.clientY;
+    originX = e.clientX;
+    originY = e.clientY;
+    line.style.width = '0px'; 
+    line.style.left = `${originX}px`;
+    line.style.top = `${originY}px`;
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (isDragging) {
+    isDragging = false;
+    const newCircle = drawCircle(circle.offsetWidth, circle.offsetTop, circle.offsetLeft);
+    addToHistory(newCircle); 
+    circle.style.width = '0px'; 
+    circle.style.height = '0px';
+    fixedPoint.style.display = 'none'; 
+    lastRadius = newCircle.offsetWidth / 2; 
+  } else if (isDrawingLine) {
+    isDrawingLine = false;
+    const newLine = drawLine(line.offsetWidth, line.offsetTop, line.offsetLeft, line.style.transform);
+    addToHistory(newLine); 
+    line.style.width = '0px'; 
+    line.style.transform = 'rotate(0deg)'; 
+  } else if (isResizing) {
+    isResizing = false;
+    resizingCircle = null;
+  } else if (isPanning) {
+    isPanning = false;
+  }
+});
+
+function addToHistory(element) {
+  history = history.slice(0, historyIndex + 1); 
+  history.push({
+    class: Array.from(element.classList).join(' '), 
+    styles: {
+      width: element.style.width,
+      height: element.style.height,
+      top: element.style.top,
+      left: element.style.left,
+      transform: element.style.transform
+    }
+  });
+  historyIndex++;
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (isDragging) {
+    handleCircleDragging(e);
+  } else if (isDrawingLine) {
+    handleLineDrawing(e);
+  } else if (isResizing && resizingCircle) {
+    handleCircleResizing(e);
+  } else if (isPanning) { // Panning with middle mouse button
+    container.style.left = `${e.clientX + offsetX}px`;
+    container.style.top = `${e.clientY + offsetY}px`;
+  }
+});
+
+function handleCircleDragging(e) {
+  e.preventDefault();
+
+  const deltaX = e.clientX - originX; 
+  const deltaY = e.clientY - originY;
+  let distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+  if (e.shiftKey) {
+    const snapPoints = findSnapPoints(e.clientX, e.clientY);
+    if (snapPoints.length > 0) {
+      const closestSnapPoint = snapPoints.reduce((closest, current) => {
+        const closestDistance = Math.sqrt(
+          Math.pow(closest.x - originX, 2) + Math.pow(closest.y - originY, 2)
+        );
+        const currentDistance = Math.sqrt(
+          Math.pow(current.x - originX, 2) + Math.pow(current.y - originY, 2)
+        );
+        return currentDistance < closestDistance ? current : closest;
+      });
+      distance = Math.sqrt(
+        Math.pow(closestSnapPoint.x - originX, 2) + Math.pow(closestSnapPoint.y - originY, 2)
+      );
+    } else {
+      distance = Math.round(distance / gridSize) * gridSize;
+    }
+  }
+
+  circle.style.width = `${distance * 2}px`; 
+  circle.style.height = `${distance * 2}px`;
+  circle.style.left = `${originX}px`; 
+  circle.style.top = `${originY}px`; 
+
+  line.style.width = `${distance}px`;
+  line.style.left = `${originX}px`; 
+  line.style.top = `${originY}px`; 
+  const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+  line.style.transform = `rotate(${angle}deg)`;
+
+  const vector = container.querySelector('.vector');
+  if (vector) {
+    vector.style.height = `${distance}px`;
+  }
+}
+
+function handleLineDrawing(e) {
+  e.preventDefault();
+
+  let deltaX = e.clientX - originX;
+  let deltaY = e.clientY - originY;
+
+  if (e.shiftKey) {
+    const snapPoints = findSnapPoints(e.clientX, e.clientY);
+    if (snapPoints.length > 0) {
+      const closestSnapPoint = snapPoints.reduce((closest, current) => {
+        const closestDistance = Math.sqrt(
+          Math.pow(closest.x - originX, 2) + Math.pow(closest.y - originY, 2)
+        );
+        const currentDistance = Math.sqrt(
+          Math.pow(current.x - originX, 2) + Math.pow(current.y - originY, 2)
+        );
+        return currentDistance < closestDistance ? current : closest;
+      });
+      deltaX = closestSnapPoint.x - originX;
+      deltaY = closestSnapPoint.y - originY;
+    } else {
+      const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+      const snappedAngle = Math.round(angle / 45) * 45; 
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      deltaX = Math.cos(snappedAngle * (Math.PI / 180)) * distance;
+      deltaY = Math.sin(snappedAngle * (Math.PI / 180)) * distance;
+    }
+  }
+
+  line.style.width = `${Math.sqrt(deltaX * deltaX + deltaY * deltaY)}px`;
+  line.style.transform = `rotate(${Math.atan2(deltaY, deltaX) * (180 / Math.PI)}deg)`;
+}
+
+function handleCircleResizing(e) {
+  e.preventDefault();
+
+  const deltaX = e.clientX - originX;
+  const deltaY = e.clientY - originY;
+  let newDiameter = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * 2;
+
+  if (e.shiftKey) {
+    newDiameter = Math.round(newDiameter / gridSize) * gridSize;
+  }
+
+  resizingCircle.style.width = `${newDiameter}px`;
+  resizingCircle.style.height = `${newDiameter}px`;
+
+  const handle = resizingCircle.querySelector('.handle');
+  if (handle) {
+    handle.style.left = `${newDiameter}px`;
+  }
+}
+
+function addVector(x, y, length) {
+  const vector = document.createElement('div');
+  vector.classList.add('vector');
+  vector.style.left = `${x}px`;
+  vector.style.top = `${y - length}px`; 
+  vector.style.height = `${length}px`;
+  container.appendChild(vector);
+}
+
+function drawCircle(diameter, top, left) {
+  const drawnCircle = document.createElement('div');
+  drawnCircle.classList.add('circle');
+  drawnCircle.classList.add('drawn-circle'); 
+  drawnCircle.style.width = `${diameter}px`;
+  drawnCircle.style.height = `${diameter}px`;
+  drawnCircle.style.top = `${top}px`;
+  drawnCircle.style.left = `${left}px`;
+  container.appendChild(drawnCircle);
+
+  const handle = document.createElement('div');
+  handle.classList.add('handle');
+  drawnCircle.appendChild(handle);
+  addHandleListeners(drawnCircle); 
+  return drawnCircle; 
+}
+
+function addHandleListeners(circle) {
+  const handle = circle.querySelector('.handle');
+  let isHandleDragging = false;
+  let handleOffsetX, handleOffsetY;
+
+  handle.addEventListener('mousedown', (e) => {
+    isHandleDragging = true;
+    handleOffsetX = circle.offsetWidth + handle.offsetLeft - e.clientX;
+    handleOffsetY = handle.offsetTop - e.clientY;
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (isHandleDragging) {
+      isHandleDragging = false;
+    }
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isHandleDragging) return;
+
+    e.preventDefault();
+
+    let newDiameter = e.clientX + handleOffsetX - circle.offsetLeft;
+    newDiameter = Math.max(0, newDiameter); 
+
+    if (e.shiftKey) {
+      newDiameter = Math.round(newDiameter / gridSize) * gridSize;
+    }
+
+    circle.style.width = `${newDiameter}px`;
+    circle.style.height = `${newDiameter}px`;
+
+    handle.style.left = `${newDiameter}px`; 
+  });
+}
+
+function drawLine(length, top, left, transform) {
+  const drawnLine = document.createElement('div');
+  drawnLine.classList.add('line');
+  drawnLine.style.width = `${length}px`;
+  drawnLine.style.height = '1px'; 
+  drawnLine.style.top = `${top}px`;
+  drawnLine.style.left = `${left}px`;
+  drawnLine.style.transform = transform;
+  drawnLine.style.backgroundColor = 'black';
+  container.appendChild(drawnLine);
+  return drawnLine; 
+}
+
+function findSnapPoints(x, y) {
+  const snapPoints = [];
+  const elements = container.querySelectorAll('.drawn-circle, .line');
+  elements.forEach(element => {
+    if (element.classList.contains('drawn-circle')) {
+      const radius = element.offsetWidth / 2;
+      const centerX = element.offsetLeft + radius;
+      const centerY = element.offsetTop + radius;
+      const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+      if (Math.abs(distance - radius) < 5) { 
+        snapPoints.push({ x: centerX, y: centerY });
+      }
+    } else if (element.classList.contains('line')) {
+      const rect = element.getBoundingClientRect();
+      if (Math.abs(x - rect.left) < 5 && Math.abs(y - rect.top) < 5) {
+        snapPoints.push({ x: rect.left, y: rect.top });
+      } else if (Math.abs(x - rect.right) < 5 && Math.abs(y - rect.bottom) < 5) {
+        snapPoints.push({ x: rect.right, y: rect.bottom });
+      }
+    }
+  });
+  return snapPoints;
+}
+
+container.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+  scale *= zoomFactor;
+  container.style.transform = `scale(${scale})`;
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktive Datenkodierung mit Rauschen</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- DaisyUI Plugin für Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@2.50.0/dist/full.css" rel="stylesheet" type="text/css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Zoom Plugin (optional für Zoom-Funktionalität) -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+</head>
+<body class="bg-base-200 flex flex-col h-screen">
+    <!-- Header mit Buttons -->
+    <div class="navbar bg-base-100 shadow-lg p-4">
+        <div class="flex-1">
+            <span class="text-xl font-bold">Datenkodierung mit Rauschen</span>
+        </div>
+        <div class="flex-none space-x-2">
+            <button id="saveParameters" class="btn btn-primary btn-sm">Parameter speichern</button>
+            <button id="loadParametersButton" class="btn btn-accent btn-sm">Parameter laden</button>
+            <button id="reconstructCurve" class="btn btn-success btn-sm">Kurve rekonstruieren</button>
+            <!-- Versteckte Dateieingaben -->
+            <input type="file" id="loadParameters" accept=".json" class="hidden">
+        </div>
+    </div>
+    
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar für Parametersteuerungen -->
+        <div class="w-full md:w-1/3 lg:w-1/4 bg-base-100 p-6 overflow-y-auto">
+            <!-- Anzahl der Datenpunkte Slider -->
+            <div class="card shadow-lg compact side bg-base-100 mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Anzahl der Datenpunkte (N)</h3>
+                    <input type="range" id="numSamples" min="10" max="1000" step="10" value="100" class="range range-info">
+                    <span id="numSamplesValue" class="text-lg">100</span>
+                </div>
+            </div>
+            
+            <!-- Amplitude Slider -->
+            <div class="card shadow-lg compact side bg-base-100 mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Amplitude (A)</h3>
+                    <input type="range" id="amplitude" min="0.1" max="5" step="0.1" value="2" class="range range-primary">
+                    <span id="amplitudeValue" class="text-lg">2.0</span>
+                </div>
+            </div>
+            
+            <!-- Frequenz Slider -->
+            <div class="card shadow-lg compact side bg-base-100 mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Frequenz (f)</h3>
+                    <input type="range" id="frequency" min="0.1" max="5" step="0.1" value="1" class="range range-secondary">
+                    <span id="frequencyValue" class="text-lg">1.0</span>
+                </div>
+            </div>
+            
+            <!-- Phasenverschiebung Slider -->
+            <div class="card shadow-lg compact side bg-base-100 mb-4">
+                <div class="card-body">
+                    <h3 class="card-title">Phasenverschiebung (φ) [Radiant]</h3>
+                    <input type="range" id="phaseShift" min="0" max="6.28" step="0.1" value="0" class="range range-accent">
+                    <span id="phaseShiftValue" class="text-lg">0.0</span>
+                </div>
+            </div>
+            
+            <!-- dataNoiseRange-Amplitude Slider -->
+            <div class="card shadow-lg compact side bg-base-100 mb-6">
+                <div class="card-body">
+                    <h3 class="card-title">dataNoiseRange-Amplitude (N)</h3>
+                    <input type="range" id="dataNoiseRangeAmplitude" min="0" max="1" step="0.01" value="0.25" class="range range-warning">
+                    <span id="dataNoiseRangeAmplitudeValue" class="text-lg">0.25</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bereich für das Chart -->
+        <div class="flex-1 bg-base-200 p-6 overflow-hidden">
+            <canvas id="waveChart" class="w-full h-full"></canvas>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("Skript geladen und ausgeführt.");
+
+        // Überprüfen, ob Chart.js geladen ist
+        if (typeof Chart === 'undefined') {
+            console.error("Chart.js konnte nicht geladen werden. Bitte Internetverbindung prüfen.");
+            return;
+        }
+
+        const ctx = document.getElementById('waveChart').getContext('2d');
+
+        // **Initiale Parameter aus den Slidern auslesen**
+        let numSamples = parseInt(document.getElementById('numSamples').value);
+        let amplitude = parseFloat(document.getElementById('amplitude').value);
+        let frequency = parseFloat(document.getElementById('frequency').value);
+        let phaseShift = parseFloat(document.getElementById('phaseShift').value);
+        let dataNoiseRangeAmplitude = parseFloat(document.getElementById('dataNoiseRangeAmplitude').value);
+
+        console.log("Initiale Parameter:", { numSamples, amplitude, frequency, phaseShift, dataNoiseRangeAmplitude });
+
+        // **Generiere Zeitpunkte basierend auf der Anzahl der Datenpunkte**
+        function generateTimePoints(N) {
+            return Array.from({ length: N }, (_, i) => (2 * Math.PI * i) / (N - 1));
+        }
+
+        // **Generiere Trägerwelle basierend auf aktuellen Parametern**
+        function generateTrägerwelleSine(t) {
+            return t.map(value => amplitude * Math.sin(frequency * value + phaseShift));
+        }
+
+        // **Generiere Daten basierend auf aktuellen Parametern**
+        function generateData(trägerwelleSine) {
+            return trägerwelleSine.map(value => {
+                const dataNoiseRange = dataNoiseRangeAmplitude * (Math.random() * 2 - 1); // Gleichverteiltes Rauschen zwischen -N und +N
+                return value + dataNoiseRange;
+            });
+        }
+
+        // **Funktion zur Kodierung der Daten**
+        function encodeVector(amplitude, frequency, phaseShift, data, t) {
+            return data.map((value, index) => {
+                const phaseValue = amplitude * Math.cos(frequency * t[index] + phaseShift);
+                if (phaseValue === 0) {
+                    // Wenn phaseValue genau 0 ist, setzen wir den kodierten Wert auf 0
+                    return 0;
+                } else {
+                    return phaseValue * value;
+                }
+            });
+        }
+
+        // **Funktion zur Rekonstruktion der Daten aus den kodierten Daten**
+        function unwind(amplitude, frequency, phaseShift, encodedData, data, t) {
+            let decodedData = [];
+            for (let index = 0; index < t.length; index++) {
+                const phaseValue = amplitude * Math.cos(frequency * t[index] + phaseShift);
+                if (phaseValue === 0) {
+                    // Wenn phaseValue genau 0 ist, setzen wir den rekonstruierten Wert auf data(t)
+                    decodedData.push(data[index]);
+                } else {
+                    decodedData.push(encodedData[index] / phaseValue);
+                }
+            }
+            return decodedData;
+        }
+
+        // **Funktion zum Speichern der Encoding-Parameter als JSON-Datei**
+        function saveParameters() {
+            const params = {
+                numSamples,
+                amplitude,
+                frequency,
+                phaseShift,
+                dataNoiseRangeAmplitude
+            };
+            const dataStr = JSON.stringify(params, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'encodingParameters.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            console.log("Parameter gespeichert:", params);
+        }
+
+        // **Funktion zum Laden der Encoding-Parameter aus einer JSON-Datei**
+        function loadParameters(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const params = JSON.parse(event.target.result);
+                    console.log("Geladene Parameter:", params);
+                    if (params.numSamples !== undefined) {
+                        document.getElementById('numSamples').value = params.numSamples;
+                        document.getElementById('numSamplesValue').textContent = params.numSamples;
+                        numSamples = params.numSamples;
+                    }
+                    if (params.amplitude !== undefined) {
+                        document.getElementById('amplitude').value = params.amplitude;
+                        document.getElementById('amplitudeValue').textContent = params.amplitude.toFixed(1);
+                        amplitude = params.amplitude;
+                    }
+                    if (params.frequency !== undefined) {
+                        document.getElementById('frequency').value = params.frequency;
+                        document.getElementById('frequencyValue').textContent = params.frequency.toFixed(1);
+                        frequency = params.frequency;
+                    }
+                    if (params.phaseShift !== undefined) {
+                        document.getElementById('phaseShift').value = params.phaseShift;
+                        document.getElementById('phaseShiftValue').textContent = params.phaseShift.toFixed(1);
+                        phaseShift = params.phaseShift;
+                    }
+                    if (params.dataNoiseRangeAmplitude !== undefined) {
+                        document.getElementById('dataNoiseRangeAmplitude').value = params.dataNoiseRangeAmplitude;
+                        document.getElementById('dataNoiseRangeAmplitudeValue').textContent = params.dataNoiseRangeAmplitude.toFixed(2);
+                        dataNoiseRangeAmplitude = params.dataNoiseRangeAmplitude;
+                    }
+                    updateData();
+                } catch (error) {
+                    console.error("Fehler beim Laden der Parameter:", error);
+                    alert("Fehler beim Laden der Parameter. Bitte stellen Sie sicher, dass die Datei korrekt ist.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // **Event Listener für den "Parameter speichern" Button**
+        document.getElementById('saveParameters').addEventListener('click', saveParameters);
+
+        // **Event Listener für den "Parameter laden" Button**
+        document.getElementById('loadParametersButton').addEventListener('click', () => {
+            document.getElementById('loadParameters').click();
+        });
+
+        // **Event Listener für den versteckten File-Input "loadParameters"**
+        document.getElementById('loadParameters').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                loadParameters(file);
+            }
+        });
+
+        // **Funktion zum Rekonstruieren der Daten aus den kodierten Daten**
+        function reconstructData() {
+            let reconstructed = unwind(amplitude, frequency, phaseShift, encodedData, data, t);
+            reconstructedData = reconstructed;
+            console.log("Rekonstruierte Daten:", reconstructedData);
+
+            // **Aktualisiere die rekonstruierte Daten im Chart**
+            const existingReconstructed = chart.data.datasets.find(dataset => dataset.label === 'Rekonstruierte Daten');
+            if (existingReconstructed) {
+                existingReconstructed.data = reconstructedData;
+                existingReconstructed.hidden = false; // Sichtbar machen
+            } else {
+                chart.data.datasets.push({
+                    label: 'Rekonstruierte Daten',
+                    data: reconstructedData,
+                    borderColor: 'rgba(34, 197, 94, 0.5)', // Grün
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 3,
+                    hidden: false, // Wird angezeigt, sobald rekonstruiert
+                    spanGaps: false, // Lücken bei null/NaN-Werten anzeigen
+                });
+            }
+
+            chart.update();
+        }
+
+        // **Funktion zum Aktualisieren der Daten basierend auf den aktuellen Parametern**
+        function updateData() {
+            // **Generiere Zeitpunkte basierend auf der Anzahl der Datenpunkte**
+            t = generateTimePoints(numSamples);
+            console.log("Zeitpunkte generiert:", t);
+
+            // **Generiere TrägerwelleSine basierend auf aktuellen Parametern**
+            tragerWelleSine = generateTrägerwelleSine(t);
+            console.log("TrägerwelleSine aktualisiert:", tragerWelleSine);
+
+            // **Generiere Daten basierend auf aktuellen Parametern**
+            data = generateData(tragerWelleSine);
+            console.log("Daten aktualisiert:", data);
+
+            // **Kodierte Daten basierend auf aktuellen Parametern generieren**
+            encodedData = encodeVector(amplitude, frequency, phaseShift, data, t);
+            console.log("Kodierte Daten aktualisiert:", encodedData);
+
+            // **Aktualisiere TrägerwelleSine im Chart**
+            const existingTrägerwelleSine = chart.data.datasets.find(dataset => dataset.label === 'TrägerwelleSine');
+            if (existingTrägerwelleSine) {
+                existingTrägerwelleSine.data = tragerWelleSine;
+            } else {
+                chart.data.datasets.push({
+                    label: 'TrägerwelleSine',
+                    data: tragerWelleSine,
+                    borderColor: 'rgba(59, 130, 246, 0.5)', // Blau
+                    borderWidth: 2,
+                    fill: false,
+                    borderDash: [5, 5],
+                    pointRadius: 3,
+                    hidden: false, // Standardmäßig angezeigt
+                });
+            }
+
+            // **Aktualisiere Daten im Chart**
+            const existingData = chart.data.datasets.find(dataset => dataset.label === 'Daten');
+            if (existingData) {
+                existingData.data = data;
+            } else {
+                chart.data.datasets.push({
+                    label: 'Daten',
+                    data: data,
+                    borderColor: 'rgba(255, 206, 86, 0.5)', // Gelb
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 3,
+                    hidden: false, // Standardmäßig angezeigt
+                });
+            }
+
+            // **Aktualisiere kodierte Daten im Chart**
+            const existingEncoded = chart.data.datasets.find(dataset => dataset.label === 'Kodierte Daten');
+            if (existingEncoded) {
+                existingEncoded.data = encodedData;
+            } else {
+                chart.data.datasets.push({
+                    label: 'Kodierte Daten',
+                    data: encodedData,
+                    borderColor: 'rgba(255, 99, 132, 0.5)', // Rot
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 3,
+                    hidden: true, // Standardmäßig ausgeblendet
+                });
+            }
+
+            // **Rekonstruierte Daten entfernen, da sie auf veralteten kodierten Daten basieren**
+            const existingReconstructed = chart.data.datasets.find(dataset => dataset.label === 'Rekonstruierte Daten');
+            if (existingReconstructed) {
+                chart.data.datasets.splice(chart.data.datasets.indexOf(existingReconstructed), 1);
+                console.log("Rekonstruierte Daten entfernt.");
+            }
+
+            // **Aktualisiere die Labels im Chart**
+            chart.data.labels = t;
+
+            chart.update();
+        }
+
+        // **Slider-Event-Listener für Anzahl der Datenpunkte (N)**
+        document.getElementById('numSamples').addEventListener('input', e => {
+            numSamples = parseInt(e.target.value);
+            document.getElementById('numSamplesValue').textContent = numSamples;
+            console.log("Anzahl der Datenpunkte (N) geändert:", numSamples);
+            updateData();
+        });
+
+        // **Slider-Event-Listener für Amplitude**
+        document.getElementById('amplitude').addEventListener('input', e => {
+            amplitude = parseFloat(e.target.value);
+            document.getElementById('amplitudeValue').textContent = amplitude.toFixed(1);
+            console.log("Amplitude geändert:", amplitude);
+            updateData();
+        });
+
+        // **Slider-Event-Listener für Frequenz**
+        document.getElementById('frequency').addEventListener('input', e => {
+            frequency = parseFloat(e.target.value);
+            document.getElementById('frequencyValue').textContent = frequency.toFixed(1);
+            console.log("Frequenz geändert:", frequency);
+            updateData();
+        });
+
+        // **Slider-Event-Listener für Phasenverschiebung**
+        document.getElementById('phaseShift').addEventListener('input', e => {
+            phaseShift = parseFloat(e.target.value);
+            document.getElementById('phaseShiftValue').textContent = phaseShift.toFixed(1);
+            console.log("Phasenverschiebung geändert:", phaseShift);
+            updateData();
+        });
+
+        // **Slider-Event-Listener für dataNoiseRange-Amplitude**
+        document.getElementById('dataNoiseRangeAmplitude').addEventListener('input', e => {
+            dataNoiseRangeAmplitude = parseFloat(e.target.value);
+            document.getElementById('dataNoiseRangeAmplitudeValue').textContent = dataNoiseRangeAmplitude.toFixed(2);
+            console.log("dataNoiseRange-Amplitude geändert:", dataNoiseRangeAmplitude);
+            updateData();
+        });
+
+        // **Initialisiere Zeitpunkte, TrägerwelleSine, Daten und kodierte Daten**
+        let t = generateTimePoints(numSamples);
+        console.log("Zeitpunkte generiert:", t);
+
+        let tragerWelleSine = generateTrägerwelleSine(t);
+        console.log("TrägerwelleSine generiert:", tragerWelleSine);
+
+        let data = generateData(tragerWelleSine);
+        console.log("Daten generiert:", data);
+
+        let encodedData = encodeVector(amplitude, frequency, phaseShift, data, t);
+        console.log("Kodierte Daten generiert:", encodedData);
+
+        let reconstructedData = []; // Wird erst nach Rekonstruktion gesetzt
+
+        // **Chart erstellen**
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: t,
+                datasets: [
+                    {
+                        label: 'TrägerwelleSine',
+                        data: tragerWelleSine,
+                        borderColor: 'rgba(59, 130, 246, 0.5)', // Blau
+                        borderWidth: 2,
+                        fill: false,
+                        borderDash: [5, 5],
+                        pointRadius: 3,
+                        hidden: false, // Standardmäßig angezeigt
+                    },
+                    {
+                        label: 'Daten',
+                        data: data,
+                        borderColor: 'rgba(255, 206, 86, 0.5)', // Gelb
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 3,
+                        hidden: false, // Standardmäßig angezeigt
+                    },
+                    {
+                        label: 'Kodierte Daten',
+                        data: encodedData,
+                        borderColor: 'rgba(255, 99, 132, 0.5)', // Rot
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 3,
+                        hidden: true, // Standardmäßig ausgeblendet
+                    },
+                    {
+                        label: 'Rekonstruierte Daten',
+                        data: reconstructedData,
+                        borderColor: 'rgba(34, 197, 94, 0.5)', // Grün
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 3,
+                        hidden: true, // Standardmäßig ausgeblendet
+                        spanGaps: false, // Lücken bei null/NaN-Werten anzeigen
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                        }
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'xy'
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: 'xy'
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: {
+                            display: true,
+                            text: 'Zeit (t)'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Amplitude'
+                        }
+                    }
+                }
+            }
+        });
+
+        // **Event Listener für den "Kurve rekonstruieren" Button**
+        document.getElementById('reconstructCurve').addEventListener('click', reconstructData);
+
+        console.log("Skript vollständig ausgeführt.");
+    });
+    </script>
+</body>
+</html>

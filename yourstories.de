@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dracula">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Christian Hohlfeld's Story Hub - Landing Page</title>
+    <!-- Tailwind CSS und DaisyUI über CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography,forms"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@latest/dist/full.css" rel="stylesheet" type="text/css" />
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .bg-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='42' height='44' viewBox='0 0 42 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='Page-1' fill='none' fill-rule='evenodd'%3E%3Cg id='brick-wall' fill='%235A6270' fill-opacity='0.1'%3E%3Cpath d='M0 0h42v44H0V0zm1 1h40v20H1V1zM0 23h42v20H0V23zm1 1h40v20H1V24z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+    </style>
+</head>
+<body class="bg-base-100 text-base-content min-h-screen">
+
+    <!-- Navbar -->
+    <div class="navbar bg-base-100 shadow-xl z-50">
+        <div class="container mx-auto">
+            <div class="flex-1">
+                <a class="btn btn-ghost text-xl font-bold text-primary">Story Hub</a>
+            </div>
+            <div class="flex-none">
+                <a href="#pricing-section" class="btn btn-ghost">Preise</a>
+                <a href="#cta-section" class="btn btn-primary ml-2">Jetzt starten</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <div class="hero min-h-[calc(100vh-64px)] bg-pattern">
+        <div class="hero-content text-center">
+            <div class="max-w-3xl">
+                <h1 class="text-5xl md:text-7xl font-extrabold text-white leading-tight mb-4">
+                    Verwandle Deine Ideen in fesselnde Hörgeschichten.
+                </h1>
+                <p class="text-lg md:text-xl text-gray-400 mb-8">
+                    Mit modernster KI-Stimme von ElevenLabs.
+                </p>
+                <div class="space-x-4">
+                    <a href="#pricing-section" class="btn btn-primary btn-lg shadow-lg">Entdecke die Preise</a>
+                    <a href="#cta-section" class="btn btn-secondary btn-lg shadow-lg">Direkt starten</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pricing Section -->
+    <section id="pricing-section" class="py-20 md:py-28 bg-base-200">
+        <div class="container mx-auto px-4">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">Preisgestaltung</h2>
+                <p class="text-lg text-gray-400 max-w-xl mx-auto">
+                    Erstelle einzigartige Geschichten mit unserem flexiblen Credit-System.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                <!-- Einzelkauf Card -->
+                <div class="card bg-base-100 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-base-content/20">
+                    <div class="card-body text-center">
+                        <h3 class="card-title justify-center text-3xl font-bold text-primary">Einzelkauf</h3>
+                        <p class="text-sm text-gray-400 uppercase tracking-widest mt-2">Der Probe-Credit</p>
+                        <div class="py-8">
+                            <span class="text-5xl font-extrabold text-white">19,99 €</span>
+                            <span class="text-xl text-gray-400"> / Credit</span>
+                        </div>
+                        <ul class="text-left text-gray-300 space-y-2 mb-6">
+                            <li><span class="text-success mr-2">✓</span> 10-Minuten-Story</li>
+                            <li><span class="text-success mr-2">✓</span> Perfekt zum Ausprobieren</li>
+                            <li><span class="text-success mr-2">✓</span> Kein Abo</li>
+                            <li class="text-error"><span class="text-error mr-2">✗</span> Kein Mengenrabatt</li>
+                        </ul>
+                        <div class="card-actions justify-center">
+                            <button class="btn btn-primary btn-lg w-full">Jetzt 1 Credit kaufen</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- 3er Paket Card -->
+                <div class="card bg-base-300 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-primary">
+                    <div class="card-body text-center">
+                        <h3 class="card-title justify-center text-3xl font-bold text-primary">3er Paket</h3>
+                        <p class="text-sm text-primary uppercase tracking-widest mt-2">Beliebtester Preis</p>
+                        <div class="py-8">
+                            <span class="text-5xl font-extrabold text-white">49,99 €</span>
+                            <span class="text-xl text-gray-400"> / 3 Credits</span>
+                        </div>
+                        <ul class="text-left text-gray-300 space-y-2 mb-6">
+                            <li><span class="text-success mr-2">✓</span> 3 x 10-Minuten-Stories</li>
+                            <li><span class="text-success mr-2">✓</span> Günstiger als Einzelkauf</li>
+                            <li><span class="text-success mr-2">✓</span> Flexibel einsetzbar</li>
+                            <li><span class="text-success mr-2">✓</span> Ideal für kleine Projekte</li>
+                        </ul>
+                        <div class="card-actions justify-center">
+                            <button class="btn btn-secondary btn-lg w-full">3 Credits kaufen</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- 5er Paket Card -->
+                <div class="card bg-base-100 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-base-content/20">
+                    <div class="card-body text-center">
+                        <h3 class="card-title justify-center text-3xl font-bold text-primary">5er Paket</h3>
+                        <p class="text-sm text-gray-400 uppercase tracking-widest mt-2">Bestes Angebot</p>
+                        <div class="py-8">
+                            <span class="text-5xl font-extrabold text-white">69,99 €</span>
+                            <span class="text-xl text-gray-400"> / 5 Credits</span>
+                        </div>
+                        <ul class="text-left text-gray-300 space-y-2 mb-6">
+                            <li><span class="text-success mr-2">✓</span> 5 x 10-Minuten-Stories</li>
+                            <li><span class="text-success mr-2">✓</span> Größter Rabatt pro Story</li>
+                            <li><span class="text-success mr-2">✓</span> Perfekt für Autoren</li>
+                            <li><span class="text-success mr-2">✓</span> Langfristig sparen</li>
+                        </ul>
+                        <div class="card-actions justify-center">
+                            <button class="btn btn-primary btn-lg w-full">5 Credits kaufen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Call to Action Section -->
+    <section id="cta-section" class="py-20 md:py-28 bg-base-100">
+        <div class="container mx-auto px-4 text-center">
+            <h2 class="text-4xl md:text-5xl font-bold mb-4 text-white">Bereit für dein Abenteuer?</h2>
+            <p class="text-lg text-gray-400 max-w-2xl mx-auto mb-8">
+                Starte jetzt und erschaffe Geschichten, die Deine Leser fesseln. Es ist einfach, schnell und unglaublich kreativ.
+            </p>
+            <button class="btn btn-primary btn-lg shadow-xl animate-pulse">Jetzt die erste Story generieren!</button>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer items-center p-4 bg-neutral text-neutral-content">
+        <aside class="items-center grid-flow-col">
+            <p>Copyright © 2025 - Christian Hohlfeld</p>
+        </aside>
+    </footer>
+
+</body>
+</html>

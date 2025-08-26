@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Enhanced IFS Fractal Generator</title>
+    <style>
+        /* Existing Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #mainContainer {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #controlsContainer {
+            width: 350px;
+            overflow-y: auto;
+            padding-right: 10px;
+            box-sizing: border-box;
+            border-right: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+        #controls {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .transformation, .probabilities, .colors, .export-options, .save-load, .advanced-insights, .animation-controls {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        .transformation h3, .probabilities h3, .colors h3, .export-options h3, .save-load h3, .advanced-insights h3, .animation-controls h3 {
+            margin-top: 0;
+            font-size: 16px;
+        }
+        .slider-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .slider-group label {
+            flex: 1 0 60px;
+            font-size: 14px;
+            margin-right: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .slider-group input[type="range"], .slider-group input[type="color"] {
+            flex: 3 0 180px;
+            margin-right: 10px;
+        }
+        #canvasContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background-color: black;
+            overflow: hidden; /* Ensure panning doesn't overflow */
+        }
+        #fractalCanvas {
+            background-color: black;
+        }
+        canvas {
+            border: 1px solid #000;
+            cursor: grab; /* Indicate draggable area */
+            max-width: 100%;
+            max-height: 100%;
+            touch-action: none; /* Disable default touch actions for better gesture handling */
+        }
+        #zoomControls {
+            position: absolute; /* Position within canvas container */
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #zoomControls button, #exportBtn, #saveConfigBtn, #loadConfigBtn, #animateBtn, #stopAnimateBtn {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            user-select: none;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: #fff;
+        }
+        #zoomControls button:hover, #exportBtn:hover, #saveConfigBtn:hover, #loadConfigBtn:hover, #animateBtn:hover, #stopAnimateBtn:hover {
+            background-color: #0056b3;
+        }
+        #exampleSelect {
+            margin-bottom: 20px;
+        }
+        /* Add/Remove Buttons */
+        #transformationButtons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        #transformationButtons button {
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            flex: 1;
+            margin: 0 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #28a745;
+            color: #fff;
+        }
+        #removeTransformation {
+            background-color: #dc3545;
+        }
+        #transformationButtons button:hover {
+            opacity: 0.9;
+        }
+        /* Remove button disabled state */
+        #transformationButtons button:disabled {
+            background-color: #e0e0e0;
+            cursor: not-allowed;
+            color: #666;
+        }
+        /* Scrollbar styling for controls */
+        #controlsContainer::-webkit-scrollbar {
+            width: 8px;
+        }
+        #controlsContainer::-webkit-scrollbar-thumb {
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        #controlsContainer::-webkit-scrollbar-track {
+            background-color: rgba(0,0,0,0.05);
+        }
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            #mainContainer {
+                flex-direction: column;
+            }
+            #controlsContainer {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #ccc;
+                padding-right: 0;
+                padding-bottom: 10px;
+            }
+            .transformation, .probabilities, .colors, .export-options, .save-load, .advanced-insights, .animation-controls {
+                width: 100%;
+            }
+            .slider-group label, .slider-group input[type="range"], .slider-group input[type="color"] {
+                flex: 1 0 100%;
+                margin-right: 0;
+            }
+            .slider-group input[type="range"], .slider-group input[type="color"] {
+                margin-top: 5px;
+            }
+            #transformationButtons {
+                flex-direction: column;
+            }
+            #transformationButtons button {
+                margin: 5px 0;
+            }
+            #zoomControls {
+                top: 10px;
+                right: 10px;
+                flex-direction: row;
+            }
+            #zoomControls button {
+                padding: 5px 10px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Enhanced IFS Fractal Generator</h1>
+    <div id="exampleSelect">
+        <label for="examples">Choose an Example:</label>
+        <select id="examples">
+            <option value="line" selected>Simple Line</option>
+            <option value="sierpinski">Sierpinski Triangle</option>
+            <option value="barnsley">Barnsley Fern</option>
+            <option value="koch">Koch Snowflake</option>
+            <!-- Additional Preset Examples can be added here -->
+        </select>
+    </div>
+    <div id="mainContainer">
+        <div id="controlsContainer">
+            <div id="transformationButtons">
+                <button id="addTransformation">Add Transformation</button>
+                <button id="removeTransformation">Remove Transformation</button>
+            </div>
+            <div id="controls">
+                <!-- Transformation Sliders will be dynamically inserted here -->
+                <div class="transformation" id="transformation_0">
+                    <h3>Transformation 1</h3>
+                    <div class="slider-group">
+                        <label for="trans0_a">a: 0.420</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans0_a">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans0_b">b: -0.199</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans0_b">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans0_c">c: 0.000</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans0_c">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans0_d">d: 0.730</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans0_d">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans0_e">e: 0.980</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans0_e">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans0_f">f: 0.000</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans0_f">
+                    </div>
+                </div>
+                <div class="transformation" id="transformation_1">
+                    <h3>Transformation 2</h3>
+                    <div class="slider-group">
+                        <label for="trans1_a">a: 0.750</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans1_a">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans1_b">b: -0.389</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans1_b">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans1_c">c: 0.500</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans1_c">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans1_d">d: 0.389</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans1_d">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans1_e">e: 0.921</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans1_e">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans1_f">f: 0.500</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans1_f">
+                    </div>
+                </div>
+                <div class="transformation" id="transformation_2">
+                    <h3>Transformation 3</h3>
+                    <div class="slider-group">
+                        <label for="trans2_a">a: 0.825</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans2_a">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans2_b">b: -0.565</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans2_b">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans2_c">c: 0.250</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans2_c">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans2_d">d: 2.000</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans2_d">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans2_e">e: 0.825</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans2_e">
+                    </div>
+                    <div class="slider-group">
+                        <label for="trans2_f">f: 0.500</label>
+                        <input type="range" min="-2" max="2" step="0.01" id="trans2_f">
+                    </div>
+                </div>
+                <div class="probabilities" id="probabilities">
+                    <h3>Probabilities</h3>
+                    <div class="slider-group">
+                        <label for="prob_0">P1: 0.33</label>
+                        <input type="range" min="0" max="1" step="0.01" id="prob_0">
+                    </div>
+                    <div class="slider-group">
+                        <label for="prob_1">P2: 0.33</label>
+                        <input type="range" min="0" max="1" step="0.01" id="prob_1">
+                    </div>
+                    <div class="slider-group">
+                        <label for="prob_2">P3: 0.34</label>
+                        <input type="range" min="0" max="1" step="0.01" id="prob_2">
+                    </div>
+                </div>
+                <!-- New Features -->
+                <div class="colors" id="colors">
+                    <h3>Color Customization</h3>
+                    <!-- Color pickers will be dynamically inserted here -->
+                </div>
+                <div class="export-options" id="exportOptions">
+                    <h3>Export Options</h3>
+                    <button id="exportBtn">Download Fractal as PNG</button>
+                </div>
+                <div class="save-load" id="saveLoad">
+                    <h3>Save/Load Configuration</h3>
+                    <button id="saveConfigBtn">Save Configuration</button>
+                    <button id="loadConfigBtn">Load Configuration</button>
+                    <input type="file" id="loadConfigInput" accept=".json" style="display:none;">
+                </div>
+                <div class="animation-controls" id="animationControls">
+                    <h3>Animation Controls</h3>
+                    <button id="animateBtn">Start Animation</button>
+                    <button id="stopAnimateBtn" disabled>Stop Animation</button>
+                </div>
+                <div class="advanced-insights" id="advancedInsights">
+                    <h3>Advanced Insights</h3>
+                    <p>Fractal Points: <span id="pointCount">0</span></p>
+                    <p>Fractal Dimensions: <span id="fractalDimension">Calculating...</span></p>
+                </div>
+            </div>
+        </div>
+        <div id="canvasContainer">
+            <canvas id="fractalCanvas" width="1920" height="1080"></canvas>
+            <div id="zoomControls">
+                <button id="zoomIn">+</button>
+                <button id="zoomOut">-</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Utilize Web Workers for Performance Enhancements
+        // Define the worker script as a Blob
+        const workerScript = `
+            self.onmessage = function(e) {
+                const { initialPoints, transformations, probabilities, iterations } = e.data;
+                let points = initialPoints.slice();
+                const allPoints = [];
+                const transformationIndices = [];
+        
+                for (let i = 0; i < iterations; i++) {
+                    const newPoints = [];
+                    const newIndices = [];
+                    points.forEach(point => {
+                        const idx = weightedRandom(probabilities);
+                        const trans = transformations[idx];
+                        const x = trans.a * point[0] + trans.b * point[1] + trans.c;
+                        const y = trans.d * point[0] + trans.e * point[1] + trans.f;
+                        newPoints.push([x, y]);
+                        newIndices.push(idx);
+                    });
+                    points = newPoints;
+                    allPoints.push(...points);
+                    transformationIndices.push(...newIndices);
+                    if (i % 1000 === 0) {
+                        self.postMessage({ partialPoints: allPoints.length });
+                    }
+                }
+                self.postMessage({ points: allPoints, indices: transformationIndices });
+            };
+        
+            function weightedRandom(weights) {
+                const r = Math.random();
+                let cumulative = 0;
+                for (let i = 0; i < weights.length; i++) {
+                    cumulative += weights[i];
+                    if (r < cumulative) {
+                        return i;
+                    }
+                }
+                return weights.length - 1;
+            }
+        `;
+        const blob = new Blob([workerScript], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+
+        // Define examples with additional presets
+        const examples = {
+            sierpinski: {
+                transformations: [
+                    { a: 0.5, b: 0, c: 0, d: 0, e: 0.5, f: 0 },
+                    { a: 0.5, b: 0, c: 0.5, d: 0, e: 0.5, f: 0 },
+                    { a: 0.5, b: 0, c: 0.25, d: 0, e: 0.5, f: 0.433 } // 0.433 ≈ sqrt(3)/2
+                ],
+                probabilities: [1/3, 1/3, 1/3],
+                colors: ['#FF0000', '#00FF00', '#0000FF']
+            },
+            barnsley: {
+                transformations: [
+                    { a: 0, b: 0, c: 0, d: 0.16, e: 0, f: 0 },
+                    { a: 0.85, b: 0.04, c: 0, d: -0.04, e: 0.85, f: 1.6 },
+                    { a: 0.2, b: -0.26, c: 0, d: 0.23, e: 0.22, f: 1.6 },
+                    { a: -0.15, b: 0.28, c: 0, d: 0.26, e: 0.24, f: 0.44 }
+                ],
+                probabilities: [0.01, 0.85, 0.07, 0.07],
+                colors: ['#228B22', '#32CD32', '#006400', '#008000']
+            },
+            line: {
+                transformations: [
+                    { 
+                        a: Math.cos(0.2), 
+                        b: -Math.sin(0.2), 
+                        c: 0, 
+                        d: Math.sin(0.2), 
+                        e: Math.cos(0.2), 
+                        f: 0 
+                    },
+                    { 
+                        a: Math.cos(0.4), 
+                        b: -Math.sin(0.4), 
+                        c: 0.5, 
+                        d: Math.sin(0.4), 
+                        e: Math.cos(0.4), 
+                        f: 0.5 
+                    },
+                    { 
+                        a: Math.cos(0.6), 
+                        b: -Math.sin(0.6), 
+                        c: 0.25, 
+                        d: Math.sin(0.6), 
+                        e: Math.cos(0.6), 
+                        f: 0.5 
+                    }
+                ],
+                probabilities: [0.33, 0.33, 0.34],
+                colors: ['#FF69B4', '#8A2BE2', '#00CED1']
+            },
+            koch: { // Example for Koch Snowflake
+                transformations: [
+                    { a: 1/3, b: 0, c: 0, d: 0, e: 1/3, f: 0 },
+                    { a: 0.5, b: -Math.sqrt(3)/6, c: 1/3, d: Math.sqrt(3)/6, e: 0.5, f: 0 },
+                    { a: 0.5, b: Math.sqrt(3)/6, c: 2/3, d: -Math.sqrt(3)/6, e: 0.5, f: 0 },
+                    { a: 1/3, b: 0, c: 2/3, d: 0, e: 1/3, f: 0 }
+                ],
+                probabilities: [0.25, 0.25, 0.25, 0.25],
+                colors: ['#FF4500', '#FFD700', '#ADFF2F', '#00BFFF']
+            }
+            // Note: Mandelbrot Set is not an IFS fractal and requires a different algorithm
+        };
+
+        const canvas = document.getElementById('fractalCanvas');
+        const ctx = canvas.getContext('2d');
+        const controlsDiv = document.getElementById('controls');
+        const examplesSelect = document.getElementById('examples');
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+        const addTransBtn = document.getElementById('addTransformation');
+        const removeTransBtn = document.getElementById('removeTransformation');
+        const colorsDiv = document.getElementById('colors');
+        const exportBtn = document.getElementById('exportBtn');
+        const saveConfigBtn = document.getElementById('saveConfigBtn');
+        const loadConfigBtn = document.getElementById('loadConfigBtn');
+        const loadConfigInput = document.getElementById('loadConfigInput');
+        const animateBtn = document.getElementById('animateBtn');
+        const stopAnimateBtn = document.getElementById('stopAnimateBtn');
+        const pointCountSpan = document.getElementById('pointCount');
+        const fractalDimensionSpan = document.getElementById('fractalDimension');
+
+        let currentExample = 'line'; // Default to Simple Line
+        let transformations = JSON.parse(JSON.stringify(examples[currentExample].transformations));
+        let probabilities = examples[currentExample].probabilities.slice();
+        let colors = examples[currentExample].colors.slice() || ['#000000'];
+        let scale = 100; // Initial scale
+        let isAnimating = false;
+        let animationInterval;
+
+        // Pan variables
+        let isPanning = false;
+        let startX = 0;
+        let startY = 0;
+        let translateX = 0;
+        let translateY = 0;
+
+        // Initialize Web Worker Communication
+        let fractalPoints = [];
+        let pointIndices = []; // To track which transformation generated each point
+
+        worker.onmessage = function(e) {
+            if (e.data.partialPoints !== undefined) {
+                pointCountSpan.textContent = e.data.partialPoints;
+            }
+            if (e.data.points && e.data.indices) {
+                fractalPoints = e.data.points;
+                pointIndices = e.data.indices;
+                plotPoints(fractalPoints, pointIndices);
+                pointCountSpan.textContent = fractalPoints.length;
+                calculateFractalDimension();
+            }
+        };
+
+        // Update Remove Button State
+        function updateRemoveButtonState() {
+            if (transformations.length <= 1) {
+                removeTransBtn.disabled = true;
+            } else {
+                removeTransBtn.disabled = false;
+            }
+        }
+
+        // Initialize UI
+        function initUI() {
+            // Clear existing transformations in the controls
+            const existingTransformations = controlsDiv.querySelectorAll('.transformation');
+            existingTransformations.forEach(transDiv => transDiv.remove());
+
+            // Transformation Sliders
+            transformations.forEach((trans, index) => {
+                const transDiv = document.createElement('div');
+                transDiv.className = 'transformation';
+                transDiv.id = `transformation_${index}`;
+                transDiv.innerHTML = `<h3>Transformation ${index + 1}</h3>`;
+
+                ['a', 'b', 'c', 'd', 'e', 'f'].forEach((param) => {
+                    const sliderGroup = document.createElement('div');
+                    sliderGroup.className = 'slider-group';
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `trans${index}_${param}`;
+                    label.textContent = `${param}: ${trans[param].toFixed(3)}`;
+
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    if (param === 'c' || param === 'f') {
+                        slider.min = -2;
+                        slider.max = 2;
+                        slider.step = 0.01;
+                    } else {
+                        slider.min = -2;
+                        slider.max = 2;
+                        slider.step = 0.01;
+                    }
+                    slider.value = trans[param];
+                    slider.id = `trans${index}_${param}`;
+
+                    slider.oninput = function() {
+                        transformations[index][param] = parseFloat(this.value);
+                        label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
+                        generateAndPlot();
+                    };
+
+                    sliderGroup.appendChild(label);
+                    sliderGroup.appendChild(slider);
+                    transDiv.appendChild(sliderGroup);
+                });
+
+                controlsDiv.insertBefore(transDiv, document.getElementById('probabilities'));
+            });
+
+            // Probability sliders
+            renderProbabilities();
+
+            // Color Customization
+            renderColorPickers();
+
+            updateRemoveButtonState();
+        }
+
+        // Render Probability Sliders
+        function renderProbabilities() {
+            let probDiv = document.getElementById('probabilities');
+            if (!probDiv) {
+                // Create probabilities div if it doesn't exist
+                probDiv = document.createElement('div');
+                probDiv.className = 'probabilities';
+                probDiv.id = 'probabilities';
+                probDiv.innerHTML = `<h3>Probabilities</h3>`;
+                controlsDiv.appendChild(probDiv);
+            } else {
+                probDiv.innerHTML = `<h3>Probabilities</h3>`; // Reset content
+            }
+
+            probabilities.forEach((prob, index) => {
+                const sliderGroup = document.createElement('div');
+                sliderGroup.className = 'slider-group';
+
+                const label = document.createElement('label');
+                label.htmlFor = `prob_${index}`;
+                label.textContent = `P${index + 1}: ${prob.toFixed(2)}`;
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = 0;
+                slider.max = 1;
+                slider.step = 0.01;
+                slider.value = prob;
+                slider.id = `prob_${index}`;
+
+                slider.oninput = function() {
+                    probabilities[index] = parseFloat(this.value);
+                    updateProbabilities(index);
+                    generateAndPlot();
+                };
+
+                sliderGroup.appendChild(label);
+                sliderGroup.appendChild(slider);
+                probDiv.appendChild(sliderGroup);
+            });
+        }
+
+        // Render Color Pickers
+        function renderColorPickers() {
+            colorsDiv.innerHTML = `<h3>Color Customization</h3>`;
+            transformations.forEach((trans, index) => {
+                const colorGroup = document.createElement('div');
+                colorGroup.className = 'slider-group';
+
+                const label = document.createElement('label');
+                label.htmlFor = `color_${index}`;
+                label.textContent = `C${index + 1}:`;
+
+                const colorPicker = document.createElement('input');
+                colorPicker.type = 'color';
+                colorPicker.value = colors[index] || '#000000';
+                colorPicker.id = `color_${index}`;
+
+                colorPicker.oninput = function() {
+                    colors[index] = this.value;
+                    plotPoints(fractalPoints, pointIndices); // Re-plot with new colors
+                };
+
+                colorGroup.appendChild(label);
+                colorGroup.appendChild(colorPicker);
+                colorsDiv.appendChild(colorGroup);
+            });
+        }
+
+        // Update Probabilities and Normalize
+        function updateProbabilities(changedIndex) {
+            const total = probabilities.reduce((a, b) => a + b, 0);
+            if (total === 0) {
+                // Prevent division by zero
+                probabilities = probabilities.map((_, i) => i === changedIndex ? 1 : 0);
+            } else {
+                probabilities = probabilities.map(p => p / total);
+            }
+            // Update all probability sliders
+            probabilities.forEach((p, i) => {
+                const probSlider = document.getElementById(`prob_${i}`);
+                const probLabel = probSlider.previousSibling;
+                probSlider.value = p;
+                probLabel.textContent = `P${i + 1}: ${p.toFixed(2)}`;
+            });
+        }
+
+        // Apply IFS using Web Worker
+        function applyIFS(initialPoints, transformations, probabilities, iterations) {
+            worker.postMessage({ initialPoints, transformations, probabilities, iterations });
+        }
+
+        // Plot points on canvas with color customization
+        function plotPoints(points, indices) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const imgData = ctx.createImageData(canvas.width, canvas.height);
+            const data = imgData.data;
+
+            points.forEach((point, i) => {
+                const x = Math.round(canvas.width / 2 + (point[0] + translateX) * scale);
+                const y = Math.round(canvas.height / 2 + (point[1] + translateY) * scale);
+                if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+                    const index = (y * canvas.width + x) * 4;
+                    const color = hexToRgb(colors[indices[i]] || '#000000');
+                    data[index] = color.r;
+                    data[index + 1] = color.g;
+                    data[index + 2] = color.b;
+                    data[index + 3] = 255; // Fully opaque
+                }
+            });
+
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        // Convert HEX color to RGB
+        function hexToRgb(hex) {
+            const bigint = parseInt(hex.slice(1), 16);
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            return { r, g, b };
+        }
+
+        // Generate and plot using Web Worker
+        function generateAndPlot() {
+            fractalDimensionSpan.textContent = 'Calculating...';
+            applyIFS([[0, 0]], transformations, probabilities, 120000);
+        }
+
+        // Handle example selection
+        examplesSelect.onchange = function() {
+            currentExample = this.value;
+            const selected = examples[currentExample];
+            transformations = JSON.parse(JSON.stringify(selected.transformations));
+            probabilities = selected.probabilities.slice();
+            colors = selected.colors ? selected.colors.slice() : ['#000000'];
+            scale = 100; // Reset scale
+            translateX = 0; // Reset translation
+            translateY = 0;
+            initUI();
+            generateAndPlot();
+        };
+
+        // Zoom Controls
+        zoomInBtn.onclick = function() {
+            scale *= 1.2;
+            plotPoints(fractalPoints, pointIndices);
+        };
+
+        zoomOutBtn.onclick = function() {
+            scale /= 1.2;
+            plotPoints(fractalPoints, pointIndices);
+        };
+
+        // Add Transformation
+        addTransBtn.onclick = function() {
+            // Define default transformation (identity with no translation)
+            const newTrans = { a: 1, b: 0, c: 0, d: 0, e: 1, f: 0 };
+            transformations.push(newTrans);
+            probabilities.push(1 / transformations.length);
+            // Normalize probabilities
+            probabilities = probabilities.map(p => p / transformations.length);
+            colors.push('#000000'); // Default color for new transformation
+
+            // Re-render probability sliders
+            renderProbabilities();
+
+            // Create sliders for the new transformation
+            const index = transformations.length - 1;
+            const transDiv = document.createElement('div');
+            transDiv.className = 'transformation';
+            transDiv.id = `transformation_${index}`;
+            transDiv.innerHTML = `<h3>Transformation ${index + 1}</h3>`;
+
+            ['a', 'b', 'c', 'd', 'e', 'f'].forEach((param) => {
+                const sliderGroup = document.createElement('div');
+                sliderGroup.className = 'slider-group';
+
+                const label = document.createElement('label');
+                label.htmlFor = `trans${index}_${param}`;
+                label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                if (param === 'c' || param === 'f') {
+                    slider.min = -2;
+                    slider.max = 2;
+                    slider.step = 0.01;
+                } else {
+                    slider.min = -2;
+                    slider.max = 2;
+                    slider.step = 0.01;
+                }
+                slider.value = transformations[index][param];
+                slider.id = `trans${index}_${param}`;
+
+                slider.oninput = function() {
+                    transformations[index][param] = parseFloat(this.value);
+                    label.textContent = `${param}: ${transformations[index][param].toFixed(3)}`;
+                    generateAndPlot();
+                };
+
+                sliderGroup.appendChild(label);
+                sliderGroup.appendChild(slider);
+                transDiv.appendChild(sliderGroup);
+            });
+
+            controlsDiv.insertBefore(transDiv, document.getElementById('probabilities'));
+            renderColorPickers();
+            generateAndPlot();
+            updateRemoveButtonState();
+        };
+
+        // Remove Transformation
+        removeTransBtn.onclick = function() {
+            if (transformations.length <= 1) return; // Ensure at least one transformation remains
+
+            // Remove last transformation
+            transformations.pop();
+            probabilities.pop();
+            colors.pop();
+
+            // Normalize probabilities
+            const total = probabilities.reduce((a, b) => a + b, 0);
+            if (total > 0) {
+                probabilities = probabilities.map(p => p / total);
+            }
+
+            // Remove sliders from UI
+            const index = transformations.length;
+            const transDiv = document.getElementById(`transformation_${index}`);
+            if (transDiv) {
+                controlsDiv.removeChild(transDiv);
+            }
+
+            // Re-render probability sliders and color pickers
+            renderProbabilities();
+            renderColorPickers();
+
+            generateAndPlot();
+            updateRemoveButtonState();
+        };
+
+        // Export Fractal as PNG
+        exportBtn.onclick = function() {
+            const link = document.createElement('a');
+            link.download = 'fractal.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        };
+
+        // Save Configuration
+        saveConfigBtn.onclick = function() {
+            const config = {
+                transformations,
+                probabilities,
+                colors,
+                scale,
+                translateX,
+                translateY
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "fractal_config.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        };
+
+        // Load Configuration
+        loadConfigBtn.onclick = function() {
+            loadConfigInput.click();
+        };
+
+        loadConfigInput.onchange = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const config = JSON.parse(e.target.result);
+                    if (config.transformations && config.probabilities && config.colors) {
+                        transformations = JSON.parse(JSON.stringify(config.transformations));
+                        probabilities = config.probabilities.slice();
+                        colors = config.colors.slice();
+                        scale = config.scale || 100;
+                        translateX = config.translateX || 0;
+                        translateY = config.translateY || 0;
+                        initUI();
+                        generateAndPlot();
+                    } else {
+                        alert('Invalid configuration file.');
+                    }
+                } catch (error) {
+                    alert('Error loading configuration.');
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        // Animation Controls (Placeholder Implementation)
+        animateBtn.onclick = function() {
+            if (isAnimating) return;
+            isAnimating = true;
+            animateBtn.disabled = true;
+            stopAnimateBtn.disabled = false;
+            let currentIteration = 0;
+            const totalIterations = 10000;
+            const pointsPerBatch = 1000;
+
+            fractalPoints = [];
+            pointIndices = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pointCountSpan.textContent = '0';
+            fractalDimensionSpan.textContent = 'Calculating...';
+
+            // Since the Web Worker handles the entire generation, animation would require modifying the worker to send batches
+            // For simplicity, we'll skip implementing animation with the current worker setup
+            alert('Animation feature is not fully implemented yet.');
+        };
+
+        stopAnimateBtn.onclick = function() {
+            if (!isAnimating) return;
+            // Implement stopping the animation if it were running
+            isAnimating = false;
+            animateBtn.disabled = false;
+            stopAnimateBtn.disabled = true;
+            // No action needed as animation is not implemented
+        };
+
+        // Advanced Insights: Calculate Fractal Dimension (Placeholder)
+        function calculateFractalDimension() {
+            // Implementing fractal dimension calculation is complex
+            // Placeholder for demonstration purposes
+            fractalDimensionSpan.textContent = 'N/A';
+        }
+
+        // Initialize Panning Functionality
+        function initPanning() {
+            canvas.addEventListener('mousedown', function(e) {
+                if (e.button === 1 || (e.button === 0 && e.ctrlKey)) { // Middle mouse button or Ctrl + left click
+                    isPanning = true;
+                    startX = e.clientX - translateX;
+                    startY = e.clientY - translateY;
+                    canvas.style.cursor = 'grabbing';
+                }
+            });
+
+            canvas.addEventListener('mousemove', function(e) {
+                if (isPanning) {
+                    translateX = e.clientX - startX;
+                    translateY = e.clientY - startY;
+                    plotPoints(fractalPoints, pointIndices);
+                }
+            });
+
+            canvas.addEventListener('mouseup', function(e) {
+                if (isPanning) {
+                    isPanning = false;
+                    canvas.style.cursor = 'grab';
+                }
+            });
+
+            canvas.addEventListener('mouseleave', function(e) {
+                if (isPanning) {
+                    isPanning = false;
+                    canvas.style.cursor = 'grab';
+                }
+            });
+
+            // Prevent context menu on middle click
+            canvas.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+
+            // Touch Support for Panning
+            let touchStartX = 0;
+            let touchStartY = 0;
+
+            canvas.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                    isPanning = true;
+                    touchStartX = e.touches[0].clientX - translateX;
+                    touchStartY = e.touches[0].clientY - translateY;
+                }
+            });
+
+            canvas.addEventListener('touchmove', function(e) {
+                if (isPanning && e.touches.length === 1) {
+                    translateX = e.touches[0].clientX - touchStartX;
+                    translateY = e.touches[0].clientY - touchStartY;
+                    plotPoints(fractalPoints, pointIndices);
+                }
+            });
+
+            canvas.addEventListener('touchend', function(e) {
+                if (isPanning) {
+                    isPanning = false;
+                }
+            });
+        }
+
+        // Initialize
+        initUI();
+        generateAndPlot();
+        initPanning();
+    </script>
+</body>
+</html>

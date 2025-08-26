@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>3D Oscillator with Advanced Features</title>
+    <style>
+        /* Ensure body and html take full height */
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Canvas covers the entire viewport */
+        #oscillator-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+
+            /* CRT-style gradient background */
+            background:
+                linear-gradient(to right, #001000, #003300, #001000), /* Green gradient */
+                repeating-linear-gradient(to right, rgba(0, 64, 0, 0.8) 0, rgba(0, 64, 0, 0.8) 1px, transparent 1px, transparent 50px), /* Vertical grid */
+                repeating-linear-gradient(to bottom, rgba(0, 64, 0, 0.8) 0, rgba(0, 64, 0, 0.8) 1px, transparent 1px, transparent 50px); /* Horizontal grid */
+
+            /* Combine layers */
+            background-blend-mode: overlay;
+        }
+
+        /* Control Panel styling */
+        #controls {
+            position: fixed; /* Fixed position */
+            top: 10px;
+            left: 10px; /* Positioned to the left */
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            width: 25vw; /* Adjusted relative width */
+            max-width: 250px; /* Max width set to 250px */
+            min-width: 200px; /* Optional: Mindestbreite */
+            font-size: 14px;
+            overflow-y: auto;
+            max-height: 90vh;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+            z-index: 1;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            #controls {
+                width: 80vw; /* On smaller screens, wider */
+                max-width: none;
+                left: 5vw;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #controls {
+                width: 95vw; /* Almost full width on very small screens */
+                padding: 10px;
+                left: 2.5vw;
+            }
+        }
+
+        /* Toggle Button styling */
+        #toggle-controls {
+            position: fixed;
+            top: 10px;
+            left: 270px; /* Adjusted to accommodate Control Panel's max-width (250px + 20px Padding) */
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            font-size: 18px;
+            width: 45px;
+            transition: left 0.3s ease;
+        }
+
+        #controls.hidden {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+
+        #toggle-controls.hidden {
+            left: 10px; /* Move toggle button when Control Panel is hidden */
+        }
+
+        /* Control Panel Contents */
+        #controls h2 {
+            margin-top: 0;
+            text-align: center;
+            color: #333;
+            font-size: 18px;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        /* Tabs Styling */
+        .tabs {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 15px;
+        }
+
+        .tab-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 2px;
+            flex: 1;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .tab-button.active {
+            background: #fff;
+            border-bottom: 1px solid #fff;
+        }
+
+        /* Sections Styling */
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section h3 {
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        .layer-controls,
+        .global-controls,
+        .rotation-controls,
+        .trail-controls,
+        .additional-controls,
+        .fourier-controls,
+        .energy-controls {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #bbb;
+            border-radius: 5px;
+            background: rgba(240, 240, 240, 0.8);
+        }
+
+        .control-group {
+            margin-bottom: 8px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        input[type="range"],
+        select,
+        button {
+            width: 100%;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .button-group button {
+            width: 48%;
+            padding: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .reset-button {
+            width: 100%;
+            padding: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+
+        /* Fourier Analyse Canvas Stil */
+        #fourier-canvas {
+            width: 100%;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            display: block;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+
+        /* Energie Visualisierungs Canvas Stil */
+        #energy-canvas {
+            width: 100%;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            display: block;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Toggle Button -->
+    <button id="toggle-controls">✕</button>
+
+    <!-- Control Panel -->
+    <div id="controls">
+        <h2>3D Six-Layer Oscillator</h2>
+
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <div class="tab-button active" data-tab="0">Tab 1</div>
+            <div class="tab-button" data-tab="1">Tab 2</div>
+            <div class="tab-button" data-tab="2">Tab 3</div>
+        </div>
+
+        <!-- Global Controls -->
+        <div class="section global-controls" id="global-controls">
+            <h3>Global Controls</h3>
+            <!-- Frequency Control -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="global-frequency-enable">
+                    Apply Global Frequency
+                </label>
+                <label for="global-frequency">Frequency: <span id="global-frequency-val">1.0</span></label>
+                <input type="range" id="global-frequency" min="0.1" max="5000.0" step="0.1" value="1.0" disabled>
+            </div>
+            <!-- Amplitude Control -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="global-amplitude-enable">
+                    Apply Global Amplitude
+                </label>
+                <label for="global-amplitude">Amplitude: <span id="global-amplitude-val">1.0</span></label>
+                <input type="range" id="global-amplitude" min="0.1" max="5.0" step="0.1" value="1.0" disabled>
+            </div>
+            <!-- Phase Control -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="global-phase-enable">
+                    Apply Global Phase
+                </label>
+                <label for="global-phase">Phase: <span id="global-phase-val">0</span></label>
+                <input type="range" id="global-phase" min="0" max="6.283" step="0.1" value="0" disabled>
+            </div>
+        </div>
+
+        <!-- Layers Controls -->
+        <div class="section layers-controls" id="layers-controls">
+            <h3>Layers Controls</h3>
+            <!-- Layer Controls werden dynamisch hinzugefügt -->
+        </div>
+
+        <!-- Additional Controls -->
+        <div class="section additional-controls" id="additional-controls">
+            <h3>Additional Controls</h3>
+            <!-- Oscillator Size Control -->
+            <div class="control-group">
+                <label for="oscillator-size">Oscillator Size: <span id="oscillator-size-val">0.10</span></label>
+                <input type="range" id="oscillator-size" min="0" max="1" step="0.01" value="0.10">
+            </div>
+            <!-- Trail Type Selection -->
+            <div class="control-group">
+                <label for="trail-type">Trail Type:</label>
+                <select id="trail-type">
+                    <option value="points">Points</option>
+                    <option value="line">Line</option>
+                </select>
+            </div>
+            <!-- Sound Toggle Buttons für jeden Tab -->
+            <div class="control-group">
+                <button id="sound-toggle-tab0">Sound On</button>
+                <button id="sound-toggle-tab1">Sound On</button>
+                <button id="sound-toggle-tab2">Sound On</button>
+            </div>
+            <!-- Toggle Yellow Oscillator and Trail -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="toggle-yellow-oscillator">
+                    Show Yellow Oscillator and Trail
+                </label>
+            </div>
+            <!-- Toggle Axes Visibility -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="toggle-axes">
+                    Show Axes
+                </label>
+            </div>
+            <!-- Axes Distance Control -->
+            <div class="control-group">
+                <label for="axes-distance">Axes Length: <span id="axes-distance-val">5</span></label>
+                <input type="range" id="axes-distance" min="1" max="10" step="0.5" value="5">
+            </div>
+            <!-- Toggle White Wave (Disabled by Default) -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="toggle-white-wave">
+                    Show White Wave
+                </label>
+            </div>
+            <!-- Toggle Lighting (Disabled by Default) -->
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="toggle-lighting">
+                    Enable Lighting and Shadows
+                </label>
+            </div>
+        </div>
+
+        <!-- Rotation Controls -->
+        <div class="section rotation-controls" id="rotation-controls">
+            <h3>Rotation Controls</h3>
+            <div class="control-group">
+                <div class="button-group">
+                    <button id="rotate-x-+">+X</button>
+                    <button id="rotate-x--">-X</button>
+                </div>
+                <div class="button-group">
+                    <button id="rotate-y-+">+Y</button>
+                    <button id="rotate-y--">-Y</button>
+                </div>
+                <div class="button-group">
+                    <button id="rotate-z-+">+Z</button>
+                    <button id="rotate-z--">-Z</button>
+                </div>
+                <button class="reset-button" id="reset-rotation">Reset Alignment</button>
+            </div>
+        </div>
+
+        <!-- Trail Controls -->
+        <div class="section trail-controls" id="trail-controls">
+            <h3>Trail Settings</h3>
+            <div class="control-group">
+                <label for="trail-length">Trail Length: <span id="trail-length-val">100</span></label>
+                <input type="range" id="trail-length" min="50" max="500" step="10" value="100">
+            </div>
+        </div>
+
+        <!-- Fourier Echtzeit Analyse -->
+        <div class="section fourier-controls" id="fourier-controls">
+            <h3>Fourier Echtzeit Analyse</h3>
+            <canvas id="fourier-canvas"></canvas>
+        </div>
+
+        <!-- Energieverteilung und Bewegungsdynamik -->
+        <div class="section energy-controls" id="energy-controls">
+            <h3>Energieverteilung und Bewegungsdynamik</h3>
+            <canvas id="energy-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Three.js Canvas -->
+    <canvas id="oscillator-canvas"></canvas>
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Main JavaScript -->
+    <script>
+        // Global Variables
+        const totalTabs = 3;
+        const totalLayers = 6;
+        let activeTab = 0; // Indexing starts at 0
+        let oscillatorSize = 0.1;
+        let trailType = 'points'; // 'points' or 'line'
+        let trailLength = 100; // Default value
+
+        // Initialize Three.js Scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 10;
+
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('oscillator-canvas'), antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = false; // Shadows disabled by default
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Optional: smoother shadows
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        // Add Axes Helper
+        let axesLength = 5; // Initial length
+        const axesHelper = new THREE.AxesHelper(axesLength);
+        axesHelper.visible = false; // Initially invisible
+        scene.add(axesHelper);
+
+        // Initialize Fourier Analyse
+        const fourierCanvas = document.getElementById('fourier-canvas');
+        const fourierCtx = fourierCanvas.getContext('2d');
+        fourierCanvas.width = 800;
+        fourierCanvas.height = 200;
+
+        // Initialize Energieverteilung Visualisierung
+        const energyCanvas = document.getElementById('energy-canvas');
+        const energyCtx = energyCanvas.getContext('2d');
+        energyCanvas.width = 800;
+        energyCanvas.height = 200;
+
+        // Initialize Tabs Data
+        const tabs = [];
+
+        for (let t = 0; t < totalTabs; t++) {
+            const tabName = `tab${t + 1}`;
+            const tabGroup = new THREE.Group();
+            tabGroup.visible = (t === 0); // Only first tab visible initially
+            scene.add(tabGroup);
+
+            // Create Oscillators
+            const oscillatorGeometry = new THREE.SphereGeometry(oscillatorSize, 16, 16);
+
+            // Green Oscillator with Emissive Material for Glow Effect
+            const greenMaterial = new THREE.MeshStandardMaterial({
+                color: 0x00ff00,
+                emissive: 0x00ff00,
+                emissiveIntensity: 1,
+                metalness: 0.5,
+                roughness: 0.1
+            });
+            const greenOscillator = new THREE.Mesh(oscillatorGeometry, greenMaterial);
+            greenOscillator.castShadow = true; // Cast shadows
+            greenOscillator.receiveShadow = true; // Receive shadows
+            tabGroup.add(greenOscillator);
+
+            // Yellow Oscillator (initially invisible)
+            const yellowMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const yellowOscillator = new THREE.Mesh(oscillatorGeometry, yellowMaterial);
+            yellowOscillator.visible = false; // Initially invisible
+            yellowOscillator.castShadow = true; // Cast shadows
+            yellowOscillator.receiveShadow = true; // Receive shadows
+            tabGroup.add(yellowOscillator);
+
+            // Initialize Trails
+            const greenTrail = initializeTrail(trailType, 0x00ff00, 0.8, tabGroup);
+            const yellowTrail = initializeTrail(trailType, 0xffff00, 0.5, tabGroup, true); // true for yellow trail
+
+            // Initialize Audio
+            const audio = initializeAudio();
+
+            // Store Tab Data
+            tabs.push({
+                tabName: tabName,
+                group: tabGroup,
+                greenOscillator: greenOscillator,
+                yellowOscillator: yellowOscillator,
+                greenTrail: greenTrail,
+                yellowTrail: yellowTrail,
+                layers: [],
+                audio: audio,
+                interferenceMesh: null, // For Interference Patterns
+                standingWaveMesh: null // For Standing Waves
+            });
+
+            // Create Layers
+            for (let l = 1; l <= totalLayers; l++) {
+                const controls = {}; // Will be filled later
+                tabs[t].layers.push({
+                    layerNumber: l,
+                    enabled: l === 1, // Only Layer 1 enabled by default
+                    waveform: 'sine', // Default waveform
+                    frequency: 1.0,
+                    amplitude: 1.0,
+                    phase: 0,
+                    frequencyGlobal: 0,
+                    amplitudeGlobal: 0,
+                    phaseGlobal: 0,
+                    phaseLock: {
+                        target: 'none', // 'layer1', 'layer2', etc., or 'none'
+                        harmonicOffset: false
+                    },
+                    currentPhase: 0, // To handle phase locking
+                    controls: controls,
+                    lfo: {
+                        frequency: 0.5, // Default LFO frequency
+                        amplitude: 0.5, // Default LFO amplitude
+                        oscillator: null,
+                        gainNode: null
+                    }
+                });
+            }
+        }
+
+        // Function to Initialize Trails
+        function initializeTrail(type, colorHex, opacity, parentGroup, isYellow = false) {
+            let trail;
+            if (type === 'points') {
+                const trailGeometry = new THREE.BufferGeometry();
+                const trailPositions = new Float32Array(trailLength * 3); // Adjust size as needed
+                const trailColors = new Float32Array(trailLength * 3);
+
+                for (let i = 0; i < trailLength; i++) {
+                    trailPositions[i * 3] = 0;
+                    trailPositions[i * 3 + 1] = 0;
+                    trailPositions[i * 3 + 2] = 0;
+
+                    const alpha = 1.0 - (i / trailLength);
+                    const color = new THREE.Color(colorHex);
+                    trailColors[i * 3] = color.r * alpha;
+                    trailColors[i * 3 + 1] = color.g * alpha;
+                    trailColors[i * 3 + 2] = color.b * alpha;
+                }
+
+                trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+                trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+
+                const trailMaterial = new THREE.PointsMaterial({
+                    size: oscillatorSize,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: opacity,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+
+                const trailPoints = new THREE.Points(trailGeometry, trailMaterial);
+                trailPoints.castShadow = false; // Trails typically don't cast shadows
+                trailPoints.receiveShadow = false;
+                parentGroup.add(trailPoints);
+
+                trail = {
+                    type: 'points',
+                    geometry: trailGeometry,
+                    positions: trailPositions,
+                    colors: trailColors,
+                    points: trailPoints,
+                    array: []
+                };
+            } else if (type === 'line') {
+                const trailGeometry = new THREE.BufferGeometry();
+                const trailPositions = new Float32Array(trailLength * 3); // Adjust size as needed
+
+                for (let i = 0; i < trailLength; i++) {
+                    trailPositions[i * 3] = 0;
+                    trailPositions[i * 3 + 1] = 0;
+                    trailPositions[i * 3 + 2] = 0;
+                }
+
+                trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+
+                const trailMaterial = new THREE.LineBasicMaterial({
+                    color: colorHex,
+                    transparent: true,
+                    opacity: opacity,
+                    linewidth: 2
+                });
+
+                const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+                trailLine.castShadow = false; // Trails typically don't cast shadows
+                trailLine.receiveShadow = false;
+                parentGroup.add(trailLine);
+
+                trail = {
+                    type: 'line',
+                    geometry: trailGeometry,
+                    positions: trailPositions,
+                    line: trailLine,
+                    array: []
+                };
+            }
+            return trail;
+        }
+
+        // Function to Initialize Audio for a Tab
+        function initializeAudio() {
+            return {
+                audioCtx: null, // AudioContext will be created later
+                oscillator: null,
+                gainNode: null,
+                analyser: null,
+                dataArray: null,
+                playing: false
+            };
+        }
+
+        // Function to Create Layer Controls
+        function createLayerControls(tab, layer, tabIndex) {
+            const layersControlsDiv = document.getElementById('layers-controls');
+
+            const layerDiv = document.createElement('div');
+            layerDiv.className = 'layer-controls';
+            layerDiv.id = `tab${tabIndex}-layer${layer.layerNumber}-controls`;
+
+            // Layer Checkbox
+            const layerLabel = document.createElement('label');
+            const layerCheckbox = document.createElement('input');
+            layerCheckbox.type = 'checkbox';
+            layerCheckbox.id = `tab${tabIndex}-layer${layer.layerNumber}-enable`;
+            layerCheckbox.checked = layer.enabled;
+            layerLabel.appendChild(layerCheckbox);
+            layerLabel.appendChild(document.createTextNode(` Layer ${layer.layerNumber}`));
+            layerDiv.appendChild(layerLabel);
+
+            // Waveform Selection
+            const waveformGroup = document.createElement('div');
+            waveformGroup.className = 'control-group';
+            const waveformLabel = document.createElement('label');
+            waveformLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-waveform`;
+            waveformLabel.innerHTML = `Waveform:`;
+            const waveformSelect = document.createElement('select');
+            waveformSelect.id = `tab${tabIndex}-layer${layer.layerNumber}-waveform`;
+            const waveforms = ['Sine', 'Cosine', 'Square', 'Triangle', 'Sawtooth'];
+            waveforms.forEach(wave => {
+                const option = document.createElement('option');
+                option.value = wave.toLowerCase();
+                option.text = wave;
+                if (wave.toLowerCase() === layer.waveform) {
+                    option.selected = true;
+                }
+                waveformSelect.appendChild(option);
+            });
+            waveformGroup.appendChild(waveformLabel);
+            waveformGroup.appendChild(waveformSelect);
+            layerDiv.appendChild(waveformGroup);
+
+            // Frequency Control
+            const freqGroup = document.createElement('div');
+            freqGroup.className = 'control-group';
+            const freqLabel = document.createElement('label');
+            freqLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-frequency`;
+            freqLabel.innerHTML = `Frequency: <span id="tab${tabIndex}-layer${layer.layerNumber}-frequency-val">${layer.frequency.toFixed(1)}</span>`;
+            const freqSlider = document.createElement('input');
+            freqSlider.type = 'range';
+            freqSlider.id = `tab${tabIndex}-layer${layer.layerNumber}-frequency`;
+            freqSlider.min = '0.1';
+            freqSlider.max = '10.0';
+            freqSlider.step = '0.1';
+            freqSlider.value = layer.frequency;
+            freqSlider.disabled = !layer.enabled;
+            freqGroup.appendChild(freqLabel);
+            freqGroup.appendChild(freqSlider);
+            layerDiv.appendChild(freqGroup);
+
+            // Amplitude Control
+            const ampGroup = document.createElement('div');
+            ampGroup.className = 'control-group';
+            const ampLabel = document.createElement('label');
+            ampLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-amplitude`;
+            ampLabel.innerHTML = `Amplitude: <span id="tab${tabIndex}-layer${layer.layerNumber}-amplitude-val">${layer.amplitude.toFixed(1)}</span>`;
+            const ampSlider = document.createElement('input');
+            ampSlider.type = 'range';
+            ampSlider.id = `tab${tabIndex}-layer${layer.layerNumber}-amplitude`;
+            ampSlider.min = '0.1';
+            ampSlider.max = '5.0';
+            ampSlider.step = '0.1';
+            ampSlider.value = layer.amplitude;
+            ampSlider.disabled = !layer.enabled;
+            ampGroup.appendChild(ampLabel);
+            ampGroup.appendChild(ampSlider);
+            layerDiv.appendChild(ampGroup);
+
+            // Phase Control
+            const phaseGroup = document.createElement('div');
+            phaseGroup.className = 'control-group';
+            const phaseLabel = document.createElement('label');
+            phaseLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-phase`;
+            phaseLabel.innerHTML = `Phase: <span id="tab${tabIndex}-layer${layer.layerNumber}-phase-val">${layer.phase.toFixed(1)}</span>`;
+            const phaseSlider = document.createElement('input');
+            phaseSlider.type = 'range';
+            phaseSlider.id = `tab${tabIndex}-layer${layer.layerNumber}-phase`;
+            phaseSlider.min = '0';
+            phaseSlider.max = '6.283';
+            phaseSlider.step = '0.1';
+            phaseSlider.value = layer.phase;
+            phaseSlider.disabled = !layer.enabled;
+            phaseGroup.appendChild(phaseLabel);
+            phaseGroup.appendChild(phaseSlider);
+            layerDiv.appendChild(phaseGroup);
+
+            // Phase Lock Dropdown
+            const phaseLockGroup = document.createElement('div');
+            phaseLockGroup.className = 'control-group';
+            const phaseLockLabel = document.createElement('label');
+            phaseLockLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-phase-lock`;
+            phaseLockLabel.innerHTML = `Phase Lock to Layer:`;
+            const phaseLockSelect = document.createElement('select');
+            phaseLockSelect.id = `tab${tabIndex}-layer${layer.layerNumber}-phase-lock`;
+
+            // Add "None" option
+            const noneOption = document.createElement('option');
+            noneOption.value = 'none';
+            noneOption.text = 'None';
+            phaseLockSelect.appendChild(noneOption);
+
+            // Add options for other layers
+            for (let i = 1; i <= totalLayers; i++) {
+                if (i !== layer.layerNumber) { // Prevent locking to itself
+                    const option = document.createElement('option');
+                    option.value = `layer${i}`;
+                    option.text = `Layer ${i}`;
+                    if (`layer${i}` === layer.phaseLock.target) {
+                        option.selected = true;
+                    }
+                    phaseLockSelect.appendChild(option);
+                }
+            }
+
+            phaseLockGroup.appendChild(phaseLockLabel);
+            phaseLockGroup.appendChild(phaseLockSelect);
+            layerDiv.appendChild(phaseLockGroup);
+
+            // Harmonic Offset Checkbox
+            const harmonicOffsetGroup = document.createElement('div');
+            harmonicOffsetGroup.className = 'control-group';
+            const harmonicOffsetLabel = document.createElement('label');
+            const harmonicOffsetCheckbox = document.createElement('input');
+            harmonicOffsetCheckbox.type = 'checkbox';
+            harmonicOffsetCheckbox.id = `tab${tabIndex}-layer${layer.layerNumber}-harmonic-offset`;
+            harmonicOffsetCheckbox.checked = layer.phaseLock.harmonicOffset;
+            harmonicOffsetLabel.appendChild(harmonicOffsetCheckbox);
+            harmonicOffsetLabel.appendChild(document.createTextNode(` Apply Harmonic Offset`));
+            harmonicOffsetGroup.appendChild(harmonicOffsetLabel);
+            layerDiv.appendChild(harmonicOffsetGroup);
+
+            // LFO Controls
+            const lfoGroup = document.createElement('div');
+            lfoGroup.className = 'control-group';
+            const lfoLabel = document.createElement('label');
+            lfoLabel.innerHTML = `LFO Controls:`;
+            lfoGroup.appendChild(lfoLabel);
+
+            // LFO Frequency
+            const lfoFreqLabel = document.createElement('label');
+            lfoFreqLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-lfo-frequency`;
+            lfoFreqLabel.innerHTML = `LFO Frequency: <span id="tab${tabIndex}-layer${layer.layerNumber}-lfo-frequency-val">${layer.lfo.frequency.toFixed(2)}</span>`;
+            const lfoFreqSlider = document.createElement('input');
+            lfoFreqSlider.type = 'range';
+            lfoFreqSlider.id = `tab${tabIndex}-layer${layer.layerNumber}-lfo-frequency`;
+            lfoFreqSlider.min = '0.1';
+            lfoFreqSlider.max = '5.0';
+            lfoFreqSlider.step = '0.1';
+            lfoFreqSlider.value = layer.lfo.frequency;
+            lfoFreqSlider.disabled = !layer.enabled;
+            lfoGroup.appendChild(lfoFreqLabel);
+            lfoGroup.appendChild(lfoFreqSlider);
+
+            // LFO Amplitude
+            const lfoAmpLabel = document.createElement('label');
+            lfoAmpLabel.htmlFor = `tab${tabIndex}-layer${layer.layerNumber}-lfo-amplitude`;
+            lfoAmpLabel.innerHTML = `LFO Amplitude: <span id="tab${tabIndex}-layer${layer.layerNumber}-lfo-amplitude-val">${layer.lfo.amplitude.toFixed(2)}</span>`;
+            const lfoAmpSlider = document.createElement('input');
+            lfoAmpSlider.type = 'range';
+            lfoAmpSlider.id = `tab${tabIndex}-layer${layer.layerNumber}-lfo-amplitude`;
+            lfoAmpSlider.min = '0.0';
+            lfoAmpSlider.max = '2.0';
+            lfoAmpSlider.step = '0.1';
+            lfoAmpSlider.value = layer.lfo.amplitude;
+            lfoAmpSlider.disabled = !layer.enabled;
+            lfoGroup.appendChild(lfoAmpLabel);
+            lfoGroup.appendChild(lfoAmpSlider);
+
+            layerDiv.appendChild(lfoGroup);
+
+            // Append the layer controls to the main controls div
+            layersControlsDiv.appendChild(layerDiv);
+
+            // Store Control Elements
+            layer.controls = {
+                enableCheckbox: layerCheckbox,
+                waveformSelect: waveformSelect,
+                frequencySlider: freqSlider,
+                frequencyVal: document.getElementById(`tab${tabIndex}-layer${layer.layerNumber}-frequency-val`),
+                amplitudeSlider: ampSlider,
+                amplitudeVal: document.getElementById(`tab${tabIndex}-layer${layer.layerNumber}-amplitude-val`),
+                phaseSlider: phaseSlider,
+                phaseVal: document.getElementById(`tab${tabIndex}-layer${layer.layerNumber}-phase-val`),
+                phaseLockSelect: phaseLockSelect,
+                harmonicOffsetCheckbox: harmonicOffsetCheckbox,
+                lfoFrequencySlider: lfoFreqSlider,
+                lfoFrequencyVal: document.getElementById(`tab${tabIndex}-layer${layer.layerNumber}-lfo-frequency-val`),
+                lfoAmplitudeSlider: lfoAmpSlider,
+                lfoAmplitudeVal: document.getElementById(`tab${tabIndex}-layer${layer.layerNumber}-lfo-amplitude-val`)
+            };
+        }
+
+        // Function to Initialize Layer Controls for Active Tab
+        function initializeLayerControls(tabIndex) {
+            const currentTab = tabs[tabIndex];
+            const layers = currentTab.layers;
+            const layersControlsDiv = document.getElementById('layers-controls');
+            layersControlsDiv.innerHTML = ''; // Clear existing controls
+
+            layers.forEach(layer => {
+                createLayerControls(currentTab, layer, tabIndex);
+            });
+
+            // After creating layer controls, set up event listeners
+            setupLayerControlEvents(tabIndex);
+        }
+
+        // Function to Set Up Event Listeners for Layer Controls
+        function setupLayerControlEvents(tabIndex) {
+            const currentTab = tabs[tabIndex];
+            const layers = currentTab.layers;
+
+            layers.forEach(layer => {
+                const ctrl = layer.controls;
+
+                // Enable/Disable layer
+                ctrl.enableCheckbox.addEventListener('change', () => {
+                    layer.enabled = ctrl.enableCheckbox.checked;
+
+                    // Enable or disable sliders based only on layer enabled state
+                    ctrl.frequencySlider.disabled = !layer.enabled;
+                    ctrl.amplitudeSlider.disabled = !layer.enabled;
+                    ctrl.phaseSlider.disabled = !layer.enabled;
+                    ctrl.waveformSelect.disabled = !layer.enabled;
+                    ctrl.lfoFrequencySlider.disabled = !layer.enabled;
+                    ctrl.lfoAmplitudeSlider.disabled = !layer.enabled;
+
+                    // Apply Global Controls if enabled
+                    const globalFreqEnabled = document.getElementById('global-frequency-enable').checked;
+                    const globalAmpEnabled = document.getElementById('global-amplitude-enable').checked;
+                    const globalPhaseEnabled = document.getElementById('global-phase-enable').checked;
+
+                    if (globalFreqEnabled && layer.enabled) {
+                        layer.frequencyGlobal = parseFloat(document.getElementById('global-frequency').value);
+                    } else {
+                        layer.frequencyGlobal = 0;
+                    }
+
+                    if (globalAmpEnabled && layer.enabled) {
+                        layer.amplitudeGlobal = parseFloat(document.getElementById('global-amplitude').value);
+                    } else {
+                        layer.amplitudeGlobal = 0;
+                    }
+
+                    if (globalPhaseEnabled && layer.enabled) {
+                        layer.phaseGlobal = parseFloat(document.getElementById('global-phase').value);
+                    } else {
+                        layer.phaseGlobal = 0;
+                    }
+
+                    // Update display values
+                    updateLayerSliders(layer, 'frequency');
+                    updateLayerSliders(layer, 'amplitude');
+                    updateLayerSliders(layer, 'phase');
+
+                    // Initialize or Stop LFO
+                    if (layer.enabled) {
+                        initializeLFO(layer, currentTab);
+                    } else {
+                        stopLFO(layer);
+                    }
+                });
+
+                // Waveform Selection
+                ctrl.waveformSelect.addEventListener('change', () => {
+                    layer.waveform = ctrl.waveformSelect.value;
+                });
+
+                // Frequency Slider
+                ctrl.frequencySlider.addEventListener('input', () => {
+                    layer.frequency = parseFloat(ctrl.frequencySlider.value);
+                    if (!document.getElementById('global-frequency-enable').checked) {
+                        ctrl.frequencyVal.textContent = layer.frequency.toFixed(1);
+                    } else {
+                        ctrl.frequencyVal.textContent = (layer.frequency + layer.frequencyGlobal).toFixed(1);
+                    }
+                });
+
+                // Amplitude Slider
+                ctrl.amplitudeSlider.addEventListener('input', () => {
+                    layer.amplitude = parseFloat(ctrl.amplitudeSlider.value);
+                    if (!document.getElementById('global-amplitude-enable').checked) {
+                        ctrl.amplitudeVal.textContent = layer.amplitude.toFixed(1);
+                    } else {
+                        ctrl.amplitudeVal.textContent = (layer.amplitude + layer.amplitudeGlobal).toFixed(1);
+                    }
+                });
+
+                // Phase Slider
+                ctrl.phaseSlider.addEventListener('input', () => {
+                    layer.phase = parseFloat(ctrl.phaseSlider.value);
+                    if (!document.getElementById('global-phase-enable').checked) {
+                        ctrl.phaseVal.textContent = layer.phase.toFixed(1);
+                    } else {
+                        ctrl.phaseVal.textContent = (layer.phase + layer.phaseGlobal).toFixed(1);
+                    }
+                });
+
+                // Phase Lock Dropdown
+                ctrl.phaseLockSelect.addEventListener('change', () => {
+                    layer.phaseLock.target = ctrl.phaseLockSelect.value;
+                    updatePhaseLocking(tabIndex);
+                });
+
+                // Harmonic Offset Checkbox
+                ctrl.harmonicOffsetCheckbox.addEventListener('change', () => {
+                    layer.phaseLock.harmonicOffset = ctrl.harmonicOffsetCheckbox.checked;
+                    updatePhaseLocking(tabIndex);
+                });
+
+                // LFO Frequency Slider
+                ctrl.lfoFrequencySlider.addEventListener('input', () => {
+                    layer.lfo.frequency = parseFloat(ctrl.lfoFrequencySlider.value);
+                    ctrl.lfoFrequencyVal.textContent = layer.lfo.frequency.toFixed(2);
+                    if (layer.lfo.oscillator) {
+                        layer.lfo.oscillator.frequency.setValueAtTime(layer.lfo.frequency, currentTab.audio.audioCtx.currentTime);
+                    }
+                });
+
+                // LFO Amplitude Slider
+                ctrl.lfoAmplitudeSlider.addEventListener('input', () => {
+                    layer.lfo.amplitude = parseFloat(ctrl.lfoAmplitudeSlider.value);
+                    ctrl.lfoAmplitudeVal.textContent = layer.lfo.amplitude.toFixed(2);
+                    if (layer.lfo.gainNode) {
+                        layer.lfo.gainNode.gain.setValueAtTime(layer.lfo.amplitude, currentTab.audio.audioCtx.currentTime);
+                    }
+                });
+
+                // Initialize LFO if layer is enabled
+                if (layer.enabled) {
+                    initializeLFO(layer, currentTab);
+                }
+            });
+        }
+
+        // Initialize Global Event Listeners
+        function initializeGlobalControls() {
+            // Frequency Global Control
+            const globalFreqEnable = document.getElementById('global-frequency-enable');
+            const globalFreqSlider = document.getElementById('global-frequency');
+            const globalFreqVal = document.getElementById('global-frequency-val');
+
+            globalFreqEnable.addEventListener('change', () => {
+                const isEnabled = globalFreqEnable.checked;
+                globalFreqSlider.disabled = !isEnabled;
+                globalFreqVal.textContent = globalFreqSlider.value;
+                // Update layers based on global frequency
+                tabs.forEach((tab, tabIndex) => {
+                    tab.layers.forEach(layer => {
+                        if (isEnabled && layer.enabled) {
+                            layer.frequencyGlobal = parseFloat(globalFreqSlider.value);
+                        } else {
+                            layer.frequencyGlobal = 0;
+                        }
+                        updateLayerSliders(layer, 'frequency');
+                    });
+                });
+            });
+
+            globalFreqSlider.addEventListener('input', () => {
+                globalFreqVal.textContent = globalFreqSlider.value;
+                if (globalFreqEnable.checked) {
+                    tabs.forEach((tab, tabIndex) => {
+                        tab.layers.forEach(layer => {
+                            if (layer.enabled) {
+                                layer.frequencyGlobal = parseFloat(globalFreqSlider.value);
+                                layer.controls.frequencyVal.textContent = (layer.frequency + layer.frequencyGlobal).toFixed(1);
+                            }
+                        });
+                    });
+                }
+            });
+
+            // Amplitude Global Control
+            const globalAmpEnable = document.getElementById('global-amplitude-enable');
+            const globalAmpSlider = document.getElementById('global-amplitude');
+            const globalAmpVal = document.getElementById('global-amplitude-val');
+
+            globalAmpEnable.addEventListener('change', () => {
+                const isEnabled = globalAmpEnable.checked;
+                globalAmpSlider.disabled = !isEnabled;
+                globalAmpVal.textContent = globalAmpSlider.value;
+                // Update layers based on global amplitude
+                tabs.forEach((tab, tabIndex) => {
+                    tab.layers.forEach(layer => {
+                        if (isEnabled && layer.enabled) {
+                            layer.amplitudeGlobal = parseFloat(globalAmpSlider.value);
+                        } else {
+                            layer.amplitudeGlobal = 0;
+                        }
+                        updateLayerSliders(layer, 'amplitude');
+                    });
+                });
+            });
+
+            globalAmpSlider.addEventListener('input', () => {
+                globalAmpVal.textContent = globalAmpSlider.value;
+                if (globalAmpEnable.checked) {
+                    tabs.forEach((tab, tabIndex) => {
+                        tab.layers.forEach(layer => {
+                            if (layer.enabled) {
+                                layer.amplitudeGlobal = parseFloat(globalAmpSlider.value);
+                                layer.controls.amplitudeVal.textContent = (layer.amplitude + layer.amplitudeGlobal).toFixed(1);
+                            }
+                        });
+                    });
+                }
+            });
+
+            // Phase Global Control
+            const globalPhaseEnable = document.getElementById('global-phase-enable');
+            const globalPhaseSlider = document.getElementById('global-phase');
+            const globalPhaseVal = document.getElementById('global-phase-val');
+
+            globalPhaseEnable.addEventListener('change', () => {
+                const isEnabled = globalPhaseEnable.checked;
+                globalPhaseSlider.disabled = !isEnabled;
+                globalPhaseVal.textContent = globalPhaseSlider.value;
+                // Update layers based on global phase
+                tabs.forEach((tab, tabIndex) => {
+                    tab.layers.forEach(layer => {
+                        if (isEnabled && layer.enabled) {
+                            layer.phaseGlobal = parseFloat(globalPhaseSlider.value);
+                        } else {
+                            layer.phaseGlobal = 0;
+                        }
+                        updateLayerSliders(layer, 'phase');
+                    });
+                });
+            });
+
+            globalPhaseSlider.addEventListener('input', () => {
+                globalPhaseVal.textContent = globalPhaseSlider.value;
+                if (globalPhaseEnable.checked) {
+                    tabs.forEach((tab, tabIndex) => {
+                        tab.layers.forEach(layer => {
+                            if (layer.enabled) {
+                                layer.phaseGlobal = parseFloat(globalPhaseSlider.value);
+                                layer.controls.phaseVal.textContent = (layer.phase + layer.phaseGlobal).toFixed(1);
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        // Helper Function to Update Layer Sliders Display
+        function updateLayerSliders(layer, parameter) {
+            if (parameter === 'frequency') {
+                layer.controls.frequencyVal.textContent = (layer.frequency + layer.frequencyGlobal).toFixed(1);
+            } else if (parameter === 'amplitude') {
+                layer.controls.amplitudeVal.textContent = (layer.amplitude + layer.amplitudeGlobal).toFixed(1);
+            } else if (parameter === 'phase') {
+                layer.controls.phaseVal.textContent = (layer.phase + layer.phaseGlobal).toFixed(1);
+            }
+        }
+
+        // Initialize Global Controls
+        initializeGlobalControls();
+
+        // Function to Initialize Layer Control Events
+        function initializeLayerControlEvents() {
+            // Event Listener Setup is already handled in setupLayerControlEvents
+            // No additional code needed here
+        }
+
+        // Initialize Layer Controls and Event Listeners for the Default Active Tab
+        initializeLayerControls(activeTab);
+
+        // Function to Set Up All Layer Control Events (if needed)
+        function setupAllLayerControlEvents() {
+            // All event listeners are already set up in setupLayerControlEvents
+            // No additional actions needed here
+        }
+
+        setupAllLayerControlEvents();
+
+        // Function to Initialize Sound Toggle Buttons for All Tabs
+        function initializeSoundToggleButtons() {
+            for (let t = 0; t < totalTabs; t++) {
+                const soundToggleButton = document.getElementById(`sound-toggle-tab${t}`);
+                soundToggleButton.addEventListener('click', async () => {
+                    const tab = tabs[t];
+                    if (!tab.audio.audioCtx) {
+                        // Create AudioContext on first user interaction
+                        tab.audio.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        tab.audio.gainNode = tab.audio.audioCtx.createGain();
+                        tab.audio.gainNode.gain.value = 0.1;
+                        tab.audio.gainNode.connect(tab.audio.audioCtx.destination);
+
+                        // Initialize AnalyserNode for Fourier Analysis
+                        tab.audio.analyser = tab.audio.audioCtx.createAnalyser();
+                        tab.audio.analyser.fftSize = 2048;
+                        const bufferLength = tab.audio.analyser.frequencyBinCount;
+                        tab.audio.dataArray = new Uint8Array(bufferLength);
+                        tab.audio.gainNode.connect(tab.audio.analyser);
+
+                        // Create Interference Patterns Mesh
+                        createInterferenceMesh(tab);
+                        tab.interferenceMesh.visible = false; // Disabled by default
+
+                        // Create Standing Waves Mesh
+                        createStandingWaveMesh(tab);
+                    }
+
+                    if (!tab.audio.playing) {
+                        try {
+                            await tab.audio.audioCtx.resume();
+                            // Create and start oscillator
+                            tab.audio.oscillator = tab.audio.audioCtx.createOscillator();
+                            tab.audio.oscillator.type = 'square';
+                            tab.audio.oscillator.frequency.value = 440;
+                            tab.audio.oscillator.connect(tab.audio.gainNode);
+                            tab.audio.oscillator.start();
+                            tab.audio.playing = true;
+                            soundToggleButton.textContent = 'Sound Off';
+                        } catch (e) {
+                            console.error('AudioContext konnte nicht gestartet werden:', e);
+                        }
+                    } else {
+                        // Stop oscillator
+                        tab.audio.oscillator.stop();
+                        tab.audio.oscillator.disconnect();
+                        tab.audio.oscillator = null;
+                        tab.audio.playing = false;
+                        soundToggleButton.textContent = 'Sound On';
+                    }
+                });
+            }
+        }
+
+        // Initialize Sound Toggle Buttons
+        initializeSoundToggleButtons();
+
+        // Initialize Additional Controls Event Listeners
+        function initializeAdditionalControls() {
+            // Oscillator Size Control
+            const oscillatorSizeSlider = document.getElementById('oscillator-size');
+            const oscillatorSizeVal = document.getElementById('oscillator-size-val');
+
+            oscillatorSizeSlider.addEventListener('input', () => {
+                oscillatorSize = parseFloat(oscillatorSizeSlider.value);
+                oscillatorSizeVal.textContent = oscillatorSize.toFixed(2);
+
+                // Update size for all oscillators and trails
+                tabs.forEach(tab => {
+                    // Update oscillator sizes
+                    tab.greenOscillator.scale.set(oscillatorSize, oscillatorSize, oscillatorSize);
+                    tab.yellowOscillator.scale.set(oscillatorSize, oscillatorSize, oscillatorSize);
+
+                    // Update trail sizes
+                    if (tab.greenTrail.type === 'points') {
+                        tab.greenTrail.points.material.size = oscillatorSize;
+                    } else if (tab.greenTrail.type === 'line') {
+                        tab.greenTrail.line.material.linewidth = oscillatorSize * 10; // Example scaling
+                    }
+
+                    if (tab.yellowTrail.type === 'points') {
+                        tab.yellowTrail.points.material.size = oscillatorSize;
+                    } else if (tab.yellowTrail.type === 'line') {
+                        tab.yellowTrail.line.material.linewidth = oscillatorSize * 10; // Example scaling
+                    }
+                });
+            });
+
+            // Trail Type Control
+            const trailTypeSelect = document.getElementById('trail-type');
+
+            trailTypeSelect.addEventListener('change', () => {
+                trailType = trailTypeSelect.value;
+                // Reinitialize trails for all tabs with the new trail type
+                tabs.forEach(tab => {
+                    reinitializeTrails(tab, trailLength);
+                });
+            });
+
+            // Toggle Yellow Oscillator and Trail
+            const toggleYellowCheckbox = document.getElementById('toggle-yellow-oscillator');
+            toggleYellowCheckbox.checked = false; // Initially unchecked
+            toggleYellowCheckbox.addEventListener('change', () => {
+                const isVisible = toggleYellowCheckbox.checked;
+                tabs.forEach(tab => {
+                    tab.yellowOscillator.visible = isVisible;
+                    if (tab.yellowTrail.type === 'points') {
+                        tab.yellowTrail.points.visible = isVisible;
+                    } else if (tab.yellowTrail.type === 'line') {
+                        tab.yellowTrail.line.visible = isVisible;
+                    }
+                });
+            });
+
+            // Toggle Axes Visibility
+            const toggleAxesCheckbox = document.getElementById('toggle-axes');
+            toggleAxesCheckbox.checked = false; // Initially unchecked
+            toggleAxesCheckbox.addEventListener('change', () => {
+                const isVisible = toggleAxesCheckbox.checked;
+                axesHelper.visible = isVisible;
+            });
+
+            // Axes Distance Control
+            const axesDistanceSlider = document.getElementById('axes-distance');
+            const axesDistanceVal = document.getElementById('axes-distance-val');
+
+            axesDistanceSlider.addEventListener('input', () => {
+                const newAxesLength = parseFloat(axesDistanceSlider.value);
+                axesDistanceVal.textContent = newAxesLength;
+                axesHelper.scale.set(newAxesLength / axesLength, newAxesLength / axesLength, newAxesLength / axesLength);
+                axesLength = newAxesLength;
+            });
+
+            // Trail Length Control
+            const trailLengthSlider = document.getElementById('trail-length');
+            const trailLengthVal = document.getElementById('trail-length-val');
+
+            trailLengthSlider.addEventListener('input', () => {
+                trailLength = parseInt(trailLengthSlider.value);
+                trailLengthVal.textContent = trailLength;
+
+                // Reinitialize trails for all tabs
+                tabs.forEach(tab => {
+                    reinitializeTrails(tab, trailLength);
+                });
+            });
+
+            // Toggle White Wave (Disabled by Default)
+            const toggleWhiteWaveCheckbox = document.getElementById('toggle-white-wave');
+            toggleWhiteWaveCheckbox.checked = false; // Initially unchecked
+            toggleWhiteWaveCheckbox.addEventListener('change', () => {
+                const isVisible = toggleWhiteWaveCheckbox.checked;
+                tabs.forEach(tab => {
+                    if (tab.interferenceMesh) {
+                        tab.interferenceMesh.visible = isVisible;
+                    }
+                });
+            });
+
+            // Toggle Lighting (Disabled by Default)
+            const toggleLightingCheckbox = document.getElementById('toggle-lighting');
+            toggleLightingCheckbox.checked = false; // Initially unchecked
+            toggleLightingCheckbox.addEventListener('change', () => {
+                const isEnabled = toggleLightingCheckbox.checked;
+                if (isEnabled) {
+                    enableLighting();
+                } else {
+                    disableLighting();
+                }
+            });
+        }
+
+        // Function to Reinitialize Trails with New Length and Type
+        function reinitializeTrails(tab, newTrailLength) {
+            // Remove existing trails from the scene
+            if (tab.greenTrail.type === 'points') {
+                tab.group.remove(tab.greenTrail.points);
+                tab.greenTrail.geometry.dispose();
+                tab.greenTrail.points.material.dispose();
+            } else if (tab.greenTrail.type === 'line') {
+                tab.group.remove(tab.greenTrail.line);
+                tab.greenTrail.geometry.dispose();
+                tab.greenTrail.line.material.dispose();
+            }
+
+            if (tab.yellowTrail.type === 'points') {
+                tab.group.remove(tab.yellowTrail.points);
+                tab.yellowTrail.geometry.dispose();
+                tab.yellowTrail.points.material.dispose();
+            } else if (tab.yellowTrail.type === 'line') {
+                tab.group.remove(tab.yellowTrail.line);
+                tab.yellowTrail.geometry.dispose();
+                tab.yellowTrail.line.material.dispose();
+            }
+
+            // Reinitialize trails with the new trail length and current trail type
+            tab.greenTrail = initializeTrail(trailType, 0x00ff00, 0.8, tab.group);
+            tab.yellowTrail = initializeTrail(trailType, 0xffff00, 0.5, tab.group, true); // true for yellow trail
+
+            // Set visibility based on current toggle
+            const toggleYellowCheckbox = document.getElementById('toggle-yellow-oscillator');
+            const isYellowVisible = toggleYellowCheckbox.checked;
+            if (tab.yellowTrail.type === 'points') {
+                tab.yellowTrail.points.visible = isYellowVisible;
+            } else if (tab.yellowTrail.type === 'line') {
+                tab.yellowTrail.line.visible = isYellowVisible;
+            }
+        }
+
+        // Initialize Additional Controls Event Listeners
+        initializeAdditionalControls();
+
+        // Rotation Controls
+        function initializeRotationControls() {
+            // Rotation Buttons
+            const rotateXPosBtn = document.getElementById('rotate-x-+');
+            const rotateXNegBtn = document.getElementById('rotate-x--');
+            const rotateYPosBtn = document.getElementById('rotate-y-+');
+            const rotateYNegBtn = document.getElementById('rotate-y--');
+            const rotateZPosBtn = document.getElementById('rotate-z-+');
+            const rotateZNegBtn = document.getElementById('rotate-z--');
+            const resetRotationBtn = document.getElementById('reset-rotation');
+
+            const rotationStep = Math.PI / 18; // 10 degrees
+
+            // Rotate +X
+            rotateXPosBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.x += rotationStep;
+                });
+            });
+
+            // Rotate -X
+            rotateXNegBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.x -= rotationStep;
+                });
+            });
+
+            // Rotate +Y
+            rotateYPosBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.y += rotationStep;
+                });
+            });
+
+            // Rotate -Y
+            rotateYNegBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.y -= rotationStep;
+                });
+            });
+
+            // Rotate +Z
+            rotateZPosBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.z += rotationStep;
+                });
+            });
+
+            // Rotate -Z
+            rotateZNegBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.z -= rotationStep;
+                });
+            });
+
+            // Reset Rotation
+            resetRotationBtn.addEventListener('click', () => {
+                tabs.forEach(tab => {
+                    tab.group.rotation.set(0, 0, 0);
+                });
+            });
+        }
+
+        // Initialize Rotation Controls
+        initializeRotationControls();
+
+        // Function to Update Phase Locking Relationships
+        function applyPhaseLocking(tabIndex) {
+            const currentTab = tabs[tabIndex];
+            const layers = currentTab.layers;
+
+            layers.forEach(layer => {
+                if (layer.phaseLock.target !== 'none') {
+                    const targetLayer = layers.find(l => `layer${l.layerNumber}` === layer.phaseLock.target);
+                    if (targetLayer && targetLayer.enabled) {
+                        // Synchronize phase with target layer
+                        let phs = targetLayer.currentPhase + layer.phaseGlobal;
+                        // Apply harmonic offset if checked
+                        if (layer.phaseLock.harmonicOffset) {
+                            phs += Math.PI; // 180 degrees offset, adjust as needed
+                        }
+                        layer.currentPhase = phs;
+                    } else {
+                        layer.currentPhase = layer.phase + layer.phaseGlobal;
+                    }
+                } else {
+                    layer.currentPhase = layer.phase + layer.phaseGlobal;
+                }
+            });
+        }
+
+        // Function to Update Phase Locking Relationships
+        function updatePhaseLocking(tabIndex) {
+            const currentTab = tabs[tabIndex];
+            const layers = currentTab.layers;
+
+            // Clear any existing phase dependencies
+            layers.forEach(layer => {
+                layer.lockedLayers = []; // Initialize an array to keep track of which layers are locking to it
+            });
+
+            // Populate lockedLayers based on current phaseLock.target settings
+            layers.forEach(layer => {
+                if (layer.phaseLock.target !== 'none') {
+                    const targetLayer = layers.find(l => `layer${l.layerNumber}` === layer.phaseLock.target);
+                    if (targetLayer) {
+                        if (!targetLayer.lockedLayers) {
+                            targetLayer.lockedLayers = [];
+                        }
+                        targetLayer.lockedLayers.push(layer);
+                    }
+                }
+            });
+        }
+
+        // Function to Create Interference Patterns Mesh
+        function createInterferenceMesh(tab) {
+            const interferenceGeometry = new THREE.PlaneGeometry(10, 10, 256, 256);
+            const interferenceMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.5
+            });
+            const interferenceMesh = new THREE.Mesh(interferenceGeometry, interferenceMaterial);
+            interferenceMesh.rotation.x = -Math.PI / 2; // Lay on XZ-plane
+            interferenceMesh.visible = false; // Disabled by default
+            tab.group.add(interferenceMesh);
+            tab.interferenceMesh = interferenceMesh;
+        }
+
+        // Function to Create Standing Waves Mesh
+        function createStandingWaveMesh(tab) {
+            const standingWaveGeometry = new THREE.PlaneGeometry(10, 10, 256, 256);
+            const standingWaveMaterial = new THREE.ShaderMaterial({
+                vertexShader: `
+                    uniform float time;
+                    uniform float frequency;
+                    varying vec3 vColor;
+
+                    void main() {
+                        vec3 pos = position;
+                        pos.y += sin(pos.x * frequency + time) * 0.5;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                        vColor = vec3(0.0, 0.0, 1.0); // Blue color
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+
+                    void main() {
+                        gl_FragColor = vec4(vColor, 1.0);
+                    }
+                `,
+                uniforms: {
+                    time: { value: 0 },
+                    frequency: { value: 1.0 }
+                }
+            });
+            const standingWaveMesh = new THREE.Mesh(standingWaveGeometry, standingWaveMaterial);
+            standingWaveMesh.rotation.x = -Math.PI / 2; // Lay on XZ-plane
+            standingWaveMesh.castShadow = false; // Standing wave doesn't cast shadows
+            standingWaveMesh.receiveShadow = false; // Standing wave doesn't receive shadows
+            tab.group.add(standingWaveMesh);
+            tab.standingWaveMesh = standingWaveMesh;
+        }
+
+        // Tab Switching Logic
+        const tabButtons = document.querySelectorAll('.tab-button');
+
+        tabButtons.forEach((button, index) => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                // Add active class to the clicked button
+                button.classList.add('active');
+
+                // Set activeTab
+                activeTab = index;
+
+                // Hide all tab groups
+                tabs.forEach((tab, tabIdx) => {
+                    tab.group.visible = (tabIdx === activeTab);
+                });
+
+                // Initialize Layer Controls for the active Tab
+                initializeLayerControls(activeTab);
+
+                // Update Phase Locking for the active Tab
+                updatePhaseLocking(activeTab);
+            });
+        });
+
+        // Initialize Phase Locking for all Tabs initially
+        tabs.forEach((tab, index) => {
+            updatePhaseLocking(index);
+        });
+
+        // Animation Loop
+        const startTime = Date.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsed = (Date.now() - startTime) / 1000; // seconds
+
+            tabs.forEach((tab, tabIndex) => {
+                // Apply Phase Locking
+                applyPhaseLocking(tabIndex);
+
+                // Calculate combined oscillation for Green and Yellow Oscillators
+                let xGreen = 0,
+                    yGreen = 0,
+                    zGreen = 0;
+                let xYellow = 0,
+                    yYellow = 0,
+                    zYellow = 0;
+
+                tab.layers.forEach((layer, index) => {
+                    if (layer.enabled) {
+                        const freq = layer.frequency + layer.frequencyGlobal;
+                        const amp = layer.amplitude + layer.amplitudeGlobal;
+                        const phs = layer.currentPhase;
+
+                        const angle = 2 * Math.PI * freq * elapsed + phs;
+
+                        // Get waveform value
+                        const waveValue = getWaveformValue(layer.waveform, angle);
+
+                        // Assign each layer to a different axis in a cyclical manner
+                        const axis = index % 3;
+                        if (axis === 0) {
+                            xGreen += amp * waveValue;
+                        } else if (axis === 1) {
+                            yGreen += amp * waveValue;
+                        } else if (axis === 2) {
+                            zGreen += amp * waveValue;
+                            // For yellow, add a phase shift
+                            const yellowWaveValue = getWaveformValue(layer.waveform, angle + Math.PI / 2);
+                            xYellow += amp * yellowWaveValue;
+                            yYellow += amp * yellowWaveValue;
+                            zYellow += amp * waveValue;
+                        }
+
+                        // Apply LFO Modulation
+                        if (layer.lfo.oscillator && layer.lfo.gainNode) {
+                            // Example: Amplitude modulation with LFO
+                            const lfoValue = Math.sin(2 * Math.PI * layer.lfo.frequency * elapsed);
+                            const modulatedAmp = amp + layer.lfo.gainNode.gain.value * lfoValue;
+                            if (axis === 0) {
+                                xGreen = modulatedAmp * waveValue;
+                            } else if (axis === 1) {
+                                yGreen = modulatedAmp * waveValue;
+                            } else if (axis === 2) {
+                                zGreen = modulatedAmp * waveValue;
+                                const yellowWaveValueMod = getWaveformValue(layer.waveform, angle + Math.PI / 2);
+                                xYellow = modulatedAmp * yellowWaveValueMod;
+                                yYellow = modulatedAmp * yellowWaveValueMod;
+                                zYellow = modulatedAmp * waveValue;
+                            }
+                        }
+                    }
+                });
+
+                // Update green oscillator position
+                tab.greenOscillator.position.set(xGreen, yGreen, zGreen);
+
+                // Update yellow oscillator position
+                tab.yellowOscillator.position.set(xYellow, yYellow, zYellow);
+
+                // Update trails
+                updateTrail(xGreen, yGreen, zGreen, tab.greenTrail, trailLength, false);
+                updateTrail(xYellow, yYellow, zYellow, tab.yellowTrail, trailLength, true);
+
+                // Update Fourier Analyse if initialized
+                if (tab.audio && tab.audio.analyser) {
+                    tab.audio.analyser.getByteFrequencyData(tab.audio.dataArray);
+                }
+
+                // Update Standing Waves Mesh
+                if (tab.standingWaveMesh) {
+                    tab.standingWaveMesh.material.uniforms.time.value = elapsed;
+                }
+
+                // Update Interference Patterns Mesh
+                if (tab.interferenceMesh) {
+                    // Simple interference calculation based on oscillator positions
+                    const vertices = tab.interferenceMesh.geometry.attributes.position.array;
+                    for (let i = 0; i < vertices.length; i += 3) {
+                        const x = vertices[i];
+                        const z = vertices[i + 2];
+                        // Simple interference calculation
+                        const distanceGreen = Math.sqrt(Math.pow(x - tab.greenOscillator.position.x, 2) + Math.pow(z - tab.greenOscillator.position.z, 2));
+                        const distanceYellow = Math.sqrt(Math.pow(x - tab.yellowOscillator.position.x, 2) + Math.pow(z - tab.yellowOscillator.position.z, 2));
+                        const waveGreen = Math.sin(2 * Math.PI * tab.layers[0].frequency * distanceGreen);
+                        const waveYellow = Math.sin(2 * Math.PI * tab.layers[0].frequency * distanceYellow + Math.PI / 2);
+                        const interference = waveGreen + waveYellow;
+                        vertices[i + 1] = interference * 0.5; // Y Position
+                    }
+                    tab.interferenceMesh.geometry.attributes.position.needsUpdate = true;
+                }
+
+                // Calculate Energy for Visualization
+                const energy = Math.sqrt(xGreen ** 2 + yGreen ** 2 + zGreen ** 2) + Math.sqrt(xYellow ** 2 + yYellow ** 2 + zYellow ** 2);
+
+                // Update Audio if initialized and playing
+                if (tab.audio && tab.audio.audioCtx && tab.audio.audioCtx.state === 'running' && tab.audio.playing) {
+                    const resultingFrequency = energy * 50 + 220; // Map combined distance to frequency
+                    const resultingAmplitude = Math.min(energy / 10, 1); // Normalize amplitude to [0, 1]
+                    tab.audio.oscillator.frequency.setValueAtTime(resultingFrequency, tab.audio.audioCtx.currentTime);
+                    tab.audio.gainNode.gain.setValueAtTime(resultingAmplitude, tab.audio.audioCtx.currentTime);
+                }
+            });
+
+            // Update Fourier Echtzeit Analyse
+            updateFourierAnalysis();
+
+            // Update Energieverteilung und Bewegungsdynamik
+            updateEnergyDistribution();
+
+            renderer.render(scene, camera);
+        }
+
+        // Define Waveform Functions
+        function getWaveformValue(waveform, angle) {
+            switch (waveform) {
+                case 'sine':
+                    return Math.sin(angle);
+                case 'cosine':
+                    return Math.cos(angle);
+                case 'square':
+                    return Math.sign(Math.sin(angle));
+                case 'triangle':
+                    return 2 * Math.abs(2 * (angle / (2 * Math.PI) - Math.floor(angle / (2 * Math.PI) + 0.5))) - 1;
+                case 'sawtooth':
+                    return 2 * (angle / (2 * Math.PI) - Math.floor(angle / (2 * Math.PI) + 0.5));
+                default:
+                    return Math.sin(angle);
+            }
+        }
+
+        // Start the Animation Loop
+        animate();
+
+        // Function to Update Trail Positions
+        function updateTrail(x, y, z, trail, trailLength, isYellow) {
+            // Add new position to the beginning of the array
+            trail.array.unshift(new THREE.Vector3(x, y, z));
+
+            // Remove old positions if trail is longer than trailLength
+            if (trail.array.length > trailLength) {
+                trail.array.pop();
+            }
+
+            // Update trailPositions buffer
+            for (let i = 0; i < trailLength; i++) {
+                if (i < trail.array.length) {
+                    trail.positions[i * 3] = trail.array[i].x;
+                    trail.positions[i * 3 + 1] = trail.array[i].y;
+                    trail.positions[i * 3 + 2] = trail.array[i].z;
+                } else {
+                    // Fill remaining positions with the current position to prevent gaps
+                    trail.positions[i * 3] = x;
+                    trail.positions[i * 3 + 1] = y;
+                    trail.positions[i * 3 + 2] = z;
+                }
+
+                // Update colors with fading effect
+                const alpha = 1.0 - (i / trailLength); // Newer points are more opaque
+                if (trail.type === 'points') {
+                    if (!isYellow) {
+                        // Green trail fading
+                        trail.colors[i * 3] = 0.0; // Red
+                        trail.colors[i * 3 + 1] = 1.0 * alpha; // Green
+                        trail.colors[i * 3 + 2] = 0.0; // Blue
+                    } else {
+                        // Yellow trail fading
+                        trail.colors[i * 3] = 1.0 * alpha; // Red
+                        trail.colors[i * 3 + 1] = 1.0 * alpha; // Green
+                        trail.colors[i * 3 + 2] = 0.0; // Blue
+                    }
+                }
+
+                if (trail.type === 'line') {
+                    // For lines, opacity is handled by the material
+                    // No need to update colors dynamically
+                }
+            }
+
+            if (trail.type === 'points') {
+                trail.geometry.attributes.position.needsUpdate = true;
+                trail.geometry.attributes.color.needsUpdate = true;
+            } else if (trail.type === 'line') {
+                trail.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+
+        // Function to Update Fourier Echtzeit Analyse
+        function updateFourierAnalysis() {
+            // Clear Fourier Canvas
+            fourierCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            fourierCtx.fillRect(0, 0, fourierCanvas.width, fourierCanvas.height);
+
+            tabs.forEach(tab => {
+                if (tab.audio && tab.audio.analyser) {
+                    const bufferLength = tab.audio.analyser.frequencyBinCount;
+                    const dataArray = tab.audio.dataArray;
+
+                    tab.audio.analyser.getByteFrequencyData(dataArray);
+
+                    const barWidth = (fourierCanvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i];
+
+                        fourierCtx.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
+                        fourierCtx.fillRect(x, fourierCanvas.height - barHeight / 2, barWidth, barHeight / 2);
+
+                        x += barWidth + 1;
+                    }
+                }
+            });
+        }
+
+        // Function to Update Energieverteilung und Bewegungsdynamik
+        function updateEnergyDistribution() {
+            // Clear Energy Canvas
+            energyCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            energyCtx.fillRect(0, 0, energyCanvas.width, energyCanvas.height);
+
+            tabs.forEach(tab => {
+                if (tab.audio && tab.audio.analyser) {
+                    const bufferLength = tab.audio.analyser.frequencyBinCount;
+                    const dataArray = tab.audio.dataArray;
+                    let total = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        total += dataArray[i];
+                    }
+
+                    const energy = total / bufferLength;
+
+                    // Draw energy as a circle with radius based on energy
+                    energyCtx.beginPath();
+                    energyCtx.arc(energyCanvas.width / 2, energyCanvas.height / 2, energy / 4, 0, 2 * Math.PI);
+                    energyCtx.fillStyle = `rgba(${Math.min(energy * 2, 255)}, ${Math.min(255 - energy * 2, 255)}, 150, 0.8)`;
+                    energyCtx.fill();
+
+                    // Display energy value as text
+                    energyCtx.font = '20px Arial';
+                    energyCtx.fillStyle = 'white';
+                    energyCtx.textAlign = 'center';
+                    energyCtx.fillText(`Energy: ${energy.toFixed(2)}`, energyCanvas.width / 2, energyCanvas.height - 20);
+                }
+            });
+        }
+
+        // Function to Initialize LFOs
+        function initializeLFO(layer, tab) {
+            if (!tab.audio.audioCtx) return; // Ensure AudioContext exists
+
+            // Create LFO Oscillator
+            layer.lfo.oscillator = tab.audio.audioCtx.createOscillator();
+            layer.lfo.oscillator.type = 'sine';
+            layer.lfo.oscillator.frequency.value = layer.lfo.frequency;
+
+            // Create Gain Node for LFO Amplitude
+            layer.lfo.gainNode = tab.audio.audioCtx.createGain();
+            layer.lfo.gainNode.gain.value = layer.lfo.amplitude;
+
+            // Connect LFO to the Gain Node of the main oscillator (for amplitude modulation)
+            layer.lfo.oscillator.connect(layer.lfo.gainNode);
+            layer.lfo.gainNode.connect(tab.audio.gainNode.gain);
+
+            // Start LFO Oscillator
+            layer.lfo.oscillator.start();
+        }
+
+        // Function to Stop LFOs
+        function stopLFO(layer) {
+            if (layer.lfo.oscillator) {
+                layer.lfo.oscillator.stop();
+                layer.lfo.oscillator.disconnect();
+                layer.lfo.oscillator = null;
+            }
+            if (layer.lfo.gainNode) {
+                layer.lfo.gainNode.disconnect();
+                layer.lfo.gainNode = null;
+            }
+        }
+
+        // Function to Enable Lighting and Shadows
+        let directionalLight = null; // Will hold the light object
+
+        function enableLighting() {
+            if (!directionalLight) {
+                directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(10, 10, 10);
+                directionalLight.castShadow = true;
+
+                // Configure shadow properties
+                directionalLight.shadow.mapSize.width = 1024;
+                directionalLight.shadow.mapSize.height = 1024;
+                directionalLight.shadow.camera.near = 0.5;
+                directionalLight.shadow.camera.far = 500;
+                directionalLight.shadow.camera.left = -50;
+                directionalLight.shadow.camera.right = 50;
+                directionalLight.shadow.camera.top = 50;
+                directionalLight.shadow.camera.bottom = -50;
+
+                scene.add(directionalLight);
+
+                // Optional: Add a helper to visualize the light
+                // const lightHelper = new THREE.DirectionalLightHelper(directionalLight, 5);
+                // scene.add(lightHelper);
+            }
+
+            // Enable shadow mapping in renderer
+            renderer.shadowMap.enabled = true;
+
+            // Ensure all relevant objects cast and receive shadows
+            tabs.forEach(tab => {
+                tab.greenOscillator.castShadow = true;
+                tab.greenOscillator.receiveShadow = true;
+                tab.yellowOscillator.castShadow = true;
+                tab.yellowOscillator.receiveShadow = true;
+                if (tab.standingWaveMesh) {
+                    tab.standingWaveMesh.receiveShadow = true;
+                }
+                if (tab.interferenceMesh) {
+                    tab.interferenceMesh.receiveShadow = true;
+                }
+                // Trails typically don't cast or receive shadows
+            });
+        }
+
+        // Function to Disable Lighting and Shadows
+        function disableLighting() {
+            if (directionalLight) {
+                scene.remove(directionalLight);
+                directionalLight = null;
+            }
+
+            // Disable shadow mapping in renderer
+            renderer.shadowMap.enabled = false;
+
+            // Disable shadows on all relevant objects
+            tabs.forEach(tab => {
+                tab.greenOscillator.castShadow = false;
+                tab.greenOscillator.receiveShadow = false;
+                tab.yellowOscillator.castShadow = false;
+                tab.yellowOscillator.receiveShadow = false;
+                if (tab.standingWaveMesh) {
+                    tab.standingWaveMesh.receiveShadow = false;
+                }
+                if (tab.interferenceMesh) {
+                    tab.interferenceMesh.receiveShadow = false;
+                }
+            });
+        }
+
+        // Function to Initialize All Layer Control Events (if needed)
+        // Already handled in setupLayerControlEvents
+        // ...
+
+        // Function to Create Interference Patterns Mesh
+        // Already defined earlier
+        // ...
+
+        // Function to Create Standing Waves Mesh
+        // Already defined earlier
+        // ...
+
+        // Function to Initialize Phase Locking
+        // Already defined earlier
+        // ...
+
+        // Function to Initialize Animation Loop
+        // Already defined earlier
+        // ...
+
+        // Function to Initialize the Toggle Button
+        document.getElementById('toggle-controls').addEventListener('click', () => {
+            const controls = document.getElementById('controls');
+            const toggleBtn = document.getElementById('toggle-controls');
+            if (controls.classList.contains('hidden')) {
+                controls.classList.remove('hidden');
+                toggleBtn.textContent = '✕'; // Symbol for Close
+                toggleBtn.style.left = '270px'; // Space for the panel (250px max-width + 20px Padding)
+            } else {
+                controls.classList.add('hidden');
+                toggleBtn.textContent = '☰'; // Symbol for Open
+                toggleBtn.style.left = '10px'; // Return to default position
+            }
+        });
+    </script>
+</body>
+
+</html>

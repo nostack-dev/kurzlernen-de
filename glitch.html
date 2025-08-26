@@ -1,0 +1,603 @@
+
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Rubbellos-Leiter – Pro (Normal/Pfand, Dashboard, persistent)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .kpi { @apply rounded-lg border p-4 text-center; }
+  .btn { @apply inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold transition; }
+  .btn:disabled { @apply opacity-50 cursor-not-allowed; }
+  .btn-primary { @apply bg-black text-white border-black hover:opacity-90; }
+  .btn-ghost { @apply border-slate-300 hover:bg-slate-50; }
+  .pill { @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs; }
+  .muted { @apply text-slate-500; }
+  .mono { font-feature-settings: "tnum" 1, "cv05" 1; font-variant-numeric: tabular-nums; }
+  .section { @apply rounded-lg border p-4; }
+  .h2 { @apply text-lg font-semibold mb-2; }
+  .grid-kpis { @apply grid gap-3 sm:grid-cols-2 md:grid-cols-4; }
+</style>
+</head>
+<body class="bg-white text-slate-900">
+<div class="mx-auto max-w-5xl p-4 sm:p-6">
+  <!-- Header -->
+  <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold">Rubbellos-Leiter – Pro</h1>
+      <p class="muted text-sm">Leiter-Strategie, Pfand-Modus, Dashboard &amp; LocalStorage – alles offline.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <label for="modeSelect" class="text-sm font-medium">Modus:</label>
+      <select id="modeSelect" class="border rounded-md p-2 text-sm">
+        <option value="normal">Normal</option>
+        <option value="pfand">Pfand</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- KPIs: Start & Konten -->
+  <section class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div class="kpi sm:col-span-2">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Session starten</div>
+      <div class="mt-2 grid gap-2 sm:grid-cols-2">
+        <div>
+          <label class="text-xs muted">Startbudget (€)</label>
+          <input id="startInput" type="number" step="1" min="0" value="10" class="w-full rounded-md border p-2 mono mt-1" />
+        </div>
+        <div id="pfandInputs" class="hidden">
+          <label class="text-xs muted">Pfand (Flaschen)</label>
+          <div class="flex gap-2 mt-1">
+            <input id="bottlesInput" type="number" step="1" min="0" value="34" class="w-full rounded-md border p-2 mono" />
+          </div>
+          <p class="muted text-xs mt-1">Regel: ~1,7 Flaschen je Einsatz-€ (Break-even). Max-Einsatz = (Flaschen×0,25)/0,42</p>
+        </div>
+      </div>
+      <div class="mt-2 flex gap-2">
+        <button id="btnStart" class="btn btn-primary">Session starten</button>
+        <button id="btnEndSession" class="btn btn-ghost" disabled>Session beenden</button>
+      </div>
+    </div>
+
+    <div class="kpi">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Spiel-Konto</div>
+      <div class="mt-1 text-2xl font-bold mono"><span id="playBank">0.00</span> €</div>
+    </div>
+    <div class="kpi">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Sicher</div>
+      <div class="mt-1 text-2xl font-bold mono"><span id="safeBank">0.00</span> €</div>
+    </div>
+    <div id="pfandKpi" class="kpi hidden">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Pfand (investiert)</div>
+      <div class="mt-1 text-2xl font-bold mono text-blue-600"><span id="pfandAccount">0.00</span> €</div>
+    </div>
+    <div id="netLossKpi" class="kpi">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Nettoverlust (gesamt)</div>
+      <div class="mt-1 text-2xl font-bold mono text-red-600"><span id="netLoss">0.00</span> €</div>
+    </div>
+  </section>
+
+  <!-- Vorschlag / Aktion -->
+  <section class="mb-4 section">
+    <div class="flex justify-between items-center flex-wrap gap-2">
+      <div class="flex items-center gap-2">
+        <span class="pill border-slate-300">Phase: <strong id="phase">–</strong></span>
+        <span class="pill border-slate-300">Ziel: <strong>100,00 €</strong></span>
+        <span id="pfandAllowancePill" class="pill border-slate-300 hidden">Erlaubter Einsatz Rest: <strong class="mono" id="allowanceRest">0,00 €</strong></span>
+      </div>
+      <div class="flex gap-2">
+        <button id="btnResetSession" class="btn btn-ghost">Session zurücksetzen</button>
+        <button id="btnHardReset" class="btn btn-ghost">Alles im Modus löschen</button>
+      </div>
+    </div>
+    <div class="mt-3">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Nächster Schritt (Vorschlag)</div>
+      <p class="mt-1 text-lg font-semibold" id="nextSuggestion">–</p>
+      <p class="muted text-sm" id="nextHint">–</p>
+    </div>
+  </section>
+
+  <!-- Kauf & Gewinn -->
+  <section id="actionPanel" class="section" style="display:none">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <div class="text-sm font-medium">Kosten dieser Runde</div>
+        <div class="mt-1 text-2xl font-bold mono"><span id="roundCost">0.00</span> €</div>
+        <p class="muted mt-1 text-sm" id="roundWhat">–</p>
+        <button id="btnCommitBuy" class="btn btn-ghost mt-2" disabled>Kauf verbuchen</button>
+      </div>
+      <div>
+        <div class="text-sm font-medium">Tatsächlicher Gewinn</div>
+        <div class="flex gap-2 mt-2">
+          <input id="winInput" type="number" step="1" min="0" value="0" class="w-32 rounded-md border p-2 mono" />
+          <div class="flex flex-wrap gap-2">
+            <button class="btn btn-ghost quick-win" data-w="0">0</button>
+            <button class="btn btn-ghost quick-win" data-w="10">10</button>
+            <button class="btn btn-ghost quick-win" data-w="20">20</button>
+            <button class="btn btn-ghost quick-win" data-w="50">50</button>
+            <button class="btn btn-ghost quick-win" data-w="100">100</button>
+          </div>
+        </div>
+        <button id="btnApplyWin" class="btn btn-primary mt-3" disabled>Gewinn anwenden</button>
+      </div>
+    </div>
+    <p class="muted mt-3 text-xs">
+      Regeln (Kurz): <strong>Phase 1</strong> 2×5 €; ab 20 € → 50 % sichern & Phase 2. <strong>Phase 2+</strong> 10 €-Lose; bei ≥50 € → 50 % sichern. <strong>Ziel</strong> 100 €.
+    </p>
+  </section>
+
+  <!-- Dashboard -->
+  <section class="mt-6 section">
+    <h2 class="h2">Dashboard & Statistik (modusbezogen)</h2>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Sessions gesamt</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statSessions">0</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Runden gesamt</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statRounds">0</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Tickets: 2×5 €</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statPairs5">0</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Tickets: 10 €</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statSingles10">0</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Gesamt-Einsatz</div>
+        <div class="mt-1 text-2xl font-bold mono"><span id="statSpent">0.00</span> €</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Gesamt-Gewinn</div>
+        <div class="mt-1 text-2xl font-bold mono"><span id="statWon">0.00</span> €</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">ROI (Gewinn/Einsatz)</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statROI">0.0%</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Ø-Gewinn pro Runde</div>
+        <div class="mt-1 text-2xl font-bold mono"><span id="statAvg">0.00</span> €</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Treffer ≥20 €</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statHit20">0 (0.0%)</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Treffer ≥50 €</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statHit50">0 (0.0%)</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Treffer ≥100 €</div>
+        <div class="mt-1 text-2xl font-bold mono" id="statHit100">0 (0.0%)</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Bust-Sessions</div>
+        <div class="mt-1 text-2xl font-bold mono text-red-600" id="statBusts">0</div>
+      </div>
+      <div class="kpi">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Ziel erreicht (≥100 €)</div>
+        <div class="mt-1 text-2xl font-bold mono text-green-600" id="statGoals">0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Verlauf -->
+  <section class="mt-6">
+    <h2 class="h2">Verlauf (neueste zuerst)</h2>
+    <div id="log" class="space-y-1 text-sm mono text-slate-700"></div>
+  </section>
+</div>
+
+<script>
+/* ---------- Config ---------- */
+const STORAGE_KEYS = { normal: "rubbel_pro_normal", pfand: "rubbel_pro_pfand" };
+const CONFIG = {
+  GOAL_BANKROLL_CENTS: 10000,  // 100,00 €
+  PHASE_1_COST_CENTS: 1000,    // 2×5 €
+  PHASE_1_NAME: "2× 5 € Lose",
+  PHASE_1_WIN_THRESHOLD_CENTS: 2000, // ab hier 50% sichern -> Phase 2
+  PHASE_2_COST_CENTS: 1000,    // 1×10 €
+  PHASE_2_NAME: "1× 10 € Los",
+  PHASE_2_WIN_THRESHOLD_CENTS: 5000, // ab hier 50% sichern
+  SECURE_PERCENT: 0.5,
+  PFAND_BOTTLE_EURO: 0.25,
+  PFAND_DIVISOR_LOSSRATE: 0.42  // max Einsatz = Pfand€ / 0.42
+};
+
+/* ---------- Utilities ---------- */
+const € = c => (c/100).toFixed(2);
+const toCents = v => Math.round(parseFloat(v || 0) * 100);
+const now = () => new Date().toLocaleString('de-DE', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+
+/* ---------- State ---------- */
+let mode = "normal";
+function initialState() {
+  return {
+    started: false,
+    phase: 1,
+    playBank: 0,
+    safeBank: 0,
+    pfandAccount: 0,          // nur sichtbar im Pfandmodus
+    pfandBottles: 0,
+    pfandAllowedCents: 0,     // erlaubter Gesamteinsatz auf Basis Pfand
+    pfandSpentCents: 0,       // innerhalb der laufenden Session
+    netLoss: 0,               // im Normalmodus: ausgegeben - gewonnene €
+    roundCommitted: false,
+    currentCost: 0,
+    currentWhat: "",
+    log: [],
+    // Statistik (persistiert je Modus)
+    stats: {
+      sessions: 0,
+      rounds: 0,
+      buysPairs5: 0,
+      buysSingle10: 0,
+      totalSpent: 0,
+      totalWon: 0,
+      hit20: 0,
+      hit50: 0,
+      hit100: 0,
+      busts: 0,
+      goals: 0
+    }
+  };
+}
+let state = initialState();
+
+/* ---------- UI ---------- */
+const ui = {
+  modeSelect: document.getElementById("modeSelect"),
+  startInput: document.getElementById("startInput"),
+  bottlesInput: document.getElementById("bottlesInput"),
+  pfandInputs: document.getElementById("pfandInputs"),
+  btnStart: document.getElementById("btnStart"),
+  btnEndSession: document.getElementById("btnEndSession"),
+  playBank: document.getElementById("playBank"),
+  safeBank: document.getElementById("safeBank"),
+  netLoss: document.getElementById("netLoss"),
+  pfandKpi: document.getElementById("pfandKpi"),
+  pfandAccount: document.getElementById("pfandAccount"),
+  netLossKpi: document.getElementById("netLossKpi"),
+  phase: document.getElementById("phase"),
+  nextSuggestion: document.getElementById("nextSuggestion"),
+  nextHint: document.getElementById("nextHint"),
+  allowancePill: document.getElementById("pfandAllowancePill"),
+  allowanceRest: document.getElementById("allowanceRest"),
+  actionPanel: document.getElementById("actionPanel"),
+  roundCost: document.getElementById("roundCost"),
+  roundWhat: document.getElementById("roundWhat"),
+  btnCommitBuy: document.getElementById("btnCommitBuy"),
+  winInput: document.getElementById("winInput"),
+  btnApplyWin: document.getElementById("btnApplyWin"),
+  btnResetSession: document.getElementById("btnResetSession"),
+  btnHardReset: document.getElementById("btnHardReset"),
+  // Dashboard
+  statSessions: document.getElementById("statSessions"),
+  statRounds: document.getElementById("statRounds"),
+  statPairs5: document.getElementById("statPairs5"),
+  statSingles10: document.getElementById("statSingles10"),
+  statSpent: document.getElementById("statSpent"),
+  statWon: document.getElementById("statWon"),
+  statROI: document.getElementById("statROI"),
+  statAvg: document.getElementById("statAvg"),
+  statHit20: document.getElementById("statHit20"),
+  statHit50: document.getElementById("statHit50"),
+  statHit100: document.getElementById("statHit100"),
+  statBusts: document.getElementById("statBusts"),
+  statGoals: document.getElementById("statGoals"),
+  log: document.getElementById("log"),
+  quickWins: document.querySelectorAll(".quick-win")
+};
+
+/* ---------- Persistence ---------- */
+function save() { localStorage.setItem(STORAGE_KEYS[mode], JSON.stringify(state)); }
+function load() {
+  const raw = localStorage.getItem(STORAGE_KEYS[mode]);
+  state = raw ? JSON.parse(raw) : initialState();
+  // Backfill for older states
+  if (!state.stats) state.stats = initialState().stats;
+  renderAll();
+}
+
+/* ---------- Logging ---------- */
+function addLog(msg) {
+  state.log.unshift(`[${now()}] ${msg}`);
+  if (state.log.length > 200) state.log.pop();
+}
+
+/* ---------- Render ---------- */
+function renderAll() {
+  // Mode specific UI
+  const pf = (mode === 'pfand');
+  ui.pfandInputs.classList.toggle('hidden', !pf);
+  ui.pfandKpi.classList.toggle('hidden', !pf);
+  ui.netLossKpi.classList.toggle('hidden', pf);
+  ui.allowancePill.classList.toggle('hidden', !pf);
+
+  ui.playBank.textContent = €(state.playBank);
+  ui.safeBank.textContent = €(state.safeBank);
+  ui.pfandAccount.textContent = €(state.pfandAccount);
+  ui.netLoss.textContent = €(state.netLoss);
+  ui.phase.textContent = state.started ? state.phase : "–";
+
+  ui.roundCost.textContent = €(state.currentCost);
+  ui.roundWhat.textContent = state.currentWhat || "–";
+
+  // Allowance (Pfandmodus)
+  if (pf) {
+    const rest = Math.max(0, state.pfandAllowedCents - state.pfandSpentCents);
+    ui.allowanceRest.textContent = €(rest);
+  }
+
+  // Buttons enable/disable
+  const canCommit = state.started && !state.roundCommitted && state.currentCost > 0 && state.playBank >= state.currentCost &&
+    (!pf || (state.pfandSpentCents + state.currentCost) <= state.pfandAllowedCents);
+  ui.btnCommitBuy.disabled = !canCommit;
+  ui.btnApplyWin.disabled = !state.roundCommitted;
+  ui.btnEndSession.disabled = !state.started;
+
+  // Action panel
+  ui.actionPanel.style.display = state.started ? 'block' : 'none';
+
+  // Dashboard
+  const st = state.stats;
+  ui.statSessions.textContent = st.sessions;
+  ui.statRounds.textContent = st.rounds;
+  ui.statPairs5.textContent = st.buysPairs5;
+  ui.statSingles10.textContent = st.buysSingle10;
+  ui.statSpent.textContent = €(st.totalSpent);
+  ui.statWon.textContent   = €(st.totalWon);
+  const roi = st.totalSpent > 0 ? (st.totalWon / st.totalSpent * 100) : 0;
+  ui.statROI.textContent = `${roi.toFixed(1)}%`;
+  const avg = st.rounds > 0 ? st.totalWon / st.rounds : 0;
+  ui.statAvg.textContent = €(Math.round(avg));
+  const pct = (n,d) => d>0 ? (100*n/d).toFixed(1) : "0.0";
+  ui.statHit20.textContent  = `${st.hit20} (${pct(st.hit20, st.rounds)}%)`;
+  ui.statHit50.textContent  = `${st.hit50} (${pct(st.hit50, st.rounds)}%)`;
+  ui.statHit100.textContent = `${st.hit100} (${pct(st.hit100, st.rounds)}%)`;
+  ui.statBusts.textContent  = st.busts;
+  ui.statGoals.textContent  = st.goals;
+
+  // Log
+  ui.log.innerHTML = state.log.map(l => `<div>${l}</div>`).join("");
+
+  save();
+}
+
+/* ---------- Suggestions ---------- */
+function suggestNext() {
+  if (!state.started) {
+    ui.nextSuggestion.textContent = "Starte eine Session.";
+    ui.nextHint.textContent = "Gib Startbudget ein (und im Pfandmodus Flaschen), dann „Session starten“.";
+    state.currentCost = 0; state.currentWhat = "";
+    renderAll();
+    return;
+  }
+  const total = state.playBank + state.safeBank;
+  if (total >= CONFIG.GOAL_BANKROLL_CENTS) {
+    ui.nextSuggestion.textContent = `🎉 Ziel erreicht! Alles auszahlen (${€(total)} €).`;
+    ui.nextHint.textContent = "Session beenden und Gewinn genießen.";
+    state.currentCost = 0; state.currentWhat = "";
+    renderAll();
+    return;
+  }
+
+  if (state.phase === 1) {
+    state.currentCost = CONFIG.PHASE_1_COST_CENTS;
+    state.currentWhat = CONFIG.PHASE_1_NAME;
+    ui.nextSuggestion.textContent = `Kaufe ${CONFIG.PHASE_1_NAME}.`;
+    ui.nextHint.textContent = `Bei ≥ ${€(CONFIG.PHASE_1_WIN_THRESHOLD_CENTS)} Gewinn → 50 % sichern & weiter zu Phase 2.`;
+  } else {
+    state.currentCost = CONFIG.PHASE_2_COST_CENTS;
+    state.currentWhat = CONFIG.PHASE_2_NAME;
+    ui.nextSuggestion.textContent = `Kaufe ${CONFIG.PHASE_2_NAME}.`;
+    ui.nextHint.textContent = `Bei ≥ ${€(CONFIG.PHASE_2_WIN_THRESHOLD_CENTS)} Gewinn → 50 % sichern.`;
+  }
+
+  // Budgetcheck & Pfand-Allowance
+  let budgetOK = state.playBank >= state.currentCost;
+  if (mode === 'pfand') {
+    const rest = Math.max(0, state.pfandAllowedCents - state.pfandSpentCents);
+    if (state.currentCost > rest) budgetOK = false;
+  }
+  if (!budgetOK) {
+    ui.nextSuggestion.textContent = "Nicht genug Budget/Allowance für die nächste Runde.";
+    ui.nextHint.textContent = "Session beenden oder neue Session mit frischem Budget starten.";
+    state.currentCost = 0; state.currentWhat = "";
+  }
+  renderAll();
+}
+
+/* ---------- Actions ---------- */
+function startSession() {
+  const start = toCents(ui.startInput.value);
+  if (start <= 0) return alert("Startbudget > 0 eingeben.");
+  // Reset nur Session-Teile, Stats behalten
+  sessionReset(false);
+
+  state.started = true;
+  state.phase = 1;
+  state.playBank = start;
+
+  if (mode === 'pfand') {
+    const bottles = parseInt(ui.bottlesInput.value || "0", 10);
+    const pfandEuro = bottles * CONFIG.PFAND_BOTTLE_EURO; // € als Float
+    const pfandCents = Math.round(pfandEuro * 100);
+    const allowed = Math.floor((pfandEuro / CONFIG.PFAND_DIVISOR_LOSSRATE) * 100); // in Cents
+    state.pfandBottles = bottles;
+    state.pfandAllowedCents = allowed;
+    state.pfandSpentCents = 0;
+    addLog(`Session gestartet: Startbudget ${€(start)} €, Pfand: ${bottles} Fl. → erlaubter Einsatz: ${€(allowed)} €`);
+  } else {
+    addLog(`Session gestartet: Startbudget ${€(start)} €`);
+  }
+
+  state.stats.sessions += 1;
+  renderAll();
+  suggestNext();
+}
+
+function endSession() {
+  if (!state.started) return;
+  const total = state.playBank + state.safeBank;
+  let label = "neutral";
+  if (total >= CONFIG.GOAL_BANKROLL_CENTS) {
+    label = "Ziel erreicht";
+    state.stats.goals += 1;
+  } else if (total === 0) {
+    label = "Bust";
+    state.stats.busts += 1;
+  } else if (total > toCents(ui.startInput.value)) {
+    label = "Gewinn";
+  } else if (total < toCents(ui.startInput.value)) {
+    label = "Verlust";
+  }
+
+  addLog(`Session beendet: ${label} | Gesamt: ${€(total)} € (Spiel ${€(state.playBank)} € + Sicher ${€(state.safeBank)} €)`);
+  // Session beenden, aber Stats bleiben
+  sessionReset(true);
+  renderAll();
+  suggestNext();
+}
+
+function commitBuy() {
+  if (state.currentCost <= 0) return;
+  if (state.playBank < state.currentCost) return alert("Nicht genug Budget.");
+  if (mode === 'pfand') {
+    const rest = state.pfandAllowedCents - state.pfandSpentCents;
+    if (state.currentCost > rest) return alert("Pfand-Allowance erschöpft. Kauf nicht erlaubt.");
+  }
+
+  state.playBank -= state.currentCost;
+  state.roundCommitted = true;
+
+  // Statistik: Ticketzählung & Einsatz
+  if (state.currentWhat.includes("2× 5")) state.stats.buysPairs5 += 1;
+  if (state.currentWhat.includes("10 €")) state.stats.buysSingle10 += 1;
+  state.stats.totalSpent += state.currentCost;
+
+  if (mode === 'pfand') {
+    state.pfandAccount += state.currentCost;
+    state.pfandSpentCents += state.currentCost;
+    addLog(`Kauf (Pfand): ${state.currentWhat} (−${€(state.currentCost)} €)`);
+  } else {
+    state.netLoss += state.currentCost;
+    addLog(`Kauf: ${state.currentWhat} (−${€(state.currentCost)} €)`);
+  }
+  renderAll();
+}
+
+function applyWin() {
+  if (!state.roundCommitted) return alert("Bitte zuerst den Kauf verbuchen.");
+  const w = toCents(ui.winInput.value);
+  addLog(`Gewinn: +${€(w)} €`);
+  state.stats.rounds += 1;
+  state.stats.totalWon += w;
+
+  // Treffer-Statistik
+  if (w >= 2000) state.stats.hit20 += 1;
+  if (w >= 5000) state.stats.hit50 += 1;
+  if (w >= 10000) state.stats.hit100 += 1;
+
+  // Accounting
+  if (mode === 'pfand') {
+    // Gewinne gehen ins Spielkonto; Pfandkonto wird zuerst reduziert (informativ)
+    const reduce = Math.min(w, state.pfandAccount);
+    if (reduce > 0) {
+      state.pfandAccount -= reduce;
+      addLog(`Pfand wieder eingespielt: ${€(reduce)} € (Rest Pfand: ${€(state.pfandAccount)} €)`);
+    }
+    state.playBank += w;
+  } else {
+    const reduceLoss = Math.min(w, state.netLoss);
+    state.netLoss -= reduceLoss;
+    state.playBank += w;
+  }
+
+  // Phasenlogik & Sicherung
+  if (state.phase === 1) {
+    if (w >= CONFIG.PHASE_1_WIN_THRESHOLD_CENTS) {
+      const secure = Math.floor(w * CONFIG.SECURE_PERCENT);
+      state.safeBank += secure;
+      state.playBank -= secure;
+      state.phase = 2;
+      addLog(`→ Aufstieg: ${€(secure)} € gesichert, Phase 2.`);
+    } else if (w === 1000) {
+      addLog("=10 € → konservativ bei Phase 1 bleiben (2×5 € erneut).");
+    } else if (w === 0) {
+      addLog("Niete in Phase 1 aufgezeichnet.");
+    }
+  } else {
+    if (w >= CONFIG.PHASE_2_WIN_THRESHOLD_CENTS) {
+      const secure = Math.floor(w * CONFIG.SECURE_PERCENT);
+      state.safeBank += secure;
+      state.playBank -= secure;
+      addLog(`≥50 € Treffer: ${€(secure)} € gesichert.`);
+    } else if (w === 2000) {
+      const secure = 1000; // 10 €
+      state.safeBank += secure;
+      state.playBank -= secure;
+      addLog(`=20 €: 10 € gesichert, 10 € weiter versuchen.`);
+    } else if (w === 0) {
+      addLog("Niete in Phase 2/3 aufgezeichnet.");
+    }
+    // Phase bleibt ≥2
+  }
+
+  state.roundCommitted = false;
+  ui.winInput.value = 0;
+  renderAll();
+  suggestNext();
+}
+
+/* ---------- Resets ---------- */
+function sessionReset(logIt) {
+  // beendet nur die laufende Session, nicht die Stats
+  if (logIt) addLog("--- Session zurückgesetzt ---");
+  state.started = false;
+  state.phase = 1;
+  state.playBank = 0;
+  state.safeBank = 0;
+  state.pfandAccount = 0;
+  state.pfandBottles = 0;
+  state.pfandAllowedCents = 0;
+  state.pfandSpentCents = 0;
+  state.netLoss = 0;
+  state.roundCommitted = false;
+  state.currentCost = 0;
+  state.currentWhat = "";
+}
+
+function hardReset() {
+  if (!confirm("Wirklich ALLES in diesem Modus löschen (inkl. Statistik)?")) return;
+  state = initialState();
+  addLog("--- Hard Reset (Modus vollständig gelöscht) ---");
+  renderAll();
+}
+
+/* ---------- Events ---------- */
+ui.btnStart.addEventListener("click", startSession);
+ui.btnEndSession.addEventListener("click", endSession);
+ui.btnResetSession.addEventListener("click", () => { sessionReset(true); renderAll(); suggestNext(); });
+ui.btnHardReset.addEventListener("click", hardReset);
+ui.btnCommitBuy.addEventListener("click", commitBuy);
+ui.btnApplyWin.addEventListener("click", applyWin);
+ui.quickWins.forEach(b => b.addEventListener("click", () => ui.winInput.value = b.dataset.w));
+ui.modeSelect.addEventListener("change", e => {
+  mode = e.target.value;
+  load();
+  suggestNext();
+});
+
+/* ---------- Init ---------- */
+load();
+suggestNext();
+</script>
+</body>
+</html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="forest">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Christian Hohlfeld's Story Hub</title>
+    <!-- Tailwind CSS und DaisyUI über CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography,forms"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@latest/dist/full.css" rel="stylesheet" type="text/css" />
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .bg-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='42' height='44' viewBox='0 0 42 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='Page-1' fill='none' fill-rule='evenodd'%3E%3Cg id='brick-wall' fill='%235A6270' fill-opacity='0.1'%3E%3Cpath d='M0 0h42v44H0V0zm1 1h40v20H1V1zM0 23h42v20H0V23zm1 1h40v20H1V24z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+    </style>
+</head>
+<body class="bg-base-100 text-base-content min-h-screen">
+
+    <!-- Navbar -->
+    <div class="navbar bg-base-100 shadow-xl z-50">
+        <div class="container mx-auto">
+            <div class="flex-1">
+                <a class="btn btn-ghost text-xl font-bold text-primary" onclick="showPage('landing')">Story Hub</a>
+            </div>
+            <div class="flex-none">
+                <a onclick="scrollToSection('pricing-section')" class="btn btn-ghost">Preise</a>
+                <a onclick="showPage('generator')" class="btn btn-primary ml-2">Jetzt starten</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="message-box" class="toast toast-end z-50 hidden"></div>
+    
+    <div id="app-container">
+        <!-- Landing Page Section -->
+        <div id="landing-page">
+            <div class="hero min-h-[calc(100vh-64px)] bg-pattern">
+                <div class="hero-content text-center">
+                    <div class="max-w-3xl">
+                        <h1 class="text-5xl md:text-7xl font-extrabold text-white leading-tight mb-4">
+                            Verwandle Deine Ideen in fesselnde Hörgeschichten.
+                        </h1>
+                        <p class="text-lg md:text-xl text-base-content mb-8">
+                            Mit modernster KI-Stimme von ElevenLabs.
+                        </p>
+                        <div class="flex flex-col md:flex-row gap-4 w-full justify-center">
+                            <a onclick="scrollToSection('pricing-section')" class="btn btn-primary btn-lg shadow-lg w-full md:w-auto">Entdecke die Preise</a>
+                            <a onclick="showPage('generator')" class="btn btn-secondary btn-lg shadow-lg w-full md:w-auto">Direkt starten</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    
+            <!-- Pricing Section -->
+            <section id="pricing-section" class="py-20 md:py-28 bg-base-200">
+                <div class="container mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">Preisgestaltung</h2>
+                        <p class="text-lg text-base-content max-w-xl mx-auto">
+                            Erstelle einzigartige Geschichten mit unserem flexiblen Credit-System.
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                        <!-- Einzelkauf Card -->
+                        <div class="card bg-base-100 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-base-content/20">
+                            <div class="card-body text-center">
+                                <h3 class="card-title justify-center text-3xl font-bold text-primary">Einzelkauf</h3>
+                                <p class="text-sm text-base-content uppercase tracking-widest mt-2">Der Probe-Credit</p>
+                                <div class="py-8">
+                                    <span class="text-5xl font-extrabold text-white">19,99 €</span>
+                                    <span class="text-xl text-base-content"> / Credit</span>
+                                </div>
+                                <ul class="text-left text-base-content space-y-2 mb-6">
+                                    <li><span class="text-success mr-2">✓</span> 10-Minuten-Story</li>
+                                    <li><span class="text-success mr-2">✓</span> Perfekt zum Ausprobieren</li>
+                                    <li><span class="text-success mr-2">✓</span> Kein Abo</li>
+                                    <li class="text-error"><span class="text-error mr-2">✗</span> Kein Mengenrabatt</li>
+                                </ul>
+                                <div class="card-actions justify-center">
+                                    <button class="btn btn-primary btn-lg w-full">Jetzt 1 Credit kaufen</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 3er Paket Card -->
+                        <div class="card bg-base-300 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-primary">
+                            <div class="card-body text-center">
+                                <h3 class="card-title justify-center text-3xl font-bold text-primary">3er Paket</h3>
+                                <p class="text-sm text-primary uppercase tracking-widest mt-2">Beliebtester Preis</p>
+                                <div class="py-8">
+                                    <span class="text-5xl font-extrabold text-white">49,99 €</span>
+                                    <span class="text-xl text-base-content"> / 3 Credits</span>
+                                </div>
+                                <ul class="text-left text-base-content space-y-2 mb-6">
+                                    <li><span class="text-success mr-2">✓</span> 3 x 10-Minuten-Stories</li>
+                                    <li><span class="text-success mr-2">✓</span> Günstiger als Einzelkauf</li>
+                                    <li><span class="text-success mr-2">✓</span> Flexibel einsetzbar</li>
+                                    <li><span class="text-success mr-2">✓</span> Ideal für kleine Projekte</li>
+                                </ul>
+                                <div class="card-actions justify-center">
+                                    <button class="btn btn-secondary btn-lg w-full">3 Credits kaufen</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 5er Paket Card -->
+                        <div class="card bg-base-100 shadow-xl transition-transform transform hover:scale-105 duration-300 border border-base-content/20">
+                            <div class="card-body text-center">
+                                <h3 class="card-title justify-center text-3xl font-bold text-primary">5er Paket</h3>
+                                <p class="text-sm text-base-content uppercase tracking-widest mt-2">Bestes Angebot</p>
+                                <div class="py-8">
+                                    <span class="text-5xl font-extrabold text-white">69,99 €</span>
+                                    <span class="text-xl text-base-content"> / 5 Credits</span>
+                                </div>
+                                <ul class="text-left text-base-content space-y-2 mb-6">
+                                    <li><span class="text-success mr-2">✓</span> 5 x 10-Minuten-Stories</li>
+                                    <li><span class="text-success mr-2">✓</span> Größter Rabatt pro Story</li>
+                                    <li><span class="text-success mr-2">✓</span> Perfekt für Autoren</li>
+                                    <li><span class="text-success mr-2">✓</span> Langfristig sparen</li>
+                                </ul>
+                                <div class="card-actions justify-center">
+                                    <button class="btn btn-primary btn-lg w-full">5 Credits kaufen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer class="footer items-center p-4 bg-neutral text-neutral-content">
+                <aside class="items-center grid-flow-col">
+                    <p>Copyright © 2025 - Christian Hohlfeld</p>
+                </aside>
+            </footer>
+        </div>
+
+        <!-- Story Generator Page Section -->
+        <div id="generator-page" class="hidden">
+            <section class="py-20 md:py-28 bg-base-100 min-h-screen flex flex-col justify-center items-center">
+                <div class="container mx-auto px-4 text-center">
+                    <button onclick="showPage('landing')" class="btn btn-ghost mb-8 text-base-content/70 hover:text-base-content">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Zurück zur Startseite
+                    </button>
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4 text-white">Jetzt deine erste Geschichte erschaffen</h2>
+                    <p class="text-lg text-base-content max-w-2xl mx-auto mb-8">
+                        Gib deine Idee ein und lass die KI deine Worte zum Leben erwecken.
+                    </p>
+                    <div class="w-full max-w-2xl mx-auto card bg-base-200 shadow-xl p-8 space-y-6">
+                        <!-- Eingabebereich -->
+                        <div class="space-y-4">
+                            <label for="story-prompt" class="label">
+                                <span class="label-text text-base-content/70">Ihre Idee für die Geschichte:</span>
+                            </label>
+                            <textarea id="story-prompt" rows="3" class="w-full textarea textarea-bordered bg-base-300 border-base-content/20 text-base-content placeholder-base-content/50 focus:ring-2 focus:ring-primary focus:outline-none" placeholder="z.B. Ein einsamer Leuchtturmwärter findet eine mysteriöse Flaschenpost..."></textarea>
+                            <button id="generate-button" class="w-full btn btn-primary font-bold transition duration-300 ease-in-out flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                   <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path>
+                                </svg>
+                                Geschichte erstellen & anhören
+                            </button>
+                        </div>
+                
+                        <!-- Lade- & Statusanzeige -->
+                        <div id="status-container" class="hidden flex flex-col items-center justify-center space-y-2 text-center">
+                            <progress id="loader" class="progress progress-primary w-full"></progress>
+                            <p id="status-text" class="text-base-content/70">Hörgeschichte wird erstellt...</p>
+                        </div>
+                
+                        <!-- Ergebnisbereich -->
+                        <div id="result-container" class="hidden space-y-6">
+                            <div>
+                                <h2 class="text-2xl font-bold border-b border-base-content/20 pb-2 mb-4 text-white">Ihre Geschichte</h2>
+                                <div class="collapse collapse-plus bg-base-300 rounded-md">
+                                    <input type="checkbox" id="collapse-toggle-input" /> 
+                                    <div class="collapse-title text-xl font-medium text-primary">
+                                        Vorschau
+                                    </div>
+                                    <div id="story-text-container" class="collapse-content overflow-y-auto max-h-60 prose max-w-full text-base-content leading-relaxed">
+                                         <div id="story-text"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <h3 class="text-xl font-semibold mt-4">Anhören:</h3>
+                                <audio id="audio-player" controls class="w-full"></audio>
+                                <button id="download-button" class="btn btn-secondary w-full" disabled>
+                                    Audio herunterladen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+
+    <!-- Scripts -->
+    <script>
+        // Globale Variablen
+        const elevenLabsApiKey = "sk_8f587d47268015a2c524e5aa1bac036f95cf8bfd9d68a162";
+        const geminiApiKey = "AIzaSyD3uQ6BnGsliYAtfRh9r0jdBUq03KEfFO0";
+
+        let audioBlob = null;
+        let isGenerating = false; // Verhindert mehrfaches Generieren
+
+        // UI Elemente
+        const landingPage = document.getElementById('landing-page');
+        const generatorPage = document.getElementById('generator-page');
+        const storyPromptInput = document.getElementById('story-prompt');
+        const generateButton = document.getElementById('generate-button');
+        const statusContainer = document.getElementById('status-container');
+        const statusText = document.getElementById('status-text');
+        const resultContainer = document.getElementById('result-container');
+        const storyTextContainer = document.getElementById('story-text-container');
+        const storyTextDiv = document.getElementById('story-text');
+        const audioPlayer = document.getElementById('audio-player');
+        const messageBox = document.getElementById('message-box');
+        const downloadButton = document.getElementById('download-button');
+        const collapseToggleInput = document.getElementById('collapse-toggle-input');
+
+        // Funktion zum Wechseln der Seiten
+        function showPage(page) {
+            if (page === 'landing') {
+                landingPage.classList.remove('hidden');
+                generatorPage.classList.add('hidden');
+            } else if (page === 'generator') {
+                landingPage.classList.add('hidden');
+                generatorPage.classList.remove('hidden');
+                generatorPage.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        window.showPage = showPage;
+
+        // Funktion zum Scrollen zu einer Sektion
+        function scrollToSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        window.scrollToSection = scrollToSection;
+
+        // Funktion zur Anzeige von Nachrichten
+        function showMessage(text, type = 'info') {
+            if (messageBox) {
+                const alertHtml = {
+                    info: `<div role="alert" class="alert alert-info">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                              <span>${text}</span>
+                           </div>`,
+                    success: `<div role="alert" class="alert alert-success">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>${text}</span>
+                              </div>`,
+                    error: `<div role="alert" class="alert alert-error">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>${text}</span>
+                              </div>`
+                };
+                
+                messageBox.innerHTML = alertHtml[type];
+                messageBox.classList.remove('hidden');
+
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                    messageBox.innerHTML = '';
+                }, 5000);
+            }
+        }
+        
+        // Initialisierung
+        document.addEventListener('DOMContentLoaded', () => {
+             // restoreStoryFromLocalStorage(); // Wird nun nur auf der Generator-Seite aufgerufen
+        });
+
+        generateButton.addEventListener('click', async () => {
+            if (isGenerating) return;
+
+            const prompt = storyPromptInput.value.trim();
+            if (!prompt) {
+                showMessage("Bitte gib eine Idee für deine Geschichte ein.", 'info');
+                return;
+            }
+            
+            isGenerating = true;
+
+            // UI zurücksetzen
+            if (resultContainer) resultContainer.classList.add('hidden');
+            if (generateButton) {
+                generateButton.disabled = true;
+                generateButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            if (statusContainer) statusContainer.classList.remove('hidden');
+            if (statusText) statusText.textContent = "Hörgeschichte wird erstellt...";
+            if (downloadButton) {
+                downloadButton.disabled = true;
+            }
+            if (audioPlayer) {
+                audioPlayer.disabled = true;
+            }
+            
+            // Lösche vorherige Daten aus localStorage
+            localStorage.removeItem('lastStory');
+            audioBlob = null;
+
+            try {
+                // 1. Geschichte mit Gemini generieren
+                const story = await generateStoryWithGemini(prompt);
+                if (storyTextDiv) storyTextDiv.innerHTML = story.replace(/\n/g, '<p>');
+                if (resultContainer) resultContainer.classList.remove('hidden');
+                
+                if (statusText) statusText.textContent = "Hörgeschichte wird erstellt...";
+
+                // 2. Audio-Streaming mit ElevenLabs starten und speichern
+                const audioDataUrl = await streamAudioWithElevenLabs(story);
+
+                // 3. Story und Audio in localStorage speichern
+                localStorage.setItem('lastStory', JSON.stringify({
+                    text: story,
+                    audioDataUrl: audioDataUrl
+                }));
+                
+                showMessage("Geschichte erfolgreich erstellt und abspielbereit!", 'success');
+                if(collapseToggleInput) {
+                    collapseToggleInput.checked = false; // Text beim Neugenerieren einklappen
+                }
+
+            } catch (error) {
+                console.error("Ein Fehler ist aufgetreten:", error);
+                showMessage("Ein Fehler ist aufgetreten: " + error.message, 'error');
+                if (statusContainer) statusContainer.classList.add('hidden');
+            } finally {
+                isGenerating = false;
+                if (generateButton) {
+                    generateButton.disabled = false;
+                    generateButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                if (downloadButton) {
+                    downloadButton.disabled = false;
+                }
+                 if (audioPlayer) {
+                    audioPlayer.disabled = false;
+                }
+            }
+        });
+
+        async function generateStoryWithGemini(prompt) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+            const requestBody = {
+                contents: [{
+                    parts: [{
+                        text: `Schreibe eine lange, detaillierte und spannende Geschichte basierend auf dieser Idee: "${prompt}". Die Geschichte sollte mindestens 400 Wörter lang sein und einen klaren Anfang, einen spannenden Hauptteil und einen befriedigenden Schluss haben.`
+                    }]
+                }]
+            };
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
+            if (!response.ok) throw new Error(`Gemini API Fehler: ${response.statusText}`);
+            const data = await response.json();
+            if (data.candidates && data.candidates.length > 0) {
+                return data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error("Keine Geschichte von Gemini erhalten.");
+            }
+        }
+
+        async function streamAudioWithElevenLabs(textToSpeak) {
+            return new Promise(async (resolve, reject) => {
+                const voiceId = '2OcnG4mH3jIMtWz3vKus';
+                const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`;
+                const headers = { "Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": elevenLabsApiKey };
+                const data = { text: textToSpeak, model_id: "eleven_multilingual_v2" };
+
+                try {
+                    const response = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(data) });
+                    if (!response.ok) {
+                        return reject(new Error(`ElevenLabs API Fehler: ${response.statusText}`));
+                    }
+                    
+                    if (statusText) statusText.textContent = "Hörgeschichte wird erstellt...";
+                    const reader = response.body.getReader();
+                    const audioChunks = [];
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            const finalBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
+                            audioBlob = finalBlob;
+                            const audioDataUrl = URL.createObjectURL(finalBlob);
+                            if (audioPlayer) audioPlayer.src = audioDataUrl;
+                            statusContainer.classList.add('hidden');
+                            resolve(audioDataUrl);
+                            break;
+                        }
+                        audioChunks.push(value);
+                    }
+                } catch (error) {
+                    console.error("Fehler beim Audio-Streaming:", error);
+                    showMessage("Fehler beim Audio-Streaming: " + error.message, 'error');
+                    statusContainer.classList.add('hidden');
+                    reject(error);
+                }
+            });
+        }
+        
+        // Download-Funktion
+        downloadButton.addEventListener('click', () => {
+            if (audioBlob) {
+                const url = URL.createObjectURL(audioBlob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `geschichte-${Date.now()}.mp3`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showMessage("Audio wird heruntergeladen...", 'info');
+            } else {
+                showMessage("Keine Story zum Herunterladen gefunden. Bitte generieren Sie zuerst eine.", 'error');
+            }
+        });
+    </script>
+</body>
+</html>

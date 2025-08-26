@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deterministic 2D Physics Editor & Simulation</title>
+  <style>
+    /* General Styles */
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #222;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+    canvas { display: block; }
+    /* FPS and Message */
+    #fps {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 1001;
+    }
+    /* Hidden Class */
+    .hidden { display: none; }
+    /* Undo/Redo Buttons */
+    #undo-redo-buttons {
+      position: absolute;
+      top: 50px; /* Positioned below FPS */
+      left: 10px;
+      display: flex;
+      gap: 10px;
+      z-index: 1001;
+    }
+    #undo-redo-buttons button {
+      padding: 5px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      transition: background-color 0.2s;
+    }
+    #undo-redo-buttons button:hover {
+      background-color: rgba(255, 255, 255, 0.4);
+    }
+    #undo-redo-buttons button:disabled {
+      background-color: rgba(255, 255, 255, 0.1);
+      cursor: not-allowed;
+    }
+    /* Right Sidebar Panel */
+    #right-sidebar {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      background: rgba(0,0,0,0.95);
+      overflow-y: auto;
+      padding: 15px;
+      box-sizing: border-box;
+      border-left: 2px solid #555;
+      transition: transform 0.3s ease;
+      z-index: 1000;
+    }
+    #right-sidebar.hidden { transform: translateX(100%); }
+    #right-sidebar h2 {
+      text-align: center;
+      margin-top: 0;
+      font-size: 20px;
+    }
+    details {
+      margin-top: 10px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 5px;
+    }
+    details summary {
+      cursor: pointer;
+      font-weight: bold;
+      outline: none;
+    }
+    /* Form Elements */
+    #editor-form label {
+      display: block;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    #editor-form input[type="number"],
+    #editor-form input[type="text"],
+    #editor-form select,
+    #editor-form input[type="file"] {
+      width: 100%;
+      padding: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    #editor-form button {
+      margin-top: 10px;
+      padding: 6px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      transition: background-color 0.2s;
+    }
+    #editor-form button:hover {
+      background-color: rgba(255, 255, 255, 0.4);
+    }
+    #sel-info {
+      margin-top: 10px;
+      border-top: 1px solid #555;
+      padding-top: 10px;
+      font-size: 14px;
+    }
+    /* Scrollbar styling */
+    #right-sidebar::-webkit-scrollbar {
+      width: 8px;
+    }
+    #right-sidebar::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+    }
+    #right-sidebar::-webkit-scrollbar-thumb {
+      background-color: rgba(255,255,255,0.3);
+      border-radius: 4px;
+    }
+    /* Placeholder Style */
+    .placeholder {
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="simulationCanvas"></canvas>
+  <div id="fps">FPS: 0</div>
+  
+  <!-- Undo/Redo Buttons -->
+  <div id="undo-redo-buttons">
+    <button id="undoBtn" disabled>Undo (Ctrl+Z)</button>
+    <button id="redoBtn" disabled>Redo (Ctrl+Y)</button>
+  </div>
+  
+  <!-- Right Sidebar Panel -->
+  <div id="right-sidebar">
+    <h2 id="panelTitle">[No Selection]</h2>
+    <form id="editor-form">
+      <!-- Object Editor -->
+      <div id="object-editor" class="hidden">
+        <label for="objName">Object Name:</label>
+        <input type="text" id="objName" value="">
+        <details id="transformGroup">
+          <summary>Transform (Position & Velocity)</summary>
+          <label for="objPosX">Position X:</label>
+          <input type="number" id="objPosX" step="0.1" value="0">
+          <label for="objPosY">Position Y:</label>
+          <input type="number" id="objPosY" step="0.1" value="0">
+          <label for="objVelX">Velocity X:</label>
+          <input type="number" id="objVelX" step="0.1" value="0">
+          <label for="objVelY">Velocity Y:</label>
+          <input type="number" id="objVelY" step="0.1" value="0">
+        </details>
+        <label for="objMass">Mass:</label>
+        <input type="number" id="objMass" step="0.1" value="1.0">
+        <label for="objDensity">Density:</label>
+        <input type="number" id="objDensity" step="0.1" value="1.0">
+        <label for="objRadius">Radius:</label>
+        <input type="number" id="objRadius" step="0.1" value="0.5">
+        <label for="objRestitution">Restitution:</label>
+        <input type="number" id="objRestitution" step="0.01" value="0.25">
+        <label for="objFriction">Friction:</label>
+        <input type="number" id="objFriction" step="0.01" value="0.05">
+        <label for="objAngle">Angle (radians):</label>
+        <input type="number" id="objAngle" step="0.1" value="0">
+        <label for="objType">Body Type:</label>
+        <select id="objType">
+          <option value="dynamic" selected>Dynamic</option>
+          <option value="kinematic">Kinematic</option>
+        </select>
+        <!-- Sprite Controls -->
+        <label for="spriteOffsetX">Sprite Offset X:</label>
+        <input type="number" id="spriteOffsetX" step="0.1" value="0">
+        <label for="spriteOffsetY">Sprite Offset Y:</label>
+        <input type="number" id="spriteOffsetY" step="0.1" value="0">
+        <label for="objSpriteOpacity">Sprite Opacity (0–1):</label>
+        <input type="number" id="objSpriteOpacity" step="0.1" min="0" max="1" value="1">
+        <label for="spriteScale">Sprite Scale:</label>
+        <input type="number" id="spriteScale" step="0.1" value="1">
+        <!-- New: Sprite Rotation Controls -->
+        <label for="spriteRotation">Sprite Rotation (degrees):</label>
+        <input type="number" id="spriteRotation" step="1" value="0">
+        <!-- Deformation Settings -->
+        <label for="defRegenTime">Deformation Regeneration Time (sec):</label>
+        <input type="number" id="defRegenTime" step="0.1" value="0">
+        <label for="defScale">Deformation Scale:</label>
+        <input type="number" id="defScale" step="0.01" value="0">
+        <label for="objSpriteUpload">Upload Sprite (PNG/JPG):</label>
+        <input type="file" id="objSpriteUpload" accept="image/*">
+        <p style="font-size: 12px;">
+          In Edit mode:<br>
+          • <strong>CTRL + Drag</strong> rotates the object.<br>
+          • <strong>ALT + Drag</strong> adjusts sprite offset.<br>
+          • <strong>ALT + SHIFT + Drag</strong> scales the sprite.<br>
+          • <strong>S</strong> input rotates the sprite based on the Sprite Rotation field.
+        </p>
+        <button type="button" id="deleteObjBtn">Delete Object</button>
+        <button type="button" id="addObjBtn">+ Add Object</button>
+        <!-- New: Surface Friction and Air Resistance -->
+        <label for="surfaceFriction">Surface Friction:</label>
+        <input type="number" id="surfaceFriction" step="0.01" value="0.05">
+        <label for="airResistance">Air Resistance:</label>
+        <input type="number" id="airResistance" step="0.01" value="0.1">
+      </div>
+      <!-- Joint Editor -->
+      <div id="constraint-editor" class="hidden">
+        <label for="jointType">Joint Type:</label>
+        <select id="jointType">
+          <option value="distance" selected>Distance Joint</option>
+          <option value="rope">Rope Joint</option>
+          <option value="prismatic">Prismatic Joint</option>
+          <option value="motor">Motor Joint</option>
+        </select>
+        <label for="jointParam">Parameter:</label>
+        <input type="number" id="jointParam" step="0.1" value="0">
+        <!-- Motor Joint Options -->
+        <div id="motorOptions" class="hidden">
+          <label for="motorActive">Active Side:</label>
+          <select id="motorActive">
+            <option value="A" selected>A</option>
+            <option value="B">B</option>
+          </select>
+          <label for="motorRPM">Target RPM:</label>
+          <input type="number" id="motorRPM" step="0.1" value="0">
+          <label for="motorTorque">Torque:</label>
+          <input type="number" id="motorTorque" step="0.1" value="0">
+        </div>
+        <button type="button" id="addJointBtn">Add Joint</button>
+        <button type="button" id="deleteJointBtn">Delete Joint</button>
+      </div>
+      <!-- Scene Background -->
+      <details>
+        <summary>Scene Background</summary>
+        <label for="bgUpload">Upload Background Image (PNG/JPG):</label>
+        <input type="file" id="bgUpload" accept="image/*">
+      </details>
+    </form>
+    <div id="sel-info">
+      <strong>Selection:</strong> <span id="selText">None</span><br>
+      <em>Instructions:</em>
+      <ul style="padding-left: 15px; font-size: 13px;">
+        <li><b>Edit Mode:</b>
+          <ul>
+            <li>Left‑click to select an object (hold <strong>Shift</strong> for multi‑select or use rectangle selection).</li>
+            <li>Drag a selected object to move it.</li>
+            <li><strong>CTRL + Drag</strong> rotates the object.</li>
+            <li><strong>ALT + Drag</strong> adjusts sprite offset.</li>
+            <li><strong>ALT + SHIFT + Drag</strong> scales the sprite.</li>
+            <li><strong>S</strong> input rotates the sprite based on the Sprite Rotation field.</li>
+            <li><strong>Ctrl + C</strong> to copy selected objects.</li>
+            <li><strong>Ctrl + V</strong> to paste copied objects.</li>
+            <li>Press <strong>A</strong> to add an object; <strong>Shift + A</strong> to add multiple objects at the center.</li>
+            <li>Press the <strong>Delete Object</strong> button to remove selected objects.</li>
+          </ul>
+        </li>
+        <li><b>Simulation Mode:</b>
+          <ul>
+            <li>Press <strong>Spacebar</strong> to switch to Simulation Mode.</li>
+            <li>In Simulation Mode:</li>
+            <ul>
+              <li>Left‑click and drag an object to “grab” it (its position is held during the drag and a red arrow shows the drag vector). On release, the object is launched with velocity proportional to the drag vector.</li>
+              <li>Right‑click and drag an object to translate it (the object is “glued” to the mouse until release).</li>
+              <li>While dragging, the chosen object is not updated by physics.</li>
+              <li>Press <strong>Spacebar</strong> to return to Edit Mode.</li>
+            </ul>
+          </ul>
+        </li>
+        <li>If exactly two objects are selected, the Joint Editor appears. For Motor joints you can choose the active side (A or B), set a target RPM, and specify a torque.</li>
+        <li>Press <strong>H</strong> to toggle the right sidebar.</li>
+        <li>Press <strong>Ctrl+S</strong> to save the scene; <strong>Ctrl+L</strong> to load a scene.</li>
+        <li>Press <strong>M</strong> to toggle debug visuals.</li>
+      </ul>
+    </div>
+  </div>
+  
+  <script defer>
+    // ===============================================
+    // Wait for DOM to Load
+    // ===============================================
+    window.addEventListener('DOMContentLoaded', () => {
+      // ===============================================
+      // Global Variables and Settings
+      // ===============================================
+      const canvas = document.getElementById('simulationCanvas');
+      const ctx = canvas.getContext('2d');
+      let viewSize = 10.0;  // Fixed boundary mode default.
+      let aspect = window.innerWidth / window.innerHeight;
+      let mode = "edit";  // "edit" or "sim"
+      let debugDraw = true;
+      let gravityEnabled = true;
+      const dt = 0.016;  // 60 Hz
+      const gravity = -9.81;
+      
+      // When fixedBoundary is true, viewSize remains 10; otherwise, dynamic from window height.
+      let fixedBoundary = true;
+      
+      // FPS tracking
+      let lastLoopTime = performance.now();
+      let loopFrames = 0;
+      let loopAccumulator = 0;
+      
+      // Global arrays and counters
+      let editCircles = [];
+      let simCircles = [];
+      let constraints = [];
+      let selectedIds = [];
+      let nextId = 1;
+      let nextConstraintId = 1;
+      let backgroundImage = null;
+      
+      // Drag state: { mode: "drag_object" | "select_rect" | "impulse_drag" | "rotate_object" | "translate_sprite" | "scale_sprite" | "sim_translate", start:{x,y}, last:{x,y} }
+      let dragData = null;
+      
+      // Clipboard for Copy-Paste
+      let clipboard = null;
+      
+      // ===============================================
+      // Undo/Redo State Management
+      // ===============================================
+      const undoStack = [];
+      const redoStack = [];
+      const MAX_STACK_SIZE = 50; // Limit stack size to prevent excessive memory usage
+      
+      const undoBtn = document.getElementById('undoBtn');
+      const redoBtn = document.getElementById('redoBtn');
+      
+      // Function to update the state of Undo/Redo buttons
+      function updateUndoRedoButtons() {
+        undoBtn.disabled = undoStack.length === 0;
+        redoBtn.disabled = redoStack.length === 0;
+      }
+      
+      // Function to deep copy the current state
+      function getCurrentState() {
+        return {
+          editCircles: editCircles.map(c => c.clone()), // Assuming clone method is defined
+          constraints: JSON.parse(JSON.stringify(constraints)),
+          backgroundImageSrc: backgroundImage ? backgroundImage.src : null,
+          debugDraw: debugDraw // Save debugDraw state
+        };
+      }
+      
+      // Function to restore a given state
+      function restoreState(state) {
+        editCircles = state.editCircles.map(cData => cData.clone());
+        constraints = JSON.parse(JSON.stringify(state.constraints));
+        if (state.backgroundImageSrc) {
+          let bg = new Image();
+          bg.onload = function() { backgroundImage = bg; };
+          bg.src = state.backgroundImageSrc;
+        } else {
+          backgroundImage = null;
+        }
+        debugDraw = state.debugDraw !== undefined ? state.debugDraw : true; // Restore debugDraw
+        nextId = Math.max(...editCircles.map(c => c.id), 0) + 1;
+        nextConstraintId = Math.max(...constraints.map(cons => cons.id), 0) + 1;
+        clearSelection();
+        updatePropertyPanel();
+        updateSelUI();
+        draw();
+      }
+      
+      // Function to save the current state to the Undo stack
+      function saveState() {
+        if (undoStack.length >= MAX_STACK_SIZE) {
+          undoStack.shift(); // Remove the oldest state
+        }
+        undoStack.push(getCurrentState());
+        // Clear the Redo stack whenever a new action is performed
+        redoStack.length = 0;
+        updateUndoRedoButtons();
+      }
+      
+      // Function to perform Undo
+      function undo() {
+        if (undoStack.length === 0) return;
+        const prevState = undoStack.pop();
+        redoStack.push(getCurrentState());
+        restoreState(prevState);
+        updateUndoRedoButtons();
+        // Removed showMessage("Undo performed.");
+      }
+      
+      // Function to perform Redo
+      function redo() {
+        if (redoStack.length === 0) return;
+        const nextState = redoStack.pop();
+        undoStack.push(getCurrentState());
+        restoreState(nextState);
+        updateUndoRedoButtons();
+        // Removed showMessage("Redo performed.");
+      }
+      
+      // Attach event listeners to Undo/Redo buttons
+      undoBtn.addEventListener('click', undo);
+      redoBtn.addEventListener('click', redo);
+      
+      // ===============================================
+      // Canvas Setup
+      // ===============================================
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        aspect = window.innerWidth / window.innerHeight;
+        if (!fixedBoundary) {
+          viewSize = window.innerHeight / 50;
+        } else {
+          viewSize = 10.0;
+        }
+        draw(); // Redraw on resize
+      }
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      
+      // ===============================================
+      // PRNG for Determinism
+      // ===============================================
+      class PRNG {
+        constructor(seed = 123456) {
+          this.m = 0x80000000;
+          this.a = 1103515245;
+          this.c = 12345;
+          this.state = seed;
+        }
+        nextInt() {
+          this.state = (this.a * this.state + this.c) % this.m;
+          return this.state;
+        }
+        nextFloat() {
+          return this.nextInt() / (this.m - 1);
+        }
+        nextRange(start, end) {
+          return start + this.nextFloat() * (end - start);
+        }
+        nextSign() {
+          return this.nextInt() % 2 === 0 ? -1 : 1;
+        }
+      }
+      const prng = new PRNG();
+      
+      // ===============================================
+      // Utility Functions
+      // ===============================================
+      // Removed the message display to eliminate overlapping hints
+      function showMessage(msg) {
+        // Placeholder if needed in future
+      }
+      function deepCopyCircles(arr) {
+        return arr.map(c => c.clone());
+      }
+      function getCircleById(id, stateArray = editCircles) {
+        return stateArray.find(c => c.id === id);
+      }
+      function clearSelection() {
+        selectedIds = [];
+        updateSelUI();
+      }
+      // Update selection display.
+      function updateSelUI() {
+        const selText = document.getElementById('selText');
+        if (selectedIds.length === 0) { selText.innerText = "None"; }
+        else { selText.innerText = selectedIds.join(", "); }
+        toggleEditorVisibility();
+      }
+      
+      function toggleEditorVisibility() {
+        const objectEditor = document.getElementById('object-editor');
+        const constraintEditor = document.getElementById('constraint-editor');
+        const panelTitle = document.getElementById('panelTitle');
+        if (selectedIds.length === 1) {
+          objectEditor.classList.remove('hidden');
+          constraintEditor.classList.add('hidden');
+          panelTitle.innerText = getCircleById(selectedIds[0], (mode === "sim") ? simCircles : editCircles).name || "[Object]";
+        } else if (selectedIds.length === 2) {
+          objectEditor.classList.add('hidden');
+          constraintEditor.classList.remove('hidden');
+          panelTitle.innerText = "Joint Editor";
+        } else {
+          objectEditor.classList.add('hidden');
+          constraintEditor.classList.add('hidden');
+          panelTitle.innerText = "[No Selection]";
+        }
+      }
+      
+      // ===============================================
+      // Classes: Circle and Constraint
+      // ===============================================
+      class Circle {
+        constructor(id, x, y, vx, vy, radius, mass, density) {
+          this.id = id;
+          this.name = "Object " + id;
+          this.x = x;
+          this.y = y;
+          this.vx = vx;
+          this.vy = vy;
+          this.baseRadius = radius;
+          this.currentRadius = radius;
+          this.mass = mass;
+          this.density = density;
+          this.restitution = 0.25;
+          this.friction = 0.05;
+          this.angle = 0;
+          this.angularVelocity = 0;
+          this.bodyType = "dynamic"; // "dynamic" or "kinematic"
+          this.sprite = null;
+          this.spriteOpacity = 1;
+          this.spriteOffsetX = 0;
+          this.spriteOffsetY = 0;
+          this.spriteScale = 1;
+          this.spriteRotation = 0; // **New: Sprite Rotation in radians**
+          this.defRegenTime = 0;
+          this.defScale = 0;
+          this.deformationTimer = 0;
+          this.isDeformed = false;
+          this.pressure = 0;
+          this.surfaceFriction = 0.05; // New property for surface friction
+          this.airResistance = 0.1;     // New property for air resistance
+        }
+        clone() {
+          let c = new Circle(this.id, this.x, this.y, this.vx, this.vy, this.baseRadius, this.mass, this.density);
+          c.name = this.name;
+          c.currentRadius = this.currentRadius;
+          c.restitution = this.restitution;
+          c.friction = this.friction;
+          c.angle = this.angle;
+          c.angularVelocity = this.angularVelocity;
+          c.bodyType = this.bodyType;
+          c.sprite = this.sprite;
+          c.spriteOpacity = this.spriteOpacity;
+          c.spriteOffsetX = this.spriteOffsetX;
+          c.spriteOffsetY = this.spriteOffsetY;
+          c.spriteScale = this.spriteScale;
+          c.spriteRotation = this.spriteRotation; // **Clone Sprite Rotation**
+          c.defRegenTime = this.defRegenTime;
+          c.defScale = this.defScale;
+          c.deformationTimer = this.deformationTimer;
+          c.isDeformed = this.isDeformed;
+          c.pressure = this.pressure;
+          c.surfaceFriction = this.surfaceFriction;
+          c.airResistance = this.airResistance;
+          return c;
+        }
+        applyDeformation(scale) {
+          if (!this.isDeformed) {
+            this.currentRadius += scale;
+            this.mass = this.density * Math.PI * this.currentRadius * this.currentRadius;
+            this.isDeformed = true;
+            this.deformationTimer = this.defRegenTime;
+          }
+        }
+        updateDeformation(dt) {
+          if (this.isDeformed) {
+            this.deformationTimer -= dt;
+            if (this.deformationTimer <= 0) {
+              this.currentRadius = this.baseRadius;
+              this.mass = this.density * Math.PI * this.currentRadius * this.currentRadius;
+              this.isDeformed = false;
+              this.deformationTimer = 0;
+              this.pressure = 0;
+            }
+          }
+        }
+      }
+      
+      class Constraint {
+        constructor(id, type, objA, objB, param, extra = {}) {
+          this.id = id;
+          this.type = type;
+          this.objA = objA;
+          this.objB = objB;
+          this.param = param;
+          if (type === "prismatic") { this.axis = extra.axis; }
+          if (type === "motor") {
+            this.motorActive = extra.motorActive || "A";
+            this.targetRPM = extra.targetRPM || 0;
+            this.torque = extra.torque || 0;
+          }
+        }
+      }
+      
+      // ===============================================
+      // Initialization: Default Edit State
+      // ===============================================
+      function initializeEditState() {
+        editCircles = [];
+        constraints = [];
+        nextId = 1;
+        let massElement = document.getElementById('objMass');
+        let densityElement = document.getElementById('objDensity');
+        let radiusElement = document.getElementById('objRadius');
+        let massVal = massElement ? parseFloat(massElement.value) : 1.0;
+        let densityVal = densityElement ? parseFloat(densityElement.value) : 1.0;
+        let radiusVal = radiusElement ? parseFloat(radiusElement.value) : 0.5;
+        let c1 = new Circle(nextId++, -3.0, 0.0, 1.5, 0, radiusVal, massVal, densityVal);
+        let c2 = new Circle(nextId++, 3.0, 0.0, -1.5, 0, radiusVal, massVal, densityVal);
+        editCircles.push(c1, c2);
+        clearSelection();
+        saveState(); // Save initial state
+      }
+      initializeEditState();
+      
+      // ===============================================
+      // Background Image Handling
+      // ===============================================
+      document.getElementById('bgUpload').addEventListener('change', function(e) {
+        let file = this.files[0];
+        if (!file) return;
+        let reader = new FileReader();
+        reader.onload = function(event) {
+          let dataURL = event.target.result;
+          let img = new Image();
+          img.onload = function() { backgroundImage = img; saveState(); draw(); };
+          img.src = dataURL;
+        };
+        reader.readAsDataURL(file);
+      });
+      
+      // ===============================================
+      // Simulation Loop & FPS Calculation
+      // ===============================================
+      function simulationLoop() {
+        const now = performance.now();
+        const delta = (now - lastLoopTime) / 1000;
+        lastLoopTime = now;
+        loopAccumulator += delta;
+        loopFrames++;
+        if (loopAccumulator >= 1.0) {
+          document.getElementById('fps').innerText = "FPS: " + (loopFrames / loopAccumulator).toFixed(2);
+          loopFrames = 0;
+          loopAccumulator -= 1.0;
+        }
+        if (mode === "sim") updateSimulation();
+        draw();
+        requestAnimationFrame(simulationLoop);
+      }
+      requestAnimationFrame(simulationLoop);
+      
+      // ===============================================
+      // Simulation Physics Update
+      // ===============================================
+      function updateSimulation() {
+        for (let c of simCircles) {
+          // If this object is currently being dragged in sim mode, skip physics update.
+          if (dragData && (dragData.mode === "impulse_drag" || dragData.mode === "sim_translate") && selectedIds.includes(c.id)) {
+            continue;
+          }
+          if (c.bodyType === "dynamic") {
+            // Apply air resistance (linear drag)
+            c.vx += -c.airResistance * c.vx * dt;
+            c.vy += -c.airResistance * c.vy * dt;
+            
+            if (gravityEnabled) { 
+              c.vy += gravity * dt; 
+            }
+            c.x += c.vx * dt;
+            c.y += c.vy * dt;
+          }
+          c.angle += c.angularVelocity * dt;
+          c.updateDeformation(dt);
+        }
+        // Collision handling with surface friction
+        for (let i = 0; i < simCircles.length; i++) {
+          for (let j = i + 1; j < simCircles.length; j++) {
+            const a = simCircles[i], b = simCircles[j];
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const dist = Math.hypot(dx, dy);
+            const minDist = a.currentRadius + b.currentRadius;
+            if (dist < minDist && dist > 0) {
+              const overlap = minDist - dist;
+              const nx = dx / dist, ny = dy / dist;
+              const totalMass = a.mass + b.mass;
+              if (a.bodyType === "dynamic") {
+                a.x -= nx * overlap * (b.mass / totalMass);
+                a.y -= ny * overlap * (b.mass / totalMass);
+              }
+              if (b.bodyType === "dynamic") {
+                b.x += nx * overlap * (a.mass / totalMass);
+                b.y += ny * overlap * (a.mass / totalMass);
+              }
+              const relVel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+              if (relVel < 0) {
+                const e = Math.min(a.restitution, b.restitution);
+                const impulse = (-(1 + e) * relVel) / (1 / a.mass + 1 / b.mass);
+                if (a.bodyType === "dynamic") {
+                  a.vx -= (impulse / a.mass) * nx;
+                  a.vy -= (impulse / a.mass) * ny;
+                  
+                  // Apply surface friction to tangential velocity
+                  const tangentialVx = (b.vx - a.vx) - relVel * nx;
+                  const tangentialVy = (b.vy - a.vy) - relVel * ny;
+                  a.vx -= a.surfaceFriction * tangentialVx;
+                  a.vy -= a.surfaceFriction * tangentialVy;
+                }
+                if (b.bodyType === "dynamic") {
+                  b.vx += (impulse / b.mass) * nx;
+                  b.vy += (impulse / b.mass) * ny;
+                  
+                  // Apply surface friction to tangential velocity
+                  const tangentialVx = (a.vx - b.vx) - relVel * nx;
+                  const tangentialVy = (a.vy - b.vy) - relVel * ny;
+                  b.vx -= b.surfaceFriction * tangentialVx;
+                  b.vy -= b.surfaceFriction * tangentialVy;
+                }
+              }
+            }
+          }
+        }
+        // Process constraints
+        for (let cons of constraints) {
+          let objA = simCircles.find(c => c.id === cons.objA);
+          let objB = simCircles.find(c => c.id === cons.objB);
+          if (!objA || !objB) continue;
+          switch(cons.type) {
+            case "distance": {
+              const dx = objB.x - objA.x, dy = objB.y - objA.y;
+              const curDist = Math.hypot(dx, dy);
+              if (curDist === 0) break;
+              let diff = curDist - cons.param;
+              const nx = dx / curDist, ny = dy / curDist;
+              const correction = diff * 0.5;
+              if (objA.bodyType === "dynamic") {
+                objA.x += nx * correction;
+                objA.y += ny * correction;
+              }
+              if (objB.bodyType === "dynamic") {
+                objB.x -= nx * correction;
+                objB.y -= ny * correction;
+              }
+              break;
+            }
+            case "rope": {
+              const dx = objB.x - objA.x, dy = objB.y - objA.y;
+              const curDist = Math.hypot(dx, dy);
+              if (curDist > cons.param) {
+                let diff = curDist - cons.param;
+                const nx = dx / curDist, ny = dy / curDist;
+                const correction = diff * 0.5;
+                if (objA.bodyType === "dynamic") {
+                  objA.x += nx * correction;
+                  objA.y += ny * correction;
+                }
+                if (objB.bodyType === "dynamic") {
+                  objB.x -= nx * correction;
+                  objB.y -= ny * correction;
+                }
+              }
+              break;
+            }
+            case "prismatic": {
+              const axis = cons.axis;
+              const dx = objB.x - objA.x, dy = objB.y - objA.y;
+              const proj = dx * axis.x + dy * axis.y;
+              const perpX = dx - proj * axis.x;
+              const perpY = dy - proj * axis.y;
+              if (objA.bodyType === "dynamic") {
+                objA.x += perpX * 0.5;
+                objA.y += perpY * 0.5;
+              }
+              if (objB.bodyType === "dynamic") {
+                objB.x -= perpX * 0.5;
+                objB.y -= perpY * 0.5;
+              }
+              break;
+            }
+            case "motor": {
+              const targetAngularSpeed = (cons.targetRPM * 2 * Math.PI) / 60;
+              if (cons.motorActive === "A") {
+                if (objB.bodyType === "dynamic")
+                  objB.angularVelocity = targetAngularSpeed;
+              } else {
+                if (objA.bodyType === "dynamic")
+                  objA.angularVelocity = targetAngularSpeed;
+              }
+              break;
+            }
+            default: break;
+          }
+        }
+        // Boundary collisions.
+        let left, right, bottom, top;
+        if (fixedBoundary) {
+          left = -viewSize * aspect;
+          right = viewSize * aspect;
+          bottom = -viewSize;
+          top = viewSize;
+        } else {
+          left = -viewSize * aspect;
+          right = viewSize * aspect;
+          bottom = -viewSize;
+          top = viewSize;
+        }
+        for (let c of simCircles) {
+          if (c.x - c.currentRadius < left) {
+            c.x = left + c.currentRadius;
+            c.vx = -c.vx * c.restitution;
+          }
+          if (c.x + c.currentRadius > right) {
+            c.x = right - c.currentRadius;
+            c.vx = -c.vx * c.restitution;
+          }
+          if (c.y - c.currentRadius < bottom) {
+            c.y = bottom + c.currentRadius;
+            c.vy = -c.vy * c.restitution;
+          }
+          if (c.y + c.currentRadius > top) {
+            c.y = top - c.currentRadius;
+            c.vy = -c.vy * c.restitution;
+          }
+        }
+      }
+      
+      // ===============================================
+      // Drawing Function
+      // ===============================================
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(canvas.width/2, canvas.height/2);
+        ctx.scale(canvas.width/(2*viewSize*aspect), -canvas.height/(2*viewSize));
+        
+        if (backgroundImage) {
+          ctx.drawImage(backgroundImage, -viewSize*aspect, -viewSize, 2*viewSize*aspect, 2*viewSize);
+        }
+        
+        // Draw constraints if debugDraw is enabled
+        if (debugDraw) {
+          for (let cons of constraints) {
+            let a = (mode === "sim") ? simCircles.find(c => c.id === cons.objA) : editCircles.find(c => c.id === cons.objA);
+            let b = (mode === "sim") ? simCircles.find(c => c.id === cons.objB) : editCircles.find(c => c.id === cons.objB);
+            if (a && b) {
+              ctx.strokeStyle = "#FFF";
+              ctx.lineWidth = 0.03;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+          }
+        }
+        
+        // Draw selection rectangle if in select_rect mode
+        if ((mode === "edit") && dragData && dragData.mode === "select_rect") {
+          ctx.strokeStyle = "#FF0";
+          ctx.lineWidth = 0.03;
+          ctx.setLineDash([0.1, 0.1]);
+          const { start, last } = dragData;
+          const rectX = Math.min(start.x, last.x);
+          const rectY = Math.min(start.y, last.y);
+          const rectWidth = Math.abs(last.x - start.x);
+          const rectHeight = Math.abs(last.y - start.y);
+          ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+          ctx.setLineDash([]);
+        }
+        
+        // Draw impulse drag vector in simulation mode
+        if ((mode === "sim") && dragData && dragData.mode === "impulse_drag") {
+          ctx.strokeStyle = "#F90";
+          ctx.lineWidth = 0.02;
+          ctx.beginPath();
+          ctx.moveTo(dragData.start.x, dragData.start.y);
+          ctx.lineTo(dragData.last.x, dragData.last.y);
+          ctx.stroke();
+        }
+        
+        let drawCircles = (mode === "sim") ? simCircles : editCircles;
+        for (let c of drawCircles) {
+          // Ensure a non-negative radius.
+          let rad = Math.max(c.currentRadius, 0.1);
+          
+          // Draw the circle outline
+          if (debugDraw) {
+            ctx.strokeStyle = (c.bodyType === "kinematic") ? "#66B2FF" : "#0F0";
+            ctx.lineWidth = 0.04;
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, rad, 0, 2 * Math.PI);
+            ctx.stroke();
+            // Draw velocity vector
+            ctx.strokeStyle = "#F00";
+            ctx.lineWidth = 0.01;
+            ctx.beginPath();
+            ctx.moveTo(c.x, c.y);
+            ctx.lineTo(c.x + c.vx * 0.5, c.y + c.vy * 0.5);
+            ctx.stroke();
+          }
+          
+          // Draw selection indicator
+          if (selectedIds.includes(c.id)) {
+            ctx.fillStyle = "#F00";
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 0.1, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+          
+          // Draw the sprite
+          if (c.sprite && c.sprite.complete) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.angle + c.spriteRotation); // **Apply both object angle and sprite rotation**
+            ctx.translate(c.spriteOffsetX, c.spriteOffsetY);
+            ctx.globalAlpha = c.spriteOpacity;
+            let d = rad * 2 * (c.spriteScale || 1);
+            ctx.drawImage(c.sprite, -d/2, -d/2, d, d);
+            ctx.restore();
+          }
+          
+          // Draw visual angle indicator only if debugDraw is enabled
+          if (debugDraw) {
+            drawAngleIndicator(c);
+          }
+        }
+        
+        ctx.restore();
+      }
+      
+      // ===============================================
+      // Function to Draw Angle Indicator
+      // ===============================================
+      function drawAngleIndicator(circle) {
+        const rad = Math.max(circle.currentRadius, 0.1);
+        const indicatorLength = rad / 3;
+        ctx.save();
+        ctx.translate(circle.x, circle.y);
+        ctx.rotate(circle.angle);
+        ctx.strokeStyle = "lightblue";
+        ctx.lineWidth = 0.02;
+        ctx.beginPath();
+        // Line at +45 degrees
+        ctx.moveTo(0, 0);
+        ctx.lineTo(indicatorLength * Math.cos(Math.PI / 4), indicatorLength * Math.sin(Math.PI / 4));
+        // Line at -45 degrees
+        ctx.moveTo(0, 0);
+        ctx.lineTo(indicatorLength * Math.cos(-Math.PI / 4), indicatorLength * Math.sin(-Math.PI / 4));
+        ctx.stroke();
+        ctx.restore();
+      }
+      
+      // ===============================================
+      // Property Panel Listeners – Immediate Updates
+      // ===============================================
+      const properties = [
+        { id: "objName", type: "text", prop: "name" },
+        { id: "objPosX", type: "number", prop: "x" },
+        { id: "objPosY", type: "number", prop: "y" },
+        { id: "objVelX", type: "number", prop: "vx" },
+        { id: "objVelY", type: "number", prop: "vy" },
+        { id: "objMass", type: "number", prop: "mass" },
+        { id: "objDensity", type: "number", prop: "density" },
+        { id: "objRadius", type: "number", prop: "baseRadius" },
+        { id: "objRestitution", type: "number", prop: "restitution" },
+        { id: "objFriction", type: "number", prop: "friction" },
+        { id: "objAngle", type: "number", prop: "angle" },
+        { id: "objType", type: "select", prop: "bodyType" },
+        { id: "objSpriteOpacity", type: "number", prop: "spriteOpacity" },
+        { id: "spriteOffsetX", type: "number", prop: "spriteOffsetX" },
+        { id: "spriteOffsetY", type: "number", prop: "spriteOffsetY" },
+        { id: "spriteScale", type: "number", prop: "spriteScale" },
+        { id: "spriteRotation", type: "number", prop: "spriteRotation" }, // **New: Sprite Rotation Property**
+        { id: "defRegenTime", type: "number", prop: "defRegenTime" },
+        { id: "defScale", type: "number", prop: "defScale" },
+        { id: "surfaceFriction", type: "number", prop: "surfaceFriction" }, // **New: Surface Friction**
+        { id: "airResistance", type: "number", prop: "airResistance" }      // **New: Air Resistance**
+      ];
+      
+      // Debounce function to limit how often a function can fire.
+      function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+          const later = () => {
+            clearTimeout(timeout);
+            func.apply(this, args);
+          };
+          clearTimeout(timeout);
+          timeout = setTimeout(later, wait);
+        };
+      }
+      
+      // Flag to indicate if the user is editing the property panel
+      let isEditingPropertyPanel = false;
+      
+      // Function to aggregate property values when multiple objects are selected
+      function aggregateProperty(propName) {
+        let targetCircles = (mode === "sim") ? simCircles : editCircles;
+        let vals = selectedIds.map(id => {
+          let obj = getCircleById(id, targetCircles);
+          return obj ? obj[propName] : null;
+        }).filter(v => v !== null);
+        if (vals.length === 0) return "";
+        let first = vals[0];
+        if (vals.every(v => v === first)) {
+          if (propName === "spriteRotation") {
+            return (first * 180 / Math.PI).toFixed(1); // Convert to degrees
+          }
+          return (typeof first === "number") ? first.toFixed(2) : first;
+        }
+        return "Different";
+      }
+      
+      function updatePropertyPanel() {
+        if (selectedIds.length === 0) return;
+        if (isEditingPropertyPanel) return; // Prevent updating while editing
+        
+        let targetCircles = (mode === "sim") ? simCircles : editCircles;
+        
+        if (selectedIds.length === 1) {
+          let obj = getCircleById(selectedIds[0], targetCircles);
+          properties.forEach(field => {
+            let el = document.getElementById(field.id);
+            if (el) {
+              if (field.prop === "spriteRotation") {
+                el.value = (obj[field.prop] * 180 / Math.PI).toFixed(1); // Display in degrees
+                el.placeholder = "";
+              } else if (typeof obj[field.prop] === "number") {
+                el.value = obj[field.prop].toFixed(2);
+                el.placeholder = "";
+              } else {
+                el.value = obj[field.prop];
+                el.placeholder = "";
+              }
+            }
+          });
+        } else {
+          properties.forEach(field => {
+            let el = document.getElementById(field.id);
+            if (el) {
+              let agg = aggregateProperty(field.prop);
+              if (agg === "Different") {
+                el.value = "";
+                el.placeholder = "Different";
+                el.classList.add('placeholder');
+              } else {
+                // Only update if the element is not focused
+                if (el !== document.activeElement) {
+                  if (field.prop === "spriteRotation") {
+                    el.value = agg; // Already in degrees
+                  } else {
+                    el.value = agg;
+                  }
+                  el.placeholder = "";
+                  el.classList.remove('placeholder');
+                }
+              }
+            }
+          });
+        }
+      }
+      
+      properties.forEach(field => {
+        let el = document.getElementById(field.id);
+        if (el) {
+          // Handle focus and blur to manage editing state
+          el.addEventListener('focus', () => { isEditingPropertyPanel = true; });
+          el.addEventListener('blur', () => { 
+            isEditingPropertyPanel = false; 
+            updatePropertyPanel(); // Update after editing to reflect any changes
+          });
+          
+          // Remove debounce for immediate updates
+          el.addEventListener('input', () => {
+            if (selectedIds.length >= 1) {
+              let val = el.value;
+              if (field.type === "number") {
+                val = parseFloat(val);
+                if (isNaN(val)) return; // Prevent applying NaN
+              }
+              let targetCircles = (mode === "sim") ? simCircles : editCircles;
+              selectedIds.forEach(id => {
+                let obj = getCircleById(id, targetCircles);
+                if (obj !== undefined) {
+                  if (field.type === "number") {
+                    if (field.prop === "spriteRotation") {
+                      obj[field.prop] = val * Math.PI / 180; // Convert degrees to radians
+                    } else {
+                      obj[field.prop] = val;
+                      // Special handling for baseRadius to update currentRadius
+                      if (field.prop === "baseRadius") {
+                        obj.currentRadius = val;
+                      }
+                      // Recalculate mass if density or radius changes
+                      if (field.prop === "density" || field.prop === "baseRadius") {
+                        obj.mass = obj.density * Math.PI * obj.currentRadius * obj.currentRadius;
+                      }
+                    }
+                  } else if (field.type === "text" || field.type === "select") {
+                    obj[field.prop] = el.value;
+                  }
+                }
+              });
+              updatePropertyPanel();
+              saveState(); // Save state after property change
+              draw(); // Redraw to reflect changes
+            }
+          });
+        }
+      });
+      
+      // ===============================================
+      // Consolidated Keydown Listener
+      // ===============================================
+      document.addEventListener('keydown', function(e) {
+        // Handle Ctrl+A for selecting all
+        if (e.ctrlKey && (e.key === 'a' || e.key === 'A')) {
+          e.preventDefault();
+          if (mode === "edit") {
+            selectedIds = editCircles.map(c => c.id);
+            updateSelUI();
+            draw();
+            saveState(); // Save state after selecting all
+          }
+          return;
+        }
+        
+        // Prevent default behavior for specific keys
+        if (["Space", "Delete", "Backspace", "h", "H", "m", "M"].includes(e.key) ||
+            (e.ctrlKey && ["s","l","S","L","z","y","Z","Y","a","A","v","V"].includes(e.key))) { e.preventDefault(); }
+        
+        // Handle Undo (Ctrl+Z) and Redo (Ctrl+Y)
+        if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+          undo();
+          return;
+        }
+        if (e.ctrlKey && (e.key === 'y' || e.key === 'Y')) {
+          redo();
+          return;
+        }
+        
+        // Handle Copy (Ctrl+C)
+        if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+          e.preventDefault();
+          copySelected();
+          return;
+        }
+        
+        // Handle Paste (Ctrl+V)
+        if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+          e.preventDefault();
+          pasteClipboard();
+          return;
+        }
+        
+        // Toggle mode with Spacebar.
+        if (e.code === "Space" || e.key === " ") {
+          if (mode === "edit") {
+            // Before switching, ensure all property changes are applied
+            // In this implementation, property changes are immediate, so no action needed
+            simCircles = deepCopyCircles(editCircles);
+            mode = "sim";
+            document.getElementById('panelTitle').innerText = "SIMULATION MODE";
+            updatePropertyPanel();
+          } else {
+            mode = "edit";
+            document.getElementById('panelTitle').innerText =
+              (selectedIds.length === 1) ? (getCircleById(selectedIds[0], editCircles).name || "[Object]") : "[No Selection]";
+            updatePropertyPanel();
+          }
+        }
+        
+        if (mode === "edit" && (e.key === "Delete" || e.key === "Backspace")) {
+          if (selectedIds.length > 0) {
+            saveState(); // Save state before deletion
+            editCircles = editCircles.filter(c => !selectedIds.includes(c.id));
+            constraints = constraints.filter(cons => !selectedIds.includes(cons.objA) && !cons.objB);
+            clearSelection();
+            draw(); // Redraw to reflect deletion
+          }
+        }
+        
+        // Toggle sidebar visibility with H.
+        if (e.key.toLowerCase() === "h") {
+          // Toggle right sidebar visibility
+          const sidebar = document.getElementById('right-sidebar');
+          sidebar.classList.toggle('hidden');
+          saveState(); // Save state after toggling sidebar
+          draw(); // Redraw to reflect sidebar toggle
+        }
+        
+        // Toggle debug visuals and angle indicators with M.
+        if (e.key.toLowerCase() === "m") { 
+          debugDraw = !debugDraw; 
+          saveState(); // Save state after toggling debug draw
+          draw(); // Redraw to reflect debug draw toggle
+        }
+        
+        // In Edit mode, spawn objects with A (or Shift+A for multiple).
+        if (mode === "edit" && (e.key.toLowerCase() === "a") && !e.ctrlKey) {
+          if (e.shiftKey) {
+            saveState(); // Save state before adding multiple objects
+            for (let i = 0; i < 5; i++) {
+              addObjectAt({ x: 0, y: 0 }); // Fixed spawn position at center
+            }
+          } else {
+            saveState(); // Save state before adding an object
+            addObjectAt({ x: 0, y: 0 }); // Fixed spawn position at center
+          }
+        }
+        
+        // Handle Save and Load via Ctrl+S and Ctrl+L
+        if (e.ctrlKey && ["s","S"].includes(e.key)) { 
+          e.preventDefault(); 
+          saveScene(); 
+        }
+        if (e.ctrlKey && ["l","L"].includes(e.key)) { 
+          e.preventDefault(); 
+          loadScene(); 
+        }
+      }, { once: false }); // Ensure that the listener is not limited to one invocation
+      
+      // ===============================================
+      // Copy-Paste Functions
+      // ===============================================
+      function copySelected() {
+        if (selectedIds.length === 0) return;
+        let targetCircles = (mode === "sim") ? simCircles : editCircles;
+        clipboard = selectedIds.map(id => {
+          let obj = getCircleById(id, targetCircles);
+          if (obj) {
+            return {
+              name: obj.name,
+              x: obj.x,
+              y: obj.y,
+              vx: obj.vx,
+              vy: obj.vy,
+              baseRadius: obj.baseRadius,
+              mass: obj.mass,
+              density: obj.density,
+              restitution: obj.restitution,
+              friction: obj.friction,
+              angle: obj.angle,
+              bodyType: obj.bodyType,
+              sprite: obj.sprite ? obj.sprite.src : null,
+              spriteOpacity: obj.spriteOpacity,
+              spriteOffsetX: obj.spriteOffsetX,
+              spriteOffsetY: obj.spriteOffsetY,
+              spriteScale: obj.spriteScale,
+              spriteRotation: obj.spriteRotation,
+              defRegenTime: obj.defRegenTime,
+              defScale: obj.defScale,
+              surfaceFriction: obj.surfaceFriction, // **Copy Surface Friction**
+              airResistance: obj.airResistance      // **Copy Air Resistance**
+            };
+          }
+          return null;
+        }).filter(obj => obj !== null);
+        // Optionally, provide user feedback
+        // showMessage("Copied " + clipboard.length + " object(s).");
+      }
+      
+      function pasteClipboard() {
+        if (!clipboard) return;
+        saveState(); // Save state before pasting
+        clipboard.forEach(objData => {
+          let newObj = new Circle(nextId++, objData.x + 0.5, objData.y + 0.5, objData.vx, objData.vy, objData.baseRadius, objData.mass, objData.density);
+          newObj.name = objData.name + " (Copy)";
+          newObj.restitution = objData.restitution;
+          newObj.friction = objData.friction;
+          newObj.angle = objData.angle;
+          newObj.bodyType = objData.bodyType;
+          newObj.spriteOpacity = objData.spriteOpacity;
+          newObj.spriteOffsetX = objData.spriteOffsetX;
+          newObj.spriteOffsetY = objData.spriteOffsetY;
+          newObj.spriteScale = objData.spriteScale;
+          newObj.spriteRotation = objData.spriteRotation;
+          newObj.defRegenTime = objData.defRegenTime;
+          newObj.defScale = objData.defScale;
+          newObj.surfaceFriction = objData.surfaceFriction || 0.05; // Ensure default if undefined
+          newObj.airResistance = objData.airResistance || 0.1;       // Ensure default if undefined
+          if (objData.sprite) {
+            let img = new Image();
+            img.onload = function() { newObj.sprite = img; };
+            img.src = objData.sprite;
+          }
+          editCircles.push(newObj);
+          selectedIds.push(newObj.id);
+        });
+        updateSelUI();
+        draw(); // Redraw to show pasted objects
+      }
+      
+      // ===============================================
+      // Helper: Add object at simulation coordinate.
+      // ===============================================
+      function addObjectAt(pos) {
+        let massVal = parseFloat(document.getElementById('objMass').value) || 1.0;
+        let densityVal = parseFloat(document.getElementById('objDensity').value) || 1.0;
+        let radiusVal = parseFloat(document.getElementById('objRadius').value) || 0.5;
+        let newObj = new Circle(nextId++, pos.x, pos.y, 0, 0, radiusVal, massVal, densityVal);
+        let attempts = 0;
+        while (attempts < 100 && editCircles.some(o => Math.hypot(newObj.x - o.x, newObj.y - o.y) < (newObj.currentRadius + o.currentRadius))) {
+          let angle = 2 * Math.PI * prng.nextFloat();
+          let offset = (newObj.currentRadius + 0.2) * (attempts + 1) / 10;
+          newObj.x = pos.x + offset * Math.cos(angle);
+          newObj.y = pos.y + offset * Math.sin(angle);
+          attempts++;
+        }
+        editCircles.push(newObj);
+        clearSelection();
+        selectedIds = [newObj.id];
+        updateSelUI();
+        draw(); // Redraw to show the new object
+      }
+      
+      // ===============================================
+      // Mouse Event Handling
+      // ===============================================
+      canvas.addEventListener('mousedown', function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = ((e.clientX - rect.left) / canvas.width) * 2 - 1;
+        const mouseY = 1 - ((e.clientY - rect.top) / canvas.height) * 2;
+        const simX = mouseX * viewSize * aspect;
+        const simY = mouseY * viewSize;
+        
+        if (mode === "sim") {
+          if (e.button === 0) { // Left button
+            let clickedObj = simCircles.find(c => Math.hypot(simX - c.x, simY - c.y) <= c.currentRadius);
+            if (clickedObj) {
+              selectedIds = [clickedObj.id];
+              updateSelUI();
+              // Initiate impulse drag
+              dragData = { mode: "impulse_drag", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+            }
+          } else if (e.button === 2) { // Right button
+            let clickedObj = simCircles.find(c => Math.hypot(simX - c.x, simY - c.y) <= c.currentRadius);
+            if (clickedObj) {
+              selectedIds = [clickedObj.id];
+              updateSelUI();
+              dragData = { mode: "sim_translate", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+            }
+          }
+        } else {
+          let clickedObj = editCircles.find(c => Math.hypot(simX - c.x, simY - c.y) <= c.currentRadius);
+          if (clickedObj) {
+            if (e.shiftKey) {
+              if (selectedIds.includes(clickedObj.id))
+                selectedIds = selectedIds.filter(id => id !== clickedObj.id);
+              else
+                selectedIds.push(clickedObj.id);
+            } else {
+              selectedIds = [clickedObj.id];
+            }
+            updateSelUI();
+            if (e.ctrlKey && !e.altKey) {
+              dragData = { mode: "rotate_object", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+            } else if (e.altKey && e.shiftKey) {
+              dragData = { mode: "scale_sprite", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+            } else if (e.altKey) {
+              dragData = { mode: "translate_sprite", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+            } else {
+              dragData = { mode: "drag_object", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+            }
+          } else {
+            if (!e.shiftKey) clearSelection();
+            dragData = { mode: "select_rect", start: { x: simX, y: simY }, last: { x: simX, y: simY } };
+          }
+        }
+      });
+      
+      canvas.addEventListener('mousemove', function(e) {
+        if (!dragData) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = ((e.clientX - rect.left) / canvas.width) * 2 - 1;
+        const mouseY = 1 - ((e.clientY - rect.top) / canvas.height) * 2;
+        const simX = mouseX * viewSize * aspect;
+        const simY = mouseY * viewSize;
+        dragData.last = { x: simX, y: simY };
+        
+        if (mode === "sim") {
+          if (dragData.mode === "impulse_drag") {
+            // Do not move the object during drag
+            // Instead, track the drag vector for impulse
+            // Optionally, you can visualize the drag vector
+          } else if (dragData.mode === "sim_translate") {
+            const dx = simX - dragData.start.x;
+            const dy = simY - dragData.start.y;
+            let obj = getCircleById(selectedIds[0], simCircles);
+            if (obj) {
+              obj.x = simX;
+              obj.y = simY;
+              obj.vx = 0;
+              obj.vy = 0;
+            }
+            dragData.start = { x: simX, y: simY };
+            saveState(); // Save state after translating
+          }
+        } else {
+          if (dragData.mode === "drag_object") {
+            const dx = simX - dragData.start.x;
+            const dy = simY - dragData.start.y;
+            let targetCircles = (mode === "sim") ? simCircles : editCircles;
+            selectedIds.forEach(id => {
+              let obj = getCircleById(id, targetCircles);
+              if (obj) {
+                obj.x += dx;
+                obj.y += dy;
+              }
+            });
+            dragData.start = { x: simX, y: simY };
+            saveState(); // Save state after dragging
+          } else if (dragData.mode === "rotate_object") {
+            let dx = simX - dragData.start.x;
+            let rotationRate = 0.01;
+            let obj = getCircleById(selectedIds[0], (mode === "sim") ? simCircles : editCircles);
+            if (obj) { 
+              obj.angle += dx * rotationRate; 
+            }
+            dragData.start = { x: simX, y: simY };
+            saveState(); // Save state after rotation
+          } else if (dragData.mode === "translate_sprite") {
+            let dx = simX - dragData.start.x;
+            let dy = simY - dragData.start.y;
+            let obj = getCircleById(selectedIds[0], (mode === "sim") ? simCircles : editCircles);
+            if (obj) {
+              obj.spriteOffsetX += dx;
+              obj.spriteOffsetY += dy;
+            }
+            dragData.start = { x: simX, y: simY };
+            saveState(); // Save state after translating sprite
+          } else if (dragData.mode === "scale_sprite") {
+            let dy = simY - dragData.start.y;
+            let scaleRate = 0.01;
+            let obj = getCircleById(selectedIds[0], (mode === "sim") ? simCircles : editCircles);
+            if (obj) {
+              obj.spriteScale = Math.max(0.1, (obj.spriteScale || 1) + dy * scaleRate);
+              document.getElementById('spriteScale').value = obj.spriteScale.toFixed(2);
+            }
+            dragData.start = { x: simX, y: simY };
+            saveState(); // Save state after scaling sprite
+          }
+        }
+        updatePropertyPanel();
+        updateSelUI();
+        draw(); // Redraw to reflect changes during drag
+      });
+      
+      window.addEventListener('mouseup', function(e) {
+        if (!dragData) return;
+        if (mode === "sim") {
+          if (dragData.mode === "impulse_drag") {
+            const dx = dragData.last.x - dragData.start.x;
+            const dy = dragData.last.y - dragData.start.y;
+            const impulseScale = 20.0; // Increased impulse strength
+            if (selectedIds.length === 1) {
+              let obj = getCircleById(selectedIds[0], simCircles);
+              if (obj) {
+                obj.vx = dx * impulseScale;
+                obj.vy = dy * impulseScale;
+                obj.angularVelocity = Math.hypot(dx, dy) * 0.5;
+                saveState(); // Save state after applying impulse
+              }
+            }
+          }
+          // Handle sim_translate mode if necessary
+        } else {
+          if (dragData.mode === "select_rect") {
+            const x1 = Math.min(dragData.start.x, dragData.last.x);
+            const x2 = Math.max(dragData.start.x, dragData.last.x);
+            const y1 = Math.min(dragData.start.y, dragData.last.y);
+            const y2 = Math.max(dragData.start.y, dragData.last.y);
+            const rectSelection = editCircles.filter(c => c.x >= x1 && c.x <= x2 && c.y >= y1 && c.y <= y2).map(c => c.id);
+            if (e.shiftKey) {
+              rectSelection.forEach(id => {
+                if (selectedIds.includes(id))
+                  selectedIds = selectedIds.filter(sel => sel !== id);
+                else
+                  selectedIds.push(id);
+              });
+            } else {
+              selectedIds = rectSelection;
+            }
+            updateSelUI();
+            saveState(); // Save state after rectangle selection
+          }
+          // Handle other modes if necessary
+        }
+        dragData = null;
+      });
+      
+      canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+      
+      // ===============================================
+      // Joint Editor Buttons
+      // ===============================================
+      document.getElementById('addJointBtn').addEventListener('click', function() {
+        if (selectedIds.length !== 2) return;
+        saveState(); // Save state before adding a joint
+        let jointType = document.getElementById('jointType').value;
+        let param = parseFloat(document.getElementById('jointParam').value);
+        let A = getCircleById(selectedIds[0], (mode === "sim") ? simCircles : editCircles);
+        let B = getCircleById(selectedIds[1], (mode === "sim") ? simCircles : editCircles);
+        if (!A || !B) return;
+        if ((jointType === "distance" || jointType === "rope") && param <= 0) {
+          param = Math.hypot(B.x - A.x, B.y - A.y);
+          document.getElementById('jointParam').value = param.toFixed(2);
+        }
+        let extra = {};
+        if (jointType === "prismatic") {
+          let dx = B.x - A.x, dy = B.y - A.y;
+          let dist = Math.hypot(dx, dy);
+          if (dist === 0) return;
+          extra.axis = { x: dx/dist, y: dy/dist };
+          param = dx * extra.axis.x + dy * extra.axis.y;
+          document.getElementById('jointParam').value = param.toFixed(2);
+        }
+        if (jointType === "motor") {
+          extra.motorActive = document.getElementById('motorActive').value;
+          extra.targetRPM = parseFloat(document.getElementById('motorRPM').value) || 0;
+          extra.torque = parseFloat(document.getElementById('motorTorque').value) || 0;
+        }
+        let newJoint = new Constraint(nextConstraintId++, jointType, A.id, B.id, param, extra);
+        let existing = constraints.find(cons =>
+          (cons.objA === A.id && cons.objB === B.id) || (cons.objA === B.id && cons.objB === A.id)
+        );
+        if (existing) {
+          existing.type = jointType;
+          existing.param = param;
+          if (jointType === "prismatic") { existing.axis = extra.axis; }
+          if (jointType === "motor") {
+            existing.motorActive = extra.motorActive;
+            existing.targetRPM = extra.targetRPM;
+            existing.torque = extra.torque;
+          }
+        } else {
+          constraints.push(newJoint);
+        }
+        saveState(); // Save state after adding a joint
+        draw(); // Redraw to show the new joint
+      });
+      
+      document.getElementById('deleteJointBtn').addEventListener('click', function() {
+        if (selectedIds.length !== 2) return;
+        saveState(); // Save state before deleting a joint
+        let A = selectedIds[0], B = selectedIds[1];
+        constraints = constraints.filter(cons =>
+          !((cons.objA === A && cons.objB === B) || (cons.objA === B && cons.objB === A))
+        );
+        saveState(); // Save state after deleting a joint
+        draw(); // Redraw to reflect joint deletion
+      });
+      
+      // ===============================================
+      // Show/Hide Motor Options Based on Joint Type
+      // ===============================================
+      document.getElementById('jointType').addEventListener('change', function(e) {
+        if (this.value === "motor") {
+          document.getElementById('motorOptions').classList.remove('hidden');
+        } else {
+          document.getElementById('motorOptions').classList.add('hidden');
+        }
+      });
+      
+      // ===============================================
+      // Add/Delete Object Buttons
+      // ===============================================
+      document.getElementById('addObjBtn').addEventListener('click', function() {
+        saveState(); // Save state before adding an object
+        addObjectAt({ x: 0, y: 0 }); // Fixed spawn position at center
+      });
+      
+      document.getElementById('deleteObjBtn').addEventListener('click', function() {
+        if (selectedIds.length === 0) return;
+        saveState(); // Save state before deleting objects
+        editCircles = editCircles.filter(c => !selectedIds.includes(c.id));
+        constraints = constraints.filter(cons => !selectedIds.includes(cons.objA) && !cons.objB);
+        clearSelection();
+        draw(); // Redraw to reflect object deletion
+      });
+      
+      // ===============================================
+      // Sprite Upload Handling
+      // ===============================================
+      document.getElementById('objSpriteUpload').addEventListener('change', function(e) {
+        let file = this.files[0];
+        if (!file) return;
+        let reader = new FileReader();
+        reader.onload = function(event) {
+          let dataURL = event.target.result;
+          let img = new Image();
+          img.onload = function() { 
+            if (selectedIds.length >= 1) {
+              let targetCircles = (mode === "sim") ? simCircles : editCircles;
+              selectedIds.forEach(id => {
+                let obj = getCircleById(id, targetCircles);
+                if (obj) { 
+                  obj.sprite = img; 
+                }
+              });
+              saveState(); // Save state after uploading a sprite
+              draw(); // Redraw to show the new sprite
+            }
+          };
+          img.src = dataURL;
+        };
+        reader.readAsDataURL(file);
+      });
+      
+      // ===============================================
+      // Scene Save/Load
+      // ===============================================
+      let isSavingScene = false; // Flag to prevent multiple saves
+      
+      function saveScene() {
+        if (isSavingScene) return; // Prevent multiple simultaneous saves
+        isSavingScene = true;
+        
+        const scene = {
+          circles: editCircles.map(c => ({
+            id: c.id,
+            name: c.name,
+            x: c.x,
+            y: c.y,
+            vx: c.vx,
+            vy: c.vy,
+            baseRadius: c.baseRadius,
+            currentRadius: c.currentRadius,
+            mass: c.mass,
+            density: c.density,
+            restitution: c.restitution,
+            friction: c.friction,
+            angle: c.angle,
+            bodyType: c.bodyType,
+            sprite: c.sprite ? c.sprite.src : null,
+            spriteOpacity: c.spriteOpacity,
+            spriteOffsetX: c.spriteOffsetX,
+            spriteOffsetY: c.spriteOffsetY,
+            spriteScale: c.spriteScale,
+            spriteRotation: c.spriteRotation, // **Save Sprite Rotation**
+            defRegenTime: c.defRegenTime,
+            defScale: c.defScale,
+            surfaceFriction: c.surfaceFriction, // **Save Surface Friction**
+            airResistance: c.airResistance      // **Save Air Resistance**
+          })),
+          constraints: constraints,
+          background: backgroundImage ? backgroundImage.src : null,
+          debugDraw: debugDraw // Save debugDraw state
+        };
+        
+        const json = JSON.stringify(scene, null, 2);
+        const blob = new Blob([json], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "scene.json";
+        document.body.appendChild(a); // Append to body to make it clickable
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        isSavingScene = false;
+        // showMessage("Scene saved."); // Removed message
+      }
+      
+      function loadScene() {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "application/json";
+        input.onchange = function(event) {
+          const file = event.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            try {
+              const scene = JSON.parse(e.target.result);
+              saveState(); // Save current state before loading new scene
+              editCircles = scene.circles.map(cData => {
+                let c = new Circle(cData.id, cData.x, cData.y, cData.vx, cData.vy, cData.baseRadius, cData.mass, cData.density);
+                c.name = cData.name;
+                c.currentRadius = cData.currentRadius;
+                c.restitution = cData.restitution;
+                c.friction = cData.friction;
+                c.angle = cData.angle;
+                c.bodyType = cData.bodyType;
+                c.spriteOpacity = cData.spriteOpacity;
+                c.spriteOffsetX = cData.spriteOffsetX || 0;
+                c.spriteOffsetY = cData.spriteOffsetY || 0;
+                c.spriteScale = cData.spriteScale || 1;
+                c.spriteRotation = cData.spriteRotation || 0; // **Load Sprite Rotation**
+                c.defRegenTime = cData.defRegenTime || 0;
+                c.defScale = cData.defScale || 0;
+                c.deformationTimer = cData.deformationTimer || 0;
+                c.isDeformed = cData.isDeformed || false;
+                c.pressure = cData.pressure || 0;
+                c.surfaceFriction = cData.surfaceFriction || 0.05; // **Load Surface Friction**
+                c.airResistance = cData.airResistance || 0.1;       // **Load Air Resistance**
+                if (cData.sprite) {
+                  let img = new Image();
+                  img.onload = function() { c.sprite = img; };
+                  img.src = cData.sprite;
+                }
+                return c;
+              });
+              constraints = scene.constraints || [];
+              if (scene.background) {
+                let bg = new Image();
+                bg.onload = function() { backgroundImage = bg; };
+                bg.src = scene.background;
+              } else {
+                backgroundImage = null;
+              }
+              debugDraw = scene.debugDraw !== undefined ? scene.debugDraw : true; // Restore debugDraw
+              nextId = Math.max(...editCircles.map(c => c.id)) + 1;
+              nextConstraintId = Math.max(...constraints.map(cons => cons.id), 0) + 1;
+              clearSelection();
+              updateUndoRedoButtons();
+              draw(); // Redraw after loading
+            } catch (err) {
+              // showMessage("Failed to load scene."); // Removed message
+              console.error(err);
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      }
+      
+      // ===============================================
+      // Final Draw Call
+      // ===============================================
+      draw();
+      
+      // ===============================================
+      // Prevent Rapid State Saving During Dragging
+      // ===============================================
+      // Optional: Implemented debounce in input listeners to allow multi-digit input
+      
+      // ===============================================
+      // Mouse Event Handling
+      // ===============================================
+      // (Handled earlier in the code)
+      
+      // ===============================================
+      // Copy-Paste Integration with Event Listeners
+      // ===============================================
+      // Already handled in the keydown listener above
+    });
+  </script>
+</body>
+</html>
