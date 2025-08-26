@@ -182,7 +182,7 @@
     </div>
 
     <!-- HINWEIS: Das mehrstufige Modal wird jetzt nicht mehr für die Schnell-Eingabe verwendet, 
-             es bleibt aber für zukünftige manuelle Eingaben als Platzhalter. -->
+                  es bleibt aber für zukünftige manuelle Eingaben als Platzhalter. -->
     <dialog id="dlgNewSession" class="modal">
         <div class="modal-box w-11/12 max-w-lg p-6">
             <form method="dialog">
@@ -551,7 +551,8 @@
         const congratsHr = document.getElementById('congratsHr');
         const congratsDistance = document.getElementById('congratsDistance');
         const congratsKcal = document.getElementById('congratsKcal');
-        const congratsWatt = document = document.getElementById('congratsWatt');
+        // KORREKTUR: Der Fehler lag in dieser Zeile. `document` kann nicht neu zugewiesen werden.
+        const congratsWatt = document.getElementById('congratsWatt');
         const bonusAmount = document.getElementById('bonusAmount');
         const btnCongratsOk = document.getElementById('btnCongratsOk');
 
@@ -613,9 +614,9 @@
                 if (diffDaysToday <= 1) { 
                     streak = 1;
                     if (diffDaysToday === 0) {
-                      lastDate = today;
+                        lastDate = today;
                     } else {
-                      lastDate = new Date(today.getTime() - 1000 * 60 * 60 * 24);
+                        lastDate = new Date(today.getTime() - 1000 * 60 * 60 * 24);
                     }
 
                     for (let i = uniqueDates.length - 2; i >= 0; i--) {
@@ -633,217 +634,338 @@
                 }
             }
 
-            u.metrics.level = level;
-            u.metrics.xp = xp;
+            // Streak in den State und in die UI schreiben
             u.metrics.streakCount = streak;
-            u.metrics.totalEntries = u.sessions.length;
+            kpiStreak.textContent = streak;
 
-            kpiWeekMin.textContent = u.sessions.filter(s => new Date(s.dateISO) >= startOfISOWeek()).reduce((a, s) => a + (Number(s.minutes) || 0), 0);
-            kpiStreak.textContent = u.metrics.streakCount;
+            // Wochenminuten
+            const startOfWeek = startOfISOWeek();
+            const weekMinutes = u.sessions
+                .filter(s => new Date(s.dateISO) >= startOfWeek)
+                .reduce((a, s) => a + (Number(s.minutes) || 0), 0);
+            kpiWeekMin.textContent = weekMinutes;
+
+            u.metrics.totalEntries = u.sessions.length;
+            u.metrics.xp = xp;
             kpiEntries.textContent = u.metrics.totalEntries;
 
+            saveState();
             checkAndAwardAchievements();
             renderRewards();
         }
 
-        function renderSessions() {
-            const sessions = currentUser().sessions.sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO));
-            tbody.innerHTML = '';
-            if (sessions.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td colspan="8" class="text-center opacity-70 py-4">Noch keine Trainings eingetragen.</td>`;
-                tbody.appendChild(tr);
-                return;
-            }
-            sessions.forEach((s, i) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${fmtDate(s.dateISO)}</td>
-                    <td>${s.minutes}</td>
-                    <td>${s.hr}</td>
-                    <td class="hide-xs">${s.level}</td>
-                    <td class="hide-xs">${s.distance ? s.distance.toFixed(1) : '-'}</td>
-                    <td class="hide-xs">${s.kcal}</td>
-                    <td class="row-note" title="${s.notes}">${s.notes || '-'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-error" data-id="${s.id}"><i class="fa-solid fa-trash-can"></i></button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+        // Hilfsfunktion zur Kalorienberechnung
+        // Formel: ((Alter * 0.2017) - (Körpergewicht * 0.09036) + (durchschnittlicher Puls * 0.6309) - 55.0969) * Zeit / 4.184
+        function calculateCalories(minutes, hr, age, weight) {
+            if (!minutes || !hr || !age || !weight) return null;
+            return Math.round(((age * 0.2017) + (weight * 0.09036) + (hr * 0.6309) - 55.0969) * minutes / 4.184);
         }
-        
-        function updateUI(){
-            renderUsers();
-            renderSettings();
-            renderSessions();
-            calculateAndRenderKPIs();
-            saveState();
-        }
-
-        // ========= Event-Handler =========
-        themeSelect.addEventListener('change', (e) => setTheme(e.target.value));
-        userSelect.addEventListener('change', (e) => { state.activeUserId = e.target.value; updateUI(); });
-        
-        btnNewUser.addEventListener('click', () => {
-          newUserName.value = '';
-          dlgNewUser.showModal();
-        });
-
-        btnCreateUser.addEventListener('click', () => {
-            const name = newUserName.value.trim();
-            if (!name) return;
-            const newId = uid();
-            state.users[newId] = structuredClone(DEFAULT_STATE.users.default);
-            state.users[newId].id = newId;
-            state.users[newId].name = name;
-            state.activeUserId = newId;
-            updateUI();
-            dlgNewUser.close();
-        });
-
-        btnSaveSettings.addEventListener('click', () => {
-            const u = currentUser();
-            u.settings.bodyWeight = Number(bodyWeightInput.value) || u.settings.bodyWeight;
-            u.settings.weeklyTarget = Number(weeklyTarget.value) || u.settings.weeklyTarget;
-            u.settings.quickLevel = Number(quickLevelInput.value) || u.settings.quickLevel;
-            u.settings.quickDuration = Number(quickDurationInput.value) || u.settings.quickDuration;
-            u.settings.quickHr = Number(quickHrInput.value) || u.settings.quickHr;
-            saveState();
-            updateUI();
-        });
-
-        btnQuickSession.addEventListener('click', () => {
-            const u = currentUser();
-            const level = Number(quickLevelInput.value) || 0;
-            const duration = Number(quickDurationInput.value) || 0;
-            const hr = Number(quickHrInput.value) || 0;
-            const watts = level * 20 + 20; // Beispiel: Level 1 = 40W, Level 10 = 220W
-            const weight = Number(bodyWeightInput.value) || 75;
-            const kcal = Math.round((0.0035 * weight * watts * duration) / 60);
-
-            const session = {
-                id: uid(),
-                dateISO: nowISO(),
-                minutes: duration,
-                hr: hr,
-                level: level,
-                watt: watts,
-                kcal: kcal,
-                distance: 0,
-                notes: `Schnelleingabe: Level ${level}, ${duration} Min`,
-                type: 'quick'
-            };
-
-            u.sessions.push(session);
-            saveState();
-
-            // Zeige den Glückwunsch-Dialog mit Konfetti
-            congratsMinutes.textContent = duration;
-            congratsHr.textContent = hr;
-            congratsWatt.textContent = watts;
-            congratsDistance.textContent = '0 (N/A)';
-            congratsKcal.textContent = kcal;
-            
-            // Berechne Bonus-XP (z.B. 1 XP pro 5 Minuten)
-            const bonusXP = Math.floor(duration / 5);
-            bonusAmount.textContent = bonusXP;
-            u.metrics.xp += bonusXP; // Füge Bonus-XP hinzu
-            saveState();
-            
-            for(let i=0; i<100; i++) setTimeout(() => createConfetti('confetti-container'), i * 10);
-            dlgCongratulations.showModal();
-            updateUI(); // UI aktualisieren, nachdem die Session hinzugefügt wurde
-        });
-        
-        btnCongratsOk.addEventListener('click', () => {
-            dlgCongratulations.close();
-        });
-
-        tbody.addEventListener('click', async (e) => {
-            if (e.target.closest('.btn-error')) {
-                const id = e.target.closest('.btn-error').dataset.id;
-                const sessions = currentUser().sessions;
-                const sessionIndex = sessions.findIndex(s => s.id === id);
-                if (sessionIndex !== -1) {
-                    const confirmed = await showConfirmDialog(
-                        'Session löschen',
-                        'Sind Sie sicher, dass Sie diese Trainingseinheit löschen möchten?'
-                    );
-                    if (confirmed) {
-                        sessions.splice(sessionIndex, 1);
-                        updateUI();
-                    }
-                }
-            }
-        });
-
-        // Daten-Tools
-        btnExport.addEventListener('click', () => {
-            const data = JSON.stringify(state, null, 2);
-            const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `z2log-export-${fmtDate(nowISO())}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        btnImport.addEventListener('click', () => {
-            fileImport.click();
-        });
-
-        fileImport.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const importedData = JSON.parse(e.target.result);
-                const confirmed = await showConfirmDialog(
-                    'Daten importieren',
-                    'Achtung: Dies wird alle Ihre aktuellen Daten überschreiben. Sind Sie sicher?'
-                );
-                if (confirmed) {
-                    state = importedData;
-                    updateUI();
-                }
-            };
-            reader.readAsText(file);
-        });
-
-        btnWipeAll.addEventListener('click', async () => {
-            const confirmed = await showConfirmDialog(
-                'Alle Daten löschen',
-                'Sind Sie sicher, dass Sie alle Daten unwiderruflich löschen möchten? Dieser Vorgang kann nicht rückgängig gemacht werden.'
-            );
-            if (confirmed) {
-                localStorage.removeItem(STORAGE_KEY);
-                state = structuredClone(DEFAULT_STATE);
-                updateUI();
-            }
-        });
 
         function createConfetti(containerId) {
             const container = document.getElementById(containerId);
             const confetti = document.createElement('div');
             confetti.classList.add('confetti');
-            confetti.style.left = `${Math.random() * 100}%`;
-            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            confetti.style.left = `${Math.random() * 100}vw`;
             confetti.style.animationDuration = `${Math.random() * 2 + 1}s`;
-            confetti.style.transform = `scale(${Math.random() + 0.5})`;
-            confetti.style.opacity = `${Math.random()}`;
+            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
             container.appendChild(confetti);
 
             setTimeout(() => {
                 confetti.remove();
             }, parseFloat(confetti.style.animationDuration) * 1000);
         }
+        
+        // ========= Session-Verwaltung =========
+        function addSession(sessionData){
+            const u = currentUser();
+            const newSession = {
+                id: uid(),
+                dateISO: nowISO(),
+                ...sessionData,
+            };
+            u.sessions.push(newSession);
+            u.sessions.sort((a,b) => new Date(b.dateISO) - new Date(a.dateISO)); // Sortieren nach Datum absteigend
+            saveState();
+            renderSessions();
+            calculateAndRenderKPIs();
+            showCongrats(newSession);
+        }
 
-        // Initialisierung
-        window.onload = () => {
-            updateUI();
-        };
+        function showCongrats(session){
+            const dlg = document.getElementById('dlgCongratulations');
+            document.getElementById('congratsMinutes').textContent = session.minutes;
+            document.getElementById('congratsHr').textContent = session.hr;
+            document.getElementById('congratsWatt').textContent = session.watt;
+            document.getElementById('congratsDistance').textContent = session.distance ? session.distance + ' km' : 'N/A';
+            document.getElementById('congratsKcal').textContent = session.kcal ? session.kcal + ' kcal' : 'N/A';
+            document.getElementById('bonusAmount').textContent = session.minutes;
+            
+            // Konfetti-Effekt für den Glückwunsch-Dialog
+            for(let i=0; i<100; i++) setTimeout(() => createConfetti('confetti-container'), i * 10);
+
+            dlg.showModal();
+        }
+
+        function renderSessions(){
+            const u = currentUser();
+            tbody.innerHTML = '';
+            
+            if (u.sessions.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="8" class="text-center opacity-50 py-4">Noch keine Sessions vorhanden.</td>`;
+                tbody.appendChild(tr);
+                return;
+            }
+
+            u.sessions.forEach(session => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-xs md:text-sm">${fmtDate(session.dateISO)}</td>
+                    <td class="text-xs md:text-sm">${session.minutes}</td>
+                    <td class="text-xs md:text-sm">${session.hr || '-'}</td>
+                    <td class="hide-xs text-xs md:text-sm">${session.watt || '-'}</td>
+                    <td class="hide-xs text-xs md:text-sm">${session.distance || '-'}</td>
+                    <td class="hide-xs text-xs md:text-sm">${session.kcal || '-'}</td>
+                    <td class="text-xs md:text-sm row-note">${session.notes || '-'}</td>
+                    <td class="text-xs md:text-sm">
+                        <button class="btn btn-sm btn-ghost" data-id="${session.id}" onclick="this.closest('tr').remove(); deleteSession('${session.id}')">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        function deleteSession(id) {
+            const u = currentUser();
+            u.sessions = u.sessions.filter(s => s.id !== id);
+            saveState();
+            renderSessions();
+            calculateAndRenderKPIs();
+        }
+        
+        // Exportieren von Daten
+        function exportData(){
+            const dataStr = JSON.stringify(state, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `z2log_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Importieren von Daten
+        async function importData(event){
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const confirm = await showConfirmDialog(
+                'Daten importieren?',
+                'Dies wird den aktuellen Zustand überschreiben. Sind Sie sicher?'
+            );
+            if (!confirm) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    if(importedState.users && importedState.activeUserId){
+                        state = importedState;
+                        saveState();
+                        init();
+                    } else {
+                        // Besserer Fehlermeldung
+                        showConfirmDialog(
+                            'Import fehlgeschlagen', 
+                            'Die Datei scheint kein gültiges Z2-Log-Format zu haben.'
+                        );
+                    }
+                } catch(err) {
+                    showConfirmDialog(
+                        'Import fehlgeschlagen', 
+                        'Fehler beim Parsen der Datei. Bitte überprüfen Sie, ob es sich um eine gültige JSON-Datei handelt.'
+                    );
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // ========= Event-Listener & Initialisierung =========
+        
+        // Initialisierung der App
+        function init(){
+            renderUsers();
+            renderSettings();
+            renderSessions();
+            calculateAndRenderKPIs();
+        }
+
+        // Benutzer-Events
+        userSelect.addEventListener('change', (e) => {
+            state.activeUserId = e.target.value;
+            saveState();
+            init();
+        });
+        btnNewUser.addEventListener('click', () => {
+            dlgNewUser.showModal();
+        });
+        btnCreateUser.addEventListener('click', () => {
+            const name = newUserName.value.trim();
+            if (name) {
+                const newId = uid();
+                state.users[newId] = structuredClone(DEFAULT_STATE.users.default);
+                state.users[newId].id = newId;
+                state.users[newId].name = name;
+                state.users[newId].createdAt = nowISO();
+                state.activeUserId = newId;
+                saveState();
+                dlgNewUser.close();
+                init();
+            }
+        });
+
+        // Einstellungen speichern
+        btnSaveSettings.addEventListener('click', () => {
+            const u = currentUser();
+            const bodyWeight = parseFloat(bodyWeightInput.value);
+            const weeklyTarget = parseInt(weeklyTarget.value);
+            const quickLevel = parseInt(quickLevelInput.value);
+            const quickDuration = parseInt(quickDurationInput.value);
+            const quickHr = parseInt(quickHrInput.value);
+            
+            u.settings.bodyWeight = !isNaN(bodyWeight) && bodyWeight > 0 ? bodyWeight : 75;
+            u.settings.weeklyTarget = !isNaN(weeklyTarget) && weeklyTarget >= 0 ? weeklyTarget : 0;
+            u.settings.quickLevel = !isNaN(quickLevel) && quickLevel >= 1 && quickLevel <= 10 ? quickLevel : 3;
+            u.settings.quickDuration = !isNaN(quickDuration) && quickDuration > 0 ? quickDuration : 20;
+            u.settings.quickHr = !isNaN(quickHr) && quickHr >= 0 ? quickHr : 115;
+            
+            saveState();
+            renderSettings();
+            calculateAndRenderKPIs();
+        });
+
+        // Theme-Wechsler
+        themeSelect.addEventListener('change', (e) => {
+            setTheme(e.target.value);
+        });
+
+        // Schnell-Eingabe-Button
+        btnQuickSession.addEventListener('click', () => {
+            const u = currentUser();
+            const sessionData = {
+                minutes: Number(quickDurationInput.value),
+                hr: Number(quickHrInput.value),
+                watt: Number(quickLevelInput.value) * 10, // Beispiel-Watt-Berechnung
+                distance: null,
+                notes: `Schnelleingabe: Watt-Stufe ${quickLevelInput.value}`,
+                kcal: null
+            };
+
+            if (u.settings.bodyWeight > 0) {
+                // Hier Annahme für das Alter, da nicht vorhanden.
+                // Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983
+                const userBirthDate = new Date('1983-04-05');
+                const age = new Date().getFullYear() - userBirthDate.getFullYear();
+                
+                sessionData.kcal = calculateCalories(
+                    sessionData.minutes, 
+                    sessionData.hr, 
+                    age, 
+                    u.settings.bodyWeight
+                );
+            }
+            
+            addSession(sessionData);
+        });
+        
+        // Export/Import/Wipe
+        btnExport.addEventListener('click', exportData);
+        btnImport.addEventListener('click', () => fileImport.click());
+        fileImport.addEventListener('change', importData);
+        btnWipeAll.addEventListener('click', async () => {
+            const confirm = await showConfirmDialog(
+                'Alle Daten löschen?',
+                'Diese Aktion kann nicht rückgängig gemacht werden. Sind Sie sicher?'
+            );
+            if(confirm){
+                state = structuredClone(DEFAULT_STATE);
+                saveState();
+                init();
+            }
+        });
+
+        // Manuelles Modal (bleibt vorerst ungenutzt)
+        btnSaveSession.addEventListener('click', () => {
+            const minutes = parseFloat(sessionMinutes.value) || 0;
+            const hr = parseFloat(sessionHr.value) || 0;
+            const watt = parseFloat(sessionWatt.value) || 0;
+            const distance = parseFloat(sessionDistance.value) || 0;
+            const notes = sessionNotes.value.trim();
+            
+            const u = currentUser();
+            const sessionData = {
+                minutes: minutes,
+                hr: hr || null,
+                watt: watt || null,
+                distance: distance || null,
+                notes: notes,
+                kcal: null
+            };
+
+            if (u.settings.bodyWeight > 0) {
+                const userBirthDate = new Date('1983-04-05');
+                const age = new Date().getFullYear() - userBirthDate.getFullYear();
+
+                sessionData.kcal = calculateCalories(
+                    sessionData.minutes,
+                    sessionData.hr,
+                    age,
+                    u.settings.bodyWeight
+                );
+            }
+            
+            if (minutes > 0) {
+                addSession(sessionData);
+                dlgNewSession.close();
+            }
+        });
+
+        // UI-Init
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // Schritt-Navigation im Modal (optional)
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const step3 = document.getElementById('step3');
+        const step4 = document.getElementById('step4');
+        const stepWatt = document.getElementById('step-watt');
+        const stepPulse = document.getElementById('step-pulse');
+        const stepDistance = document.getElementById('step-distance');
+        const stepFinal = document.getElementById('step-final');
+        const btnNext1 = document.getElementById('btnNext1');
+        const btnBack2 = document.getElementById('btnBack2');
+        const btnNext2 = document.getElementById('btnNext2');
+        const btnBack3 = document.getElementById('btnBack3');
+        const btnNext3 = document.getElementById('btnNext3');
+        const btnBack4 = document.getElementById('btnBack4');
+        
+        function navigateToStep(currentStep, nextStep, elementToHide, elementToShow, stepToHighlight) {
+            elementToHide.classList.remove('active');
+            elementToShow.classList.add('active');
+            stepToHighlight.classList.add('step-primary');
+        }
+
+        btnNext1.addEventListener('click', () => navigateToStep(step1, step2, stepWatt, stepPulse, step2));
+        btnNext2.addEventListener('click', () => navigateToStep(step2, step3, stepPulse, stepDistance, step3));
+        btnNext3.addEventListener('click', () => navigateToStep(step3, step4, stepDistance, stepFinal, step4));
+        btnBack2.addEventListener('click', () => navigateToStep(step2, step1, stepPulse, stepWatt, step1));
+        btnBack3.addEventListener('click', () => navigateToStep(step3, step2, stepDistance, stepPulse, step2));
+        btnBack4.addEventListener('click', () => navigateToStep(step4, step3, stepFinal, stepDistance, step3));
 
     </script>
 </body>
