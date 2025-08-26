@@ -1,79 +1,25 @@
-name: Deploy static site (gh-pages, fast, verify)
+name: Deploy static site
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
-
-concurrency:
-  group: gh-pages-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: write  # wir pushen nach gh-pages
-
-env:
-  SITE_DIR: dist           # ändere auf "." falls du das Repo-Root veröffentlichst
-  CUSTOM_DOMAIN: ""        # optional: z.B. "dein-domain.tld"
 
 jobs:
   deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     steps:
-      - name: Checkout (shallow)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
-          fetch-depth: 1
-          lfs: false
-
-      - name: Resolve site dir + prepare
-        id: site
-        shell: bash
-        run: |
-          DIR="${SITE_DIR}"
-          [ -d "$DIR" ] || DIR="."
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
-
-          # .nojekyll = kein Build, sofort serven
-          touch "$DIR/.nojekyll"
-
-          # SPA-Fallback: 404.html -> index.html (falls 404 fehlt)
-          if [ -f "$DIR/index.html" ] && [ ! -f "$DIR/404.html" ]; then
-            cp "$DIR/index.html" "$DIR/404.html"
-          fi
-
-          # Cache-Busting Marker in der ausgelieferten Kopie
-          echo "deployed $GITHUB_SHA @ $(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "$DIR/DEPLOY.txt"
-          if [ -f "$DIR/index.html" ]; then
-            echo "<!-- deploy:$GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') -->" >> "$DIR/index.html"
-          fi
-
-      - name: Deploy to gh-pages (no queue)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ${{ steps.site.outputs.dir }}
-          force_orphan: true
-          cname: ${{ env.CUSTOM_DOMAIN }}
-
-      - name: Print latest gh-pages commit (sanity)
-        run: |
-          git fetch origin gh-pages --depth=1
-          git log --oneline -1 origin/gh-pages
-
-      - name: Verify live (github.io URL)
-        id: verify
-        continue-on-error: true
-        run: |
-          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
-          REPO="${GITHUB_REPOSITORY##*/}"
-          if [ "$REPO" = "${OWNER}.github.io" ]; then
-            BASE="https://${OWNER}.github.io"
-          else
-            BASE="https://${OWNER}.github.io/${REPO}"
-          fi
-          echo "base=$BASE" >> "$GITHUB_OUTPUT"
-          echo "Checking $BASE …"
-          curl -fsSL "$BASE/DEPLOY.txt?_=$GITHUB_SHA" || true
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
