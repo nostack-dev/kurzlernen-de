@@ -187,33 +187,40 @@
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4">Training eintragen (Manuell)</h3>
-            <div class="alert alert-info">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span>Diese Eingabe ist für manuelle Sessions gedacht. Verwende den Haupt-Button für die schnelle Eingabe.</span>
+            <h3 id="sessionModalTitle" class="font-bold text-lg mb-4">Training eintragen (Manuell)</h3>
+            
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Datum</span></label>
+                <input id="sessionDate" type="date" class="input input-bordered" required />
             </div>
-            <!-- Schritte für das manuelle Modal -->
-            <ul class="steps steps-vertical lg:steps-horizontal w-full progress-indicator mb-4">
-                <li id="step1" class="step step-primary">Watt</li>
-                <li id="step2" class="step">Puls</li>
-                <li id="step3" class="step">Distanz</li>
-                <li id="step4" class="step">Min & Notiz</li>
-            </ul>
-            <!-- Die einzelnen Schritte (inaktiv) -->
-            <div id="step-watt" class="step-container active">
-                <div class="flex flex-col items-center">
-                    <label class="form-control w-full">
-                        <div class="label"><span class="label-text">Durchschnittliche Wattzahl</span></div>
-                        <input id="sessionWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 180">
-                    </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Dauer (Minuten)</span></label>
+                    <input id="sessionDuration" type="number" min="1" class="input input-bordered" required />
                 </div>
-                <div class="modal-action mt-6">
-                    <button id="btnNext1" class="btn btn-primary w-full text-lg">Weiter</button>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Durchschnittlicher Puls (bpm)</span></label>
+                    <input id="sessionHr" type="number" min="0" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Durchschnittliche Watt</span></label>
+                    <input id="sessionWatt" type="number" min="0" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Distanz (km)</span></label>
+                    <input id="sessionDistance" type="number" step="0.1" class="input input-bordered" />
                 </div>
             </div>
-            <div id="step-pulse" class="step-container">...</div>
-            <div id="step-distance" class="step-container">...</div>
-            <div id="step-final" class="step-container">...</div>
+            
+            <div class="form-control mt-4">
+                <label class="label"><span class="label-text">Notizen</span></label>
+                <textarea id="sessionNote" class="textarea textarea-bordered" placeholder="Notizen..."></textarea>
+            </div>
+
+            <div class="modal-action mt-6">
+                <button id="btnSaveSession" class="btn btn-primary w-full text-lg">Eintrag speichern</button>
+            </div>
         </div>
     </dialog>
 
@@ -272,15 +279,13 @@
         // Es implementiert die Persistenz, die Gamification-Logik und die 
         // Interaktionen mit der Benutzeroberfläche.
         //
-        // Wichtigste Änderung in dieser Version:
-        // - Die Logik zur Aktualisierung der Belohnungen wurde komplett überarbeitet.
-        // - Belohnungen werden jetzt nach jeder Sessions-Änderung (Hinzufügen/Löschen) neu berechnet,
-        //   um sicherzustellen, dass der Status immer korrekt synchronisiert ist.
-        // - Der "Alle Sessions löschen"-Button setzt nun auch die Belohnungen zurück.
-        // - Die Watt-Eingabe wurde durch einen Schieberegler mit einer Echtzeit-Anzeige ersetzt.
+        // Wichtigste Änderungen in dieser Version:
+        // - Möglichkeit zum Bearbeiten von Sessions hinzugefügt.
+        // - Zentrale Funktion zur Aktualisierung aller UI-Elemente und Metriken nach jeder Änderung.
+        // - Vereinfachtes manuelles Eingabemodal für Hinzufügen und Bearbeiten.
 
         // ========= Globale Variablen und Konstanten =========
-        const STORAGE_KEY = 'z2log_v8_rebuilt'; // Aktualisierter Version-Schlüssel
+        const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; // Aktualisierter Version-Schlüssel
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2, 10);
         
@@ -290,8 +295,8 @@
                 default: {
                     id: 'default', name: 'Christian', createdAt: nowISO(),
                     settings: { 
-                        weeklyTarget: 0, theme: 'dracula', 
-                        bodyWeight: 100,
+                        weeklyTarget: 0, theme: 'winter', 
+                        bodyWeight: 75,
                         quickLevel: 1, quickDuration: 20, quickHr: 115 
                     }, 
                     metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
@@ -303,6 +308,7 @@
 
         // Zustand der Anwendung. Wird beim Start geladen und bei Änderungen gespeichert.
         let state;
+        let sessionBeingEdited = null; // Speichert die ID der Session, die gerade bearbeitet wird
 
         // ========= Persistenz =========
         /**
@@ -326,13 +332,14 @@
                 // Sicherstellen, dass die neuen Standardwerte für jeden Benutzer vorhanden sind
                 for (const userId in loadedState.users) {
                     if (!loadedState.users[userId].rewards) { loadedState.users[userId].rewards = []; }
-                    if (!loadedState.users[userId].settings.quickLevel) { loadedState.users[userId].settings.quickLevel = DEFAULT_STATE.users.default.settings.quickLevel; }
-                    if (!loadedState.users[userId].settings.quickDuration) { loadedState.users[userId].settings.quickDuration = DEFAULT_STATE.users.default.settings.quickDuration; }
-                    if (!loadedState.users[userId].settings.quickHr) { loadedState.users[userId].settings.quickHr = DEFAULT_STATE.users.default.settings.quickHr; }
-                    if (!loadedState.users[userId].settings.bodyWeight) { loadedState.users[userId].settings.bodyWeight = DEFAULT_STATE.users.default.settings.bodyWeight; }
-                    if (!loadedState.users[userId].settings.weeklyTarget) { loadedState.users[userId].settings.weeklyTarget = DEFAULT_STATE.users.default.settings.weeklyTarget; }
+                    const defaultSettings = DEFAULT_STATE.users.default.settings;
+                    Object.keys(defaultSettings).forEach(key => {
+                        if (loadedState.users[userId].settings[key] === undefined) {
+                             loadedState.users[userId].settings[key] = defaultSettings[key];
+                        }
+                    });
                 }
-
+                
                 return loadedState;
             } catch (e) {
                 console.error("Fehler beim Laden des Zustands:", e);
@@ -446,30 +453,6 @@
         }
 
         /**
-         * Überprüft, welche Belohnungen freigeschaltet sind und aktualisiert den Zustand.
-         * Zeigt nur dann den Erfolgsdialog an, wenn eine Belohnung neu freigeschaltet wurde.
-         */
-        function updateRewards() {
-            const user = state.users[state.activeUserId];
-            const oldRewards = new Set(user.rewards);
-            const newRewards = [];
-
-            REWARDS.forEach(reward => {
-                if (reward.condition(user)) {
-                    newRewards.push(reward.id);
-                    // Prüfen, ob die Belohnung neu freigeschaltet wurde
-                    if (!oldRewards.has(reward.id)) {
-                        showSuccessDialog(reward.title, reward.desc, reward.icon);
-                    }
-                }
-            });
-
-            user.rewards = newRewards;
-            saveState();
-            renderRewards();
-        }
-
-        /**
          * Berechnet die XP basierend auf der Session.
          * @param {object} session Die Session-Daten.
          * @returns {number} Die berechneten XP.
@@ -484,45 +467,91 @@
         }
 
         /**
-         * Fügt eine neue Session hinzu und aktualisiert Metriken.
+         * Zentralisierte Funktion, die den gesamten Zustand neu berechnet
+         * und die UI aktualisiert. Dies stellt sicher, dass alle Daten konsistent sind.
+         * @param {string | null} highlightId Die ID des Eintrags, der hervorgehoben werden soll.
+         */
+        function handleDataChange(highlightId = null) {
+            const user = state.users[state.activeUserId];
+            
+            // 1. Metriken neu berechnen
+            let totalEntries = user.sessions.length;
+            let totalXp = 0;
+            let streakCount = 0;
+            let lastDay = null;
+
+            // Sessions nach Datum sortieren, um Streak korrekt zu berechnen
+            const sortedSessions = [...user.sessions].sort((a, b) => new Date(a.date) - new Date(b.date));
+            sortedSessions.forEach(session => {
+                totalXp += calculateXp(session);
+                const sessionDate = new Date(session.date).toDateString();
+                if (lastDay === null) {
+                    streakCount = 1;
+                } else {
+                    const yesterday = new Date(new Date(lastDay).setDate(new Date(lastDay).getDate() + 1)).toDateString();
+                    if (sessionDate === lastDay) {
+                        // Eintrag am selben Tag, Streak bleibt
+                    } else if (sessionDate === yesterday) {
+                        streakCount++;
+                    } else {
+                        // Tag übersprungen, Streak zurücksetzen
+                        streakCount = 1;
+                    }
+                }
+                lastDay = sessionDate;
+            });
+
+            user.metrics.totalEntries = totalEntries;
+            user.metrics.xp = totalXp % 100;
+            user.metrics.level = 1 + Math.floor(totalXp / 100);
+            user.metrics.streakCount = streakCount;
+            user.metrics.lastDay = lastDay;
+            
+            // 2. Belohnungen neu bewerten
+            const oldRewards = new Set(user.rewards);
+            const newRewards = [];
+            REWARDS.forEach(reward => {
+                if (reward.condition(user)) {
+                    newRewards.push(reward.id);
+                    // Zeige Erfolgsdialog nur für neu freigeschaltete Belohnungen
+                    if (!oldRewards.has(reward.id)) {
+                        showSuccessDialog(reward.title, reward.desc, reward.icon);
+                    }
+                }
+            });
+            user.rewards = newRewards;
+            
+            // 3. Zustand speichern und UI rendern
+            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date)); // Neueste oben
+            saveState();
+            renderAll(highlightId);
+        }
+
+        // ========= Daten-Operationen =========
+        /**
+         * Fügt eine neue Session hinzu.
          * @param {object} sessionData Die Daten der neuen Session.
-         * @returns {string} Die ID der neuen Session.
          */
         function addSession(sessionData) {
             const user = state.users[state.activeUserId];
             const sessionId = uid();
-            const session = {
-                id: sessionId,
-                ...sessionData,
-                date: nowISO()
-            };
+            const session = { id: sessionId, ...sessionData, createdAt: nowISO() };
             user.sessions.push(session);
-            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date)); // Neueste oben
-
-            // Metriken aktualisieren
-            user.metrics.totalEntries++;
-            const xpGained = calculateXp(session);
-            user.metrics.xp += xpGained;
-            if (user.metrics.xp >= 100) {
-                user.metrics.level += Math.floor(user.metrics.xp / 100);
-                user.metrics.xp %= 100;
+            handleDataChange(sessionId);
+        }
+        
+        /**
+         * Aktualisiert eine bestehende Session.
+         * @param {string} sessionId Die ID der zu aktualisierenden Session.
+         * @param {object} newData Die neuen Daten.
+         */
+        function updateSession(sessionId, newData) {
+            const user = state.users[state.activeUserId];
+            const index = user.sessions.findIndex(s => s.id === sessionId);
+            if (index !== -1) {
+                user.sessions[index] = { ...user.sessions[index], ...newData };
+                handleDataChange(sessionId);
             }
-
-            // Streak aktualisieren
-            const today = new Date().toDateString();
-            const yesterday = new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
-            if (user.metrics.lastDay === today) {
-                // do nothing, already logged today
-            } else if (user.metrics.lastDay === yesterday) {
-                user.metrics.streakCount++;
-            } else {
-                user.metrics.streakCount = 1;
-            }
-            user.metrics.lastDay = today;
-
-            saveState();
-            updateRewards();
-            return sessionId;
         }
 
         /**
@@ -531,16 +560,64 @@
          */
         function deleteSession(sessionId) {
             const user = state.users[state.activeUserId];
-            const initialEntryCount = user.sessions.length;
             user.sessions = user.sessions.filter(s => s.id !== sessionId);
+            handleDataChange();
+        }
 
-            if (user.sessions.length !== initialEntryCount) {
-                // Re-calculate all metrics from scratch to ensure consistency
-                calculateAndRenderKPIs();
-                renderSessions();
-                updateRewards();
-                saveState();
+        /**
+         * Öffnet das Modal für die manuelle Session-Eingabe
+         * und füllt es mit Daten, wenn eine Session bearbeitet wird.
+         * @param {object|null} session Die zu bearbeitende Session oder null für eine neue Session.
+         */
+        function openSessionModal(session = null) {
+            const dlg = document.getElementById('dlgNewSession');
+            const title = document.getElementById('sessionModalTitle');
+            const btnSave = document.getElementById('btnSaveSession');
+            
+            sessionBeingEdited = session ? session.id : null;
+
+            if (session) {
+                title.textContent = 'Session bearbeiten';
+                document.getElementById('sessionDate').value = session.date.substring(0, 10);
+                document.getElementById('sessionDuration').value = session.duration;
+                document.getElementById('sessionHr').value = session.hr;
+                document.getElementById('sessionWatt').value = session.watt;
+                document.getElementById('sessionDistance').value = session.distance;
+                document.getElementById('sessionNote').value = session.note;
+                btnSave.textContent = 'Änderungen speichern';
+            } else {
+                title.textContent = 'Training eintragen (Manuell)';
+                document.getElementById('sessionDate').valueAsDate = new Date(); // Standard auf heute
+                document.getElementById('sessionDuration').value = '';
+                document.getElementById('sessionHr').value = '';
+                document.getElementById('sessionWatt').value = '';
+                document.getElementById('sessionDistance').value = '';
+                document.getElementById('sessionNote').value = '';
+                btnSave.textContent = 'Eintrag speichern';
             }
+
+            dlg.showModal();
+        }
+
+        /**
+         * Speichert eine Session basierend auf den Modal-Werten.
+         */
+        function saveSessionFromModal() {
+            const data = {
+                date: document.getElementById('sessionDate').value,
+                duration: parseInt(document.getElementById('sessionDuration').value) || 0,
+                hr: parseInt(document.getElementById('sessionHr').value) || null,
+                watt: parseInt(document.getElementById('sessionWatt').value) || null,
+                distance: parseFloat(document.getElementById('sessionDistance').value) || null,
+                note: document.getElementById('sessionNote').value.trim() || null
+            };
+
+            if (sessionBeingEdited) {
+                updateSession(sessionBeingEdited, data);
+            } else {
+                addSession(data);
+            }
+            document.getElementById('dlgNewSession').close();
         }
         
         // ========= Rendering der UI =========
@@ -605,7 +682,10 @@
                         <td class="hide-xs text-xs md:text-sm">${(session.distance ? session.distance.toFixed(1) : '-')}</td>
                         <td class="hide-xs text-xs md:text-sm">${(session.calories ? Math.floor(session.calories) : '-')}</td>
                         <td class="text-xs md:text-sm row-note">${session.note || '-'}</td>
-                        <td>
+                        <td class="flex gap-1">
+                            <button class="btn btn-xs btn-circle btn-info btn-outline btn-edit" data-id="${session.id}">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
                             <button class="btn btn-xs btn-circle btn-error btn-outline btn-delete" data-id="${session.id}">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
@@ -647,7 +727,6 @@
             d1.setHours(0, 0, 0, 0);
             d2.setHours(0, 0, 0, 0);
 
-            // UTC-Woche, damit es unabhängig von der Zeitzone ist
             const onejan = new Date(d1.getFullYear(), 0, 1);
             const week1 = Math.ceil((((d1 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
             const week2 = Math.ceil((((d2 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
@@ -683,10 +762,7 @@
                     const importedState = JSON.parse(e.target.result);
                     if (await showConfirmDialog('Daten importieren?', 'Alle aktuellen Daten werden ersetzt. Möchtest du fortfahren?')) {
                         state = importedState;
-                        saveState();
-                        // Nach dem Import alles neu rendern
-                        renderAll();
-                        alert('Import erfolgreich!');
+                        handleDataChange(); // Zentrale Funktion für konsistentes Update
                     }
                 } catch (err) {
                     alert('Import fehlgeschlagen: Ungültige Datei.');
@@ -703,16 +779,7 @@
             if (await showConfirmDialog('Alle Sessions löschen?', 'Dieser Vorgang kann nicht rückgängig gemacht werden. Bist du sicher?')) {
                 const user = state.users[state.activeUserId];
                 user.sessions = [];
-                user.metrics.totalEntries = 0;
-                user.metrics.level = 1;
-                user.metrics.xp = 0;
-                user.metrics.streakCount = 0;
-                user.metrics.lastDay = null;
-                user.rewards = []; // Setzt auch die Belohnungen zurück
-
-                saveState();
-                renderAll();
-                alert('Alle Sessions und Belohnungen wurden gelöscht.');
+                handleDataChange(); // Zentrale Funktion für konsistentes Update
             }
         }
 
@@ -735,6 +802,8 @@
             const btnWipeAll = document.getElementById('btnWipeAll');
             const quickLevelRange = document.getElementById('quickLevel');
             const wattValueSpan = document.getElementById('wattValue');
+            const btnSaveSession = document.getElementById('btnSaveSession');
+            const dlgNewSession = document.getElementById('dlgNewSession');
 
             // Theme-Wechsel
             themeSelect.addEventListener('change', (e) => {
@@ -746,8 +815,7 @@
             // Benutzer-Wechsel
             userSelect.addEventListener('change', (e) => {
                 state.activeUserId = e.target.value;
-                renderAll();
-                saveState();
+                handleDataChange();
             });
 
             // Benutzer-Einstellungen speichern
@@ -779,16 +847,12 @@
                 const name = newUserNameInput.value.trim();
                 if (name) {
                     const newUserId = uid();
-                    state.users[newUserId] = {
-                        id: newUserId, name, createdAt: nowISO(),
-                        settings: structuredClone(DEFAULT_STATE.users.default.settings),
-                        metrics: structuredClone(DEFAULT_STATE.users.default.metrics),
-                        sessions: [],
-                        rewards: []
-                    };
+                    state.users[newUserId] = structuredClone(DEFAULT_STATE.users.default);
+                    state.users[newUserId].id = newUserId;
+                    state.users[newUserId].name = name;
+                    state.users[newUserId].createdAt = nowISO();
                     state.activeUserId = newUserId;
-                    saveState();
-                    renderAll();
+                    handleDataChange();
                     document.getElementById('dlgNewUser').close();
                 }
             });
@@ -797,6 +861,7 @@
             btnQuickSession.addEventListener('click', () => {
                 const user = state.users[state.activeUserId];
                 const session = {
+                    date: nowISO().substring(0, 10),
                     watt: getWattValue(parseInt(user.settings.quickLevel)),
                     hr: parseInt(user.settings.quickHr),
                     duration: parseInt(user.settings.quickDuration),
@@ -804,18 +869,29 @@
                     calories: null,
                     note: 'Schnelleingabe'
                 };
-                const newSessionId = addSession(session);
-                renderAll(newSessionId);
+                addSession(session);
             });
 
-            // Sessions-Tabelle
+            // Sessions-Tabelle (für Löschen und Bearbeiten)
             tbody.addEventListener('click', (e) => {
-                if (e.target.closest('.btn-delete')) {
-                    const sessionId = e.target.closest('.btn-delete').dataset.id;
+                const target = e.target.closest('button');
+                if (!target) return;
+                const sessionId = target.dataset.id;
+                
+                if (target.classList.contains('btn-delete')) {
                     deleteSession(sessionId);
+                } else if (target.classList.contains('btn-edit')) {
+                    const user = state.users[state.activeUserId];
+                    const session = user.sessions.find(s => s.id === sessionId);
+                    if (session) {
+                        openSessionModal(session);
+                    }
                 }
             });
-            
+
+            // Event-Listener für Speichern aus dem Modal
+            btnSaveSession.addEventListener('click', saveSessionFromModal);
+
             // Import/Export/Löschen
             btnExport.addEventListener('click', exportData);
             btnImport.addEventListener('click', () => fileImport.click());
