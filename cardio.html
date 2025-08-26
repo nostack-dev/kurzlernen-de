@@ -400,7 +400,7 @@
             document.getElementById('successTitle').textContent = title;
             document.getElementById('successText').textContent = text;
             const icon = document.getElementById('successIcon');
-            icon.className = `text-6xl text-primary mb-6 animate-pulse ${iconClass}`;
+            icon.className = `text-3xl text-primary mb-6 animate-pulse ${iconClass}`;
             
             // Konfetti für Errungenschaften starten
             for(let i = 0; i < 50; i++) setTimeout(() => createConfetti('confetti-container-success'), i * 20);
