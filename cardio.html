@@ -4,14 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Z2 Log – Cardio Log (Gamified)</title>
-    <!-- Tailwind + DaisyUI via CDN für schnelles Styling -->
+    <!-- Tailwind + DaisyUI via CDN for quick styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
-    <!-- Font Awesome für Icons -->
+    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2gN1f2zI+w140+9A2s251n5+1i+9C8c/8f5e71A7p4/C65F87c4A4f11g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
-        /* Base styles for a clean, mobile-first design */
+        /* Basic styles for a clean, mobile-first design */
+        body { overflow-x: hidden; } /* Prevents horizontal scrolling */
         .container { max-width: 980px; }
         .tap-big button, .tap-big .btn { min-height: 3rem; }
         .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
@@ -74,12 +75,12 @@
         }
         .sessions-table-container table {
             width: 100%;
-            min-width: 600px; /* Optional, but helps prevent the table from becoming too narrow */
+            /* min-width: 600px; */ /* Removed to allow shrinking on small screens */
         }
     </style>
 </head>
 <body class="bg-base-100">
-    <div class="container mx-auto p-4 md:p-6">
+    <div class="container mx-auto p-4 md:p-6 max-w-full">
 
         <!-- Header / Theme / User -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -162,12 +163,13 @@
         </div>
 
         <!-- Data Tools -->
-        <div class="flex items-center justify-between mb-2">
-            <h2 class="text-lg font-semibold">Deine Sessions</h2>
-            <div class="join">
-                <button id="btnExport" class="btn btn-sm join-item">Exportieren (als Datei)</button>
+        <!-- Adjusted the button container to be more responsive -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+            <h2 class="text-lg font-semibold whitespace-nowrap">Deine Sessions</h2>
+            <div class="flex flex-wrap gap-2">
+                <button id="btnExport" class="btn btn-sm">Export/Teilen</button>
                 <input id="fileImport" class="hidden" type="file" accept="application/json">
-                <button id="btnImport" class="btn btn-sm join-item">Importieren</button>
+                <button id="btnImport" class="btn btn-sm">Importieren</button>
             </div>
         </div>
 
@@ -279,7 +281,8 @@
         // Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983
         // This script has been updated to fix responsiveness on small screens.
         // The table layout has been improved, and key UI elements are now more
-        // fluid and adapt to different viewport sizes.
+        // fluid and adapt to different viewport sizes. The export functionality
+        // now uses the Web Share API with a download fallback.
 
         // ========= Global Variables and Constants =========
         const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; 
@@ -768,18 +771,45 @@
             return week1 === week2 && d1.getFullYear() === d2.getFullYear();
         }
 
-        // ========= Data Import/Export =========
+        // ========= Data Import/Export/Share =========
         /**
-         * Exports the state as a JSON file. This is the reliable method
-         * for large datasets.
+         * Exports the state as a JSON file or shares it via Web Share API.
          */
-        function exportData() {
+        async function exportData() {
             const json = JSON.stringify(state, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
+            const backupFilename = `z2log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+            // Use Web Share API if available
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'Z2 Log Daten-Backup',
+                        text: 'Hier ist dein Backup der Z2 Log App.',
+                        url: `data:application/json,${encodeURIComponent(json)}`,
+                    });
+                    console.log('Data shared successfully.');
+                } catch (error) {
+                    console.error('Sharing failed:', error);
+                    // Fallback to download if sharing fails
+                    downloadFile(json, backupFilename);
+                }
+            } else {
+                // Fallback to download for unsupported browsers
+                downloadFile(json, backupFilename);
+            }
+        }
+
+        /**
+         * Helper function to trigger a file download.
+         * @param {string} content The content to download.
+         * @param {string} filename The filename for the download.
+         */
+        function downloadFile(content, filename) {
+            const blob = new Blob([content], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `z2log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
