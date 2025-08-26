@@ -11,33 +11,69 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2gN1f2zI+w140+9A2s251n5+1i+9C8c/8f5e71A7p4/C65F87c4A4f11g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
-        /* Base styles for a clean, mobile-first look */
+        /* Grundstile für ein sauberes, mobil-orientiertes Design */
         .container { max-width: 980px; }
         .tap-big button, .tap-big .btn { min-height: 3rem; }
         .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
         .row-note { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        /* Animation keyframes for gamification feedback */
+        /* Animationen für Gamification-Feedback */
         @keyframes pop {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
             100% { transform: scale(1); }
         }
         .pop-animation { animation: pop 0.3s ease-in-out; }
-
-        /* General layout improvements for responsiveness */
+        
+        /* Stile für den Konfetti-Effekt */
+        #confetti-container, #confetti-container-success {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 100;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: var(--fallback-p);
+            animation-name: confetti-fall;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+        }
+        @keyframes confetti-fall {
+            0% { transform: translate(0, -100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translate(0, 100vh) rotate(720deg); opacity: 0; }
+        }
+        
+        /* Verbesserungen für die mobile Ansicht */
         @media (max-width: 420px){
             .hide-xs { display: none; }
             table th, table td { white-space: nowrap; }
             .stat { margin-bottom: 0.5rem; }
             .stats { flex-wrap: wrap; }
         }
+
+        /* Stile für das neue Schritt-für-Schritt-Formular */
+        .step-container { display: none; }
+        .step-container.active { display: block; }
+        .progress-indicator .step:before,
+        .progress-indicator .step:after { content: ' '; }
+        .progress-indicator .step-primary:before,
+        .progress-indicator .step-primary:after {
+            background-color: #3b82f6; /* Beispiel für eine primäre Farbe */
+        }
+        .progress-indicator .step-primary {
+            color: #3b82f6;
+        }
     </style>
 </head>
 <body class="bg-base-100">
     <div class="container mx-auto p-4 md:p-6">
 
-        <!-- Header / Theme / User -->
+        <!-- Header / Theme / Benutzer -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
             <div>
                 <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
@@ -84,7 +120,7 @@
         <!-- Belohnungen Section -->
         <h2 class="text-lg font-semibold mt-6 mb-2">Deine Belohnungen</h2>
         <div id="rewardsGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 mb-6">
-            <!-- Rewards will be rendered here by JS -->
+            <!-- Belohnungen werden hier durch JS gerendert -->
         </div>
 
         <!-- CTA: Schnell-Eingabe öffnen -->
@@ -110,12 +146,11 @@
                     <tr>
                         <th class="text-xs md:text-sm">Datum</th>
                         <th class="text-xs md:text-sm">Min</th>
-                        <th class="text-xs md:text-sm">Ø HR</th>
+                        <th class="text-xs md:text-sm">Ø Puls</th>
                         <th class="hide-xs text-xs md:text-sm">Distanz</th>
                         <th class="hide-xs text-xs md:text-sm">Kcal</th>
                         <th class="hide-xs text-xs md:text-sm">Watt</th>
-                        <th class="text-xs md:text-sm">Foto</th>
-                        <th class="hide-xs text-xs md:text-sm">Notizen</th>
+                        <th class="text-xs md:text-sm">Notizen</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -127,67 +162,86 @@
 
     <!-- Neue Session-Eingabe (Modal) -->
     <dialog id="dlgNewSession" class="modal">
-        <div class="modal-box w-11/12 max-w-lg">
+        <div class="modal-box w-11/12 max-w-lg p-6">
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-
             <h3 class="font-bold text-lg mb-4">Training eintragen</h3>
-            <div class="space-y-4">
-                <label class="form-control w-full">
-                    <div class="label"><span class="label-text">Zeitpunkt</span></div>
-                    <input id="sessionDateTime" type="datetime-local" class="input input-bordered w-full">
-                </label>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <label class="form-control">
-                        <div class="label"><span class="label-text">Minuten</span></div>
-                        <input id="sessionMinutes" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 20">
-                    </label>
-                    <label class="form-control">
-                        <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
-                        <input id="sessionHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 115">
-                    </label>
-                </div>
+            
+            <!-- Fortschrittsanzeige -->
+            <ul class="steps steps-vertical lg:steps-horizontal w-full progress-indicator mb-4">
+                <li id="step1" class="step">Kalorien</li>
+                <li id="step2" class="step">Distanz</li>
+                <li id="step3" class="step">Watt</li>
+                <li id="step4" class="step">Puls</li>
+            </ul>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <label class="form-control">
-                        <div class="label"><span class="label-text">Distanz (km)</span></div>
-                        <input id="sessionDistance" type="number" step="0.1" inputmode="decimal" class="input input-bordered w-full" placeholder="z. B. 5.5">
-                    </label>
-                    <label class="form-control">
-                        <div class="label"><span class="label-text">Kalorien (kcal)</span></div>
+            <!-- Schritt 1: Kcal (Optional) -->
+            <div id="step-kcal" class="step-container active">
+                <div class="flex flex-col items-center">
+                    <label class="form-control w-full">
+                        <div class="label"><span class="label-text">Verbrannte Kalorien (kcal)</span></div>
                         <input id="sessionKcal" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 250">
                     </label>
                 </div>
+                <div class="modal-action mt-6">
+                    <button id="btnNext1" class="btn btn-primary w-full text-lg">Weiter</button>
+                </div>
+            </div>
 
-                <label class="form-control">
-                    <div class="label"><span class="label-text">Watt (optional)</span></div>
-                    <input id="sessionWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 180">
-                </label>
+            <!-- Schritt 2: Distanz -->
+            <div id="step-distance" class="step-container">
+                <div class="flex flex-col items-center">
+                    <label class="form-control w-full">
+                        <div class="label"><span class="label-text">Distanz (km)</span></div>
+                        <input id="sessionDistance" type="number" step="0.1" inputmode="decimal" class="input input-bordered w-full" placeholder="z. B. 5.5">
+                    </label>
+                </div>
+                <div class="modal-action mt-6 flex justify-between">
+                    <button id="btnBack2" class="btn w-1/2 mr-2">Zurück</button>
+                    <button id="btnNext2" class="btn btn-primary w-1/2 ml-2">Weiter</button>
+                </div>
+            </div>
 
-                <label class="form-control">
-                    <div class="label"><span class="label-text">Notiz (optional)</span></div>
-                    <textarea id="sessionNotes" class="textarea textarea-bordered w-full" placeholder="Wie war die Session?"></textarea>
-                </label>
+            <!-- Schritt 3: Watt -->
+            <div id="step-watt" class="step-container">
+                <div class="flex flex-col items-center">
+                    <label class="form-control w-full">
+                        <div class="label"><span class="label-text">Durchschnittliche Wattzahl</span></div>
+                        <input id="sessionWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 180">
+                    </label>
+                </div>
+                <div class="modal-action mt-6 flex justify-between">
+                    <button id="btnBack3" class="btn w-1/2 mr-2">Zurück</button>
+                    <button id="btnNext3" class="btn btn-primary w-1/2 ml-2">Weiter</button>
+                </div>
+            </div>
 
-                <label class="form-control">
-                    <div class="label"><span class="label-text">Foto (optional)</span></div>
-                    <input id="sessionPhoto" type="file" accept="image/*" capture="environment" class="file-input file-input-bordered w-full" />
-                </label>
-                
-                <div id="sessionPhotoPreviewWrap" class="mt-2 hidden">
-                    <img id="sessionPhotoPreview" alt="Preview" class="rounded-md max-h-48 object-cover" />
-                    <div class="mt-2 flex gap-2">
-                        <button id="sessionPhotoRemove" class="btn btn-sm">Foto entfernen</button>
+            <!-- Schritt 4: Puls & Fertigstellung -->
+            <div id="step-pulse" class="step-container">
+                <div class="flex flex-col items-center">
+                    <label class="form-control w-full">
+                        <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
+                        <input id="sessionHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 115">
+                    </label>
+                     <!-- Restliche optionale Felder -->
+                    <div class="space-y-4 mt-4 w-full">
+                        <label class="form-control">
+                            <div class="label"><span class="label-text">Notiz (optional)</span></div>
+                            <textarea id="sessionNotes" class="textarea textarea-bordered w-full" placeholder="Wie war die Session?"></textarea>
+                        </label>
+                        <label class="form-control">
+                            <div class="label"><span class="label-text">Minuten (optional)</span></div>
+                            <input id="sessionMinutes" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 20">
+                        </label>
                     </div>
                 </div>
-
+                <div class="modal-action mt-6 flex justify-between">
+                    <button id="btnBack4" class="btn w-1/2 mr-2">Zurück</button>
+                    <button id="btnSaveSession" class="btn btn-success w-1/2 ml-2">Speichern</button>
+                </div>
             </div>
-
-            <div class="modal-action mt-6">
-                <button id="btnSaveSession" class="btn btn-success w-full text-lg">Speichern</button>
-            </div>
+            
         </div>
     </dialog>
 
@@ -226,9 +280,10 @@
         </div>
     </dialog>
 
-    <!-- Success / Achievement Dialog -->
+    <!-- Erfolgs-/Erreichungs-Dialog -->
     <dialog id="dlgSuccess" class="modal">
-        <div class="modal-box text-center">
+        <div id="confetti-container-success"></div>
+        <div class="modal-box text-center relative z-10">
             <h3 class="text-3xl font-bold mb-4" id="successTitle"></h3>
             <p class="text-xl mb-6" id="successText"></p>
             <i id="successIcon" class="text-6xl text-primary mb-6 animate-pulse"></i>
@@ -238,10 +293,32 @@
         </div>
     </dialog>
 
+    <!-- Glückwunsch- und Bonus-Dialog -->
+    <dialog id="dlgCongratulations" class="modal">
+        <div id="confetti-container"></div>
+        <div class="modal-box text-center relative z-10">
+            <h2 class="text-3xl font-bold mb-2">🥳 Großartig! 🥳</h2>
+            <p class="text-lg mb-4">Training erfolgreich eingetragen!</p>
+            <div class="space-y-2 text-left p-4 bg-base-200 rounded-lg mb-6">
+                <p><strong>Minuten:</strong> <span id="congratsMinutes"></span></p>
+                <p><strong>Ø Puls:</strong> <span id="congratsHr"></span></p>
+                <p><strong>Distanz:</strong> <span id="congratsDistance"></span></p>
+            </div>
+            
+            <h3 class="text-2xl font-bold mb-2">Bonus-Belohnung!</h3>
+            <div class="badge badge-lg badge-accent text-lg p-4 font-bold animate-pulse">
+                +<span id="bonusAmount">0</span> XP
+            </div>
+            
+            <div class="modal-action justify-center mt-6">
+                <button id="btnCongratsOk" class="btn btn-primary btn-lg">Schließen</button>
+            </div>
+        </div>
+    </dialog>
 
     <script type="module">
-        // ========= Persistence =========
-        const STORAGE_KEY = 'z2log_v6';
+        // ========= Persistenz =========
+        const STORAGE_KEY = 'z2log_v7'; // Aktualisierter Version-Schlüssel
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2,10);
         
@@ -250,10 +327,10 @@
             users: {
                 default: {
                     id: 'default', name: 'Christian', createdAt: nowISO(),
-                    settings: { weeklyTarget: 0, theme: 'winter', hrTarget: 115 },
+                    settings: { weeklyTarget: 0, theme: 'winter', hrTarget: 115, lastWatt: 180 }, // Hinzugefügt: lastWatt
                     metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
                     sessions: [],
-                    rewards: [] // Array to store IDs of unlocked rewards
+                    rewards: [] // Array zum Speichern der freigeschalteten Belohnungen
                 }
             }
         };
@@ -265,20 +342,23 @@
                 const raw = localStorage.getItem(STORAGE_KEY);
                 let loadedState = raw ? JSON.parse(raw) : structuredClone(DEFAULT_STATE);
                 
-                // Ensure users object exists and has at least one user
+                // Sicherstellen, dass das 'users'-Objekt existiert und mindestens einen Benutzer hat
                 if (!loadedState.users || Object.keys(loadedState.users).length === 0) {
                     loadedState.users = structuredClone(DEFAULT_STATE.users);
                 }
                 
-                // Ensure active user ID is valid, otherwise fall back to the first user
+                // Sicherstellen, dass die aktive Benutzer-ID gültig ist, ansonsten auf den ersten Benutzer zurückfallen
                 if (!loadedState.activeUserId || !loadedState.users[loadedState.activeUserId]) {
                     loadedState.activeUserId = Object.keys(loadedState.users)[0];
                 }
 
-                // Add rewards array if it doesn't exist from a previous version
+                // Belohnungen und lastWatt hinzufügen, falls sie aus einer früheren Version fehlen
                 for (const userId in loadedState.users) {
                     if (!loadedState.users[userId].rewards) {
                         loadedState.users[userId].rewards = [];
+                    }
+                    if (!loadedState.users[userId].settings.lastWatt) {
+                        loadedState.users[userId].settings.lastWatt = 180;
                     }
                 }
                 
@@ -289,7 +369,7 @@
         }
         function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-        // Custom confirm dialog
+        // Benutzerdefiniertes Bestätigungs-Dialogfeld
         function showConfirmDialog(title, text) {
             return new Promise(resolve => {
                 const dlg = document.getElementById('dlgConfirm');
@@ -321,34 +401,37 @@
             });
         }
 
-        // Custom success dialog for achievements
+        // Benutzerdefiniertes Erfolgs-Dialogfeld für Errungenschaften
         function showSuccessDialog(title, text, iconClass){
             const dlg = document.getElementById('dlgSuccess');
             document.getElementById('successTitle').textContent = title;
             document.getElementById('successText').textContent = text;
             const icon = document.getElementById('successIcon');
             icon.className = `text-6xl text-primary mb-6 animate-pulse ${iconClass}`;
+            
+            // Konfetti für Errungenschaften starten
+            for(let i=0; i<50; i++) setTimeout(() => createConfetti('confetti-container-success'), i * 20);
+
             dlg.showModal();
         }
 
-
-        // ========= Gamification & Rewards =========
+        // ========= Gamification & Belohnungen =========
         const REWARDS = [
             { id: 'first_session', name: 'Erste Session', desc: 'Schließe dein erstes Training ab.', icon: 'fa-solid fa-star', condition: (metrics) => metrics.totalEntries >= 1 },
             { id: 'novice_trainer', name: 'Novice Trainer', desc: 'Schließe 10 Trainings ab.', icon: 'fa-solid fa-medal', condition: (metrics) => metrics.totalEntries >= 10 },
-            { id: '100_xp', name: '100 XP', desc: 'Erreiche 100 XP.', icon: 'fa-solid fa-bolt', condition: (metrics) => metrics.xp >= 100 },
+            { id: 'apprentice_trainer', name: 'Apprentice Trainer', desc: 'Schließe 50 Trainings ab.', icon: 'fa-solid fa-award', condition: (metrics) => metrics.totalEntries >= 50 },
+            { id: 'marathoner', name: 'Marathoner', desc: 'Sammle 2500 Trainingsminuten.', icon: 'fa-solid fa-shoe-prints', condition: (metrics) => metrics.xp >= 2500 },
+            { id: 'iron_lung', name: 'Iron Lung', desc: 'Sammle 5000 Trainingsminuten.', icon: 'fa-solid fa-heart-circle-bolt', condition: (metrics) => metrics.xp >= 5000 },
             { id: '3_day_streak', name: 'Drei Tage am Stück', desc: 'Trainiere 3 Tage hintereinander.', icon: 'fa-solid fa-fire', condition: (metrics) => metrics.streakCount >= 3 },
-            { id: '10_day_streak', name: 'Zehn Tage am Stück', desc: 'Trainiere 10 Tage hintereinander.', icon: 'fa-solid fa-trophy', condition: (metrics) => metrics.streakCount >= 10 },
-            { id: '500_xp', name: '500 XP', desc: 'Erreiche 500 XP.', icon: 'fa-solid fa-gem', condition: (metrics) => metrics.xp >= 500 },
+            { id: '7_day_streak', name: 'Sieben Tage am Stück', desc: 'Trainiere 7 Tage hintereinander.', icon: 'fa-solid fa-fire-flame-curved', condition: (metrics) => metrics.streakCount >= 7 },
+            { id: '14_day_streak', name: 'Zwei Wochen am Stück', desc: 'Trainiere 14 Tage hintereinander.', icon: 'fa-solid fa-trophy', condition: (metrics) => metrics.streakCount >= 14 },
         ];
         
         function checkAndAwardAchievements() {
             const u = currentUser();
             const newRewards = [];
-            let xpGained = 0;
-            let levelUp = false;
-
-            // Check for new achievements
+            
+            // Überprüfen auf neue Errungenschaften
             REWARDS.forEach(reward => {
                 if (!u.rewards.includes(reward.id) && reward.condition(u.metrics)) {
                     u.rewards.push(reward.id);
@@ -356,43 +439,10 @@
                 }
             });
 
-            // Calculate XP and level
-            const oldXp = u.metrics.xp;
-            const newXp = u.sessions.reduce((a, s) => a + (Number(s.minutes) || 0), 0);
-            u.metrics.xp = newXp;
-            
-            const oldLevel = Math.floor(oldXp / 100);
-            const newLevel = Math.floor(newXp / 100);
-
-            if (newLevel > oldLevel) {
-                levelUp = true;
-            }
-
-            // Animate XP, Level and Streak
-            const kpiXpElement = document.getElementById('kpiXp');
-            const kpiLevelElement = document.getElementById('kpiLevel');
-            const kpiStreakElement = document.getElementById('kpiStreak');
-            const kpiEntriesElement = document.getElementById('kpiEntries');
-
-            kpiXpElement.classList.add('pop-animation');
-            kpiLevelElement.classList.add('pop-animation');
-            kpiStreakElement.classList.add('pop-animation');
-            kpiEntriesElement.classList.add('pop-animation');
-
-            setTimeout(() => {
-                kpiXpElement.classList.remove('pop-animation');
-                kpiLevelElement.classList.remove('pop-animation');
-                kpiStreakElement.classList.remove('pop-animation');
-                kpiEntriesElement.classList.remove('pop-animation');
-            }, 300);
-
-            // Show celebratory dialogs for new achievements
+            // Zeige Erfolgs-Dialogfelder für neue Errungenschaften
             newRewards.forEach(reward => {
                 showSuccessDialog(reward.name + ' freigeschaltet!', reward.desc, reward.icon);
             });
-            if (levelUp) {
-                showSuccessDialog('Level Up!', `Du hast Level ${newLevel} erreicht!`, 'fa-solid fa-ranking-star');
-            }
         }
 
         function renderRewards(){
@@ -406,22 +456,18 @@
                 item.className = `card shadow-lg text-center ${isUnlocked ? 'bg-base-200' : 'bg-base-200/50'}`;
                 
                 let iconClass = isUnlocked ? `text-primary` : `text-base-content/50`;
-                let popoverText = reward.desc;
-                if (!isUnlocked) {
-                    popoverText = "Locked: " + reward.desc;
-                }
-
                 item.innerHTML = `
                     <div class="card-body items-center p-4">
                         <i class="text-4xl ${reward.icon} ${iconClass}"></i>
                         <h4 class="font-semibold text-sm mt-2">${reward.name}</h4>
+                        <p class="text-xs text-center opacity-70">${reward.desc}</p>
                     </div>
                 `;
                 rewardsGrid.appendChild(item);
             });
         }
 
-        // ========= DOM Refs =========
+        // ========= DOM-Referenzen =========
         const themeSelect = document.getElementById('themeSelect');
         const userSelect = document.getElementById('userSelect');
         const btnNewUser = document.getElementById('btnNewUser');
@@ -440,22 +486,36 @@
         const kpiXp = document.getElementById('kpiXp');
         const kpiEntries = document.getElementById('kpiEntries');
 
-        // New single-form modal
+        // Neues Single-Form-Modal
         const dlgNewSession = document.getElementById('dlgNewSession');
         const btnOpenSessionForm = document.getElementById('btnOpenSessionForm');
-        const sessionDateTime = document.getElementById('sessionDateTime');
-        const sessionMinutes = document.getElementById('sessionMinutes');
-        const sessionHr = document.getElementById('sessionHr');
-        const sessionDistance = document.getElementById('sessionDistance');
-        const sessionKcal = document.getElementById('sessionKcal');
-        const sessionWatt = document.getElementById('sessionWatt');
-        const sessionNotes = document.getElementById('sessionNotes');
-        const sessionPhoto = document.getElementById('sessionPhoto');
-        const sessionPhotoPreviewWrap = document.getElementById('sessionPhotoPreviewWrap');
-        const sessionPhotoPreview = document.getElementById('sessionPhotoPreview');
-        const sessionPhotoRemove = document.getElementById('sessionPhotoRemove');
-        const btnSaveSession = document.getElementById('btnSaveSession');
+        // Schritt-Elemente
+        const stepKcal = document.getElementById('step-kcal');
+        const stepDistance = document.getElementById('step-distance');
+        const stepWatt = document.getElementById('step-watt');
+        const stepPulse = document.getElementById('step-pulse');
+        const step1Li = document.getElementById('step1');
+        const step2Li = document.getElementById('step2');
+        const step3Li = document.getElementById('step3');
+        const step4Li = document.getElementById('step4');
 
+        let currentStep = 1;
+        const steps = [
+            { id: 'step-kcal', element: stepKcal, li: step1Li, nextBtn: 'btnNext1' },
+            { id: 'step-distance', element: stepDistance, li: step2Li, backBtn: 'btnBack2', nextBtn: 'btnNext2' },
+            { id: 'step-watt', element: stepWatt, li: step3Li, backBtn: 'btnBack3', nextBtn: 'btnNext3' },
+            { id: 'step-pulse', element: stepPulse, li: step4Li, backBtn: 'btnBack4', nextBtn: 'btnSaveSession' }
+        ];
+
+        // Eingabefelder für neue Session
+        const sessionKcal = document.getElementById('sessionKcal');
+        const sessionDistance = document.getElementById('sessionDistance');
+        const sessionWatt = document.getElementById('sessionWatt');
+        const sessionHr = document.getElementById('sessionHr');
+        const sessionMinutes = document.getElementById('sessionMinutes');
+        const sessionNotes = document.getElementById('sessionNotes');
+        const btnSaveSession = document.getElementById('btnSaveSession');
+        
         const dlgNewUser = document.getElementById('dlgNewUser');
         const newUserName = document.getElementById('newUserName');
         const btnCreateUser = document.getElementById('btnCreateUser');
@@ -464,9 +524,19 @@
         const viewImg = document.getElementById('viewImg');
         const dlgSuccess = document.getElementById('dlgSuccess');
 
+        // Glückwunsch-Dialog-Referenzen
+        const dlgCongratulations = document.getElementById('dlgCongratulations');
+        const confettiContainer = document.getElementById('confetti-container');
+        const congratsMinutes = document.getElementById('congratsMinutes');
+        const congratsHr = document.getElementById('congratsHr');
+        const congratsDistance = document.getElementById('congratsDistance');
+        const bonusAmount = document.getElementById('bonusAmount');
+        const btnCongratsOk = document.getElementById('btnCongratsOk');
+
+
         function currentUser(){ return state.users[state.activeUserId]; }
 
-        // ========= Theme / User / KPIs =========
+        // ========= Theme / Benutzer / KPIs =========
         function setTheme(t){
             document.documentElement.setAttribute('data-theme', t);
             themeSelect.value = t;
@@ -504,11 +574,38 @@
             kpiXp.textContent = xpRem;
             kpiLevel.textContent = level;
             
-            const days = new Set(u.sessions.map(s => fmtDate(s.dateISO)));
-            let c = 0; let d = new Date();
-            for (;;) { const k = fmtDate(d.toISOString()); if (days.has(k)) { c++; d.setDate(d.getDate() - 1); } else break; }
-            u.metrics.streakCount = c;
-            kpiStreak.textContent = c;
+            // Streak-Berechnung
+            const sortedSessions = u.sessions.slice().sort((a, b) => new Date(a.dateISO) - new Date(b.dateISO));
+            let streak = 0;
+            if (sortedSessions.length > 0) {
+                let lastDate = new Date();
+                let lastSessionDate = new Date(sortedSessions[sortedSessions.length - 1].dateISO);
+                const today = new Date();
+                const diffTimeToday = today.getTime() - lastSessionDate.getTime();
+                const diffDaysToday = Math.ceil(diffTimeToday / (1000 * 60 * 60 * 24));
+                
+                if (diffDaysToday <= 1) { // Prüfen, ob die letzte Session heute oder gestern war
+                    streak = 1;
+                    if (diffDaysToday === 0) lastDate = today;
+                    else lastDate = new Date(today.getTime() - 1000 * 60 * 60 * 24);
+
+                    for (let i = sortedSessions.length - 2; i >= 0; i--) {
+                        const currentSessionDate = new Date(sortedSessions[i].dateISO);
+                        const diffTime = lastDate.getTime() - currentSessionDate.getTime();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                        if (diffDays === 1) {
+                            streak++;
+                            lastDate = currentSessionDate;
+                        } else if (diffDays > 1) {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            u.metrics.streakCount = streak;
+            kpiStreak.textContent = streak;
             
             const weekStart = startOfISOWeek();
             const weekMin = u.sessions.filter(s => new Date(s.dateISO) >= weekStart).reduce((a, s) => a + (Number(s.minutes) || 0), 0);
@@ -516,7 +613,7 @@
 
             kpiEntries.textContent = u.sessions.length;
 
-            // Recalculate XP and total entries for metrics object
+            // XP und Gesamteinträge für das metrics-Objekt neu berechnen
             u.metrics.xp = xp;
             u.metrics.totalEntries = u.sessions.length;
         }
@@ -533,13 +630,12 @@
                     <td class="hide-xs">${s.distance ?? ''}</td>
                     <td class="hide-xs">${s.kcal ?? ''}</td>
                     <td class="hide-xs">${s.watt ?? ''}</td>
-                    <td>${s.photoDataUrl ? `<img src="${s.photoDataUrl}" class="thumb cursor-zoom-in" data-view="${s.id}" alt="Foto">` : ''}</td>
                     <td class="row-note hide-xs" title="${(s.notes||'').replace(/"/g,'&quot;')}">${s.notes ?? ''}</td>
                     <td><button class="btn btn-xs btn-error" data-del="${s.id}">Löschen</button></td>
                 `;
                 tbody.appendChild(tr);
             });
-            // Delete & View handlers
+            // Handler für Löschen & Anzeigen
             tbody.querySelectorAll('button[data-del]').forEach(b=>{
                 b.addEventListener('click', async ()=>{
                     const id=b.getAttribute('data-del');
@@ -553,15 +649,6 @@
                     renderAll();
                 });
             });
-            tbody.querySelectorAll('img[data-view]').forEach(img=>{
-                img.addEventListener('click', ()=>{
-                    const id=img.getAttribute('data-view');
-                    const s=currentUser().sessions.find(x=>x.id===id);
-                    if(!s?.photoDataUrl) return;
-                    viewImg.src = s.photoDataUrl;
-                    dlgImage.showModal();
-                });
-            });
 
             calculateAndRenderKPIs();
         }
@@ -573,7 +660,7 @@
             renderRewards();
         }
 
-        // ========= Events: Theme/User =========
+        // ========= Events: Theme/Benutzer =========
         themeSelect.addEventListener('change', ()=>setTheme(themeSelect.value));
         userSelect.addEventListener('change', ()=>{ state.activeUserId=userSelect.value; saveState(); renderAll(); });
         btnNewUser.addEventListener('click', ()=>dlgNewUser.showModal());
@@ -582,7 +669,7 @@
             const id=uid();
             state.users[id]={
                 id, name, createdAt: nowISO(),
-                settings:{ weeklyTarget:0, theme: themeSelect.value||'winter', hrTarget: 115 },
+                settings:{ weeklyTarget:0, theme: themeSelect.value||'winter', hrTarget: 115, lastWatt: 180 },
                 metrics:{ level:1, xp:0, streakCount:0, totalEntries: 0, lastDay: null },
                 sessions:[],
                 rewards: []
@@ -594,7 +681,7 @@
             saveState();
         });
 
-        // ========= Export / Import / Wipe =========
+        // ========= Export / Import / Löschen =========
         btnExport.addEventListener('click', ()=>{
             const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
             const url=URL.createObjectURL(blob);
@@ -626,93 +713,128 @@
             renderAll();
         });
         
-        // ========= New Session Form Logic =========
-        let tmpPhotoDataUrl = null;
-
-        function resetSessionForm(){
-            const now=new Date();
-            const isoLocal = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
-            sessionDateTime.value = isoLocal;
-            sessionMinutes.value = ''; 
-            sessionHr.value = currentUser().settings.hrTarget ?? 115;
-            sessionDistance.value = ''; 
-            sessionKcal.value = '';
-            sessionWatt.value = ''; 
-            sessionNotes.value='';
-            sessionPhoto.value=''; tmpPhotoDataUrl=null; sessionPhotoPreviewWrap.classList.add('hidden'); sessionPhotoPreview.src='';
+        // ========= Neue Schritt-für-Schritt-Session-Formular-Logik =========
+        function updateStepUI(){
+            steps.forEach((step, index) => {
+                step.element.classList.toggle('active', index + 1 === currentStep);
+                step.li.classList.toggle('step-primary', index + 1 <= currentStep);
+            });
+        }
+        function nextStep() {
+            if (currentStep < steps.length) {
+                currentStep++;
+                updateStepUI();
+            }
+        }
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStepUI();
+            }
         }
 
-        btnOpenSessionForm.addEventListener('click', ()=>{ 
-            resetSessionForm(); 
-            dlgNewSession.showModal(); 
-        });
+        // Formular zurücksetzen und ersten Schritt anzeigen
+        function resetSessionFormAndShow() {
+            currentStep = 1;
+            updateStepUI();
+            // Watt mit dem letzten Wert oder Standardwert vorbefüllen
+            sessionWatt.value = currentUser().settings.lastWatt || 180;
+            // Andere Felder leeren
+            sessionKcal.value = '';
+            sessionDistance.value = '';
+            sessionHr.value = '';
+            sessionMinutes.value = '';
+            sessionNotes.value = '';
+            
+            dlgNewSession.showModal();
+        }
+
+        btnOpenSessionForm.addEventListener('click', resetSessionFormAndShow);
+
+        // Schritt-Navigationslogik
+        document.getElementById('btnNext1').addEventListener('click', nextStep);
+        document.getElementById('btnNext2').addEventListener('click', nextStep);
+        document.getElementById('btnNext3').addEventListener('click', nextStep);
+        document.getElementById('btnBack2').addEventListener('click', prevStep);
+        document.getElementById('btnBack3').addEventListener('click', prevStep);
+        document.getElementById('btnBack4').addEventListener('click', prevStep);
 
         btnSaveSession.addEventListener('click', async ()=>{
-            if(!sessionMinutes.value || !sessionHr.value) { 
-                showConfirmDialog('Fehlende Angabe', 'Bitte Minuten und Ø Puls eintragen.'); 
-                return; 
-            }
-            
             const s={
                 id: uid(),
-                dateISO: new Date(sessionDateTime.value ? sessionDateTime.value : Date.now()).toISOString(),
-                minutes: numOrNull(sessionMinutes.value),
-                hr: numOrNull(sessionHr.value),
-                distance: numOrNull(sessionDistance.value),
+                dateISO: nowISO(), // Immer die aktuelle Zeit für Einfachheit verwenden
                 kcal: numOrNull(sessionKcal.value),
+                distance: numOrNull(sessionDistance.value),
                 watt: numOrNull(sessionWatt.value),
-                notes: (sessionNotes.value||'').trim(),
-                photoDataUrl: tmpPhotoDataUrl || null
+                hr: numOrNull(sessionHr.value),
+                minutes: numOrNull(sessionMinutes.value), // Dies ist optional
+                notes: (sessionNotes.value||'').trim()
             };
-            
+
+            // Vor dem Speichern validieren: Puls und mindestens ein weiterer Wert müssen vorhanden sein
+            if (!s.hr || (!s.kcal && !s.distance && !s.watt && !s.minutes)) {
+                showConfirmDialog('Fehlende Angabe', 'Bitte mindestens den Puls und einen weiteren Wert (Minuten, Kalorien, Distanz, Watt) eintragen.');
+                return;
+            }
+
             currentUser().sessions.push(s);
-            saveState(); 
-            renderAll();
-            checkAndAwardAchievements();
+            currentUser().settings.lastWatt = s.watt; // Letzten Watt-Wert für das nächste Mal speichern
+            saveState();
+            
             dlgNewSession.close();
+            
+            // Glückwunsch-Bildschirm auslösen
+            showCongratulations(s);
         });
 
         function numOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
 
-        // Photo handling (compression)
-        sessionPhoto.addEventListener('change', async ()=>{
-            const file = sessionPhoto.files?.[0];
-            if(!file) return;
-            try{
-                tmpPhotoDataUrl = await readAndCompressImage(file, 1200, 1200, 0.85); // max 1200px
-                sessionPhotoPreview.src = tmpPhotoDataUrl;
-                sessionPhotoPreviewWrap.classList.remove('hidden');
-            }catch{ showConfirmDialog('Fehler', 'Bild konnte nicht verarbeitet werden.'); }
-        });
-        sessionPhotoRemove.addEventListener('click', ()=>{
-            tmpPhotoDataUrl=null; sessionPhoto.value=''; sessionPhotoPreview.src=''; sessionPhotoPreviewWrap.classList.add('hidden');
-        });
+        // ========= NEUE GLÜCKWUNSCH-LOGIK =========
+        function createConfetti(containerId){
+            const container = document.getElementById(containerId);
+            if (!container) return;
 
-        function readAndCompressImage(file, maxW, maxH, quality){
-            return new Promise((resolve,reject)=>{
-                const reader=new FileReader();
-                reader.onload=()=>{
-                    const img=new Image();
-                    img.onload=()=>{
-                        let {width:w, height:h} = img;
-                        const ratio=Math.min(maxW/w, maxH/h, 1);
-                        const cw=Math.round(w*ratio), ch=Math.round(h*ratio);
-                        const canvas=document.createElement('canvas');
-                        canvas.width=cw; canvas.height=ch;
-                        const ctx=canvas.getContext('2d');
-                        ctx.drawImage(img,0,0,cw,ch);
-                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                        resolve(dataUrl);
-                    };
-                    img.onerror=reject;
-                    img.src=reader.result;
-                };
-                reader.onerror=reject;
-                reader.readAsDataURL(file);
-            });
+            const piece = document.createElement('div');
+            piece.className = 'confetti';
+            piece.style.left = `${Math.random() * 100}vw`;
+            piece.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            piece.style.animationDuration = `${Math.random() * 2 + 1}s`;
+            piece.style.animationDelay = `${Math.random() * 0.5}s`;
+            piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+            container.appendChild(piece);
+            setTimeout(() => piece.remove(), 2500);
         }
 
-        // ====== Init ======
+        function showCongratulations(session){
+            // Modal mit Session-Daten aktualisieren
+            congratsMinutes.textContent = (session.minutes || 'N/A') + ' min';
+            congratsHr.textContent = (session.hr || 'N/A') + ' bpm';
+            congratsDistance.textContent = (session.distance || 'N/A') + ' km';
+            
+            // Bonus-XP berechnen (1 bis 10)
+            const bonusXP = Math.floor(Math.random() * 10) + 1;
+            bonusAmount.textContent = bonusXP;
+            
+            // Bonus-XP zum Benutzer hinzufügen
+            const u = currentUser();
+            u.metrics.xp += bonusXP;
+            saveState();
+
+            // Konfetti animieren
+            for(let i=0; i<50; i++) setTimeout(() => createConfetti('confetti-container'), i * 20);
+
+            // Modal anzeigen
+            dlgCongratulations.showModal();
+        }
+
+        btnCongratsOk.addEventListener('click', () => {
+            dlgCongratulations.close();
+            // Alles neu rendern nach dem "Dopamin-Kick"
+            renderAll();
+            checkAndAwardAchievements();
+        });
+
+        // ====== Initialisierung ======
         renderAll();
     </script>
 </body>
