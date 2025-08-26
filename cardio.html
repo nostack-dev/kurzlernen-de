@@ -165,6 +165,7 @@
             <h2 class="text-lg font-semibold">Deine Sessions</h2>
             <div class="join">
                 <button id="btnExport" class="btn btn-sm join-item">Export</button>
+                <button id="btnExportMail" class="btn btn-sm join-item">Per E-Mail senden</button>
                 <input id="fileImport" class="hidden" type="file" accept="application/json">
                 <button id="btnImport" class="btn btn-sm join-item">Importieren</button>
             </div>
@@ -295,6 +296,7 @@
         // - Vereinfachtes manuelles Eingabemodal für Hinzufügen und Bearbeiten.
         // - Kalorienberechnung integriert.
         // - Sessions-Tabelle für bessere mobile Ansicht angepasst.
+        // - E-Mail-Export der Daten hinzugefügt
 
         // ========= Globale Variablen und Konstanten =========
         const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; // Aktualisierter Version-Schlüssel
@@ -801,6 +803,24 @@
         }
 
         /**
+         * Sendet den Zustand per E-Mail als JSON-Textkörper.
+         */
+        function exportDataViaMail() {
+            const json = JSON.stringify(state, null, 2);
+            const subject = 'Z2 Log – Cardio App Daten-Backup';
+            const body = `Hallo Christian,\n\nhier ist das Backup deiner Cardio App Daten. Du kannst diesen Text in eine Datei mit der Endung .json kopieren und in der App importieren.\n\n*** WICHTIGER HINWEIS ***\nWenn der Text zu lang ist, kann die E-Mail-App möglicherweise nicht geöffnet werden. In diesem Fall verwende bitte die Export-Funktion (Speichern als Datei).\n\nDaten:\n\n${json}`;
+            
+            const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            
+            // Check if the link is too long (some browsers/email clients have limits)
+            if (mailtoLink.length > 2000) {
+                showConfirmDialog('E-Mail-Export zu lang', 'Der Datensatz ist zu groß für den direkten E-Mail-Export. Bitte verwende stattdessen die "Exportieren"-Funktion.');
+            } else {
+                window.location.href = mailtoLink;
+            }
+        }
+
+        /**
          * Importiert den Zustand aus einer JSON-Datei.
          * @param {File} file Die importierte Datei.
          */
@@ -842,6 +862,7 @@
             const btnQuickSession = document.getElementById('btnQuickSession');
             const tbody = document.getElementById('tbodySessions');
             const btnExport = document.getElementById('btnExport');
+            const btnExportMail = document.getElementById('btnExportMail');
             const btnImport = document.getElementById('btnImport');
             const fileImport = document.getElementById('fileImport');
             const quickLevelRange = document.getElementById('quickLevel');
@@ -939,6 +960,7 @@
 
             // Import/Export
             btnExport.addEventListener('click', exportData);
+            btnExportMail.addEventListener('click', exportDataViaMail);
             btnImport.addEventListener('click', () => fileImport.click());
             fileImport.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
