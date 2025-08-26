@@ -1,737 +1,91 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="dracula">
+<html lang="de" data-theme="winter">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Z2 Log – Cardio Log (Gamified)</title>
-    <!-- Tailwind + DaisyUI via CDN -->
+    <!-- Tailwind + DaisyUI via CDN for quick styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2gN1f2zI+w140+9A2s251n5+1i+9C8c/8f5e71A7p4/C65F87c4A4f11g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Firebase -->
-    <script type="module">
-        // Firebase CDN imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // --- Global variables and constants ---
-        const DB_COLLECTION = 'sessions';
-        const USERS_COLLECTION = 'users';
-        const REWARDS_COLLECTION = 'rewards';
-        
-        const nowISO = () => new Date().toISOString();
-
-        // --- Firebase initialization (using provided globals) ---
-        // These global variables are provided by the canvas environment.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        // Application state and Firebase services
-        let app, db, auth;
-        let userId = null;
-        let isAuthReady = false;
-        let localState = {
-            users: {},
-            sessions: []
-        };
-        let sessionBeingEdited = null;
-
-        // --- UI elements
-        const themeSelect = document.getElementById('themeSelect');
-        const btnSaveSettings = document.getElementById('btnSaveSettings');
-        const btnCreateNewUser = document.getElementById('btnCreateNewUser');
-        const btnQuickSession = document.getElementById('btnQuickSession');
-        const tbody = document.getElementById('tbodySessions');
-        const btnExport = document.getElementById('btnExport');
-        const btnImport = document.getElementById('btnImport');
-        const fileImport = document.getElementById('fileImport');
-        const quickLevelRange = document.getElementById('quickLevel');
-        const wattValueSpan = document.getElementById('wattValue');
-        const btnSaveSession = document.getElementById('btnSaveSession');
-        const bodyWeightInput = document.getElementById('bodyWeight');
-        const weeklyTargetInput = document.getElementById('weeklyTarget');
-        const userIdDisplay = document.getElementById('userIdDisplay');
-        const newSessionBtn = document.getElementById('btnNewSession');
-
-        // --- Persistence Functions ---
-        /**
-         * Loads user data from Firestore.
-         * @returns {Promise<object>} The user's data from Firestore.
-         */
-        async function loadUserData() {
-            if (!userId) {
-                console.error("User ID not available.");
-                return null;
-            }
-            const userDocRef = doc(db, `/artifacts/${appId}/users/${userId}/private`, 'user-data');
-            try {
-                const docSnap = await getDoc(userDocRef);
-                if (docSnap.exists()) {
-                    return docSnap.data();
-                } else {
-                    console.log("No user data found, creating default.");
-                    return {
-                        settings: { weeklyTarget: 140, theme: 'dracula', bodyWeight: 100, quickLevel: 1, quickDuration: 20, quickHr: 115 },
-                        metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
-                        rewards: []
-                    };
-                }
-            } catch (e) {
-                console.error("Error loading user data:", e);
-                return null;
-            }
-        }
-        
-        /**
-         * Saves user settings to Firestore.
-         */
-        async function saveUserSetting() {
-            if (!userId || !localState.users[userId]) {
-                console.error("Cannot save settings: User ID or data not available.");
-                return;
-            }
-            const userDocRef = doc(db, `/artifacts/${appId}/users/${userId}/private`, 'user-data');
-            try {
-                await setDoc(userDocRef, {
-                    settings: localState.users[userId].settings,
-                    metrics: localState.users[userId].metrics,
-                    rewards: localState.users[userId].rewards
-                }, { merge: true });
-                console.log("User settings saved to Firestore.");
-            } catch (e) {
-                console.error("Error saving settings:", e);
-            }
-        }
-
-        /**
-         * Adds or updates a session in Firestore.
-         * @param {object} sessionData The data for the session.
-         */
-        async function saveSessionToFirestore(sessionData) {
-            if (!userId) {
-                console.error("Cannot save session: User ID not available.");
-                return;
-            }
-            const sessionRef = doc(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`, sessionData.id);
-            try {
-                await setDoc(sessionRef, sessionData, { merge: true });
-                console.log("Session saved to Firestore:", sessionData.id);
-            } catch (e) {
-                console.error("Error saving session:", e);
-            }
-        }
-        
-        /**
-         * Deletes a session from Firestore.
-         * @param {string} sessionId The ID of the session to delete.
-         */
-        async function deleteSessionFromFirestore(sessionId) {
-            if (!userId) {
-                console.error("Cannot delete session: User ID not available.");
-                return;
-            }
-            const sessionRef = doc(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`, sessionId);
-            try {
-                await deleteDoc(sessionRef);
-                console.log("Session deleted from Firestore:", sessionId);
-            } catch (e) {
-                console.error("Error deleting session:", e);
-            }
-        }
-        
-        // --- UI Helper Functions ---
-        function showConfirmDialog(title, text) {
-            return new Promise(resolve => {
-                const dlg = document.getElementById('dlgConfirm');
-                document.getElementById('confirmTitle').textContent = title;
-                document.getElementById('confirmText').textContent = text;
-                const confirmCancel = document.getElementById('confirmCancel');
-                const confirmOk = document.getElementById('confirmOk');
-
-                const newConfirmOk = confirmOk.cloneNode(true);
-                confirmOk.parentNode.replaceChild(newConfirmOk, confirmOk);
-                const newConfirmCancel = confirmCancel.cloneNode(true);
-                confirmCancel.parentNode.replaceChild(newConfirmCancel, confirmCancel);
-                
-                const handleConfirm = () => {
-                    dlg.close();
-                    resolve(true);
-                };
-
-                const handleCancel = () => {
-                    dlg.close();
-                    resolve(false);
-                };
-
-                newConfirmOk.addEventListener('click', handleConfirm);
-                newConfirmCancel.addEventListener('click', handleCancel);
-                dlg.showModal();
-            });
-        }
-
-        function showSuccessDialog(title, text, iconClass) {
-            const dlg = document.getElementById('dlgSuccess');
-            document.getElementById('successTitle').textContent = title;
-            document.getElementById('successText').textContent = text;
-            const icon = document.getElementById('successIcon');
-            icon.className = `text-6xl text-primary mb-6 animate-pulse ${iconClass}`;
-            for(let i = 0; i < 50; i++) setTimeout(() => createConfetti('confetti-container-success'), i * 20);
-            dlg.showModal();
-        }
-
-        function createConfetti(containerId) {
-            const container = document.getElementById(containerId);
-            const confetti = document.createElement('div');
-            confetti.className = 'confetti';
-            confetti.style.left = `${Math.random() * 100}vw`;
-            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-            confetti.style.animationDuration = `${Math.random() * 2 + 3}s`;
-            confetti.style.transform = `translateY(-100vh) rotate(${Math.random() * 360}deg)`;
-            container.appendChild(confetti);
-            confetti.addEventListener('animationend', () => confetti.remove());
-        }
-
-        // --- Gamification & Logic ---
-        const REWARDS = [
-            { id: 'first_session', title: 'Erster Eintrag', desc: 'Absolviere deine erste Trainingseinheit.', icon: 'fas fa-medal', condition: (metrics) => metrics.totalEntries >= 1 },
-            { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (metrics) => metrics.weekMinutes >= (localState.users[userId]?.settings?.weeklyTarget || 75) },
-            { id: '10_sessions', title: 'Zehn Sessions', desc: 'Absolviere 10 Trainingseinheiten.', icon: 'fas fa-fire-extinguisher', condition: (metrics) => metrics.totalEntries >= 10 },
-            { id: 'first_streak', title: 'Erster Streak', desc: 'Trainiere an zwei aufeinanderfolgenden Tagen.', icon: 'fas fa-bolt', condition: (metrics) => metrics.streakCount >= 2 },
-            { id: 'level_5', title: 'Level 5', desc: 'Erreiche Level 5.', icon: 'fas fa-star', condition: (metrics) => metrics.level >= 5 },
-            { id: '10_streak', title: 'Zehn-Tage-Streak', desc: 'Trainiere an 10 aufeinanderfolgenden Tagen.', icon: 'fas fa-crown', condition: (metrics) => metrics.streakCount >= 10 },
-            { id: '100_entries', title: 'Hundert Sessions', desc: 'Absolviere 100 Trainingseinheiten.', icon: 'fas fa-dumbbell', condition: (metrics) => metrics.totalEntries >= 100 },
-            { id: 'max_level', title: 'Max Level!', desc: 'Erreiche Level 10.', icon: 'fas fa-gem', condition: (metrics) => metrics.level >= 10 },
-        ];
-        
-        const WATT_BASE = 50;
-        const WATT_STEP = 25;
-
-        function getWattValue(level) {
-            return WATT_BASE + (level - 1) * WATT_STEP;
-        }
-
-        function calculateCalories(session, bodyWeight) {
-            if (!session.duration || !bodyWeight) return 0;
-            let met;
-            if (session.watt) {
-                if (session.watt < 50) met = 3.5;
-                else if (session.watt < 100) met = 5.8;
-                else if (session.watt < 160) met = 7.0;
-                else met = 8.5;
-            } else if (session.hr) {
-                if (session.hr < 100) met = 3.0;
-                else if (session.hr < 130) met = 5.0;
-                else if (session.hr < 150) met = 7.0;
-                else if (session.hr < 170) met = 8.5;
-                else met = 10.0;
-            } else {
-                met = 5.0;
-            }
-            return (met * 3.5 * bodyWeight / 200) * session.duration;
-        }
-
-        function calculateXp(session) {
-            let xp = session.duration;
-            if (session.watt) xp += session.watt * 0.5;
-            if (session.hr > 140) xp += 10;
-            if (session.distance) xp += session.distance * 2;
-            return Math.floor(xp);
-        }
-
-        /**
-         * Centralized function to recalculate metrics and UI.
-         */
-        function handleDataChange() {
-            if (!userId || !localState.users[userId]) return;
-            
-            const user = localState.users[userId];
-            const sessions = localState.sessions;
-            
-            // Recalculate sessions and enrich with calories
-            sessions.forEach(session => {
-                session.calories = calculateCalories(session, user.settings.bodyWeight);
-            });
-
-            // Recalculate metrics
-            const metrics = { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null, weekMinutes: 0 };
-            const sortedSessions = [...sessions].sort((a, b) => new Date(a.date) - new Date(b.date));
-            const now = new Date();
-            
-            sortedSessions.forEach(session => {
-                metrics.totalEntries++;
-                metrics.xp += calculateXp(session);
-
-                // Streak calculation
-                const sessionDate = new Date(session.date).toDateString();
-                const yesterday = new Date(new Date(metrics.lastDay).setDate(new Date(metrics.lastDay).getDate() + 1)).toDateString();
-                if (metrics.lastDay === null) {
-                    metrics.streakCount = 1;
-                } else if (sessionDate === metrics.lastDay) {
-                    // Same day, no change
-                } else if (sessionDate === yesterday) {
-                    metrics.streakCount++;
-                } else {
-                    metrics.streakCount = 1;
-                }
-                metrics.lastDay = sessionDate;
-
-                // Weekly minutes
-                if (isSameWeek(new Date(session.date), now)) {
-                    metrics.weekMinutes += session.duration;
-                }
-            });
-
-            metrics.level = 1 + Math.floor(metrics.xp / 100);
-            metrics.xp = metrics.xp % 100;
-            
-            user.metrics = metrics;
-            
-            // Re-evaluate rewards
-            const oldRewards = new Set(user.rewards);
-            const newRewards = [];
-            REWARDS.forEach(reward => {
-                if (reward.condition(user.metrics)) {
-                    newRewards.push(reward.id);
-                    if (!oldRewards.has(reward.id)) {
-                        showSuccessDialog(reward.title, reward.desc, reward.icon);
-                    }
-                }
-            });
-            user.rewards = newRewards;
-            
-            // Render UI
-            localState.sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
-            renderAll();
-            saveUserSetting(); // Save metrics/rewards
-        }
-
-        // --- Data Operations (now async with Firestore) ---
-        async function addSession(sessionData) {
-            if (!userId) {
-                console.error("User not authenticated.");
-                return;
-            }
-            const sessionsCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`);
-            const newSessionRef = doc(sessionsCollectionRef);
-            const session = { id: newSessionRef.id, ...sessionData, userId: userId, createdAt: nowISO() };
-            await setDoc(newSessionRef, session);
-        }
-
-        async function updateSession(sessionId, newData) {
-            if (!userId) return;
-            const sessionRef = doc(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`, sessionId);
-            try {
-                await setDoc(sessionRef, newData, { merge: true });
-            } catch(e) {
-                console.error("Error updating session:", e);
-            }
-        }
-
-        async function deleteSession(sessionId) {
-            const isConfirmed = await showConfirmDialog('Eintrag löschen?', 'Möchtest du diesen Eintrag wirklich löschen?');
-            if (isConfirmed) {
-                await deleteSessionFromFirestore(sessionId);
-            }
-        }
-
-        function openSessionModal(session = null) {
-            const dlg = document.getElementById('dlgNewSession');
-            const title = document.getElementById('sessionModalTitle');
-            const btnSave = document.getElementById('btnSaveSession');
-            
-            sessionBeingEdited = session ? session.id : null;
-
-            if (session) {
-                title.textContent = 'Session bearbeiten';
-                document.getElementById('sessionDate').value = session.date.substring(0, 10);
-                document.getElementById('sessionDuration').value = session.duration;
-                document.getElementById('sessionHr').value = session.hr;
-                document.getElementById('sessionWatt').value = session.watt;
-                document.getElementById('sessionDistance').value = session.distance;
-                document.getElementById('sessionNote').value = session.note;
-                btnSave.textContent = 'Änderungen speichern';
-            } else {
-                title.textContent = 'Training eintragen (Manuell)';
-                document.getElementById('sessionDate').valueAsDate = new Date();
-                document.getElementById('sessionDuration').value = '';
-                document.getElementById('sessionHr').value = '';
-                document.getElementById('sessionWatt').value = '';
-                document.getElementById('sessionDistance').value = '';
-                document.getElementById('sessionNote').value = '';
-                btnSave.textContent = 'Eintrag speichern';
-            }
-            dlg.showModal();
-        }
-
-        function saveSessionFromModal() {
-            const data = {
-                date: document.getElementById('sessionDate').value,
-                duration: parseInt(document.getElementById('sessionDuration').value) || 0,
-                hr: parseInt(document.getElementById('sessionHr').value) || null,
-                watt: parseInt(document.getElementById('sessionWatt').value) || null,
-                distance: parseFloat(document.getElementById('sessionDistance').value) || null,
-                note: document.getElementById('sessionNote').value.trim() || null
-            };
-
-            if (sessionBeingEdited) {
-                updateSession(sessionBeingEdited, data);
-            } else {
-                addSession(data);
-            }
-            document.getElementById('dlgNewSession').close();
-        }
-        
-        // --- UI Rendering ---
-        function renderUsers() {
-            // No longer rendering a dropdown, just the user ID
-            userIdDisplay.textContent = `User ID: ${userId}`;
-        }
-
-        function renderSettings() {
-            if (!localState.users[userId] || !localState.users[userId].settings) return;
-            const user = localState.users[userId];
-            document.getElementById('bodyWeight').value = user.settings.bodyWeight;
-            document.getElementById('weeklyTarget').value = user.settings.weeklyTarget;
-            document.getElementById('themeSelect').value = user.settings.theme;
-            document.getElementById('quickLevel').value = user.settings.quickLevel;
-            document.getElementById('quickDuration').value = user.settings.quickDuration;
-            document.getElementById('quickHr').value = user.settings.quickHr;
-            document.documentElement.setAttribute('data-theme', user.settings.theme);
-            wattValueSpan.textContent = `${getWattValue(user.settings.quickLevel)} W`;
-        }
-
-        function calculateAndRenderKPIs() {
-            if (!localState.users[userId] || !localState.users[userId].metrics) return;
-            const user = localState.users[userId];
-            const metrics = user.metrics;
-            document.getElementById('kpiWeekMin').textContent = metrics.weekMinutes;
-            document.getElementById('kpiStreak').textContent = metrics.streakCount;
-            document.getElementById('kpiLevel').textContent = metrics.level;
-            document.getElementById('kpiXp').textContent = metrics.xp;
-            document.getElementById('kpiEntries').textContent = metrics.totalEntries;
-        }
-
-        function renderSessions() {
-            const tbody = document.getElementById('tbodySessions');
-            tbody.innerHTML = localState.sessions.map(session => {
-                const date = new Date(session.date);
-                const isDeletable = session.userId === userId; // Deletable if created by the current user
-                return `
-                    <tr>
-                        <td class="text-xs md:text-sm">${date.toLocaleDateString()}</td>
-                        <td class="text-xs md:text-sm">${session.duration}</td>
-                        <td class="text-xs md:text-sm">${session.hr || '-'}</td>
-                        <td class="hide-xs text-xs md:text-sm">${session.watt || '-'}</td>
-                        <td class="hide-xs text-xs md:text-sm">${(session.distance ? session.distance.toFixed(1) : '-')}</td>
-                        <td class="text-xs md:text-sm">${(session.calories ? Math.floor(session.calories) : '-')}</td>
-                        <td class="text-xs md:text-sm row-note">${session.note || '-'}</td>
-                        <td class="flex gap-1">
-                            <button class="btn btn-xs btn-circle btn-info btn-outline btn-edit" data-id="${session.id}">
-                                <i class="fa-solid fa-pen-to-square"></i>
-                            </button>
-                            ${isDeletable ? `
-                            <button class="btn btn-xs btn-circle btn-error btn-outline btn-delete" data-id="${session.id}">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>` : `<button class="btn btn-xs btn-circle btn-ghost" disabled>
-                                <i class="fa-solid fa-trash-can text-gray-400"></i>
-                            </button>`}
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function renderRewards() {
-            if (!localState.users[userId] || !localState.users[userId].rewards) return;
-            const rewardsGrid = document.getElementById('rewardsGrid');
-            rewardsGrid.innerHTML = REWARDS.map(reward => {
-                const unlocked = localState.users[userId].rewards.includes(reward.id);
-                return `
-                    <div class="card bg-base-100 shadow-md ${unlocked ? 'opacity-100' : 'opacity-40'}" title="${reward.title}">
-                        <div class="card-body p-3 text-center items-center">
-                            <i class="${reward.icon} text-3xl mb-2"></i>
-                            <p class="text-sm font-semibold">${reward.title}</p>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        // --- Helper Functions (Date) and Data Import/Export/Share ---
-        function isSameWeek(date1, date2) {
-            const d1 = new Date(date1);
-            const d2 = new Date(date2);
-            d1.setHours(0, 0, 0, 0);
-            d2.setHours(0, 0, 0, 0);
-            const onejan = new Date(d1.getFullYear(), 0, 1);
-            const week1 = Math.ceil((((d1 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
-            const week2 = Math.ceil((((d2 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
-            return week1 === week2 && d1.getFullYear() === d2.getFullYear();
-        }
-
-        async function exportData() {
-            if (!userId) {
-                alert("Please authenticate first.");
-                return;
-            }
-            const dataToExport = {
-                userSettings: localState.users[userId].settings,
-                sessions: localState.sessions,
-            };
-            const json = JSON.stringify(dataToExport, null, 2);
-            const backupFilename = `z2log-backup-${new Date().toISOString().slice(0, 10)}.json`;
-            const file = new File([json], backupFilename, { type: 'application/json' });
-
-            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                try {
-                    await navigator.share({
-                        title: 'Z2 Log Daten-Backup',
-                        text: 'Hier ist dein Backup der Z2 Log App.',
-                        files: [file],
-                    });
-                    console.log('Data shared successfully.');
-                } catch (error) {
-                    console.error('Sharing failed:', error);
-                    downloadFile(json, backupFilename);
-                }
-            } else {
-                downloadFile(json, backupFilename);
-            }
-        }
-
-        function downloadFile(content, filename) {
-            const blob = new Blob([content], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        async function importData(file) {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const importedData = JSON.parse(e.target.result);
-                    if (await showConfirmDialog('Daten importieren?', 'Möchtest du diese Daten wirklich importieren?')) {
-                        // Assuming the imported file has sessions and user settings
-                        if (!importedData.userSettings || !importedData.sessions) {
-                            throw new Error("Invalid file format.");
-                        }
-
-                        // Update local state and save settings
-                        localState.users[userId].settings = importedData.userSettings;
-                        await saveUserSetting();
-                        
-                        // Clear existing sessions and import new ones
-                        const existingSessionRefs = await getDocs(collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`));
-                        const deletePromises = existingSessionRefs.docs.map(doc => deleteDoc(doc.ref));
-                        await Promise.all(deletePromises);
-                        
-                        // Add imported sessions to Firestore
-                        const addPromises = importedData.sessions.map(s => {
-                            const newSessionRef = doc(collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`));
-                            return setDoc(newSessionRef, { ...s, id: newSessionRef.id, userId: userId });
-                        });
-                        await Promise.all(addPromises);
-                        
-                        // UI will auto-update via onSnapshot
-                    }
-                } catch (err) {
-                    const dlg = document.getElementById('dlgConfirm');
-                    document.getElementById('confirmTitle').textContent = 'Import fehlgeschlagen';
-                    document.getElementById('confirmText').textContent = 'Ungültige Datei. Bitte überprüfe das Format.';
-                    document.getElementById('confirmOk').style.display = 'none';
-                    document.getElementById('confirmCancel').textContent = 'Schließen';
-                    dlg.showModal();
-                    console.error('Import error:', err);
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        // --- Event Listeners and Initialization ---
-        function setupEventListeners() {
-            themeSelect.addEventListener('change', (e) => {
-                if (localState.users[userId]) {
-                    localState.users[userId].settings.theme = e.target.value;
-                    document.documentElement.setAttribute('data-theme', e.target.value);
-                    saveUserSetting();
-                }
-            });
-
-            btnSaveSettings.addEventListener('click', () => {
-                if (localState.users[userId]) {
-                    const user = localState.users[userId];
-                    user.settings.bodyWeight = parseFloat(bodyWeightInput.value);
-                    user.settings.weeklyTarget = parseInt(weeklyTargetInput.value);
-                    user.settings.quickLevel = parseInt(quickLevelRange.value);
-                    user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
-                    user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
-                    saveUserSetting();
-                }
-            });
-            
-            btnCreateNewUser.addEventListener('click', async () => {
-                 if (await showConfirmDialog('Neuen Benutzer erstellen?', 'Möchtest du wirklich einen neuen, leeren Benutzer erstellen? Dein aktueller Benutzer wird abgemeldet.')) {
-                    await signOut(auth); // Sign out of the current anonymous user
-                    await signInAnonymously(auth); // Sign in with a new anonymous user, triggering onAuthStateChanged
-                 }
-            });
-
-            quickLevelRange.addEventListener('input', (e) => {
-                wattValueSpan.textContent = `${getWattValue(parseInt(e.target.value))} W`;
-            });
-            
-            btnQuickSession.addEventListener('click', () => {
-                if (localState.users[userId]) {
-                    const user = localState.users[userId];
-                    const session = {
-                        date: nowISO().substring(0, 10),
-                        watt: getWattValue(parseInt(user.settings.quickLevel)),
-                        hr: parseInt(user.settings.quickHr),
-                        duration: parseInt(user.settings.quickDuration),
-                        distance: null,
-                        calories: null,
-                        note: 'Schnelleingabe'
-                    };
-                    addSession(session);
-                }
-            });
-
-            newSessionBtn.addEventListener('click', () => openSessionModal());
-
-            tbody.addEventListener('click', (e) => {
-                const target = e.target.closest('button');
-                if (!target) return;
-                const sessionId = target.dataset.id;
-                
-                if (target.classList.contains('btn-delete')) {
-                    deleteSession(sessionId);
-                } else if (target.classList.contains('btn-edit')) {
-                    const session = localState.sessions.find(s => s.id === sessionId);
-                    if (session) {
-                        openSessionModal(session);
-                    }
-                }
-            });
-
-            btnSaveSession.addEventListener('click', saveSessionFromModal);
-
-            btnExport.addEventListener('click', exportData);
-            btnImport.addEventListener('click', () => fileImport.click());
-            fileImport.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    importData(e.target.files[0]);
-                }
-            });
-        }
-        
-        function renderAll() {
-            renderUsers();
-            renderSettings();
-            renderSessions();
-            calculateAndRenderKPIs();
-            renderRewards();
-        }
-
-        // --- Application Initialization ---
-        window.addEventListener('load', async () => {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    isAuthReady = true;
-                    console.log("Authenticated as user:", userId);
-
-                    // Load user data and set up real-time listeners
-                    const userData = await loadUserData();
-                    if (userData) {
-                        localState.users[userId] = userData;
-                        renderAll();
-                    } else {
-                         // Create initial data for a new user if none exists
-                        localState.users[userId] = {
-                           settings: { weeklyTarget: 140, theme: 'dracula', bodyWeight: 100, quickLevel: 1, quickDuration: 20, quickHr: 115 },
-                           metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
-                           rewards: []
-                        };
-                        renderAll();
-                        saveUserSetting(); // Save the initial state
-                    }
-                    
-                    // Listen for real-time updates to sessions
-                    const sessionsQuery = query(collection(db, `/artifacts/${appId}/users/${userId}/private/${DB_COLLECTION}`));
-                    onSnapshot(sessionsQuery, (snapshot) => {
-                        localState.sessions = snapshot.docs.map(d => d.data());
-                        handleDataChange(); // Update UI when sessions change
-                    }, (error) => {
-                        console.error("Error listening to sessions:", error);
-                    });
-
-                } else {
-                    console.log("Signing in anonymously...");
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) {
-                        console.error("Firebase Auth failed:", e);
-                    }
-                }
-            });
-
-            setupEventListeners();
-        });
-    </script>
     
     <style>
-        /* Basic styles */
-        body { overflow-x: hidden; }
+        /* Basic styles for a clean, mobile-first design */
+        body { overflow-x: hidden; } /* Prevents horizontal scrolling */
         .container { max-width: 980px; }
         .tap-big button, .tap-big .btn { min-height: 3rem; }
         .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
         .row-note { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        /* Animations */
-        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        /* Animations for gamification feedback */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
         .pop-animation { animation: pop 0.3s ease-in-out; }
-        @keyframes highlight-fade { 0% { background-color: oklch(var(--a)); } 50% { background-color: oklch(var(--a) / 0.5); } 100% { background-color: transparent; } }
-        .new-entry-highlight { animation: highlight-fade 2s ease-out forwards; }
-        #confetti-container-success { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 100; }
-        .confetti { position: absolute; width: 10px; height: 10px; background-color: var(--fallback-p); animation-name: confetti-fall; animation-timing-function: linear; animation-fill-mode: forwards; }
-        @keyframes confetti-fall { 0% { transform: translate(0, -100vh) rotate(0deg); opacity: 1; } 100% { transform: translate(0, 100vh) rotate(720deg); opacity: 0; } }
+        
+        /* Animation for new table entry */
+        @keyframes highlight-fade {
+            0% { background-color: oklch(var(--a)); }
+            50% { background-color: oklch(var(--a) / 0.5); }
+            100% { background-color: transparent; }
+        }
+        .new-entry-highlight {
+            animation: highlight-fade 2s ease-out forwards;
+        }
+
+        /* Styles for confetti effect (kept for success dialogs) */
+        #confetti-container, #confetti-container-success {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 100;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: var(--fallback-p);
+            animation-name: confetti-fall;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+        }
+        @keyframes confetti-fall {
+            0% { transform: translate(0, -100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translate(0, 100vh) rotate(720deg); opacity: 0; }
+        }
         
         /* Mobile view and table improvements */
         @media (max-width: 420px){
             .hide-xs { display: none; }
-            table th, table td { white-space: normal; }
+            table th, table td { white-space: normal; } /* Important change to allow text wrapping */
             .stat { margin-bottom: 0.5rem; }
             .stats { flex-wrap: wrap; }
         }
-        .sessions-table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .sessions-table-container table { width: 100%; }
+        
+        /* Further adjustments for the table for better responsiveness */
+        .sessions-table-container {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .sessions-table-container table {
+            width: 100%;
+        }
     </style>
 </head>
 <body class="bg-base-100">
     <div class="container mx-auto p-4 md:p-6 max-w-full">
+
         <!-- Header / Theme / User -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
             <div>
                 <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
-                <p class="text-sm opacity-70">Cloud-basierte Eingabe mit Gamification. Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983</p>
-                <p id="userIdDisplay" class="text-xs mt-1 text-gray-500"></p>
+                <p class="text-sm opacity-70">Schnelle Eingabe mit Gamification. Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983</p>
             </div>
             <div class="flex items-center gap-2">
                 <label class="label text-sm">Theme</label>
@@ -741,10 +95,12 @@
                 </select>
             </div>
         </div>
-        
+
         <!-- User Settings -->
         <div class="flex flex-wrap items-center gap-2 mb-3">
-             <button id="btnCreateNewUser" class="btn btn-sm btn-primary">Neuen Benutzer erstellen</button>
+            <label class="label text-sm whitespace-nowrap">Benutzer</label>
+            <select id="userSelect" class="select select-bordered select-sm"></select>
+            <button id="btnNewUser" class="btn btn-sm">Neuer Benutzer</button>
             <div class="ml-auto flex flex-wrap items-center gap-2">
                 <label class="label text-sm whitespace-nowrap">Körpergewicht (kg)</label>
                 <input id="bodyWeight" type="number" min="0" class="input input-bordered input-sm w-24" placeholder="z.B. 75" />
@@ -754,7 +110,7 @@
             </div>
         </div>
         
-        <!-- Quick-entry settings -->
+        <!-- NEW SECTION: Quick-entry settings -->
         <div class="mt-6 mb-4 p-4 bg-base-200 rounded-lg">
             <h2 class="text-lg font-semibold mb-2">Schnell-Eingabe-Einstellungen</h2>
             <div class="flex flex-wrap items-center gap-4">
@@ -806,10 +162,10 @@
         </div>
 
         <!-- Data Tools -->
+        <!-- Adjusted the button container to be more responsive -->
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
             <h2 class="text-lg font-semibold whitespace-nowrap">Deine Sessions</h2>
             <div class="flex flex-wrap gap-2">
-                <button id="btnNewSession" class="btn btn-sm btn-info">Manuell eintragen</button>
                 <button id="btnExport" class="btn btn-sm">Export/Teilen</button>
                 <input id="fileImport" class="hidden" type="file" accept="application/json">
                 <button id="btnImport" class="btn btn-sm">Importieren</button>
@@ -834,6 +190,7 @@
                 <tbody id="tbodySessions"></tbody>
             </table>
         </div>
+
     </div>
     
     <!-- Modals -->
@@ -878,6 +235,21 @@
             </div>
         </div>
     </dialog>
+
+    <!-- New User Modal -->
+    <dialog id="dlgNewUser" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
+            <label class="form-control mt-3">
+                <span class="label-text">Name</span>
+                <input id="newUserName" class="input input-bordered" placeholder="z. B. Christian">
+            </label>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn">Abbrechen</button></form>
+                <button id="btnCreateUser" class="btn btn-primary">Erstellen</button>
+            </div>
+        </div>
+    </dialog>
     
     <!-- Confirmation dialog -->
     <dialog id="dlgConfirm" class="modal">
@@ -903,5 +275,751 @@
             </div>
         </div>
     </dialog>
+
+    <script type="module">
+        // Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983
+        // This script has been updated to fix responsiveness on small screens.
+        // The table layout has been improved, and key UI elements are now more
+        // fluid and adapt to different viewport sizes. The export functionality
+        // now uses the Web Share API with a download fallback.
+        // The script now also implements a persistent device ID to allow
+        // deletion only for entries created on the same device.
+
+        // ========= Global Variables and Constants =========
+        const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; 
+        const DEVICE_ID_KEY = 'z2log_device_id';
+        const nowISO = () => new Date().toISOString();
+        const uid = () => Math.random().toString(36).slice(2, 10);
+        
+        const DEFAULT_STATE = {
+            activeUserId: 'default',
+            users: {
+                default: {
+                    id: 'default', name: 'Christian', createdAt: nowISO(),
+                    settings: { 
+                        weeklyTarget: 140, theme: 'dracula', 
+                        bodyWeight: 100,
+                        quickLevel: 1, quickDuration: 20, quickHr: 115 
+                    }, 
+                    metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
+                    sessions: [],
+                    rewards: [] 
+                }
+            }
+        };
+
+        // Application state. Loaded on start and saved on changes.
+        let state;
+        let sessionBeingEdited = null; // Stores the ID of the session being edited
+        let deviceId; // Unique identifier for this device
+
+        // ========= Persistence =========
+        /**
+         * Loads the state from local storage.
+         * Ensures the data structure is intact.
+         * @returns {object} The loaded or default state.
+         */
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                let loadedState = raw ? JSON.parse(raw) : structuredClone(DEFAULT_STATE);
+                
+                // Ensure the basic structures exist
+                if (!loadedState.users || Object.keys(loadedState.users).length === 0) {
+                    loadedState.users = structuredClone(DEFAULT_STATE.users);
+                }
+                if (!loadedState.activeUserId || !loadedState.users[loadedState.activeUserId]) {
+                    loadedState.activeUserId = Object.keys(loadedState.users)[0];
+                }
+
+                // Ensure new default values are present for each user
+                for (const userId in loadedState.users) {
+                    if (!loadedState.users[userId].rewards) { loadedState.users[userId].rewards = []; }
+                    const defaultSettings = DEFAULT_STATE.users.default.settings;
+                    Object.keys(defaultSettings).forEach(key => {
+                        if (loadedState.users[userId].settings[key] === undefined) {
+                             loadedState.users[userId].settings[key] = defaultSettings[key];
+                        }
+                    });
+                }
+                
+                return loadedState;
+            } catch (e) {
+                console.error("Error loading state:", e);
+                return structuredClone(DEFAULT_STATE);
+            }
+        }
+
+        /**
+         * Saves the current state to local storage.
+         */
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        /**
+         * Retrieves or creates a unique, persistent device ID.
+         * This ID is used to verify that an entry was created on this device.
+         */
+        function getDeviceId() {
+            let id = localStorage.getItem(DEVICE_ID_KEY);
+            if (!id) {
+                id = crypto.randomUUID();
+                localStorage.setItem(DEVICE_ID_KEY, id);
+            }
+            return id;
+        }
+
+        // ========= UI Helper Functions =========
+        /**
+         * Displays a custom confirmation dialog.
+         * @param {string} title The dialog title.
+         * @param {string} text The dialog text.
+         * @returns {Promise<boolean>} Resolves with true on confirmation, false on cancel.
+         */
+        function showConfirmDialog(title, text) {
+            return new Promise(resolve => {
+                const dlg = document.getElementById('dlgConfirm');
+                document.getElementById('confirmTitle').textContent = title;
+                document.getElementById('confirmText').textContent = text;
+                const confirmCancel = document.getElementById('confirmCancel');
+                const confirmOk = document.getElementById('confirmOk');
+
+                // Clone nodes to remove old event listeners
+                const newConfirmOk = confirmOk.cloneNode(true);
+                confirmOk.parentNode.replaceChild(newConfirmOk, confirmOk);
+                const newConfirmCancel = confirmCancel.cloneNode(true);
+                confirmCancel.parentNode.replaceChild(newConfirmCancel, confirmCancel);
+                
+                const handleConfirm = () => {
+                    dlg.close();
+                    resolve(true);
+                };
+
+                const handleCancel = () => {
+                    dlg.close();
+                    resolve(false);
+                };
+
+                newConfirmOk.addEventListener('click', handleConfirm);
+                newConfirmCancel.addEventListener('click', handleCancel);
+                dlg.showModal();
+            });
+        }
+
+        /**
+         * Displays a custom success dialog for achievements.
+         * @param {string} title The dialog title.
+         * @param {string} text The dialog text.
+         * @param {string} iconClass The Font Awesome CSS class for the icon.
+         */
+        function showSuccessDialog(title, text, iconClass) {
+            const dlg = document.getElementById('dlgSuccess');
+            document.getElementById('successTitle').textContent = title;
+            document.getElementById('successText').textContent = text;
+            const icon = document.getElementById('successIcon');
+            icon.className = `text-6xl text-primary mb-6 animate-pulse ${iconClass}`;
+            
+            // Start confetti for achievements
+            for(let i = 0; i < 50; i++) setTimeout(() => createConfetti('confetti-container-success'), i * 20);
+
+            dlg.showModal();
+        }
+
+        /**
+         * Creates a confetti particle.
+         * @param {string} containerId ID of the confetti container.
+         */
+        function createConfetti(containerId) {
+            const container = document.getElementById(containerId);
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = `${Math.random() * 100}vw`;
+            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            confetti.style.animationDuration = `${Math.random() * 2 + 3}s`; // 3-5s
+            confetti.style.transform = `translateY(-100vh) rotate(${Math.random() * 360}deg)`;
+            container.appendChild(confetti);
+
+            confetti.addEventListener('animationend', () => confetti.remove());
+        }
+
+        // ========= Gamification & Logic =========
+
+        // Rewards
+        const REWARDS = [
+            { id: 'first_session', title: 'Erster Eintrag', desc: 'Absolviere deine erste Trainingseinheit.', icon: 'fas fa-medal', condition: (user) => user.metrics.totalEntries >= 1 },
+            { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (user) => user.sessions.filter(s => isSameWeek(new Date(s.date), new Date())).reduce((sum, s) => sum + s.duration, 0) >= (user.settings.weeklyTarget || 75) },
+            { id: '10_sessions', title: 'Zehn Sessions', desc: 'Absolviere 10 Trainingseinheiten.', icon: 'fas fa-fire-extinguisher', condition: (user) => user.metrics.totalEntries >= 10 },
+            { id: 'first_streak', title: 'Erster Streak', desc: 'Trainiere an zwei aufeinanderfolgenden Tagen.', icon: 'fas fa-bolt', condition: (user) => user.metrics.streakCount >= 2 },
+            { id: 'level_5', title: 'Level 5', desc: 'Erreiche Level 5.', icon: 'fas fa-star', condition: (user) => user.metrics.level >= 5 },
+            { id: '10_streak', title: 'Zehn-Tage-Streak', desc: 'Trainiere an 10 aufeinanderfolgenden Tagen.', icon: 'fas fa-crown', condition: (user) => user.metrics.streakCount >= 10 },
+            { id: '100_entries', title: 'Hundert Sessions', desc: 'Absolviere 100 Trainingseinheiten.', icon: 'fas fa-dumbbell', condition: (user) => user.metrics.totalEntries >= 100 },
+            { id: 'max_level', title: 'Max Level!', desc: 'Erreiche Level 10.', icon: 'fas fa-gem', condition: (user) => user.metrics.level >= 10 },
+        ];
+        
+        // Constants for Watt calculation
+        const WATT_BASE = 50;
+        const WATT_STEP = 25;
+
+        /**
+         * Calculates the Watt value based on the level.
+         * @param {number} level The level from 1 to 8.
+         * @returns {number} The corresponding Watt value.
+         */
+        function getWattValue(level) {
+            return WATT_BASE + (level - 1) * WATT_STEP;
+        }
+
+        /**
+         * Estimates calories burned based on session data.
+         * Formula based on MET values, heart rate, and body weight.
+         * @param {object} session The session data.
+         * @param {number} bodyWeight Body weight in kg.
+         * @returns {number} The estimated calories.
+         */
+        function calculateCalories(session, bodyWeight) {
+            if (!session.duration || !bodyWeight) return 0;
+            
+            let met;
+            if (session.watt) {
+                // Approximate MET values for stationary cycling based on Watt
+                if (session.watt < 50) met = 3.5;
+                else if (session.watt < 100) met = 5.8;
+                else if (session.watt < 160) met = 7.0;
+                else met = 8.5;
+            } else if (session.hr) {
+                // Approximate MET values based on heart rate (effort)
+                if (session.hr < 100) met = 3.0;
+                else if (session.hr < 130) met = 5.0;
+                else if (session.hr < 150) met = 7.0;
+                else if (session.hr < 170) met = 8.5;
+                else met = 10.0;
+            } else {
+                met = 5.0; // Default MET value if no data is available
+            }
+
+            // Formula: MET * 3.5 * bodyWeight (kg) / 200 * duration (minutes)
+            return (met * 3.5 * bodyWeight / 200) * session.duration;
+        }
+
+        /**
+         * Calculates XP based on the session.
+         * @param {object} session The session data.
+         * @returns {number} The calculated XP.
+         */
+        function calculateXp(session) {
+            // Example: XP = minutes + (Watt * 0.5) + (HR > 140 ? 10 : 0) + (Distance * 2)
+            let xp = session.duration;
+            if (session.watt) xp += session.watt * 0.5;
+            if (session.hr > 140) xp += 10;
+            if (session.distance) xp += session.distance * 2;
+            return Math.floor(xp);
+        }
+
+        /**
+         * Centralized function that recalculates the entire state
+         * and updates the UI. This ensures all data is consistent.
+         * @param {string | null} highlightId The ID of the entry to highlight.
+         */
+        function handleDataChange(highlightId = null) {
+            const user = state.users[state.activeUserId];
+            
+            // Enrich sessions with calories before metrics are calculated
+            user.sessions.forEach(session => {
+                session.calories = calculateCalories(session, user.settings.bodyWeight);
+            });
+
+            // 1. Recalculate metrics
+            let totalEntries = user.sessions.length;
+            let totalXp = 0;
+            let streakCount = 0;
+            let lastDay = null;
+
+            // Sort sessions by date to calculate streak correctly
+            const sortedSessions = [...user.sessions].sort((a, b) => new Date(a.date) - new Date(b.date));
+            sortedSessions.forEach(session => {
+                totalXp += calculateXp(session);
+                const sessionDate = new Date(session.date).toDateString();
+                if (lastDay === null) {
+                    streakCount = 1;
+                } else {
+                    const yesterday = new Date(new Date(lastDay).setDate(new Date(lastDay).getDate() + 1)).toDateString();
+                    if (sessionDate === lastDay) {
+                        // Entry on the same day, streak remains
+                    } else if (sessionDate === yesterday) {
+                        streakCount++;
+                    } else {
+                        // Day skipped, reset streak
+                        streakCount = 1;
+                    }
+                }
+                lastDay = sessionDate;
+            });
+
+            user.metrics.totalEntries = totalEntries;
+            user.metrics.xp = totalXp % 100;
+            user.metrics.level = 1 + Math.floor(totalXp / 100);
+            user.metrics.streakCount = streakCount;
+            user.metrics.lastDay = lastDay;
+            
+            // 2. Re-evaluate rewards
+            const oldRewards = new Set(user.rewards);
+            const newRewards = [];
+            REWARDS.forEach(reward => {
+                if (reward.condition(user)) {
+                    newRewards.push(reward.id);
+                    // Show success dialog only for newly unlocked rewards
+                    if (!oldRewards.has(reward.id)) {
+                        showSuccessDialog(reward.title, reward.desc, reward.icon);
+                    }
+                }
+            });
+            user.rewards = newRewards;
+            
+            // 3. Save state and render UI
+            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date)); // Newest on top
+            saveState();
+            renderAll(highlightId);
+        }
+
+        // ========= Data Operations =========
+        /**
+         * Adds a new session.
+         * @param {object} sessionData The data for the new session.
+         */
+        function addSession(sessionData) {
+            const user = state.users[state.activeUserId];
+            const sessionId = uid();
+            // Add the deviceId to the session object
+            const session = { id: sessionId, deviceId: deviceId, ...sessionData, createdAt: nowISO() };
+            user.sessions.push(session);
+            handleDataChange(sessionId);
+        }
+        
+        /**
+         * Updates an existing session.
+         * @param {string} sessionId The ID of the session to update.
+         * @param {object} newData The new data.
+         */
+        function updateSession(sessionId, newData) {
+            const user = state.users[state.activeUserId];
+            const index = user.sessions.findIndex(s => s.id === sessionId);
+            if (index !== -1) {
+                user.sessions[index] = { ...user.sessions[index], ...newData };
+                handleDataChange(sessionId);
+            }
+        }
+
+        /**
+         * Deletes a session if the device ID matches.
+         * @param {string} sessionId The ID of the session to delete.
+         */
+        async function deleteSession(sessionId) {
+            const user = state.users[state.activeUserId];
+            const sessionToDelete = user.sessions.find(s => s.id === sessionId);
+
+            if (!sessionToDelete) {
+                // Entry not found
+                return;
+            }
+
+            // Check if the current device ID matches the session's device ID
+            if (sessionToDelete.deviceId !== deviceId) {
+                showConfirmDialog('Löschen nicht möglich', 'Dieser Eintrag kann nur von dem Gerät gelöscht werden, auf dem er erstellt wurde.');
+                return;
+            }
+
+            const isConfirmed = await showConfirmDialog('Eintrag löschen?', 'Möchtest du diesen Eintrag wirklich löschen?');
+            if (isConfirmed) {
+                user.sessions = user.sessions.filter(s => s.id !== sessionId);
+                handleDataChange();
+            }
+        }
+
+        /**
+         * Opens the modal for manual session entry
+         * and fills it with data if a session is being edited.
+         * @param {object|null} session The session to edit or null for a new session.
+         */
+        function openSessionModal(session = null) {
+            const dlg = document.getElementById('dlgNewSession');
+            const title = document.getElementById('sessionModalTitle');
+            const btnSave = document.getElementById('btnSaveSession');
+            
+            sessionBeingEdited = session ? session.id : null;
+
+            if (session) {
+                title.textContent = 'Session bearbeiten';
+                document.getElementById('sessionDate').value = session.date.substring(0, 10);
+                document.getElementById('sessionDuration').value = session.duration;
+                document.getElementById('sessionHr').value = session.hr;
+                document.getElementById('sessionWatt').value = session.watt;
+                document.getElementById('sessionDistance').value = session.distance;
+                document.getElementById('sessionNote').value = session.note;
+                btnSave.textContent = 'Änderungen speichern';
+            } else {
+                title.textContent = 'Training eintragen (Manuell)';
+                document.getElementById('sessionDate').valueAsDate = new Date(); // Default to today
+                document.getElementById('sessionDuration').value = '';
+                document.getElementById('sessionHr').value = '';
+                document.getElementById('sessionWatt').value = '';
+                document.getElementById('sessionDistance').value = '';
+                document.getElementById('sessionNote').value = '';
+                btnSave.textContent = 'Eintrag speichern';
+            }
+
+            dlg.showModal();
+        }
+
+        /**
+         * Saves a session based on the modal values.
+         */
+        function saveSessionFromModal() {
+            const data = {
+                date: document.getElementById('sessionDate').value,
+                duration: parseInt(document.getElementById('sessionDuration').value) || 0,
+                hr: parseInt(document.getElementById('sessionHr').value) || null,
+                watt: parseInt(document.getElementById('sessionWatt').value) || null,
+                distance: parseFloat(document.getElementById('sessionDistance').value) || null,
+                note: document.getElementById('sessionNote').value.trim() || null
+            };
+
+            if (sessionBeingEdited) {
+                updateSession(sessionBeingEdited, data);
+            } else {
+                addSession(data);
+            }
+            document.getElementById('dlgNewSession').close();
+        }
+        
+        // ========= UI Rendering =========
+        /**
+         * Renders the user dropdown list.
+         */
+        function renderUsers() {
+            const userSelect = document.getElementById('userSelect');
+            userSelect.innerHTML = Object.values(state.users).map(user => 
+                `<option value="${user.id}" ${user.id === state.activeUserId ? 'selected' : ''}>${user.name}</option>`
+            ).join('');
+        }
+
+        /**
+         * Renders the settings for the active user.
+         */
+        function renderSettings() {
+            const user = state.users[state.activeUserId];
+            document.getElementById('bodyWeight').value = user.settings.bodyWeight;
+            document.getElementById('weeklyTarget').value = user.settings.weeklyTarget;
+            document.getElementById('themeSelect').value = user.settings.theme;
+            document.getElementById('quickLevel').value = user.settings.quickLevel;
+            document.getElementById('quickDuration').value = user.settings.quickDuration;
+            document.getElementById('quickHr').value = user.settings.quickHr;
+            document.documentElement.setAttribute('data-theme', user.settings.theme);
+            
+            // Update Watt value for quick-entry
+            document.getElementById('wattValue').textContent = `${getWattValue(user.settings.quickLevel)} W`;
+        }
+
+        /**
+         * Calculates and renders the KPIs.
+         */
+        function calculateAndRenderKPIs() {
+            const user = state.users[state.activeUserId];
+            const currentWeekSessions = user.sessions.filter(s => isSameWeek(new Date(s.date), new Date()));
+            const weekMinutes = currentWeekSessions.reduce((sum, s) => sum + s.duration, 0);
+
+            document.getElementById('kpiWeekMin').textContent = weekMinutes;
+            document.getElementById('kpiStreak').textContent = user.metrics.streakCount;
+            document.getElementById('kpiLevel').textContent = user.metrics.level;
+            document.getElementById('kpiXp').textContent = user.metrics.xp;
+            document.getElementById('kpiEntries').textContent = user.metrics.totalEntries;
+        }
+
+        /**
+         * Renders the sessions table.
+         * @param {string} highlightId ID of the entry to highlight.
+         */
+        function renderSessions(highlightId = null) {
+            const user = state.users[state.activeUserId];
+            const tbody = document.getElementById('tbodySessions');
+            tbody.innerHTML = user.sessions.map(session => {
+                const date = new Date(session.date);
+                const isHighlighted = session.id === highlightId ? 'new-entry-highlight' : '';
+                const isDeletable = session.deviceId === deviceId; // Check if the entry can be deleted
+                return `
+                    <tr class="${isHighlighted}">
+                        <td class="text-xs md:text-sm">${date.toLocaleDateString()}</td>
+                        <td class="text-xs md:text-sm">${session.duration}</td>
+                        <td class="text-xs md:text-sm">${session.hr || '-'}</td>
+                        <td class="hide-xs text-xs md:text-sm">${session.watt || '-'}</td>
+                        <td class="hide-xs text-xs md:text-sm">${(session.distance ? session.distance.toFixed(1) : '-')}</td>
+                        <td class="text-xs md:text-sm">${(session.calories ? Math.floor(session.calories) : '-')}</td>
+                        <td class="text-xs md:text-sm row-note">${session.note || '-'}</td>
+                        <td class="flex gap-1">
+                            <button class="btn btn-xs btn-circle btn-info btn-outline btn-edit" data-id="${session.id}">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            ${isDeletable ? `
+                            <button class="btn btn-xs btn-circle btn-error btn-outline btn-delete" data-id="${session.id}">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>` : `<button class="btn btn-xs btn-circle btn-ghost" disabled>
+                                <i class="fa-solid fa-trash-can text-gray-400"></i>
+                            </button>`}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Renders the rewards view.
+         */
+        function renderRewards() {
+            const user = state.users[state.activeUserId];
+            const rewardsGrid = document.getElementById('rewardsGrid');
+            rewardsGrid.innerHTML = REWARDS.map(reward => {
+                const unlocked = user.rewards.includes(reward.id);
+                return `
+                    <div class="card bg-base-100 shadow-md ${unlocked ? 'opacity-100' : 'opacity-40'}" title="${reward.title}">
+                        <div class="card-body p-3 text-center items-center">
+                            <i class="${reward.icon} text-3xl mb-2"></i>
+                            <p class="text-sm font-semibold">${reward.title}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // ========= Helper Functions (Date) and Data Import/Export/Share =========
+        /**
+         * Checks if two dates are in the same week.
+         * @param {Date} date1 Date 1.
+         * @param {Date} date2 Date 2.
+         * @returns {boolean} True if they are in the same week.
+         */
+        function isSameWeek(date1, date2) {
+            const d1 = new Date(date1);
+            const d2 = new Date(date2);
+            d1.setHours(0, 0, 0, 0);
+            d2.setHours(0, 0, 0, 0);
+
+            const onejan = new Date(d1.getFullYear(), 0, 1);
+            const week1 = Math.ceil((((d1 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
+            const week2 = Math.ceil((((d2 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
+
+            return week1 === week2 && d1.getFullYear() === d2.getFullYear();
+        }
+
+        /**
+         * Exports the state as a JSON file or shares it via Web Share API.
+         */
+        async function exportData() {
+            const json = JSON.stringify(state, null, 2);
+            const backupFilename = `z2log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            const file = new File([json], backupFilename, { type: 'application/json' });
+
+            // Use Web Share API if available and supports files
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: 'Z2 Log Daten-Backup',
+                        text: 'Hier ist dein Backup der Z2 Log App.',
+                        files: [file],
+                    });
+                    console.log('Data shared successfully.');
+                } catch (error) {
+                    console.error('Sharing failed:', error);
+                    // Fallback to download if sharing fails
+                    downloadFile(json, backupFilename);
+                }
+            } else {
+                // Fallback to download for unsupported browsers
+                downloadFile(json, backupFilename);
+            }
+        }
+
+        /**
+         * Helper function to trigger a file download.
+         * @param {string} content The content to download.
+         * @param {string} filename The filename for the download.
+         */
+        function downloadFile(content, filename) {
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        /**
+         * Imports the state from a JSON file.
+         * @param {File} file The imported file.
+         */
+        function importData(file) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    if (await showConfirmDialog('Daten importieren?', 'Alle aktuellen Daten werden ersetzt. Möchtest du fortfahren?')) {
+                        state = importedState;
+                        handleDataChange(); // Central function for consistent update
+                    }
+                } catch (err) {
+                    // Show a modal instead of an alert
+                    const dlg = document.getElementById('dlgConfirm');
+                    document.getElementById('confirmTitle').textContent = 'Import fehlgeschlagen';
+                    document.getElementById('confirmText').textContent = 'Ungültige Datei. Bitte überprüfe das Format.';
+                    document.getElementById('confirmOk').style.display = 'none';
+                    document.getElementById('confirmCancel').textContent = 'Schließen';
+                    dlg.showModal();
+                    
+                    console.error('Import error:', err);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ========= Event Listeners and Initialization =========
+        /**
+         * Sets up all event listeners for the UI.
+         */
+        function setupEventListeners() {
+            const themeSelect = document.getElementById('themeSelect');
+            const userSelect = document.getElementById('userSelect');
+            const btnSaveSettings = document.getElementById('btnSaveSettings');
+            const btnNewUser = document.getElementById('btnNewUser');
+            const btnCreateUser = document.getElementById('btnCreateUser');
+            const newUserNameInput = document.getElementById('newUserName');
+            const btnQuickSession = document.getElementById('btnQuickSession');
+            const tbody = document.getElementById('tbodySessions');
+            const btnExport = document.getElementById('btnExport');
+            const btnImport = document.getElementById('btnImport');
+            const fileImport = document.getElementById('fileImport');
+            const quickLevelRange = document.getElementById('quickLevel');
+            const wattValueSpan = document.getElementById('wattValue');
+            const btnSaveSession = document.getElementById('btnSaveSession');
+            const bodyWeightInput = document.getElementById('bodyWeight');
+            const weeklyTargetInput = document.getElementById('weeklyTarget');
+
+            // Theme change
+            themeSelect.addEventListener('change', (e) => {
+                state.users[state.activeUserId].settings.theme = e.target.value;
+                document.documentElement.setAttribute('data-theme', e.target.value);
+                saveState();
+            });
+
+            // User change
+            userSelect.addEventListener('change', (e) => {
+                state.activeUserId = e.target.value;
+                handleDataChange();
+            });
+
+            // Save user settings
+            btnSaveSettings.addEventListener('click', () => {
+                const user = state.users[state.activeUserId];
+                user.settings.bodyWeight = parseFloat(bodyWeightInput.value);
+                user.settings.weeklyTarget = parseInt(weeklyTargetInput.value);
+                user.settings.quickLevel = parseInt(quickLevelRange.value);
+                user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
+                user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
+                saveState();
+                handleDataChange();
+            });
+
+            // Update Watt display on slider movement
+            quickLevelRange.addEventListener('input', (e) => {
+                const level = parseInt(e.target.value);
+                wattValueSpan.textContent = `${getWattValue(level)} W`;
+            });
+            
+            // New User dialog
+            btnNewUser.addEventListener('click', () => {
+                document.getElementById('dlgNewUser').showModal();
+            });
+
+            // Create user
+            btnCreateUser.addEventListener('click', () => {
+                const name = newUserNameInput.value.trim();
+                if (name) {
+                    const newUserId = uid();
+                    state.users[newUserId] = structuredClone(DEFAULT_STATE.users.default);
+                    state.users[newUserId].id = newUserId;
+                    state.users[newUserId].name = name;
+                    state.users[newUserId].createdAt = nowISO();
+                    state.activeUserId = newUserId;
+                    handleDataChange();
+                    document.getElementById('dlgNewUser').close();
+                }
+            });
+
+            // Quick-entry button
+            btnQuickSession.addEventListener('click', () => {
+                const user = state.users[state.activeUserId];
+                const session = {
+                    date: nowISO().substring(0, 10),
+                    watt: getWattValue(parseInt(user.settings.quickLevel)),
+                    hr: parseInt(user.settings.quickHr),
+                    duration: parseInt(user.settings.quickDuration),
+                    distance: null,
+                    calories: null,
+                    note: 'Schnelleingabe'
+                };
+                addSession(session);
+            });
+
+            // Sessions table (for delete and edit)
+            tbody.addEventListener('click', (e) => {
+                const target = e.target.closest('button');
+                if (!target) return;
+                const sessionId = target.dataset.id;
+                
+                if (target.classList.contains('btn-delete')) {
+                    deleteSession(sessionId);
+                } else if (target.classList.contains('btn-edit')) {
+                    const user = state.users[state.activeUserId];
+                    const session = user.sessions.find(s => s.id === sessionId);
+                    if (session) {
+                        openSessionModal(session);
+                    }
+                }
+            });
+
+            // Event listener for save from modal
+            btnSaveSession.addEventListener('click', saveSessionFromModal);
+
+            // Import/Export
+            btnExport.addEventListener('click', exportData);
+            btnImport.addEventListener('click', () => fileImport.click());
+            fileImport.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    importData(e.target.files[0]);
+                }
+            });
+        }
+
+        /**
+         * Renders all UI elements.
+         * @param {string} highlightId ID of the entry to highlight.
+         */
+        function renderAll(highlightId = null) {
+            renderUsers();
+            renderSettings();
+            renderSessions(highlightId);
+            calculateAndRenderKPIs();
+            renderRewards();
+        }
+
+        // ========= Application Initialization =========
+        window.addEventListener('load', () => {
+            deviceId = getDeviceId(); // Get or create the device ID on load
+            state = loadState();
+            setupEventListeners();
+            renderAll();
+        });
+    </script>
 </body>
 </html>
