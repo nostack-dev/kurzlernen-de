@@ -245,11 +245,43 @@
         </div>
     </dialog>
     
-    <!-- Bild-Viewer -->
-    <dialog id="dlgImage" class="modal">
-        <div class="modal-box p-2 max-w-2xl">
-            <img id="viewImg" class="w-full h-auto rounded-md" alt="Bild" />
-            <form method="dialog" class="mt-2"><button class="btn w-full">Schließen</button></form>
+    <!-- Modal für Session bearbeiten -->
+    <dialog id="dlgEditSession" class="modal">
+        <div class="modal-box w-11/12 max-w-lg p-6">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg mb-4">Session bearbeiten</h3>
+            <input type="hidden" id="editSessionId">
+            <!-- WICHTIGE ÄNDERUNG: Auf Mobilgeräten (standardmäßig) werden die Elemente gestapelt,
+                 auf größeren Bildschirmen (md) in zwei Spalten. -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label class="form-control">
+                    <div class="label"><span class="label-text">Datum</span></div>
+                    <input id="editSessionDate" type="date" class="input input-bordered w-full" />
+                </label>
+                <label class="form-control">
+                    <div class="label"><span class="label-text">Dauer (Min)</span></div>
+                    <input id="editSessionDuration" type="number" min="1" class="input input-bordered w-full" />
+                </label>
+                <label class="form-control">
+                    <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
+                    <input id="editSessionPulse" type="number" min="0" class="input input-bordered w-full" />
+                </label>
+                <label class="form-control">
+                    <div class="label"><span class="label-text">Watt</span></div>
+                    <input id="editSessionWatt" type="number" min="0" class="input input-bordered w-full" />
+                </label>
+                <div class="form-control md:col-span-2">
+                    <label class="form-control">
+                        <div class="label"><span class="label-text">Notizen</span></div>
+                        <textarea id="editSessionNotes" class="textarea textarea-bordered h-24"></textarea>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-action mt-6">
+                <button id="btnSaveEditSession" class="btn btn-primary w-full text-lg">Speichern</button>
+            </div>
         </div>
     </dialog>
 
@@ -288,9 +320,11 @@
         // - Der Kern der Anwendung mit Multi-User-Support, KPIs und Belohnungen wurde wiederhergestellt.
         // - Die Logik für Belohnungen wurde korrigiert: Belohnungen werden jetzt entfernt, wenn die Kriterien nicht mehr erfüllt sind.
         // - Das modale Bestätigungs-Pop-up für Belohnungen wurde durch eine nicht-modale, automatisch verschwindende Benachrichtigung ersetzt.
+        // - NEU: Hinzugefügte Edit-Funktion für Sessions mit einem einfachen, mobiltauglichen Modal-Dialog.
+        // - NEUE ÄNDERUNG: Das Bearbeitungs-Modal wurde für eine bessere Ansicht auf Mobilgeräten optimiert.
 
         // ========= Globale Variablen und Konstanten =========
-        const STORAGE_KEY = 'z2log_v9_fixed'; // Aktualisierter Version-Schlüssel
+        const STORAGE_KEY = 'z2log_v10_edit'; // Aktualisierter Version-Schlüssel
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2, 10);
         
@@ -453,9 +487,18 @@
                     user.metrics.streakCount = 0;
                 }
             } else {
-                user.metrics.streakCount = 1;
+                // Streak auf 1 setzen, wenn es der erste Eintrag ist
+                if (user.sessions.length > 0) {
+                    user.metrics.streakCount = 1;
+                } else {
+                    user.metrics.streakCount = 0;
+                }
             }
-            user.metrics.lastDay = today;
+            if (user.sessions.length > 0) {
+                 user.metrics.lastDay = user.sessions[0].date;
+            } else {
+                 user.metrics.lastDay = null;
+            }
             
             // XP und Level-Logik
             user.metrics.xp = user.sessions.reduce((sum, s) => sum + s.duration, 0);
@@ -474,6 +517,8 @@
             const user = getActiveUser();
             const newSession = { ...session, id: uid() };
             user.sessions.unshift(newSession);
+            // Sessions nach Datum sortieren, um den Streak korrekt zu berechnen
+            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
             updateMetrics(user);
             saveState();
             renderAll(newSession.id);
@@ -486,10 +531,31 @@
         function deleteSession(sessionId) {
             const user = getActiveUser();
             user.sessions = user.sessions.filter(s => s.id !== sessionId);
+            // Sessions nach Datum sortieren
+            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
             updateMetrics(user);
             saveState();
             renderAll();
         }
+
+        /**
+         * Bearbeitet eine bestehende Session.
+         * @param {string} sessionId Die ID der zu bearbeitenden Session.
+         * @param {object} updatedData Die aktualisierten Daten.
+         */
+        function editSession(sessionId, updatedData) {
+            const user = getActiveUser();
+            const sessionIndex = user.sessions.findIndex(s => s.id === sessionId);
+            if (sessionIndex !== -1) {
+                user.sessions[sessionIndex] = { ...user.sessions[sessionIndex], ...updatedData };
+                 // Sessions nach Datum sortieren
+                user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
+                updateMetrics(user);
+                saveState();
+                renderAll(sessionId);
+            }
+        }
+
 
         /** Löscht alle Daten aus dem Zustand und dem lokalen Speicher. */
         function wipeAllData() {
@@ -594,9 +660,14 @@
                     <td class="hide-xs">${kcal}</td>
                     <td><span class="row-note">${s.notes || '-'}</span></td>
                     <td>
-                        <button class="btn btn-ghost btn-xs btn-delete" data-id="${s.id}">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button class="btn btn-ghost btn-xs btn-edit" data-id="${s.id}">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button class="btn btn-ghost btn-xs btn-delete" data-id="${s.id}">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 `;
@@ -695,6 +766,25 @@
             container.appendChild(confetti);
             confetti.addEventListener('animationend', () => confetti.remove());
         }
+
+        /**
+         * Zeigt den Bearbeitungsdialog mit den Daten der ausgewählten Session.
+         * @param {string} sessionId Die ID der zu bearbeitenden Session.
+         */
+        function showEditDialog(sessionId) {
+            const user = getActiveUser();
+            const session = user.sessions.find(s => s.id === sessionId);
+            if (!session) return;
+            
+            document.getElementById('editSessionId').value = sessionId;
+            document.getElementById('editSessionDate').value = session.date;
+            document.getElementById('editSessionDuration').value = session.duration;
+            document.getElementById('editSessionPulse').value = session.pulse;
+            document.getElementById('editSessionWatt').value = session.watt;
+            document.getElementById('editSessionNotes').value = session.notes;
+
+            document.getElementById('dlgEditSession').showModal();
+        }
         
         // ========= Event Listener-Setup =========
         /**
@@ -772,6 +862,7 @@
             const tbodySessions = document.getElementById('tbodySessions');
             if (tbodySessions) {
                 tbodySessions.addEventListener('click', async (e) => {
+                    // Löschen-Button
                     if (e.target.closest('.btn-delete')) {
                         const sessionId = e.target.closest('.btn-delete').dataset.id;
                         const confirmed = await showConfirmDialog('Session löschen?', 'Bist du sicher, dass du diese Session löschen möchtest?');
@@ -779,6 +870,28 @@
                             deleteSession(sessionId);
                         }
                     }
+                    // Bearbeiten-Button
+                    if (e.target.closest('.btn-edit')) {
+                        const sessionId = e.target.closest('.btn-edit').dataset.id;
+                        showEditDialog(sessionId);
+                    }
+                });
+            }
+
+            // Speichern-Button im Edit-Modal
+            const btnSaveEditSession = document.getElementById('btnSaveEditSession');
+            if (btnSaveEditSession) {
+                btnSaveEditSession.addEventListener('click', () => {
+                    const sessionId = document.getElementById('editSessionId').value;
+                    const updatedData = {
+                        date: document.getElementById('editSessionDate').value,
+                        duration: parseInt(document.getElementById('editSessionDuration').value) || 0,
+                        pulse: parseInt(document.getElementById('editSessionPulse').value) || 0,
+                        watt: parseInt(document.getElementById('editSessionWatt').value) || 0,
+                        notes: document.getElementById('editSessionNotes').value,
+                    };
+                    editSession(sessionId, updatedData);
+                    document.getElementById('dlgEditSession').close();
                 });
             }
 
