@@ -18,6 +18,9 @@
   .thumb { width: 6rem; height: 6rem; object-fit: cover; border-radius: 0.75rem; border: 1px solid oklch(var(--n) / 0.1); }
   .wrap { word-break: break-word; white-space: pre-wrap; }
   .btn-active-tone { @apply !bg-primary !text-primary-content; }
+  .badge-style {
+    @apply transition-transform transform hover:scale-105 hover:shadow-xl;
+  }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen pb-16">
@@ -27,7 +30,7 @@
   <div class="flex-1">
     <div class="flex items-center space-x-2">
       <span class="text-2xl font-extrabold text-primary">Z2 Log</span>
-      <span class="badge badge-lg font-semibold badge-outline text-xs sm:text-sm">V4.3</span>
+      <span class="badge badge-lg font-semibold badge-outline text-xs sm:text-sm">V4.4</span>
     </div>
   </div>
   <div class="flex-none gap-2">
@@ -206,7 +209,8 @@
     </div>
     <div class="mt-8">
       <h3 class="text-lg font-bold mb-2">Deine Achievements</h3>
-      <div id="badges" class="flex flex-wrap gap-2"></div>
+      <!-- This is the container for the dynamically rendered badges -->
+      <div id="badges" class="flex flex-wrap justify-center gap-4 max-w-4xl mx-auto"></div>
     </div>
   </section>
 </div>
@@ -403,15 +407,15 @@ function parseOCRText(text){
 
 /* ====== Badges rendern ====== */
 const BADGE_DEF = [
-  { id:'first', name:'Erster Schritt', cond:(s)=>s.total>=1, desc:'Erster Eintrag gespeichert.' },
-  { id:'streak3', name:'Kleiner Lauf', cond:(s)=>s.streak>=3, desc:'3 Tage am Stück.' },
-  { id:'streak7', name:'Wochen-Feuer', cond:(s)=>s.streak>=7, desc:'7 Tage am Stück.' },
-  { id:'streak14', name:'Vierzehn-Tage-Flamme', cond:(s)=>s.streak>=14, desc:'14 Tage am Stück.' },
-  { id:'streak30', name:'Eiserne Gewohnheit', cond:(s)=>s.streak>=30, desc:'30 Tage am Stück.' },
-  { id:'hrPro', name:'Puls-Scharfschütze', cond:(s)=>s.hrHits>=10, desc:'10× im Sweetspot (113–117 bpm).' },
-  { id:'pb', name:'PB-Jäger', cond:(s)=>s.pbCount>=3, desc:'3 persönliche Bestleistungen.' },
-  { id:'vol140', name:'Woche 140', cond:(s)=>s.weekMin>=140, desc:'≥140 Minuten in 7 Tagen.' },
-  { id:'vol210', name:'Woche 210', cond:(s)=>s.weekMin>=210, desc:'≥210 Minuten in 7 Tagen.' }
+  { id:'first', name:'Erster Schritt', cond:(s)=>s.total>=1, desc:'Erster Eintrag gespeichert.', icon:'⭐' },
+  { id:'streak3', name:'Kleiner Lauf', cond:(s)=>s.streak>=3, desc:'3 Tage am Stück.', icon:'🏃' },
+  { id:'streak7', name:'Wochen-Feuer', cond:(s)=>s.streak>=7, desc:'7 Tage am Stück.', icon:'🔥' },
+  { id:'streak14', name:'Vierzehn-Tage-Flamme', cond:(s)=>s.streak>=14, desc:'14 Tage am Stück.', icon:'⚡' },
+  { id:'streak30', name:'Eiserne Gewohnheit', cond:(s)=>s.streak>=30, desc:'30 Tage am Stück.', icon:'⚙️' },
+  { id:'hrPro', name:'Puls-Scharfschütze', cond:(s)=>s.hrHits>=10, desc:'10× im Sweetspot (113–117 bpm).', icon:'🎯' },
+  { id:'pb', name:'PB-Jäger', cond:(s)=>s.pbCount>=3, desc:'3 persönliche Bestleistungen.', icon:'🥇' },
+  { id:'vol140', name:'Woche 140', cond:(s)=>s.weekMin>=140, desc:'≥140 Minuten in 7 Tagen.', icon:'⏳' },
+  { id:'vol210', name:'Woche 210', cond:(s)=>s.weekMin>=210, desc:'≥210 Minuten in 7 Tagen.', icon:'🚀' }
 ];
 
 function renderBadges(stats){
@@ -422,14 +426,17 @@ function renderBadges(stats){
   for(const b of BADGE_DEF){
     const isNowUnlocked = currentlyUnlocked.has(b.id);
     const node = document.createElement('div');
-    node.className = `badge ${isNowUnlocked?'badge-primary':'badge-ghost'} gap-1 cursor-pointer`;
-    node.textContent = isNowUnlocked ? `🏅 ${b.name}` : `🔒 ${b.name}`;
+    node.className = `
+      ${isNowUnlocked?'badge-primary text-primary-content shadow-lg':'badge-ghost text-base-content/60'} 
+      badge badge-lg px-4 py-2 rounded-full font-semibold transition-transform transform hover:scale-105 hover:shadow-xl
+    `;
+    node.textContent = isNowUnlocked ? `${b.icon} ${b.name}` : `🔒 ${b.name}`;
     node.title = b.desc;
     el.badges.appendChild(node);
 
     // Auf neu freigeschaltete Badges prüfen, um das Modal anzuzeigen
     if (isNowUnlocked && !previousUnlocked.has(b.id)) {
-      el.badgeModalTxt.textContent = `🎉 Neuer Badge! 🏅 ${b.name} — ${b.desc}`;
+      el.badgeModalTxt.textContent = `🎉 Neuer Badge! ${b.icon} ${b.name} — ${b.desc}`;
       el.badgeModal.showModal?.();
       confettiBurst();
     }
@@ -495,7 +502,7 @@ function applyStats(){
   const msgIdx = pct>=100?4 : pct>=75?3 : pct>=50?2 : pct>=25?1 : 0;
   el.wkMsg.textContent = tone.progress[msgIdx];
 
-  el.streak.textContent = `${stats.streak}🔥`;
+  el.streak.textContent = `${stats.streak}�`;
   const next = stats.streak<3?3 : stats.streak<7?7 : stats.streak<14?14 : stats.streak<30?30 : '∞';
   el.nextBadge.textContent = next==='∞' ? 'Alle Streak-Badges freigeschaltet' : `Nächster: ${next} 🔥`;
 
@@ -683,3 +690,4 @@ el.btnOcr.disabled = true;
 </script>
 </body>
 </html>
+�
