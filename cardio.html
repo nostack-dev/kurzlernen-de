@@ -104,7 +104,10 @@
             <div class="flex flex-wrap items-center gap-4">
                 <label class="form-control w-full sm:w-auto">
                     <div class="label"><span class="label-text">Watt-Stufe (Default)</span></div>
-                    <input id="quickLevel" type="number" min="1" max="10" class="input input-bordered input-sm w-full sm:w-20" />
+                    <div class="flex items-center gap-2">
+                        <input id="quickLevel" type="range" min="1" max="8" value="1" step="1" class="range range-xs" />
+                        <span id="wattValue" class="text-sm font-bold w-12 text-center">0 W</span>
+                    </div>
                 </label>
                 <label class="form-control w-full sm:w-auto">
                     <div class="label"><span class="label-text">Dauer (Min)</span></div>
@@ -270,8 +273,11 @@
         // Interaktionen mit der Benutzeroberfläche.
         //
         // Wichtigste Änderung in dieser Version:
-        // - Der "Alle löschen"-Button setzt jetzt nur die Sessions zurück.
-        // - Benutzer, Einstellungen und Belohnungen bleiben erhalten.
+        // - Die Logik zur Aktualisierung der Belohnungen wurde komplett überarbeitet.
+        // - Belohnungen werden jetzt nach jeder Sessions-Änderung (Hinzufügen/Löschen) neu berechnet,
+        //   um sicherzustellen, dass der Status immer korrekt synchronisiert ist.
+        // - Der "Alle Sessions löschen"-Button setzt nun auch die Belohnungen zurück.
+        // - Die Watt-Eingabe wurde durch einen Schieberegler mit einer Echtzeit-Anzeige ersetzt.
 
         // ========= Globale Variablen und Konstanten =========
         const STORAGE_KEY = 'z2log_v8_rebuilt'; // Aktualisierter Version-Schlüssel
@@ -284,9 +290,9 @@
                 default: {
                     id: 'default', name: 'Christian', createdAt: nowISO(),
                     settings: { 
-                        weeklyTarget: 0, theme: 'winter', 
-                        bodyWeight: 75,
-                        quickLevel: 3, quickDuration: 20, quickHr: 115 
+                        weeklyTarget: 0, theme: 'dracula', 
+                        bodyWeight: 100,
+                        quickLevel: 1, quickDuration: 20, quickHr: 115 
                     }, 
                     metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
                     sessions: [],
@@ -417,7 +423,7 @@
         // Belohnungen (Rewards)
         const REWARDS = [
             { id: 'first_session', title: 'Erster Eintrag', desc: 'Absolviere deine erste Trainingseinheit.', icon: 'fas fa-medal', condition: (user) => user.metrics.totalEntries >= 1 },
-            { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (user) => user.sessions.filter(s => isSameWeek(new Date(s.date), new Date())).reduce((sum, s) => sum + s.duration, 0) >= 75 },
+            { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (user) => user.sessions.filter(s => isSameWeek(new Date(s.date), new Date())).reduce((sum, s) => sum + s.duration, 0) >= (user.settings.weeklyTarget || 75) },
             { id: '10_sessions', title: 'Zehn Sessions', desc: 'Absolviere 10 Trainingseinheiten.', icon: 'fas fa-fire-extinguisher', condition: (user) => user.metrics.totalEntries >= 10 },
             { id: 'first_streak', title: 'Erster Streak', desc: 'Trainiere an zwei aufeinanderfolgenden Tagen.', icon: 'fas fa-bolt', condition: (user) => user.metrics.streakCount >= 2 },
             { id: 'level_5', title: 'Level 5', desc: 'Erreiche Level 5.', icon: 'fas fa-star', condition: (user) => user.metrics.level >= 5 },
@@ -425,19 +431,41 @@
             { id: '100_entries', title: 'Hundert Sessions', desc: 'Absolviere 100 Trainingseinheiten.', icon: 'fas fa-dumbbell', condition: (user) => user.metrics.totalEntries >= 100 },
             { id: 'max_level', title: 'Max Level!', desc: 'Erreiche Level 10.', icon: 'fas fa-gem', condition: (user) => user.metrics.level >= 10 },
         ];
+        
+        // Konstanten für Watt-Berechnung
+        const WATT_BASE = 50;
+        const WATT_STEP = 25;
 
         /**
-         * Überprüft, ob Belohnungen freigeschaltet wurden und zeigt sie an.
+         * Berechnet den Wattwert basierend auf der Stufe.
+         * @param {number} level Die Stufe von 1 bis 8.
+         * @returns {number} Der entsprechende Wattwert.
          */
-        function checkAndGrantRewards() {
+        function getWattValue(level) {
+            return WATT_BASE + (level - 1) * WATT_STEP;
+        }
+
+        /**
+         * Überprüft, welche Belohnungen freigeschaltet sind und aktualisiert den Zustand.
+         * Zeigt nur dann den Erfolgsdialog an, wenn eine Belohnung neu freigeschaltet wurde.
+         */
+        function updateRewards() {
             const user = state.users[state.activeUserId];
+            const oldRewards = new Set(user.rewards);
+            const newRewards = [];
+
             REWARDS.forEach(reward => {
-                if (reward.condition(user) && !user.rewards.includes(reward.id)) {
-                    user.rewards.push(reward.id);
-                    saveState();
-                    showSuccessDialog(reward.title, reward.desc, reward.icon);
+                if (reward.condition(user)) {
+                    newRewards.push(reward.id);
+                    // Prüfen, ob die Belohnung neu freigeschaltet wurde
+                    if (!oldRewards.has(reward.id)) {
+                        showSuccessDialog(reward.title, reward.desc, reward.icon);
+                    }
                 }
             });
+
+            user.rewards = newRewards;
+            saveState();
             renderRewards();
         }
 
@@ -493,7 +521,7 @@
             user.metrics.lastDay = today;
 
             saveState();
-            checkAndGrantRewards();
+            updateRewards();
             return sessionId;
         }
 
@@ -510,7 +538,7 @@
                 // Re-calculate all metrics from scratch to ensure consistency
                 calculateAndRenderKPIs();
                 renderSessions();
-                checkAndGrantRewards();
+                updateRewards();
                 saveState();
             }
         }
@@ -538,6 +566,9 @@
             document.getElementById('quickDuration').value = user.settings.quickDuration;
             document.getElementById('quickHr').value = user.settings.quickHr;
             document.documentElement.setAttribute('data-theme', user.settings.theme);
+            
+            // Wattwert bei der Schnell-Eingabe aktualisieren
+            document.getElementById('wattValue').textContent = `${getWattValue(user.settings.quickLevel)} W`;
         }
 
         /**
@@ -666,7 +697,7 @@
         }
 
         /**
-         * Löscht nur die Sessions des aktiven Benutzers.
+         * Löscht nur die Sessions des aktiven Benutzers und setzt Metriken sowie Belohnungen zurück.
          */
         async function wipeAllData() {
             if (await showConfirmDialog('Alle Sessions löschen?', 'Dieser Vorgang kann nicht rückgängig gemacht werden. Bist du sicher?')) {
@@ -677,11 +708,11 @@
                 user.metrics.xp = 0;
                 user.metrics.streakCount = 0;
                 user.metrics.lastDay = null;
-                user.rewards = [];
+                user.rewards = []; // Setzt auch die Belohnungen zurück
 
                 saveState();
                 renderAll();
-                alert('Alle Sessions wurden gelöscht.');
+                alert('Alle Sessions und Belohnungen wurden gelöscht.');
             }
         }
 
@@ -702,6 +733,8 @@
             const btnImport = document.getElementById('btnImport');
             const fileImport = document.getElementById('fileImport');
             const btnWipeAll = document.getElementById('btnWipeAll');
+            const quickLevelRange = document.getElementById('quickLevel');
+            const wattValueSpan = document.getElementById('wattValue');
 
             // Theme-Wechsel
             themeSelect.addEventListener('change', (e) => {
@@ -722,12 +755,18 @@
                 const user = state.users[state.activeUserId];
                 user.settings.bodyWeight = document.getElementById('bodyWeight').value;
                 user.settings.weeklyTarget = document.getElementById('weeklyTarget').value;
-                user.settings.quickLevel = document.getElementById('quickLevel').value;
-                user.settings.quickDuration = document.getElementById('quickDuration').value;
-                user.settings.quickHr = document.getElementById('quickHr').value;
+                user.settings.quickLevel = parseInt(quickLevelRange.value);
+                user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
+                user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
                 saveState();
                 calculateAndRenderKPIs();
                 alert('Einstellungen gespeichert!');
+            });
+
+            // Watt-Anzeige bei Schieberegler-Bewegung aktualisieren
+            quickLevelRange.addEventListener('input', (e) => {
+                const level = parseInt(e.target.value);
+                wattValueSpan.textContent = `${getWattValue(level)} W`;
             });
             
             // Neuer Benutzer-Dialog
@@ -758,7 +797,7 @@
             btnQuickSession.addEventListener('click', () => {
                 const user = state.users[state.activeUserId];
                 const session = {
-                    watt: parseInt(user.settings.quickLevel) * 20,
+                    watt: getWattValue(parseInt(user.settings.quickLevel)),
                     hr: parseInt(user.settings.quickHr),
                     duration: parseInt(user.settings.quickDuration),
                     distance: null,
