@@ -11,13 +11,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2gN1f2zI+w140+9A2s251n5+1i+9C8c/8f5e71A7p4/C65F87c4A4f11g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
-        /* Grundstile für ein sauberes, mobil-orientiertes Design */
+        /* Base styles for a clean, mobile-first design */
         .container { max-width: 980px; }
         .tap-big button, .tap-big .btn { min-height: 3rem; }
         .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
         .row-note { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        /* Animationen für Gamification-Feedback */
+        /* Animations for gamification feedback */
         @keyframes pop {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -25,7 +25,7 @@
         }
         .pop-animation { animation: pop 0.3s ease-in-out; }
         
-        /* Animation für den neuen Tabelleneintrag */
+        /* Animation for new table entry */
         @keyframes highlight-fade {
             0% { background-color: oklch(var(--a)); }
             50% { background-color: oklch(var(--a) / 0.5); }
@@ -35,7 +35,7 @@
             animation: highlight-fade 2s ease-out forwards;
         }
 
-        /* Stile für den Konfetti-Effekt (bleibt für die Erfolgs-Dialoge) */
+        /* Styles for confetti effect (kept for success dialogs) */
         #confetti-container, #confetti-container-success {
             position: absolute;
             top: 0; left: 0;
@@ -58,15 +58,15 @@
             100% { transform: translate(0, 100vh) rotate(720deg); opacity: 0; }
         }
         
-        /* Verbesserungen für die mobile Ansicht und Tabelle */
+        /* Mobile view and table improvements */
         @media (max-width: 420px){
             .hide-xs { display: none; }
-            table th, table td { white-space: normal; } /* Wichtige Änderung */
+            table th, table td { white-space: normal; } /* Important change to allow text wrapping */
             .stat { margin-bottom: 0.5rem; }
             .stats { flex-wrap: wrap; }
         }
         
-        /* Weitere Anpassungen für die Tabelle */
+        /* Further adjustments for the table for better responsiveness */
         .sessions-table-container {
             width: 100%;
             overflow-x: auto;
@@ -74,14 +74,14 @@
         }
         .sessions-table-container table {
             width: 100%;
-            min-width: 600px; /* Optional, falls die Tabelle zu schmal wird */
+            min-width: 600px; /* Optional, but helps prevent the table from becoming too narrow */
         }
     </style>
 </head>
 <body class="bg-base-100">
     <div class="container mx-auto p-4 md:p-6">
 
-        <!-- Header / Theme / Benutzer -->
+        <!-- Header / Theme / User -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
             <div>
                 <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
@@ -96,6 +96,7 @@
             </div>
         </div>
 
+        <!-- User Settings -->
         <div class="flex flex-wrap items-center gap-2 mb-3">
             <label class="label text-sm whitespace-nowrap">Benutzer</label>
             <select id="userSelect" class="select select-bordered select-sm"></select>
@@ -103,13 +104,13 @@
             <div class="ml-auto flex flex-wrap items-center gap-2">
                 <label class="label text-sm whitespace-nowrap">Körpergewicht (kg)</label>
                 <input id="bodyWeight" type="number" min="0" class="input input-bordered input-sm w-24" placeholder="z.B. 75" />
-                <label class="label text-sm">Wochenziel (Min)</label>
+                <label class="label text-sm whitespace-nowrap">Wochenziel (Min)</label>
                 <input id="weeklyTarget" type="number" min="0" class="input input-bordered input-sm w-24" />
                 <button id="btnSaveSettings" class="btn btn-sm">Speichern</button>
             </div>
         </div>
         
-        <!-- NEUER ABSCHNITT: Schnell-Eingabe-Einstellungen -->
+        <!-- NEW SECTION: Quick-entry settings -->
         <div class="mt-6 mb-4 p-4 bg-base-200 rounded-lg">
             <h2 class="text-lg font-semibold mb-2">Schnell-Eingabe-Einstellungen</h2>
             <div class="flex flex-wrap items-center gap-4">
@@ -149,18 +150,18 @@
             </div>
         </div>
 
-        <!-- Belohnungen Section -->
+        <!-- Rewards Section -->
         <h2 class="text-lg font-semibold mt-6 mb-2">Deine Belohnungen</h2>
         <div id="rewardsGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 mb-6">
-            <!-- Belohnungen werden hier durch JS gerendert -->
+            <!-- Rewards will be rendered here by JS -->
         </div>
 
-        <!-- CTA: Schnell-Eingabe öffnen -->
+        <!-- CTA: Open quick-entry -->
         <div class="tap-big mb-4">
             <button id="btnQuickSession" class="btn btn-primary w-full text-lg">✨ Training eintragen (schnell)</button>
         </div>
 
-        <!-- Daten-Tools -->
+        <!-- Data Tools -->
         <div class="flex items-center justify-between mb-2">
             <h2 class="text-lg font-semibold">Deine Sessions</h2>
             <div class="join">
@@ -170,7 +171,7 @@
             </div>
         </div>
 
-        <!-- Tabelle -->
+        <!-- Table -->
         <div class="overflow-x-auto sessions-table-container">
             <table class="table w-full table-zebra">
                 <thead>
@@ -201,31 +202,31 @@
             
             <div class="form-control mb-4">
                 <label class="label"><span class="label-text">Datum</span></label>
-                <input id="sessionDate" type="date" class="input input-bordered" required />
+                <input id="sessionDate" type="date" class="input input-bordered w-full" required />
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="form-control">
                     <label class="label"><span class="label-text">Dauer (Minuten)</span></label>
-                    <input id="sessionDuration" type="number" min="1" class="input input-bordered" required />
+                    <input id="sessionDuration" type="number" min="1" class="input input-bordered w-full" required />
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text">Durchschnittlicher Puls (bpm)</span></label>
-                    <input id="sessionHr" type="number" min="0" class="input input-bordered" />
+                    <input id="sessionHr" type="number" min="0" class="input input-bordered w-full" />
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text">Durchschnittliche Watt</span></label>
-                    <input id="sessionWatt" type="number" min="0" class="input input-bordered" />
+                    <input id="sessionWatt" type="number" min="0" class="input input-bordered w-full" />
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text">Distanz (km)</span></label>
-                    <input id="sessionDistance" type="number" step="0.1" class="input input-bordered" />
+                    <input id="sessionDistance" type="number" step="0.1" class="input input-bordered w-full" />
                 </div>
             </div>
             
             <div class="form-control mt-4">
                 <label class="label"><span class="label-text">Notizen</span></label>
-                <textarea id="sessionNote" class="textarea textarea-bordered" placeholder="Notizen..."></textarea>
+                <textarea id="sessionNote" class="textarea textarea-bordered w-full" placeholder="Notizen..."></textarea>
             </div>
 
             <div class="modal-action mt-6">
@@ -234,7 +235,7 @@
         </div>
     </dialog>
 
-    <!-- Neues Benutzer-Modal -->
+    <!-- New User Modal -->
     <dialog id="dlgNewUser" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
@@ -249,7 +250,7 @@
         </div>
     </dialog>
     
-    <!-- Bestätigungsdialog -->
+    <!-- Confirmation dialog -->
     <dialog id="dlgConfirm" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg" id="confirmTitle"></h3>
@@ -261,7 +262,7 @@
         </div>
     </dialog>
 
-    <!-- Erfolgs-/Erreichungs-Dialog -->
+    <!-- Success/Achievement Dialog -->
     <dialog id="dlgSuccess" class="modal">
         <div id="confetti-container-success"></div>
         <div class="modal-box text-center relative z-10">
@@ -276,13 +277,11 @@
 
     <script type="module">
         // Christian Heinrich Hohlfeld, Konstanz Germany, 05.04.1983
-        // Dieses Skript wurde überarbeitet, um den Export großer Datenmengen zu ermöglichen.
-        // Der direkte E-Mail-Export per "mailto:"-Link wurde entfernt, da er bei 
-        // großen Datensätzen aufgrund der URL-Längenbegrenzung nicht zuverlässig ist.
-        // Die "Exportieren"-Funktion speichert nun zuverlässig eine JSON-Datei,
-        // die dann manuell an E-Mails angehängt werden kann.
+        // This script has been updated to fix responsiveness on small screens.
+        // The table layout has been improved, and key UI elements are now more
+        // fluid and adapt to different viewport sizes.
 
-        // ========= Globale Variablen und Konstanten =========
+        // ========= Global Variables and Constants =========
         const STORAGE_KEY = 'z2log_v9_rebuilt_edited'; 
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2, 10);
@@ -304,22 +303,22 @@
             }
         };
 
-        // Zustand der Anwendung. Wird beim Start geladen und bei Änderungen gespeichert.
+        // Application state. Loaded on start and saved on changes.
         let state;
-        let sessionBeingEdited = null; // Speichert die ID der Session, die gerade bearbeitet wird
+        let sessionBeingEdited = null; // Stores the ID of the session being edited
 
-        // ========= Persistenz =========
+        // ========= Persistence =========
         /**
-         * Lädt den Zustand aus dem Local Storage.
-         * Stellt sicher, dass die Datenstruktur intakt ist.
-         * @returns {object} Der geladene oder der Standardzustand.
+         * Loads the state from local storage.
+         * Ensures the data structure is intact.
+         * @returns {object} The loaded or default state.
          */
         function loadState() {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 let loadedState = raw ? JSON.parse(raw) : structuredClone(DEFAULT_STATE);
                 
-                // Sicherstellen, dass die grundlegenden Strukturen existieren
+                // Ensure the basic structures exist
                 if (!loadedState.users || Object.keys(loadedState.users).length === 0) {
                     loadedState.users = structuredClone(DEFAULT_STATE.users);
                 }
@@ -327,7 +326,7 @@
                     loadedState.activeUserId = Object.keys(loadedState.users)[0];
                 }
 
-                // Sicherstellen, dass die neuen Standardwerte für jeden Benutzer vorhanden sind
+                // Ensure new default values are present for each user
                 for (const userId in loadedState.users) {
                     if (!loadedState.users[userId].rewards) { loadedState.users[userId].rewards = []; }
                     const defaultSettings = DEFAULT_STATE.users.default.settings;
@@ -340,24 +339,24 @@
                 
                 return loadedState;
             } catch (e) {
-                console.error("Fehler beim Laden des Zustands:", e);
+                console.error("Error loading state:", e);
                 return structuredClone(DEFAULT_STATE);
             }
         }
 
         /**
-         * Speichert den aktuellen Zustand im Local Storage.
+         * Saves the current state to local storage.
          */
         function saveState() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
 
-        // ========= UI-Hilfsfunktionen =========
+        // ========= UI Helper Functions =========
         /**
-         * Zeigt ein benutzerdefiniertes Bestätigungs-Dialogfeld an.
-         * @param {string} title Der Titel des Dialogs.
-         * @param {string} text Der Text des Dialogs.
-         * @returns {Promise<boolean>} Resolves mit true bei Bestätigung, false bei Abbruch.
+         * Displays a custom confirmation dialog.
+         * @param {string} title The dialog title.
+         * @param {string} text The dialog text.
+         * @returns {Promise<boolean>} Resolves with true on confirmation, false on cancel.
          */
         function showConfirmDialog(title, text) {
             return new Promise(resolve => {
@@ -388,10 +387,10 @@
         }
 
         /**
-         * Zeigt ein benutzerdefiniertes Erfolgs-Dialogfeld für Errungenschaften an.
-         * @param {string} title Der Titel des Dialogs.
-         * @param {string} text Der Text des Dialogs.
-         * @param {string} iconClass Die Font Awesome CSS-Klasse für das Icon.
+         * Displays a custom success dialog for achievements.
+         * @param {string} title The dialog title.
+         * @param {string} text The dialog text.
+         * @param {string} iconClass The Font Awesome CSS class for the icon.
          */
         function showSuccessDialog(title, text, iconClass) {
             const dlg = document.getElementById('dlgSuccess');
@@ -400,15 +399,15 @@
             const icon = document.getElementById('successIcon');
             icon.className = `text-6xl text-primary mb-6 animate-pulse ${iconClass}`;
             
-            // Konfetti für Errungenschaften starten
+            // Start confetti for achievements
             for(let i = 0; i < 50; i++) setTimeout(() => createConfetti('confetti-container-success'), i * 20);
 
             dlg.showModal();
         }
 
         /**
-         * Erstellt einen Konfetti-Partikel.
-         * @param {string} containerId ID des Konfetti-Containers.
+         * Creates a confetti particle.
+         * @param {string} containerId ID of the confetti container.
          */
         function createConfetti(containerId) {
             const container = document.getElementById(containerId);
@@ -423,9 +422,9 @@
             confetti.addEventListener('animationend', () => confetti.remove());
         }
 
-        // ========= Gamification & Logik =========
+        // ========= Gamification & Logic =========
 
-        // Belohnungen (Rewards)
+        // Rewards
         const REWARDS = [
             { id: 'first_session', title: 'Erster Eintrag', desc: 'Absolviere deine erste Trainingseinheit.', icon: 'fas fa-medal', condition: (user) => user.metrics.totalEntries >= 1 },
             { id: 'weekly_target_hit', title: 'Wochenziel', desc: 'Erreiche dein Wochenziel von 75 Minuten.', icon: 'fas fa-trophy', condition: (user) => user.sessions.filter(s => isSameWeek(new Date(s.date), new Date())).reduce((sum, s) => sum + s.duration, 0) >= (user.settings.weeklyTarget || 75) },
@@ -437,58 +436,58 @@
             { id: 'max_level', title: 'Max Level!', desc: 'Erreiche Level 10.', icon: 'fas fa-gem', condition: (user) => user.metrics.level >= 10 },
         ];
         
-        // Konstanten für Watt-Berechnung
+        // Constants for Watt calculation
         const WATT_BASE = 50;
         const WATT_STEP = 25;
 
         /**
-         * Berechnet den Wattwert basierend auf der Stufe.
-         * @param {number} level Die Stufe von 1 bis 8.
-         * @returns {number} Der entsprechende Wattwert.
+         * Calculates the Watt value based on the level.
+         * @param {number} level The level from 1 to 8.
+         * @returns {number} The corresponding Watt value.
          */
         function getWattValue(level) {
             return WATT_BASE + (level - 1) * WATT_STEP;
         }
 
         /**
-         * Schätzt die verbrannten Kalorien basierend auf den Session-Daten.
-         * Formel basiert auf MET-Werten, Puls und Körpergewicht.
-         * @param {object} session Die Session-Daten.
-         * @param {number} bodyWeight Körpergewicht in kg.
-         * @returns {number} Die geschätzten Kalorien.
+         * Estimates calories burned based on session data.
+         * Formula based on MET values, heart rate, and body weight.
+         * @param {object} session The session data.
+         * @param {number} bodyWeight Body weight in kg.
+         * @returns {number} The estimated calories.
          */
         function calculateCalories(session, bodyWeight) {
             if (!session.duration || !bodyWeight) return 0;
             
             let met;
             if (session.watt) {
-                // Näherungsweise MET-Werte für stationäres Fahrradfahren basierend auf Watt
+                // Approximate MET values for stationary cycling based on Watt
                 if (session.watt < 50) met = 3.5;
                 else if (session.watt < 100) met = 5.8;
                 else if (session.watt < 160) met = 7.0;
                 else met = 8.5;
             } else if (session.hr) {
-                // Näherungsweise MET-Werte basierend auf Puls (Anstrengung)
+                // Approximate MET values based on heart rate (effort)
                 if (session.hr < 100) met = 3.0;
                 else if (session.hr < 130) met = 5.0;
                 else if (session.hr < 150) met = 7.0;
                 else if (session.hr < 170) met = 8.5;
                 else met = 10.0;
             } else {
-                met = 5.0; // Standard MET-Wert, falls keine Daten vorhanden
+                met = 5.0; // Default MET value if no data is available
             }
 
-            // Formel: MET * 3.5 * Körpergewicht (kg) / 200 * Dauer (Minuten)
+            // Formula: MET * 3.5 * bodyWeight (kg) / 200 * duration (minutes)
             return (met * 3.5 * bodyWeight / 200) * session.duration;
         }
 
         /**
-         * Berechnet die XP basierend auf der Session.
-         * @param {object} session Die Session-Daten.
-         * @returns {number} Die berechneten XP.
+         * Calculates XP based on the session.
+         * @param {object} session The session data.
+         * @returns {number} The calculated XP.
          */
         function calculateXp(session) {
-            // Beispiel: XP = Minuten + (Watt * 0.5) + (Puls > 140 ? 10 : 0) + (Distanz * 2)
+            // Example: XP = minutes + (Watt * 0.5) + (HR > 140 ? 10 : 0) + (Distance * 2)
             let xp = session.duration;
             if (session.watt) xp += session.watt * 0.5;
             if (session.hr > 140) xp += 10;
@@ -497,25 +496,25 @@
         }
 
         /**
-         * Zentralisierte Funktion, die den gesamten Zustand neu berechnet
-         * und die UI aktualisiert. Dies stellt sicher, dass alle Daten konsistent sind.
-         * @param {string | null} highlightId Die ID des Eintrags, der hervorgehoben werden soll.
+         * Centralized function that recalculates the entire state
+         * and updates the UI. This ensures all data is consistent.
+         * @param {string | null} highlightId The ID of the entry to highlight.
          */
         function handleDataChange(highlightId = null) {
             const user = state.users[state.activeUserId];
             
-            // Sessions mit Kalorien anreichern, bevor Metriken berechnet werden
+            // Enrich sessions with calories before metrics are calculated
             user.sessions.forEach(session => {
                 session.calories = calculateCalories(session, user.settings.bodyWeight);
             });
 
-            // 1. Metriken neu berechnen
+            // 1. Recalculate metrics
             let totalEntries = user.sessions.length;
             let totalXp = 0;
             let streakCount = 0;
             let lastDay = null;
 
-            // Sessions nach Datum sortieren, um Streak korrekt zu berechnen
+            // Sort sessions by date to calculate streak correctly
             const sortedSessions = [...user.sessions].sort((a, b) => new Date(a.date) - new Date(b.date));
             sortedSessions.forEach(session => {
                 totalXp += calculateXp(session);
@@ -525,11 +524,11 @@
                 } else {
                     const yesterday = new Date(new Date(lastDay).setDate(new Date(lastDay).getDate() + 1)).toDateString();
                     if (sessionDate === lastDay) {
-                        // Eintrag am selben Tag, Streak bleibt
+                        // Entry on the same day, streak remains
                     } else if (sessionDate === yesterday) {
                         streakCount++;
                     } else {
-                        // Tag übersprungen, Streak zurücksetzen
+                        // Day skipped, reset streak
                         streakCount = 1;
                     }
                 }
@@ -542,13 +541,13 @@
             user.metrics.streakCount = streakCount;
             user.metrics.lastDay = lastDay;
             
-            // 2. Belohnungen neu bewerten
+            // 2. Re-evaluate rewards
             const oldRewards = new Set(user.rewards);
             const newRewards = [];
             REWARDS.forEach(reward => {
                 if (reward.condition(user)) {
                     newRewards.push(reward.id);
-                    // Zeige Erfolgsdialog nur für neu freigeschaltete Belohnungen
+                    // Show success dialog only for newly unlocked rewards
                     if (!oldRewards.has(reward.id)) {
                         showSuccessDialog(reward.title, reward.desc, reward.icon);
                     }
@@ -556,16 +555,16 @@
             });
             user.rewards = newRewards;
             
-            // 3. Zustand speichern und UI rendern
-            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date)); // Neueste oben
+            // 3. Save state and render UI
+            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date)); // Newest on top
             saveState();
             renderAll(highlightId);
         }
 
-        // ========= Daten-Operationen =========
+        // ========= Data Operations =========
         /**
-         * Fügt eine neue Session hinzu.
-         * @param {object} sessionData Die Daten der neuen Session.
+         * Adds a new session.
+         * @param {object} sessionData The data for the new session.
          */
         function addSession(sessionData) {
             const user = state.users[state.activeUserId];
@@ -576,9 +575,9 @@
         }
         
         /**
-         * Aktualisiert eine bestehende Session.
-         * @param {string} sessionId Die ID der zu aktualisierenden Session.
-         * @param {object} newData Die neuen Daten.
+         * Updates an existing session.
+         * @param {string} sessionId The ID of the session to update.
+         * @param {object} newData The new data.
          */
         function updateSession(sessionId, newData) {
             const user = state.users[state.activeUserId];
@@ -590,8 +589,8 @@
         }
 
         /**
-         * Löscht eine Session.
-         * @param {string} sessionId Die ID der zu löschenden Session.
+         * Deletes a session.
+         * @param {string} sessionId The ID of the session to delete.
          */
         function deleteSession(sessionId) {
             const user = state.users[state.activeUserId];
@@ -600,9 +599,9 @@
         }
 
         /**
-         * Öffnet das Modal für die manuelle Session-Eingabe
-         * und füllt es mit Daten, wenn eine Session bearbeitet wird.
-         * @param {object|null} session Die zu bearbeitende Session oder null für eine neue Session.
+         * Opens the modal for manual session entry
+         * and fills it with data if a session is being edited.
+         * @param {object|null} session The session to edit or null for a new session.
          */
         function openSessionModal(session = null) {
             const dlg = document.getElementById('dlgNewSession');
@@ -622,7 +621,7 @@
                 btnSave.textContent = 'Änderungen speichern';
             } else {
                 title.textContent = 'Training eintragen (Manuell)';
-                document.getElementById('sessionDate').valueAsDate = new Date(); // Standard auf heute
+                document.getElementById('sessionDate').valueAsDate = new Date(); // Default to today
                 document.getElementById('sessionDuration').value = '';
                 document.getElementById('sessionHr').value = '';
                 document.getElementById('sessionWatt').value = '';
@@ -635,7 +634,7 @@
         }
 
         /**
-         * Speichert eine Session basierend auf den Modal-Werten.
+         * Saves a session based on the modal values.
          */
         function saveSessionFromModal() {
             const data = {
@@ -655,9 +654,9 @@
             document.getElementById('dlgNewSession').close();
         }
         
-        // ========= Rendering der UI =========
+        // ========= UI Rendering =========
         /**
-         * Rendert die Benutzer-Dropdown-Liste.
+         * Renders the user dropdown list.
          */
         function renderUsers() {
             const userSelect = document.getElementById('userSelect');
@@ -667,7 +666,7 @@
         }
 
         /**
-         * Rendert die Einstellungen für den aktiven Benutzer.
+         * Renders the settings for the active user.
          */
         function renderSettings() {
             const user = state.users[state.activeUserId];
@@ -679,12 +678,12 @@
             document.getElementById('quickHr').value = user.settings.quickHr;
             document.documentElement.setAttribute('data-theme', user.settings.theme);
             
-            // Wattwert bei der Schnell-Eingabe aktualisieren
+            // Update Watt value for quick-entry
             document.getElementById('wattValue').textContent = `${getWattValue(user.settings.quickLevel)} W`;
         }
 
         /**
-         * Berechnet und rendert die KPIs.
+         * Calculates and renders the KPIs.
          */
         function calculateAndRenderKPIs() {
             const user = state.users[state.activeUserId];
@@ -699,8 +698,8 @@
         }
 
         /**
-         * Rendert die Sessions-Tabelle.
-         * @param {string} highlightId ID des Eintrags, der hervorgehoben werden soll.
+         * Renders the sessions table.
+         * @param {string} highlightId ID of the entry to highlight.
          */
         function renderSessions(highlightId = null) {
             const user = state.users[state.activeUserId];
@@ -731,7 +730,7 @@
         }
 
         /**
-         * Rendert die Belohnungen-Ansicht.
+         * Renders the rewards view.
          */
         function renderRewards() {
             const user = state.users[state.activeUserId];
@@ -749,12 +748,12 @@
             }).join('');
         }
         
-        // ========= Hilfsfunktionen (Datum) =========
+        // ========= Helper Functions (Date) =========
         /**
-         * Überprüft, ob zwei Daten in derselben Woche liegen.
-         * @param {Date} date1 Datum 1.
-         * @param {Date} date2 Datum 2.
-         * @returns {boolean} True, wenn sie in derselben Woche liegen.
+         * Checks if two dates are in the same week.
+         * @param {Date} date1 Date 1.
+         * @param {Date} date2 Date 2.
+         * @returns {boolean} True if they are in the same week.
          */
         function isSameWeek(date1, date2) {
             const d1 = new Date(date1);
@@ -769,10 +768,10 @@
             return week1 === week2 && d1.getFullYear() === d2.getFullYear();
         }
 
-        // ========= Daten-Import/Export =========
+        // ========= Data Import/Export =========
         /**
-         * Exportiert den Zustand als JSON-Datei. Dies ist die zuverlässige Methode
-         * auch für große Datensätze.
+         * Exports the state as a JSON file. This is the reliable method
+         * for large datasets.
          */
         function exportData() {
             const json = JSON.stringify(state, null, 2);
@@ -788,8 +787,8 @@
         }
 
         /**
-         * Importiert den Zustand aus einer JSON-Datei.
-         * @param {File} file Die importierte Datei.
+         * Imports the state from a JSON file.
+         * @param {File} file The imported file.
          */
         function importData(file) {
             const reader = new FileReader();
@@ -798,10 +797,10 @@
                     const importedState = JSON.parse(e.target.result);
                     if (await showConfirmDialog('Daten importieren?', 'Alle aktuellen Daten werden ersetzt. Möchtest du fortfahren?')) {
                         state = importedState;
-                        handleDataChange(); // Zentrale Funktion für konsistentes Update
+                        handleDataChange(); // Central function for consistent update
                     }
                 } catch (err) {
-                    // Statt alert ein Modal anzeigen
+                    // Show a modal instead of an alert
                     const dlg = document.getElementById('dlgConfirm');
                     document.getElementById('confirmTitle').textContent = 'Import fehlgeschlagen';
                     document.getElementById('confirmText').textContent = 'Ungültige Datei. Bitte überprüfe das Format.';
@@ -809,15 +808,15 @@
                     document.getElementById('confirmCancel').textContent = 'Schließen';
                     dlg.showModal();
                     
-                    console.error('Import-Fehler:', err);
+                    console.error('Import error:', err);
                 }
             };
             reader.readAsText(file);
         }
 
-        // ========= Event-Listener und Initialisierung =========
+        // ========= Event Listeners and Initialization =========
         /**
-         * Setzt alle Event-Listener für die Benutzeroberfläche.
+         * Sets up all event listeners for the UI.
          */
         function setupEventListeners() {
             const themeSelect = document.getElementById('themeSelect');
@@ -837,20 +836,20 @@
             const bodyWeightInput = document.getElementById('bodyWeight');
             const weeklyTargetInput = document.getElementById('weeklyTarget');
 
-            // Theme-Wechsel
+            // Theme change
             themeSelect.addEventListener('change', (e) => {
                 state.users[state.activeUserId].settings.theme = e.target.value;
                 document.documentElement.setAttribute('data-theme', e.target.value);
                 saveState();
             });
 
-            // Benutzer-Wechsel
+            // User change
             userSelect.addEventListener('change', (e) => {
                 state.activeUserId = e.target.value;
                 handleDataChange();
             });
 
-            // Benutzer-Einstellungen speichern
+            // Save user settings
             btnSaveSettings.addEventListener('click', () => {
                 const user = state.users[state.activeUserId];
                 user.settings.bodyWeight = parseFloat(bodyWeightInput.value);
@@ -862,18 +861,18 @@
                 handleDataChange();
             });
 
-            // Watt-Anzeige bei Schieberegler-Bewegung aktualisieren
+            // Update Watt display on slider movement
             quickLevelRange.addEventListener('input', (e) => {
                 const level = parseInt(e.target.value);
                 wattValueSpan.textContent = `${getWattValue(level)} W`;
             });
             
-            // Neuer Benutzer-Dialog
+            // New User dialog
             btnNewUser.addEventListener('click', () => {
                 document.getElementById('dlgNewUser').showModal();
             });
 
-            // Benutzer erstellen
+            // Create user
             btnCreateUser.addEventListener('click', () => {
                 const name = newUserNameInput.value.trim();
                 if (name) {
@@ -888,7 +887,7 @@
                 }
             });
 
-            // Schnelleingabe-Button
+            // Quick-entry button
             btnQuickSession.addEventListener('click', () => {
                 const user = state.users[state.activeUserId];
                 const session = {
@@ -903,7 +902,7 @@
                 addSession(session);
             });
 
-            // Sessions-Tabelle (für Löschen und Bearbeiten)
+            // Sessions table (for delete and edit)
             tbody.addEventListener('click', (e) => {
                 const target = e.target.closest('button');
                 if (!target) return;
@@ -920,7 +919,7 @@
                 }
             });
 
-            // Event-Listener für Speichern aus dem Modal
+            // Event listener for save from modal
             btnSaveSession.addEventListener('click', saveSessionFromModal);
 
             // Import/Export
@@ -934,8 +933,8 @@
         }
 
         /**
-         * Rendert alle UI-Elemente neu.
-         * @param {string} highlightId ID des Eintrags, der hervorgehoben werden soll.
+         * Renders all UI elements.
+         * @param {string} highlightId ID of the entry to highlight.
          */
         function renderAll(highlightId = null) {
             renderUsers();
@@ -945,7 +944,7 @@
             renderRewards();
         }
 
-        // ========= Initialisierung der Anwendung =========
+        // ========= Application Initialization =========
         window.addEventListener('load', () => {
             state = loadState();
             setupEventListeners();
