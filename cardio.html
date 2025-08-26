@@ -1,525 +1,630 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de" data-theme="winter">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Kurzlernen – Cardio Log (Wizard)</title>
-  <!-- Tailwind + DaisyUI via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
-  <style>
-    .container { max-width: 980px; }
-    .tap-big button, .tap-big .btn { min-height: 3rem; }
-    .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
-    .row-note { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    @media (max-width: 420px){
-      .hide-xs { display: none; }
-      table td, table th { white-space: nowrap; }
-    }
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Z2 Log – Cardio Log (Wizard)</title>
+    <!-- Tailwind + DaisyUI via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
+    <style>
+        /* Mobile first layout adjustments */
+        .container { max-width: 980px; }
+        .tap-big button, .tap-big .btn { min-height: 3rem; }
+        .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
+        .row-note { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        @media (max-width: 420px){
+            .hide-xs { display: none; }
+            table td, table th { white-space: nowrap; }
+        }
+        
+        /* Ensures the theme selector uses a visible text color */
+        select option { color: #000; }
+    </style>
 </head>
 <body class="bg-base-100">
-  <div class="container mx-auto p-4 md:p-6">
+    <div class="container mx-auto p-4 md:p-6">
 
-    <!-- Header / Theme / User -->
-    <div class="flex items-center justify-between gap-4 mb-4">
-      <div>
-        <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
-        <p class="text-sm opacity-70">Mobil, schnell, mit Foto & Wizard.</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <label class="label text-sm">Theme</label>
-        <select id="themeSelect" class="select select-bordered select-sm">
-          <option>winter</option><option>cupcake</option><option>emerald</option>
-          <option>corporate</option><option>dracula</option><option>night</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 mb-3">
-      <label class="label text-sm">Benutzer</label>
-      <select id="userSelect" class="select select-bordered select-sm"></select>
-      <button id="btnNewUser" class="btn btn-sm">Neuer Benutzer</button>
-      <div class="ml-auto flex items-center gap-2">
-        <label class="label text-sm">Wochenziel (Min)</label>
-        <input id="weeklyTarget" type="number" min="0" class="input input-bordered input-sm w-24" />
-        <button id="btnSaveSettings" class="btn btn-sm">Speichern</button>
-      </div>
-    </div>
-
-    <!-- KPIs -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <div class="stat shadow">
-        <div class="stat-title">Wochenminuten</div><div id="kpiWeekMin" class="stat-value">0</div>
-      </div>
-      <div class="stat shadow">
-        <div class="stat-title">Streak</div><div id="kpiStreak" class="stat-value">0</div>
-        <div class="stat-desc">Tage am Stück</div>
-      </div>
-      <div class="stat shadow">
-        <div class="stat-title">Level</div><div class="stat-value">Lv <span id="kpiLevel">1</span></div>
-        <div class="stat-desc"><span id="kpiXp">0</span> / 100 XP</div>
-      </div>
-      <div class="stat shadow">
-        <div class="stat-title">Einträge</div><div id="kpiEntries" class="stat-value">0</div>
-      </div>
-    </div>
-
-    <!-- CTA: Wizard öffnen -->
-    <div class="tap-big mb-4">
-      <button id="btnOpenWizard" class="btn btn-primary w-full text-lg">➕ Training eintragen</button>
-    </div>
-
-    <!-- Daten-Tools -->
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="text-lg font-semibold">Deine Sessions</h2>
-      <div class="join">
-        <button id="btnExport" class="btn join-item">Export (JSON)</button>
-        <input id="fileImport" class="hidden" type="file" accept="application/json">
-        <button id="btnImport" class="btn join-item">Importieren</button>
-        <button id="btnWipeAll" class="btn btn-error join-item">Alle löschen</button>
-      </div>
-    </div>
-
-    <!-- Tabelle -->
-    <div class="overflow-x-auto">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Datum</th>
-            <th>Min</th>
-            <th>Ø HR</th>
-            <th class="hide-xs">Speed</th>
-            <th class="hide-xs">Watt</th>
-            <th>Foto</th>
-            <th class="hide-xs">Notizen</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="tbodySessions"></tbody>
-      </table>
-    </div>
-
-  </div>
-
-  <!-- Wizard Dialog -->
-  <dialog id="dlgWizard" class="modal">
-    <div class="modal-box w-11/12 max-w-lg">
-      <form method="dialog">
-        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-      </form>
-
-      <!-- Steps indicator -->
-      <ul class="steps mb-4">
-        <li class="step step-primary" id="stepDot0">Datum</li>
-        <li class="step" id="stepDot1">Dauer</li>
-        <li class="step" id="stepDot2">Ø HR</li>
-        <li class="step hide-xs" id="stepDot3">Speed</li>
-        <li class="step hide-xs" id="stepDot4">Watt</li>
-        <li class="step" id="stepDot5">Notiz</li>
-        <li class="step" id="stepDot6">Foto</li>
-      </ul>
-
-      <!-- Step panes -->
-      <div id="pane0" class="space-y-2">
-        <h3 class="font-semibold text-lg">Datum & Uhrzeit</h3>
-        <label class="form-control">
-          <span class="label-text">Zeitpunkt</span>
-          <input id="wDateTime" type="datetime-local" class="input input-bordered">
-        </label>
-      </div>
-
-      <div id="pane1" class="space-y-2 hidden">
-        <h3 class="font-semibold text-lg">Dauer</h3>
-        <label class="form-control">
-          <span class="label-text">Minuten</span>
-          <input id="wMin" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 20">
-        </label>
-      </div>
-
-      <div id="pane2" class="space-y-2 hidden">
-        <h3 class="font-semibold text-lg">Ø Puls</h3>
-        <label class="form-control">
-          <span class="label-text">bpm</span>
-          <input id="wHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 120">
-        </label>
-      </div>
-
-      <div id="pane3" class="space-y-2 hidden">
-        <h3 class="font-semibold text-lg">Speed (optional)</h3>
-        <label class="form-control">
-          <span class="label-text">km/h</span>
-          <input id="wSpeed" type="number" step="0.1" inputmode="decimal" class="input input-bordered" placeholder="z. B. 22.5">
-        </label>
-      </div>
-
-      <div id="pane4" class="space-y-2 hidden">
-        <h3 class="font-semibold text-lg">Watt (optional)</h3>
-        <label class="form-control">
-          <span class="label-text">W</span>
-          <input id="wWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 180">
-        </label>
-      </div>
-
-      <div id="pane5" class="space-y-2 hidden">
-        <h3 class="font-semibold text-lg">Notiz (optional)</h3>
-        <label class="form-control">
-          <span class="label-text">Text</span>
-          <textarea id="wNotes" class="textarea textarea-bordered" placeholder="Wie war die Session?"></textarea>
-        </label>
-      </div>
-
-      <div id="pane6" class="space-y-2 hidden">
-        <h3 class="font-semibold text-lg">Foto (optional)</h3>
-        <p class="text-sm opacity-70">Du kannst direkt ein Foto aufnehmen oder aus der Galerie wählen.</p>
-        <input id="wPhoto" type="file" accept="image/*" capture="environment" class="file-input file-input-bordered w-full" />
-        <div id="wPhotoPreviewWrap" class="mt-2 hidden">
-          <img id="wPhotoPreview" alt="Preview" class="rounded-md max-h-48 object-cover" />
-          <div class="mt-2 flex gap-2">
-            <button id="wPhotoRemove" class="btn btn-sm">Foto entfernen</button>
-          </div>
+        <!-- Header / Theme / User -->
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div>
+                <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
+                <p class="text-sm opacity-70">Mobil, schnell, mit Foto & Wizard.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="label text-sm">Theme</label>
+                <select id="themeSelect" class="select select-bordered select-sm">
+                    <option>winter</option><option>cupcake</option><option>emerald</option>
+                    <option>corporate</option><option>dracula</option><option>night</option>
+                </select>
+            </div>
         </div>
-      </div>
 
-      <!-- Nav -->
-      <div class="modal-action justify-between">
-        <button id="btnBack" class="btn">Zurück</button>
-        <div class="flex gap-2">
-          <button id="btnQuick" class="btn btn-ghost">Schnell (20 min / 115 bpm)</button>
-          <button id="btnNext" class="btn btn-primary">Weiter</button>
-          <button id="btnFinish" class="btn btn-success hidden">Fertig</button>
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+            <label class="label text-sm">Benutzer</label>
+            <select id="userSelect" class="select select-bordered select-sm"></select>
+            <button id="btnNewUser" class="btn btn-sm">Neuer Benutzer</button>
+            <div class="ml-auto flex items-center gap-2">
+                <label class="label text-sm">Wochenziel (Min)</label>
+                <input id="weeklyTarget" type="number" min="0" class="input input-bordered input-sm w-24" />
+                <button id="btnSaveSettings" class="btn btn-sm">Speichern</button>
+            </div>
         </div>
-      </div>
+
+        <!-- KPIs -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="stat shadow">
+                <div class="stat-title">Wochenminuten</div><div id="kpiWeekMin" class="stat-value">0</div>
+            </div>
+            <div class="stat shadow">
+                <div class="stat-title">Streak</div><div id="kpiStreak" class="stat-value">0</div>
+                <div class="stat-desc">Tage am Stück</div>
+            </div>
+            <div class="stat shadow">
+                <div class="stat-title">Level</div><div class="stat-value">Lv <span id="kpiLevel">1</span></div>
+                <div class="stat-desc"><span id="kpiXp">0</span> / 100 XP</div>
+            </div>
+            <div class="stat shadow">
+                <div class="stat-title">Einträge</div><div id="kpiEntries" class="stat-value">0</div>
+            </div>
+        </div>
+
+        <!-- CTA: Wizard öffnen -->
+        <div class="tap-big mb-4">
+            <button id="btnOpenWizard" class="btn btn-primary w-full text-lg">➕ Training eintragen</button>
+        </div>
+
+        <!-- Daten-Tools -->
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-lg font-semibold">Deine Sessions</h2>
+            <div class="join">
+                <button id="btnExport" class="btn join-item">Export (JSON)</button>
+                <input id="fileImport" class="hidden" type="file" accept="application/json">
+                <button id="btnImport" class="btn join-item">Importieren</button>
+                <button id="btnWipeAll" class="btn btn-error join-item">Alle löschen</button>
+            </div>
+        </div>
+
+        <!-- Tabelle -->
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Min</th>
+                        <th>Ø HR</th>
+                        <th class="hide-xs">Distanz</th>
+                        <th class="hide-xs">Kcal</th>
+                        <th class="hide-xs">Watt</th>
+                        <th>Foto</th>
+                        <th class="hide-xs">Notizen</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="tbodySessions"></tbody>
+            </table>
+        </div>
+
     </div>
-  </dialog>
 
-  <!-- Neues Benutzer-Modal -->
-  <dialog id="dlgNewUser" class="modal">
-    <div class="modal-box">
-      <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
-      <label class="form-control mt-3">
-        <span class="label-text">Name</span>
-        <input id="newUserName" class="input input-bordered" placeholder="z. B. Chris">
-      </label>
-      <div class="modal-action">
-        <form method="dialog"><button class="btn">Abbrechen</button></form>
-        <button id="btnCreateUser" class="btn btn-primary">Erstellen</button>
-      </div>
-    </div>
-  </dialog>
+    <!-- Wizard Dialog -->
+    <dialog id="dlgWizard" class="modal">
+        <div class="modal-box w-11/12 max-w-lg">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
 
-  <!-- Bild-Viewer -->
-  <dialog id="dlgImage" class="modal">
-    <div class="modal-box p-2 max-w-2xl">
-      <img id="viewImg" class="w-full h-auto rounded-md" alt="Bild" />
-      <form method="dialog" class="mt-2"><button class="btn w-full">Schließen</button></form>
-    </div>
-  </dialog>
+            <!-- Steps indicator -->
+            <ul class="steps mb-4">
+                <li class="step step-primary" id="stepDot0">Datum</li>
+                <li class="step" id="stepDot1">Dauer & Puls</li>
+                <li class="step" id="stepDot2">Distanz & Kcal</li>
+                <li class="step hide-xs" id="stepDot3">Watt</li>
+                <li class="step" id="stepDot4">Notiz</li>
+                <li class="step" id="stepDot5">Foto</li>
+            </ul>
 
-  <script type="module">
-    // ========= Persistenz =========
-    const STORAGE_KEY = 'z2log_v6';
-    const nowISO = () => new Date().toISOString();
-    const uid = () => Math.random().toString(36).slice(2,10);
+            <!-- Step panes -->
+            <div id="pane0" class="space-y-2">
+                <h3 class="font-semibold text-lg">Datum & Uhrzeit</h3>
+                <label class="form-control">
+                    <span class="label-text">Zeitpunkt</span>
+                    <input id="wDateTime" type="datetime-local" class="input input-bordered">
+                </label>
+            </div>
 
-    const DEFAULT_STATE = {
-      activeUserId: 'default',
-      users: {
-        default: {
-          id: 'default', name: 'Christian', createdAt: nowISO(),
-          settings: { weeklyTarget: 0, theme: 'winter' },
-          metrics: { level: 1, xp: 0, streakCount: 0, lastDay: null },
-          sessions: [] // {id,dateISO,minutes,hr,speed,watt,notes,photoDataUrl?}
-        }
-      }
-    };
+            <div id="pane1" class="space-y-2 hidden">
+                <h3 class="font-semibold text-lg">Dauer & Ø Puls</h3>
+                <label class="form-control">
+                    <span class="label-text">Minuten</span>
+                    <input id="wMin" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 20">
+                </label>
+                <label class="form-control">
+                    <span class="label-text">Ø Puls (bpm)</span>
+                    <input id="wHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 115">
+                </label>
+            </div>
 
-    let state = loadState();
+            <div id="pane2" class="space-y-2 hidden">
+                <h3 class="font-semibold text-lg">Distanz & Kalorien (optional)</h3>
+                <label class="form-control">
+                    <span class="label-text">Distanz (km)</span>
+                    <input id="wDistance" type="number" step="0.1" inputmode="decimal" class="input input-bordered" placeholder="z. B. 5.5">
+                </label>
+                <label class="form-control">
+                    <span class="label-text">Kalorien (kcal)</span>
+                    <input id="wKcal" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 250">
+                </label>
+            </div>
 
-    function loadState(){
-      try{
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if(!raw) return structuredClone(DEFAULT_STATE);
-        const s = JSON.parse(raw);
-        if(!s.users) s.users = { default: structuredClone(DEFAULT_STATE.users.default) };
-        if(!s.activeUserId || !s.users[s.activeUserId]) s.activeUserId = Object.keys(s.users)[0];
-        return s;
-      }catch{ return structuredClone(DEFAULT_STATE); }
-    }
-    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+            <div id="pane3" class="space-y-2 hidden">
+                <h3 class="font-semibold text-lg">Watt (optional)</h3>
+                <label class="form-control">
+                    <span class="label-text">W</span>
+                    <input id="wWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 180">
+                </label>
+            </div>
 
-    // ========= DOM Refs =========
-    const themeSelect = document.getElementById('themeSelect');
-    const userSelect = document.getElementById('userSelect');
-    const btnNewUser = document.getElementById('btnNewUser');
-    const weeklyTarget = document.getElementById('weeklyTarget');
-    const btnSaveSettings = document.getElementById('btnSaveSettings');
+            <div id="pane4" class="space-y-2 hidden">
+                <h3 class="font-semibold text-lg">Notiz (optional)</h3>
+                <label class="form-control">
+                    <span class="label-text">Text</span>
+                    <textarea id="wNotes" class="textarea textarea-bordered" placeholder="Wie war die Session?"></textarea>
+                </label>
+            </div>
 
-    const tbody = document.getElementById('tbodySessions');
-    const btnExport = document.getElementById('btnExport');
-    const btnImport = document.getElementById('btnImport');
-    const fileImport = document.getElementById('fileImport');
-    const btnWipeAll = document.getElementById('btnWipeAll');
+            <div id="pane5" class="space-y-2 hidden">
+                <h3 class="font-semibold text-lg">Foto (optional)</h3>
+                <p class="text-sm opacity-70">Du kannst direkt ein Foto aufnehmen oder aus der Galerie wählen.</p>
+                <input id="wPhoto" type="file" accept="image/*" capture="environment" class="file-input file-input-bordered w-full" />
+                <div id="wPhotoPreviewWrap" class="mt-2 hidden">
+                    <img id="wPhotoPreview" alt="Preview" class="rounded-md max-h-48 object-cover" />
+                    <div class="mt-2 flex gap-2">
+                        <button id="wPhotoRemove" class="btn btn-sm">Foto entfernen</button>
+                    </div>
+                </div>
+            </div>
 
-    const kpiWeekMin = document.getElementById('kpiWeekMin');
-    const kpiStreak = document.getElementById('kpiStreak');
-    const kpiLevel = document.getElementById('kpiLevel');
-    const kpiXp = document.getElementById('kpiXp');
-    const kpiEntries = document.getElementById('kpiEntries');
+            <!-- Nav -->
+            <div class="modal-action justify-between">
+                <button id="btnBack" class="btn">Zurück</button>
+                <div class="flex gap-2">
+                    <button id="btnQuick" class="btn btn-ghost">Schnell</button>
+                    <button id="btnNext" class="btn btn-primary">Weiter</button>
+                    <button id="btnFinish" class="btn btn-success hidden">Fertig</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
 
-    // Wizard
-    const dlgWizard = document.getElementById('dlgWizard');
-    const btnOpenWizard = document.getElementById('btnOpenWizard');
-    const paneIds = ['pane0','pane1','pane2','pane3','pane4','pane5','pane6'];
-    const dotIds  = ['stepDot0','stepDot1','stepDot2','stepDot3','stepDot4','stepDot5','stepDot6'];
-    const btnBack = document.getElementById('btnBack');
-    const btnNext = document.getElementById('btnNext');
-    const btnFinish = document.getElementById('btnFinish');
-    const btnQuick = document.getElementById('btnQuick');
+    <!-- Neues Benutzer-Modal -->
+    <dialog id="dlgNewUser" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
+            <label class="form-control mt-3">
+                <span class="label-text">Name</span>
+                <input id="newUserName" class="input input-bordered" placeholder="z. B. Christian">
+            </label>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn">Abbrechen</button></form>
+                <button id="btnCreateUser" class="btn btn-primary">Erstellen</button>
+            </div>
+        </div>
+    </dialog>
+    
+    <!-- Bild-Viewer -->
+    <dialog id="dlgImage" class="modal">
+        <div class="modal-box p-2 max-w-2xl">
+            <img id="viewImg" class="w-full h-auto rounded-md" alt="Bild" />
+            <form method="dialog" class="mt-2"><button class="btn w-full">Schließen</button></form>
+        </div>
+    </dialog>
 
-    const wDateTime = document.getElementById('wDateTime');
-    const wMin = document.getElementById('wMin');
-    const wHr = document.getElementById('wHr');
-    const wSpeed = document.getElementById('wSpeed');
-    const wWatt = document.getElementById('wWatt');
-    const wNotes = document.getElementById('wNotes');
-    const wPhoto = document.getElementById('wPhoto');
-    const wPhotoPreviewWrap = document.getElementById('wPhotoPreviewWrap');
-    const wPhotoPreview = document.getElementById('wPhotoPreview');
-    const wPhotoRemove = document.getElementById('wPhotoRemove');
+    <!-- Bestätigungsdialog -->
+    <dialog id="dlgConfirm" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg" id="confirmTitle"></h3>
+            <p class="py-4" id="confirmText"></p>
+            <div class="modal-action">
+                <button class="btn" id="confirmCancel">Abbrechen</button>
+                <button class="btn btn-primary" id="confirmOk">Bestätigen</button>
+            </div>
+        </div>
+    </dialog>
 
-    const dlgNewUser = document.getElementById('dlgNewUser');
-    const newUserName = document.getElementById('newUserName');
-    const btnCreateUser = document.getElementById('btnCreateUser');
-
-    const dlgImage = document.getElementById('dlgImage');
-    const viewImg = document.getElementById('viewImg');
-
-    function currentUser(){ return state.users[state.activeUserId]; }
-
-    // ========= Theme / User / KPIs =========
-    function setTheme(t){
-      document.documentElement.setAttribute('data-theme', t);
-      themeSelect.value = t;
-      currentUser().settings.theme = t; saveState();
-    }
-    function renderUsers(){
-      userSelect.innerHTML = '';
-      for(const id of Object.keys(state.users)){
-        const u = state.users[id];
-        const opt = document.createElement('option');
-        opt.value = id; opt.textContent = u.name;
-        userSelect.appendChild(opt);
-      }
-      userSelect.value = state.activeUserId;
-    }
-    function renderSettings(){
-      weeklyTarget.value = currentUser().settings.weeklyTarget ?? 0;
-      setTheme(currentUser().settings.theme ?? 'winter');
-    }
-    function startOfISOWeek(d=new Date()){
-      const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x;
-    }
-    function fmtDate(iso){
-      const d=new Date(iso); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0');
-      return `${y}-${m}-${dd}`;
-    }
-
-    function renderTable(){
-      const u=currentUser();
-      tbody.innerHTML='';
-      u.sessions.slice().sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).forEach(s=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td>${fmtDate(s.dateISO)}</td>
-          <td>${s.minutes ?? ''}</td>
-          <td>${s.hr ?? ''}</td>
-          <td class="hide-xs">${s.speed ?? ''}</td>
-          <td class="hide-xs">${s.watt ?? ''}</td>
-          <td>${s.photoDataUrl ? `<img src="${s.photoDataUrl}" class="thumb cursor-zoom-in" data-view="${s.id}" alt="Foto">` : ''}</td>
-          <td class="row-note hide-xs" title="${(s.notes||'').replace(/"/g,'&quot;')}">${s.notes ?? ''}</td>
-          <td><button class="btn btn-xs btn-error" data-del="${s.id}">Löschen</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
-      // Delete & View handlers
-      tbody.querySelectorAll('button[data-del]').forEach(b=>{
-        b.addEventListener('click', ()=>{
-          const id=b.getAttribute('data-del');
-          const u=currentUser();
-          u.sessions = u.sessions.filter(x=>x.id!==id);
-          saveState(); renderAll();
-        });
-      });
-      tbody.querySelectorAll('img[data-view]').forEach(img=>{
-        img.addEventListener('click', ()=>{
-          const id=img.getAttribute('data-view');
-          const s=currentUser().sessions.find(x=>x.id===id);
-          if(!s?.photoDataUrl) return;
-          viewImg.src = s.photoDataUrl;
-          dlgImage.showModal();
-        });
-      });
-
-      // KPIs
-      kpiEntries.textContent = u.sessions.length;
-      const weekStart = startOfISOWeek();
-      const weekMin = u.sessions.filter(s=>new Date(s.dateISO)>=weekStart).reduce((a,s)=>a+(Number(s.minutes)||0),0);
-      kpiWeekMin.textContent = weekMin;
-      const xp = u.sessions.reduce((a,s)=>a+(Number(s.minutes)||0),0);
-      kpiXp.textContent = xp % 100;
-      kpiLevel.textContent = 1 + Math.floor(xp/100);
-      const days = new Set(u.sessions.map(s=>fmtDate(s.dateISO)));
-      let c=0; let d=new Date();
-      for(;;){ const k=fmtDate(d.toISOString()); if(days.has(k)){ c++; d.setDate(d.getDate()-1); } else break; }
-      kpiStreak.textContent = c;
-    }
-
-    function renderAll(){ renderUsers(); renderSettings(); renderTable(); }
-
-    // ========= Events: Theme/User =========
-    themeSelect.addEventListener('change', ()=>setTheme(themeSelect.value));
-    userSelect.addEventListener('change', ()=>{ state.activeUserId=userSelect.value; saveState(); renderAll(); });
-    btnNewUser.addEventListener('click', ()=>dlgNewUser.showModal());
-    btnCreateUser.addEventListener('click', ()=>{
-      const name=(newUserName.value||'').trim(); if(!name) return;
-      const id=uid();
-      state.users[id]={
-        id, name, createdAt: nowISO(),
-        settings:{ weeklyTarget:0, theme: themeSelect.value||'winter' },
-        metrics:{ level:1, xp:0, streakCount:0, lastDay:null },
-        sessions:[]
-      };
-      state.activeUserId=id; saveState(); dlgNewUser.close(); newUserName.value=''; renderAll();
-    });
-    btnSaveSettings.addEventListener('click', ()=>{
-      currentUser().settings.weeklyTarget = Number(weeklyTarget.value)||0;
-      saveState();
-    });
-
-    // ========= Export / Import / Wipe =========
-    btnExport.addEventListener('click', ()=>{
-      const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download=`z2log_export_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
-    });
-    btnImport.addEventListener('click', ()=>fileImport.click());
-    fileImport.addEventListener('change', async ()=>{
-      const f=fileImport.files?.[0]; if(!f) return;
-      try{
-        const txt=await f.text(); const incoming=JSON.parse(txt);
-        if(!incoming.users || !incoming.activeUserId) throw new Error('Format');
-        if(!confirm('Daten importieren? Bestehende Daten werden überschrieben.')) return;
-        state=incoming; saveState(); renderAll();
-      }catch(e){ alert('Import fehlgeschlagen: Ungültiges JSON/Format.'); }
-      finally{ fileImport.value=''; }
-    });
-    btnWipeAll.addEventListener('click', ()=>{
-      if(!confirm('Alle Einträge für den aktiven Benutzer löschen?')) return;
-      currentUser().sessions=[]; saveState(); renderAll();
-    });
-
-    // ========= Wizard Logic =========
-    let step = 0;
-    let tmpPhotoDataUrl = null;
-
-    function showStep(i){
-      step=i;
-      paneIds.forEach((id,idx)=>{
-        document.getElementById(id).classList.toggle('hidden', idx!==i);
-        const dot=document.getElementById(dotIds[idx]);
-        dot.classList.toggle('step-primary', idx<=i);
-      });
-      btnBack.classList.toggle('hidden', i===0);
-      btnNext.classList.toggle('hidden', i>=paneIds.length-1);
-      btnFinish.classList.toggle('hidden', i<paneIds.length-1);
-
-      // Fokus sinnvoll setzen
-      const focusMap=[wDateTime,wMin,wHr,wSpeed,wWatt,wNotes,wPhoto];
-      setTimeout(()=>focusMap[i]?.focus?.(), 30);
-    }
-
-    function resetWizard(){
-      const now=new Date();
-      const isoLocal = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
-      wDateTime.value = isoLocal;
-      wMin.value = ''; wHr.value = ''; wSpeed.value=''; wWatt.value=''; wNotes.value='';
-      wPhoto.value=''; tmpPhotoDataUrl=null; wPhotoPreviewWrap.classList.add('hidden'); wPhotoPreview.src='';
-      showStep(0);
-    }
-
-    btnOpenWizard.addEventListener('click', ()=>{ resetWizard(); dlgWizard.showModal(); });
-    btnBack.addEventListener('click', ()=> showStep(Math.max(0, step-1)));
-    btnNext.addEventListener('click', ()=>{
-      if(step===1 && !wMin.value) return alert('Bitte Minuten eintragen.');
-      if(step===2 && !wHr.value) return alert('Bitte Ø Puls eintragen.');
-      showStep(Math.min(paneIds.length-1, step+1));
-    });
-    btnQuick.addEventListener('click', ()=>{
-      wMin.value = 20; wHr.value = 115;
-      showStep(6); // springe direkt zum Foto
-    });
-    btnFinish.addEventListener('click', async ()=>{
-      // Validierung Basis
-      if(!wMin.value) return alert('Bitte Minuten eintragen.');
-      if(!wHr.value) return alert('Bitte Ø Puls eintragen.');
-      const s={
-        id: uid(),
-        dateISO: new Date(wDateTime.value ? wDateTime.value : Date.now()).toISOString(),
-        minutes: numOrNull(wMin.value),
-        hr: numOrNull(wHr.value),
-        speed: numOrNull(wSpeed.value),
-        watt: numOrNull(wWatt.value),
-        notes: (wNotes.value||'').trim(),
-        photoDataUrl: tmpPhotoDataUrl || null
-      };
-      currentUser().sessions.push(s);
-      saveState(); renderAll();
-      dlgWizard.close();
-    });
-
-    function numOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
-
-    // Foto-Handling (Kompression)
-    wPhoto.addEventListener('change', async ()=>{
-      const file = wPhoto.files?.[0];
-      if(!file) return;
-      try{
-        tmpPhotoDataUrl = await readAndCompressImage(file, 1200, 1200, 0.85); // max 1200px
-        wPhotoPreview.src = tmpPhotoDataUrl;
-        wPhotoPreviewWrap.classList.remove('hidden');
-      }catch{ alert('Bild konnte nicht verarbeitet werden.'); }
-    });
-    wPhotoRemove.addEventListener('click', ()=>{
-      tmpPhotoDataUrl=null; wPhoto.value=''; wPhotoPreview.src=''; wPhotoPreviewWrap.classList.add('hidden');
-    });
-
-    function readAndCompressImage(file, maxW, maxH, quality){
-      return new Promise((resolve,reject)=>{
-        const reader=new FileReader();
-        reader.onload=()=>{
-          const img=new Image();
-          img.onload=()=>{
-            let {width:w, height:h} = img;
-            const ratio=Math.min(maxW/w, maxH/h, 1);
-            const cw=Math.round(w*ratio), ch=Math.round(h*ratio);
-            const canvas=document.createElement('canvas');
-            canvas.width=cw; canvas.height=ch;
-            const ctx=canvas.getContext('2d');
-            ctx.drawImage(img,0,0,cw,ch);
-            const dataUrl = canvas.toDataURL('image/jpeg', quality);
-            resolve(dataUrl);
-          };
-          img.onerror=reject;
-          img.src=reader.result;
+    <script type="module">
+        // ========= Persistence =========
+        const STORAGE_KEY = 'z2log_v6';
+        const nowISO = () => new Date().toISOString();
+        const uid = () => Math.random().toString(36).slice(2,10);
+        
+        const DEFAULT_STATE = {
+            activeUserId: 'default',
+            users: {
+                default: {
+                    id: 'default', name: 'Christian', createdAt: nowISO(),
+                    settings: { weeklyTarget: 0, theme: 'winter', hrTarget: 115 },
+                    metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
+                    sessions: [] // {id,dateISO,minutes,hr,watt,kcal,distance,notes,photoDataUrl?}
+                }
+            }
         };
-        reader.onerror=reject;
-        reader.readAsDataURL(file);
-      });
-    }
 
-    // ====== Init ======
-    renderAll();
-  </script>
+        let state = loadState();
+
+        function loadState(){
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                let loadedState = raw ? JSON.parse(raw) : structuredClone(DEFAULT_STATE);
+                
+                // Ensure users object exists and has at least one user
+                if (!loadedState.users || Object.keys(loadedState.users).length === 0) {
+                    loadedState.users = structuredClone(DEFAULT_STATE.users);
+                }
+                
+                // Ensure active user ID is valid, otherwise fall back to the first user
+                if (!loadedState.activeUserId || !loadedState.users[loadedState.activeUserId]) {
+                    loadedState.activeUserId = Object.keys(loadedState.users)[0];
+                }
+                
+                return loadedState;
+            } catch { 
+                return structuredClone(DEFAULT_STATE); 
+            }
+        }
+        function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+        // Custom confirm dialog
+        function showConfirmDialog(title, text) {
+            return new Promise(resolve => {
+                const dlg = document.getElementById('dlgConfirm');
+                const confirmTitle = document.getElementById('confirmTitle');
+                const confirmText = document.getElementById('confirmText');
+                const confirmCancel = document.getElementById('confirmCancel');
+                const confirmOk = document.getElementById('confirmOk');
+
+                confirmTitle.textContent = title;
+                confirmText.textContent = text;
+                dlg.showModal();
+
+                const handleConfirm = () => {
+                    dlg.close();
+                    confirmOk.removeEventListener('click', handleConfirm);
+                    confirmCancel.removeEventListener('click', handleCancel);
+                    resolve(true);
+                };
+
+                const handleCancel = () => {
+                    dlg.close();
+                    confirmOk.removeEventListener('click', handleConfirm);
+                    confirmCancel.removeEventListener('click', handleCancel);
+                    resolve(false);
+                };
+
+                confirmOk.addEventListener('click', handleConfirm);
+                confirmCancel.addEventListener('click', handleCancel);
+            });
+        }
+
+
+        // ========= DOM Refs =========
+        const themeSelect = document.getElementById('themeSelect');
+        const userSelect = document.getElementById('userSelect');
+        const btnNewUser = document.getElementById('btnNewUser');
+        const weeklyTarget = document.getElementById('weeklyTarget');
+        const btnSaveSettings = document.getElementById('btnSaveSettings');
+
+        const tbody = document.getElementById('tbodySessions');
+        const btnExport = document.getElementById('btnExport');
+        const btnImport = document.getElementById('btnImport');
+        const fileImport = document.getElementById('fileImport');
+        const btnWipeAll = document.getElementById('btnWipeAll');
+
+        const kpiWeekMin = document.getElementById('kpiWeekMin');
+        const kpiStreak = document.getElementById('kpiStreak');
+        const kpiLevel = document.getElementById('kpiLevel');
+        const kpiXp = document.getElementById('kpiXp');
+        const kpiEntries = document.getElementById('kpiEntries');
+
+        // Wizard
+        const dlgWizard = document.getElementById('dlgWizard');
+        const btnOpenWizard = document.getElementById('btnOpenWizard');
+        const paneIds = ['pane0','pane1','pane2','pane3','pane4','pane5'];
+        const dotIds  = ['stepDot0','stepDot1','stepDot2','stepDot3','stepDot4','stepDot5'];
+        const btnBack = document.getElementById('btnBack');
+        const btnNext = document.getElementById('btnNext');
+        const btnFinish = document.getElementById('btnFinish');
+        const btnQuick = document.getElementById('btnQuick');
+
+        const wDateTime = document.getElementById('wDateTime');
+        const wMin = document.getElementById('wMin');
+        const wHr = document.getElementById('wHr');
+        const wDistance = document.getElementById('wDistance');
+        const wKcal = document.getElementById('wKcal');
+        const wWatt = document.getElementById('wWatt');
+        const wNotes = document.getElementById('wNotes');
+        const wPhoto = document.getElementById('wPhoto');
+        const wPhotoPreviewWrap = document.getElementById('wPhotoPreviewWrap');
+        const wPhotoPreview = document.getElementById('wPhotoPreview');
+        const wPhotoRemove = document.getElementById('wPhotoRemove');
+
+        const dlgNewUser = document.getElementById('dlgNewUser');
+        const newUserName = document.getElementById('newUserName');
+        const btnCreateUser = document.getElementById('btnCreateUser');
+
+        const dlgImage = document.getElementById('dlgImage');
+        const viewImg = document.getElementById('viewImg');
+
+        function currentUser(){ return state.users[state.activeUserId]; }
+
+        // ========= Theme / User / KPIs =========
+        function setTheme(t){
+            document.documentElement.setAttribute('data-theme', t);
+            themeSelect.value = t;
+            currentUser().settings.theme = t; saveState();
+        }
+        function renderUsers(){
+            userSelect.innerHTML = '';
+            for(const id of Object.keys(state.users)){
+                const u = state.users[id];
+                const opt = document.createElement('option');
+                opt.value = id; opt.textContent = u.name;
+                userSelect.appendChild(opt);
+            }
+            userSelect.value = state.activeUserId;
+        }
+        function renderSettings(){
+            weeklyTarget.value = currentUser().settings.weeklyTarget ?? 0;
+            wHr.placeholder = `z. B. ${currentUser().settings.hrTarget ?? 115}`;
+            setTheme(currentUser().settings.theme ?? 'winter');
+        }
+        function startOfISOWeek(d=new Date()){
+            const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x;
+        }
+        function fmtDate(iso){
+            const d=new Date(iso); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0');
+            return `${y}-${m}-${dd}`;
+        }
+        
+        function calculateAndRenderKPIs() {
+            const u = currentUser();
+            const xp = u.sessions.reduce((a, s) => a + (Number(s.minutes) || 0), 0);
+            const level = 1 + Math.floor(xp / 100);
+            const xpRem = xp % 100;
+            
+            kpiXp.textContent = xpRem;
+            kpiLevel.textContent = level;
+            
+            const days = new Set(u.sessions.map(s => fmtDate(s.dateISO)));
+            let c = 0; let d = new Date();
+            for (;;) { const k = fmtDate(d.toISOString()); if (days.has(k)) { c++; d.setDate(d.getDate() - 1); } else break; }
+            kpiStreak.textContent = c;
+            
+            const weekStart = startOfISOWeek();
+            const weekMin = u.sessions.filter(s => new Date(s.dateISO) >= weekStart).reduce((a, s) => a + (Number(s.minutes) || 0), 0);
+            kpiWeekMin.textContent = weekMin;
+
+            kpiEntries.textContent = u.sessions.length;
+        }
+
+        function renderTable(){
+            const u=currentUser();
+            tbody.innerHTML='';
+            u.sessions.slice().sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).forEach(s=>{
+                const tr=document.createElement('tr');
+                tr.innerHTML=`
+                    <td>${fmtDate(s.dateISO)}</td>
+                    <td>${s.minutes ?? ''}</td>
+                    <td>${s.hr ?? ''}</td>
+                    <td class="hide-xs">${s.distance ?? ''}</td>
+                    <td class="hide-xs">${s.kcal ?? ''}</td>
+                    <td class="hide-xs">${s.watt ?? ''}</td>
+                    <td>${s.photoDataUrl ? `<img src="${s.photoDataUrl}" class="thumb cursor-zoom-in" data-view="${s.id}" alt="Foto">` : ''}</td>
+                    <td class="row-note hide-xs" title="${(s.notes||'').replace(/"/g,'&quot;')}">${s.notes ?? ''}</td>
+                    <td><button class="btn btn-xs btn-error" data-del="${s.id}">Löschen</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            // Delete & View handlers
+            tbody.querySelectorAll('button[data-del]').forEach(b=>{
+                b.addEventListener('click', async ()=>{
+                    const id=b.getAttribute('data-del');
+                    const confirmed = await showConfirmDialog('Eintrag löschen?', 'Möchtest du diesen Eintrag wirklich unwiderruflich löschen?');
+                    if (!confirmed) return;
+                    
+                    const u=currentUser();
+                    const deletedSession = u.sessions.find(x => x.id === id);
+                    if (deletedSession) {
+                        const deletedMinutes = Number(deletedSession.minutes) || 0;
+                        u.metrics.xp = Math.max(0, (u.metrics.xp || 0) - deletedMinutes);
+                        u.metrics.totalEntries = Math.max(0, (u.metrics.totalEntries || 0) - 1);
+                    }
+                    
+                    u.sessions = u.sessions.filter(x=>x.id!==id);
+                    saveState(); 
+                    renderAll();
+                });
+            });
+            tbody.querySelectorAll('img[data-view]').forEach(img=>{
+                img.addEventListener('click', ()=>{
+                    const id=img.getAttribute('data-view');
+                    const s=currentUser().sessions.find(x=>x.id===id);
+                    if(!s?.photoDataUrl) return;
+                    viewImg.src = s.photoDataUrl;
+                    dlgImage.showModal();
+                });
+            });
+
+            calculateAndRenderKPIs();
+        }
+
+        function renderAll(){ renderUsers(); renderSettings(); renderTable(); }
+
+        // ========= Events: Theme/User =========
+        themeSelect.addEventListener('change', ()=>setTheme(themeSelect.value));
+        userSelect.addEventListener('change', ()=>{ state.activeUserId=userSelect.value; saveState(); renderAll(); });
+        btnNewUser.addEventListener('click', ()=>dlgNewUser.showModal());
+        btnCreateUser.addEventListener('click', ()=>{
+            const name=(newUserName.value||'').trim(); if(!name) return;
+            const id=uid();
+            state.users[id]={
+                id, name, createdAt: nowISO(),
+                settings:{ weeklyTarget:0, theme: themeSelect.value||'winter', hrTarget: 115 },
+                metrics:{ level:1, xp:0, streakCount:0, totalEntries: 0, lastDay: null },
+                sessions:[]
+            };
+            state.activeUserId=id; saveState(); dlgNewUser.close(); newUserName.value=''; renderAll();
+        });
+        btnSaveSettings.addEventListener('click', ()=>{
+            currentUser().settings.weeklyTarget = Number(weeklyTarget.value)||0;
+            saveState();
+        });
+
+        // ========= Export / Import / Wipe =========
+        btnExport.addEventListener('click', ()=>{
+            const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement('a'); a.href=url; a.download=`z2log_export_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
+        });
+        btnImport.addEventListener('click', ()=>fileImport.click());
+        fileImport.addEventListener('change', async ()=>{
+            const f=fileImport.files?.[0]; if(!f) return;
+            try{
+                const txt=await f.text(); const incoming=JSON.parse(txt);
+                if(!incoming.users) throw new Error('Format');
+                const confirmed = await showConfirmDialog('Daten importieren?', 'Bestehende Daten werden überschrieben.');
+                if(!confirmed) return;
+                state=incoming; 
+                state.activeUserId = incoming.activeUserId || Object.keys(incoming.users)[0];
+                saveState(); 
+                renderAll();
+            }catch(e){ showConfirmDialog('Import fehlgeschlagen', 'Ungültiges JSON/Format.'); }
+            finally{ fileImport.value=''; }
+        });
+        btnWipeAll.addEventListener('click', async ()=>{
+            const confirmed = await showConfirmDialog('Alle Einträge löschen?', 'Möchtest du wirklich alle Einträge für den aktiven Benutzer unwiderruflich löschen?');
+            if (!confirmed) return;
+            currentUser().sessions=[];
+            currentUser().metrics.xp = 0;
+            currentUser().metrics.totalEntries = 0;
+            saveState(); 
+            renderAll();
+        });
+
+        // ========= Wizard Logic =========
+        let step = 0;
+        let tmpPhotoDataUrl = null;
+
+        function showStep(i){
+            step=i;
+            paneIds.forEach((id,idx)=>{
+                document.getElementById(id).classList.toggle('hidden', idx!==i);
+                const dot=document.getElementById(dotIds[idx]);
+                dot.classList.toggle('step-primary', idx<=i);
+            });
+            btnBack.classList.toggle('hidden', i===0);
+            btnNext.classList.toggle('hidden', i>=paneIds.length-1);
+            btnFinish.classList.toggle('hidden', i<paneIds.length-1);
+
+            // Fokus sinnvoll setzen
+            const focusMap=[wDateTime,wMin,wDistance,wWatt,wNotes,wPhoto];
+            setTimeout(()=>focusMap[i]?.focus?.(), 30);
+        }
+
+        function resetWizard(){
+            const now=new Date();
+            const isoLocal = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+            wDateTime.value = isoLocal;
+            wMin.value = ''; 
+            wHr.value = currentUser().settings.hrTarget ?? 115;
+            wDistance.value = ''; 
+            wKcal.value = '';
+            wWatt.value = ''; 
+            wNotes.value='';
+            wPhoto.value=''; tmpPhotoDataUrl=null; wPhotoPreviewWrap.classList.add('hidden'); wPhotoPreview.src='';
+            showStep(0);
+        }
+
+        btnOpenWizard.addEventListener('click', ()=>{ resetWizard(); dlgWizard.showModal(); });
+        btnBack.addEventListener('click', ()=> showStep(Math.max(0, step-1)));
+        btnNext.addEventListener('click', ()=>{
+            if(step===1 && (!wMin.value || !wHr.value)) { showConfirmDialog('Fehlende Angabe', 'Bitte Minuten und Ø Puls eintragen.'); return; }
+            showStep(Math.min(paneIds.length-1, step+1));
+        });
+        btnQuick.addEventListener('click', ()=>{
+            wMin.value = 20;
+            wHr.value = 115;
+            wDistance.value = '';
+            wKcal.value = '';
+            wWatt.value = '';
+            showStep(paneIds.length-1); // spring to finish
+        });
+        btnFinish.addEventListener('click', async ()=>{
+            if(!wMin.value || !wHr.value) { showConfirmDialog('Fehlende Angabe', 'Bitte Minuten und Ø Puls eintragen.'); return; }
+            
+            const minutes = numOrNull(wMin.value);
+            const s={
+                id: uid(),
+                dateISO: new Date(wDateTime.value ? wDateTime.value : Date.now()).toISOString(),
+                minutes: minutes,
+                hr: numOrNull(wHr.value),
+                distance: numOrNull(wDistance.value),
+                kcal: numOrNull(wKcal.value),
+                watt: numOrNull(wWatt.value),
+                notes: (wNotes.value||'').trim(),
+                photoDataUrl: tmpPhotoDataUrl || null
+            };
+            
+            currentUser().sessions.push(s);
+            currentUser().metrics.xp = (currentUser().metrics.xp || 0) + (minutes || 0);
+            currentUser().metrics.totalEntries = (currentUser().metrics.totalEntries || 0) + 1;
+
+            saveState(); renderAll();
+            dlgWizard.close();
+        });
+
+        function numOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
+
+        // Photo handling (compression)
+        wPhoto.addEventListener('change', async ()=>{
+            const file = wPhoto.files?.[0];
+            if(!file) return;
+            try{
+                tmpPhotoDataUrl = await readAndCompressImage(file, 1200, 1200, 0.85); // max 1200px
+                wPhotoPreview.src = tmpPhotoDataUrl;
+                wPhotoPreviewWrap.classList.remove('hidden');
+            }catch{ showConfirmDialog('Fehler', 'Bild konnte nicht verarbeitet werden.'); }
+        });
+        wPhotoRemove.addEventListener('click', ()=>{
+            tmpPhotoDataUrl=null; wPhoto.value=''; wPhotoPreview.src=''; wPhotoPreviewWrap.classList.add('hidden');
+        });
+
+        function readAndCompressImage(file, maxW, maxH, quality){
+            return new Promise((resolve,reject)=>{
+                const reader=new FileReader();
+                reader.onload=()=>{
+                    const img=new Image();
+                    img.onload=()=>{
+                        let {width:w, height:h} = img;
+                        const ratio=Math.min(maxW/w, maxH/h, 1);
+                        const cw=Math.round(w*ratio), ch=Math.round(h*ratio);
+                        const canvas=document.createElement('canvas');
+                        canvas.width=cw; canvas.height=ch;
+                        const ctx=canvas.getContext('2d');
+                        ctx.drawImage(img,0,0,cw,ch);
+                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        resolve(dataUrl);
+                    };
+                    img.onerror=reject;
+                    img.src=reader.result;
+                };
+                reader.onerror=reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ====== Init ======
+        renderAll();
+    </script>
 </body>
 </html>
