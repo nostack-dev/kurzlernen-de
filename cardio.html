@@ -30,10 +30,25 @@
   <div class="flex-1">
     <div class="flex items-center space-x-2">
       <span class="text-2xl font-extrabold text-primary">Z2 Log</span>
-      <span class="badge badge-lg font-semibold badge-outline text-xs sm:text-sm">V4.4</span>
+      <span class="badge badge-lg font-semibold badge-outline text-xs sm:text-sm">V5.0</span>
     </div>
   </div>
   <div class="flex-none gap-2">
+    <!-- Dropdown für Benutzer -->
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      </div>
+      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+        <li class="menu-title">Benutzer</li>
+        <li class="p-2"><button id="btnNewUser" class="btn btn-sm btn-primary w-full">Neuer Benutzer</button></li>
+        <li class="divider my-1"></li>
+        <div id="userList"></div>
+      </ul>
+    </div>
+
     <!-- Dropdown für Einstellungen -->
     <div class="dropdown dropdown-end">
       <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
@@ -77,7 +92,7 @@
       <div class="flex items-center space-x-4">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-primary" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.38 0 2.5 1.12 2.5 2.5S13.38 10.5 12 10.5 9.5 9.38 9.5 8 10.62 5.5 12 5.5zm-2 14.24v-1.74c0-1.66 1.34-3 3-3h2.36c1.66 0 3 1.34 3 3v1.74c-1.37.95-3.04 1.5-4.86 1.5s-3.49-.55-4.86-1.5z"/></svg>
         <div class="flex-1">
-          <h1 class="text-xl sm:text-2xl font-bold">Hallo, Christian</h1>
+          <h1 id="userGreeting" class="text-xl sm:text-2xl font-bold">Hallo, Christian</h1>
           <p class="text-sm opacity-70">Konstanz, Deutschland</p>
           <p class="mt-2 text-sm italic opacity-80">Dein Weg zu besserer Mitochondrienfunktion. 🔥</p>
         </div>
@@ -218,6 +233,19 @@
 <!-- TOASTS -->
 <div class="toast toast-end z-40" id="toasts"></div>
 
+<!-- MODAL: Benutzer erstellen -->
+<dialog id="userModal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
+    <p class="py-2">Gib einen Namen für dein Profil ein:</p>
+    <input id="newUserInput" type="text" placeholder="Name" class="input input-bordered w-full mt-2" />
+    <div class="modal-action">
+      <button id="btnCreateUser" class="btn btn-primary">Erstellen</button>
+      <form method="dialog"><button class="btn">Abbrechen</button></form>
+    </div>
+  </div>
+</dialog>
+
 <!-- MODAL: Badge freigeschaltet -->
 <dialog id="badgeModal" class="modal">
   <div class="modal-box">
@@ -243,22 +271,45 @@
 
 <script>
 /* ====== Status & Speicher ====== */
-const LS = {
-  entries: 'z2_fun_entries_v1',
-  settings: 'z2_fun_settings_v1',
-  meta: 'z2_fun_meta_v1'
-};
+const USERS_KEY = 'z2_users_v1';
 const defSettings = { tone: 'cheeky', weeklyTarget: 140, theme: 'winter' };
+let users = JSON.parse(localStorage.getItem(USERS_KEY)) || [];
+let currentUser = null;
+let settings = {};
+let entries = [];
+let meta = {};
 
-// Diese Variablen müssen global deklariert werden, bevor Funktionen sie verwenden.
-let settings = load(LS.settings, defSettings);
-let entries = load(LS.entries, []);
-let meta = load(LS.meta, { xp: 0, level: 1, unlocked: [] });
+// Generiert eine eindeutige ID
+function generateId(){ return Date.now().toString(36) + Math.random().toString(36).substr(2); }
 
-function load(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch(e){ return fallback; }
+function loadUserData(userId){
+  const user = users.find(u => u.id === userId);
+  if(!user) return;
+  currentUser = user;
+  
+  settings = load(currentUser.id, 'settings', defSettings);
+  entries = load(currentUser.id, 'entries', []);
+  meta = load(currentUser.id, 'meta', { xp: 0, level: 1, unlocked: [] });
+  
+  applySettingsUI();
+  renderTable();
+  applyStats();
+  updateUserGreeting();
+  renderUserList();
 }
-function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+function load(userId, key, fallback){
+  try {
+    const fullKey = `z2_${key}_${userId}`;
+    return JSON.parse(localStorage.getItem(fullKey)) ?? fallback;
+  } catch(e){ return fallback; }
+}
+
+function save(userId, key, val){
+  const fullKey = `z2_${key}_${userId}`;
+  localStorage.setItem(fullKey, JSON.stringify(val));
+}
+
 function nowTS(){ return Date.now(); }
 
 /* ====== Benachrichtigungs-Texte ====== */
@@ -286,7 +337,8 @@ const TOASTS = {
     "Daten wurden erfolgreich exportiert.",
     "Projekt erfolgreich importiert. Willkommen zurück!",
     "Alles gelöscht. Ein Neustart ist manchmal gut.",
-    "Schnell-Ausfüllen aktiviert. Effizienz pur!"
+    "Schnell-Ausfüllen aktiviert. Effizienz pur!",
+    "Benutzer gewechselt. Viel Erfolg!"
   ],
   warning: [
     "Bitte zuerst ein Foto auswählen.",
@@ -311,6 +363,12 @@ function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 /* ====== Elemente ====== */
 const el = {
+  userGreeting: document.getElementById('userGreeting'),
+  userList: document.getElementById('userList'),
+  btnNewUser: document.getElementById('btnNewUser'),
+  userModal: document.getElementById('userModal'),
+  newUserInput: document.getElementById('newUserInput'),
+  btnCreateUser: document.getElementById('btnCreateUser'),
   themeSel: document.getElementById('themeSel'),
   weeklyTarget: document.getElementById('weeklyTarget'),
   btnSaveSettings: document.getElementById('btnSaveSettings'),
@@ -391,7 +449,7 @@ function parseOCRText(text){
   const c = cands.filter(v=>plaus(v,8,120)).sort((a,b)=>a-b);
   if(c.length) dur = c[Math.floor(c.length/2)];
 
-  const mSpd = t.match(/(\d{1,2}(?:[\.,]\d)?)\s?(km\/h|kmh|kph)\b/);
+  const mSpd = t.match(/(\d{1,2}(?:[\.,]\d)?)\s?(?:km\/h|kmh|kph)\b/);
   if(mSpd){ speed = parseFloat(mSpd[1].replace(',','.')); if(!plaus(speed,3,25)) speed=null; }
 
   const mW = t.match(/(\d{2,4})\s?w\b/);
@@ -444,7 +502,7 @@ function renderBadges(stats){
 
   // meta.unlocked aktualisieren
   meta.unlocked = Array.from(currentlyUnlocked);
-  save(LS.meta, meta);
+  save(currentUser.id, 'meta', meta);
 }
 
 /* ====== Statistiken / XP / Streak berechnen ====== */
@@ -489,10 +547,11 @@ function updateXP(entry){
 
   meta.xp = (meta.xp||0) + xp;
   while(meta.xp >= 100){ meta.level = (meta.level||1) + 1; meta.xp -= 100; confettiBurst(); }
-  save(LS.meta, meta);
+  save(currentUser.id, 'meta', meta);
 }
 
 function applyStats(){
+  if(!currentUser) return;
   const stats = computeStats();
   const target = Number(settings.weeklyTarget)||140;
   const pct = Math.max(0, Math.min(100, Math.round(stats.weekMin/target*100)));
@@ -502,7 +561,7 @@ function applyStats(){
   const msgIdx = pct>=100?4 : pct>=75?3 : pct>=50?2 : pct>=25?1 : 0;
   el.wkMsg.textContent = tone.progress[msgIdx];
 
-  el.streak.textContent = `${stats.streak}�`;
+  el.streak.textContent = `${stats.streak}`;
   const next = stats.streak<3?3 : stats.streak<7?7 : stats.streak<14?14 : stats.streak<30?30 : '∞';
   el.nextBadge.textContent = next==='∞' ? 'Alle Streak-Badges freigeschaltet' : `Nächster: ${next} 🔥`;
 
@@ -538,10 +597,11 @@ function renderTable(){
       el.deleteModal.showModal();
       el.btnConfirmDelete.onclick = () => {
         entries = entries.filter(e => e.ts !== ts);
-        save(LS.entries, entries);
+        save(currentUser.id, 'entries', entries);
         renderTable();
         applyStats();
         el.deleteModal.close();
+        toast('Eintrag gelöscht.', 'alert-success');
       };
     });
   });
@@ -549,6 +609,7 @@ function renderTable(){
 
 /* ====== Eintrag speichern ====== */
 function saveEntry(obj){
+  if(!currentUser) { toast('Bitte erst einen Benutzer erstellen.', 'alert-warning'); return; }
   const e = {
     ts: nowTS(),
     hr: obj.hr!=null? Number(obj.hr):null,
@@ -561,7 +622,7 @@ function saveEntry(obj){
     toast(pick(TOASTS.warning), 'alert-warning'); return;
   }
   entries.unshift(e);
-  save(LS.entries, entries);
+  save(currentUser.id, 'entries', entries);
   renderTable();
   updateXP(e);
   applyStats();
@@ -592,6 +653,7 @@ el.btnOcr.addEventListener('click', async ()=>{
     const text = res?.data?.text || '';
     merged.raw += (merged.raw?'\n----\n':'') + text;
     const p = parseOCRText(text);
+    // Kombiniere die Werte, wobei existierende Werte bevorzugt werden
     merged.hr = merged.hr ?? p.hr;
     merged.dur = merged.dur ?? p.dur;
     merged.speed = merged.speed ?? p.speed;
@@ -605,6 +667,45 @@ el.btnOcr.addEventListener('click', async ()=>{
   el.btnOcr.disabled = false;
 });
 
+/* ====== Benutzerverwaltung ====== */
+function renderUserList(){
+  el.userList.innerHTML = '';
+  if(users.length === 0){
+    el.userList.innerHTML = '<li class="p-2 text-center text-sm opacity-50">Keine Benutzer</li>';
+  }
+  users.forEach(u => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = `btn btn-ghost btn-sm w-full text-left justify-start ${currentUser?.id === u.id ? 'font-bold' : ''}`;
+    btn.textContent = u.name;
+    btn.onclick = () => {
+      loadUserData(u.id);
+      toast(pick(TOASTS.info), 'alert-info');
+    };
+    li.appendChild(btn);
+    el.userList.appendChild(li);
+  });
+}
+function updateUserGreeting(){
+  const greeting = currentUser ? `Hallo, ${currentUser.name}` : 'Willkommen';
+  el.userGreeting.textContent = greeting;
+}
+el.btnNewUser.addEventListener('click', ()=>{
+  el.userModal.showModal();
+});
+el.btnCreateUser.addEventListener('click', ()=>{
+  const name = el.newUserInput.value.trim();
+  if(name){
+    const newUser = { id: generateId(), name: name };
+    users.push(newUser);
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    el.userModal.close();
+    el.newUserInput.value = '';
+    loadUserData(newUser.id);
+    toast(`Benutzer "${name}" erstellt.`, 'alert-success');
+  }
+});
+
 /* ====== Einstellungen / Theme ====== */
 function applySettingsUI(){
   el.weeklyTarget.value = settings.weeklyTarget;
@@ -616,27 +717,29 @@ function applySettingsUI(){
 }
 toneBtns.forEach(b=>b.addEventListener('click', ()=>{
   settings.tone = b.dataset.tone;
+  save(currentUser.id, 'settings', settings);
   applySettingsUI();
 }));
 el.btnSaveSettings.addEventListener('click', ()=>{
   settings.weeklyTarget = Math.max(20, Number(el.weeklyTarget.value)||140);
   settings.theme = el.themeSel.value;
-  save(LS.settings, settings);
+  save(currentUser.id, 'settings', settings);
   toast(pick(TOASTS.info), 'alert-info');
   applyStats();
 });
 el.themeSel.addEventListener('change', ()=>{
   settings.theme = el.themeSel.value;
   document.documentElement.setAttribute('data-theme', settings.theme);
-  save(LS.settings, settings);
+  save(currentUser.id, 'settings', settings);
 });
 
 /* ====== Exportieren / Importieren / Löschen ====== */
 el.btnExport.addEventListener('click', ()=>{
-  const payload = { version:1, settings, entries, meta };
+  if(!currentUser) { toast('Bitte erst einen Benutzer erstellen.', 'alert-warning'); return; }
+  const payload = { version:2, settings, entries, meta };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='z2_projekt.json'; a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement('a'); a.href=url; a.download=`z2_projekt_${currentUser.name}.json`; a.click(); URL.revokeObjectURL(url);
   toast(pick(TOASTS.info), 'alert-info');
 });
 el.importFile.addEventListener('change', ()=>{
@@ -646,21 +749,32 @@ el.importFile.addEventListener('change', ()=>{
     try{
       const obj = JSON.parse(r.result);
       if(!obj || !Array.isArray(obj.entries)) throw new Error('Ungültiges Projekt');
-      settings = Object.assign({}, defSettings, obj.settings||{});
-      entries = obj.entries||[];
-      meta = Object.assign({ xp:0, level:1, unlocked:[] }, obj.meta||{});
-      save(LS.settings, settings); save(LS.entries, entries); save(LS.meta, meta);
-      applySettingsUI(); renderTable(); applyStats();
-      toast(pick(TOASTS.info), 'alert-success'); confettiBurst();
+      // Importiere Daten für den aktuellen Benutzer, falls vorhanden
+      if(currentUser){
+        settings = Object.assign({}, defSettings, obj.settings||{});
+        entries = obj.entries||[];
+        meta = Object.assign({ xp:0, level:1, unlocked:[] }, obj.meta||{});
+        save(currentUser.id, 'settings', settings);
+        save(currentUser.id, 'entries', entries);
+        save(currentUser.id, 'meta', meta);
+        applySettingsUI();
+        renderTable();
+        applyStats();
+        toast(pick(TOASTS.info), 'alert-success'); confettiBurst();
+      } else {
+        toast('Bitte zuerst einen Benutzer erstellen oder auswählen.', 'alert-warning');
+      }
     }catch(e){ toast(pick(TOASTS.error), 'alert-error'); }
   };
   r.readAsText(f);
 });
 el.btnClear.addEventListener('click', ()=>{
-  if(!el.deleteModal.open) { el.deleteModal.showModal(); }
+  if(!currentUser) { toast('Bitte erst einen Benutzer erstellen.', 'alert-warning'); return; }
+  el.deleteModal.showModal();
   el.btnConfirmDelete.onclick = () => {
     entries = []; meta = { xp:0, level:1, unlocked:[] };
-    save(LS.entries, entries); save(LS.meta, meta);
+    save(currentUser.id, 'entries', entries);
+    save(currentUser.id, 'meta', meta);
     renderTable(); applyStats();
     toast(pick(TOASTS.info), 'alert-warning');
     el.deleteModal.close();
@@ -683,10 +797,23 @@ el.btnSave.addEventListener('click', ()=>{
 });
 
 /* ====== Initialisierung ====== */
-applySettingsUI();
-renderTable();
-applyStats();
-el.btnOcr.disabled = true;
+function init(){
+  renderUserList();
+  if(users.length > 0){
+    // Lade den ersten Benutzer standardmäßig
+    loadUserData(users[0].id);
+  } else {
+    updateUserGreeting();
+    // Deaktiviere die Buttons, wenn kein Benutzer ausgewählt ist
+    el.btnOcr.disabled = true;
+    el.btnSave.disabled = true;
+    el.btnExport.disabled = true;
+    el.btnClear.disabled = true;
+  }
+}
+
+init();
+
 </script>
 </body>
 </html>
