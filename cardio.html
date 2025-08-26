@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
     <!-- Font Awesome für Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2gN1f2zI+w140+9A2s251n5+1i+9C8c/8f5e71A7p4/C65F87c4A4f11g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
         /* Grundstile für ein sauberes, mobil-orientiertes Design */
@@ -106,7 +106,7 @@
                     <div class="label"><span class="label-text">Watt-Stufe</span></div>
                     <div class="flex items-center gap-2">
                         <input id="quickLevel" type="range" min="1" max="8" value="1" step="1" class="range range-xs" />
-                        <span id="wattValue" class="text-sm font-bold w-12 text-center">0 W</span>
+                        <span id="wattValue" class="text-sm font-bold w-12 text-center">1</span>
                     </div>
                 </label>
                 <label class="form-control w-full sm:w-auto">
@@ -136,12 +136,6 @@
             <div class="stat shadow">
                 <div class="stat-title">Einträge</div><div id="kpiEntries" class="stat-value transition-all duration-300">0</div>
             </div>
-        </div>
-
-        <!-- Belohnungen Section -->
-        <h2 class="text-lg font-semibold mt-6 mb-2">Deine Belohnungen</h2>
-        <div id="rewardsGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 mb-6">
-            <!-- Belohnungen werden hier durch JS gerendert -->
         </div>
 
         <!-- CTA: Schnell-Eingabe öffnen -->
@@ -177,6 +171,12 @@
                 </thead>
                 <tbody id="tbodySessions"></tbody>
             </table>
+        </div>
+        
+        <!-- Belohnungen Section -->
+        <h2 class="text-lg font-semibold mt-6 mb-2">Deine Belohnungen</h2>
+        <div id="rewardsGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 mb-6">
+            <!-- Belohnungen werden hier durch JS gerendert -->
         </div>
 
     </div>
@@ -421,12 +421,10 @@
             confetti.style.animationDuration = `${Math.random() * 2 + 3}s`; // 3-5s
             confetti.style.transform = `translateY(-100vh) rotate(${Math.random() * 360}deg)`;
             container.appendChild(confetti);
-
             confetti.addEventListener('animationend', () => confetti.remove());
         }
 
         // ========= Gamification & Logik =========
-
         // Belohnungen (Rewards)
         const REWARDS = [
             { id: 'first_session', title: 'Erster Eintrag', desc: 'Absolviere deine erste Trainingseinheit.', icon: 'fas fa-medal', condition: (user) => user.metrics.totalEntries >= 1 },
@@ -438,7 +436,7 @@
             { id: '100_entries', title: 'Hundert Sessions', desc: 'Absolviere 100 Trainingseinheiten.', icon: 'fas fa-dumbbell', condition: (user) => user.metrics.totalEntries >= 100 },
             { id: 'max_level', title: 'Max Level!', desc: 'Erreiche Level 10.', icon: 'fas fa-gem', condition: (user) => user.metrics.level >= 10 },
         ];
-        
+
         // Konstanten für Watt-Berechnung
         const WATT_BASE = 50;
         const WATT_STEP = 25;
@@ -485,6 +483,7 @@
             sortedSessions.forEach(session => {
                 totalXp += calculateXp(session);
                 const sessionDate = new Date(session.date).toDateString();
+                
                 if (lastDay === null) {
                     streakCount = 1;
                 } else {
@@ -502,249 +501,250 @@
             });
 
             user.metrics.totalEntries = totalEntries;
-            user.metrics.xp = totalXp % 100;
-            user.metrics.level = 1 + Math.floor(totalXp / 100);
+            user.metrics.xp = totalXp;
             user.metrics.streakCount = streakCount;
             user.metrics.lastDay = lastDay;
-            
-            // 2. Belohnungen neu bewerten
-            const oldRewards = new Set(user.rewards);
-            const newRewards = [];
+
+            // Level basierend auf XP berechnen
+            const newLevel = Math.floor(totalXp / 100) + 1;
+            if (newLevel > user.metrics.level) {
+                user.metrics.level = newLevel;
+                showSuccessDialog(`Level ${newLevel} erreicht!`, `Du hast Level ${newLevel} erreicht. Weiter so!`, 'fas fa-level-up-alt');
+            }
+
+            // 2. Belohnungen überprüfen und freischalten
             REWARDS.forEach(reward => {
-                if (reward.condition(user)) {
-                    newRewards.push(reward.id);
-                    // Zeige Erfolgsdialog nur für neu freigeschaltete Belohnungen
-                    if (!oldRewards.has(reward.id)) {
-                        showSuccessDialog(reward.title, reward.desc, reward.icon);
+                // Nur Belohnungen überprüfen, die der Benutzer noch nicht hat
+                if (!user.rewards.some(r => r.id === reward.id)) {
+                    if (reward.condition(user)) {
+                        user.rewards.push(reward);
+                        showSuccessDialog(`Neue Belohnung freigeschaltet!`, `${reward.title}: ${reward.desc}`, reward.icon);
                     }
                 }
             });
-            user.rewards = newRewards;
-            
-            // 3. Zustand speichern und UI rendern
-            user.sessions.sort((a, b) => new Date(b.date) - new Date(a.date)); // Neueste oben
-            saveState();
+
+            // 3. UI rendern
             renderAll(highlightId);
+            saveState();
         }
 
-        // ========= Daten-Operationen =========
-        /**
-         * Fügt eine neue Session hinzu.
-         * @param {object} sessionData Die Daten der neuen Session.
-         */
-        function addSession(sessionData) {
-            const user = state.users[state.activeUserId];
-            const sessionId = uid();
-            const session = { id: sessionId, ...sessionData, createdAt: nowISO() };
-            user.sessions.push(session);
-            handleDataChange(sessionId);
-        }
-        
-        /**
-         * Aktualisiert eine bestehende Session.
-         * @param {string} sessionId Die ID der zu aktualisierenden Session.
-         * @param {object} newData Die neuen Daten.
-         */
-        function updateSession(sessionId, newData) {
-            const user = state.users[state.activeUserId];
-            const index = user.sessions.findIndex(s => s.id === sessionId);
-            if (index !== -1) {
-                user.sessions[index] = { ...user.sessions[index], ...newData };
-                handleDataChange(sessionId);
-            }
-        }
-
-        /**
-         * Löscht eine Session.
-         * @param {string} sessionId Die ID der zu löschenden Session.
-         */
-        function deleteSession(sessionId) {
-            const user = state.users[state.activeUserId];
-            user.sessions = user.sessions.filter(s => s.id !== sessionId);
-            handleDataChange();
-        }
-
-        /**
-         * Öffnet das Modal für die manuelle Session-Eingabe
-         * und füllt es mit Daten, wenn eine Session bearbeitet wird.
-         * @param {object|null} session Die zu bearbeitende Session oder null für eine neue Session.
-         */
-        function openSessionModal(session = null) {
-            const dlg = document.getElementById('dlgNewSession');
-            const title = document.getElementById('sessionModalTitle');
-            const btnSave = document.getElementById('btnSaveSession');
-            
-            sessionBeingEdited = session ? session.id : null;
-
-            if (session) {
-                title.textContent = 'Session bearbeiten';
-                document.getElementById('sessionDate').value = session.date.substring(0, 10);
-                document.getElementById('sessionDuration').value = session.duration;
-                document.getElementById('sessionHr').value = session.hr;
-                document.getElementById('sessionWatt').value = session.watt;
-                document.getElementById('sessionDistance').value = session.distance;
-                document.getElementById('sessionNote').value = session.note;
-                btnSave.textContent = 'Änderungen speichern';
-            } else {
-                title.textContent = 'Training eintragen (Manuell)';
-                document.getElementById('sessionDate').valueAsDate = new Date(); // Standard auf heute
-                document.getElementById('sessionDuration').value = '';
-                document.getElementById('sessionHr').value = '';
-                document.getElementById('sessionWatt').value = '';
-                document.getElementById('sessionDistance').value = '';
-                document.getElementById('sessionNote').value = '';
-                btnSave.textContent = 'Eintrag speichern';
-            }
-
-            dlg.showModal();
-        }
-
-        /**
-         * Speichert eine Session basierend auf den Modal-Werten.
-         */
-        function saveSessionFromModal() {
-            const data = {
-                date: document.getElementById('sessionDate').value,
-                duration: parseInt(document.getElementById('sessionDuration').value) || 0,
-                hr: parseInt(document.getElementById('sessionHr').value) || null,
-                watt: parseInt(document.getElementById('sessionWatt').value) || null,
-                distance: parseFloat(document.getElementById('sessionDistance').value) || null,
-                note: document.getElementById('sessionNote').value.trim() || null
-            };
-
-            if (sessionBeingEdited) {
-                updateSession(sessionBeingEdited, data);
-            } else {
-                addSession(data);
-            }
-            document.getElementById('dlgNewSession').close();
-        }
-        
-        // ========= Rendering der UI =========
+        // ========= Rendering-Funktionen =========
         /**
          * Rendert die Benutzer-Dropdown-Liste.
          */
         function renderUsers() {
             const userSelect = document.getElementById('userSelect');
-            userSelect.innerHTML = Object.values(state.users).map(user => 
-                `<option value="${user.id}" ${user.id === state.activeUserId ? 'selected' : ''}>${user.name}</option>`
-            ).join('');
+            userSelect.innerHTML = '';
+            for (const userId in state.users) {
+                const user = state.users[userId];
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.name;
+                userSelect.appendChild(option);
+            }
+            userSelect.value = state.activeUserId;
         }
 
         /**
-         * Rendert die Einstellungen für den aktiven Benutzer.
+         * Rendert die Benutzereinstellungen (Theme, Gewicht, Wochenziel).
          */
         function renderSettings() {
             const user = state.users[state.activeUserId];
+            document.body.setAttribute('data-theme', user.settings.theme);
+            document.getElementById('themeSelect').value = user.settings.theme;
             document.getElementById('bodyWeight').value = user.settings.bodyWeight;
             document.getElementById('weeklyTarget').value = user.settings.weeklyTarget;
-            document.getElementById('themeSelect').value = user.settings.theme;
-            document.getElementById('quickLevel').value = user.settings.quickLevel;
             document.getElementById('quickDuration').value = user.settings.quickDuration;
             document.getElementById('quickHr').value = user.settings.quickHr;
-            document.documentElement.setAttribute('data-theme', user.settings.theme);
-            
-            // Wattwert bei der Schnell-Eingabe aktualisieren
-            document.getElementById('wattValue').textContent = `${getWattValue(user.settings.quickLevel)} W`;
+            document.getElementById('quickLevel').value = user.settings.quickLevel;
+            document.getElementById('wattValue').textContent = document.getElementById('quickLevel').value;
         }
 
         /**
-         * Berechnet und rendert die KPIs.
+         * Rendert die Liste der Sessions in der Tabelle.
+         * @param {string | null} highlightId Die ID der Session, die hervorgehoben werden soll.
+         */
+        function renderSessions(highlightId = null) {
+            const tbody = document.getElementById('tbodySessions');
+            tbody.innerHTML = '';
+            const user = state.users[state.activeUserId];
+            
+            // Sessions in absteigender Reihenfolge sortieren
+            const sortedSessions = [...user.sessions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            sortedSessions.forEach(session => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-base-300 transition-colors duration-200 cursor-pointer';
+                if (session.id === highlightId) {
+                    tr.classList.add('new-entry-highlight');
+                }
+                tr.dataset.sessionId = session.id;
+
+                const date = new Date(session.date);
+                const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.`;
+
+                tr.innerHTML = `
+                    <td class="text-xs md:text-sm">${dateStr}</td>
+                    <td class="text-xs md:text-sm">${session.duration} min</td>
+                    <td class="text-xs md:text-sm">${session.hr || '-'} bpm</td>
+                    <td class="hide-xs text-xs md:text-sm">${session.watt || '-'} W</td>
+                    <td class="hide-xs text-xs md:text-sm">${session.distance ? session.distance.toFixed(1) : '-'} km</td>
+                    <td class="hide-xs text-xs md:text-sm">${session.calories ? Math.round(session.calories) : '-'} Kcal</td>
+                    <td class="text-xs md:text-sm row-note">${session.note || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-ghost btn-square btn-edit" data-id="${session.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        /**
+         * Rendert die KPIs in den Statistiken-Karten.
          */
         function calculateAndRenderKPIs() {
             const user = state.users[state.activeUserId];
-            const currentWeekSessions = user.sessions.filter(s => isSameWeek(new Date(s.date), new Date()));
-            const weekMinutes = currentWeekSessions.reduce((sum, s) => sum + s.duration, 0);
-
-            document.getElementById('kpiWeekMin').textContent = weekMinutes;
+            const sessionsThisWeek = user.sessions.filter(s => isSameWeek(new Date(s.date), new Date()));
+            const totalMinutesThisWeek = sessionsThisWeek.reduce((sum, s) => sum + s.duration, 0);
+            
+            document.getElementById('kpiWeekMin').textContent = totalMinutesThisWeek;
             document.getElementById('kpiStreak').textContent = user.metrics.streakCount;
             document.getElementById('kpiLevel').textContent = user.metrics.level;
-            document.getElementById('kpiXp').textContent = user.metrics.xp;
+            document.getElementById('kpiXp').textContent = user.metrics.xp % 100;
             document.getElementById('kpiEntries').textContent = user.metrics.totalEntries;
         }
 
         /**
-         * Rendert die Sessions-Tabelle.
-         * @param {string} highlightId ID des Eintrags, der hervorgehoben werden soll.
-         */
-        function renderSessions(highlightId = null) {
-            const user = state.users[state.activeUserId];
-            const tbody = document.getElementById('tbodySessions');
-            tbody.innerHTML = user.sessions.map(session => {
-                const date = new Date(session.date);
-                const isHighlighted = session.id === highlightId ? 'new-entry-highlight' : '';
-                return `
-                    <tr class="${isHighlighted}">
-                        <td class="text-xs md:text-sm">${date.toLocaleDateString()}</td>
-                        <td class="text-xs md:text-sm">${session.duration}</td>
-                        <td class="text-xs md:text-sm">${session.hr || '-'}</td>
-                        <td class="hide-xs text-xs md:text-sm">${session.watt || '-'}</td>
-                        <td class="hide-xs text-xs md:text-sm">${(session.distance ? session.distance.toFixed(1) : '-')}</td>
-                        <td class="hide-xs text-xs md:text-sm">${(session.calories ? Math.floor(session.calories) : '-')}</td>
-                        <td class="text-xs md:text-sm row-note">${session.note || '-'}</td>
-                        <td class="flex gap-1">
-                            <button class="btn btn-xs btn-circle btn-info btn-outline btn-edit" data-id="${session.id}">
-                                <i class="fa-solid fa-pen-to-square"></i>
-                            </button>
-                            <button class="btn btn-xs btn-circle btn-error btn-outline btn-delete" data-id="${session.id}">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        /**
-         * Rendert die Belohnungen-Ansicht.
+         * Rendert die freigeschalteten und gesperrten Belohnungen.
          */
         function renderRewards() {
-            const user = state.users[state.activeUserId];
             const rewardsGrid = document.getElementById('rewardsGrid');
-            rewardsGrid.innerHTML = REWARDS.map(reward => {
-                const unlocked = user.rewards.includes(reward.id);
-                return `
-                    <div class="card bg-base-100 shadow-md ${unlocked ? 'opacity-100' : 'opacity-40'}" title="${reward.title}">
-                        <div class="card-body p-3 text-center items-center">
-                            <i class="${reward.icon} text-3xl mb-2"></i>
-                            <p class="text-sm font-semibold">${reward.title}</p>
-                        </div>
+            rewardsGrid.innerHTML = '';
+            const user = state.users[state.activeUserId];
+
+            REWARDS.forEach(reward => {
+                const isUnlocked = user.rewards.some(r => r.id === reward.id);
+                const card = document.createElement('div');
+                card.className = `card bg-base-100 shadow-xl ${isUnlocked ? '' : 'opacity-40'}`;
+                card.innerHTML = `
+                    <div class="card-body p-4 text-center">
+                        <i class="card-icon text-4xl text-primary mx-auto mb-2 ${reward.icon}"></i>
+                        <h3 class="font-bold text-sm">${reward.title}</h3>
+                        <p class="text-xs opacity-70">${reward.desc}</p>
                     </div>
                 `;
-            }).join('');
+                rewardsGrid.appendChild(card);
+            });
         }
-        
-        // ========= Hilfsfunktionen (Datum) =========
+
+        // ========= Event-Handler =========
         /**
-         * Überprüft, ob zwei Daten in derselben Woche liegen.
-         * @param {Date} date1 Datum 1.
-         * @param {Date} date2 Datum 2.
-         * @returns {boolean} True, wenn sie in derselben Woche liegen.
+         * Behandelt das Speichern einer neuen Session aus dem Modal.
+         * @param {Event} e Das Klick-Event.
          */
-        function isSameWeek(date1, date2) {
-            const d1 = new Date(date1);
-            const d2 = new Date(date2);
-            d1.setHours(0, 0, 0, 0);
-            d2.setHours(0, 0, 0, 0);
+        function saveSessionFromModal(e) {
+            e.preventDefault();
+            const date = document.getElementById('sessionDate').value;
+            const duration = document.getElementById('sessionDuration').value;
+            const hr = document.getElementById('sessionHr').value;
+            const watt = document.getElementById('sessionWatt').value;
+            const distance = document.getElementById('sessionDistance').value;
+            const note = document.getElementById('sessionNote').value;
 
-            const onejan = new Date(d1.getFullYear(), 0, 1);
-            const week1 = Math.ceil((((d1 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
-            const week2 = Math.ceil((((d2 - onejan) / 86400000) + onejan.getUTCDay() + 1) / 7);
+            const user = state.users[state.activeUserId];
+            let session = {
+                date: date || nowISO().split('T')[0],
+                duration: parseInt(duration),
+                hr: hr ? parseInt(hr) : null,
+                watt: watt ? parseInt(watt) : null,
+                distance: distance ? parseFloat(distance) : null,
+                note: note
+            };
 
-            return week1 === week2 && d1.getFullYear() === d2.getFullYear();
+            const bodyWeight = user.settings.bodyWeight || 75;
+            // Einfache Kalorienformel: Kcal = (Dauer in Min) * (Watt-Äquivalent) * (Körpergewicht in kg)
+            // Dies ist eine sehr grobe Schätzung
+            if (session.watt) {
+                session.calories = (session.duration / 60) * session.watt * bodyWeight * 0.001;
+            } else if (session.distance) {
+                // Schätzung basierend auf Distanz und Gewicht
+                session.calories = session.distance * bodyWeight * 1.03;
+            }
+
+            if (sessionBeingEdited) {
+                // Session bearbeiten
+                const existingSessionIndex = user.sessions.findIndex(s => s.id === sessionBeingEdited);
+                if (existingSessionIndex !== -1) {
+                    session = { ...user.sessions[existingSessionIndex], ...session };
+                    user.sessions[existingSessionIndex] = session;
+                }
+            } else {
+                // Neue Session hinzufügen
+                session.id = uid();
+                session.createdAt = nowISO();
+                user.sessions.push(session);
+            }
+
+            handleDataChange(session.id);
+            document.getElementById('dlgNewSession').close();
+            sessionBeingEdited = null;
         }
 
-        // ========= Daten-Import/Export =========
         /**
-         * Exportiert den Zustand als JSON-Datei.
+         * Behandelt die Schnell-Eingabe.
+         */
+        function handleQuickSession() {
+            const user = state.users[state.activeUserId];
+            const quickLevel = parseInt(document.getElementById('quickLevel').value);
+            const quickDuration = parseInt(document.getElementById('quickDuration').value);
+            const quickHr = parseInt(document.getElementById('quickHr').value);
+            
+            if (isNaN(quickDuration) || quickDuration <= 0) {
+                // Keine Meldung, da das Modal geöffnet wird und die validierung dort stattfindet.
+                // Stattdessen öffnen wir einfach das Modal für manuelle Eingabe
+                openSessionModal();
+                return;
+            }
+
+            // Wattwert aus Stufe berechnen
+            const watt = getWattValue(quickLevel);
+
+            const session = {
+                id: uid(),
+                createdAt: nowISO(),
+                date: nowISO().split('T')[0],
+                duration: quickDuration,
+                hr: quickHr || null,
+                watt: watt,
+                distance: null, // Keine Distanz bei Schnell-Eingabe
+                note: `Schnell-Eintrag (Stufe ${quickLevel})`
+            };
+            
+            const bodyWeight = user.settings.bodyWeight || 75;
+            session.calories = (session.duration / 60) * session.watt * bodyWeight * 0.001;
+
+            user.sessions.push(session);
+            
+            // Einstellungen für den nächsten Schnell-Eintrag speichern
+            user.settings.quickLevel = quickLevel;
+            user.settings.quickDuration = quickDuration;
+            user.settings.quickHr = quickHr;
+
+            handleDataChange(session.id);
+        }
+
+        /**
+         * Behandelt das Exportieren der Daten.
          */
         function exportData() {
-            const json = JSON.stringify(state, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
+            const dataStr = JSON.stringify(state, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `z2log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `z2log_export_${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -752,135 +752,153 @@
         }
 
         /**
-         * Importiert den Zustand aus einer JSON-Datei.
-         * @param {File} file Die importierte Datei.
+         * Behandelt das Importieren der Daten.
+         * @param {File} file Die zu importierende Datei.
          */
         function importData(file) {
             const reader = new FileReader();
             reader.onload = async (e) => {
+                const content = e.target.result;
                 try {
-                    const importedState = JSON.parse(e.target.result);
-                    if (await showConfirmDialog('Daten importieren?', 'Alle aktuellen Daten werden ersetzt. Möchtest du fortfahren?')) {
+                    const importedState = JSON.parse(content);
+                    if (await showConfirmDialog('Daten importieren?', 'Alle aktuellen Daten werden überschrieben. Bist du sicher?')) {
                         state = importedState;
-                        handleDataChange(); // Zentrale Funktion für konsistentes Update
+                        saveState();
+                        renderAll();
                     }
                 } catch (err) {
-                    alert('Import fehlgeschlagen: Ungültige Datei.');
-                    console.error('Import-Fehler:', err);
+                    showConfirmDialog('Import-Fehler', 'Ungültiges Dateiformat.');
                 }
             };
             reader.readAsText(file);
         }
 
         /**
-         * Löscht nur die Sessions des aktiven Benutzers und setzt Metriken sowie Belohnungen zurück.
+         * Löscht alle Daten nach Bestätigung.
          */
         async function wipeAllData() {
-            if (await showConfirmDialog('Alle Sessions löschen?', 'Dieser Vorgang kann nicht rückgängig gemacht werden. Bist du sicher?')) {
-                const user = state.users[state.activeUserId];
-                user.sessions = [];
-                handleDataChange(); // Zentrale Funktion für konsistentes Update
+            if (await showConfirmDialog('Alle Daten löschen?', 'Dieser Vorgang kann nicht rückgängig gemacht werden. Möchtest du wirklich alle Sessions und Benutzerdaten unwiederbringlich löschen?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                state = structuredClone(DEFAULT_STATE);
+                renderAll();
             }
         }
-
-        // ========= Event-Listener und Initialisierung =========
+        
         /**
-         * Setzt alle Event-Listener für die Benutzeroberfläche.
+         * Öffnet das Modal zum Hinzufügen oder Bearbeiten einer Session.
+         * @param {object} session Die Session-Daten, falls eine Session bearbeitet wird.
+         */
+        function openSessionModal(session = null) {
+            const dlg = document.getElementById('dlgNewSession');
+            const title = document.getElementById('sessionModalTitle');
+            const saveBtn = document.getElementById('btnSaveSession');
+            
+            // Setzt das Formular zurück
+            const form = dlg.querySelector('form');
+            form.reset();
+            sessionBeingEdited = null;
+
+            if (session) {
+                // Bearbeiten-Modus
+                title.textContent = 'Training bearbeiten';
+                document.getElementById('sessionDate').value = session.date;
+                document.getElementById('sessionDuration').value = session.duration;
+                document.getElementById('sessionHr').value = session.hr || '';
+                document.getElementById('sessionWatt').value = session.watt || '';
+                document.getElementById('sessionDistance').value = session.distance || '';
+                document.getElementById('sessionNote').value = session.note || '';
+                sessionBeingEdited = session.id;
+            } else {
+                // Neu-Erstellen-Modus
+                title.textContent = 'Training eintragen (Manuell)';
+                document.getElementById('sessionDate').value = nowISO().split('T')[0];
+                document.getElementById('sessionWatt').value = '';
+                document.getElementById('sessionDistance').value = '';
+                document.getElementById('sessionHr').value = '';
+                document.getElementById('sessionDuration').value = '';
+                document.getElementById('sessionNote').value = '';
+            }
+            
+            dlg.showModal();
+        }
+
+        /**
+         * Hilfsfunktion zum Vergleichen von Daten für Wochenziele.
+         * @param {Date} d1 Datum 1.
+         * @param {Date} d2 Datum 2.
+         * @returns {boolean} True, wenn die Daten in der gleichen Kalenderwoche sind.
+         */
+        function isSameWeek(d1, d2) {
+            const onejan = new Date(d1.getFullYear(), 0, 1);
+            const d1Week = Math.ceil((((d1 - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+            const onejan2 = new Date(d2.getFullYear(), 0, 1);
+            const d2Week = Math.ceil((((d2 - onejan2) / 86400000) + onejan2.getDay() + 1) / 7);
+            return d1Week === d2Week && d1.getFullYear() === d2.getFullYear();
+        }
+
+        /**
+         * Richtet alle Event-Listener der Anwendung ein.
          */
         function setupEventListeners() {
-            const themeSelect = document.getElementById('themeSelect');
-            const userSelect = document.getElementById('userSelect');
-            const btnSaveSettings = document.getElementById('btnSaveSettings');
-            const btnNewUser = document.getElementById('btnNewUser');
-            const btnCreateUser = document.getElementById('btnCreateUser');
-            const newUserNameInput = document.getElementById('newUserName');
-            const btnQuickSession = document.getElementById('btnQuickSession');
-            const tbody = document.getElementById('tbodySessions');
-            const btnExport = document.getElementById('btnExport');
-            const btnImport = document.getElementById('btnImport');
-            const fileImport = document.getElementById('fileImport');
-            const btnWipeAll = document.getElementById('btnWipeAll');
-            const quickLevelRange = document.getElementById('quickLevel');
-            const wattValueSpan = document.getElementById('wattValue');
-            const btnSaveSession = document.getElementById('btnSaveSession');
-            const dlgNewSession = document.getElementById('dlgNewSession');
-
-            // Theme-Wechsel
-            themeSelect.addEventListener('change', (e) => {
+            // UI-Steuerungen
+            document.getElementById('themeSelect').addEventListener('change', (e) => {
                 state.users[state.activeUserId].settings.theme = e.target.value;
-                document.documentElement.setAttribute('data-theme', e.target.value);
+                document.body.setAttribute('data-theme', e.target.value);
                 saveState();
             });
 
-            // Benutzer-Wechsel
-            userSelect.addEventListener('change', (e) => {
+            document.getElementById('userSelect').addEventListener('change', (e) => {
                 state.activeUserId = e.target.value;
-                handleDataChange();
-            });
-
-            // Benutzer-Einstellungen speichern
-            btnSaveSettings.addEventListener('click', () => {
-                const user = state.users[state.activeUserId];
-                user.settings.bodyWeight = document.getElementById('bodyWeight').value;
-                user.settings.weeklyTarget = document.getElementById('weeklyTarget').value;
-                user.settings.quickLevel = parseInt(quickLevelRange.value);
-                user.settings.quickDuration = parseInt(document.getElementById('quickDuration').value);
-                user.settings.quickHr = parseInt(document.getElementById('quickHr').value);
-                saveState();
-                calculateAndRenderKPIs();
-                alert('Einstellungen gespeichert!');
-            });
-
-            // Watt-Anzeige bei Schieberegler-Bewegung aktualisieren
-            quickLevelRange.addEventListener('input', (e) => {
-                const level = parseInt(e.target.value);
-                wattValueSpan.textContent = `${getWattValue(level)} W`;
+                renderAll();
             });
             
-            // Neuer Benutzer-Dialog
-            btnNewUser.addEventListener('click', () => {
-                document.getElementById('dlgNewUser').showModal();
+            document.getElementById('btnNewUser').addEventListener('click', () => {
+                const dlg = document.getElementById('dlgNewUser');
+                dlg.showModal();
+                document.getElementById('newUserName').focus();
             });
 
-            // Benutzer erstellen
-            btnCreateUser.addEventListener('click', () => {
-                const name = newUserNameInput.value.trim();
+            document.getElementById('btnCreateUser').addEventListener('click', () => {
+                const nameInput = document.getElementById('newUserName');
+                const name = nameInput.value.trim();
                 if (name) {
-                    const newUserId = uid();
-                    state.users[newUserId] = structuredClone(DEFAULT_STATE.users.default);
-                    state.users[newUserId].id = newUserId;
-                    state.users[newUserId].name = name;
-                    state.users[newUserId].createdAt = nowISO();
-                    state.activeUserId = newUserId;
-                    handleDataChange();
+                    const newId = uid();
+                    state.users[newId] = structuredClone(DEFAULT_STATE.users.default);
+                    state.users[newId].id = newId;
+                    state.users[newId].name = name;
+                    state.activeUserId = newId;
+                    renderAll();
                     document.getElementById('dlgNewUser').close();
                 }
             });
 
-            // Schnelleingabe-Button
-            btnQuickSession.addEventListener('click', () => {
+            document.getElementById('btnSaveSettings').addEventListener('click', () => {
                 const user = state.users[state.activeUserId];
-                const session = {
-                    date: nowISO().substring(0, 10),
-                    watt: getWattValue(parseInt(user.settings.quickLevel)),
-                    hr: parseInt(user.settings.quickHr),
-                    duration: parseInt(user.settings.quickDuration),
-                    distance: null,
-                    calories: null,
-                    note: 'Schnelleingabe'
-                };
-                addSession(session);
+                user.settings.bodyWeight = parseInt(document.getElementById('bodyWeight').value) || user.settings.bodyWeight;
+                user.settings.weeklyTarget = parseInt(document.getElementById('weeklyTarget').value) || user.settings.weeklyTarget;
+                saveState();
             });
 
-            // Sessions-Tabelle (für Löschen und Bearbeiten)
-            tbody.addEventListener('click', (e) => {
-                const target = e.target.closest('button');
-                if (!target) return;
-                const sessionId = target.dataset.id;
-                
-                if (target.classList.contains('btn-delete')) {
-                    deleteSession(sessionId);
-                } else if (target.classList.contains('btn-edit')) {
+            // Watt-Slider Event-Listener
+            const quickLevelSlider = document.getElementById('quickLevel');
+            const wattValueSpan = document.getElementById('wattValue');
+            quickLevelSlider.addEventListener('input', (e) => {
+                wattValueSpan.textContent = e.target.value;
+            });
+
+            // Session-Eingabe
+            document.getElementById('btnQuickSession').addEventListener('click', handleQuickSession);
+
+            // Event-Listener für das manuelle Hinzufügen einer Session
+            document.getElementById('btnNewSession').addEventListener('click', () => {
+                openSessionModal();
+            });
+
+            // Event-Delegation für die Tabelle
+            document.getElementById('tbodySessions').addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.btn-edit');
+                if (editBtn) {
+                    const sessionId = editBtn.dataset.id;
                     const user = state.users[state.activeUserId];
                     const session = user.sessions.find(s => s.id === sessionId);
                     if (session) {
