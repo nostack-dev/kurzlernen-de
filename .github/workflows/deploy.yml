@@ -1,9 +1,26 @@
-name: Deploy static site
+name: Deploy static site (fast)
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
+    # Optional: only run when site files change (uncomment + adjust)
+    # paths:
+    #   - 'dist/**'
+    #   - '.github/workflows/pages.yml'
   workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  # 🔧 Change to your built/static folder. If you deploy repo root, set to "."
+  SITE_DIR: dist
 
 jobs:
   deploy:
@@ -11,15 +28,35 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      # Shallow, filtered, and sparse checkout => faster I/O
+      - name: Checkout (shallow & sparse)
+        uses: actions/checkout@v4
         with:
-          path: .
-      - id: deployment
+          fetch-depth: 1          # no history
+          lfs: false              # no LFS
+          clean: false            # runner is ephemeral; skip extra clean step
+          filter: blob:none       # partial clone speeds up large repos
+          sparse-checkout: ${{ env.SITE_DIR }}
+          sparse-checkout-cone: true
+
+      # If SITE_DIR doesn't exist (e.g., deploying root), fall back to "."
+      - name: Resolve site directory
+        id: site
+        run: |
+          DIR="${SITE_DIR}"
+          if [ ! -d "$DIR" ]; then DIR="."; fi
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact (only site files)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.site.outputs.dir }}
+
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
