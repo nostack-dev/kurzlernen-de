@@ -103,7 +103,7 @@
             <h2 class="text-lg font-semibold mb-2">Schnell-Eingabe-Einstellungen</h2>
             <div class="flex flex-wrap items-center gap-4">
                 <label class="form-control w-full sm:w-auto">
-                    <div class="label"><span class="label-text">Watt-Stufe (Default)</span></div>
+                    <div class="label"><span class="label-text">Watt-Stufe</span></div>
                     <div class="flex items-center gap-2">
                         <input id="quickLevel" type="range" min="1" max="8" value="1" step="1" class="range range-xs" />
                         <span id="wattValue" class="text-sm font-bold w-12 text-center">0 W</span>
@@ -295,8 +295,8 @@
                 default: {
                     id: 'default', name: 'Christian', createdAt: nowISO(),
                     settings: { 
-                        weeklyTarget: 0, theme: 'winter', 
-                        bodyWeight: 75,
+                        weeklyTarget: 0, theme: 'darcula', 
+                        bodyWeight: 100,
                         quickLevel: 1, quickDuration: 20, quickHr: 115 
                     }, 
                     metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
