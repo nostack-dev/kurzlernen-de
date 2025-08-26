@@ -1,819 +1,525 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de" data-theme="winter">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Z2 Log</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
-<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  :root { --font: Inter, ui-sans-serif, system-ui; }
-  body { font-family: var(--font); }
-  .mono { font-variant-numeric: tabular-nums; }
-  .thumb { width: 6rem; height: 6rem; object-fit: cover; border-radius: 0.75rem; border: 1px solid oklch(var(--n) / 0.1); }
-  .wrap { word-break: break-word; white-space: pre-wrap; }
-  .btn-active-tone { @apply !bg-primary !text-primary-content; }
-  .badge-style {
-    @apply transition-transform transform hover:scale-105 hover:shadow-xl;
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kurzlernen – Cardio Log (Wizard)</title>
+  <!-- Tailwind + DaisyUI via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
+  <style>
+    .container { max-width: 980px; }
+    .tap-big button, .tap-big .btn { min-height: 3rem; }
+    .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: .375rem; }
+    .row-note { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 420px){
+      .hide-xs { display: none; }
+      table td, table th { white-space: nowrap; }
+    }
+  </style>
 </head>
-<body class="bg-base-200 min-h-screen pb-16">
+<body class="bg-base-100">
+  <div class="container mx-auto p-4 md:p-6">
 
-<!-- Nav & Header -->
-<div class="navbar bg-base-100 shadow-lg sticky top-0 z-30 px-4 sm:px-8 py-3">
-  <div class="flex-1">
-    <div class="flex items-center space-x-2">
-      <span class="text-2xl font-extrabold text-primary">Z2 Log</span>
-      <span class="badge badge-lg font-semibold badge-outline text-xs sm:text-sm">V5.0</span>
-    </div>
-  </div>
-  <div class="flex-none gap-2">
-    <!-- Dropdown für Benutzer -->
-    <div class="dropdown dropdown-end">
-      <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
+    <!-- Header / Theme / User -->
+    <div class="flex items-center justify-between gap-4 mb-4">
+      <div>
+        <h1 class="text-2xl font-bold">Z2 Log – Cardio</h1>
+        <p class="text-sm opacity-70">Mobil, schnell, mit Foto & Wizard.</p>
       </div>
-      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-        <li class="menu-title">Benutzer</li>
-        <li class="p-2"><button id="btnNewUser" class="btn btn-sm btn-primary w-full">Neuer Benutzer</button></li>
-        <li class="divider my-1"></li>
-        <div id="userList"></div>
-      </ul>
-    </div>
-
-    <!-- Dropdown für Einstellungen -->
-    <div class="dropdown dropdown-end">
-      <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37-2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.527.32.956.638 1.407 1.056z" />
-        </svg>
-      </div>
-      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-4 shadow bg-base-100 rounded-box w-64">
-        <li class="menu-title">Einstellungen</li>
-        <li class="p-2">
-          <label class="label"><span class="label-text">Theme</span></label>
-          <select id="themeSel" class="select select-bordered select-sm w-full">
-            <option>winter</option><option>cupcake</option><option>emerald</option>
-            <option>corporate</option><option>dracula</option><option>night</option>
-          </select>
-        </li>
-        <li class="p-2">
-          <label class="label"><span class="label-text">Ton (Motivation)</span></label>
-          <div class="join w-full">
-            <button class="join-item btn btn-sm" data-tone="gentle">gentle</button>
-            <button class="join-item btn btn-sm" data-tone="cheeky">cheeky</button>
-            <button class="join-item btn btn-sm" data-tone="spicy">spicy</button>
-          </div>
-        </li>
-        <li class="p-2">
-          <label class="label"><span class="label-text">Wochenziel (Minuten)</span></label>
-          <input id="weeklyTarget" type="number" class="input input-sm input-bordered w-full" value="140" />
-        </li>
-        <li><button id="btnSaveSettings" class="btn btn-sm btn-primary mt-2 w-full">Speichern</button></li>
-      </ul>
-    </div>
-  </div>
-</div>
-
-<!-- Hauptinhalt -->
-<div class="container mx-auto px-4 py-8 md:max-w-4xl">
-
-  <!-- Nutzerinfo & Hero -->
-  <div class="mb-8">
-    <div class="p-6 bg-gradient-to-br from-base-100 to-base-200 rounded-2xl shadow-xl border border-base-300">
-      <div class="flex items-center space-x-4">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-primary" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.38 0 2.5 1.12 2.5 2.5S13.38 10.5 12 10.5 9.5 9.38 9.5 8 10.62 5.5 12 5.5zm-2 14.24v-1.74c0-1.66 1.34-3 3-3h2.36c1.66 0 3 1.34 3 3v1.74c-1.37.95-3.04 1.5-4.86 1.5s-3.49-.55-4.86-1.5z"/></svg>
-        <div class="flex-1">
-          <h1 id="userGreeting" class="text-xl sm:text-2xl font-bold">Hallo, Christian</h1>
-          <p class="text-sm opacity-70">Konstanz, Deutschland</p>
-          <p class="mt-2 text-sm italic opacity-80">Dein Weg zu besserer Mitochondrienfunktion. 🔥</p>
-        </div>
+      <div class="flex items-center gap-2">
+        <label class="label text-sm">Theme</label>
+        <select id="themeSelect" class="select select-bordered select-sm">
+          <option>winter</option><option>cupcake</option><option>emerald</option>
+          <option>corporate</option><option>dracula</option><option>night</option>
+        </select>
       </div>
     </div>
-  </div>
 
-  <!-- Statistik-Übersicht -->
-  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
-      <div class="card-body p-5">
-        <h2 class="card-title text-sm opacity-80">Wochenminuten</h2>
-        <div id="wkMin" class="text-3xl font-extrabold mono text-primary">0</div>
-        <progress id="wkProg" class="progress progress-primary w-full" value="0" max="100"></progress>
-        <div id="wkMsg" class="text-xs opacity-70 mt-1">Los geht's.</div>
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+      <label class="label text-sm">Benutzer</label>
+      <select id="userSelect" class="select select-bordered select-sm"></select>
+      <button id="btnNewUser" class="btn btn-sm">Neuer Benutzer</button>
+      <div class="ml-auto flex items-center gap-2">
+        <label class="label text-sm">Wochenziel (Min)</label>
+        <input id="weeklyTarget" type="number" min="0" class="input input-bordered input-sm w-24" />
+        <button id="btnSaveSettings" class="btn btn-sm">Speichern</button>
       </div>
     </div>
-    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
-      <div class="card-body p-5">
-        <h2 class="card-title text-sm opacity-80">Streak</h2>
-        <div id="streak" class="text-3xl font-extrabold mono text-secondary">0 🔥</div>
-        <div class="text-xs opacity-70">Konsekutive Tage</div>
-        <div id="nextBadge" class="badge badge-outline mt-2 text-xs">Nächster: 3 🔥</div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="stat shadow">
+        <div class="stat-title">Wochenminuten</div><div id="kpiWeekMin" class="stat-value">0</div>
+      </div>
+      <div class="stat shadow">
+        <div class="stat-title">Streak</div><div id="kpiStreak" class="stat-value">0</div>
+        <div class="stat-desc">Tage am Stück</div>
+      </div>
+      <div class="stat shadow">
+        <div class="stat-title">Level</div><div class="stat-value">Lv <span id="kpiLevel">1</span></div>
+        <div class="stat-desc"><span id="kpiXp">0</span> / 100 XP</div>
+      </div>
+      <div class="stat shadow">
+        <div class="stat-title">Einträge</div><div id="kpiEntries" class="stat-value">0</div>
       </div>
     </div>
-    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
-      <div class="card-body p-5">
-        <h2 class="card-title text-sm opacity-80">Level</h2>
-        <div id="level" class="text-3xl font-extrabold mono text-accent">Lv 1</div>
-        <progress id="xpProg" class="progress progress-secondary w-full" value="0" max="100"></progress>
-        <div id="xpLbl" class="text-xs opacity-70 mt-1">0 / 100 XP</div>
+
+    <!-- CTA: Wizard öffnen -->
+    <div class="tap-big mb-4">
+      <button id="btnOpenWizard" class="btn btn-primary w-full text-lg">➕ Training eintragen</button>
+    </div>
+
+    <!-- Daten-Tools -->
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-lg font-semibold">Deine Sessions</h2>
+      <div class="join">
+        <button id="btnExport" class="btn join-item">Export (JSON)</button>
+        <input id="fileImport" class="hidden" type="file" accept="application/json">
+        <button id="btnImport" class="btn join-item">Importieren</button>
+        <button id="btnWipeAll" class="btn btn-error join-item">Alle löschen</button>
       </div>
     </div>
-    <div class="card bg-base-100 shadow-lg border border-base-300 transform transition-transform hover:scale-[1.01]">
-      <div class="card-body p-5">
-        <h2 class="card-title text-sm opacity-80">Einträge insgesamt</h2>
-        <div id="totalSessions" class="text-3xl font-extrabold mono text-info">0</div>
-        <div class="text-xs opacity-70">Gespeicherte Einträge</div>
-      </div>
-    </div>
-  </section>
 
-  <!-- Aktionspanel: Foto, OCR, Formular -->
-  <section class="bg-base-100 rounded-2xl shadow-xl p-6 mb-8 border border-base-300">
-    <h2 class="text-xl font-bold mb-4">1. Session erfassen</h2>
-
-    <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-      <!-- Input, der die Kamera direkt öffnet -->
-      <label class="btn btn-primary w-full sm:max-w-xs cursor-pointer">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c2.21 0 4 1.79 4 4s-1.79 4-4 4-4-1.79-4-4 1.79-4 4-4zm0 14c-5.52 0-10-4.48-10-10S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zM12 4c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8zM20 12c0-2.61-1.01-5-2.65-6.65L16 7.42V6h-1.42l-1.35-1.35C13 4.29 12.55 4 12 4s-1.35.29-1.42 1.35L9.65 6H8v1.42L6.65 9.35C5.01 11 4 13.39 4 16h2c0-1.89.65-3.6 1.7-4.95L8 9.94V9c.55 0 1-.45 1-1V7h6v1c0 .55.45 1 1 1v.94l.3 1.11C17.35 12.4 18 14.11 18 16h2c0-2.61-1.01-5-2.65-6.65z"/></svg>
-        Foto machen
-        <input id="fileInput" type="file" accept="image/*" multiple capture="environment" class="hidden" />
-      </label>
-      <button id="btnOcr" class="btn btn-primary w-full sm:w-auto">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5v14H5V5h14m0-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z"/><path d="M11.5 13.5v-1h-1v1H9.5V11h-1v1h-1v1.5h1v1h1v1.5h1v-1.5h1v-1.5zM15 16h-4v-1h4v1zm-4-4h4v-1h-4v1z"/></svg>
-        Daten erkennen
-      </button>
-    </div>
-    <div id="thumbs" class="mt-4 flex flex-wrap gap-3"></div>
-    <progress id="ocrProg" class="progress progress-primary w-full mt-4 hidden" value="0" max="100"></progress>
-    <div id="ocrStatus" class="text-sm opacity-70 mt-2"></div>
-
-    <div class="divider my-4"></div>
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <label class="form-control w-full">
-        <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
-        <input id="f_hr" type="number" inputmode="numeric" placeholder="z.B. 115" class="input input-bordered w-full" />
-      </label>
-      <label class="form-control w-full">
-        <div class="label"><span class="label-text">Dauer (Minuten)</span></div>
-        <input id="f_dur" type="number" step="0.1" inputmode="decimal" placeholder="z.B. 20" class="input input-bordered w-full" />
-      </label>
-      <label class="form-control w-full">
-        <div class="label"><span class="label-text">Speed (km/h)</span></div>
-        <input id="f_speed" type="number" step="0.1" inputmode="decimal" placeholder="optional" class="input input-bordered w-full" />
-      </label>
-      <label class="form-control w-full">
-        <div class="label"><span class="label-text">Watt</span></div>
-        <input id="f_watt" type="number" step="1" inputmode="numeric" placeholder="optional" class="input input-bordered w-full" />
-      </label>
-    </div>
-    <label class="form-control w-full mt-4">
-      <div class="label"><span class="label-text">Notizen (optional)</span></div>
-      <input id="f_notes" type="text" placeholder="Hitze, Koffein, Medikinet…" class="input input-bordered w-full" />
-    </label>
-    <div class="mt-6 flex flex-col sm:flex-row gap-3">
-      <button id="btnSave" class="btn btn-success flex-1">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7zM7 7h10v1H7V7zm0 2h10v1H7V9zm0 2h10v1H7v-1z"/></svg>
-        Eintrag speichern
-      </button>
-      <button id="btnQuick115" class="btn btn-outline flex-1">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm-1 15v-6h2v6zm2-8h-2v-2h2z"/></svg>
-        Schnell-Ausfüllen: 115 / 20 min
-      </button>
-    </div>
-  </section>
-
-  <!-- Log-Tabelle & Badges -->
-  <section class="bg-base-100 rounded-2xl shadow-xl p-6 border border-base-300">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-      <h2 class="text-xl font-bold">2. Deine Sessions</h2>
-      <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12c0 4.41 3.59 8 8 8s8-3.59 8-8-3.59-8-8-8-8 3.59-8 8zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/><path d="M17 11h-4V7h-2v4H7v2h4v4h2v-4h4z"/></svg>
-          Daten-Tools
-        </div>
-        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-48">
-          <li><button id="btnExport" class="btn btn-ghost btn-sm">Export (JSON)</button></li>
-          <li>
-            <label class="btn btn-ghost btn-sm cursor-pointer">
-              Importieren
-              <input id="importFile" type="file" accept="application/json" class="hidden">
-            </label>
-          </li>
-          <li><button id="btnClear" class="btn btn-ghost btn-sm text-error">Alle Einträge löschen</button></li>
-        </ul>
-      </div>
-    </div>
-    <div class="overflow-x-auto mt-2">
-      <table class="table table-sm">
+    <!-- Tabelle -->
+    <div class="overflow-x-auto">
+      <table class="table">
         <thead>
           <tr>
-            <th>Datum</th><th>Min</th><th>Ø HR</th><th>Speed</th><th>Watt</th><th></th>
+            <th>Datum</th>
+            <th>Min</th>
+            <th>Ø HR</th>
+            <th class="hide-xs">Speed</th>
+            <th class="hide-xs">Watt</th>
+            <th>Foto</th>
+            <th class="hide-xs">Notizen</th>
+            <th></th>
           </tr>
         </thead>
-        <tbody id="rows"></tbody>
+        <tbody id="tbodySessions"></tbody>
       </table>
     </div>
-    <div class="mt-8">
-      <h3 class="text-lg font-bold mb-2">Deine Achievements</h3>
-      <!-- This is the container for the dynamically rendered badges -->
-      <div id="badges" class="flex flex-wrap justify-center gap-4 max-w-4xl mx-auto"></div>
-    </div>
-  </section>
-</div>
 
-<!-- TOASTS -->
-<div class="toast toast-end z-40" id="toasts"></div>
-
-<!-- MODAL: Benutzer erstellen -->
-<dialog id="userModal" class="modal">
-  <div class="modal-box">
-    <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
-    <p class="py-2">Gib einen Namen für dein Profil ein:</p>
-    <input id="newUserInput" type="text" placeholder="Name" class="input input-bordered w-full mt-2" />
-    <div class="modal-action">
-      <button id="btnCreateUser" class="btn btn-primary">Erstellen</button>
-      <form method="dialog"><button class="btn">Abbrechen</button></form>
-    </div>
   </div>
-</dialog>
 
-<!-- MODAL: Badge freigeschaltet -->
-<dialog id="badgeModal" class="modal">
-  <div class="modal-box">
-    <h3 class="font-bold text-lg">🎉 Neuer Badge!</h3>
-    <p id="badgeModalTxt" class="py-2"></p>
-    <div class="modal-action">
-      <form method="dialog"><button class="btn">Super!</button></form>
+  <!-- Wizard Dialog -->
+  <dialog id="dlgWizard" class="modal">
+    <div class="modal-box w-11/12 max-w-lg">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+      </form>
+
+      <!-- Steps indicator -->
+      <ul class="steps mb-4">
+        <li class="step step-primary" id="stepDot0">Datum</li>
+        <li class="step" id="stepDot1">Dauer</li>
+        <li class="step" id="stepDot2">Ø HR</li>
+        <li class="step hide-xs" id="stepDot3">Speed</li>
+        <li class="step hide-xs" id="stepDot4">Watt</li>
+        <li class="step" id="stepDot5">Notiz</li>
+        <li class="step" id="stepDot6">Foto</li>
+      </ul>
+
+      <!-- Step panes -->
+      <div id="pane0" class="space-y-2">
+        <h3 class="font-semibold text-lg">Datum & Uhrzeit</h3>
+        <label class="form-control">
+          <span class="label-text">Zeitpunkt</span>
+          <input id="wDateTime" type="datetime-local" class="input input-bordered">
+        </label>
+      </div>
+
+      <div id="pane1" class="space-y-2 hidden">
+        <h3 class="font-semibold text-lg">Dauer</h3>
+        <label class="form-control">
+          <span class="label-text">Minuten</span>
+          <input id="wMin" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 20">
+        </label>
+      </div>
+
+      <div id="pane2" class="space-y-2 hidden">
+        <h3 class="font-semibold text-lg">Ø Puls</h3>
+        <label class="form-control">
+          <span class="label-text">bpm</span>
+          <input id="wHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 120">
+        </label>
+      </div>
+
+      <div id="pane3" class="space-y-2 hidden">
+        <h3 class="font-semibold text-lg">Speed (optional)</h3>
+        <label class="form-control">
+          <span class="label-text">km/h</span>
+          <input id="wSpeed" type="number" step="0.1" inputmode="decimal" class="input input-bordered" placeholder="z. B. 22.5">
+        </label>
+      </div>
+
+      <div id="pane4" class="space-y-2 hidden">
+        <h3 class="font-semibold text-lg">Watt (optional)</h3>
+        <label class="form-control">
+          <span class="label-text">W</span>
+          <input id="wWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered" placeholder="z. B. 180">
+        </label>
+      </div>
+
+      <div id="pane5" class="space-y-2 hidden">
+        <h3 class="font-semibold text-lg">Notiz (optional)</h3>
+        <label class="form-control">
+          <span class="label-text">Text</span>
+          <textarea id="wNotes" class="textarea textarea-bordered" placeholder="Wie war die Session?"></textarea>
+        </label>
+      </div>
+
+      <div id="pane6" class="space-y-2 hidden">
+        <h3 class="font-semibold text-lg">Foto (optional)</h3>
+        <p class="text-sm opacity-70">Du kannst direkt ein Foto aufnehmen oder aus der Galerie wählen.</p>
+        <input id="wPhoto" type="file" accept="image/*" capture="environment" class="file-input file-input-bordered w-full" />
+        <div id="wPhotoPreviewWrap" class="mt-2 hidden">
+          <img id="wPhotoPreview" alt="Preview" class="rounded-md max-h-48 object-cover" />
+          <div class="mt-2 flex gap-2">
+            <button id="wPhotoRemove" class="btn btn-sm">Foto entfernen</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nav -->
+      <div class="modal-action justify-between">
+        <button id="btnBack" class="btn">Zurück</button>
+        <div class="flex gap-2">
+          <button id="btnQuick" class="btn btn-ghost">Schnell (20 min / 115 bpm)</button>
+          <button id="btnNext" class="btn btn-primary">Weiter</button>
+          <button id="btnFinish" class="btn btn-success hidden">Fertig</button>
+        </div>
+      </div>
     </div>
-  </div>
-</dialog>
+  </dialog>
 
-<!-- MODAL: Löschen bestätigen -->
-<dialog id="deleteModal" class="modal">
-  <div class="modal-box">
-    <h3 class="font-bold text-lg text-error">⚠️ Eintrag löschen?</h3>
-    <p class="py-2">Möchten Sie diesen Eintrag wirklich unwiderruflich löschen?</p>
-    <div class="modal-action">
-      <button id="btnConfirmDelete" class="btn btn-error">Löschen</button>
-      <form method="dialog"><button class="btn">Abbrechen</button></form>
+  <!-- Neues Benutzer-Modal -->
+  <dialog id="dlgNewUser" class="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg">Neuen Benutzer erstellen</h3>
+      <label class="form-control mt-3">
+        <span class="label-text">Name</span>
+        <input id="newUserName" class="input input-bordered" placeholder="z. B. Chris">
+      </label>
+      <div class="modal-action">
+        <form method="dialog"><button class="btn">Abbrechen</button></form>
+        <button id="btnCreateUser" class="btn btn-primary">Erstellen</button>
+      </div>
     </div>
-  </div>
-</dialog>
+  </dialog>
 
-<script>
-/* ====== Status & Speicher ====== */
-const USERS_KEY = 'z2_users_v1';
-const defSettings = { tone: 'cheeky', weeklyTarget: 140, theme: 'winter' };
-let users = JSON.parse(localStorage.getItem(USERS_KEY)) || [];
-let currentUser = null;
-let settings = {};
-let entries = [];
-let meta = {};
+  <!-- Bild-Viewer -->
+  <dialog id="dlgImage" class="modal">
+    <div class="modal-box p-2 max-w-2xl">
+      <img id="viewImg" class="w-full h-auto rounded-md" alt="Bild" />
+      <form method="dialog" class="mt-2"><button class="btn w-full">Schließen</button></form>
+    </div>
+  </dialog>
 
-// Generiert eine eindeutige ID
-function generateId(){ return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+  <script type="module">
+    // ========= Persistenz =========
+    const STORAGE_KEY = 'z2log_v6';
+    const nowISO = () => new Date().toISOString();
+    const uid = () => Math.random().toString(36).slice(2,10);
 
-function loadUserData(userId){
-  const user = users.find(u => u.id === userId);
-  if(!user) return;
-  currentUser = user;
-  
-  settings = load(currentUser.id, 'settings', defSettings);
-  entries = load(currentUser.id, 'entries', []);
-  meta = load(currentUser.id, 'meta', { xp: 0, level: 1, unlocked: [] });
-  
-  applySettingsUI();
-  renderTable();
-  applyStats();
-  updateUserGreeting();
-  renderUserList();
-}
-
-function load(userId, key, fallback){
-  try {
-    const fullKey = `z2_${key}_${userId}`;
-    return JSON.parse(localStorage.getItem(fullKey)) ?? fallback;
-  } catch(e){ return fallback; }
-}
-
-function save(userId, key, val){
-  const fullKey = `z2_${key}_${userId}`;
-  localStorage.setItem(fullKey, JSON.stringify(val));
-}
-
-function nowTS(){ return Date.now(); }
-
-/* ====== Benachrichtigungs-Texte ====== */
-const TONES = {
-  gentle: {
-    wk: ["Lasst uns sanft starten.", "Ruhig starten – beständig bleiben.", "Guter Flow – Zone-2 liebt Konstanz.", "Stark! Der Trend gefällt.", "On fire (auf leise Art). Weiter so!", "Dein Körper dankt es dir. Wunderbar!", "Immer schön im Rhythmus bleiben."],
-    save: ["Schöner Eintrag. Kleine Schritte, großer Effekt.", "Konstant ist König. Sauber erledigt.", "Fein dosiert, fein geliefert.", "Sehr gut – die Mitochondrien sagen Danke.", "Wunderbar! Ein weiterer Schritt in die richtige Richtung.", "Ein Eintrag, der gut tut. Weiter so."],
-    progress: ["Aufwärmphase","Du bist dabei","Kommt ins Rollen","Fast da","Goldene Konstanz!"]
-  },
-  cheeky: {
-    wk: ["Ok, Anlasser gezündet.", "Motor schnurrt. Mehr davon.", "Zone-2 Enjoyer detected.", "Cardio greift – nice!", "Well well… look who’s consistent 😎", "Nicht aufzuhalten, oder?", "Zeig, was in dir steckt!"],
-    save: ["Logged. Clean like a whistle.", "Another brick in the aerobic wall.", "Chef’s kiss – genau so.", "Mint. Keep stacking.", "Boom! Eingeloggt und bereit für mehr.", "Perfekt festgehalten. Nächster bitte!"],
-    progress: ["Low-key","Wird warm","Nice groove","Baller-mode light","Consistency beast!"]
-  },
-  spicy: {
-    wk: ["Startschuss. Keine Ausreden.", "Okay, du bist auf der Bahn.", "Das brennt angenehm – weiter.", "Stabiler Grind, Respekt.", "Well, well… you’ve got guts.", "Komm aus der Deckung, weiter so!", "Dein innerer Kämpfer ist geweckt."],
-    save: ["Logged. No fluff.", "Disziplin > Motivation. Good call.", "Werk getan. Nächster.", "Solid. Keep the heat on.", "Ein gnadenloser Schritt. Top.", "Lass Taten sprechen. Eingetragen."],
-    progress: ["Couch-escape","Wach werden","It’s cooking","Nearly there","Certified machine"]
-  }
-};
-// Neue Toasts für allgemeine Meldungen
-const TOASTS = {
-  info: [
-    "Einstellungen gespeichert. Du bist bestens vorbereitet.",
-    "Daten wurden erfolgreich exportiert.",
-    "Projekt erfolgreich importiert. Willkommen zurück!",
-    "Alles gelöscht. Ein Neustart ist manchmal gut.",
-    "Schnell-Ausfüllen aktiviert. Effizienz pur!",
-    "Benutzer gewechselt. Viel Erfolg!"
-  ],
-  warning: [
-    "Bitte zuerst ein Foto auswählen.",
-    "Bitte mind. Puls oder Dauer angeben. Warten auf Input...",
-    "Import fehlgeschlagen. Bitte die Datei prüfen.",
-    "Keine verwertbaren Daten gefunden. Bitte manuell eingeben."
-  ],
-  success: [
-    "Eintrag erfolgreich gespeichert. Weiter so!",
-    "Neuer Eintrag gesichert. Deine Mitochondrien freuen sich.",
-    "Daten erfasst. Der Fortschritt ist unaufhaltsam.",
-    "Erfolgreich eingeloggt. Jeder Eintrag zählt."
-  ],
-  error: [
-    "OCR-Fehler. Konnte die Daten nicht lesen.",
-    "Es gab ein Problem beim Speichern.",
-    "Die Datei ist ungültig. Import abgebrochen."
-  ]
-};
-
-function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-
-/* ====== Elemente ====== */
-const el = {
-  userGreeting: document.getElementById('userGreeting'),
-  userList: document.getElementById('userList'),
-  btnNewUser: document.getElementById('btnNewUser'),
-  userModal: document.getElementById('userModal'),
-  newUserInput: document.getElementById('newUserInput'),
-  btnCreateUser: document.getElementById('btnCreateUser'),
-  themeSel: document.getElementById('themeSel'),
-  weeklyTarget: document.getElementById('weeklyTarget'),
-  btnSaveSettings: document.getElementById('btnSaveSettings'),
-  wkMin: document.getElementById('wkMin'),
-  wkProg: document.getElementById('wkProg'),
-  wkMsg: document.getElementById('wkMsg'),
-  streak: document.getElementById('streak'),
-  nextBadge: document.getElementById('nextBadge'),
-  level: document.getElementById('level'),
-  xpLbl: document.getElementById('xpLbl'),
-  xpProg: document.getElementById('xpProg'),
-  totalSessions: document.getElementById('totalSessions'),
-  fileInput: document.getElementById('fileInput'),
-  thumbs: document.getElementById('thumbs'),
-  btnOcr: document.getElementById('btnOcr'),
-  ocrStatus: document.getElementById('ocrStatus'),
-  ocrProg: document.getElementById('ocrProg'),
-  f_hr: document.getElementById('f_hr'),
-  f_dur: document.getElementById('f_dur'),
-  f_speed: document.getElementById('f_speed'),
-  f_watt: document.getElementById('f_watt'),
-  f_notes: document.getElementById('f_notes'),
-  btnSave: document.getElementById('btnSave'),
-  btnQuick115: document.getElementById('btnQuick115'),
-  rows: document.getElementById('rows'),
-  btnExport: document.getElementById('btnExport'),
-  importFile: document.getElementById('importFile'),
-  btnClear: document.getElementById('btnClear'),
-  badges: document.getElementById('badges'),
-  toasts: document.getElementById('toasts'),
-  badgeModal: document.getElementById('badgeModal'),
-  badgeModalTxt: document.getElementById('badgeModalTxt'),
-  deleteModal: document.getElementById('deleteModal'),
-  btnConfirmDelete: document.getElementById('btnConfirmDelete'),
-};
-const toneBtns = Array.from(document.querySelectorAll('[data-tone]'));
-
-/* ====== Hilfsfunktionen ====== */
-function toast(msg, cls='alert-info'){
-  const div = document.createElement('div');
-  div.className = `alert ${cls}`;
-  div.innerHTML = `<span>${msg}</span>`;
-  el.toasts.appendChild(div);
-  setTimeout(()=>div.remove(), 3200);
-}
-function confettiBurst(){
-  try { confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch(e){}
-}
-function isSameDay(tsA, tsB){
-  const a = new Date(tsA), b = new Date(tsB);
-  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-}
-function dayKey(ts){ const d=new Date(ts); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
-
-/* ====== OCR-Parsing ====== */
-function addThumb(file){
-  const url = URL.createObjectURL(file);
-  const img = document.createElement('img');
-  img.src = url; img.className = 'thumb';
-  el.thumbs.appendChild(img);
-}
-function plaus(n,min,max){ return typeof n==='number' && isFinite(n) && n>=min && n<=max; }
-
-function parseOCRText(text){
-  const t = text.replace(/\s+/g,' ').toLowerCase();
-  let hr=null, dur=null, speed=null, watt=null, distance=null;
-
-  const hrRe = [/(\d{2,3})\s?(?:bpm|bmp)\b/, /avg[^0-9]{0,3}hr[^0-9]{0,3}(\d{2,3})\b/, /(puls|pulse|herz)[^0-9]{0,4}(\d{2,3})\b/];
-  for(const re of hrRe){ const m=t.match(re); if(m){ const v=parseInt(m[1]??m[2],10); if(plaus(v,60,200)){ hr=v; break; } } }
-
-  const hms=t.match(/\b(\d{1,2}):(\d{2}):(\d{2})\b/);
-  const ms=t.match(/\b(\d{1,2}):(\d{2})\b/);
-  const min=t.match(/(\d{1,3})\s?(min|minute|minutes)\b/);
-  const cands=[];
-  if(hms){ cands.push(parseInt(hms[1])*60 + parseInt(hms[2]) + parseInt(hms[3])/60); }
-  if(ms && parseInt(ms[2])<60){ cands.push(parseInt(ms[1]) + parseInt(ms[2])/60); }
-  if(min){ cands.push(parseInt(min[1])); }
-  const c = cands.filter(v=>plaus(v,8,120)).sort((a,b)=>a-b);
-  if(c.length) dur = c[Math.floor(c.length/2)];
-
-  const mSpd = t.match(/(\d{1,2}(?:[\.,]\d)?)\s?(?:km\/h|kmh|kph)\b/);
-  if(mSpd){ speed = parseFloat(mSpd[1].replace(',','.')); if(!plaus(speed,3,25)) speed=null; }
-
-  const mW = t.match(/(\d{2,4})\s?w\b/);
-  if(mW){ watt = parseInt(mW[1],10); if(!plaus(watt,30,800)) watt=null; }
-
-  const mDist = t.match(/(\d+(?:[\.,]\d+)?)\s?km\b/);
-  if(mDist){ distance = parseFloat(mDist[1].replace(',','.')); if(!plaus(distance,0.2,100)) distance=null; }
-  if(distance!=null && dur!=null && speed==null){
-    const kmh = distance/(dur/60); if(plaus(kmh,3,25)) speed=kmh;
-  }
-  return { hr, dur, speed:speed!=null?Number(speed.toFixed(2)):null, watt, raw:t };
-}
-
-/* ====== Badges rendern ====== */
-const BADGE_DEF = [
-  { id:'first', name:'Erster Schritt', cond:(s)=>s.total>=1, desc:'Erster Eintrag gespeichert.', icon:'⭐' },
-  { id:'streak3', name:'Kleiner Lauf', cond:(s)=>s.streak>=3, desc:'3 Tage am Stück.', icon:'🏃' },
-  { id:'streak7', name:'Wochen-Feuer', cond:(s)=>s.streak>=7, desc:'7 Tage am Stück.', icon:'🔥' },
-  { id:'streak14', name:'Vierzehn-Tage-Flamme', cond:(s)=>s.streak>=14, desc:'14 Tage am Stück.', icon:'⚡' },
-  { id:'streak30', name:'Eiserne Gewohnheit', cond:(s)=>s.streak>=30, desc:'30 Tage am Stück.', icon:'⚙️' },
-  { id:'hrPro', name:'Puls-Scharfschütze', cond:(s)=>s.hrHits>=10, desc:'10× im Sweetspot (113–117 bpm).', icon:'🎯' },
-  { id:'pb', name:'PB-Jäger', cond:(s)=>s.pbCount>=3, desc:'3 persönliche Bestleistungen.', icon:'🥇' },
-  { id:'vol140', name:'Woche 140', cond:(s)=>s.weekMin>=140, desc:'≥140 Minuten in 7 Tagen.', icon:'⏳' },
-  { id:'vol210', name:'Woche 210', cond:(s)=>s.weekMin>=210, desc:'≥210 Minuten in 7 Tagen.', icon:'🚀' }
-];
-
-function renderBadges(stats){
-  const currentlyUnlocked = new Set(BADGE_DEF.filter(b => b.cond(stats)).map(b => b.id));
-  const previousUnlocked = new Set(meta.unlocked || []);
-
-  el.badges.innerHTML='';
-  for(const b of BADGE_DEF){
-    const isNowUnlocked = currentlyUnlocked.has(b.id);
-    const node = document.createElement('div');
-    node.className = `
-      ${isNowUnlocked?'badge-primary text-primary-content shadow-lg':'badge-ghost text-base-content/60'} 
-      badge badge-lg px-4 py-2 rounded-full font-semibold transition-transform transform hover:scale-105 hover:shadow-xl
-    `;
-    node.textContent = isNowUnlocked ? `${b.icon} ${b.name}` : `🔒 ${b.name}`;
-    node.title = b.desc;
-    el.badges.appendChild(node);
-
-    // Auf neu freigeschaltete Badges prüfen, um das Modal anzuzeigen
-    if (isNowUnlocked && !previousUnlocked.has(b.id)) {
-      el.badgeModalTxt.textContent = `🎉 Neuer Badge! ${b.icon} ${b.name} — ${b.desc}`;
-      el.badgeModal.showModal?.();
-      confettiBurst();
-    }
-  }
-
-  // meta.unlocked aktualisieren
-  meta.unlocked = Array.from(currentlyUnlocked);
-  save(currentUser.id, 'meta', meta);
-}
-
-/* ====== Statistiken / XP / Streak berechnen ====== */
-function computeStats(){
-  const now = nowTS();
-  const last7 = entries.filter(e => (now - e.ts) <= 7*86400000);
-  const weekMin = Math.round(last7.reduce((a,e)=>a + (Number(e.dur)||0), 0));
-  const byDay = new Map();
-  for(const e of entries){
-    const k = dayKey(e.ts);
-    byDay.set(k, (byDay.get(k)||0) + 1);
-  }
-  let streak=0; let d = new Date(); d.setHours(0,0,0,0);
-  while(byDay.has(dayKey(d.getTime()))){ streak++; d = new Date(d.getTime()-86400000); }
-  const hrHits = entries.filter(e=>Number(e.hr)>=113 && Number(e.hr)<=117).length;
-  let pbCount=0;
-  let bestSpeed=null, bestWatt=null;
-  for(const e of entries.slice().sort((a,b)=>a.ts-b.ts)){
-    const inBand = Number(e.hr)>=112 && Number(e.hr)<=118;
-    const s = Number(e.speed)||null, w = Number(e.watt)||null;
-    let pb=false;
-    if(inBand && s!=null){ if(bestSpeed==null || s>bestSpeed){ if(bestSpeed!=null) pb=true; bestSpeed=s; } }
-    if(inBand && w!=null){ if(bestWatt==null || w>bestWatt){ if(bestWatt!=null) pb=true; bestWatt=w; } }
-    if(pb) pbCount++;
-  }
-  return { weekMin, streak, hrHits, pbCount, total: entries.length };
-}
-
-function updateXP(entry){
-  let xp = Math.min(Number(entry.dur)||0, 30);
-  if(Number(entry.hr)>=113 && Number(entry.hr)<=117) xp += 5;
-  const band = entries.filter(e=>Number(e.hr)>=112 && Number(e.hr)<=118);
-  const prev = band.slice(1);
-  const s = Number(entry.speed)||null, w = Number(entry.watt)||null;
-  let prevBestS = null, prevBestW = null;
-  for(const e of prev){
-    if(e.speed!=null) prevBestS = Math.max(prevBestS??e.speed, e.speed);
-    if(e.watt!=null) prevBestW = Math.max(prevBestW??e.watt, e.watt);
-  }
-  if(s!=null && (prevBestS==null || s>prevBestS)) xp += 10;
-  if(w!=null && (prevBestW==null || w>prevBestW)) xp += 10;
-
-  meta.xp = (meta.xp||0) + xp;
-  while(meta.xp >= 100){ meta.level = (meta.level||1) + 1; meta.xp -= 100; confettiBurst(); }
-  save(currentUser.id, 'meta', meta);
-}
-
-function applyStats(){
-  if(!currentUser) return;
-  const stats = computeStats();
-  const target = Number(settings.weeklyTarget)||140;
-  const pct = Math.max(0, Math.min(100, Math.round(stats.weekMin/target*100)));
-  el.wkMin.textContent = `${stats.weekMin} / ${target} min`;
-  el.wkProg.value = pct;
-  const tone = TONES[settings.tone]||TONES.gentle;
-  const msgIdx = pct>=100?4 : pct>=75?3 : pct>=50?2 : pct>=25?1 : 0;
-  el.wkMsg.textContent = tone.progress[msgIdx];
-
-  el.streak.textContent = `${stats.streak}`;
-  const next = stats.streak<3?3 : stats.streak<7?7 : stats.streak<14?14 : stats.streak<30?30 : '∞';
-  el.nextBadge.textContent = next==='∞' ? 'Alle Streak-Badges freigeschaltet' : `Nächster: ${next} 🔥`;
-
-  el.level.textContent = `Lv ${meta.level||1}`;
-  el.xpLbl.textContent = `${meta.xp||0} / 100 XP`;
-  el.xpProg.value = meta.xp||0;
-  el.totalSessions.textContent = entries.length;
-
-  renderBadges(stats);
-}
-
-/* ====== Tabelle rendern ====== */
-function renderTable(){
-  el.rows.innerHTML='';
-  // Nach Datum sortieren, neueste zuerst
-  const sortedEntries = entries.slice().sort((a,b)=>b.ts-a.ts);
-  for(const [i,e] of sortedEntries.entries()){
-    const d = new Date(e.ts);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="mono">${d.toLocaleDateString()}</td>
-      <td class="mono">${e.dur??'—'}</td>
-      <td class="mono">${e.hr??'—'}</td>
-      <td class="mono">${e.speed??'—'}</td>
-      <td class="mono">${e.watt??'—'}</td>
-      <td><button data-ts="${e.ts}" class="btn btn-xs btn-ghost text-error btn-delete">löschen</button></td>
-    `;
-    el.rows.appendChild(tr);
-  }
-  el.rows.querySelectorAll('.btn-delete').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const ts = Number(btn.getAttribute('data-ts'));
-      el.deleteModal.showModal();
-      el.btnConfirmDelete.onclick = () => {
-        entries = entries.filter(e => e.ts !== ts);
-        save(currentUser.id, 'entries', entries);
-        renderTable();
-        applyStats();
-        el.deleteModal.close();
-        toast('Eintrag gelöscht.', 'alert-success');
-      };
-    });
-  });
-}
-
-/* ====== Eintrag speichern ====== */
-function saveEntry(obj){
-  if(!currentUser) { toast('Bitte erst einen Benutzer erstellen.', 'alert-warning'); return; }
-  const e = {
-    ts: nowTS(),
-    hr: obj.hr!=null? Number(obj.hr):null,
-    dur: obj.dur!=null? Number(obj.dur):null,
-    speed: obj.speed!=null? Number(obj.speed):null,
-    watt: obj.watt!=null? Number(obj.watt):null,
-    notes: obj.notes||null
-  };
-  if(e.hr==null && e.dur==null && e.speed==null && e.watt==null){
-    toast(pick(TOASTS.warning), 'alert-warning'); return;
-  }
-  entries.unshift(e);
-  save(currentUser.id, 'entries', entries);
-  renderTable();
-  updateXP(e);
-  applyStats();
-  const t = TONES[settings.tone]||TONES.gentle;
-  toast(pick(t.save), 'alert-success');
-}
-
-/* ====== OCR-Ablauf ====== */
-el.fileInput.addEventListener('change', ()=>{
-  el.thumbs.innerHTML=''; el.ocrProg.classList.add('hidden'); el.ocrStatus.textContent='';
-  const files = Array.from(el.fileInput.files||[]);
-  files.slice(0,6).forEach(addThumb);
-  if(files.length > 0) el.btnOcr.disabled = false;
-  else el.btnOcr.disabled = true;
-});
-
-el.btnOcr.addEventListener('click', async ()=>{
-  const files = Array.from(el.fileInput.files||[]);
-  if(!files.length){ toast(pick(TOASTS.warning), 'alert-warning'); return; }
-  el.btnOcr.disabled = true;
-  el.ocrProg.classList.remove('hidden'); el.ocrProg.value=0; el.ocrStatus.textContent='OCR läuft…';
-  let merged = { hr:null, dur:null, speed:null, watt:null, raw:'' };
-  for(let i=0;i<files.length;i++){
-    const f = files[i];
-    const res = await Tesseract.recognize(f, 'eng', {
-      logger: m => { if(m.status==='recognizing text' && m.progress!=null){ el.ocrProg.value = Math.round(((i+m.progress)/files.length)*100); } }
-    });
-    const text = res?.data?.text || '';
-    merged.raw += (merged.raw?'\n----\n':'') + text;
-    const p = parseOCRText(text);
-    // Kombiniere die Werte, wobei existierende Werte bevorzugt werden
-    merged.hr = merged.hr ?? p.hr;
-    merged.dur = merged.dur ?? p.dur;
-    merged.speed = merged.speed ?? p.speed;
-    merged.watt = merged.watt ?? p.watt;
-  }
-  el.ocrStatus.textContent='OCR fertig. Werte prüfen & speichern.';
-  if(merged.hr!=null) el.f_hr.value = merged.hr;
-  if(merged.dur!=null) el.f_dur.value = Number(merged.dur.toFixed(1));
-  if(merged.speed!=null) el.f_speed.value = merged.speed;
-  if(merged.watt!=null) el.f_watt.value = merged.watt;
-  el.btnOcr.disabled = false;
-});
-
-/* ====== Benutzerverwaltung ====== */
-function renderUserList(){
-  el.userList.innerHTML = '';
-  if(users.length === 0){
-    el.userList.innerHTML = '<li class="p-2 text-center text-sm opacity-50">Keine Benutzer</li>';
-  }
-  users.forEach(u => {
-    const li = document.createElement('li');
-    const btn = document.createElement('button');
-    btn.className = `btn btn-ghost btn-sm w-full text-left justify-start ${currentUser?.id === u.id ? 'font-bold' : ''}`;
-    btn.textContent = u.name;
-    btn.onclick = () => {
-      loadUserData(u.id);
-      toast(pick(TOASTS.info), 'alert-info');
-    };
-    li.appendChild(btn);
-    el.userList.appendChild(li);
-  });
-}
-function updateUserGreeting(){
-  const greeting = currentUser ? `Hallo, ${currentUser.name}` : 'Willkommen';
-  el.userGreeting.textContent = greeting;
-}
-el.btnNewUser.addEventListener('click', ()=>{
-  el.userModal.showModal();
-});
-el.btnCreateUser.addEventListener('click', ()=>{
-  const name = el.newUserInput.value.trim();
-  if(name){
-    const newUser = { id: generateId(), name: name };
-    users.push(newUser);
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    el.userModal.close();
-    el.newUserInput.value = '';
-    loadUserData(newUser.id);
-    toast(`Benutzer "${name}" erstellt.`, 'alert-success');
-  }
-});
-
-/* ====== Einstellungen / Theme ====== */
-function applySettingsUI(){
-  el.weeklyTarget.value = settings.weeklyTarget;
-  el.themeSel.value = settings.theme || 'winter';
-  document.documentElement.setAttribute('data-theme', el.themeSel.value);
-  toneBtns.forEach(b=>{
-    b.classList.toggle('btn-active-tone', b.dataset.tone===settings.tone);
-  });
-}
-toneBtns.forEach(b=>b.addEventListener('click', ()=>{
-  settings.tone = b.dataset.tone;
-  save(currentUser.id, 'settings', settings);
-  applySettingsUI();
-}));
-el.btnSaveSettings.addEventListener('click', ()=>{
-  settings.weeklyTarget = Math.max(20, Number(el.weeklyTarget.value)||140);
-  settings.theme = el.themeSel.value;
-  save(currentUser.id, 'settings', settings);
-  toast(pick(TOASTS.info), 'alert-info');
-  applyStats();
-});
-el.themeSel.addEventListener('change', ()=>{
-  settings.theme = el.themeSel.value;
-  document.documentElement.setAttribute('data-theme', settings.theme);
-  save(currentUser.id, 'settings', settings);
-});
-
-/* ====== Exportieren / Importieren / Löschen ====== */
-el.btnExport.addEventListener('click', ()=>{
-  if(!currentUser) { toast('Bitte erst einen Benutzer erstellen.', 'alert-warning'); return; }
-  const payload = { version:2, settings, entries, meta };
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download=`z2_projekt_${currentUser.name}.json`; a.click(); URL.revokeObjectURL(url);
-  toast(pick(TOASTS.info), 'alert-info');
-});
-el.importFile.addEventListener('change', ()=>{
-  const f = el.importFile.files?.[0]; if(!f) return;
-  const r = new FileReader();
-  r.onload = ()=> {
-    try{
-      const obj = JSON.parse(r.result);
-      if(!obj || !Array.isArray(obj.entries)) throw new Error('Ungültiges Projekt');
-      // Importiere Daten für den aktuellen Benutzer, falls vorhanden
-      if(currentUser){
-        settings = Object.assign({}, defSettings, obj.settings||{});
-        entries = obj.entries||[];
-        meta = Object.assign({ xp:0, level:1, unlocked:[] }, obj.meta||{});
-        save(currentUser.id, 'settings', settings);
-        save(currentUser.id, 'entries', entries);
-        save(currentUser.id, 'meta', meta);
-        applySettingsUI();
-        renderTable();
-        applyStats();
-        toast(pick(TOASTS.info), 'alert-success'); confettiBurst();
-      } else {
-        toast('Bitte zuerst einen Benutzer erstellen oder auswählen.', 'alert-warning');
+    const DEFAULT_STATE = {
+      activeUserId: 'default',
+      users: {
+        default: {
+          id: 'default', name: 'Christian', createdAt: nowISO(),
+          settings: { weeklyTarget: 0, theme: 'winter' },
+          metrics: { level: 1, xp: 0, streakCount: 0, lastDay: null },
+          sessions: [] // {id,dateISO,minutes,hr,speed,watt,notes,photoDataUrl?}
+        }
       }
-    }catch(e){ toast(pick(TOASTS.error), 'alert-error'); }
-  };
-  r.readAsText(f);
-});
-el.btnClear.addEventListener('click', ()=>{
-  if(!currentUser) { toast('Bitte erst einen Benutzer erstellen.', 'alert-warning'); return; }
-  el.deleteModal.showModal();
-  el.btnConfirmDelete.onclick = () => {
-    entries = []; meta = { xp:0, level:1, unlocked:[] };
-    save(currentUser.id, 'entries', entries);
-    save(currentUser.id, 'meta', meta);
-    renderTable(); applyStats();
-    toast(pick(TOASTS.info), 'alert-warning');
-    el.deleteModal.close();
-  };
-});
+    };
 
-/* ====== Schnell-Ausfüllen & Speichern ====== */
-el.btnQuick115.addEventListener('click', ()=>{
-  el.f_hr.value = 115; el.f_dur.value = 20;
-  toast(pick(TOASTS.info), 'alert-info');
-});
-el.btnSave.addEventListener('click', ()=>{
-  saveEntry({
-    hr: el.f_hr.value || null,
-    dur: el.f_dur.value || null,
-    speed: el.f_speed.value || null,
-    watt: el.f_watt.value || null,
-    notes: el.f_notes.value || null
-  });
-});
+    let state = loadState();
 
-/* ====== Initialisierung ====== */
-function init(){
-  renderUserList();
-  if(users.length > 0){
-    // Lade den ersten Benutzer standardmäßig
-    loadUserData(users[0].id);
-  } else {
-    updateUserGreeting();
-    // Deaktiviere die Buttons, wenn kein Benutzer ausgewählt ist
-    el.btnOcr.disabled = true;
-    el.btnSave.disabled = true;
-    el.btnExport.disabled = true;
-    el.btnClear.disabled = true;
-  }
-}
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return structuredClone(DEFAULT_STATE);
+        const s = JSON.parse(raw);
+        if(!s.users) s.users = { default: structuredClone(DEFAULT_STATE.users.default) };
+        if(!s.activeUserId || !s.users[s.activeUserId]) s.activeUserId = Object.keys(s.users)[0];
+        return s;
+      }catch{ return structuredClone(DEFAULT_STATE); }
+    }
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-init();
+    // ========= DOM Refs =========
+    const themeSelect = document.getElementById('themeSelect');
+    const userSelect = document.getElementById('userSelect');
+    const btnNewUser = document.getElementById('btnNewUser');
+    const weeklyTarget = document.getElementById('weeklyTarget');
+    const btnSaveSettings = document.getElementById('btnSaveSettings');
 
-</script>
+    const tbody = document.getElementById('tbodySessions');
+    const btnExport = document.getElementById('btnExport');
+    const btnImport = document.getElementById('btnImport');
+    const fileImport = document.getElementById('fileImport');
+    const btnWipeAll = document.getElementById('btnWipeAll');
+
+    const kpiWeekMin = document.getElementById('kpiWeekMin');
+    const kpiStreak = document.getElementById('kpiStreak');
+    const kpiLevel = document.getElementById('kpiLevel');
+    const kpiXp = document.getElementById('kpiXp');
+    const kpiEntries = document.getElementById('kpiEntries');
+
+    // Wizard
+    const dlgWizard = document.getElementById('dlgWizard');
+    const btnOpenWizard = document.getElementById('btnOpenWizard');
+    const paneIds = ['pane0','pane1','pane2','pane3','pane4','pane5','pane6'];
+    const dotIds  = ['stepDot0','stepDot1','stepDot2','stepDot3','stepDot4','stepDot5','stepDot6'];
+    const btnBack = document.getElementById('btnBack');
+    const btnNext = document.getElementById('btnNext');
+    const btnFinish = document.getElementById('btnFinish');
+    const btnQuick = document.getElementById('btnQuick');
+
+    const wDateTime = document.getElementById('wDateTime');
+    const wMin = document.getElementById('wMin');
+    const wHr = document.getElementById('wHr');
+    const wSpeed = document.getElementById('wSpeed');
+    const wWatt = document.getElementById('wWatt');
+    const wNotes = document.getElementById('wNotes');
+    const wPhoto = document.getElementById('wPhoto');
+    const wPhotoPreviewWrap = document.getElementById('wPhotoPreviewWrap');
+    const wPhotoPreview = document.getElementById('wPhotoPreview');
+    const wPhotoRemove = document.getElementById('wPhotoRemove');
+
+    const dlgNewUser = document.getElementById('dlgNewUser');
+    const newUserName = document.getElementById('newUserName');
+    const btnCreateUser = document.getElementById('btnCreateUser');
+
+    const dlgImage = document.getElementById('dlgImage');
+    const viewImg = document.getElementById('viewImg');
+
+    function currentUser(){ return state.users[state.activeUserId]; }
+
+    // ========= Theme / User / KPIs =========
+    function setTheme(t){
+      document.documentElement.setAttribute('data-theme', t);
+      themeSelect.value = t;
+      currentUser().settings.theme = t; saveState();
+    }
+    function renderUsers(){
+      userSelect.innerHTML = '';
+      for(const id of Object.keys(state.users)){
+        const u = state.users[id];
+        const opt = document.createElement('option');
+        opt.value = id; opt.textContent = u.name;
+        userSelect.appendChild(opt);
+      }
+      userSelect.value = state.activeUserId;
+    }
+    function renderSettings(){
+      weeklyTarget.value = currentUser().settings.weeklyTarget ?? 0;
+      setTheme(currentUser().settings.theme ?? 'winter');
+    }
+    function startOfISOWeek(d=new Date()){
+      const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x;
+    }
+    function fmtDate(iso){
+      const d=new Date(iso); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    }
+
+    function renderTable(){
+      const u=currentUser();
+      tbody.innerHTML='';
+      u.sessions.slice().sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).forEach(s=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${fmtDate(s.dateISO)}</td>
+          <td>${s.minutes ?? ''}</td>
+          <td>${s.hr ?? ''}</td>
+          <td class="hide-xs">${s.speed ?? ''}</td>
+          <td class="hide-xs">${s.watt ?? ''}</td>
+          <td>${s.photoDataUrl ? `<img src="${s.photoDataUrl}" class="thumb cursor-zoom-in" data-view="${s.id}" alt="Foto">` : ''}</td>
+          <td class="row-note hide-xs" title="${(s.notes||'').replace(/"/g,'&quot;')}">${s.notes ?? ''}</td>
+          <td><button class="btn btn-xs btn-error" data-del="${s.id}">Löschen</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      // Delete & View handlers
+      tbody.querySelectorAll('button[data-del]').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const id=b.getAttribute('data-del');
+          const u=currentUser();
+          u.sessions = u.sessions.filter(x=>x.id!==id);
+          saveState(); renderAll();
+        });
+      });
+      tbody.querySelectorAll('img[data-view]').forEach(img=>{
+        img.addEventListener('click', ()=>{
+          const id=img.getAttribute('data-view');
+          const s=currentUser().sessions.find(x=>x.id===id);
+          if(!s?.photoDataUrl) return;
+          viewImg.src = s.photoDataUrl;
+          dlgImage.showModal();
+        });
+      });
+
+      // KPIs
+      kpiEntries.textContent = u.sessions.length;
+      const weekStart = startOfISOWeek();
+      const weekMin = u.sessions.filter(s=>new Date(s.dateISO)>=weekStart).reduce((a,s)=>a+(Number(s.minutes)||0),0);
+      kpiWeekMin.textContent = weekMin;
+      const xp = u.sessions.reduce((a,s)=>a+(Number(s.minutes)||0),0);
+      kpiXp.textContent = xp % 100;
+      kpiLevel.textContent = 1 + Math.floor(xp/100);
+      const days = new Set(u.sessions.map(s=>fmtDate(s.dateISO)));
+      let c=0; let d=new Date();
+      for(;;){ const k=fmtDate(d.toISOString()); if(days.has(k)){ c++; d.setDate(d.getDate()-1); } else break; }
+      kpiStreak.textContent = c;
+    }
+
+    function renderAll(){ renderUsers(); renderSettings(); renderTable(); }
+
+    // ========= Events: Theme/User =========
+    themeSelect.addEventListener('change', ()=>setTheme(themeSelect.value));
+    userSelect.addEventListener('change', ()=>{ state.activeUserId=userSelect.value; saveState(); renderAll(); });
+    btnNewUser.addEventListener('click', ()=>dlgNewUser.showModal());
+    btnCreateUser.addEventListener('click', ()=>{
+      const name=(newUserName.value||'').trim(); if(!name) return;
+      const id=uid();
+      state.users[id]={
+        id, name, createdAt: nowISO(),
+        settings:{ weeklyTarget:0, theme: themeSelect.value||'winter' },
+        metrics:{ level:1, xp:0, streakCount:0, lastDay:null },
+        sessions:[]
+      };
+      state.activeUserId=id; saveState(); dlgNewUser.close(); newUserName.value=''; renderAll();
+    });
+    btnSaveSettings.addEventListener('click', ()=>{
+      currentUser().settings.weeklyTarget = Number(weeklyTarget.value)||0;
+      saveState();
+    });
+
+    // ========= Export / Import / Wipe =========
+    btnExport.addEventListener('click', ()=>{
+      const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=`z2log_export_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
+    });
+    btnImport.addEventListener('click', ()=>fileImport.click());
+    fileImport.addEventListener('change', async ()=>{
+      const f=fileImport.files?.[0]; if(!f) return;
+      try{
+        const txt=await f.text(); const incoming=JSON.parse(txt);
+        if(!incoming.users || !incoming.activeUserId) throw new Error('Format');
+        if(!confirm('Daten importieren? Bestehende Daten werden überschrieben.')) return;
+        state=incoming; saveState(); renderAll();
+      }catch(e){ alert('Import fehlgeschlagen: Ungültiges JSON/Format.'); }
+      finally{ fileImport.value=''; }
+    });
+    btnWipeAll.addEventListener('click', ()=>{
+      if(!confirm('Alle Einträge für den aktiven Benutzer löschen?')) return;
+      currentUser().sessions=[]; saveState(); renderAll();
+    });
+
+    // ========= Wizard Logic =========
+    let step = 0;
+    let tmpPhotoDataUrl = null;
+
+    function showStep(i){
+      step=i;
+      paneIds.forEach((id,idx)=>{
+        document.getElementById(id).classList.toggle('hidden', idx!==i);
+        const dot=document.getElementById(dotIds[idx]);
+        dot.classList.toggle('step-primary', idx<=i);
+      });
+      btnBack.classList.toggle('hidden', i===0);
+      btnNext.classList.toggle('hidden', i>=paneIds.length-1);
+      btnFinish.classList.toggle('hidden', i<paneIds.length-1);
+
+      // Fokus sinnvoll setzen
+      const focusMap=[wDateTime,wMin,wHr,wSpeed,wWatt,wNotes,wPhoto];
+      setTimeout(()=>focusMap[i]?.focus?.(), 30);
+    }
+
+    function resetWizard(){
+      const now=new Date();
+      const isoLocal = new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+      wDateTime.value = isoLocal;
+      wMin.value = ''; wHr.value = ''; wSpeed.value=''; wWatt.value=''; wNotes.value='';
+      wPhoto.value=''; tmpPhotoDataUrl=null; wPhotoPreviewWrap.classList.add('hidden'); wPhotoPreview.src='';
+      showStep(0);
+    }
+
+    btnOpenWizard.addEventListener('click', ()=>{ resetWizard(); dlgWizard.showModal(); });
+    btnBack.addEventListener('click', ()=> showStep(Math.max(0, step-1)));
+    btnNext.addEventListener('click', ()=>{
+      if(step===1 && !wMin.value) return alert('Bitte Minuten eintragen.');
+      if(step===2 && !wHr.value) return alert('Bitte Ø Puls eintragen.');
+      showStep(Math.min(paneIds.length-1, step+1));
+    });
+    btnQuick.addEventListener('click', ()=>{
+      wMin.value = 20; wHr.value = 115;
+      showStep(6); // springe direkt zum Foto
+    });
+    btnFinish.addEventListener('click', async ()=>{
+      // Validierung Basis
+      if(!wMin.value) return alert('Bitte Minuten eintragen.');
+      if(!wHr.value) return alert('Bitte Ø Puls eintragen.');
+      const s={
+        id: uid(),
+        dateISO: new Date(wDateTime.value ? wDateTime.value : Date.now()).toISOString(),
+        minutes: numOrNull(wMin.value),
+        hr: numOrNull(wHr.value),
+        speed: numOrNull(wSpeed.value),
+        watt: numOrNull(wWatt.value),
+        notes: (wNotes.value||'').trim(),
+        photoDataUrl: tmpPhotoDataUrl || null
+      };
+      currentUser().sessions.push(s);
+      saveState(); renderAll();
+      dlgWizard.close();
+    });
+
+    function numOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
+
+    // Foto-Handling (Kompression)
+    wPhoto.addEventListener('change', async ()=>{
+      const file = wPhoto.files?.[0];
+      if(!file) return;
+      try{
+        tmpPhotoDataUrl = await readAndCompressImage(file, 1200, 1200, 0.85); // max 1200px
+        wPhotoPreview.src = tmpPhotoDataUrl;
+        wPhotoPreviewWrap.classList.remove('hidden');
+      }catch{ alert('Bild konnte nicht verarbeitet werden.'); }
+    });
+    wPhotoRemove.addEventListener('click', ()=>{
+      tmpPhotoDataUrl=null; wPhoto.value=''; wPhotoPreview.src=''; wPhotoPreviewWrap.classList.add('hidden');
+    });
+
+    function readAndCompressImage(file, maxW, maxH, quality){
+      return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>{
+          const img=new Image();
+          img.onload=()=>{
+            let {width:w, height:h} = img;
+            const ratio=Math.min(maxW/w, maxH/h, 1);
+            const cw=Math.round(w*ratio), ch=Math.round(h*ratio);
+            const canvas=document.createElement('canvas');
+            canvas.width=cw; canvas.height=ch;
+            const ctx=canvas.getContext('2d');
+            ctx.drawImage(img,0,0,cw,ch);
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            resolve(dataUrl);
+          };
+          img.onerror=reject;
+          img.src=reader.result;
+        };
+        reader.onerror=reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // ====== Init ======
+    renderAll();
+  </script>
 </body>
 </html>
