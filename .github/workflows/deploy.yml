@@ -1,62 +1,50 @@
-name: Deploy static site (fast)
+name: Deploy static site (no-queue, fast)
 
 on:
   push:
     branches: [ "main" ]
-    # Optional: only run when site files change (uncomment + adjust)
+    # Optional: only run when site changes
     # paths:
     #   - 'dist/**'
     #   - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: gh-pages-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write  # we push to gh-pages
 
 env:
-  # 🔧 Change to your built/static folder. If you deploy repo root, set to "."
-  SITE_DIR: dist
+  SITE_DIR: dist  # set to "." if you publish repo root
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
-      # Shallow, filtered, and sparse checkout => faster I/O
-      - name: Checkout (shallow & sparse)
+      - name: Checkout (shallow)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1          # no history
-          lfs: false              # no LFS
-          clean: false            # runner is ephemeral; skip extra clean step
-          filter: blob:none       # partial clone speeds up large repos
-          sparse-checkout: ${{ env.SITE_DIR }}
-          sparse-checkout-cone: true
+          fetch-depth: 1
+          lfs: false
 
-      # If SITE_DIR doesn't exist (e.g., deploying root), fall back to "."
-      - name: Resolve site directory
+      - name: Resolve site dir + disable Jekyll
         id: site
         run: |
           DIR="${SITE_DIR}"
-          if [ ! -d "$DIR" ]; then DIR="."; fi
+          [ -d "$DIR" ] || DIR="."
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          mkdir -p "$DIR"
+          # .nojekyll avoids any build step and speeds publishing
+          touch "$DIR/.nojekyll"
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact (only site files)
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to gh-pages (single commit)
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: ${{ steps.site.outputs.dir }}
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ${{ steps.site.outputs.dir }}
+          force_orphan: true      # keeps branch history tiny = faster
+          # cname: example.com     # uncomment if you use a custom domain
