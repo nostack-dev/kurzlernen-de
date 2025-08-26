@@ -92,10 +92,31 @@
             <label class="label text-sm">Benutzer</label>
             <select id="userSelect" class="select select-bordered select-sm"></select>
             <button id="btnNewUser" class="btn btn-sm">Neuer Benutzer</button>
-            <div class="ml-auto flex items-center gap-2">
+            <div class="ml-auto flex flex-wrap items-center gap-2">
+                <label class="label text-sm whitespace-nowrap">Körpergewicht (kg)</label>
+                <input id="bodyWeight" type="number" min="0" class="input input-bordered input-sm w-24" placeholder="z.B. 75" />
                 <label class="label text-sm">Wochenziel (Min)</label>
                 <input id="weeklyTarget" type="number" min="0" class="input input-bordered input-sm w-24" />
                 <button id="btnSaveSettings" class="btn btn-sm">Speichern</button>
+            </div>
+        </div>
+        
+        <!-- NEUER ABSCHNITT: Schnell-Eingabe-Einstellungen -->
+        <div class="mt-6 mb-4 p-4 bg-base-200 rounded-lg">
+            <h2 class="text-lg font-semibold mb-2">Schnell-Eingabe-Einstellungen</h2>
+            <div class="flex flex-wrap items-center gap-4">
+                <label class="form-control w-full sm:w-auto">
+                    <div class="label"><span class="label-text">Watt-Stufe (Default)</span></div>
+                    <input id="quickLevel" type="number" min="1" max="10" class="input input-bordered input-sm w-full sm:w-20" />
+                </label>
+                <label class="form-control w-full sm:w-auto">
+                    <div class="label"><span class="label-text">Dauer (Min)</span></div>
+                    <input id="quickDuration" type="number" min="1" class="input input-bordered input-sm w-full sm:w-20" />
+                </label>
+                <label class="form-control w-full sm:w-auto">
+                    <div class="label"><span class="label-text">Puls (bpm)</span></div>
+                    <input id="quickHr" type="number" min="0" class="input input-bordered input-sm w-full sm:w-20" />
+                </label>
             </div>
         </div>
 
@@ -125,7 +146,7 @@
 
         <!-- CTA: Schnell-Eingabe öffnen -->
         <div class="tap-big mb-4">
-            <button id="btnOpenSessionForm" class="btn btn-primary w-full text-lg">➕ Training eintragen</button>
+            <button id="btnQuickSession" class="btn btn-primary w-full text-lg">✨ Training eintragen (schnell)</button>
         </div>
 
         <!-- Daten-Tools -->
@@ -147,9 +168,9 @@
                         <th class="text-xs md:text-sm">Datum</th>
                         <th class="text-xs md:text-sm">Min</th>
                         <th class="text-xs md:text-sm">Ø Puls</th>
-                        <th class="hide-xs text-xs md:text-sm">Distanz</th>
-                        <th class="hide-xs text-xs md:text-sm">Kcal</th>
                         <th class="hide-xs text-xs md:text-sm">Watt</th>
+                        <th class="hide-xs text-xs md:text-sm">Distanz (km)</th>
+                        <th class="hide-xs text-xs md:text-sm">Kcal</th>
                         <th class="text-xs md:text-sm">Notizen</th>
                         <th></th>
                     </tr>
@@ -160,28 +181,32 @@
 
     </div>
 
-    <!-- Neue Session-Eingabe (Modal) -->
+    <!-- HINWEIS: Das mehrstufige Modal wird jetzt nicht mehr für die Schnell-Eingabe verwendet, 
+                 es bleibt aber für zukünftige manuelle Eingaben als Platzhalter. -->
     <dialog id="dlgNewSession" class="modal">
         <div class="modal-box w-11/12 max-w-lg p-6">
             <form method="dialog">
                 <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-            <h3 class="font-bold text-lg mb-4">Training eintragen</h3>
+            <h3 class="font-bold text-lg mb-4">Training eintragen (Manuell)</h3>
             
-            <!-- Fortschrittsanzeige -->
+            <div class="alert alert-info">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Diese Eingabe ist für manuelle Sessions gedacht. Verwende den Haupt-Button für die schnelle Eingabe.</span>
+            </div>
+
             <ul class="steps steps-vertical lg:steps-horizontal w-full progress-indicator mb-4">
-                <li id="step1" class="step">Kalorien</li>
-                <li id="step2" class="step">Distanz</li>
-                <li id="step3" class="step">Watt</li>
-                <li id="step4" class="step">Puls</li>
+                <li id="step1" class="step">Watt</li>
+                <li id="step2" class="step">Puls</li>
+                <li id="step3" class="step">Distanz</li>
+                <li id="step4" class="step">Min & Notiz</li>
             </ul>
 
-            <!-- Schritt 1: Kcal (Optional) -->
-            <div id="step-kcal" class="step-container active">
+            <div id="step-watt" class="step-container active">
                 <div class="flex flex-col items-center">
                     <label class="form-control w-full">
-                        <div class="label"><span class="label-text">Verbrannte Kalorien (kcal)</span></div>
-                        <input id="sessionKcal" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 250">
+                        <div class="label"><span class="label-text">Durchschnittliche Wattzahl</span></div>
+                        <input id="sessionWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 180">
                     </label>
                 </div>
                 <div class="modal-action mt-6">
@@ -189,12 +214,11 @@
                 </div>
             </div>
 
-            <!-- Schritt 2: Distanz -->
-            <div id="step-distance" class="step-container">
+            <div id="step-pulse" class="step-container">
                 <div class="flex flex-col items-center">
                     <label class="form-control w-full">
-                        <div class="label"><span class="label-text">Distanz (km)</span></div>
-                        <input id="sessionDistance" type="number" step="0.1" inputmode="decimal" class="input input-bordered w-full" placeholder="z. B. 5.5">
+                        <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
+                        <input id="sessionHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 115">
                     </label>
                 </div>
                 <div class="modal-action mt-6 flex justify-between">
@@ -203,12 +227,11 @@
                 </div>
             </div>
 
-            <!-- Schritt 3: Watt -->
-            <div id="step-watt" class="step-container">
+            <div id="step-distance" class="step-container">
                 <div class="flex flex-col items-center">
                     <label class="form-control w-full">
-                        <div class="label"><span class="label-text">Durchschnittliche Wattzahl</span></div>
-                        <input id="sessionWatt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 180">
+                        <div class="label"><span class="label-text">Distanz (km) (optional)</span></div>
+                        <input id="sessionDistance" type="number" step="0.1" inputmode="decimal" class="input input-bordered w-full" placeholder="z. B. 5.5">
                     </label>
                 </div>
                 <div class="modal-action mt-6 flex justify-between">
@@ -217,24 +240,16 @@
                 </div>
             </div>
 
-            <!-- Schritt 4: Puls & Fertigstellung -->
-            <div id="step-pulse" class="step-container">
-                <div class="flex flex-col items-center">
+            <div id="step-final" class="step-container">
+                <div class="flex flex-col items-center space-y-4 w-full">
                     <label class="form-control w-full">
-                        <div class="label"><span class="label-text">Ø Puls (bpm)</span></div>
-                        <input id="sessionHr" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 115">
+                        <div class="label"><span class="label-text">Minuten (optional)</span></div>
+                        <input id="sessionMinutes" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 20">
                     </label>
-                     <!-- Restliche optionale Felder -->
-                    <div class="space-y-4 mt-4 w-full">
-                        <label class="form-control">
-                            <div class="label"><span class="label-text">Notiz (optional)</span></div>
-                            <textarea id="sessionNotes" class="textarea textarea-bordered w-full" placeholder="Wie war die Session?"></textarea>
-                        </label>
-                        <label class="form-control">
-                            <div class="label"><span class="label-text">Minuten (optional)</span></div>
-                            <input id="sessionMinutes" type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="input input-bordered w-full" placeholder="z. B. 20">
-                        </label>
-                    </div>
+                    <label class="form-control w-full">
+                        <div class="label"><span class="label-text">Notiz (optional)</span></div>
+                        <textarea id="sessionNotes" class="textarea textarea-bordered w-full" placeholder="Wie war die Session?"></textarea>
+                    </label>
                 </div>
                 <div class="modal-action mt-6 flex justify-between">
                     <button id="btnBack4" class="btn w-1/2 mr-2">Zurück</button>
@@ -302,7 +317,9 @@
             <div class="space-y-2 text-left p-4 bg-base-200 rounded-lg mb-6">
                 <p><strong>Minuten:</strong> <span id="congratsMinutes"></span></p>
                 <p><strong>Ø Puls:</strong> <span id="congratsHr"></span></p>
+                <p><strong>Watt:</strong> <span id="congratsWatt"></span></p>
                 <p><strong>Distanz:</strong> <span id="congratsDistance"></span></p>
+                <p><strong>Kcal:</strong> <span id="congratsKcal"></span></p>
             </div>
             
             <h3 class="text-2xl font-bold mb-2">Bonus-Belohnung!</h3>
@@ -317,8 +334,12 @@
     </dialog>
 
     <script type="module">
+        // Dieses Skript wurde aktualisiert, um eine einfache 
+        // Schnell-Eingabe-Funktion für das Training zu implementieren,
+        // basierend auf den Vorgaben von Christian Heinrich Hohlfeld.
+
         // ========= Persistenz =========
-        const STORAGE_KEY = 'z2log_v7'; // Aktualisierter Version-Schlüssel
+        const STORAGE_KEY = 'z2log_v8'; // Aktualisierter Version-Schlüssel
         const nowISO = () => new Date().toISOString();
         const uid = () => Math.random().toString(36).slice(2,10);
         
@@ -327,10 +348,17 @@
             users: {
                 default: {
                     id: 'default', name: 'Christian', createdAt: nowISO(),
-                    settings: { weeklyTarget: 0, theme: 'winter', hrTarget: 115, lastWatt: 180 }, // Hinzugefügt: lastWatt
+                    settings: { 
+                        weeklyTarget: 0, theme: 'winter', 
+                        bodyWeight: 75,
+                        // NEUE EINSTELLUNGEN FÜR DIE SCHNELL-EINGABE
+                        quickLevel: 3, 
+                        quickDuration: 20, 
+                        quickHr: 115 
+                    }, 
                     metrics: { level: 1, xp: 0, streakCount: 0, totalEntries: 0, lastDay: null },
                     sessions: [],
-                    rewards: [] // Array zum Speichern der freigeschalteten Belohnungen
+                    rewards: [] 
                 }
             }
         };
@@ -342,28 +370,33 @@
                 const raw = localStorage.getItem(STORAGE_KEY);
                 let loadedState = raw ? JSON.parse(raw) : structuredClone(DEFAULT_STATE);
                 
-                // Sicherstellen, dass das 'users'-Objekt existiert und mindestens einen Benutzer hat
                 if (!loadedState.users || Object.keys(loadedState.users).length === 0) {
                     loadedState.users = structuredClone(DEFAULT_STATE.users);
                 }
                 
-                // Sicherstellen, dass die aktive Benutzer-ID gültig ist, ansonsten auf den ersten Benutzer zurückfallen
                 if (!loadedState.activeUserId || !loadedState.users[loadedState.activeUserId]) {
                     loadedState.activeUserId = Object.keys(loadedState.users)[0];
                 }
 
-                // Belohnungen und lastWatt hinzufügen, falls sie aus einer früheren Version fehlen
+                // Sicherstellen, dass die neuen Standardwerte vorhanden sind
                 for (const userId in loadedState.users) {
                     if (!loadedState.users[userId].rewards) {
                         loadedState.users[userId].rewards = [];
                     }
-                    if (!loadedState.users[userId].settings.lastWatt) {
-                        loadedState.users[userId].settings.lastWatt = 180;
+                    if (!loadedState.users[userId].settings.quickLevel) {
+                        loadedState.users[userId].settings.quickLevel = 3;
+                    }
+                    if (!loadedState.users[userId].settings.quickDuration) {
+                        loadedState.users[userId].settings.quickDuration = 20;
+                    }
+                    if (!loadedState.users[userId].settings.quickHr) {
+                        loadedState.users[userId].settings.quickHr = 115;
                     }
                 }
                 
                 return loadedState;
-            } catch { 
+            } catch (e) { 
+                console.error("Fehler beim Laden des Zustands:", e);
                 return structuredClone(DEFAULT_STATE); 
             }
         }
@@ -472,7 +505,14 @@
         const userSelect = document.getElementById('userSelect');
         const btnNewUser = document.getElementById('btnNewUser');
         const weeklyTarget = document.getElementById('weeklyTarget');
+        const bodyWeightInput = document.getElementById('bodyWeight');
         const btnSaveSettings = document.getElementById('btnSaveSettings');
+        
+        // NEUE DOM-REFERENZEN
+        const quickLevelInput = document.getElementById('quickLevel');
+        const quickDurationInput = document.getElementById('quickDuration');
+        const quickHrInput = document.getElementById('quickHr');
+        const btnQuickSession = document.getElementById('btnQuickSession');
 
         const tbody = document.getElementById('tbodySessions');
         const btnExport = document.getElementById('btnExport');
@@ -486,32 +526,11 @@
         const kpiXp = document.getElementById('kpiXp');
         const kpiEntries = document.getElementById('kpiEntries');
 
-        // Neues Single-Form-Modal
+        // Referenzen für das jetzt nicht verwendete manuelle Modal
         const dlgNewSession = document.getElementById('dlgNewSession');
-        const btnOpenSessionForm = document.getElementById('btnOpenSessionForm');
-        // Schritt-Elemente
-        const stepKcal = document.getElementById('step-kcal');
-        const stepDistance = document.getElementById('step-distance');
-        const stepWatt = document.getElementById('step-watt');
-        const stepPulse = document.getElementById('step-pulse');
-        const step1Li = document.getElementById('step1');
-        const step2Li = document.getElementById('step2');
-        const step3Li = document.getElementById('step3');
-        const step4Li = document.getElementById('step4');
-
-        let currentStep = 1;
-        const steps = [
-            { id: 'step-kcal', element: stepKcal, li: step1Li, nextBtn: 'btnNext1' },
-            { id: 'step-distance', element: stepDistance, li: step2Li, backBtn: 'btnBack2', nextBtn: 'btnNext2' },
-            { id: 'step-watt', element: stepWatt, li: step3Li, backBtn: 'btnBack3', nextBtn: 'btnNext3' },
-            { id: 'step-pulse', element: stepPulse, li: step4Li, backBtn: 'btnBack4', nextBtn: 'btnSaveSession' }
-        ];
-
-        // Eingabefelder für neue Session
-        const sessionKcal = document.getElementById('sessionKcal');
-        const sessionDistance = document.getElementById('sessionDistance');
         const sessionWatt = document.getElementById('sessionWatt');
         const sessionHr = document.getElementById('sessionHr');
+        const sessionDistance = document.getElementById('sessionDistance');
         const sessionMinutes = document.getElementById('sessionMinutes');
         const sessionNotes = document.getElementById('sessionNotes');
         const btnSaveSession = document.getElementById('btnSaveSession');
@@ -524,15 +543,15 @@
         const viewImg = document.getElementById('viewImg');
         const dlgSuccess = document.getElementById('dlgSuccess');
 
-        // Glückwunsch-Dialog-Referenzen
         const dlgCongratulations = document.getElementById('dlgCongratulations');
         const confettiContainer = document.getElementById('confetti-container');
         const congratsMinutes = document.getElementById('congratsMinutes');
         const congratsHr = document.getElementById('congratsHr');
         const congratsDistance = document.getElementById('congratsDistance');
+        const congratsKcal = document.getElementById('congratsKcal');
+        const congratsWatt = document.getElementById('congratsWatt');
         const bonusAmount = document.getElementById('bonusAmount');
         const btnCongratsOk = document.getElementById('btnCongratsOk');
-
 
         function currentUser(){ return state.users[state.activeUserId]; }
 
@@ -553,9 +572,14 @@
             userSelect.value = state.activeUserId;
         }
         function renderSettings(){
-            weeklyTarget.value = currentUser().settings.weeklyTarget ?? 0;
-            sessionHr.placeholder = `z. B. ${currentUser().settings.hrTarget ?? 115}`;
-            setTheme(currentUser().settings.theme ?? 'winter');
+            const u = currentUser();
+            weeklyTarget.value = u.settings.weeklyTarget ?? 0;
+            bodyWeightInput.value = u.settings.bodyWeight ?? 75;
+            // NEUE EINSTELLUNGEN RENDERN
+            quickLevelInput.value = u.settings.quickLevel ?? 3;
+            quickDurationInput.value = u.settings.quickDuration ?? 20;
+            quickHrInput.value = u.settings.quickHr ?? 115;
+            setTheme(u.settings.theme ?? 'winter');
         }
         function startOfISOWeek(d=new Date()){
             const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x;
@@ -584,7 +608,7 @@
                 const diffTimeToday = today.getTime() - lastSessionDate.getTime();
                 const diffDaysToday = Math.ceil(diffTimeToday / (1000 * 60 * 60 * 24));
                 
-                if (diffDaysToday <= 1) { // Prüfen, ob die letzte Session heute oder gestern war
+                if (diffDaysToday <= 1) { 
                     streak = 1;
                     if (diffDaysToday === 0) lastDate = today;
                     else lastDate = new Date(today.getTime() - 1000 * 60 * 60 * 24);
@@ -613,7 +637,6 @@
 
             kpiEntries.textContent = u.sessions.length;
 
-            // XP und Gesamteinträge für das metrics-Objekt neu berechnen
             u.metrics.xp = xp;
             u.metrics.totalEntries = u.sessions.length;
         }
@@ -627,215 +650,223 @@
                     <td>${fmtDate(s.dateISO)}</td>
                     <td>${s.minutes ?? ''}</td>
                     <td>${s.hr ?? ''}</td>
-                    <td class="hide-xs">${s.distance ?? ''}</td>
-                    <td class="hide-xs">${s.kcal ?? ''}</td>
                     <td class="hide-xs">${s.watt ?? ''}</td>
-                    <td class="row-note hide-xs" title="${(s.notes||'').replace(/"/g,'&quot;')}">${s.notes ?? ''}</td>
-                    <td><button class="btn btn-xs btn-error" data-del="${s.id}">Löschen</button></td>
+                    <td class="hide-xs">${s.distance ? s.distance.toFixed(1) + ' km' : ''}</td>
+                    <td class="hide-xs">${s.kcal ? s.kcal.toFixed(0) : ''}</td>
+                    <td class="row-note hide-xs">${s.notes ?? ''}</td>
+                    <td><button data-id="${s.id}" class="btn btn-error btn-xs btn-outline btn-delete">Löschen</button></td>
                 `;
                 tbody.appendChild(tr);
             });
-            // Handler für Löschen & Anzeigen
-            tbody.querySelectorAll('button[data-del]').forEach(b=>{
-                b.addEventListener('click', async ()=>{
-                    const id=b.getAttribute('data-del');
-                    const confirmed = await showConfirmDialog('Eintrag löschen?', 'Möchtest du diesen Eintrag wirklich unwiderruflich löschen?');
-                    if (!confirmed) return;
-                    
-                    const u=currentUser();
-                    u.sessions = u.sessions.filter(x=>x.id!==id);
-                    
-                    saveState(); 
-                    renderAll();
-                });
-            });
-
-            calculateAndRenderKPIs();
         }
-
-        function renderAll(){ 
-            renderUsers(); 
-            renderSettings(); 
-            renderTable(); 
-            renderRewards();
-        }
-
-        // ========= Events: Theme/Benutzer =========
-        themeSelect.addEventListener('change', ()=>setTheme(themeSelect.value));
-        userSelect.addEventListener('change', ()=>{ state.activeUserId=userSelect.value; saveState(); renderAll(); });
-        btnNewUser.addEventListener('click', ()=>dlgNewUser.showModal());
-        btnCreateUser.addEventListener('click', ()=>{
-            const name=(newUserName.value||'').trim(); if(!name) return;
-            const id=uid();
-            state.users[id]={
-                id, name, createdAt: nowISO(),
-                settings:{ weeklyTarget:0, theme: themeSelect.value||'winter', hrTarget: 115, lastWatt: 180 },
-                metrics:{ level:1, xp:0, streakCount:0, totalEntries: 0, lastDay: null },
-                sessions:[],
-                rewards: []
-            };
-            state.activeUserId=id; saveState(); dlgNewUser.close(); newUserName.value=''; renderAll();
-        });
-        btnSaveSettings.addEventListener('click', ()=>{
-            currentUser().settings.weeklyTarget = Number(weeklyTarget.value)||0;
-            saveState();
-        });
-
-        // ========= Export / Import / Löschen =========
-        btnExport.addEventListener('click', ()=>{
-            const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-            const url=URL.createObjectURL(blob);
-            const a=document.createElement('a'); a.href=url; a.download=`z2log_export_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
-        });
-        btnImport.addEventListener('click', ()=>fileImport.click());
-        fileImport.addEventListener('change', async ()=>{
-            const f=fileImport.files?.[0]; if(!f) return;
-            try{
-                const txt=await f.text(); const incoming=JSON.parse(txt);
-                if(!incoming.users) throw new Error('Format');
-                const confirmed = await showConfirmDialog('Daten importieren?', 'Bestehende Daten werden überschrieben.');
-                if(!confirmed) return;
-                state=incoming; 
-                state.activeUserId = incoming.activeUserId || Object.keys(incoming.users)[0];
-                saveState(); 
-                renderAll();
-            }catch(e){ showConfirmDialog('Import fehlgeschlagen', 'Ungültiges JSON/Format.'); }
-            finally{ fileImport.value=''; }
-        });
-        btnWipeAll.addEventListener('click', async ()=>{
-            const confirmed = await showConfirmDialog('Alle Einträge löschen?', 'Möchtest du wirklich alle Einträge für den aktiven Benutzer unwiderruflich löschen?');
-            if (!confirmed) return;
-            currentUser().sessions=[];
-            currentUser().metrics.xp = 0;
-            currentUser().metrics.totalEntries = 0;
-            currentUser().rewards = [];
-            saveState(); 
-            renderAll();
-        });
         
-        // ========= Neue Schritt-für-Schritt-Session-Formular-Logik =========
-        function updateStepUI(){
-            steps.forEach((step, index) => {
-                step.element.classList.toggle('active', index + 1 === currentStep);
-                step.li.classList.toggle('step-primary', index + 1 <= currentStep);
-            });
-        }
-        function nextStep() {
-            if (currentStep < steps.length) {
-                currentStep++;
-                updateStepUI();
-            }
-        }
-        function prevStep() {
-            if (currentStep > 1) {
-                currentStep--;
-                updateStepUI();
-            }
+        function updateUI(){
+            renderUsers();
+            renderSettings();
+            calculateAndRenderKPIs();
+            renderTable();
+            checkAndAwardAchievements();
+            renderRewards();
+            saveState();
         }
 
-        // Formular zurücksetzen und ersten Schritt anzeigen
-        function resetSessionFormAndShow() {
-            currentStep = 1;
-            updateStepUI();
-            // Watt mit dem letzten Wert oder Standardwert vorbefüllen
-            sessionWatt.value = currentUser().settings.lastWatt || 180;
-            // Andere Felder leeren
-            sessionKcal.value = '';
-            sessionDistance.value = '';
-            sessionHr.value = '';
-            sessionMinutes.value = '';
-            sessionNotes.value = '';
-            
-            dlgNewSession.showModal();
+        // ========= Hauptlogik für Schnell-Eingabe =========
+        
+        /**
+         * Konvertiert eine Watt-Stufe in eine durchschnittliche Watt-Zahl.
+         * Annahme: Lineare Skala, Stufe 1 = 60W, 2 = 120W, 3 = 180W, etc.
+         * @param {number} level - Die Watt-Stufe (1-10)
+         * @returns {number} Die berechnete Watt-Zahl
+         */
+        function levelToWatt(level) {
+            return level * 60;
         }
 
-        btnOpenSessionForm.addEventListener('click', resetSessionFormAndShow);
+        /**
+         * Erstellt einen neuen Trainingseintrag mit den vordefinierten Werten.
+         */
+        function createQuickSession() {
+            const u = currentUser();
+            const settings = u.settings;
 
-        // Schritt-Navigationslogik
-        document.getElementById('btnNext1').addEventListener('click', nextStep);
-        document.getElementById('btnNext2').addEventListener('click', nextStep);
-        document.getElementById('btnNext3').addEventListener('click', nextStep);
-        document.getElementById('btnBack2').addEventListener('click', prevStep);
-        document.getElementById('btnBack3').addEventListener('click', prevStep);
-        document.getElementById('btnBack4').addEventListener('click', prevStep);
+            const durationMinutes = Number(settings.quickDuration);
+            const hr = Number(settings.quickHr);
+            const level = Number(settings.quickLevel);
+            const watt = levelToWatt(level);
 
-        btnSaveSession.addEventListener('click', async ()=>{
-            const s={
+            // Annahmen für die Berechnung
+            const durationHours = durationMinutes / 60;
+            const kcal = Math.floor(watt * durationHours * 3.6); // 1 Watt-Stunde = 3.6 kJ = 0.86 kcal, aber 3.6 ist eine gute Schätzung für Kalorienverbrauch
+            const distance = parseFloat((watt * durationHours * 0.1).toFixed(1)); // Beispiel-Berechnung, Annahme 180W = 18km/h
+
+            const newSession = {
                 id: uid(),
-                dateISO: nowISO(), // Immer die aktuelle Zeit für Einfachheit verwenden
-                kcal: numOrNull(sessionKcal.value),
-                distance: numOrNull(sessionDistance.value),
-                watt: numOrNull(sessionWatt.value),
-                hr: numOrNull(sessionHr.value),
-                minutes: numOrNull(sessionMinutes.value), // Dies ist optional
-                notes: (sessionNotes.value||'').trim()
+                dateISO: nowISO(),
+                minutes: durationMinutes,
+                hr: hr,
+                watt: watt,
+                distance: distance,
+                kcal: kcal,
+                notes: `Schnell-Eintrag: Stufe ${level}, ${durationMinutes} Minuten`
             };
 
-            // Vor dem Speichern validieren: Puls und mindestens ein weiterer Wert müssen vorhanden sein
-            if (!s.hr || (!s.kcal && !s.distance && !s.watt && !s.minutes)) {
-                showConfirmDialog('Fehlende Angabe', 'Bitte mindestens den Puls und einen weiteren Wert (Minuten, Kalorien, Distanz, Watt) eintragen.');
-                return;
-            }
-
-            currentUser().sessions.push(s);
-            currentUser().settings.lastWatt = s.watt; // Letzten Watt-Wert für das nächste Mal speichern
+            u.sessions.push(newSession);
             saveState();
-            
-            dlgNewSession.close();
-            
-            // Glückwunsch-Bildschirm auslösen
-            showCongratulations(s);
-        });
 
-        function numOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
+            // Erfolgs-Modal anzeigen
+            showCongratulationsDialog(newSession);
 
-        // ========= NEUE GLÜCKWUNSCH-LOGIK =========
-        function createConfetti(containerId){
-            const container = document.getElementById(containerId);
-            if (!container) return;
-
-            const piece = document.createElement('div');
-            piece.className = 'confetti';
-            piece.style.left = `${Math.random() * 100}vw`;
-            piece.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-            piece.style.animationDuration = `${Math.random() * 2 + 1}s`;
-            piece.style.animationDelay = `${Math.random() * 0.5}s`;
-            piece.style.transform = `rotate(${Math.random() * 360}deg)`;
-            container.appendChild(piece);
-            setTimeout(() => piece.remove(), 2500);
+            updateUI();
         }
 
-        function showCongratulations(session){
-            // Modal mit Session-Daten aktualisieren
-            congratsMinutes.textContent = (session.minutes || 'N/A') + ' min';
-            congratsHr.textContent = (session.hr || 'N/A') + ' bpm';
-            congratsDistance.textContent = (session.distance || 'N/A') + ' km';
+        /**
+         * Zeigt das Glückwunsch-Modal mit den Details der neuen Session.
+         * @param {object} session - Die neu erstellte Session
+         */
+        function showCongratulationsDialog(session){
+            congratsMinutes.textContent = session.minutes;
+            congratsHr.textContent = session.hr;
+            congratsWatt.textContent = session.watt;
+            congratsDistance.textContent = session.distance + ' km';
+            congratsKcal.textContent = session.kcal;
             
-            // Bonus-XP berechnen (1 bis 10)
-            const bonusXP = Math.floor(Math.random() * 10) + 1;
-            bonusAmount.textContent = bonusXP;
+            const bonus = 10; // Fester Bonus für jeden Schnell-Eintrag
+            bonusAmount.textContent = bonus;
             
-            // Bonus-XP zum Benutzer hinzufügen
-            const u = currentUser();
-            u.metrics.xp += bonusXP;
-            saveState();
+            // Konfetti starten
+            for(let i=0; i<80; i++) setTimeout(() => createConfetti('confetti-container'), i * 25);
 
-            // Konfetti animieren
-            for(let i=0; i<50; i++) setTimeout(() => createConfetti('confetti-container'), i * 20);
-
-            // Modal anzeigen
             dlgCongratulations.showModal();
         }
 
-        btnCongratsOk.addEventListener('click', () => {
-            dlgCongratulations.close();
-            // Alles neu rendern nach dem "Dopamin-Kick"
-            renderAll();
-            checkAndAwardAchievements();
+        // Konfetti-Logik
+        function createConfetti(containerId) {
+            const container = document.getElementById(containerId);
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = `${Math.random() * 100}%`;
+            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            confetti.style.animationDuration = `${Math.random() * 2 + 3}s`;
+            confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+            container.appendChild(confetti);
+            confetti.addEventListener('animationend', () => confetti.remove());
+        }
+
+        // ========= Event-Listener =========
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUI();
         });
 
-        // ====== Initialisierung ======
-        renderAll();
+        themeSelect.addEventListener('change', (e) => setTheme(e.target.value));
+        userSelect.addEventListener('change', (e) => {
+            state.activeUserId = e.target.value;
+            updateUI();
+        });
+        
+        btnNewUser.addEventListener('click', () => dlgNewUser.showModal());
+        btnCreateUser.addEventListener('click', () => {
+            const name = newUserName.value.trim();
+            if (name) {
+                const newId = uid();
+                state.users[newId] = {
+                    id: newId, 
+                    name: name, 
+                    createdAt: nowISO(),
+                    settings: structuredClone(DEFAULT_STATE.users.default.settings),
+                    metrics: structuredClone(DEFAULT_STATE.users.default.metrics),
+                    sessions: [],
+                    rewards: []
+                };
+                state.activeUserId = newId;
+                dlgNewUser.close();
+                updateUI();
+                newUserName.value = '';
+            }
+        });
+
+        btnSaveSettings.addEventListener('click', () => {
+            const u = currentUser();
+            u.settings.weeklyTarget = Number(weeklyTarget.value);
+            u.settings.bodyWeight = Number(bodyWeightInput.value);
+            saveState();
+            updateUI();
+        });
+
+        // Event-Listener für die NEUEN Schnell-Eingabe-Einstellungen
+        quickLevelInput.addEventListener('change', (e) => {
+            currentUser().settings.quickLevel = Number(e.target.value);
+            saveState();
+        });
+        quickDurationInput.addEventListener('change', (e) => {
+            currentUser().settings.quickDuration = Number(e.target.value);
+            saveState();
+        });
+        quickHrInput.addEventListener('change', (e) => {
+            currentUser().settings.quickHr = Number(e.target.value);
+            saveState();
+        });
+
+        // Event-Listener für den NEUEN Schnell-Eingabe-Button
+        btnQuickSession.addEventListener('click', createQuickSession);
+
+        btnExport.addEventListener('click', () => {
+            const dataStr = JSON.stringify(state, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `z2log_export_${fmtDate(nowISO())}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        btnImport.addEventListener('click', () => fileImport.click());
+        fileImport.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    if (importedState && importedState.users) {
+                        state = importedState;
+                        saveState();
+                        updateUI();
+                        document.getElementById('fileImport').value = ''; // Reset file input
+                    } else {
+                        console.error("Ungültiges Import-Format.");
+                    }
+                } catch (err) {
+                    console.error("Fehler beim Importieren der Datei:", err);
+                }
+            };
+            reader.readAsText(file);
+        });
+        
+        btnWipeAll.addEventListener('click', async () => {
+            const confirmed = await showConfirmDialog("Alles löschen?", "Bist du sicher, dass du alle Daten unwiderruflich löschen möchtest? Das kann nicht rückgängig gemacht werden.");
+            if (confirmed) {
+                localStorage.clear();
+                state = structuredClone(DEFAULT_STATE);
+                saveState();
+                updateUI();
+            }
+        });
+
+        tbody.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('btn-delete')) {
+                const sessionId = e.target.dataset.id;
+                const confirmed = await showConfirmDialog("Eintrag löschen?", "Möchtest du diesen Trainingseintrag wirklich löschen?");
+                if (confirmed) {
+                    const u = currentUser();
+                    u.sessions = u.sessions.filter(s => s.id !== sessionId);
+                    saveState();
+                    updateUI();
+                }
+            }
+        });
     </script>
 </body>
 </html>
