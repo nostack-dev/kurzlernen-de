@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Preview Fix</title>
+    <!-- Use the Inter font -->
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="max-w-md w-full p-8 bg-white shadow-xl rounded-2xl flex flex-col items-center space-y-6 transform transition-transform duration-300 hover:scale-105">
+        
+        <!-- Display for dynamic content -->
+        <div class="text-center">
+            <h1 class="text-3xl font-extrabold text-gray-800">Dynamic Content</h1>
+            <p id="message-container" class="mt-4 text-xl font-medium text-gray-600">Click the button below!</p>
+        </div>
+
+        <!-- Button to trigger JavaScript -->
+        <button id="update-button" class="py-3 px-6 bg-indigo-600 text-white font-bold rounded-full shadow-lg transition-all duration-300 hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+            Show My Name
+        </button>
+
+    </div>
+
+    <script>
+        // Use window.onload to ensure the script runs after the entire HTML document has loaded
+        window.onload = function() {
+            // Get the button element by its ID
+            const button = document.getElementById('update-button');
+            // Get the message container element
+            const messageContainer = document.getElementById('message-container');
+
+            // Add a click event listener to the button
+            button.addEventListener('click', function() {
+                // Instead of document.write(), which can be restricted,
+                // we'll directly update the innerHTML of the message container.
+                messageContainer.innerHTML = 'Hello, Christian Heinrich Hohlfeld from Konstanz, Germany!';
+
+                // Optional: Change button text to show it's done
+                button.textContent = 'Updated!';
+                button.disabled = true; // Disable the button after one click
+                button.classList.add('bg-gray-400', 'cursor-not-allowed');
+                button.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            });
+        };
+    </script>
+
+</body>
+</html>
