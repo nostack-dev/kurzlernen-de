@@ -151,6 +151,8 @@
   <div class="panel msg-box" style="display: none;" id="midi-msg">
     MIDI-Controller erkannt! Steuern Sie das BPM mit einem Fader oder Knopf an Ihrem Gerät.
   </div>
+  
+  <div id="status-msg" class="msg-box" style="display: none;"></div>
 
   <!-- AUDIO WORKLET: reiner Code-String -->
   <script id="worklet" type="text/plain">
@@ -448,46 +450,60 @@ registerProcessor("phys-engine", PhysEngine);
 
     async function boot(){
       if (ac) return;
-      ac = new (window.AudioContext||window.webkitAudioContext)({ sampleRate:48000 });
       
-      // Worklet-Code aus Text-Tag in Blob wandeln
-      const code = $("worklet").textContent;
-      const blob = new Blob([code], {type:"application/javascript"});
-      const url = URL.createObjectURL(blob);
-      await ac.audioWorklet.addModule(url);
-      URL.revokeObjectURL(url);
+      // Zustand initialisieren und loggen
+      const statusEl = $("status-msg");
+      statusEl.style.display = 'block';
+      statusEl.innerText = "Initialisiere AudioContext...";
 
-      // Audio-Knoten-Kette aufbauen: Engine -> Reverb -> Analyser -> Destination
-      node = new AudioWorkletNode(ac, "phys-engine", { processorOptions:{ bpm:parseInt($("bpm").value,10), seed:parseInt($("seed").value,10) }});
-
-      reverbNode = ac.createConvolver();
-      reverbNode.buffer = generateImpulseResponse(ac, 2, 2, false);
-      
-      analyser = ac.createAnalyser();
-      analyser.fftSize = 2048;
-
-      node.connect(reverbNode);
-      reverbNode.connect(analyser);
-      analyser.connect(ac.destination);
-      
-      node.port.onmessage = e=>{
-        const m=e.data;
-        if (m?.t==="bpm"){ /* könnte spb anzeigen */ }
-      };
-      
-      // MIDI Initialisierung
       try {
-        const midiAccess = await navigator.requestMIDIAccess();
-        if (midiAccess.inputs.size > 0) {
-          led("midi-led", "ok");
-          $("midi-msg").style.display = 'block';
-          for (let input of midiAccess.inputs.values()) {
-            input.onmidimessage = onMIDIMessage;
+        ac = new (window.AudioContext||window.webkitAudioContext)({ sampleRate:48000 });
+        statusEl.innerText = `AudioContext erfolgreich. Zustand: ${ac.state}`;
+        
+        // Worklet-Code aus Text-Tag in Blob wandeln
+        const code = $("worklet").textContent;
+        const blob = new Blob([code], {type:"application/javascript"});
+        const url = URL.createObjectURL(blob);
+        
+        statusEl.innerText = "Lade AudioWorklet-Modul...";
+        await ac.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
+        statusEl.innerText = "AudioWorklet-Modul erfolgreich geladen.";
+
+        // Audio-Knoten-Kette aufbauen: Engine -> Analyser -> Destination
+        // Reverb-Node wurde zur Fehlersuche vorübergehend entfernt
+        node = new AudioWorkletNode(ac, "phys-engine", { processorOptions:{ bpm:parseInt($("bpm").value,10), seed:parseInt($("seed").value,10) }});
+
+        analyser = ac.createAnalyser();
+        analyser.fftSize = 2048;
+
+        node.connect(analyser);
+        analyser.connect(ac.destination);
+        
+        node.port.onmessage = e=>{
+          const m=e.data;
+          if (m?.t==="bpm"){ /* könnte spb anzeigen */ }
+        };
+        
+        // MIDI Initialisierung
+        try {
+          const midiAccess = await navigator.requestMIDIAccess();
+          if (midiAccess.inputs.size > 0) {
+            led("midi-led", "ok");
+            $("midi-msg").style.display = 'block';
+            for (let input of midiAccess.inputs.values()) {
+              input.onmidimessage = onMIDIMessage;
+            }
           }
+        } catch (e) {
+          led("midi-led", "bad");
+          console.error("MIDI-API konnte nicht initialisiert werden.", e);
         }
+
       } catch (e) {
-        led("midi-led", "bad");
-        console.error("MIDI-API konnte nicht initialisiert werden.", e);
+        statusEl.style.backgroundColor = 'var(--bad)';
+        statusEl.innerText = `Fehler beim Initialisieren der Audio-Engine: ${e.message}. Bitte Konsole prüfen.`;
+        console.error("Fataler Audio-Fehler:", e);
       }
     }
 
@@ -518,6 +534,7 @@ registerProcessor("phys-engine", PhysEngine);
       // Transport
       $("start").addEventListener("click", async ()=>{
         await boot(); await ac.resume(); post("start"); led("led","ok");
+        $("status-msg").innerText = `AudioContext erfolgreich gestartet. Zustand: ${ac.state}`;
       });
       $("stop").addEventListener("click", async ()=>{
         if (!ac) return; await ac.suspend(); post("stop"); led("led","off");
@@ -541,8 +558,9 @@ registerProcessor("phys-engine", PhysEngine);
       });
       
       // Reverb
-      $("reverbEn").addEventListener("change", e => reverbNode.disconnect().connect(e.target.checked ? analyser : ac.destination));
-      $("reverbGain").addEventListener("input", e => reverbNode.gain.setValueAtTime(parseFloat(e.target.value), ac.currentTime));
+      // Die Reverb-Funktionalität wurde vorübergehend entfernt, um eine mögliche Fehlerquelle auszuschließen.
+      // $("reverbEn").addEventListener("change", e => reverbNode.disconnect().connect(e.target.checked ? analyser : ac.destination));
+      // $("reverbGain").addEventListener("input", e => reverbNode.gain.setValueAtTime(parseFloat(e.target.value), ac.currentTime));
 
       // Export / Import
       $("exportCfg").addEventListener("click", ()=>{
