@@ -1,921 +1,617 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hardstyle Creation Suite - DAW Edition</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        :root {
-            --bg-deep: #020617;
-            --bg-med: #0f172a;
-            --bg-light: #1e293b;
-            --border-color: #334155;
-            --text-primary: #e2e8f0;
-            --text-secondary: #94a3b8;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --accent-bright: #60a5fa;
-            --danger: #ef4444;
-            --warning: #facc15;
-            --success: #22c55e;
-        }
-        html, body { 
-            height: 100%; margin: 0; padding: 0; 
-            overflow: hidden; font-family: 'Inter', sans-serif; 
-            background-color: var(--bg-deep); color: var(--text-primary);
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        #app-container {
-            display: grid;
-            grid-template-rows: auto 1fr;
-            height: 100vh;
-        }
-        #main-content {
-            display: grid;
-            grid-template-columns: 250px 1fr 384px; /* Tracks | Main Area | Params */
-            gap: 1rem;
-            padding: 1rem;
-            min-height: 0;
-        }
-        #center-area {
-            display: grid;
-            grid-template-rows: 1fr auto;
-            gap: 1rem;
-            min-height: 0;
-        }
-        .panel {
-            background-color: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .panel-header {
-            padding: 0.75rem 1rem;
-            font-weight: 600;
-            border-bottom: 1px solid var(--border-color);
-            background-color: rgba(30, 41, 59, 0.5);
-        }
-        .panel-content {
-            padding: 1rem;
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-        /* Transport Bar */
-        #transport-bar {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            padding: 0.75rem 1rem;
-            background-color: var(--bg-med);
-            border-bottom: 1px solid var(--border-color);
-        }
-        .transport-btn {
-            background-color: var(--bg-light);
-            border: 1px solid var(--border-color);
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .transport-btn:hover { background-color: var(--border-color); }
-        .transport-btn.active { background-color: var(--accent); border-color: var(--accent-hover); }
-        .transport-display { font-size: 1.25rem; font-weight: 600; }
-
-        /* Track List */
-        .track {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem;
-            border-radius: 0.375rem;
-            margin-bottom: 0.5rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            border: 1px solid transparent;
-        }
-        .track.active {
-            background-color: var(--accent);
-            border-color: var(--accent-bright);
-        }
-        .track-color { width: 1rem; height: 1rem; border-radius: 0.25rem; margin-right: 0.75rem; }
-        .track-name { flex-grow: 1; font-weight: 500; }
-        .track-btn {
-            background: none; border: none; color: var(--text-secondary);
-            padding: 0.25rem; margin-left: 0.5rem; cursor: pointer;
-            width: 1.75rem; height: 1.75rem; border-radius: 50%;
-        }
-        .track-btn:hover { background-color: var(--bg-light); color: var(--text-primary); }
-        .track-btn.active { background-color: var(--warning); color: var(--bg-deep); }
-
-        /* Sequencer Grid */
-        #sequencer-grid {
-            display: grid;
-            grid-template-columns: repeat(16, 1fr);
-            gap: 4px;
-        }
-        .step {
-            aspect-ratio: 1 / 1;
-            background-color: var(--bg-light);
-            border-radius: 3px;
-            cursor: pointer;
-            transition: all 0.1s;
-        }
-        .step:hover { background-color: var(--border-color); }
-        .step.active { background-color: var(--accent-bright); }
-        .step.playing {
-             box-shadow: inset 0 0 0 2px var(--warning);
-        }
-        .step.active.playing {
-            background-color: var(--warning);
-        }
-
-        /* Parameter Panel */
-        .knob-container { display: flex; flex-direction: column; align-items: center; }
-        .knob { position: relative; width: 56px; height: 56px; cursor: ns-resize; }
-        .knob-dial { width: 100%; height: 100%; background-color: #334155; border-radius: 50%; border: 1px solid #475569; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s; }
-        .knob-tick { width: 2px; height: 12px; background-color: var(--accent); position: absolute; top: 4px; left: 50%; transform-origin: center 24px; border-radius: 1px; }
-        .knob:active .knob-dial { background-color: #475569; }
-        .knob-label { font-size: 0.7rem; color: #94a3b8; margin-top: 6px; text-transform: capitalize; text-align: center; }
-        .knob-value { font-size: 0.85rem; font-weight: 500; color: #e2e8f0; }
-
-        .param-group { 
-            border: 1px solid var(--border-color); 
-            background-color: rgba(2, 6, 23, 0.3); 
-            border-radius: 8px; 
-            padding: 1rem; 
-            margin-bottom: 1rem;
-        }
-        .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(75px, 1fr)); gap: 1rem; }
-         .custom-select {
-            background-color: #334155; border: 1px solid #475569; color: #cbd5e1;
-            padding: 0.5rem; border-radius: 6px; font-size: 0.85rem; width: 100%;
-        }
-        #visualizer-container {
-            position: relative;
-            min-height: 0;
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DAW-X — Physikalisch direkte Engine (Erweitert)</title>
+<style>
+  :root{--bg:#0f1117;--fg:#e6edf3;--mut:#8b9eb0;--b1:#18202a;--b2:#212b38;--ac:#4cc9f0;--ok:#2bd97f;--bad:#ff5c7a}
+  *{box-sizing:border-box}html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+  .wrap{max-width:1024px;margin:0 auto;padding:18px}
+  h1{margin:6px 0 2px 0;font-size:18px}
+  p.small{color:var(--mut);font-size:12px;margin:6px 0 14px}
+  .panel{background:var(--b1);border:1px solid #2a3544;border-radius:12px;padding:12px;margin:10px 0}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .spacer{flex:1}
+  button,input,select{background:var(--b2);color:var(--fg);border:1px solid #2a3544;border-radius:8px;padding:10px 12px;cursor:pointer}
+  button.primary{border-color:var(--ac);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--ac) 40%,transparent)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  label{display:flex;align-items:center;gap:6px;color:var(--mut)}
+  input.num{width:92px;text-align:center}
+  select{padding-right:24px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
+  .led{width:10px;height:10px;border-radius:50%;display:inline-block;margin-left:6px;box-shadow:0 0 0 1px #0006}
+  .led.ok{background:var(--ok)}.led.off{background:#555}.led.warn{background:#facc15}.led.bad{background:var(--bad)}
+  canvas{width:100%;height:100px;background:#0b0f16;border:1px solid #2a3544;border-radius:8px}
+  pre{white-space:pre-wrap;word-break:break-word;background:#0c1118;border:1px solid #2a3544;border-radius:8px;padding:8px;color:#c7d0dc}
+  .msg-box { background: var(--b2); border: 1px solid #2a3544; border-radius: 8px; padding: 12px; color: var(--fg); margin: 10px 0; }
+  .pulse { animation: pulse-anim 1s infinite alternate; }
+  @keyframes pulse-anim { from { opacity: 0.5; } to { opacity: 1; } }
+</style>
 </head>
 <body>
+<div class="wrap">
+  <h1>DAW-X — Physikalisch direkte Engine</h1>
+  <p class="small">Eine globale, unteilbare Zeitbasis <em>n</em> (Samples) → Beat-Phase φ(n)=frac(n/SPB). Alle Klänge sind deterministische Funktionen von (n, φ). Keine JS-Timer, kein Spur-Sequencer. | Ein Werk von Christian Heinrich Hohlfeld, Konstanz Deutschland, 05.04.1983.</p>
 
-    <div id="app-container">
-        <header id="transport-bar">
-            <h1 class="text-xl font-bold tracking-tight">DAW-X</h1>
-            <button id="play-btn" class="transport-btn">Play</button>
-            <button id="stop-btn" class="transport-btn">Stop</button>
-            <div class="flex items-center gap-2">
-                <span class="text-sm text-gray-400">BPM</span>
-                <input type="number" id="bpm-input" value="150" class="w-20 bg-gray-700 text-center font-semibold rounded p-1">
-            </div>
-             <div class="flex items-center gap-2 ml-auto">
-                <span class="text-sm text-gray-400">Master Volume</span>
-                <input type="range" id="master-volume" min="0" max="1" step="0.01" value="0.6" class="w-32">
-            </div>
-        </header>
-
-        <main id="main-content">
-            <div id="track-list-panel" class="panel">
-                <div class="panel-header">Tracks</div>
-                <div class="panel-content">
-                    <div id="track-list"></div>
-                    <button id="add-instrument-btn" class="w-full mt-4 p-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors">Add Instrument</button>
-                    <div id="add-instrument-menu" class="hidden mt-2 space-y-2"></div>
-                </div>
-            </div>
-
-            <div id="center-area">
-                 <div id="visualizer-container" class="panel">
-                    <!-- 3D Canvas will be injected here -->
-                 </div>
-                 <div id="sequencer-panel" class="panel">
-                    <div class="panel-header">Sequencer</div>
-                    <div id="sequencer-grid" class="p-4"></div>
-                </div>
-            </div>
-            
-            <div id="parameter-panel" class="panel">
-                <div class="panel-header" id="param-panel-header">Parameters</div>
-                <div class="panel-content" id="param-panel-content">
-                     <p class="text-center text-gray-400">Select a track to edit its parameters.</p>
-                </div>
-            </div>
-        </main>
+  <div class="panel">
+    <div class="row">
+      <button id="start" class="primary">Start</button>
+      <button id="stop">Stop</button>
+      <div class="spacer"></div>
+      <label>BPM <input id="bpm" class="num" type="number" min="20" max="300" step="1" value="120"></label>
+      <button id="bpmDown">−5</button><button id="bpmUp">+5</button>
+      <label>Seed <input id="seed" class="num" type="number" value="2654435761"></label>
+      <button id="reseat">Re-Seed</button>
+      <span class="small">Status <span id="led" class="led off"></span></span>
+      <div class="spacer"></div>
+      <span id="midi-status" class="small">MIDI: <span id="midi-led" class="led off"></span></span>
     </div>
+  </div>
 
-<script>
-// --- CONFIG & Global State ---
-let audioContext, masterGainNode, whiteNoiseBuffer, pinkNoiseBuffer;
-let scene, camera, renderer, clock, particleField, baseParticlePositions;
-const layers = [];
-let activeLayerId = null;
-let activeWavefronts = [];
-
-let transport = {
-    isPlaying: false,
-    bpm: 150,
-    currentStep: 0,
-    timerID: 0,
-    scheduleAheadTime: 0.1,
-};
-
-// --- Main Initialization ---
-function init() {
-    initAudio();
-    initUI();
-    init3DVisualizer();
-    animate();
-}
-
-// --- Audio Engine ---
-function initAudio() {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    masterGainNode = audioContext.createGain();
-    masterGainNode.gain.value = 0.6;
-    masterGainNode.connect(audioContext.destination);
-    
-    // Create Noise Buffers
-    const bufferSize = audioContext.sampleRate * 2.0;
-    whiteNoiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-    const whiteOutput = whiteNoiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) { whiteOutput[i] = Math.random() * 2 - 1; }
-
-    pinkNoiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-    const pinkOutput = pinkNoiseBuffer.getChannelData(0);
-    let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
-    for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520; b3 = 0.86650 * b3 + white * 0.3104856;
-        b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980;
-        pinkOutput[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-        pinkOutput[i] *= 0.11; b6 = white * 0.115926;
-    }
-}
-
-// --- UI & Controls ---
-function initUI() {
-    // Transport controls
-    const playBtn = document.getElementById('play-btn');
-    playBtn.onclick = () => {
-        transport.isPlaying = !transport.isPlaying;
-        if(transport.isPlaying) {
-            if (audioContext.state === 'suspended') audioContext.resume();
-            transport.currentStep = 0;
-            requestAnimationFrame(sequencerLoop);
-            playBtn.classList.add('active');
-            playBtn.textContent = 'Pause';
-        } else {
-            clearTimeout(transport.timerID);
-            playBtn.classList.remove('active');
-            playBtn.textContent = 'Play';
-        }
-    };
-    document.getElementById('stop-btn').onclick = () => {
-        transport.isPlaying = false;
-        clearTimeout(transport.timerID);
-        transport.currentStep = 0;
-        playBtn.classList.remove('active');
-        playBtn.textContent = 'Play';
-        updateSequencerHighlight();
-    };
-    document.getElementById('bpm-input').onchange = (e) => transport.bpm = parseFloat(e.target.value);
-    document.getElementById('master-volume').oninput = (e) => masterGainNode.gain.setTargetAtTime(parseFloat(e.target.value), audioContext.currentTime, 0.01);
-    
-    // Instrument menu
-    const addBtn = document.getElementById('add-instrument-btn');
-    const addMenu = document.getElementById('add-instrument-menu');
-    const instrumentTypes = ["Gated Kick", "Reverse Bass", "Clap", "Screech Lead", "Impact Resonator", "Plucked String", "Granular Pad", "FX Riser"];
-    instrumentTypes.forEach(type => {
-        const btn = document.createElement('button');
-        btn.textContent = type;
-        btn.className = "w-full p-2 bg-slate-600 text-sm rounded hover:bg-slate-500 transition-colors";
-        btn.onclick = () => {
-            addLayer(type);
-            addMenu.classList.add('hidden');
-        };
-        addMenu.appendChild(btn);
-    });
-    addBtn.onclick = () => addMenu.classList.toggle('hidden');
-}
-
-function addLayer(type) {
-    const count = layers.filter(l => l.type === type).length + 1;
-    const colors = { 
-        "Gated Kick": "#3b82f6", "Reverse Bass": "#6366f1", "Clap": "#22c55e", 
-        "Screech Lead": "#facc15", "Impact Resonator": "#f97316", "Plucked String": "#ec4899",
-        "Granular Pad": "#8b5cf6", "FX Riser": "#e5e7eb"
-    };
-    
-    const layer = { 
-        id: "layer_" + Date.now(),
-        name: `${type} ${count}`, 
-        type, 
-        params: createDefaultParams(type),
-        color: colors[type] || '#ffffff',
-        pattern: Array(16).fill(0),
-        muted: false,
-        soloed: false
-    };
-
-    if(type === 'Gated Kick' && layers.filter(l => l.type === 'Gated Kick').length === 0) {
-        layer.pattern = [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0];
-    }
-    
-    layers.push(layer);
-    renderTrackList();
-    renderSequencerGrid();
-    setActiveLayer(layer.id);
-}
-
-function renderTrackList() {
-    const trackListDiv = document.getElementById('track-list');
-    trackListDiv.innerHTML = '';
-    layers.forEach(layer => {
-        const trackDiv = document.createElement('div');
-        trackDiv.className = 'track';
-        if (layer.id === activeLayerId) trackDiv.classList.add('active');
-        trackDiv.innerHTML = `
-            <div class="track-color" style="background-color: ${layer.color}"></div>
-            <span class="track-name">${layer.name}</span>
-            <button class="track-btn" data-action="solo">${'S'}</button>
-            <button class="track-btn" data-action="mute">${'M'}</button>
-        `;
-        trackDiv.onclick = () => setActiveLayer(layer.id);
-
-        const soloBtn = trackDiv.querySelector('[data-action="solo"]');
-        const muteBtn = trackDiv.querySelector('[data-action="mute"]');
-        soloBtn.onclick = (e) => { e.stopPropagation(); toggleSolo(layer.id); };
-        muteBtn.onclick = (e) => { e.stopPropagation(); toggleMute(layer.id); };
-
-        if (layer.soloed) soloBtn.classList.add('active');
-        if (layer.muted) muteBtn.classList.add('active', 'bg-red-500');
-
-        trackListDiv.appendChild(trackDiv);
-    });
-}
-
-function renderSequencerGrid() {
-    const gridDiv = document.getElementById('sequencer-grid');
-    gridDiv.innerHTML = '';
-    for(let i = 0; i < 16; i++) {
-        const stepDiv = document.createElement('div');
-        stepDiv.className = 'step';
-        const activeLayer = layers.find(l => l.id === activeLayerId);
-        if (activeLayer && activeLayer.pattern[i] === 1) {
-             stepDiv.classList.add('active');
-             stepDiv.style.backgroundColor = activeLayer.color;
-        }
-        stepDiv.dataset.step = i;
-        stepDiv.onclick = () => {
-            if(activeLayer) {
-                activeLayer.pattern[i] = activeLayer.pattern[i] === 1 ? 0 : 1;
-                renderSequencerGrid();
-            }
-        };
-        gridDiv.appendChild(stepDiv);
-    }
-    updateSequencerHighlight();
-}
-
-function updateSequencerHighlight() {
-    document.querySelectorAll('.step.playing').forEach(s => s.classList.remove('playing'));
-    if (transport.isPlaying) {
-        document.querySelectorAll(`.step[data-step="${transport.currentStep}"]`).forEach(s => s.classList.add('playing'));
-    }
-}
-
-function setActiveLayer(id) {
-    activeLayerId = id;
-    renderTrackList();
-    renderSequencerGrid();
-    renderParameterPanel();
-}
-
-function renderParameterPanel() {
-    const layer = layers.find(l => l.id === activeLayerId);
-    const header = document.getElementById('param-panel-header');
-    const content = document.getElementById('param-panel-content');
-
-    if (!layer) {
-        header.textContent = 'Parameters';
-        content.innerHTML = '<p class="text-center text-gray-400">Select a track to edit its parameters.</p>';
-        return;
-    }
-
-    header.textContent = layer.name;
-    content.innerHTML = '';
-    
-    const p = layer.params;
-    const allRanges = {
-        volume: [0, 2, 0.01],
-        punch: [0, 2, 0.01], distortion: [1, 2000, 10], pitchEnv: [1000, 10000, 10], gateTime: [0.05, 0.5, 0.01],
-        tailPitch: [20, 100, 1], tailDecay: [0.1, 1.0, 0.01], tailFilterCutoff: [50, 500, 1], tailFilterQ: [0, 10, 0.1],
-        tone: [50, 500, 1], sweepTime: [0.05, 0.5, 0.01], filterQ: [0, 20, 0.1], revDistortion: [1, 2000, 10],
-        attack: [0.001, 0.5, 0.001], release: [0.01, 1, 0.01], detune: [0, 50, 0.1], filterFreq: [500, 8000, 10], harmonics: [1, 10, 0.1],
-        filterEnvAmount: [0, 8000, 10], filterDecay: [0.01, 0.5, 0.01],
-        duration: [0.2, 4, 0.1], q: [0, 20, 0.1],
-        snap: [1000, 8000, 10], body: [100, 500, 5], decay: [0.1, 0.5, 0.01], spread: [0, 0.05, 0.001],
-        hardness: [0.1, 1, 0.01], resonatorSize: [0.1, 2, 0.01],
-        tension: [50, 2000, 10], damping: [0.9, 0.999, 0.001], pluck: [0.1, 0.9, 0.01],
-        grainSize: [0.01, 0.2, 0.001], density: [5, 100, 1], pitchJitter: [0, 1200, 10]
-    };
-
-     for(const param in p){
-        if (param === 'waveform' || param.includes('Type') || param.includes('Color') || param.includes('Material')) {
-            const selectContainer = document.createElement('div');
-            const label = document.createElement('div');
-            label.className = 'knob-label';
-            label.textContent = param.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-            const select = document.createElement('select');
-            select.className = 'custom-select';
-            select.onchange = (e) => p[param] = e.target.value;
-            
-            let options = [];
-            if(param === 'waveform') options = ['sawtooth', 'square', 'triangle'];
-            if(param.includes('Type')) options = ['lowpass', 'highpass', 'bandpass'];
-            if(param.includes('Color')) options = ['white', 'pink'];
-            if(param.includes('Material')) options = ['metal', 'wood', 'glass'];
-
-            options.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
-                if (opt === p[param]) option.selected = true;
-                select.appendChild(option);
-            });
-            selectContainer.appendChild(select);
-            selectContainer.appendChild(label);
-            content.appendChild(selectContainer);
-            continue;
-        }
-        
-        if (allRanges[param]) {
-            const knobId = `${param}-${layer.id}`;
-            const div = document.createElement('div');
-            div.id = knobId;
-            const paramGrid = content.querySelector('.param-grid') || document.createElement('div');
-            if (!paramGrid.classList.contains('param-grid')) {
-                paramGrid.className = 'param-grid';
-                content.appendChild(paramGrid);
-            }
-            paramGrid.appendChild(div);
-            
-            const [min, max, step] = allRanges[param];
-            const formattedLabel = param.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-            createKnob(knobId, formattedLabel, min, max, p[param], step, (val) => p[param] = val);
-        }
-    }
-}
-
-
-function createKnob(containerId, label, min, max, initialValue, step, callback) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.className = 'knob-container';
-    let value = initialValue;
-    let angle = ((value - min) / (max - min)) * 270 - 135;
-    
-    container.innerHTML = `
-        <div class="knob">
-            <div class="knob-dial"><div class="knob-tick" style="transform: rotate(${angle}deg);"></div></div>
+  <div class="panel">
+    <div class="grid">
+      <div>
+        <strong>KICK (Beat-Start)</strong>
+        <div class="kv"><label><input type="checkbox" id="kickEn" checked> aktiv</label></div>
+        <div class="kv"><label>f0</label><input id="kickF0" class="num" type="number" value="55" min="20" max="200"></div>
+        <div class="kv"><label>Sweep Hz</label><input id="kickSweep" class="num" type="number" value="90" min="0" max="600"></div>
+        <div class="kv"><label>Decay ms</label><input id="kickDecay" class="num" type="number" value="140" min="10" max="2000"></div>
+        <div class="kv"><label>Gain</label><input id="kickGain" class="num" type="number" value="0.9" step="0.05" min="0" max="2"></div>
+        <div class="kv"><label>Pattern E(k,S,R)</label>
+          <input id="kickSteps" class="num" type="number" value="16" min="1" max="64" title="S (Steps)">
+          <input id="kickFill" class="num" type="number" value="4" min="0" max="64" title="k (Fill)">
+          <input id="kickRot" class="num" type="number" value="0" min="0" max="64" title="R (Rotate)">
         </div>
-        <div class="knob-label">${label}</div>
-        <div class="knob-value">${initialValue.toFixed(step < 0.1 ? 2 : (step < 1 ? 1 : 0))}</div>
-    `;
+      </div>
 
-    const knob = container.querySelector('.knob');
-    const tick = container.querySelector('.knob-tick');
-    const valueDisplay = container.querySelector('.knob-value');
-    
-    let isDragging = false, startY, startValue;
+      <div>
+        <strong>SNARE (Backbeats)</strong>
+        <div class="kv"><label><input type="checkbox" id="snareEn" checked> aktiv</label></div>
+        <div class="kv"><label>Noise</label><input id="snareNoise" class="num" type="number" value="0.7" min="0" max="1" step="0.05"></div>
+        <div class="kv"><label>HP Hz</label><input id="snareHP" class="num" type="number" value="900" min="60" max="9000"></div>
+        <div class="kv"><label>Decay ms</label><input id="snareDecay" class="num" type="number" value="220" min="10" max="2000"></div>
+        <div class="kv"><label>Gain</label><input id="snareGain" class="num" type="number" value="0.7" step="0.05" min="0" max="2"></div>
+        <div class="kv"><label>Pattern E(k,S,R)</label>
+          <input id="snareSteps" class="num" type="number" value="16" min="1" max="64">
+          <input id="snareFill" class="num" type="number" value="2" min="0" max="64">
+          <input id="snareRot" class="num" type="number" value="8" min="0" max="64">
+        </div>
+      </div>
 
-    const handleMouseMove = (e) => {
-        if (!isDragging) return;
-        const dy = startY - e.clientY;
-        const range = max - min;
-        value = startValue + (dy / 150) * range; // Increased sensitivity
-        value = Math.max(min, Math.min(max, value));
-        value = Math.round(value / step) * step;
-        
-        angle = ((value - min) / (max - min)) * 270 - 135;
-        tick.style.transform = `rotate(${angle}deg)`;
-        valueDisplay.textContent = value.toFixed(step < 0.1 ? 2 : (step < 1 ? 1 : 0));
-        callback(value);
-    };
+      <div>
+        <strong>HI-HAT (Subdivision)</strong>
+        <div class="kv"><label><input type="checkbox" id="hatEn" checked> aktiv</label></div>
+        <div class="kv"><label>HP Hz</label><input id="hatHP" class="num" type="number" value="6000" min="1000" max="18000"></div>
+        <div class="kv"><label>Decay ms</label><input id="hatDecay" class="num" type="number" value="70" min="5" max="1000"></div>
+        <div class="kv"><label>Gain</label><input id="hatGain" class="num" type="number" value="0.45" step="0.05" min="0" max="2"></div>
+        <div class="kv"><label>Subdivision N</label><input id="hatSub" class="num" type="number" value="3" min="2" max="16"></div>
+        <div class="kv"><label>Pattern E(k,S,R)</label>
+          <input id="hatSteps" class="num" type="number" value="12" min="1" max="64">
+          <input id="hatFill" class="num" type="number" value="8" min="0" max="64">
+          <input id="hatRot" class="num" type="number" value="0" min="0" max="64">
+        </div>
+      </div>
 
-    const handleMouseUp = () => {
-        isDragging = false;
-        document.body.style.cursor = 'default';
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-    };
+      <div>
+        <strong>BASS (Gate ½-Beat)</strong>
+        <div class="kv"><label><input type="checkbox" id="bassEn" checked> aktiv</label></div>
+        <div class="kv"><label>Wave</label>
+          <select id="bassWave">
+            <option value="sine">Sine</option>
+            <option value="tri">Tri</option>
+            <option value="saw">Saw (polyBLEP)</option>
+            <option value="square" selected>Square (polyBLEP)</option>
+          </select>
+        </div>
+        <div class="kv"><label>Freq Hz</label><input id="bassFreq" class="num" type="number" value="55" min="20" max="400"></div>
+        <div class="kv"><label>Gain</label><input id="bassGain" class="num" type="number" value="0.5" step="0.05" min="0" max="2"></div>
+        <div class="kv"><label>Gate% Beat</label><input id="bassGate" class="num" type="number" value="50" min="1" max="100"></div>
+      </div>
+      
+      <div>
+        <strong>SYNTH (Melodie)</strong>
+        <div class="kv"><label><input type="checkbox" id="synthEn" checked> aktiv</label></div>
+        <div class="kv"><label>Wave</label>
+          <select id="synthWave">
+            <option value="sine" selected>Sine</option>
+            <option value="saw">Saw (polyBLEP)</option>
+          </select>
+        </div>
+        <div class="kv"><label>Gain</label><input id="synthGain" class="num" type="number" value="0.35" step="0.05" min="0" max="2"></div>
+        <div class="kv"><label>Decay ms</label><input id="synthDecay" class="num" type="number" value="200" min="10" max="2000"></div>
+        <div class="kv"><label>Pattern  E(k,S,R)</label>
+          <input id="synthSteps" class="num" type="number" value="16" min="1" max="64">
+          <input id="synthFill" class="num" type="number" value="8" min="0" max="64">
+          <input id="synthRot" class="num" type="number" value="0" min="0" max="64">
+        </div>
+      </div>
+      
+      <div>
+        <strong>REVERB</strong>
+        <div class="kv"><label><input type="checkbox" id="reverbEn" checked> aktiv</label></div>
+        <div class="kv"><label>Gain</label><input id="reverbGain" class="num" type="number" value="0.1" step="0.05" min="0" max="1"></div>
+      </div>
+    </div>
+  </div>
 
-    knob.onmousedown = (e) => {
-        e.preventDefault();
-        isDragging = true;
-        startValue = value;
-        startY = e.clientY;
-        document.body.style.cursor = 'ns-resize';
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    };
-}
+  <div class="panel">
+    <div class="row">
+      <strong>Visualisierung</strong>
+      <div class="spacer"></div>
+      <button id="exportCfg">Export JSON</button>
+      <button id="importCfg">Import JSON</button>
+      <input id="importFile" type="file" accept="application/json" style="display:none">
+    </div>
+    <canvas id="scope"></canvas>
+  </div>
+  
+  <div class="panel msg-box" style="display: none;" id="midi-msg">
+    MIDI-Controller erkannt! Steuern Sie das BPM mit einem Fader oder Knopf an Ihrem Gerät.
+  </div>
 
+  <!-- AUDIO WORKLET: reiner Code-String -->
+  <script id="worklet" type="text/plain">
+class PhysEngine extends AudioWorkletProcessor {
+  static get parameterDescriptors(){return[]}
 
-function createDefaultParams(type) {
-    const base = { volume: 0.8 };
-    switch(type) {
-        case 'Gated Kick': return { ...base, punch: 1.2, distortion: 800, pitchEnv: 6000, gateTime: 0.12, tailPitch: 50, tailDecay: 0.4, tailFilterCutoff: 180, tailFilterQ: 1.5 };
-        case 'Reverse Bass': return { ...base, tone: 150, sweepTime: 0.25, volume: 0.6, filterType: 'lowpass', filterQ: 1, revDistortion: 250 };
-        case 'Screech Lead': return { ...base, waveform: 'sawtooth', attack: 0.01, release: 0.4, detune: 15, filterFreq: 2500, harmonics: 1.5, volume: 0.3, filterEnvAmount: 5000, filterDecay: 0.15 };
-        case 'FX Riser': return { ...base, duration: 2.0, q: 8, volume: 0.4, noiseColor: 'white' };
-        case 'Clap': return { ...base, volume: 0.5, snap: 5000, body: 250, decay: 0.15, spread: 0.015 };
-        case 'Impact Resonator': return { ...base, material: 'metal', hardness: 0.8, resonatorSize: 0.5 };
-        case 'Plucked String': return { ...base, tension: 220, damping: 0.996, pluck: 0.5, volume: 0.6 };
-        case 'Granular Pad': return { ...base, grainSize: 0.05, density: 40, pitchJitter: 200, volume: 0.3 };
-    }
-    return base;
-}
+  constructor(options){
+    super();
+    // === Globale Zeitbasis ===
+    this.sr = sampleRate >>> 0;
+    this.n  = 0;
+    this.playing = true;
 
-// --- Sequencer & Transport ---
-function sequencerLoop() {
-    if (!transport.isPlaying) return;
-    const secondsPerStep = 60.0 / transport.bpm / 4;
-    const now = audioContext.currentTime;
+    // Transport
+    this._bpm = 120;
+    this.setBPM(options?.processorOptions?.bpm ?? 120);
 
-    const anySolo = layers.some(l => l.soloed);
+    // Deterministische PRNG (xorshift32)
+    this.seed = (options?.processorOptions?.seed|0) || 0x9e3779b9;
+    this._rand = ()=>{ let x=this.seed|0; x^=x<<13; x^=x>>>17; x^=x<<5; this.seed=x|0; return ((x>>>0)/0xFFFFFFFF)*2-1 }
 
-    layers.forEach(layer => {
-        const noteIsActive = layer.pattern[transport.currentStep] === 1;
-        const isAudible = !layer.muted && (!anySolo || layer.soloed);
-        if (noteIsActive && isAudible) {
-            triggerLayer(layer, now);
-        }
-    });
-    
-    updateSequencerHighlight();
+    // DC-Blocker & Soft-Clip
+    this.dc_x1=0; this.dc_y1=0; this.dc_R=0.995;
 
-    transport.currentStep = (transport.currentStep + 1) % 16;
-    transport.timerID = setTimeout(sequencerLoop, secondsPerStep * 1000);
-}
-
-function toggleMute(id) {
-    const layer = layers.find(l => l.id === id);
-    if(layer) layer.muted = !layer.muted;
-    renderTrackList();
-}
-function toggleSolo(id) {
-    const layer = layers.find(l => l.id === id);
-    if(layer) layer.soloed = !layer.soloed;
-    renderTrackList();
-}
-
-// --- Trigger & Sound Synthesis ---
-function triggerLayer(layer, time) {
-    if (!layer) return;
-    try {
-        createVisualWavefronts(layer);
-        const sourceNode = createTransientSourceNode(layer, time);
-        if (!sourceNode) return;
-        sourceNode.connect(masterGainNode);
-    } catch (e) { console.error(`Error triggering layer ${layer.name}:`, e); }
-}
-
-function createTransientSourceNode(layer, time) {
-    const p = layer.params;
-    const outputNode = audioContext.createGain();
-    outputNode.gain.setValueAtTime(p.volume, time);
-
-    switch (layer.type) {
-        case 'Gated Kick': {
-            const preGain = audioContext.createGain();
-            preGain.gain.value = 4.0; 
-            
-            const punchEnv = audioContext.createGain();
-            punchEnv.gain.setValueAtTime(0, time);
-            punchEnv.gain.linearRampToValueAtTime(p.punch, time + 0.01);
-            punchEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-
-            const punchOsc = audioContext.createOscillator();
-            punchOsc.type = 'triangle';
-            punchOsc.frequency.setValueAtTime(p.pitchEnv, time);
-            punchOsc.frequency.exponentialRampToValueAtTime(100, time + 0.1);
-            
-            const punchDist = audioContext.createWaveShaper();
-            punchDist.curve = makeDistortionCurve(p.distortion);
-            punchOsc.connect(preGain).connect(punchDist).connect(punchEnv).connect(outputNode);
-
-            const noiseEnv = audioContext.createGain();
-            noiseEnv.gain.setValueAtTime(1, time);
-            noiseEnv.gain.setTargetAtTime(0, time, p.gateTime / 4);
-            
-            const noise = audioContext.createBufferSource();
-            noise.buffer = whiteNoiseBuffer; noise.loop = true;
-            const noiseFlt = audioContext.createBiquadFilter();
-            noiseFlt.type = 'highpass'; noiseFlt.frequency.value = 1000;
-            noise.connect(noiseFlt).connect(noiseEnv).connect(outputNode);
-
-            const tailEnv = audioContext.createGain();
-            tailEnv.gain.setValueAtTime(0, time);
-            tailEnv.gain.linearRampToValueAtTime(1, time + 0.02);
-            tailEnv.gain.setTargetAtTime(0, time + 0.02, p.tailDecay / 3);
-            const tailOsc = audioContext.createOscillator();
-            tailOsc.type = 'sine'; tailOsc.frequency.value = p.tailPitch;
-            const tailFlt = audioContext.createBiquadFilter();
-            tailFlt.type = 'lowpass'; tailFlt.frequency.value = p.tailFilterCutoff; tailFlt.Q.value = p.tailFilterQ;
-            tailOsc.connect(tailFlt).connect(tailEnv).connect(outputNode);
-
-            punchOsc.start(time); punchOsc.stop(time + 0.2);
-            noise.start(time); noise.stop(time + p.gateTime);
-            tailOsc.start(time); tailOsc.stop(time + p.tailDecay + 0.1);
-            break;
-        }
-        case 'Reverse Bass': {
-            const preGain = audioContext.createGain();
-            preGain.gain.value = 4.0;
-
-            const revEnv = audioContext.createGain();
-            revEnv.gain.setValueAtTime(0, time);
-            revEnv.gain.linearRampToValueAtTime(1, time + p.sweepTime);
-            revEnv.gain.setTargetAtTime(0, time + p.sweepTime, 0.1);
-            
-            const osc = audioContext.createOscillator();
-            osc.type = 'sawtooth'; osc.frequency.value = p.tone;
-            const filter = audioContext.createBiquadFilter();
-            filter.type = p.filterType; filter.frequency.value = 8000; filter.Q.value = p.filterQ;
-            const dist = audioContext.createWaveShaper();
-            dist.curve = makeDistortionCurve(p.revDistortion);
-            osc.connect(preGain).connect(dist).connect(filter).connect(revEnv).connect(outputNode);
-            osc.start(time); osc.stop(time + 1.0);
-            break;
-        }
-        case 'Screech Lead': {
-            const leadEnv = audioContext.createGain();
-            leadEnv.gain.setValueAtTime(0, time);
-            leadEnv.gain.linearRampToValueAtTime(1, time + p.attack);
-            leadEnv.gain.setTargetAtTime(0, time + p.attack, p.release / 3);
-            leadEnv.connect(outputNode);
-            for (let i = 0; i < 3; i++) {
-                const osc = audioContext.createOscillator();
-                osc.type = p.waveform;
-                osc.frequency.value = 440 * p.harmonics;
-                osc.detune.value = (i - 1) * p.detune;
-                const filter = audioContext.createBiquadFilter();
-                filter.type = 'bandpass'; filter.Q.value = 5;
-                filter.frequency.setValueAtTime(p.filterFreq, time);
-                filter.frequency.linearRampToValueAtTime(p.filterFreq + p.filterEnvAmount, time + 0.01);
-                filter.frequency.setTargetAtTime(p.filterFreq, time + 0.01, p.filterDecay / 4);
-                osc.connect(filter).connect(leadEnv);
-                osc.start(time); osc.stop(time + p.attack + p.release);
-            }
-            break;
-        }
-        case 'Clap': {
-            const decayTime = p.decay;
-            const bodyEnv = audioContext.createGain();
-            bodyEnv.gain.setValueAtTime(0, time);
-            bodyEnv.gain.linearRampToValueAtTime(1, time + 0.01);
-            bodyEnv.gain.exponentialRampToValueAtTime(0.001, time + decayTime * 0.8);
-            const bodyNoise = audioContext.createBufferSource();
-            bodyNoise.buffer = whiteNoiseBuffer;
-            const bodyFilter = audioContext.createBiquadFilter();
-            bodyFilter.type = 'bandpass'; bodyFilter.frequency.value = p.body; bodyFilter.Q.value = 1;
-            bodyNoise.connect(bodyFilter).connect(bodyEnv).connect(outputNode);
-            for (let i = 0; i < 3; i++) {
-                const snapEnv = audioContext.createGain();
-                const startTime = time + i * p.spread;
-                snapEnv.gain.setValueAtTime(0, startTime);
-                snapEnv.gain.linearRampToValueAtTime(1, startTime + 0.005);
-                snapEnv.gain.exponentialRampToValueAtTime(0.001, startTime + decayTime);
-                const snapNoise = audioContext.createBufferSource();
-                snapNoise.buffer = whiteNoiseBuffer;
-                const snapFilter = audioContext.createBiquadFilter();
-                snapFilter.type = 'highpass'; snapFilter.frequency.value = p.snap;
-                snapNoise.connect(snapFilter).connect(snapEnv).connect(outputNode);
-                snapNoise.start(startTime); snapNoise.stop(startTime + decayTime);
-            }
-            bodyNoise.start(time); bodyNoise.stop(time + decayTime);
-            break;
-        }
-        case 'Impact Resonator': {
-            const materialSettings = { metal: [4000, 0.2], wood: [1500, 0.8], glass: [8000, 0.4] };
-            const [freq, decay] = materialSettings[p.material];
-            
-            const noiseEnv = audioContext.createGain();
-            noiseEnv.gain.setValueAtTime(1, time);
-            noiseEnv.gain.exponentialRampToValueAtTime(0.001, time + (0.1 / p.hardness));
-            const noise = audioContext.createBufferSource();
-            noise.buffer = whiteNoiseBuffer;
-            const noiseFlt = audioContext.createBiquadFilter();
-            noiseFlt.type = 'lowpass';
-            noiseFlt.frequency.value = freq * p.hardness;
-            noise.connect(noiseFlt).connect(noiseEnv);
-
-            const resonator = audioContext.createBiquadFilter();
-            resonator.type = 'bandpass';
-            resonator.frequency.value = freq / p.resonatorSize;
-            resonator.Q.value = 20;
-
-            const resEnv = audioContext.createGain();
-            resEnv.gain.setValueAtTime(1, time);
-            resEnv.gain.setTargetAtTime(0, time, (decay * p.resonatorSize)/4);
-
-            noiseEnv.connect(resonator).connect(resEnv).connect(outputNode);
-            noise.start(time); noise.stop(time + 0.1);
-            break;
-        }
-        case 'Plucked String': { // Karplus-Strong
-            const N = Math.round(audioContext.sampleRate / p.tension);
-            const delay = audioContext.createDelay(N / audioContext.sampleRate);
-            const feedback = audioContext.createGain();
-            feedback.gain.value = p.damping;
-            const filter = audioContext.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = p.tension * (2 + (p.pluck * 5));
-
-            delay.connect(filter);
-            filter.connect(feedback);
-            feedback.connect(delay);
-            
-            const noise = audioContext.createBufferSource();
-            noise.buffer = whiteNoiseBuffer;
-            const noiseEnv = audioContext.createGain();
-            noiseEnv.gain.setValueAtTime(1, time);
-            noiseEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.01);
-            noise.connect(noiseEnv).connect(delay);
-            noiseEnv.connect(outputNode);
-
-            noise.start(time); noise.stop(time + 0.02);
-            break;
-        }
-        case 'Granular Pad': {
-            const gSize = p.grainSize;
-            for (let i = 0; i < p.density; i++) {
-                const grain = audioContext.createBufferSource();
-                grain.buffer = pinkNoiseBuffer;
-
-                const gEnv = audioContext.createGain();
-                const startTime = time + Math.random() * 0.1;
-                gEnv.gain.setValueAtTime(0, startTime);
-                gEnv.gain.linearRampToValueAtTime(1, startTime + gSize * 0.5);
-                gEnv.gain.linearRampToValueAtTime(0, startTime + gSize);
-
-                grain.playbackRate.value = 1 + (Math.random() - 0.5) * (p.pitchJitter / 1200);
-                grain.connect(gEnv).connect(outputNode);
-                grain.start(startTime, Math.random() * (pinkNoiseBuffer.duration - gSize));
-                grain.stop(startTime + gSize);
-            }
-            break;
-        }
-        default: break;
+    // Instrument-Klassen
+    class Instrument {
+      constructor(params){ this.params = params; this.state = {}; }
+      process(n, phi, sr, st) { return 0; }
+      init(n, phi, sr, st) {}
+      applyParams(params) { this.params = {...this.params, ...params}; }
     }
     
-    return outputNode;
-}
-
-// --- 3D Visualizer ---
-function init3DVisualizer() {
-    const container = document.getElementById('visualizer-container');
-    clock = new THREE.Clock();
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.z = 10;
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
-    
-    createParticleField();
-
-    window.addEventListener('resize', onWindowResize);
-}
-
-function animate() {
-    requestAnimationFrame(animate);
-    updateParticleField();
-    renderer.render(scene, camera);
-}
-
-function onWindowResize() {
-    const container = document.getElementById('visualizer-container');
-    if (!container) return;
-    const { clientWidth, clientHeight } = container;
-    camera.aspect = clientWidth / clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(clientWidth, clientHeight);
-}
-
-function makeDistortionCurve(amount) {
-    let k = typeof amount === 'number' ? amount : 50;
-    let n_samples = 44100; let curve = new Float32Array(n_samples);
-    let deg = Math.PI / 180;
-    for (let i = 0; i < n_samples; ++i) {
-        let x = i * 2 / n_samples - 1;
-        curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+    class Kick extends Instrument {
+      constructor(params) { super(params); this.state = {env:0, tLoc:0, lastStep:-1}; }
+      init(n) { this.state.env = 1; this.state.tLoc = 0; }
+      process(n, phi, sr, st, euclid) {
+        const {en, f0, sweep, gain} = this.params;
+        if (!en) return 0;
+        const {env, tLoc} = st;
+        const f = Math.max(20, f0 + sweep*Math.exp(-8*tLoc));
+        const sig = Math.sin(2*Math.PI*f*tLoc);
+        return sig * env * gain;
+      }
     }
-    return curve;
-}
-
-function createParticleField() {
-    const PARTICLE_DENSITY = 12;
-    const ROOM_SIZE = 15;
-    if (particleField) scene.remove(particleField);
-    const count = Math.pow(PARTICLE_DENSITY, 3);
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-        const x = (Math.random() - 0.5) * ROOM_SIZE;
-        const y = (Math.random() - 0.5) * ROOM_SIZE;
-        const z = (Math.random() - 0.5) * ROOM_SIZE;
-        positions.set([x, y, z], i * 3);
+    class Snare extends Instrument {
+      constructor(params) { super(params); this.state = {env:0, tLoc:0, lastStep:-1, hpx1:0, hpy1:0}; }
+      init(n) { this.state.env = 1; this.state.tLoc = 0; }
+      process(n, phi, sr, st, euclid, rand, hpCoef) {
+        const {en, noise, gain} = this.params;
+        if (!en) return 0;
+        const {env, tLoc} = st;
+        let x = rand()*noise;
+        const y = hpCoef*(st.hpy1 + x - st.hpx1);
+        st.hpx1=x; st.hpy1=y;
+        return y * env * gain;
+      }
     }
-    baseParticlePositions = positions.slice();
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3)); 
-    const material = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.9 });
-    particleField = new THREE.Points(geometry, material);
-    scene.add(particleField);
-}
+    class Hat extends Instrument {
+      constructor(params) { super(params); this.state = {env:0, tLoc:0, lastStep:-1, hpx1:0, hpy1:0}; }
+      init(n) { this.state.env = 1; this.state.tLoc = 0; }
+      process(n, phi, sr, st, euclid, rand, hpCoef, eGate) {
+        const {en, gain} = this.params;
+        if (!en) return 0;
+        const {env, tLoc} = st;
+        let nx=rand();
+        const yh = hpCoef*(st.hpy1 + nx - st.hpx1);
+        st.hpx1=nx; st.hpy1=yh;
+        return yh * env * gain * eGate;
+      }
+    }
+    class Bass extends Instrument {
+      constructor(params) { super(params); this.state = {phase:0}; }
+      process(n, phi, sr, st, polyblep, saw_blep, square_blep) {
+        const {en, wave, freq, gain, gatePct} = this.params;
+        if (!en) return 0;
+        const gate = (phi < (gatePct/100)) ? 1:0;
+        st.phase += freq/sr;
+        let osc;
+        switch (wave){
+          case "saw":    osc=saw_blep(st.phase, freq); break;
+          case "square": osc=square_blep(st.phase, freq); break;
+          case "tri":    { const x=2*Math.abs(2*(st.phase%1)-1)-1; osc=x; break; }
+          default:       osc=Math.sin(2*Math.PI*(st.phase%1));
+        }
+        return osc * gain * gate;
+      }
+    }
+    class Synth extends Instrument {
+      constructor(params) { super(params); this.state = {phase:0, env:0, notes: [40, 43, 47, 50, 52, 55, 59, 62]}; }
+      init(n, stepIdx) {
+        const noteIdx = stepIdx % this.state.notes.length;
+        const midiNote = this.state.notes[noteIdx];
+        const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+        this.state.env = 1;
+        this.state.freq = freq;
+      }
+      process(n, phi, sr, st, polyblep, saw_blep, square_blep) {
+        const {en, wave, gain} = this.params;
+        if (!en) return 0;
+        const {env, freq, phase} = st;
+        st.phase += freq/sr;
+        let osc;
+        switch (wave){
+          case "saw":    osc=saw_blep(st.phase, freq); break;
+          default:       osc=Math.sin(2*Math.PI*(st.phase%1));
+        }
+        return osc * gain * env;
+      }
+    }
 
-function createVisualWavefronts(layer) {
-    const intensity = (layer.type === 'Gated Kick' ? 2.0 : 1.0) * layer.params.volume;
-    const wave = {
-        source: new THREE.Vector3(0,0,0),
-        color: new THREE.Color(layer.color),
-        startTime: clock.getElapsedTime(),
-        initialIntensity: intensity,
+    // Instance of instruments
+    this.instruments = {
+      kick: new Kick({en:true, f0:55, sweep:90, decayMs:140, gain:0.9, steps:16, fill:4, rot:0}),
+      snare: new Snare({en:true, noise:0.7, hp:900, decayMs:220, gain:0.7, steps:16, fill:2, rot:8}),
+      hat: new Hat({en:true, hp:6000, decayMs:70, gain:0.45, sub:3, steps:12, fill:8, rot:0}),
+      bass: new Bass({en:true, wave:"square", freq:55, gain:0.5, gatePct:50}),
+      synth: new Synth({en:true, wave:"sine", gain:0.35, decayMs:200, steps:16, fill:8, rot:0})
     };
-    activeWavefronts.push(wave);
-}
-
-function updateParticleField() {
-    if (!particleField || !clock) return;
-    const SPEED_OF_SOUND = 15;
-    const ROOM_SIZE = 15;
-    const now = clock.getElapsedTime();
-    const positions = particleField.geometry.attributes.position.array;
-    const colors = particleField.geometry.attributes.color.array;
-    const particlePos = new THREE.Vector3();
-    const displacement = new THREE.Vector3();
-    const finalColor = new THREE.Color();
-    const waveColor = new THREE.Color();
     
-    for (let i = 0; i < positions.length / 3; i++) {
-        const baseIndex = i * 3;
-        particlePos.fromArray(baseParticlePositions, baseIndex);
-        displacement.set(0,0,0);
-        finalColor.setRGB(0,0,0);
+    // Vorberechnete Koeffizienten & Zustand
+    this._coef = {};
+    this._decayCoefs = {};
+    this._hpCoefs = {};
+    this._refreshCoefs();
 
-        activeWavefronts.forEach(wave => {
-            const dist = particlePos.distanceTo(wave.source);
-            const timeElapsed = now - wave.startTime;
-            const timeToReach = dist / SPEED_OF_SOUND;
+    // Command-Queue (block-sicher)
+    this.cmdQ = [];
+    this.port.onmessage = e=>{ const m=e.data; this.cmdQ.push(m) }
+  }
 
-            if (timeElapsed > timeToReach && timeElapsed < timeToReach + 0.2) { 
-                const waveWidth = 2.5;
-                const timeSincePass = timeElapsed - timeToReach;
-                const normalizedDist = (timeSincePass * SPEED_OF_SOUND) / waveWidth;
-                if (normalizedDist < 1.0) {
-                    const attenuation = 1 / (dist * 0.5 + 1);
-                    let pressure = Math.sin(normalizedDist * Math.PI) * wave.initialIntensity * attenuation;
-                    
-                    waveColor.set(wave.color);
-                    finalColor.add(waveColor.multiplyScalar(Math.abs(pressure)));
-                    
-                    const direction = particlePos.clone().sub(wave.source).normalize();
-                    if(direction.lengthSq() > 0) {
-                       displacement.add(direction.multiplyScalar(pressure * 0.5));
-                    }
-                }
-            }
+  // ---- Transport & Zeit ----
+  setBPM(bpm){
+    const b = Math.max(20, Math.min(300, bpm|0));
+    this._bpm = b;
+    this.spb = this.sr * 60 / b;
+    this.spbar = this.spb * 4; // fix 4/4
+    this.port.postMessage({t:"bpm", bpm:b, spb:this.spb});
+  }
+  phase(){ const x=this.n/this.spb; return x - Math.floor(x) }
+  euclid = (k,steps,idx,rot=0)=>{ if(steps<=0) return false; const i=(idx+rot)%steps; return (i*k)%steps < k }
+
+  // ---- Coefs ----
+  _dCoef(ms){ const tau=ms/1000; return Math.exp(-1/(tau*this.sr)) }
+  _hpCoef(fc){ const dt=1/this.sr; const rc=1/(2*Math.PI*Math.max(10,fc)); return rc/(rc+dt) }
+  _refreshCoefs(){
+    const d=this._decayCoefs, h=this._hpCoefs;
+    d.kick = this._dCoef(this.instruments.kick.params.decayMs);
+    d.snare = this._dCoef(this.instruments.snare.params.decayMs);
+    d.hat = this._dCoef(this.instruments.hat.params.decayMs);
+    d.synth = this._dCoef(this.instruments.synth.params.decayMs);
+    h.snare = this._hpCoef(this.instruments.snare.params.hp);
+    h.hat = this._hpCoef(this.instruments.hat.params.hp);
+  }
+
+  // ---- polyBLEP helpers (anti-aliased saw/square) ----
+  _polyblep(t, dt){ // t in [0,1)
+    if (t<dt){ const x=t/dt; return x + x - x*x - 1 }
+    else if (t>1-dt){ const x=(t-1)/dt; return x*x + x + x + 1 }
+    return 0
+  }
+  _saw_blep(phase, freq){
+    const t = phase%1; const dt=freq/this.sr;
+    let y = 2*t-1;
+    y -= this._polyblep(t,dt);
+    return y
+  }
+  _square_blep(phase, freq){
+    const t = phase%1; const dt=freq/this.sr;
+    let y = t<0.5?1:-1;
+    y += this._polyblep(t,dt) - this._polyblep((t+0.5)%1,dt);
+    return y
+  }
+
+  // ---- Commands anwenden (Block-Anfang) ----
+  _applyCommands(){
+    if (!this.cmdQ.length) return;
+    for (const m of this.cmdQ){
+      switch(m?.t){
+        case "start": this.playing=true; this.n=0; break;
+        case "stop": this.playing=false; break;
+        case "seed": this.seed = (m.seed|0); break;
+        case "bpm": this.setBPM(m.bpm); break;
+        case "cfg":{
+          const {inst, key, val} = m;
+          if (this.instruments[inst] && key in this.instruments[inst].params) {
+            this.instruments[inst].applyParams({[key]: val});
+            this._refreshCoefs();
+          }
+          break;
+        }
+        case "toggle":{
+          const {inst, en} = m;
+          if (this.instruments[inst]) this.instruments[inst].applyParams({en:!!en});
+          break;
+        }
+      }
+    }
+    this.cmdQ.length=0;
+  }
+
+  // ---- Prozess ----
+  process(inputs, outputs){
+    const out = outputs[0]; if (!out||!out[0]) return true;
+    const L=out[0], R=out[1]??out[0];
+    this._applyCommands();
+    const d=this._decayCoefs, h=this._hpCoefs;
+
+    for (let i=0;i<L.length;i++){
+      if (!this.playing){ L[i]=R[i]=0; this.n++; continue; }
+
+      const phi = this.phase();
+      let sum=0;
+
+      // --- Kick ---
+      const kickStepIdx = Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.kick.params.steps)));
+      const kickTrig = this.euclid(this.instruments.kick.params.fill, this.instruments.kick.params.steps, kickStepIdx, this.instruments.kick.params.rot);
+      if (kickTrig && kickStepIdx !== this.instruments.kick.state.lastStep) {
+        this.instruments.kick.state.lastStep = kickStepIdx;
+        this.instruments.kick.init();
+      }
+      sum += this.instruments.kick.process(this.n, phi, this.sr, this.instruments.kick.state);
+
+      // --- Snare ---
+      const snareStepIdx = Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.snare.params.steps)));
+      const snareTrig = this.euclid(this.instruments.snare.params.fill, this.instruments.snare.params.steps, snareStepIdx, this.instruments.snare.params.rot);
+      if (snareTrig && snareStepIdx !== this.instruments.snare.state.lastStep) {
+        this.instruments.snare.state.lastStep = snareStepIdx;
+        this.instruments.snare.init();
+      }
+      sum += this.instruments.snare.process(this.n, phi, this.sr, this.instruments.snare.state, this.euclid, this._rand, h.snare, 1);
+
+      // --- Hat ---
+      const hatStepIdx = Math.floor((this.n % this.spbar) / (this.spb / Math.max(2,this.instruments.hat.params.sub)));
+      const hatEuclidGate = this.euclid(this.instruments.hat.params.fill, this.instruments.hat.params.steps, Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.hat.params.steps))), this.instruments.hat.params.rot);
+      if (hatStepIdx !== this.instruments.hat.state.lastStep) {
+        this.instruments.hat.state.lastStep = hatStepIdx;
+        this.instruments.hat.init();
+      }
+      sum += this.instruments.hat.process(this.n, phi, this.sr, this.instruments.hat.state, this.euclid, this._rand, h.hat, hatEuclidGate);
+
+      // --- Bass ---
+      sum += this.instruments.bass.process(this.n, phi, this.sr, this.instruments.bass.state, this._polyblep, this._saw_blep, this._square_blep);
+
+      // --- Synth ---
+      const synthStepIdx = Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.synth.params.steps)));
+      const synthTrig = this.euclid(this.instruments.synth.params.fill, this.instruments.synth.params.steps, synthStepIdx, this.instruments.synth.params.rot);
+      if (synthTrig && synthStepIdx !== this.instruments.synth.state.lastStep) {
+        this.instruments.synth.state.lastStep = synthStepIdx;
+        this.instruments.synth.init(this.n, synthStepIdx);
+      }
+      sum += this.instruments.synth.process(this.n, phi, this.sr, this.instruments.synth.state, this._polyblep, this._saw_blep, this._square_blep);
+      
+      // Update envelopes
+      this.instruments.kick.state.env *= d.kick; this.instruments.kick.state.tLoc += 1/this.sr;
+      this.instruments.snare.state.env *= d.snare; this.instruments.snare.state.tLoc += 1/this.sr;
+      this.instruments.hat.state.env *= d.hat; this.instruments.hat.state.tLoc += 1/this.sr;
+      this.instruments.synth.state.env *= d.synth;
+
+      // --- Output: DC-Blocker + Soft-Clip ---
+      const x = sum;
+      const y = x - this.dc_x1 + this.dc_R*this.dc_y1;
+      this.dc_x1 = x; this.dc_y1 = y;
+      const out = Math.tanh(y*1.2);
+
+      L[i]=out; R[i]=out; this.n++;
+    }
+    return true;
+  }
+}
+registerProcessor("phys-engine", PhysEngine);
+  </script>
+
+  <!-- UI + Boot: lädt Worklet aus obigem Script, baut Node, bindet Controls, Export/Import, Scope -->
+  <script type="module">
+    const $ = id => document.getElementById(id);
+    const led = (id, s) => { const el=$(id); el.className="led "+s };
+
+    let ac=null, node=null, analyser=null, scopeRAF=null, reverbNode=null;
+
+    // Generiere ein einfaches, künstliches Impuls-Response für Reverb
+    function generateImpulseResponse(ac, duration, decay, reverse) {
+      const sampleRate = ac.sampleRate;
+      const length = sampleRate * duration;
+      const arrayBuffer = ac.createBuffer(2, length, sampleRate);
+      const left = arrayBuffer.getChannelData(0);
+      const right = arrayBuffer.getChannelData(1);
+      
+      for (let i = 0; i < length; i++) {
+        let n = reverse ? length - i : i;
+        left[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
+        right[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
+      }
+      return arrayBuffer;
+    }
+
+    async function boot(){
+      if (ac) return;
+      ac = new (window.AudioContext||window.webkitAudioContext)({ sampleRate:48000 });
+      
+      // Worklet-Code aus Text-Tag in Blob wandeln
+      const code = $("worklet").textContent;
+      const blob = new Blob([code], {type:"application/javascript"});
+      const url = URL.createObjectURL(blob);
+      await ac.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+
+      // Audio-Knoten-Kette aufbauen: Engine -> Reverb -> Analyser -> Destination
+      node = new AudioWorkletNode(ac, "phys-engine", { processorOptions:{ bpm:parseInt($("bpm").value,10), seed:parseInt($("seed").value,10) }});
+
+      reverbNode = ac.createConvolver();
+      reverbNode.buffer = generateImpulseResponse(ac, 2, 2, false);
+      
+      analyser = ac.createAnalyser();
+      analyser.fftSize = 2048;
+
+      node.connect(reverbNode);
+      reverbNode.connect(analyser);
+      analyser.connect(ac.destination);
+      
+      node.port.onmessage = e=>{
+        const m=e.data;
+        if (m?.t==="bpm"){ /* könnte spb anzeigen */ }
+      };
+      
+      // MIDI Initialisierung
+      try {
+        const midiAccess = await navigator.requestMIDIAccess();
+        if (midiAccess.inputs.size > 0) {
+          led("midi-led", "ok");
+          $("midi-msg").style.display = 'block';
+          for (let input of midiAccess.inputs.values()) {
+            input.onmidimessage = onMIDIMessage;
+          }
+        }
+      } catch (e) {
+        led("midi-led", "bad");
+        console.error("MIDI-API konnte nicht initialisiert werden.", e);
+      }
+    }
+
+    // --- MIDI Message Handler ---
+    function onMIDIMessage(event) {
+      const [status, data1, data2] = event.data;
+      // Filter nach Control Change (0xB0), Kanal 0
+      if (status >= 0xB0 && status <= 0xBF) {
+        const controllerNumber = data1;
+        const controllerValue = data2;
+        // BPM Steuerung mit Controller 74 (beispielsweise)
+        if (controllerNumber === 74) {
+          const newBPM = Math.floor(20 + (controllerValue / 127) * 280);
+          $("bpm").value = newBPM;
+          setBPM(newBPM);
+        }
+      }
+    }
+
+    // --- Helpers to talk to Worklet ---
+    const post = (t,p={}) => node?.port.postMessage({t,...p});
+    const setCfg = (inst,key,val)=> post("cfg",{inst,key,val});
+    const toggle = (inst,en)=> post("toggle",{inst,en});
+    const setBPM = bpm => post("bpm",{bpm});
+
+    // --- Bind UI Controls ---
+    function bind(){
+      // Transport
+      $("start").addEventListener("click", async ()=>{
+        await boot(); await ac.resume(); post("start"); led("led","ok");
+      });
+      $("stop").addEventListener("click", async ()=>{
+        if (!ac) return; await ac.suspend(); post("stop"); led("led","off");
+      });
+      $("reseat").addEventListener("click", ()=> post("seed",{seed: parseInt($("seed").value,10)}));
+      $("bpmUp").addEventListener("click", ()=>{ $("bpm").value = Math.min(300, parseInt($("bpm").value,10)+5); setBPM(parseInt($("bpm").value,10)); });
+      $("bpmDown").addEventListener("click", ()=>{ $("bpm").value = Math.max(20, parseInt($("bpm").value,10)-5); setBPM(parseInt($("bpm").value,10)); });
+      $("bpm").addEventListener("change", ()=> setBPM(parseInt($("bpm").value,10)));
+
+      // Instrumente
+      const instruments = ["kick", "snare", "hat", "bass", "synth"];
+      instruments.forEach(inst => {
+        $(`${inst}En`).addEventListener("change", e => toggle(inst, e.target.checked));
+        const inputs = document.querySelectorAll(`[id^="${inst}"]`);
+        inputs.forEach(input => {
+          if (input.type === 'number' || input.tagName === 'SELECT') {
+            const key = input.id.replace(inst, "").toLowerCase();
+            input.addEventListener("input", e => setCfg(inst, key, parseFloat(e.target.value) || e.target.value));
+          }
         });
-        
-        particlePos.add(displacement);
-        positions[baseIndex] = particlePos.x;
-        positions[baseIndex + 1] = particlePos.y;
-        positions[baseIndex + 2] = particlePos.z;
-        
-        colors[baseIndex] = finalColor.r > colors[baseIndex] ? finalColor.r : colors[baseIndex] * 0.95;
-        colors[baseIndex + 1] = finalColor.g > colors[baseIndex + 1] ? finalColor.g : colors[baseIndex + 1] * 0.95;
-        colors[baseIndex + 2] = finalColor.b > colors[baseIndex + 2] ? finalColor.b : colors[baseIndex + 2] * 0.95;
+      });
+      
+      // Reverb
+      $("reverbEn").addEventListener("change", e => reverbNode.disconnect().connect(e.target.checked ? analyser : ac.destination));
+      $("reverbGain").addEventListener("input", e => reverbNode.gain.setValueAtTime(parseFloat(e.target.value), ac.currentTime));
+
+      // Export / Import
+      $("exportCfg").addEventListener("click", ()=>{
+        const cfg = {};
+        ["bpm", "seed"].forEach(id => cfg[id] = parseInt($(id).value, 10));
+        ["kick","snare","hat","bass","synth"].forEach(inst => {
+          cfg[inst] = {};
+          const inputs = document.querySelectorAll(`[id^="${inst}"]`);
+          inputs.forEach(input => {
+            const key = input.id.replace(inst, "").toLowerCase();
+            if (input.type === 'checkbox') cfg[inst].en = input.checked;
+            else if (input.tagName === 'SELECT') cfg[inst][key] = input.value;
+            else cfg[inst][key] = parseFloat(input.value);
+          });
+        });
+        cfg.reverb = {en: $("reverbEn").checked, gain: parseFloat($("reverbGain").value)};
+        const blob = new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "dawx-config.json"; a.click(); URL.revokeObjectURL(a.href);
+      });
+
+      $("importCfg").addEventListener("click", ()=> $("importFile").click());
+      $("importFile").addEventListener("change", async e=>{
+        const f=e.target.files?.[0]; if(!f) return;
+        const text = await f.text(); const cfg = JSON.parse(text);
+        const assignUI = (base,keys)=>keys.forEach(k=>{ const el=$(base+k); if (el) el.value = cfg[base]?.[k] ?? el.value });
+        const assignChk = (id,val)=> { const el=$(id); if(el){ el.checked = !!val; toggle(id.slice(0,-2), el.checked) } };
+        assignUI("bpm",["value"]); setBPM(parseInt($("bpm").value,10));
+        assignUI("seed",["value"]); post("seed",{seed:parseInt($("seed").value,10)});
+        assignChk("kickEn",cfg.kick?.en); assignUI("kick",["F0","Sweep","Decay","Gain","Steps","Fill","Rot"]);
+        assignChk("snareEn",cfg.snare?.en); assignUI("snare",["Noise","HP","Decay","Gain","Steps","Fill","Rot"]);
+        assignChk("hatEn",cfg.hat?.en); assignUI("hat",["HP","Decay","Gain","Sub","Steps","Fill","Rot"]);
+        assignChk("bassEn",cfg.bass?.en); $("bassWave").value = cfg.bass?.wave ?? $("bassWave").value; assignUI("bass",["Freq","Gain","Gate"]);
+        assignChk("synthEn",cfg.synth?.en); $("synthWave").value = cfg.synth?.wave ?? $("synthWave").value; assignUI("synth",["Gain","Decay","Steps","Fill","Rot"]);
+        assignChk("reverbEn",cfg.reverb?.en); assignUI("reverb",["Gain"]);
+        document.querySelectorAll("input,select").forEach(el=>el.dispatchEvent(new Event(el.type==="checkbox"?"change":"input")));
+      });
     }
 
-    activeWavefronts = activeWavefronts.filter(wave => (now - wave.startTime) * SPEED_OF_SOUND < ROOM_SIZE * 2.5);
-    if(particleField.geometry.attributes.color) particleField.geometry.attributes.color.needsUpdate = true;
-    if(particleField.geometry.attributes.position) particleField.geometry.attributes.position.needsUpdate = true;
-}
-
-init();
-
-</script>
+    // --- Scope (real-time Audio-Analyser) ---
+    function scope(){
+      const c = $("scope").getContext("2d"); let w=0,h=0;
+      const fit=()=>{ w=$("scope").width=$("scope").clientWidth; h=$("scope").height=100 };
+      new ResizeObserver(fit).observe($("scope")); fit();
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const draw=()=>{
+        analyser.getByteFrequencyData(data);
+        c.fillStyle="#0b0f16"; c.fillRect(0,0,w,h);
+        const barWidth = w / analyser.frequencyBinCount;
+        for (let i = 0; i < analyser.frequencyBinCount; i++) {
+          const barHeight = data[i];
+          const x = i * barWidth;
+          const y = h - barHeight;
+          const r = Math.floor(barHeight + (255 - barHeight)/3);
+          const g = Math.floor(255 - barHeight/1.5);
+          const b = Math.floor(100);
+          c.fillStyle = `rgb(${r},${g},${b})`;
+          c.fillRect(x, y, barWidth, barHeight);
+        }
+        scopeRAF = requestAnimationFrame(draw);
+      };
+      cancelAnimationFrame(scopeRAF); scopeRAF=requestAnimationFrame(draw);
+    }
+    
+    // init
+    bind(); scope();
+    document.addEventListener("visibilitychange", ()=>{ if (document.hidden && ac) { ac.suspend(); post("stop"); led("led", "off") }});
+  </script>
+</div>
 </body>
 </html>
