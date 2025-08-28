@@ -3,38 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DAW-X — Physikalisch direkte Engine (Erweitert)</title>
+<title>DAW-X — Physikalisch direkte Engine (Single-File, Worklet+Fallback)</title>
 <style>
-  :root{--bg:#0f1117;--fg:#e6edf3;--mut:#8b9eb0;--b1:#18202a;--b2:#212b38;--ac:#4cc9f0;--ok:#2bd97f;--bad:#ff5c7a}
-  *{box-sizing:border-box}html,body{height:100%}
-  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
-  .wrap{max-width:1024px;margin:0 auto;padding:18px}
-  h1{margin:6px 0 2px 0;font-size:18px}
-  p.small{color:var(--mut);font-size:12px;margin:6px 0 14px}
-  .panel{background:var(--b1);border:1px solid #2a3544;border-radius:12px;padding:12px;margin:10px 0}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .spacer{flex:1}
-  button,input,select{background:var(--b2);color:var(--fg);border:1px solid #2a3544;border-radius:8px;padding:10px 12px;cursor:pointer}
-  button.primary{border-color:var(--ac);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--ac) 40%,transparent)}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  label{display:flex;align-items:center;gap:6px;color:var(--mut)}
-  input.num{width:92px;text-align:center}
-  select{padding-right:24px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
-  .kv{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
-  .led{width:10px;height:10px;border-radius:50%;display:inline-block;margin-left:6px;box-shadow:0 0 0 1px #0006}
-  .led.ok{background:var(--ok)}.led.off{background:#555}.led.warn{background:#facc15}.led.bad{background:var(--bad)}
-  canvas{width:100%;height:100px;background:#0b0f16;border:1px solid #2a3544;border-radius:8px}
-  pre{white-space:pre-wrap;word-break:break-word;background:#0c1118;border:1px solid #2a3544;border-radius:8px;padding:8px;color:#c7d0dc}
-  .msg-box { background: var(--b2); border: 1px solid #2a3544; border-radius: 8px; padding: 12px; color: var(--fg); margin: 10px 0; }
-  .pulse { animation: pulse-anim 1s infinite alternate; }
-  @keyframes pulse-anim { from { opacity: 0.5; } to { opacity: 1; } }
+:root{--bg:#0f1117;--fg:#e6edf3;--mut:#8b9eb0;--b1:#18202a;--b2:#212b38;--ac:#4cc9f0;--ok:#2bd97f;--bad:#ff5c7a}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+.wrap{max-width:1024px;margin:0 auto;padding:18px}
+h1{margin:6px 0 2px 0;font-size:18px}
+p.small{color:var(--mut);font-size:12px;margin:6px 0 14px}
+.panel{background:var(--b1);border:1px solid #2a3544;border-radius:12px;padding:12px;margin:10px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+button,input,select{background:var(--b2);color:var(--fg);border:1px solid #2a3544;border-radius:8px;padding:10px 12px}
+button{cursor:pointer}
+button.primary{border-color:var(--ac);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--ac) 40%, transparent)}
+button:disabled{opacity:.5;cursor:not-allowed}
+label{display:flex;align-items:center;gap:6px;color:var(--mut)}
+input.num{width:92px;text-align:center}
+select{padding-right:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
+.led{width:10px;height:10px;border-radius:50%;display:inline-block;margin-left:6px;box-shadow:0 0 0 1px #0006}
+.led.ok{background:var(--ok)}.led.off{background:#555}.led.warn{background:#facc15}.led.bad{background:var(--bad)}
+canvas{width:100%;height:72px;background:#0b0f16;border:1px solid #2a3544;border-radius:8px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>DAW-X — Physikalisch direkte Engine</h1>
-  <p class="small">Eine globale, unteilbare Zeitbasis <em>n</em> (Samples) → Beat-Phase φ(n)=frac(n/SPB). Alle Klänge sind deterministische Funktionen von (n, φ). Keine JS-Timer, kein Spur-Sequencer. | Ein Werk von Christian Heinrich Hohlfeld, Konstanz Deutschland, 05.04.1983.</p>
+  <p class="small">Eine globale, unteilbare Sample-Zeit <em>n</em> ⇒ Beat-Phase φ(n)=frac(n/SPB). Alle Klänge sind deterministische Funktionen von (n, φ). Keine JS-Timer, kein Sequencer.</p>
 
   <div class="panel">
     <div class="row">
@@ -45,16 +42,14 @@
       <button id="bpmDown">−5</button><button id="bpmUp">+5</button>
       <label>Seed <input id="seed" class="num" type="number" value="2654435761"></label>
       <button id="reseat">Re-Seed</button>
-      <span class="small">Status <span id="led" class="led off"></span></span>
-      <div class="spacer"></div>
-      <span id="midi-status" class="small">MIDI: <span id="midi-led" class="led off"></span></span>
+      <span class="small">Engine <span id="led" class="led off" title="off=stopped, ok=Worklet, warn=Fallback"></span></span>
     </div>
   </div>
 
   <div class="panel">
     <div class="grid">
       <div>
-        <strong>KICK (Beat-Start)</strong>
+        <strong>KICK (Euklidisch)</strong>
         <div class="kv"><label><input type="checkbox" id="kickEn" checked> aktiv</label></div>
         <div class="kv"><label>f0</label><input id="kickF0" class="num" type="number" value="55" min="20" max="200"></div>
         <div class="kv"><label>Sweep Hz</label><input id="kickSweep" class="num" type="number" value="90" min="0" max="600"></div>
@@ -62,13 +57,13 @@
         <div class="kv"><label>Gain</label><input id="kickGain" class="num" type="number" value="0.9" step="0.05" min="0" max="2"></div>
         <div class="kv"><label>Pattern E(k,S,R)</label>
           <input id="kickSteps" class="num" type="number" value="16" min="1" max="64" title="S (Steps)">
-          <input id="kickFill" class="num" type="number" value="4" min="0" max="64" title="k (Fill)">
-          <input id="kickRot" class="num" type="number" value="0" min="0" max="64" title="R (Rotate)">
+          <input id="kickFill"  class="num" type="number" value="4"  min="0" max="64" title="k (Fill)">
+          <input id="kickRot"   class="num" type="number" value="0"  min="0" max="64" title="R (Rotate)">
         </div>
       </div>
 
       <div>
-        <strong>SNARE (Backbeats)</strong>
+        <strong>SNARE (Euklidisch)</strong>
         <div class="kv"><label><input type="checkbox" id="snareEn" checked> aktiv</label></div>
         <div class="kv"><label>Noise</label><input id="snareNoise" class="num" type="number" value="0.7" min="0" max="1" step="0.05"></div>
         <div class="kv"><label>HP Hz</label><input id="snareHP" class="num" type="number" value="900" min="60" max="9000"></div>
@@ -76,13 +71,13 @@
         <div class="kv"><label>Gain</label><input id="snareGain" class="num" type="number" value="0.7" step="0.05" min="0" max="2"></div>
         <div class="kv"><label>Pattern E(k,S,R)</label>
           <input id="snareSteps" class="num" type="number" value="16" min="1" max="64">
-          <input id="snareFill" class="num" type="number" value="2" min="0" max="64">
-          <input id="snareRot" class="num" type="number" value="8" min="0" max="64">
+          <input id="snareFill"  class="num" type="number" value="2"  min="0" max="64">
+          <input id="snareRot"   class="num" type="number" value="8"  min="0" max="64">
         </div>
       </div>
 
       <div>
-        <strong>HI-HAT (Subdivision)</strong>
+        <strong>HI-HAT (Subdivision + Euklidisch)</strong>
         <div class="kv"><label><input type="checkbox" id="hatEn" checked> aktiv</label></div>
         <div class="kv"><label>HP Hz</label><input id="hatHP" class="num" type="number" value="6000" min="1000" max="18000"></div>
         <div class="kv"><label>Decay ms</label><input id="hatDecay" class="num" type="number" value="70" min="5" max="1000"></div>
@@ -90,13 +85,13 @@
         <div class="kv"><label>Subdivision N</label><input id="hatSub" class="num" type="number" value="3" min="2" max="16"></div>
         <div class="kv"><label>Pattern E(k,S,R)</label>
           <input id="hatSteps" class="num" type="number" value="12" min="1" max="64">
-          <input id="hatFill" class="num" type="number" value="8" min="0" max="64">
-          <input id="hatRot" class="num" type="number" value="0" min="0" max="64">
+          <input id="hatFill"  class="num" type="number" value="8"  min="0" max="64">
+          <input id="hatRot"   class="num" type="number" value="0"  min="0" max="64">
         </div>
       </div>
 
       <div>
-        <strong>BASS (Gate ½-Beat)</strong>
+        <strong>BASS (polyBLEP-fähig)</strong>
         <div class="kv"><label><input type="checkbox" id="bassEn" checked> aktiv</label></div>
         <div class="kv"><label>Wave</label>
           <select id="bassWave">
@@ -108,31 +103,7 @@
         </div>
         <div class="kv"><label>Freq Hz</label><input id="bassFreq" class="num" type="number" value="55" min="20" max="400"></div>
         <div class="kv"><label>Gain</label><input id="bassGain" class="num" type="number" value="0.5" step="0.05" min="0" max="2"></div>
-        <div class="kv"><label>Gate% Beat</label><input id="bassGate" class="num" type="number" value="50" min="1" max="100"></div>
-      </div>
-      
-      <div>
-        <strong>SYNTH (Melodie)</strong>
-        <div class="kv"><label><input type="checkbox" id="synthEn" checked> aktiv</label></div>
-        <div class="kv"><label>Wave</label>
-          <select id="synthWave">
-            <option value="sine" selected>Sine</option>
-            <option value="saw">Saw (polyBLEP)</option>
-          </select>
-        </div>
-        <div class="kv"><label>Gain</label><input id="synthGain" class="num" type="number" value="0.35" step="0.05" min="0" max="2"></div>
-        <div class="kv"><label>Decay ms</label><input id="synthDecay" class="num" type="number" value="200" min="10" max="2000"></div>
-        <div class="kv"><label>Pattern  E(k,S,R)</label>
-          <input id="synthSteps" class="num" type="number" value="16" min="1" max="64">
-          <input id="synthFill" class="num" type="number" value="8" min="0" max="64">
-          <input id="synthRot" class="num" type="number" value="0" min="0" max="64">
-        </div>
-      </div>
-      
-      <div>
-        <strong>REVERB</strong>
-        <div class="kv"><label><input type="checkbox" id="reverbEn" checked> aktiv</label></div>
-        <div class="kv"><label>Gain</label><input id="reverbGain" class="num" type="number" value="0.1" step="0.05" min="0" max="1"></div>
+        <div class="kv"><label>Gate % Beat</label><input id="bassGate" class="num" type="number" value="50" min="1" max="100"></div>
       </div>
     </div>
   </div>
@@ -146,278 +117,118 @@
       <input id="importFile" type="file" accept="application/json" style="display:none">
     </div>
     <canvas id="scope"></canvas>
+    <p class="small">Hinweis: Visualisierung ist CPU-leicht (kein Audio-Tap). Physik/Takt/Trigger passieren ausschließlich in der Engine.</p>
   </div>
-  
-  <div class="panel msg-box" style="display: none;" id="midi-msg">
-    MIDI-Controller erkannt! Steuern Sie das BPM mit einem Fader oder Knopf an Ihrem Gerät.
-  </div>
-  
-  <div id="status-msg" class="msg-box" style="display: none;"></div>
 
-  <!-- AUDIO WORKLET: reiner Code-String -->
+  <!-- AUDIO WORKLET CODE (als Text, wird per Blob in Worklet geladen) -->
   <script id="worklet" type="text/plain">
 class PhysEngine extends AudioWorkletProcessor {
   static get parameterDescriptors(){return[]}
 
   constructor(options){
     super();
-    // === Globale Zeitbasis ===
-    this.sr = sampleRate >>> 0;
-    this.n  = 0;
-    this.playing = true;
+    this.sr = sampleRate>>>0; this.n=0; this.playing=true;
+    this._bpm=120; this.setBPM(options?.processorOptions?.bpm??120);
+    this.seed=(options?.processorOptions?.seed|0)||0x9e3779b9;
+    this._rnd=()=>{let x=this.seed|0; x^=x<<13; x^=x>>>17; x^=x<<5; this.seed=x|0; return ((x>>>0)/0xFFFFFFFF)*2-1};
 
-    // Transport
-    this._bpm = 120;
-    this.setBPM(options?.processorOptions?.bpm ?? 120);
-
-    // Deterministische PRNG (xorshift32)
-    this.seed = (options?.processorOptions?.seed|0) || 0x9e3779b9;
-    this._rand = ()=>{ let x=this.seed|0; x^=x<<13; x^=x>>>17; x^=x<<5; this.seed=x|0; return ((x>>>0)/0xFFFFFFFF)*2-1 }
-
-    // DC-Blocker & Soft-Clip
     this.dc_x1=0; this.dc_y1=0; this.dc_R=0.995;
 
-    // Instrument-Klassen
-    class Instrument {
-      constructor(params){ this.params = params; this.state = {}; }
-      process(n, phi, sr, st) { return 0; }
-      init(n, phi, sr, st) {}
-      applyParams(params) { this.params = {...this.params, ...params}; }
-    }
-    
-    class Kick extends Instrument {
-      constructor(params) { super(params); this.state = {env:0, tLoc:0, lastStep:-1}; }
-      init(n) { this.state.env = 1; this.state.tLoc = 0; }
-      process(n, phi, sr, st, euclid) {
-        const {en, f0, sweep, gain} = this.params;
-        if (!en) return 0;
-        const {env, tLoc} = st;
-        const f = Math.max(20, f0 + sweep*Math.exp(-8*tLoc));
-        const sig = Math.sin(2*Math.PI*f*tLoc);
-        return sig * env * gain;
-      }
-    }
-    class Snare extends Instrument {
-      constructor(params) { super(params); this.state = {env:0, tLoc:0, lastStep:-1, hpx1:0, hpy1:0}; }
-      init(n) { this.state.env = 1; this.state.tLoc = 0; }
-      process(n, phi, sr, st, euclid, rand, hpCoef) {
-        const {en, noise, gain} = this.params;
-        if (!en) return 0;
-        const {env, tLoc} = st;
-        let x = rand()*noise;
-        const y = hpCoef*(st.hpy1 + x - st.hpx1);
-        st.hpx1=x; st.hpy1=y;
-        return y * env * gain;
-      }
-    }
-    class Hat extends Instrument {
-      constructor(params) { super(params); this.state = {env:0, tLoc:0, lastStep:-1, hpx1:0, hpy1:0}; }
-      init(n) { this.state.env = 1; this.state.tLoc = 0; }
-      process(n, phi, sr, st, euclid, rand, hpCoef, eGate) {
-        const {en, gain} = this.params;
-        if (!en) return 0;
-        const {env, tLoc} = st;
-        let nx=rand();
-        const yh = hpCoef*(st.hpy1 + nx - st.hpx1);
-        st.hpx1=nx; st.hpy1=yh;
-        return yh * env * gain * eGate;
-      }
-    }
-    class Bass extends Instrument {
-      constructor(params) { super(params); this.state = {phase:0}; }
-      process(n, phi, sr, st, polyblep, saw_blep, square_blep) {
-        const {en, wave, freq, gain, gatePct} = this.params;
-        if (!en) return 0;
-        const gate = (phi < (gatePct/100)) ? 1:0;
-        st.phase += freq/sr;
-        let osc;
-        switch (wave){
-          case "saw":    osc=saw_blep(st.phase, freq); break;
-          case "square": osc=square_blep(st.phase, freq); break;
-          case "tri":    { const x=2*Math.abs(2*(st.phase%1)-1)-1; osc=x; break; }
-          default:       osc=Math.sin(2*Math.PI*(st.phase%1));
-        }
-        return osc * gain * gate;
-      }
-    }
-    class Synth extends Instrument {
-      constructor(params) { super(params); this.state = {phase:0, env:0, notes: [40, 43, 47, 50, 52, 55, 59, 62]}; }
-      init(n, stepIdx) {
-        const noteIdx = stepIdx % this.state.notes.length;
-        const midiNote = this.state.notes[noteIdx];
-        const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
-        this.state.env = 1;
-        this.state.freq = freq;
-      }
-      process(n, phi, sr, st, polyblep, saw_blep, square_blep) {
-        const {en, wave, gain} = this.params;
-        if (!en) return 0;
-        const {env, freq, phase} = st;
-        st.phase += freq/sr;
-        let osc;
-        switch (wave){
-          case "saw":    osc=saw_blep(st.phase, freq); break;
-          default:       osc=Math.sin(2*Math.PI*(st.phase%1));
-        }
-        return osc * gain * env;
-      }
-    }
+    this.euclid=(k,S,i,r=0)=>{ if(S<=0)return false; const j=(i+r)%S; return (j*k)%S<k };
 
-    // Instance of instruments
-    this.instruments = {
-      kick: new Kick({en:true, f0:55, sweep:90, decayMs:140, gain:0.9, steps:16, fill:4, rot:0}),
-      snare: new Snare({en:true, noise:0.7, hp:900, decayMs:220, gain:0.7, steps:16, fill:2, rot:8}),
-      hat: new Hat({en:true, hp:6000, decayMs:70, gain:0.45, sub:3, steps:12, fill:8, rot:0}),
-      bass: new Bass({en:true, wave:"square", freq:55, gain:0.5, gatePct:50}),
-      synth: new Synth({en:true, wave:"sine", gain:0.35, decayMs:200, steps:16, fill:8, rot:0})
+    this.cfg={
+      kick:{en:true,f0:55,sweep:90,decayMs:140,gain:0.9,steps:16,fill:4,rot:0},
+      snare:{en:true,noise:0.7,hp:900,decayMs:220,gain:0.7,steps:16,fill:2,rot:8},
+      hat:{en:true,hp:6000,decayMs:70,gain:0.45,sub:3,steps:12,fill:8,rot:0},
+      bass:{en:true,wave:"square",freq:55,gain:0.5,gatePct:50}
     };
-    
-    // Vorberechnete Koeffizienten & Zustand
-    this._coef = {};
-    this._decayCoefs = {};
-    this._hpCoefs = {};
-    this._refreshCoefs();
-
-    // Command-Queue (block-sicher)
-    this.cmdQ = [];
-    this.port.onmessage = e=>{ const m=e.data; this.cmdQ.push(m) }
+    this.st={
+      kick:{env:0,tLoc:0,lastStep:-1},
+      snare:{env:0,tLoc:0,lastStep:-1,hpx1:0,hpy1:0},
+      hat:{env:0,tLoc:0,lastStep:-1,hpx1:0,hpy1:0},
+      bass:{phase:0}
+    };
+    this._coef={}; this._refresh();
+    this.q=[]; this.port.onmessage=e=>this.q.push(e.data);
   }
 
-  // ---- Transport & Zeit ----
-  setBPM(bpm){
-    const b = Math.max(20, Math.min(300, bpm|0));
-    this._bpm = b;
-    this.spb = this.sr * 60 / b;
-    this.spbar = this.spb * 4; // fix 4/4
-    this.port.postMessage({t:"bpm", bpm:b, spb:this.spb});
-  }
-  phase(){ const x=this.n/this.spb; return x - Math.floor(x) }
-  euclid = (k,steps,idx,rot=0)=>{ if(steps<=0) return false; const i=(idx+rot)%steps; return (i*k)%steps < k }
+  setBPM(b){ b=Math.max(20,Math.min(300,b|0)); this._bpm=b; this.spb=this.sr*60/b; this.spbar=this.spb*4; this.port.postMessage({t:"bpm",bpm:b}) }
+  phase(){ const x=this.n/this.spb; return x-Math.floor(x) }
+  _d(ms){ const tau=ms/1000; return Math.exp(-1/(tau*this.sr)) }
+  _hp(fc){ const dt=1/this.sr; const rc=1/(2*Math.PI*Math.max(10,fc)); return rc/(rc+dt) }
+  _refresh(){ const c=this._coef, cf=this.cfg; c.kA=this._d(cf.kick.decayMs); c.sA=this._d(cf.snare.decayMs); c.hA=this._d(cf.hat.decayMs); c.sHP=this._hp(cf.snare.hp); c.hHP=this._hp(cf.hat.hp) }
 
-  // ---- Coefs ----
-  _dCoef(ms){ const tau=ms/1000; return Math.exp(-1/(tau*this.sr)) }
-  _hpCoef(fc){ const dt=1/this.sr; const rc=1/(2*Math.PI*Math.max(10,fc)); return rc/(rc+dt) }
-  _refreshCoefs(){
-    const d=this._decayCoefs, h=this._hpCoefs;
-    d.kick = this._dCoef(this.instruments.kick.params.decayMs);
-    d.snare = this._dCoef(this.instruments.snare.params.decayMs);
-    d.hat = this._dCoef(this.instruments.hat.params.decayMs);
-    d.synth = this._dCoef(this.instruments.synth.params.decayMs);
-    h.snare = this._hpCoef(this.instruments.snare.params.hp);
-    h.hat = this._hpCoef(this.instruments.hat.params.hp);
-  }
+  _polyblep(t,dt){ if(t<dt){const x=t/dt; return x+x-x*x-1} else if(t>1-dt){const x=(t-1)/dt; return x*x+x+x+1} return 0 }
+  _saw(phase,f){ const t=phase%1,dt=f/this.sr; let y=2*t-1; y-=this._polyblep(t,dt); return y }
+  _square(phase,f){ const t=phase%1,dt=f/this.sr; let y=t<.5?1:-1; y+=this._polyblep(t,dt)-this._polyblep((t+.5)%1,dt); return y }
 
-  // ---- polyBLEP helpers (anti-aliased saw/square) ----
-  _polyblep(t, dt){ // t in [0,1)
-    if (t<dt){ const x=t/dt; return x + x - x*x - 1 }
-    else if (t>1-dt){ const x=(t-1)/dt; return x*x + x + x + 1 }
-    return 0
-  }
-  _saw_blep(phase, freq){
-    const t = phase%1; const dt=freq/this.sr;
-    let y = 2*t-1;
-    y -= this._polyblep(t,dt);
-    return y
-  }
-  _square_blep(phase, freq){
-    const t = phase%1; const dt=freq/this.sr;
-    let y = t<0.5?1:-1;
-    y += this._polyblep(t,dt) - this._polyblep((t+0.5)%1,dt);
-    return y
-  }
-
-  // ---- Commands anwenden (Block-Anfang) ----
-  _applyCommands(){
-    if (!this.cmdQ.length) return;
-    for (const m of this.cmdQ){
+  _apply(){
+    if(!this.q.length) return;
+    for(const m of this.q){
       switch(m?.t){
         case "start": this.playing=true; this.n=0; break;
-        case "stop": this.playing=false; break;
-        case "seed": this.seed = (m.seed|0); break;
-        case "bpm": this.setBPM(m.bpm); break;
-        case "cfg":{
-          const {inst, key, val} = m;
-          if (this.instruments[inst] && key in this.instruments[inst].params) {
-            this.instruments[inst].applyParams({[key]: val});
-            this._refreshCoefs();
-          }
-          break;
-        }
-        case "toggle":{
-          const {inst, en} = m;
-          if (this.instruments[inst]) this.instruments[inst].applyParams({en:!!en});
-          break;
-        }
+        case "stop":  this.playing=false; break;
+        case "seed":  this.seed=m.seed|0; break;
+        case "bpm":   this.setBPM(m.bpm); break;
+        case "cfg":   if(this.cfg[m.inst] && m.key in this.cfg[m.inst]){ this.cfg[m.inst][m.key]=m.val; this._refresh() } break;
+        case "toggle": if(this.cfg[m.inst]) this.cfg[m.inst].en=!!m.en; break;
       }
     }
-    this.cmdQ.length=0;
+    this.q.length=0;
   }
 
-  // ---- Prozess ----
-  process(inputs, outputs){
-    const out = outputs[0]; if (!out||!out[0]) return true;
-    const L=out[0], R=out[1]??out[0];
-    this._applyCommands();
-    const d=this._decayCoefs, h=this._hpCoefs;
+  process(inputs,outputs){
+    const out=outputs[0]; if(!out||!out[0]) return true;
+    this._apply();
+    const L=out[0],R=out[1]??out[0], cf=this.cfg, st=this.st, c=this._coef;
 
-    for (let i=0;i<L.length;i++){
-      if (!this.playing){ L[i]=R[i]=0; this.n++; continue; }
+    const kStepLen=this.spbar/Math.max(1,cf.kick.steps);
+    const sStepLen=this.spbar/Math.max(1,cf.snare.steps);
+    const hStepLen=this.spbar/Math.max(1,cf.hat.steps);
 
-      const phi = this.phase();
-      let sum=0;
+    for(let i=0;i<L.length;i++){
+      if(!this.playing){ L[i]=R[i]=0; this.n++; continue; }
+      const phi=this.phase(); let sum=0;
 
-      // --- Kick ---
-      const kickStepIdx = Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.kick.params.steps)));
-      const kickTrig = this.euclid(this.instruments.kick.params.fill, this.instruments.kick.params.steps, kickStepIdx, this.instruments.kick.params.rot);
-      if (kickTrig && kickStepIdx !== this.instruments.kick.state.lastStep) {
-        this.instruments.kick.state.lastStep = kickStepIdx;
-        this.instruments.kick.init();
+      if(cf.kick.en){
+        const sidx=Math.floor((this.n%this.spbar)/kStepLen);
+        if(this.euclid(Math.max(0,cf.kick.fill|0),Math.max(1,cf.kick.steps|0),sidx,cf.kick.rot|0) && sidx!==st.kick.lastStep){ st.kick.lastStep=sidx; st.kick.env=1; st.kick.tLoc=0 }
+        const f=Math.max(20, cf.kick.f0 + cf.kick.sweep*Math.exp(-8*st.kick.tLoc));
+        sum += Math.sin(2*Math.PI*f*st.kick.tLoc) * st.kick.env * cf.kick.gain;
+        st.kick.env*=c.kA; st.kick.tLoc += 1/this.sr;
       }
-      sum += this.instruments.kick.process(this.n, phi, this.sr, this.instruments.kick.state);
 
-      // --- Snare ---
-      const snareStepIdx = Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.snare.params.steps)));
-      const snareTrig = this.euclid(this.instruments.snare.params.fill, this.instruments.snare.params.steps, snareStepIdx, this.instruments.snare.params.rot);
-      if (snareTrig && snareStepIdx !== this.instruments.snare.state.lastStep) {
-        this.instruments.snare.state.lastStep = snareStepIdx;
-        this.instruments.snare.init();
+      if(cf.snare.en){
+        const sidx=Math.floor((this.n%this.spbar)/sStepLen);
+        if(this.euclid(Math.max(0,cf.snare.fill|0),Math.max(1,cf.snare.steps|0),sidx,cf.snare.rot|0) && sidx!==st.snare.lastStep){ st.snare.lastStep=sidx; st.snare.env=1; st.snare.tLoc=0 }
+        let x=this._rnd()*cf.snare.noise;
+        const y=c.sHP*(st.snare.hpy1 + x - st.snare.hpx1); st.snare.hpx1=x; st.snare.hpy1=y;
+        sum += y*st.snare.env*cf.snare.gain; st.snare.env*=c.sA; st.snare.tLoc+=1/this.sr;
       }
-      sum += this.instruments.snare.process(this.n, phi, this.sr, this.instruments.snare.state, this.euclid, this._rand, h.snare, 1);
 
-      // --- Hat ---
-      const hatStepIdx = Math.floor((this.n % this.spbar) / (this.spb / Math.max(2,this.instruments.hat.params.sub)));
-      const hatEuclidGate = this.euclid(this.instruments.hat.params.fill, this.instruments.hat.params.steps, Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.hat.params.steps))), this.instruments.hat.params.rot);
-      if (hatStepIdx !== this.instruments.hat.state.lastStep) {
-        this.instruments.hat.state.lastStep = hatStepIdx;
-        this.instruments.hat.init();
+      if(cf.hat.en){
+        const N=Math.max(2,cf.hat.sub|0); const subLen=this.spb/N; const subIdx=Math.floor(this.n/subLen);
+        if(subIdx!==st.hat.lastStep){ st.hat.lastStep=subIdx; st.hat.env=1; st.hat.tLoc=0 }
+        const sidx=Math.floor((this.n%this.spbar)/hStepLen);
+        const gate=this.euclid(Math.max(0,cf.hat.fill|0),Math.max(1,cf.hat.steps|0),sidx,cf.hat.rot|0)?1:0;
+        let nx=this._rnd(); const yh=c.hHP*(st.hat.hpy1 + nx - st.hat.hpx1); st.hat.hpx1=nx; st.hat.hpy1=yh;
+        sum += yh*st.hat.env*cf.hat.gain*gate; st.hat.env*=c.hA; st.hat.tLoc+=1/this.sr;
       }
-      sum += this.instruments.hat.process(this.n, phi, this.sr, this.instruments.hat.state, this.euclid, this._rand, h.hat, hatEuclidGate);
 
-      // --- Bass ---
-      sum += this.instruments.bass.process(this.n, phi, this.sr, this.instruments.bass.state, this._polyblep, this._saw_blep, this._square_blep);
-
-      // --- Synth ---
-      const synthStepIdx = Math.floor((this.n % this.spbar) / (this.spbar / Math.max(1,this.instruments.synth.params.steps)));
-      const synthTrig = this.euclid(this.instruments.synth.params.fill, this.instruments.synth.params.steps, synthStepIdx, this.instruments.synth.params.rot);
-      if (synthTrig && synthStepIdx !== this.instruments.synth.state.lastStep) {
-        this.instruments.synth.state.lastStep = synthStepIdx;
-        this.instruments.synth.init(this.n, synthStepIdx);
+      if(cf.bass.en){
+        const gate = (phi < (cf.bass.gatePct/100)) ? 1:0;
+        st.bass.phase += cf.bass.freq/this.sr;
+        let osc; switch(cf.bass.wave){
+          case "saw":    osc=this._saw(st.bass.phase, cf.bass.freq); break;
+          case "square": osc=this._square(st.bass.phase, cf.bass.freq); break;
+          case "tri":    { const x=2*Math.abs(2*(st.bass.phase%1)-1)-1; osc=x; break; }
+          default:       osc=Math.sin(2*Math.PI*(st.bass.phase%1));
+        }
+        sum += osc*cf.bass.gain*gate;
       }
-      sum += this.instruments.synth.process(this.n, phi, this.sr, this.instruments.synth.state, this._polyblep, this._saw_blep, this._square_blep);
-      
-      // Update envelopes
-      this.instruments.kick.state.env *= d.kick; this.instruments.kick.state.tLoc += 1/this.sr;
-      this.instruments.snare.state.env *= d.snare; this.instruments.snare.state.tLoc += 1/this.sr;
-      this.instruments.hat.state.env *= d.hat; this.instruments.hat.state.tLoc += 1/this.sr;
-      this.instruments.synth.state.env *= d.synth;
 
-      // --- Output: DC-Blocker + Soft-Clip ---
-      const x = sum;
-      const y = x - this.dc_x1 + this.dc_R*this.dc_y1;
-      this.dc_x1 = x; this.dc_y1 = y;
-      const out = Math.tanh(y*1.2);
-
-      L[i]=out; R[i]=out; this.n++;
+      const x=sum; const y=x - this.dc_x1 + this.dc_R*this.dc_y1; this.dc_x1=x; this.dc_y1=y;
+      const outv=Math.tanh(y*1.2); L[i]=outv; R[i]=outv; this.n++;
     }
     return true;
   }
@@ -425,210 +236,259 @@ class PhysEngine extends AudioWorkletProcessor {
 registerProcessor("phys-engine", PhysEngine);
   </script>
 
-  <!-- UI + Boot: lädt Worklet aus obigem Script, baut Node, bindet Controls, Export/Import, Scope -->
+  <!-- MAIN/UI + FALLBACK-DSP (ScriptProcessorNode) -->
   <script type="module">
     const $ = id => document.getElementById(id);
-    const led = (id, s) => { const el=$(id); el.className="led "+s };
+    const led = s => { const el=$("led"); el.className="led "+s };
 
-    let ac=null, node=null, analyser=null, scopeRAF=null, reverbNode=null;
-
-    // Generiere ein einfaches, künstliches Impuls-Response für Reverb
-    function generateImpulseResponse(ac, duration, decay, reverse) {
-      const sampleRate = ac.sampleRate;
-      const length = sampleRate * duration;
-      const arrayBuffer = ac.createBuffer(2, length, sampleRate);
-      const left = arrayBuffer.getChannelData(0);
-      const right = arrayBuffer.getChannelData(1);
-      
-      for (let i = 0; i < length; i++) {
-        let n = reverse ? length - i : i;
-        left[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
-        right[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
+    // === Shared DSP (Fallback-Klasse, identisch zur Worklet-Logik) ===
+    class PhysEngineDSP {
+      constructor({sr=48000,bpm=120,seed=0x9e3779b9}={}){
+        this.sr=sr>>>0; this.n=0; this.playing=true; this._bpm=120; this.setBPM(bpm);
+        this.seed=seed|0; this._rnd=()=>{let x=this.seed|0;x^=x<<13;x^=x>>>17;x^=x<<5;this.seed=x|0;return ((x>>>0)/0xFFFFFFFF)*2-1};
+        this.dc_x1=0; this.dc_y1=0; this.dc_R=0.995;
+        this.euclid=(k,S,i,r=0)=>{ if(S<=0)return false; const j=(i+r)%S; return (j*k)%S<k };
+        this.cfg={
+          kick:{en:true,f0:55,sweep:90,decayMs:140,gain:0.9,steps:16,fill:4,rot:0},
+          snare:{en:true,noise:0.7,hp:900,decayMs:220,gain:0.7,steps:16,fill:2,rot:8},
+          hat:{en:true,hp:6000,decayMs:70,gain:0.45,sub:3,steps:12,fill:8,rot:0},
+          bass:{en:true,wave:"square",freq:55,gain:0.5,gatePct:50}
+        };
+        this.st={kick:{env:0,tLoc:0,lastStep:-1},snare:{env:0,tLoc:0,lastStep:-1,hpx1:0,hpy1:0},hat:{env:0,tLoc:0,lastStep:-1,hpx1:0,hpy1:0},bass:{phase:0}};
+        this._coef={}; this._refresh();
       }
-      return arrayBuffer;
+      setBPM(b){ b=Math.max(20,Math.min(300,b|0)); this._bpm=b; this.spb=this.sr*60/b; this.spbar=this.spb*4 }
+      phase(){ const x=this.n/this.spb; return x-Math.floor(x) }
+      _d(ms){ const tau=ms/1000; return Math.exp(-1/(tau*this.sr)) }
+      _hp(fc){ const dt=1/this.sr; const rc=1/(2*Math.PI*Math.max(10,fc)); return rc/(rc+dt) }
+      _refresh(){ const c=this._coef, cf=this.cfg; c.kA=this._d(cf.kick.decayMs); c.sA=this._d(cf.snare.decayMs); c.hA=this._d(cf.hat.decayMs); c.sHP=this._hp(cf.snare.hp); c.hHP=this._hp(cf.hat.hp) }
+      _polyblep(t,dt){ if(t<dt){const x=t/dt; return x+x-x*x-1} else if(t>1-dt){const x=(t-1)/dt; return x*x+x+x+1} return 0 }
+      _saw(phase,f){ const t=phase%1,dt=f/this.sr; let y=2*t-1; y-=this._polyblep(t,dt); return y }
+      _square(phase,f){ const t=phase%1,dt=f/this.sr; let y=t<.5?1:-1; y+=this._polyblep(t,dt)-this._polyblep((t+.5)%1,dt); return y }
+      toggle(inst,en){ if(this.cfg[inst]!=null) this.cfg[inst].en=!!en }
+      set(inst,key,val){ if(this.cfg[inst]!=null && key in this.cfg[inst]){ this.cfg[inst][key]=val; this._refresh() } }
+      reseed(seed){ this.seed=seed|0 }
+      start(){ this.playing=true; this.n=0 }
+      stop(){ this.playing=false }
+      processBlock(L,R){
+        const cf=this.cfg,st=this.st,c=this._coef;
+        const frames=L.length;
+        const kStepLen=this.spbar/Math.max(1,cf.kick.steps);
+        const sStepLen=this.spbar/Math.max(1,cf.snare.steps);
+        const hStepLen=this.spbar/Math.max(1,cf.hat.steps);
+        for(let i=0;i<frames;i++){
+          if(!this.playing){ L[i]=R[i]=0; this.n++; continue; }
+          const phi=this.phase(); let sum=0;
+
+          if(cf.kick.en){
+            const sidx=Math.floor((this.n%this.spbar)/kStepLen);
+            if(this.euclid(Math.max(0,cf.kick.fill|0),Math.max(1,cf.kick.steps|0),sidx,cf.kick.rot|0) && sidx!==st.kick.lastStep){ st.kick.lastStep=sidx; st.kick.env=1; st.kick.tLoc=0 }
+            const f=Math.max(20, cf.kick.f0 + cf.kick.sweep*Math.exp(-8*st.kick.tLoc));
+            sum += Math.sin(2*Math.PI*f*st.kick.tLoc) * st.kick.env * cf.kick.gain;
+            st.kick.env*=c.kA; st.kick.tLoc += 1/this.sr;
+          }
+
+          if(cf.snare.en){
+            const sidx=Math.floor((this.n%this.spbar)/sStepLen);
+            if(this.euclid(Math.max(0,cf.snare.fill|0),Math.max(1,cf.snare.steps|0),sidx,cf.snare.rot|0) && sidx!==st.snare.lastStep){ st.snare.lastStep=sidx; st.snare.env=1; st.snare.tLoc=0 }
+            let x=this._rnd()*cf.snare.noise; const y=c.sHP*(st.snare.hpy1 + x - st.snare.hpx1); st.snare.hpx1=x; st.snare.hpy1=y;
+            sum += y*st.snare.env*cf.snare.gain; st.snare.env*=c.sA; st.snare.tLoc+=1/this.sr;
+          }
+
+          if(cf.hat.en){
+            const N=Math.max(2,cf.hat.sub|0); const subLen=this.spb/N; const subIdx=Math.floor(this.n/subLen);
+            if(subIdx!==st.hat.lastStep){ st.hat.lastStep=subIdx; st.hat.env=1; st.hat.tLoc=0 }
+            const sidx=Math.floor((this.n%this.spbar)/hStepLen);
+            const gate=this.euclid(Math.max(0,cf.hat.fill|0),Math.max(1,cf.hat.steps|0),sidx,cf.hat.rot|0)?1:0;
+            let nx=this._rnd(); const yh=c.hHP*(st.hat.hpy1 + nx - st.hat.hpx1); st.hat.hpx1=nx; st.hat.hpy1=yh;
+            sum += yh*st.hat.env*cf.hat.gain*gate; st.hat.env*=c.hA; st.hat.tLoc+=1/this.sr;
+          }
+
+          if(cf.bass.en){
+            const gate = (phi < (cf.bass.gatePct/100)) ? 1:0;
+            st.bass.phase += cf.bass.freq/this.sr; let osc;
+            switch(cf.bass.wave){
+              case "saw":    osc=this._saw(st.bass.phase, cf.bass.freq); break;
+              case "square": osc=this._square(st.bass.phase, cf.bass.freq); break;
+              case "tri":    { const x=2*Math.abs(2*(st.bass.phase%1)-1)-1; osc=x; break; }
+              default:       osc=Math.sin(2*Math.PI*(st.bass.phase%1));
+            }
+            sum += osc*cf.bass.gain*gate;
+          }
+
+          const x=sum; const y=x - this.dc_x1 + this.dc_R*this.dc_y1; this.dc_x1=x; this.dc_y1=y;
+          const outv=Math.tanh(y*1.2); L[i]=outv; R[i]=outv; this.n++;
+        }
+      }
     }
+
+    // === Boot: Worklet versuchen, sonst Fallback ===
+    let ac=null, node=null, spn=null, engineDSP=null, useWorklet=false, scopeRAF=null;
 
     async function boot(){
-      if (ac) return;
-      
-      // Zustand initialisieren und loggen
-      const statusEl = $("status-msg");
-      statusEl.style.display = 'block';
-      statusEl.innerText = "Initialisiere AudioContext...";
+      if(ac) return;
+      ac = new (window.AudioContext||window.webkitAudioContext)({ sampleRate:48000 });
 
       try {
-        ac = new (window.AudioContext||window.webkitAudioContext)({ sampleRate:48000 });
-        statusEl.innerText = `AudioContext erfolgreich. Zustand: ${ac.state}`;
-        
-        // Worklet-Code aus Text-Tag in Blob wandeln
-        const code = $("worklet").textContent;
+        const code = document.getElementById("worklet").textContent;
         const blob = new Blob([code], {type:"application/javascript"});
-        const url = URL.createObjectURL(blob);
-        
-        statusEl.innerText = "Lade AudioWorklet-Modul...";
+        const url  = URL.createObjectURL(blob);
         await ac.audioWorklet.addModule(url);
         URL.revokeObjectURL(url);
-        statusEl.innerText = "AudioWorklet-Modul erfolgreich geladen.";
 
-        // Audio-Knoten-Kette aufbauen: Engine -> Analyser -> Destination
-        // Reverb-Node wurde zur Fehlersuche vorübergehend entfernt
-        node = new AudioWorkletNode(ac, "phys-engine", { processorOptions:{ bpm:parseInt($("bpm").value,10), seed:parseInt($("seed").value,10) }});
-
-        analyser = ac.createAnalyser();
-        analyser.fftSize = 2048;
-
-        node.connect(analyser);
-        analyser.connect(ac.destination);
-        
-        node.port.onmessage = e=>{
-          const m=e.data;
-          if (m?.t==="bpm"){ /* könnte spb anzeigen */ }
-        };
-        
-        // MIDI Initialisierung
-        try {
-          const midiAccess = await navigator.requestMIDIAccess();
-          if (midiAccess.inputs.size > 0) {
-            led("midi-led", "ok");
-            $("midi-msg").style.display = 'block';
-            for (let input of midiAccess.inputs.values()) {
-              input.onmidimessage = onMIDIMessage;
-            }
-          }
-        } catch (e) {
-          led("midi-led", "bad");
-          console.error("MIDI-API konnte nicht initialisiert werden.", e);
-        }
-
-      } catch (e) {
-        statusEl.style.backgroundColor = 'var(--bad)';
-        statusEl.innerText = `Fehler beim Initialisieren der Audio-Engine: ${e.message}. Bitte Konsole prüfen.`;
-        console.error("Fataler Audio-Fehler:", e);
-      }
-    }
-
-    // --- MIDI Message Handler ---
-    function onMIDIMessage(event) {
-      const [status, data1, data2] = event.data;
-      // Filter nach Control Change (0xB0), Kanal 0
-      if (status >= 0xB0 && status <= 0xBF) {
-        const controllerNumber = data1;
-        const controllerValue = data2;
-        // BPM Steuerung mit Controller 74 (beispielsweise)
-        if (controllerNumber === 74) {
-          const newBPM = Math.floor(20 + (controllerValue / 127) * 280);
-          $("bpm").value = newBPM;
-          setBPM(newBPM);
-        }
-      }
-    }
-
-    // --- Helpers to talk to Worklet ---
-    const post = (t,p={}) => node?.port.postMessage({t,...p});
-    const setCfg = (inst,key,val)=> post("cfg",{inst,key,val});
-    const toggle = (inst,en)=> post("toggle",{inst,en});
-    const setBPM = bpm => post("bpm",{bpm});
-
-    // --- Bind UI Controls ---
-    function bind(){
-      // Transport
-      $("start").addEventListener("click", async ()=>{
-        await boot(); await ac.resume(); post("start"); led("led","ok");
-        $("status-msg").innerText = `AudioContext erfolgreich gestartet. Zustand: ${ac.state}`;
-      });
-      $("stop").addEventListener("click", async ()=>{
-        if (!ac) return; await ac.suspend(); post("stop"); led("led","off");
-      });
-      $("reseat").addEventListener("click", ()=> post("seed",{seed: parseInt($("seed").value,10)}));
-      $("bpmUp").addEventListener("click", ()=>{ $("bpm").value = Math.min(300, parseInt($("bpm").value,10)+5); setBPM(parseInt($("bpm").value,10)); });
-      $("bpmDown").addEventListener("click", ()=>{ $("bpm").value = Math.max(20, parseInt($("bpm").value,10)-5); setBPM(parseInt($("bpm").value,10)); });
-      $("bpm").addEventListener("change", ()=> setBPM(parseInt($("bpm").value,10)));
-
-      // Instrumente
-      const instruments = ["kick", "snare", "hat", "bass", "synth"];
-      instruments.forEach(inst => {
-        $(`${inst}En`).addEventListener("change", e => toggle(inst, e.target.checked));
-        const inputs = document.querySelectorAll(`[id^="${inst}"]`);
-        inputs.forEach(input => {
-          if (input.type === 'number' || input.tagName === 'SELECT') {
-            const key = input.id.replace(inst, "").toLowerCase();
-            input.addEventListener("input", e => setCfg(inst, key, parseFloat(e.target.value) || e.target.value));
+        node = new AudioWorkletNode(ac,"phys-engine",{
+          processorOptions:{
+            bpm: parseInt($("bpm").value,10),
+            seed: parseInt($("seed").value,10)
           }
         });
-      });
-      
-      // Reverb
-      // Die Reverb-Funktionalität wurde vorübergehend entfernt, um eine mögliche Fehlerquelle auszuschließen.
-      // $("reverbEn").addEventListener("change", e => reverbNode.disconnect().connect(e.target.checked ? analyser : ac.destination));
-      // $("reverbGain").addEventListener("input", e => reverbNode.gain.setValueAtTime(parseFloat(e.target.value), ac.currentTime));
+        node.connect(ac.destination);
+        node.port.onmessage = ()=>{};
+        useWorklet = true;
+        led("ok");
+      } catch (e) {
+        // Fallback: ScriptProcessorNode
+        engineDSP = new PhysEngineDSP({ sr: ac.sampleRate, bpm: parseInt($("bpm").value,10), seed: parseInt($("seed").value,10) });
+        spn = ac.createScriptProcessor(1024, 0, 2);
+        spn.onaudioprocess = ev=>{
+          const L = ev.outputBuffer.getChannelData(0);
+          const R = ev.outputBuffer.getChannelData(1);
+          engineDSP.processBlock(L,R);
+        };
+        spn.connect(ac.destination);
+        useWorklet = false;
+        led("warn");
+      }
+    }
+
+    // === Messaging / Control (Worklet vs Fallback) ===
+    const post = (t,p={})=>{
+      if(useWorklet) node?.port.postMessage({t,...p});
+      else {
+        switch(t){
+          case "start": engineDSP?.start(); break;
+          case "stop":  engineDSP?.stop(); break;
+          case "seed":  engineDSP?.reseed(p.seed|0); break;
+          case "bpm":   engineDSP?.setBPM(p.bpm|0); break;
+          case "cfg":   engineDSP?.set(p.inst,p.key,p.val); break;
+          case "toggle":engineDSP?.toggle(p.inst, !!p.en); break;
+        }
+      }
+    };
+
+    // === UI Bindings ===
+    function bind(){
+      const bindToggle = (id,inst)=> $(id).addEventListener("change", e=> post("toggle",{inst,en:e.target.checked}));
+      const bindSet = (id,inst,key,coerce=v=>v)=> $(id).addEventListener("input", e=> post("cfg",{inst,key,val:coerce(e.target.value)}));
+
+      $("start").addEventListener("click", async ()=>{ await boot(); await ac.resume(); post("start") });
+      $("stop").addEventListener("click", async ()=>{ if(!ac) return; await ac.suspend(); post("stop"); led("off") });
+      $("reseat").addEventListener("click", ()=> post("seed",{seed: parseInt($("seed").value,10)}));
+      $("bpmUp").addEventListener("click", ()=>{ $("bpm").value = Math.min(300, parseInt($("bpm").value,10)+5); post("bpm",{bpm: parseInt($("bpm").value,10)}) });
+      $("bpmDown").addEventListener("click", ()=>{ $("bpm").value = Math.max(20, parseInt($("bpm").value,10)-5); post("bpm",{bpm: parseInt($("bpm").value,10)}) });
+      $("bpm").addEventListener("change", ()=> post("bpm",{bpm: parseInt($("bpm").value,10)}));
+
+      bindToggle("kickEn","kick");
+      bindSet("kickF0","kick","f0",v=>+v);
+      bindSet("kickSweep","kick","sweep",v=>+v);
+      bindSet("kickDecay","kick","decayMs",v=>+v);
+      bindSet("kickGain","kick","gain",v=>+v);
+      bindSet("kickSteps","kick","steps",v=>parseInt(v,10));
+      bindSet("kickFill","kick","fill",v=>parseInt(v,10));
+      bindSet("kickRot","kick","rot",v=>parseInt(v,10));
+
+      bindToggle("snareEn","snare");
+      bindSet("snareNoise","snare","noise",v=>+v);
+      bindSet("snareHP","snare","hp",v=>+v);
+      bindSet("snareDecay","snare","decayMs",v=>+v);
+      bindSet("snareGain","snare","gain",v=>+v);
+      bindSet("snareSteps","snare","steps",v=>parseInt(v,10));
+      bindSet("snareFill","snare","fill",v=>parseInt(v,10));
+      bindSet("snareRot","snare","rot",v=>parseInt(v,10));
+
+      bindToggle("hatEn","hat");
+      bindSet("hatHP","hat","hp",v=>+v);
+      bindSet("hatDecay","hat","decayMs",v=>+v);
+      bindSet("hatGain","hat","gain",v=>+v);
+      bindSet("hatSub","hat","sub",v=>parseInt(v,10));
+      bindSet("hatSteps","hat","steps",v=>parseInt(v,10));
+      bindSet("hatFill","hat","fill",v=>parseInt(v,10));
+      bindSet("hatRot","hat","rot",v=>parseInt(v,10));
+
+      bindToggle("bassEn","bass");
+      bindSet("bassWave","bass","wave",v=>v);
+      bindSet("bassFreq","bass","freq",v=>+v);
+      bindSet("bassGain","bass","gain",v=>+v);
+      bindSet("bassGate","bass","gatePct",v=>+v);
 
       // Export / Import
       $("exportCfg").addEventListener("click", ()=>{
-        const cfg = {};
-        ["bpm", "seed"].forEach(id => cfg[id] = parseInt($(id).value, 10));
-        ["kick","snare","hat","bass","synth"].forEach(inst => {
-          cfg[inst] = {};
-          const inputs = document.querySelectorAll(`[id^="${inst}"]`);
-          inputs.forEach(input => {
-            const key = input.id.replace(inst, "").toLowerCase();
-            if (input.type === 'checkbox') cfg[inst].en = input.checked;
-            else if (input.tagName === 'SELECT') cfg[inst][key] = input.value;
-            else cfg[inst][key] = parseFloat(input.value);
-          });
-        });
-        cfg.reverb = {en: $("reverbEn").checked, gain: parseFloat($("reverbGain").value)};
+        const cfg = {
+          bpm: parseInt($("bpm").value,10),
+          seed: parseInt($("seed").value,10),
+          kick:{en:$("kickEn").checked,f0:+$("kickF0").value,sweep:+$("kickSweep").value,decayMs:+$("kickDecay").value,gain:+$("kickGain").value,steps:+$("kickSteps").value,fill:+$("kickFill").value,rot:+$("kickRot").value},
+          snare:{en:$("snareEn").checked,noise:+$("snareNoise").value,hp:+$("snareHP").value,decayMs:+$("snareDecay").value,gain:+$("snareGain").value,steps:+$("snareSteps").value,fill:+$("snareFill").value,rot:+$("snareRot").value},
+          hat:{en:$("hatEn").checked,hp:+$("hatHP").value,decayMs:+$("hatDecay").value,gain:+$("hatGain").value,sub:+$("hatSub").value,steps:+$("hatSteps").value,fill:+$("hatFill").value,rot:+$("hatRot").value},
+          bass:{en:$("bassEn").checked,wave:$("bassWave").value,freq:+$("bassFreq").value,gain:+$("bassGain").value,gatePct:+$("bassGate").value}
+        };
         const blob = new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "dawx-config.json"; a.click(); URL.revokeObjectURL(a.href);
+        const a = document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="dawx-config.json"; a.click(); URL.revokeObjectURL(a.href);
       });
 
       $("importCfg").addEventListener("click", ()=> $("importFile").click());
       $("importFile").addEventListener("change", async e=>{
         const f=e.target.files?.[0]; if(!f) return;
-        const text = await f.text(); const cfg = JSON.parse(text);
-        const assignUI = (base,keys)=>keys.forEach(k=>{ const el=$(base+k); if (el) el.value = cfg[base]?.[k] ?? el.value });
-        const assignChk = (id,val)=> { const el=$(id); if(el){ el.checked = !!val; toggle(id.slice(0,-2), el.checked) } };
-        assignUI("bpm",["value"]); setBPM(parseInt($("bpm").value,10));
-        assignUI("seed",["value"]); post("seed",{seed:parseInt($("seed").value,10)});
-        assignChk("kickEn",cfg.kick?.en); assignUI("kick",["F0","Sweep","Decay","Gain","Steps","Fill","Rot"]);
-        assignChk("snareEn",cfg.snare?.en); assignUI("snare",["Noise","HP","Decay","Gain","Steps","Fill","Rot"]);
-        assignChk("hatEn",cfg.hat?.en); assignUI("hat",["HP","Decay","Gain","Sub","Steps","Fill","Rot"]);
-        assignChk("bassEn",cfg.bass?.en); $("bassWave").value = cfg.bass?.wave ?? $("bassWave").value; assignUI("bass",["Freq","Gain","Gate"]);
-        assignChk("synthEn",cfg.synth?.en); $("synthWave").value = cfg.synth?.wave ?? $("synthWave").value; assignUI("synth",["Gain","Decay","Steps","Fill","Rot"]);
-        assignChk("reverbEn",cfg.reverb?.en); assignUI("reverb",["Gain"]);
+        const cfg = JSON.parse(await f.text());
+        const set = (id,val)=>{ const el=$(id); if(el!=null){ if(el.type==="checkbox") el.checked=!!val; else el.value=val } };
+        set("bpm",cfg.bpm??$("bpm").value); post("bpm",{bpm: parseInt($("bpm").value,10)});
+        set("seed",cfg.seed??$("seed").value); post("seed",{seed: parseInt($("seed").value,10)});
+        // Kick
+        set("kickEn",cfg.kick?.en); set("kickF0",cfg.kick?.f0); set("kickSweep",cfg.kick?.sweep);
+        set("kickDecay",cfg.kick?.decayMs); set("kickGain",cfg.kick?.gain);
+        set("kickSteps",cfg.kick?.steps); set("kickFill",cfg.kick?.fill); set("kickRot",cfg.kick?.rot);
+        // Snare
+        set("snareEn",cfg.snare?.en); set("snareNoise",cfg.snare?.noise); set("snareHP",cfg.snare?.hp);
+        set("snareDecay",cfg.snare?.decayMs); set("snareGain",cfg.snare?.gain);
+        set("snareSteps",cfg.snare?.steps); set("snareFill",cfg.snare?.fill); set("snareRot",cfg.snare?.rot);
+        // Hat
+        set("hatEn",cfg.hat?.en); set("hatHP",cfg.hat?.hp); set("hatDecay",cfg.hat?.decayMs);
+        set("hatGain",cfg.hat?.gain); set("hatSub",cfg.hat?.sub);
+        set("hatSteps",cfg.hat?.steps); set("hatFill",cfg.hat?.fill); set("hatRot",cfg.hat?.rot);
+        // Bass
+        set("bassEn",cfg.bass?.en); $("bassWave").value = cfg.bass?.wave ?? $("bassWave").value;
+        set("bassFreq",cfg.bass?.freq); set("bassGain",cfg.bass?.gain); set("bassGate",cfg.bass?.gatePct);
+        // Events auslösen, damit Engine alle Werte bekommt
         document.querySelectorAll("input,select").forEach(el=>el.dispatchEvent(new Event(el.type==="checkbox"?"change":"input")));
       });
     }
 
-    // --- Scope (real-time Audio-Analyser) ---
+    // === Visualisierung (leichtgewichtig) ===
     function scope(){
-      const c = $("scope").getContext("2d"); let w=0,h=0;
-      const fit=()=>{ w=$("scope").width=$("scope").clientWidth; h=$("scope").height=100 };
-      new ResizeObserver(fit).observe($("scope")); fit();
-      const data = new Uint8Array(analyser.frequencyBinCount);
+      const cvs=$("scope"), c=cvs.getContext("2d"); let w=0,h=0;
+      const fit=()=>{ w=cvs.width=cvs.clientWidth; h=cvs.height=72 }; new ResizeObserver(fit).observe(cvs); fit();
+      let p=0, t=0;
       const draw=()=>{
-        analyser.getByteFrequencyData(data);
         c.fillStyle="#0b0f16"; c.fillRect(0,0,w,h);
-        const barWidth = w / analyser.frequencyBinCount;
-        for (let i = 0; i < analyser.frequencyBinCount; i++) {
-          const barHeight = data[i];
-          const x = i * barWidth;
-          const y = h - barHeight;
-          const r = Math.floor(barHeight + (255 - barHeight)/3);
-          const g = Math.floor(255 - barHeight/1.5);
-          const b = Math.floor(100);
-          c.fillStyle = `rgb(${r},${g},${b})`;
-          c.fillRect(x, y, barWidth, barHeight);
+        const bpm=parseInt($("bpm").value,10); const beatDur=60/bpm; t+=1/60; p=(p+(1/60)/beatDur)%1;
+        c.fillStyle="#223047"; c.fillRect(0,0,w,12); c.fillStyle="#4cc9f0"; c.fillRect(0,0,Math.floor(w*p),12);
+        c.strokeStyle="#cfe5ff"; c.lineWidth=1; c.beginPath();
+        for(let x=0;x<w;x++){
+          const u=x/w;
+          const y=0.25*Math.sin(2*Math.PI*(4*u+p)) + 0.15*Math.sin(2*Math.PI*(u+2*p));
+          const Y=12 + (h-18)*(0.5 - y*0.45);
+          if(x===0) c.moveTo(x,Y); else c.lineTo(x,Y);
         }
-        scopeRAF = requestAnimationFrame(draw);
+        c.stroke();
+        scopeRAF=requestAnimationFrame(draw);
       };
       cancelAnimationFrame(scopeRAF); scopeRAF=requestAnimationFrame(draw);
     }
-    
-    // init
-    bind(); scope();
-    document.addEventListener("visibilitychange", ()=>{ if (document.hidden && ac) { ac.suspend(); post("stop"); led("led", "off") }});
+
+    // === Init ===
+    (function init(){
+      bind(); scope();
+      document.addEventListener("visibilitychange", ()=>{ if(document.hidden && ac){ ac.suspend(); post("stop"); led("off") } });
+    })();
   </script>
 </div>
 </body>
