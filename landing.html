@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ops.impact – Kultur. Führung. Klarheit.</title>
+  <meta name="description" content="Wir stärken Teamgefühl, klären Identität und coachen Führung – fein, wirksam, ohne Lärm. Ein Programm, das Türen öffnet und Wege erleichtert." />
+  
+  <!-- Inter Font from Google Fonts for a clean, professional look -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom Tailwind config for colors and fonts -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            primary: '#5C6BC0', // A professional blue tone
+            secondary: '#A3B18A',
+            accent: '#B0A3B1',
+            background: '#F8F9FA',
+            card: '#FFFFFF',
+            textPrimary: '#212529',
+            textSecondary: '#6C757D',
+            border: '#E9ECEF',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8F9FA;
+      color: #212529;
+    }
+    .shadow-custom {
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    }
+    .gradient-text {
+      background-image: linear-gradient(to right, #5C6BC0, #8A98E0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  </style>
+</head>
+<body class="bg-background">
+
+  <!-- NAV -->
+  <header class="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
+    <div class="container mx-auto max-w-7xl px-4 py-4 flex justify-between items-center">
+      <a href="#" class="text-2xl font-bold tracking-tight">ops<span class="text-primary">.impact</span></a>
+      <nav class="hidden lg:flex space-x-8 text-textSecondary">
+        <a href="#programm" class="hover:text-primary transition-colors">Programm</a>
+        <a href="#essenz" class="hover:text-primary transition-colors">Essenz</a>
+        <a href="#wie" class="hover:text-primary transition-colors">Vorgehen</a>
+        <a href="#stimmen" class="hover:text-primary transition-colors">Stimmen</a>
+        <a href="#kontakt" class="hover:text-primary transition-colors">Kontakt</a>
+      </nav>
+      <a href="#kontakt" class="hidden lg:inline-flex items-center justify-center rounded-full border border-transparent bg-primary px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors">
+        Gespräch anfragen
+      </a>
+      <!-- Mobile menu button -->
+      <button id="mobile-menu-button" class="lg:hidden text-textPrimary focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+      </button>
+    </div>
+    <!-- Mobile menu -->
+    <nav id="mobile-menu" class="hidden lg:hidden bg-card/95 backdrop-blur-sm border-t border-border">
+      <div class="px-2 pt-2 pb-3 space-y-1">
+        <a href="#programm" class="block px-3 py-2 text-textPrimary rounded-md hover:bg-gray-100 transition-colors">Programm</a>
+        <a href="#essenz" class="block px-3 py-2 text-textPrimary rounded-md hover:bg-gray-100 transition-colors">Essenz</a>
+        <a href="#wie" class="block px-3 py-2 text-textPrimary rounded-md hover:bg-gray-100 transition-colors">Vorgehen</a>
+        <a href="#stimmen" class="block px-3 py-2 text-textPrimary rounded-md hover:bg-gray-100 transition-colors">Stimmen</a>
+        <a href="#kontakt" class="block px-3 py-2 text-textPrimary rounded-md hover:bg-gray-100 transition-colors">Kontakt</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- HERO -->
+  <section class="py-16 md:py-24 bg-card">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="grid lg:grid-cols-2 gap-16 items-center">
+        <div>
+          <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight">
+            Kultur, die trägt.<br/>Führung, die verbindet.
+          </h1>
+          <p class="mt-6 text-lg text-textSecondary max-w-prose">
+            Wir schaffen Raum, wo der Schuh drückt – mit feiner Präsenz, klarem Wort und wirksamer Praxis. Jenseits von Lärm und Dogmen, ein Weg, der alte Strukturen in neue Kraft verwandelt.
+          </p>
+          <div class="mt-8 flex flex-wrap gap-4">
+            <a href="#kontakt" class="inline-flex items-center justify-center rounded-full border border-transparent bg-primary px-8 py-3 text-lg font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors">
+              Unverbindliches Kennenlernen
+            </a>
+            <a href="#programm" class="inline-flex items-center justify-center rounded-full border border-textSecondary px-8 py-3 text-lg font-semibold text-textSecondary hover:bg-gray-100 transition-colors">
+              Programm ansehen
+            </a>
+          </div>
+        </div>
+        
+        <!-- B2B Value Proposition Cards -->
+        <div class="grid grid-cols-2 gap-6">
+          <div class="rounded-xl p-6 bg-background shadow-custom border border-border">
+            <h3 class="text-lg md:text-xl font-bold text-primary">Sicherheit</h3>
+            <p class="mt-1 text-textSecondary">Raum für Stimme & Risiko.</p>
+          </div>
+          <div class="rounded-xl p-6 bg-background shadow-custom border border-border">
+            <h3 class="text-lg md:text-xl font-bold text-primary">Verbindung</h3>
+            <p class="mt-1 text-textSecondary">Weniger Reibung, mehr Kraft.</p>
+          </div>
+          <div class="rounded-xl p-6 bg-background shadow-custom border border-border">
+            <h3 class="text-lg md:text-xl font-bold text-primary">Klarheit</h3>
+            <p class="mt-1 text-textSecondary">Coaching statt Kontrolle.</p>
+          </div>
+          <div class="rounded-xl p-6 bg-background shadow-custom border border-border">
+            <h3 class="text-lg md:text-xl font-bold text-primary">Identität</h3>
+            <p class="mt-1 text-textSecondary">Markenessenz, die trägt.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ESSENZ -->
+  <section id="essenz" class="py-16 md:py-24">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl md:text-4xl font-extrabold">Worum es wirklich geht</h2>
+        <p class="mt-3 text-lg text-textSecondary max-w-prose mx-auto">
+          Wir „entkernen“ nicht – wir <b class="font-bold text-textPrimary">legen frei</b>: die Essenz, die euch zusammenhält.
+        </p>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Card 1 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <div class="flex items-center space-x-4 mb-4">
+            <!-- Icon for Belonging -->
+            <svg class="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.3-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.3.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zm-4 8a2 2 0 11-4 0 2 2 0 014 0zm-12-8a2 2 0 11-4 0 2 2 0 014 0zm2-2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <h3 class="text-xl font-bold">Zugehörigkeit</h3>
+          </div>
+          <p class="text-textSecondary">Ein tiefes Gefühl von „Wir“. Ein sicherer Raum, in dem Stimmen gehört und neue Wege geboren werden.</p>
+        </div>
+        <!-- Card 2 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <div class="flex items-center space-x-4 mb-4">
+            <!-- Icon for Leadership -->
+            <svg class="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-1.258-8.583-3.325m8.583 3.325a23.914 23.914 0 01-9.288-5.714m17.027 5.714A23.914 23.914 0 0012 9.429a23.914 23.914 0 00-9.288 5.714m17.027-5.714A23.931 23.931 0 0112 7c-3.183 0-6.22-1.258-8.583-3.325" />
+            </svg>
+            <h3 class="text-xl font-bold">Führung als Coaching</h3>
+          </div>
+          <p class="text-textSecondary">Führung, die entlastet. Fragen, die öffnen. Und die Kraft, die in Entscheidungen liegt.</p>
+        </div>
+        <!-- Card 3 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <div class="flex items-center space-x-4 mb-4">
+            <!-- Icon for Identity -->
+            <svg class="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 012-2h2a2 2 0 012 2v1m-4 0h4m-4 0h.01M9 16h6" />
+            </svg>
+            <h3 class="text-xl font-bold">Markenessenz</h3>
+          </div>
+          <p class="text-textSecondary">Der freigelegte Kern statt lauter Claims. Eine Identität, die von innen heraus strahlt und nach außen trägt.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROGRAMM -->
+  <section id="programm" class="py-16 md:py-24 bg-gray-50">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl md:text-4xl font-extrabold">Unser Programm</h2>
+        <p class="mt-3 text-lg text-textSecondary max-w-prose mx-auto">
+          Ein Weg in drei Bögen – leichtgewichtig, behutsam, wirksam.
+        </p>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Card 1 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <h3 class="text-2xl font-bold text-primary mb-2">I. Lauschen & Spüren</h3>
+          <p class="text-textSecondary mb-4">
+            Wir tauchen ein, um das Unsichtbare sichtbar zu machen. In feinen Gesprächen und mit offenem Ohr für die stillen Signale.
+          </p>
+          <ul class="list-disc ml-5 space-y-2 text-textSecondary">
+            <li>1:1-Gespräche & Lauschrunden</li>
+            <li>Team-Beobachtung & Resonanz</li>
+            <li>Wortfeld-/Narrativ-Arbeit</li>
+          </ul>
+        </div>
+        <!-- Card 2 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <h3 class="text-2xl font-bold text-primary mb-2">II. Klären & Freilegen</h3>
+          <p class="text-textSecondary mb-4">
+            Wir finden die gemeinsamen Worte und schaffen die klaren Bilder, die euer Miteinander stärken. Von innen nach außen.
+          </p>
+          <ul class="list-disc ml-5 space-y-2 text-textSecondary">
+            <li>Leitsätze & Entscheidungsräume</li>
+            <li>Rituale & Meeting-Hygiene</li>
+            <li>Marken-/Identitäts-Essenz</li>
+          </ul>
+        </div>
+        <!-- Card 3 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <h3 class="text-2xl font-bold text-primary mb-2">III. Üben & Stärken</h3>
+          <p class="text-textSecondary mb-4">
+            Wir begleiten euch im Alltag, bis das Neue selbstverständlich ist. Führung als Stärke, die getragen wird.
+          </p>
+          <ul class="list-disc ml-5 space-y-2 text-textSecondary">
+            <li>Coachings & Impuls-Sessions</li>
+            <li>Begleitung in Meetings („live“)</li>
+            <li>Reflexion & sanfte Justage</li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-12 p-8 rounded-xl bg-green-50 border border-green-200 text-center">
+        <p class="text-lg font-medium text-green-800">
+          Sie werden es <b>spüren</b>: ruhigere Übergaben, offenere Gespräche, klarere Entscheidungen, ein Gefühl von „Wir“.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WIE WIR ARBEITEN -->
+  <section id="wie" class="py-16 md:py-24">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl md:text-4xl font-extrabold">So arbeiten wir</h2>
+        <p class="mt-3 text-lg text-textSecondary max-w-prose mx-auto">
+          Leise Schritte, klare Wirkung.
+        </p>
+      </div>
+      <div class="grid gap-12 max-w-2xl mx-auto">
+        <!-- Step 1 -->
+        <div class="flex items-start gap-6">
+          <div class="w-12 h-12 rounded-full flex-shrink-0 bg-primary flex items-center justify-center text-white font-bold text-xl">1</div>
+          <div>
+            <h3 class="text-xl font-semibold mb-1">Ankommen</h3>
+            <p class="text-textSecondary">Rahmen klären, Erwartungen erden, Schutzraum bauen.</p>
+          </div>
+        </div>
+        <!-- Step 2 -->
+        <div class="flex items-start gap-6">
+          <div class="w-12 h-12 rounded-full flex-shrink-0 bg-primary flex items-center justify-center text-white font-bold text-xl">2</div>
+          <div>
+            <h3 class="text-xl font-semibold mb-1">Hören</h3>
+            <p class="text-textSecondary">Lauschen statt „lösen“. Themen zeigen sich, wenn sie Raum bekommen.</p>
+          </div>
+        </div>
+        <!-- Step 3 -->
+        <div class="flex items-start gap-6">
+          <div class="w-12 h-12 rounded-full flex-shrink-0 bg-primary flex items-center justify-center text-white font-bold text-xl">3</div>
+          <div>
+            <h3 class="text-xl font-semibold mb-1">Klären</h3>
+            <p class="text-textSecondary">Worte finden, Bilder schärfen, Entscheidungen ermöglichen.</p>
+          </div>
+        </div>
+        <!-- Step 4 -->
+        <div class="flex items-start gap-6">
+          <div class="w-12 h-12 rounded-full flex-shrink-0 bg-primary flex items-center justify-center text-white font-bold text-xl">4</div>
+          <div>
+            <h3 class="text-xl font-semibold mb-1">Üben</h3>
+            <p class="text-textSecondary">Kleine Rituale, echte Begegnung, Führung als Coaching.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STIMMEN (Testimonials) -->
+  <section id="stimmen" class="py-16 md:py-24 bg-gray-50">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl md:text-4xl font-extrabold">Stimmen</h2>
+        <p class="mt-3 text-lg text-textSecondary max-w-prose mx-auto">
+          Anonymisierte Rückmeldungen aus Begleitungen.
+        </p>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Testimonial 1 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <p class="text-xl font-medium text-textPrimary mb-4">
+            <span class="text-2xl font-bold text-primary mr-1">“</span>Es wurde leiser – und genau dann wurde es klar. Entscheidungen waren plötzlich leicht.<span class="text-2xl font-bold text-primary ml-1">”</span>
+          </p>
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 rounded-full bg-gray-200"></div>
+            </div>
+            <div class="ml-4">
+              <div class="font-semibold text-textPrimary">Geschäftsführung</div>
+              <div class="text-sm text-textSecondary">Tech</div>
+            </div>
+          </div>
+        </div>
+        <!-- Testimonial 2 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <p class="text-xl font-medium text-textPrimary mb-4">
+            <span class="text-2xl font-bold text-primary mr-1">“</span>Unser Team fühlt sich wieder nach Team an. Konflikte wurden Gesprächsanlässe – nicht Brüche.<span class="text-2xl font-bold text-primary ml-1">”</span>
+          </p>
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 rounded-full bg-gray-200"></div>
+            </div>
+            <div class="ml-4">
+              <div class="font-semibold text-textPrimary">People & Culture</div>
+              <div class="text-sm text-textSecondary">Handel</div>
+            </div>
+          </div>
+        </div>
+        <!-- Testimonial 3 -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <p class="text-xl font-medium text-textPrimary mb-4">
+            <span class="text-2xl font-bold text-primary mr-1">“</span>Die Marke war schon da. Wir haben nur die Hülle abgenommen.<span class="text-2xl font-bold text-primary ml-1">”</span>
+          </p>
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 rounded-full bg-gray-200"></div>
+            </div>
+            <div class="ml-4">
+              <div class="font-semibold text-textPrimary">Marketing</div>
+              <div class="text-sm text-textSecondary">Services</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- CTA -->
+  <section class="py-16 md:py-24">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="bg-primary-light rounded-xl p-10 text-center shadow-custom" style="background-color: #ECEFF1; border: 1px solid #CFD8DC;">
+        <div class="max-w-2xl mx-auto">
+          <h3 class="text-3xl md:text-4xl font-extrabold text-textPrimary">Bereit für ein klareres, ruhigeres Miteinander?</h3>
+          <p class="mt-4 text-lg text-textSecondary">
+            Ein kurzes Gespräch genügt. Wir hören zu, stellen zwei gute Fragen – und Sie spüren, ob es passt.
+          </p>
+          <a href="#kontakt" class="mt-8 inline-flex items-center justify-center rounded-full border border-transparent bg-primary px-8 py-3 text-lg font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors">
+            Gespräch anfragen
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KONTAKT / FORM -->
+  <section id="kontakt" class="py-16 md:py-24">
+    <div class="container mx-auto max-w-7xl px-4">
+      <div class="grid lg:grid-cols-2 gap-12 items-start">
+        <div>
+          <h2 class="text-3xl md:text-4xl font-extrabold mb-3">Kontakt</h2>
+          <p class="text-lg text-textSecondary mb-8">
+            Schreiben Sie uns kurz, was gerade drückt. Wir melden uns zeitnah.
+          </p>
+          <form id="leadForm" class="space-y-6">
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <label for="first" class="block text-sm font-medium text-textPrimary">Vorname</label>
+                <input type="text" name="first" id="first" class="mt-1 block w-full rounded-md border-border shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 transition-colors" required />
+              </div>
+              <div>
+                <label for="last" class="block text-sm font-medium text-textPrimary">Nachname</label>
+                <input type="text" name="last" id="last" class="mt-1 block w-full rounded-md border-border shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 transition-colors" required />
+              </div>
+            </div>
+            <div>
+              <label for="email" class="block text-sm font-medium text-textPrimary">E-Mail</label>
+              <input type="email" name="email" id="email" class="mt-1 block w-full rounded-md border-border shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 transition-colors" required />
+            </div>
+            <div>
+              <label for="pain" class="block text-sm font-medium text-textPrimary">Was drückt gerade?</label>
+              <textarea name="pain" id="pain" rows="4" class="mt-1 block w-full rounded-md border-border shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 transition-colors" placeholder="z. B. Spannung im Team, Entscheidungsblockaden, unklare Identität …"></textarea>
+            </div>
+            <div class="flex items-start">
+              <input id="privacy" type="checkbox" class="h-4 w-4 rounded border-border text-primary focus:ring-primary" required />
+              <label for="privacy" class="ml-2 block text-sm text-textSecondary">
+                Ich akzeptiere die Kontaktaufnahme & Datenschutz.
+              </label>
+            </div>
+            <button type="submit" class="w-full md:w-auto inline-flex items-center justify-center rounded-full border border-transparent bg-primary px-8 py-3 text-lg font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors">
+              Senden
+            </button>
+            <p id="leadMsg" class="text-sm mt-2 text-textSecondary"></p>
+          </form>
+        </div>
+        
+        <!-- Sidebar with more info -->
+        <div class="rounded-xl p-8 bg-card shadow-custom border border-border">
+          <h3 class="text-2xl font-bold mb-4">Was wir mitbringen</h3>
+          <ul class="list-disc ml-5 space-y-2 text-textSecondary">
+            <li>Feines Ohr, ruhige Präsenz, klares Wort</li>
+            <li>Führung als Coaching – nicht als Kontrolle</li>
+            <li>Marken-/Identitäts-Arbeit, die innen beginnt</li>
+            <li>Sanfte Praxis statt große Programme</li>
+          </ul>
+          <div class="w-full h-px bg-border my-6"></div>
+          <h4 class="font-semibold text-xl mb-2">Newsletter „Leise Wirksamkeit“</h4>
+          <p class="text-textSecondary mb-4">Ein Impuls pro Monat. Kurz, freundlich, nützlich.</p>
+          <form id="nlForm" class="flex flex-col sm:flex-row gap-4">
+            <input name="nl" type="email" class="grow rounded-md border-border shadow-sm px-4 py-2 focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 transition-colors" placeholder="Ihre E-Mail" required />
+            <button type="submit" class="inline-flex items-center justify-center rounded-full border border-textSecondary px-6 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-100 transition-colors">
+              Anmelden
+            </button>
+          </form>
+          <p id="nlMsg" class="text-sm mt-2 text-textSecondary"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-card border-t border-border py-10">
+    <div class="container mx-auto max-w-7xl px-4 flex flex-col md:flex-row justify-between items-center text-center md:text-left space-y-6 md:space-y-0">
+      <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8">
+        <a href="#" class="text-2xl font-bold tracking-tight">ops<span class="text-primary">.impact</span></a>
+        <div class="text-sm text-textSecondary flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2">
+          <a href="#programm" class="hover:text-primary transition-colors">Programm</a>
+          <a href="#essenz" class="hover:text-primary transition-colors">Essenz</a>
+          <a href="#wie" class="hover:text-primary transition-colors">Arbeitsweise</a>
+          <a href="#kontakt" class="hover:text-primary transition-colors">Kontakt</a>
+          <a href="#" class="hover:text-primary transition-colors">Impressum</a>
+          <a href="#" class="hover:text-primary transition-colors">Datenschutz</a>
+        </div>
+      </div>
+      <div class="text-sm text-textSecondary">
+        <p>Konstanz · D-CH-AT</p>
+        <a href="mailto:hello@ops-impact.example" class="hover:text-primary transition-colors">hello@ops-impact.example</a>
+        <p class="mt-2">© <span id="year"></span> – Leise wirksam.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Set the current year for the copyright notice
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Serialize form data into a simple object
+    const serialize = (form) => Object.fromEntries(new FormData(form).entries());
+
+    // Handle lead form submission
+    document.getElementById('leadForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = serialize(e.target);
+      console.log('Lead form submitted:', data);
+      document.getElementById('leadMsg').textContent = 'Danke! Wir melden uns zeitnah.';
+      e.target.reset();
+    });
+
+    // Handle newsletter form submission
+    document.getElementById('nlForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = new FormData(e.target).get('nl');
+      console.log('Newsletter subscription:', email);
+      document.getElementById('nlMsg').textContent = 'Willkommen. Der nächste Impuls kommt bald.';
+      e.target.reset();
+    });
+
+    // Toggle mobile menu visibility
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    mobileMenuButton.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+  </script>
+</body>
+</html>
