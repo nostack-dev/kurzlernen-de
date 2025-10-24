@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>MiniGPT-BPE — Kleiner Transformer mit Subword & Browser-Training (tf.js)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.19.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.19.0/dist/tf-backend-webgpu.min.js"></script>
+  <style>
+    body{background:#f5f6f8;color:#1f2937;font-family:ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .container{max-width:1100px;margin:40px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.04);padding:18px;margin:16px 0}
+    .row{display:grid;gap:12px}
+    @media(min-width:900px){.row{grid-template-columns:1fr 1fr}}
+    textarea,input,button,select{font-family:inherit}
+    textarea{width:100%;min-height:150px;border:1px solid #d1d5db;border-radius:10px;padding:10px}
+    input,select{width:100%;border:1px solid #d1d5db;border-radius:10px;padding:8px}
+    label{font-size:12px;color:#6b7280;margin-bottom:4px;display:block}
+    .btn{background:#4f46e5;border:none;color:#fff;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn.secondary{background:#059669}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:12px;margin-left:6px}
+    .log{height:180px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .grid{display:grid;gap:10px}
+    .grid-3{grid-template-columns:repeat(3,1fr)}
+    .grid-4{grid-template-columns:repeat(4,1fr)}
+    .muted{color:#6b7280}
+    .spinner{border:4px solid rgba(0,0,0,.1);border-left-color:#4f46e5;border-radius:50%;width:20px;height:20px;animation:spin .8s linear infinite;display:inline-block}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1 style="margin:0 0 4px;font-size:28px;font-weight:800">MiniGPT-BPE</h1>
+  <div class="muted" style="margin-bottom:14px">Subword-Tokenizer (Byte-BPE) + kleiner Decoder-Transformer • tf.js (WebGPU/WebGL) • CE-Loss • Adam • Perplexity • Step-Cap</div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">1) Trainingsdaten</h3>
+    <textarea id="txt" placeholder="Füge Text ein – z.
+B. Shakespeare (mehrere Werke)."></textarea>
+    <div class="row">
+      <div>
+        <label>Vokabulargröße (BPE)</label>
+        <input id="vocabSize" type="number" min="300" max="4096" step="50" value="1000"/>
+      </div>
+      <div>
+        <label>Epochen</label>
+        <input id="epochs" type="number" min="1" max="40" value="4"/>
+      </div>
+      <div>
+        <label>LR (Adam)</label>
+        <input 
+id="lr" type="number" min="0.00005" max="0.02" step="0.00005" value="0.002"/>
+      </div>
+    </div>
+    <div class="grid grid-4" style="margin-top:10px">
+      <div>
+        <label>Kontextlänge T</label>
+        <input id="seqLen" type="number" min="64" max="768" step="32" value="256"/>
+      </div>
+      <div>
+        <label>Batchgröße</label>
+        <input id="batch" type="number" min="8" max="128" step="8" value="32"/>
+      </div>
+      <div>
+   
+         <label>Steps/Epoche (0=auto)</label>
+        <input id="stepCap" type="number" min="0" max="50000" step="100" value="1200"/>
+      </div>
+      <div>
+        <label>Eval-Split %</label>
+        <input id="valSplit" type="number" min="0" max="30" value="10"/>
+      </div>
+    </div>
+    <div class="grid grid-4" style="margin-top:10px">
+      <div>
+        <label>Schichten L</label>
+        <input id="layers" type="number" min="1" max="8" value="4"/>
+ 
+      </div>
+      <div>
+        <label>Model-Dim d_model</label>
+        <input id="dModel" type="number" min="64" max="512" step="32" value="256"/>
+      </div>
+      <div>
+        <label>Heads</label>
+        <input id="nHeads" type="number" min="1" max="8" value="4"/>
+      </div>
+      <div>
+        <label>FFN-Dim</label>
+        <input id="dFF" type="number" min="128" max="2048" 
+step="64" value="768"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+      <label class="muted"><input id="useGPU" type="checkbox" checked/> WebGPU bevorzugen (fällt auf WebGL zurück)</label>
+      <label class="muted"><input id="weightTying" type="checkbox" checked/> Weight-Tying (E ↔ Output)</label>
+      <label class="muted"><input id="useDropout" type="checkbox"/> Dropout 0.1 (nur Training)</label>
+      <label class="muted"><input id="autoLR" type="checkbox" checked/> Auto-LR (Plateau → ×0.5)</label>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+      <button id="btnTrain" class="btn"><span id="trainText">Training starten</span> <span id="spin" class="spinner" style="display:none;margin-left:8px"></span></button>
+    
+      <div id="stats" class="muted"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">2) Inferenz</h3>
+    <textarea id="prompt" placeholder="Prompt eingeben …" style="min-height:90px"></textarea>
+    <div class="row">
+      <div>
+        <label>Sampling-Modus</label>
+        <select id="sampleMode">
+          <option value="topp" selected>Top-p</option>
+          <option value="topk">Top-k</option>
+        </select>
+      </div>
+     
+     <div>
+        <label>Top-k</label>
+        <input id="topK" type="number" min="1" max="200" value="64" disabled/>
+      </div>
+      <div>
+        <label>Top-p</label>
+        <input id="topP" type="number" min="0.05" max="1.0" step="0.05" value="0.9"/>
+      </div>
+      <div>
+        <label>Temperatur</label>
+        <input id="temp" type="number" min="0.1" max="2.0" step="0.1" value="0.9"/>
+      </div>
+   
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label>Tokens generieren</label>
+        <input id="nGen" type="number" min="1" max="2000" value="300"/>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:10px">
+        <button id="btnGen" class="btn secondary">Generieren</button>
+        <div id="inferStats" class="muted"></div>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="muted" style="margin-bottom:6px">Ausgabe</div>
+      <div id="out" 
+class="mono" style="white-space:pre-wrap;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Perplexity & Log</h3>
+    <div id="metrics" class="muted" style="margin-bottom:8px"></div>
+    <div id="log" class="log">[Log bereit]</div>
+  </div>
+</div>
+
+<script>
+/* ============ Helpers & UI ============ */
+const $ = id => document.getElementById(id);
+function logLine(msg){ const el=$('log'); el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v));
+}
+
+/* ============ Byte-Level BPE (klein & schnell) ============ */
+/* Startalphabet: Byte 0..255 + BOS/EOS/Specials */
+const BOS=256, EOS=257;
+// reserviert
+function textToBytes(str){ return new TextEncoder().encode(str); }
+function bytesToText(bytes){ return new TextDecoder().decode(bytes);
+}
+
+/* Train BPE: sehr einfache, schnelle Implementierung: zählt häufigste Paare iterativ */
+async function trainBPE(rawText, vocabSize=1000){
+  const bytes = textToBytes(rawText);
+// initial tokens = einzelne Bytes
+  let seq = Array.from(bytes);
+// große Sequenz
+  // Append EOS optional (nicht zwingend)
+  // seq.push(EOS);
+
+  const baseVocab = 258;
+// 0..255 + BOS/EOS
+  let nextId = baseVocab;
+  const merges = [];
+// [{a,b,id}]
+  const pair2id = new Map();   // "a,b" -> id
+
+  function countPairs(sequence){
+    const counts = new Map();
+for(let i=0;i<sequence.length-1;i++){
+      const a=sequence[i], b=sequence[i+1];
+      const key = a+','+b;
+      counts.set(key, (counts.get(key)||0)+1);
+}
+    return counts;
+  }
+
+  function applyBestPair(sequence, bestA, bestB, newId){
+    const out = [];
+for(let i=0;i<sequence.length;){
+      if(i<sequence.length-1 && sequence[i]===bestA && sequence[i+1]===bestB){
+        out.push(newId);
+i+=2;
+      } else { out.push(sequence[i]); i+=1; }
+    }
+    return out;
+}
+
+  const targetVocab = Math.max(baseVocab+10, Math.min(vocabSize, 4096));
+  for(let step=0; step< (targetVocab - baseVocab); step++){
+    // yield UI
+    if((step & 7)===0) await new Promise(r=>setTimeout(r,0));
+const counts = countPairs(seq);
+    if(counts.size===0) break;
+    // beste Paarwahl
+    let bestKey=null, bestCnt=0;
+for(const [k,c] of counts){
+      if(c>bestCnt){ bestCnt=c; bestKey=k;
+}
+    }
+    if(!bestKey) break;
+    const [aStr,bStr] = bestKey.split(',');
+    const a=parseInt(aStr,10), b=parseInt(bStr,10);
+const id = nextId++;
+    merges.push({a,b,id});
+    pair2id.set(bestKey,id);
+    seq = applyBestPair(seq,a,b,id);
+    if((step & 7)===0){ logLine(`BPE merge ${step+1}: (${a},${b}) -> ${id} (count=${bestCnt})`);
+}
+  }
+
+  // Build encode/decode
+  function encode(str, addBos=false, addEos=false){
+    const arr = Array.from(textToBytes(str));
+let tokens = arr;
+    // greedy merges (apply by rank order)
+    for(const m of merges){
+      const {a,b,id} = m;
+const out = [];
+      for(let i=0;i<tokens.length;){
+        if(i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){
+          out.push(id);
+i+=2;
+        } else { out.push(tokens[i]); i++; }
+      }
+      tokens = out;
+}
+    if(addBos) tokens = [BOS, ...tokens];
+    if(addEos) tokens = [...tokens, EOS];
+    return tokens;
+}
+  function decode(tokens){
+    // naive: wir expandieren merges rückwärts (IDs > 257)
+    const id2pair = new Map(merges.map(m=>[m.id,[m.a,m.b]]));
+// expand
+    function expand(id){
+      if(id < 256) return [id];
+if(id===BOS || id===EOS) return []; // optional ignorieren
+      const pr = id2pair.get(id);
+      if(!pr) return [];
+const left = expand(pr[0]);
+      const right= expand(pr[1]);
+      return left.concat(right);
+    }
+    let bytes=[];
+for(const t of tokens){
+      if(t<256){ bytes.push(t);
+}
+      else{
+        bytes = bytes.concat(expand(t));
+}
+    }
+    return bytesToText(Uint8Array.from(bytes));
+  }
+
+  const vocabSizeFinal = nextId;
+  logLine(`BPE fertig. Vokabular=${vocabSizeFinal}`);
+return {encode, decode, vocabSize: vocabSizeFinal, merges};
+}
+
+/* ============ Datensätze (Token-Sequenzen) ============ */
+function buildStarts(tokens, T, valPct){
+  const N = tokens.length;
+const usable = Math.max(0, N - (T+1));
+  const all = new Uint32Array(usable);
+  for(let i=0;i<usable;i++) all[i]=i;
+  const valN = Math.floor(usable*(valPct/100));
+const trainN = usable - valN;
+  return {train: all.slice(0,trainN), val: all.slice(trainN)};
+}
+function sampleBatch(starts, tokens, B, T){
+  const X = new Int32Array(B*T);
+  const Y = new Int32Array(B*T);
+  const n=starts.length;
+for(let b=0;b<B;b++){
+    const s = starts[(Math.random()*n)|0];
+    for(let t=0;t<T;t++){
+      X[b*T+t]=tokens[s+t];
+      Y[b*T+t]=tokens[s+t+1];
+}
+  }
+  return {X,Y};
+}
+
+/* ============ MiniGPT: Decoder-Transformer in tf.js ============ */
+function rmsNorm(x, gamma, eps=1e-5){
+  // x: [B,T,d], gamma: [d]
+  const meanSq = tf.mean(tf.square(x), -1, true);
+// [B,T,1]
+  const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps)));
+  return tf.mul(xhat, gamma);
+}
+function sinusoidalPositionalEncoding(T, d){
+  const pos = tf.range(0, T, 1, 'float32');
+// [T]
+  const i = tf.range(0, d, 1, 'float32');   // [d]
+  const half = Math.floor(d/2);
+const i2 = tf.range(0, half, 1, 'float32');
+  const div = tf.exp(tf.mul(i2, tf.scalar(-Math.log(10000.0)/(half-1))));
+  const ang = tf.outerProduct(pos, div);
+// [T,half]
+  const sin = tf.sin(ang), cos=tf.cos(ang);
+  let pe = tf.concat([sin, cos], -1);
+// [T, 2*half]
+  if(2*half < d){
+    const pad = tf.zeros([T, d-2*half]);
+    pe = tf.concat([pe, pad], -1);
+}
+  return pe; // [T,d]
+}
+function splitHeads(x, nHeads){
+  // x: [B,T,d] -> [B,nH,T,dh]
+  const [B,T,d] = x.shape;
+const dh = d/nHeads;
+  return x.reshape([B,T,nHeads,dh]).transpose([0,2,1,3]);
+}
+function combineHeads(x){
+  // x: [B,nH,T,dh] -> [B,T,d]
+  const [B,nH,T,dh] = x.shape;
+return x.transpose([0,2,1,3]).reshape([B,T,nH*dh]);
+}
+function causalMask(T){
+  // [1,1,T,T] with -1e9 above diagonal
+  const m = tf.buffer([T,T],'float3BPE merge 2');
+for(let i=0;i<T;i++) for(let j=0;j<T;j++) m.set(j<=i?0:-1e9,i,j);
+  const M = tf.tensor(m.toTensor().arraySync()); // allocate once
+  return M.reshape([1,1,T,T]);
+}
+function softmaxCEfromLogits(logits, targets){
+  // logits: [B,T,V], targets: [B,T] int
+  const [B,T,V] = logits.shape;
+  const l2d = logits.reshape([B*T,V]);
+const y = targets.flatten().asType('int32');
+  const idx = tf.stack([tf.range(0,B*T,'int32'), y], 1); // [BT,2]
+  const picked = l2d.gatherND(idx);
+// [BT]
+  const lse = tf.logSumExp(l2d, -1); // [BT]
+  const nll = tf.neg(tf.sub(picked, lse));
+// [BT]
+  return tf.mean(nll);
+}
+
+/* ====== Modell-Factory ====== */
+function buildModel(cfg){
+  const {
+    V, dModel, nHeads, dFF, nLayers, T, weightTying, dropoutTrain
+  } = cfg;
+// Variablen
+  const E = tf.variable(tf.randomNormal([V, dModel], 0, 0.02, 'float32')); // Token Embeddings
+  const pe = sinusoidalPositionalEncoding(T, dModel);
+// [T,d], konstant
+  const mask = causalMask(T); // [1,1,T,T]
+
+  const layers = [];
+for(let l=0;l<nLayers;l++){
+    layers.push({
+      // norms
+      g1: tf.variable(tf.ones([dModel])),
+      g2: tf.variable(tf.ones([dModel])),
+      // attention
+      Wq: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
+      Wk: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
+      Wv: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
+      Wo: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
+      // mlp
+      W1: tf.variable(tf.randomNormal([dModel,dFF],0,Math.sqrt(2/(dModel+dFF)))),
+      b1: tf.variable(tf.zeros([dFF])),
+      W2: tf.variable(tf.randomNormal([dFF,dModel],0,Math.sqrt(2/(dFF+dModel)))),
+      b2: tf.variable(tf.zeros([dModel])),
+    
+});
+  }
+  const bout = tf.variable(tf.zeros([V])); // Output Bias
+
+  const params = {E, layers, bout, pe, mask, cfg};
+function dropout(x, rate){
+    if(!dropoutTrain || rate<=0) return x;
+    const keep = 1-rate;
+    const m = tf.randomUniform(x.shape,'float32').greater(tf.scalar(rate)).toFloat();
+return tf.mul(x, tf.div(m, tf.scalar(keep)));
+  }
+
+  function forward(ids, training=true){
+    // ids: Int32 [B,T]
+    const B = ids.shape[0];
+const Tcur = ids.shape[1];
+
+    // Embedding-Gather: [B,T,d]
+    const flat = ids.flatten();
+// [B*T]
+    const emb = tf.gather(params.E, flat).reshape([B,Tcur,dModel]);
+    let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
+for(const L of params.layers){
+      // PreNorm + Attention
+      let h = rmsNorm(x, L.g1);
+// Q,K,V
+      const Q = h.matMul(L.Wq);
+      const K = h.matMul(L.Wk);
+      const Vv= h.matMul(L.Wv);
+let q = splitHeads(Q, nHeads);
+      let k = splitHeads(K, nHeads);
+      let v = splitHeads(Vv,nHeads);
+// scores: [B,nH,T,T]
+      const dk = Math.sqrt(dModel/nHeads);
+      let scores = tf.matMul(q, k, false, true).div(dk).add(params.mask.slice([0,0,0,0],[1,1,Tcur,Tcur]));
+let attn = tf.softmax(scores, -1);
+      let ctx = tf.matMul(attn, v);
+// [B,nH,T,dh]
+      let attnOut = combineHeads(ctx).matMul(L.Wo);
+      x = x.add(dropout(attnOut, 0.1));
+// PreNorm + MLP (SiLU)
+      let h2 = rmsNorm(x, L.g2);
+      let mlp = h2.matMul(L.W1).add(L.b1);
+mlp = tf.mul(mlp, tf.sigmoid(mlp)); // SiLU: x*sigmoid(x)
+      mlp = mlp.matMul(L.W2).add(L.b2);
+      x = x.add(dropout(mlp, 0.1));
+}
+
+    // Output logits: [B,T,V] — Weight Tying (E^T)
+    const logits = tf.matMul(x, params.E, false, true).add(params.bout);
+return logits;
+  }
+
+  function variables(){
+    const vs = [E, bout];
+for(const L of layers){
+      vs.push(L.g1,L.g2,L.Wq,L.Wk,L.Wv,L.Wo,L.W1,L.b1,L.W2,L.b2);
+    }
+    return vs;
+}
+
+  return {params, forward, variables};
+}
+
+/* ============ Training Loop ============ */
+let MODEL=null, TOK=null, TOK_DECODE=null, TOKENS=null;
+async function setupBackend(preferGPU=true){
+  if(preferGPU && tf.engine().registryFactory['webgpu']){
+    await tf.setBackend('webgpu');
+  }else if(tf.engine().registryFactory['webgl']){
+    await tf.setBackend('webgl');
+}else{
+    await tf.setBackend('cpu');
+  }
+  await tf.ready();
+  logLine(`Backend: ${tf.getBackend()}`);
+}
+
+function buildTokenData(encode, raw, T, valSplit){
+  const ids = encode(raw, true, true); // BOS/EOS
+  TOKENS = new Uint32Array(ids);
+const starts = buildStarts(TOKENS, T, valSplit);
+  return starts;
+}
+
+async function train(){
+  const preferGPU = $('useGPU').checked;
+  await setupBackend(preferGPU);
+const raw = $('txt').value || '';
+  if(!raw.trim()){ logLine('Fehler: Kein Text.'); return; }
+
+  const vocabSize = clamp(parseInt($('vocabSize').value,10), 300, 4096);
+const epochs = clamp(parseInt($('epochs').value,10), 1, 40);
+  let lr = clamp(parseFloat($('lr').value), 0.00005, 0.02);
+  const T = clamp(parseInt($('seqLen').value,10), 64, 768);
+const B = clamp(parseInt($('batch').value,10), 8, 128);
+  const stepCap = clamp(parseInt($('stepCap').value,10), 0, 50000);
+  const valSplit = clamp(parseInt($('valSplit').value,10), 0, 30);
+const L = clamp(parseInt($('layers').value,10), 1, 8);
+  const dModel = clamp(parseInt($('dModel').value,10), 64, 512);
+  const nHeads = clamp(parseInt($('nHeads').value,10), 1, 8);
+const dFF = clamp(parseInt($('dFF').value,10), 128, 2048);
+  const weightTying = $('weightTying').checked;
+  const dropoutTrain = $('useDropout').checked;
+  const autoLR = $('autoLR').checked;
+$('btnTrain').disabled = true; $('spin').style.display='inline-block'; $('trainText').textContent='Trainiere …';
+  try{
+    logLine('BPE-Training …');
+    const bpe = await trainBPE(raw, vocabSize);
+TOK = bpe.encode; TOK_DECODE = bpe.decode;
+    const V = bpe.vocabSize;
+    logLine(`Tokenizer ok. V=${V}`);
+
+    const starts = buildTokenData(TOK, raw, T, valSplit);
+const trainStarts = starts.train, valStarts = starts.val;
+    const rawSteps = Math.max(1, Math.floor(trainStarts.length / B));
+    const stepsPerEpoch = stepCap>0 ?
+Math.min(stepCap, rawSteps) : rawSteps;
+
+    $('stats').textContent = `V=${V} • T=${T} • B=${B} • L=${L} • d=${dModel} • h=${nHeads} • dFF=${dFF} • Steps/Ep=${stepsPerEpoch}`;
+// Modell
+    MODEL = buildModel({V,dModel,nHeads,dFF,nLayers:L,T,weightTying,dropoutTrain});
+    const optim = tf.train.adam(lr, 0.9, 0.999, 1e-8);
+
+    let bestPPL=Infinity, bad=0;
+for(let ep=0; ep<epochs; ep++){
+      const t0 = performance.now();
+      let lossAcc=0;
+for(let s=0;s<stepsPerEpoch;s++){
+        const {X,Y} = sampleBatch(trainStarts, TOKENS, B, T);
+        
+        // ================== START FIX ==================
+        // The tensor returned by tidy() must be manually disposed.
+        // Chaining .data() leaks the tensor, causing an OOM crash.
+        const lossTensor = tf.tidy(()=> {
+          const x = tf.tensor2d(X, [B,T], 'int32');
+          const y = tf.tensor2d(Y, [B,T], 'int32');
+          const vars = MODEL.variables();
+          const ret = tf.variableGrads(()=>{
+            const logits = MODEL.forward(x, true); // [B,T,V]
+            const ce = softmaxCEfromLogits(logits, y); // Pass tensor directly
+  
+                  return ce;
+          }, vars);
+          // Apply grads
+          optim.applyGradients(ret.grads);
+          // cleanup grads
+          Object.values(ret.grads).forEach(g=>g.dispose());
+          return ret.value;
+        });
+        
+        const lossData = await lossTensor.data();
+        lossAcc += lossData[0];
+        lossTensor.dispose();
+        // =================== END FIX ===================
+        
+        if((s & 7)===0) await new Promise(r=>setTimeout(r,0));
+      }
+      const t1 = performance.now();
+// Eval PPL
+      const evalSteps = Math.min(40, Math.max(1, Math.floor(valStarts.length / Math.max(1, Math.min(B,32)))));
+      let nll=0, tok=0;
+for(let es=0; es<evalSteps; es++){
+        const {X,Y} = sampleBatch(valStarts, TOKENS, Math.min(B,32), T);
+const ce = tf.tidy(()=>{
+          const x=tf.tensor2d(X,[Math.min(B,32),T],'int32');
+          const y=tf.tensor2d(Y,[Math.min(B,32),T],'int32');
+          const logits = MODEL.forward(x,false);
+          return softmaxCEfromLogits(logits, y);
+        });
+const v = (await ce.data())[0]; ce.dispose(); // This was already correct
+        nll += v * (Math.min(B,32)*T);
+        tok += (Math.min(B,32)*T);
+        await new Promise(r=>setTimeout(r,0));
+}
+      const ppl = Math.exp(nll/Math.max(1,tok));
+      const tokCount = stepsPerEpoch * B * T;
+const tokps = tokCount / Math.max(0.001, (t1-t0)/1000);
+      $('metrics').innerHTML = `<b>Epoche ${ep+1}/${epochs}</b> &nbsp; Loss=${(lossAcc/stepsPerEpoch).toFixed(4)} &nbsp; PPL=${ppl.toFixed(2)} &nbsp; ~Tok/s=${tokps.toFixed(0)} &nbsp; LR=${lr.toFixed(5)}`;
+logLine(`Ep ${ep+1}/${epochs}: loss=${(lossAcc/stepsPerEpoch).toFixed(4)} | PPL=${ppl.toFixed(2)} | steps=${stepsPerEpoch}/${rawSteps} | ${(t1-t0).toFixed(0)}ms | ~${tokps.toFixed(0)} tok/s`);
+// Auto-LR
+      if(autoLR){
+        if(ppl + 0.01 < bestPPL){ bestPPL=ppl;
+bad=0; }
+        else { bad++; if(bad>=2 && lr>1e-4){ lr=Math.max(1e-4, lr*0.5); optim.setLearningRate(lr); bad=0;
+logLine(`Auto-LR → ${lr.toFixed(6)}`);} }
+      }
+      await new Promise(r=>setTimeout(r,0));
+}
+    logLine('Training abgeschlossen.');
+  } catch(e){
+    console.error(e); logLine('Fehler: '+(e?.message||e));
+} finally {
+    $('btnTrain').disabled = false; $('spin').style.display='none'; $('trainText').textContent='Training starten';
+}
+}
+
+/* ============ Inference ============ */
+function sampleFromProbs(p, mode, topK, topP, temp){
+  // temperature
+  const t = clamp(temp, 0.1, 2.0);
+const logp = p.map(x=>Math.log(x+1e-20)/t);
+  const maxv = Math.max(...logp);
+  const probs = logp.map(v=>Math.exp(v-maxv));
+  let Z = probs.reduce((a,b)=>a+b,0); for(let i=0;i<probs.length;i++) probs[i]/=Z;
+const order = Array.from(probs.keys()).sort((a,b)=>probs[b]-probs[a]);
+
+  if(mode==='topk'){
+    const K = Math.max(1, Math.min(topK, probs.length));
+    const keep = order.slice(0,K);
+    let s=0;
+for(const i of keep) s+=probs[i];
+    let r=Math.random()*s;
+    for(const i of keep){ r-=probs[i]; if(r<=0) return i;
+}
+    return keep[keep.length-1];
+  } else {
+    const pth = clamp(topP, 0.05, 1.0);
+let cum=0, keep=[];
+    for(const i of order){ keep.push(i); cum+=probs[i]; if(cum>=pth) break; }
+    let s=0;
+for(const i of keep) s+=probs[i];
+    let r=Math.random()*s;
+    for(const i of keep){ r-=probs[i]; if(r<=0) return i;
+}
+    return keep[keep.length-1];
+  }
+}
+
+async function generate(){
+  if(!MODEL || !TOK){ logLine('Bitte zuerst trainieren.'); return;
+}
+  const mode = $('sampleMode').value; const topK = parseInt($('topK').value,10); const topP=parseFloat($('topP').value);
+  const temp = parseFloat($('temp').value); const nGen = parseInt($('nGen').value,10);
+const T = parseInt($('seqLen').value,10);
+
+  const prompt = $('prompt').value || '';
+  let ctx = TOK(prompt, true, false);
+// BOS + prompt
+  const t0 = performance.now();
+
+  let outTokens = [];
+for(let step=0; step<nGen; step++){
+    // limit to last T
+    const ctxSlice = ctx.slice(-T);
+const B=1, len=ctxSlice.length;
+    const padLen = T - len;
+    const inp = (padLen>0) ? (new Int32Array([...Array(padLen).fill(BOS), ...ctxSlice])) : new Int32Array(ctxSlice);
+const logits = tf.tidy(()=> {
+      const x=tf.tensor2d(inp,[B,T],'int32');
+      return MODEL.forward(x,false); // [1,T,V]
+    });
+const last = (await logits.slice([0,T-1,0],[1,1,MODEL.params.cfg.V]).array())[0][0];
+    logits.dispose(); // This was already correct
+    // softmax
+    const maxv = Math.max(...last);
+    const probs = last.map(v=>Math.exp(v-maxv));
+let Z = probs.reduce((a,b)=>a+b,0); for(let i=0;i<probs.length;i++) probs[i]/=Z;
+
+    const nxt = sampleFromProbs(probs, mode, topK, topP, temp);
+    ctx.push(nxt); outTokens.push(nxt);
+if((step & 31)===0) await new Promise(r=>setTimeout(r,0));
+  }
+  const t1 = performance.now();
+  $('inferStats').textContent = `Latenz ${(t1-t0).toFixed(1)} ms`;
+const text = TOK_DECODE(outTokens);
+  $('out').textContent = prompt + text;
+  logLine(`Generiert ${outTokens.length} Tokens (${(t1-t0).toFixed(0)} ms).`);
+}
+
+/* ============ Wire UI ============ */
+window.addEventListener('load', ()=>{
+  $('btnTrain').addEventListener('click', train);
+  $('btnGen').addEventListener('click', generate);
+  $('sampleMode').addEventListener('change', ()=>{
+    const m=$('sampleMode').value;
+    $('topK').disabled = (m!=='topk'); $('topP').disabled=(m!=='topp');
+  });
+});
+</script>
+</body>
+</html>
