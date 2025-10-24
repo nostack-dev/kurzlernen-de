@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>NanoRNN V7.1 — Char-GRU Sprachmodell (Browser, KISS, Mobile-tauglich)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .spinner{border:4px solid rgba(0,0,0,.1);border-left-color:#4f46e5;border-radius:50%;width:20px;height:20px;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:0 6px}
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <header class="mb-6">
+    <h1 class="text-3xl font-bold">NanoRNN V7.1 — Char-GRU Sprachmodell</h1>
+    <p class="text-indigo-600 font-semibold mt-1">
+      Embedding → <b>GRU</b> (geteilt über Zeit) → Softmax • Adam • Grad-Clip • Perplexity • Top-k/Top-p/Temperatur • Step-Cap (mobil)
+    </p>
+  </header>
+
+  <!-- Training -->
+  <section class="bg-white shadow rounded-lg p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-3">1) Training – Text einfügen & starten</h2>
+    <p class="text-sm text-gray-600 mb-2">
+      Füge beliebig viel Text per Copy-Paste ein (z. B. Shakespeare). Zeichen-basiert ⇒ kein OOV.
+    </p>
+    <textarea id="trainingData" class="w-full h-56 p-3 border rounded-lg mono" placeholder="Beispiel:
+To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer..."></textarea>
+
+    <div class="grid sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Seq-Länge (T)</label>
+        <input id="inpT" type="number" min="16" max="256" step="8" value="128" class="w-full border rounded p-2"/>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Emb-Dim (D)</label>
+        <input id="inpD" type="number" min="8" max="128" step="8" value="32" class="w-full border rounded p-2"/>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Hidden (H)</label>
+        <input id="inpH" type="number" min="32" max="512" step="32" value="128" class="w-full border rounded p-2"/>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Epochen</label>
+        <input id="inpEpochs" type="number" min="1" max="20" step="1" value="4" class="w-full border rounded p-2"/>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Batch-Größe</label>
+        <input id="inpBatch" type="number" min="8" max="128" step="8" value="32" class="w-full border rounded p-2"/>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">LR (Adam)</label>
+        <input id="inpLR" type="number" min="0.0001" max="0.05" step="0.0001" value="0.002" class="w-full border rounded p-2"/>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input id="inpNormalize" type="checkbox" class="h-5 w-5" checked/>
+        <label class="text-sm text-gray-700">Unicode normalisieren (NFKC)</label>
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="inpValSplit" type="number" min="0" max="30" step="1" value="10" class="w-20 border rounded p-2"/>
+        <label class="text-sm text-gray-700">Eval-Split %</label>
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="inpClip" type="number" min="0.0" max="5.0" step="0.1" value="1.0" class="w-24 border rounded p-2"/>
+        <label class="text-sm text-gray-700">Grad-Clip L2</label>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Max Steps/Epoche (0=auto)</label>
+        <input id="inpStepCap" type="number" min="0" max="50000" step="100" value="900" class="w-full border rounded p-2"/>
+      </div>
+    </div>
+
+    <div class="mt-4 flex flex-col sm:flex-row gap-3">
+      <button id="btnTrain" class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded">
+        <span id="btnTrainText">Training starten</span>
+        <span id="spinTrain" class="spinner hidden ml-3"></span>
+      </button>
+      <div id="trainStats" class="text-sm text-gray-600 self-center"></div>
+    </div>
+  </section>
+
+  <!-- Inference -->
+  <section class="bg-white shadow rounded-lg p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-3">2) Inferenz – Generieren</h2>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <textarea id="prompt" class="w-full border rounded p-3" rows="3" placeholder="Prompt (z. B. 'To be, or not to be')"></textarea>
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label class="block text-xs text-gray-600 mb-1">Top-k</label>
+          <input id="inpTopK" type="number" min="1" max="200" step="1" value="50" class="w-full border rounded p-2"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-600 mb-1">Top-p</label>
+          <input id="inpTopP" type="number" min="0.05" max="1.0" step="0.05" value="0.9" class="w-full border rounded p-2"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-600 mb-1">Temp</label>
+          <input id="inpTemp" type="number" min="0.1" max="2.0" step="0.1" value="0.9" class="w-full border rounded p-2"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-600 mb-1">Tokens</label>
+          <input id="inpNTokens" type="number" min="1" max="2000" step="1" value="300" class="w-full border rounded p-2"/>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 flex gap-3">
+      <button id="btnGen" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded">Generieren</button>
+      <div id="inferStats" class="text-sm text-gray-600 self-center"></div>
+    </div>
+    <div class="mt-4">
+      <h3 class="font-semibold">Ergebnis</h3>
+      <div id="outText" class="p-3 border rounded bg-gray-50 min-h-[48px] whitespace-pre-wrap"></div>
+      <div class="text-xs text-gray-500 mt-2">Tipp: <span class="kbd">Shift</span> + <span class="kbd">Enter</span> fügt im Prompt Zeilenumbruch ein.</div>
+    </div>
+  </section>
+
+  <!-- Metrics & Log -->
+  <section class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-xl font-semibold mb-3">Perplexity & Log</h2>
+    <div id="metrics" class="text-sm text-gray-800 mb-3"></div>
+    <div id="log" class="h-64 overflow-y-auto p-3 bg-gray-900 text-gray-200 text-xs rounded mono">
+      Willkommen. Paste Text & starte das Training.
+    </div>
+  </section>
+</div>
+
+<script>
+  /***********************
+   * Utilities
+   ***********************/
+  const $ = id => document.getElementById(id);
+  function logMsg(m){ $('log').textContent = `[${new Date().toLocaleTimeString()}] ${m}\n` + $('log').textContent; }
+  function nfkc(s){ try{ return s.normalize('NFKC'); }catch{ return s; } }
+  function clampInt(v, lo, hi, d){ v=parseInt(v,10); if(Number.isNaN(v)) v=d; return Math.max(lo, Math.min(hi, v)); }
+  function clampNum(v, lo, hi, d){ v=parseFloat(v); if(Number.isNaN(v)) v=d; return Math.max(lo, Math.min(hi, v)); }
+  function sigmoid(x){ return 1/(1+Math.exp(-x)); }
+
+  /***********************
+   * Data (char-level)
+   ***********************/
+  let T=128, D=32, H=128, EPOCHS=4, BATCH=32, LR=0.002, VAL_SPLIT=10, DO_NFKC=true, CLIP=1.0, STEP_CAP=900;
+
+  let idxArr=null;            // Uint16Array of char ids
+  let chars=[], char2idx=new Map();
+  let V=0;
+
+  let trainStarts=null, valStarts=null; // Uint32Array start indices for sequences
+  let trainCount=0, valCount=0;
+
+  function buildVocabAndData(raw){
+    const t = DO_NFKC ? nfkc(raw) : raw;
+    const cps = Array.from(t);
+    const set = new Set(cps);
+    chars = Array.from(set).sort();
+    V = chars.length;
+    char2idx.clear();
+    for(let i=0;i<V;i++) char2idx.set(chars[i], i);
+    const ids = new Uint16Array(cps.length);
+    for(let i=0;i<cps.length;i++) ids[i] = char2idx.get(cps[i]);
+    idxArr = ids;
+  }
+  function buildStarts(splitPct=10){
+    const N = idxArr.length;
+    const usable = Math.max(0, N - (T+1));
+    const starts = new Uint32Array(usable);
+    for(let i=0;i<usable;i++) starts[i] = i;
+    const valN = Math.floor(usable * (splitPct/100));
+    const trainN = usable - valN;
+    trainStarts = starts.slice(0, trainN);
+    valStarts   = starts.slice(trainN);
+    trainCount = trainN; valCount = valN;
+  }
+  function sampleBatchSeq(starts, count, Bsz){
+    const X = new Int32Array(Bsz * T);
+    const Y = new Int32Array(Bsz * T);
+    for(let b=0;b<Bsz;b++){
+      const s = starts[(Math.random()*count)|0];
+      for(let t0=0;t0<T;t0++){
+        X[b*T + t0] = idxArr[s + t0];
+        Y[b*T + t0] = idxArr[s + t0 + 1];
+      }
+    }
+    return {X,Y};
+  }
+
+  /***********************
+   * Parameters (GRU)
+   ***********************/
+  // Embedding
+  let E=null;          // (V,D)
+  // GRU gates: z, r, h~
+  let Wz=null, Uz=null, bz=null; // (H,D), (H,H), (H)
+  let Wr=null, Ur=null, br=null; // (H,D), (H,H), (H)
+  let Wh=null, Uh=null, bh=null; // (H,D), (H,H), (H)
+  // Output
+  let Wout=null, bout=null;      // (H,V), (V)
+
+  // Adam states
+  let mE,vE, mWz,vWz,mUz,vUz,mbz,vbz, mWr,vWr,mUr,vUr,mbr,vbr, mWh,vWh,mUh,vUh,mbh,vbh, mWo,vWo,mbo,vbo;
+  const B1=0.9, B2=0.999, EPS=1e-8; let tAdam=0;
+
+  // Workspace (GC-Reduktion)
+  let WS = null; // will hold H- & D-sized scratch buffers
+  let PROBS_TMP = null; // V-sized reusable probs buffer for inference
+
+  function ensureWorkspace(){
+    if(!WS || WS.H !== H || WS.D !== D){
+      WS = {
+        H, D,
+        dz: new Float32Array(H),
+        dht: new Float32Array(H),
+        da: new Float32Array(H),
+        u: new Float32Array(H),
+        dr: new Float32Array(H),
+        drdb: new Float32Array(H),
+        dzdc: new Float32Array(H),
+        dx: new Float32Array(D),
+        dh: new Float32Array(H),
+        dhprev: new Float32Array(H),
+        // forward single-step reuse
+        z: new Float32Array(H),
+        r: new Float32Array(H),
+        htil: new Float32Array(H),
+        hPrev: new Float32Array(H),
+        nextH: new Float32Array(H)
+      };
+    }
+    if(!PROBS_TMP || PROBS_TMP.length !== V){
+      PROBS_TMP = new Float64Array(V);
+    }
+  }
+
+  function randn(){ // Box-Muller
+    let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+    return Math.sqrt(-2.0*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+  function initParams(){
+    E   = new Float32Array(V*D); for(let i=0;i<E.length;i++) E[i] = 0.02*randn();
+    Wz  = new Float32Array(H*D); Uz=new Float32Array(H*H); bz=new Float32Array(H);
+    Wr  = new Float32Array(H*D); Ur=new Float32Array(H*H); br=new Float32Array(H);
+    Wh  = new Float32Array(H*D); Uh=new Float32Array(H*H); bh=new Float32Array(H);
+    Wout= new Float32Array(H*V); bout=new Float32Array(V);
+    const sxd = Math.sqrt(2/(D+H)), shh = Math.sqrt(2/(H+H)), sout=Math.sqrt(2/(H+V));
+    for(let i=0;i<Wz.length;i++) Wz[i]=sxd*randn();
+    for(let i=0;i<Wr.length;i++) Wr[i]=sxd*randn();
+    for(let i=0;i<Wh.length;i++) Wh[i]=sxd*randn();
+    for(let i=0;i<Uz.length;i++) Uz[i]=shh*randn();
+    for(let i=0;i<Ur.length;i++) Ur[i]=shh*randn();
+    for(let i=0;i<Uh.length;i++) Uh[i]=shh*randn();
+    for(let i=0;i<Wout.length;i++) Wout[i]=sout*randn();
+
+    // Adam states
+    mE=new Float32Array(E.length); vE=new Float32Array(E.length);
+    mWz=new Float32Array(Wz.length); vWz=new Float32Array(Wz.length);
+    mUz=new Float32Array(Uz.length); vUz=new Float32Array(Uz.length);
+    mbz=new Float32Array(bz.length); vbz=new Float32Array(bz.length);
+    mWr=new Float32Array(Wr.length); vWr=new Float32Array(Wr.length);
+    mUr=new Float32Array(Ur.length); vUr=new Float32Array(Ur.length);
+    mbr=new Float32Array(br.length); vbr=new Float32Array(br.length);
+    mWh=new Float32Array(Wh.length); vWh=new Float32Array(Wh.length);
+    mUh=new Float32Array(Uh.length); vUh=new Float32Array(Uh.length);
+    mbh=new Float32Array(bh.length); vbh=new Float32Array(bh.length);
+    mWo=new Float32Array(Wout.length); vWo=new Float32Array(Wout.length);
+    mbo=new Float32Array(bout.length); vbo=new Float32Array(bout.length);
+    tAdam=0;
+    ensureWorkspace();
+  }
+
+  /***********************
+   * Forward pass (store caches for BPTT)
+   ***********************/
+  function forwardGRU(X){ // X: (B*T) ints
+    const Bsz = X.length / T;
+    const Hs   = new Float32Array(Bsz*T*H); // hidden states
+    const Zs   = new Float32Array(Bsz*T*H);
+    const Rs   = new Float32Array(Bsz*T*H);
+    const Hbar = new Float32Array(Bsz*T*H);
+
+    for(let b=0;b<Bsz;b++){
+      // reuse workspace hPrev
+      for(let i=0;i<H;i++) WS.hPrev[i]=0;
+      for(let t0=0;t0<T;t0++){
+        const xId = X[b*T + t0];
+        const xoff = xId*D;
+        const hOff = (b*T + t0)*H;
+
+        // gates z,r
+        for(let i=0;i<H;i++){
+          let wzx=0, wrx=0;
+          for(let d0=0; d0<D; d0++){
+            const xv = E[xoff + d0];
+            wzx += Wz[i*D + d0]*xv;
+            wrx += Wr[i*D + d0]*xv;
+          }
+          let uzh=0, urh=0;
+          for(let j=0;j<H;j++){
+            const hp = WS.hPrev[j];
+            uzh += Uz[i*H + j]*hp;
+            urh += Ur[i*H + j]*hp;
+          }
+          const z = sigmoid(bz[i] + wzx + uzh);
+          const r = sigmoid(br[i] + wrx + urh);
+          Zs[hOff+i] = z;
+          Rs[hOff+i] = r;
+        }
+        // h~ and h
+        for(let i=0;i<H;i++){
+          let pre = bh[i];
+          let whx=0; for(let d0=0; d0<D; d0++){ whx += Wh[i*D + d0]*E[xoff + d0]; }
+          pre += whx;
+          let uhr=0; for(let j=0;j<H;j++){ uhr += Uh[i*H + j]*(Rs[hOff+j]*WS.hPrev[j]); }
+          pre += uhr;
+          const htil = Math.tanh(pre);
+          Hbar[hOff+i] = htil;
+        }
+        for(let i=0;i<H;i++){
+          const z = Zs[hOff+i], htil = Hbar[hOff+i];
+          const hv = (1 - z)*WS.hPrev[i] + z*htil;
+          Hs[hOff+i] = hv;
+        }
+        // move hprev
+        for(let i=0;i<H;i++) WS.hPrev[i] = Hs[hOff+i];
+      }
+    }
+    return {Hs,Zs,Rs,Hbar};
+  }
+
+  /***********************
+   * Backward pass + Adam update (workspace reused)
+   ***********************/
+  function softmaxProbs(logits){
+    let maxv=-1e9; for(let i=0;i<logits.length;i++){ if(logits[i]>maxv) maxv=logits[i]; }
+    let sum=0; for(let i=0;i<logits.length;i++){ const e=Math.exp(logits[i]-maxv); logits[i]=e; sum+=e; }
+    for(let i=0;i<logits.length;i++) logits[i]/=(sum+1e-12);
+  }
+
+  function backwardAndUpdate(X, Y, caches){
+    const {Hs,Zs,Rs,Hbar} = caches;
+    const Bsz = X.length / T;
+
+    // Grad buffers
+    const gE  = new Float32Array(E.length);
+    const gWz = new Float32Array(Wz.length), gUz=new Float32Array(Uz.length), gbz=new Float32Array(bz.length);
+    const gWr = new Float32Array(Wr.length), gUr=new Float32Array(Ur.length), gbr=new Float32Array(br.length);
+    const gWh = new Float32Array(Wh.length), gUh=new Float32Array(Uh.length), gbh=new Float32Array(bh.length);
+    const gWo = new Float32Array(Wout.length), gbo=new Float32Array(bout.length);
+
+    let totalNLL = 0;
+
+    // dh_next (B,H)
+    const dhNext = new Float32Array(Bsz*H);
+
+    // Reused local buffers
+    const dz=WS.dz, dht=WS.dht, da=WS.da, u=WS.u, dr=WS.dr, drdb=WS.drdb, dzdc=WS.dzdc, dx=WS.dx, dh=WS.dh, dhprev=WS.dhprev;
+
+    for(let b=0;b<Bsz;b++){
+      for(let t0=T-1;t0>=0;t0--){
+        const hOff = (b*T + t0)*H;
+        const hprevOff = (b*T + (t0-1))*H;
+        const xId = X[b*T + t0];
+        const xoff = xId*D;
+
+        // ---- Output layer ----
+        const logits = new Float32Array(V);
+        for(let v=0; v<V; v++){
+          let s=0; for(let j=0;j<H;j++){ s += Hs[hOff+j]*Wout[j*V + v]; }
+          logits[v] = s + bout[v];
+        }
+        softmaxProbs(logits);
+        const y = Y[b*T + t0];
+        totalNLL += -Math.log(logits[y] + 1e-12);
+        logits[y] -= 1.0; // now dLogits
+
+        for(let v=0; v<V; v++) gbo[v] += logits[v];
+        for(let j=0;j<H;j++){
+          const hj = Hs[hOff+j];
+          for(let v=0; v<V; v++){
+            gWo[j*V+v] += hj * logits[v];
+          }
+        }
+        // d h_t from output + dhNext
+        for(let j=0;j<H;j++){
+          let s=0;
+          for(let v=0; v<V; v++){ s += logits[v] * Wout[j*V + v]; }
+          dh[j] = s + dhNext[b*H + j];
+        }
+
+        // caches
+        const z = Zs.subarray(hOff, hOff+H);
+        const r = Rs.subarray(hOff, hOff+H);
+        const htil = Hbar.subarray(hOff, hOff+H);
+        const hprev = (t0>0) ? Hs.subarray(hprevOff, hprevOff+H) : null;
+
+        // dz, dhtilde
+        for(let i=0;i<H;i++){
+          dht[i] = dh[i] * z[i];
+          dz[i]  = dh[i] * (htil[i] - (hprev ? hprev[i] : 0));
+        }
+        // da = dht * (1 - htil^2)
+        for(let i=0;i<H;i++){
+          const hti = htil[i];
+          da[i] = dht[i] * (1 - hti*hti);
+        }
+
+        // u = Uh^T * da
+        for(let j=0;j<H;j++){
+          let s=0; for(let i=0;i<H;i++){ s += Uh[i*H + j] * da[i]; }
+          u[j] = s;
+        }
+        // dr = u ⊙ hprev
+        if(hprev){
+          for(let i=0;i<H;i++){ dr[i] = u[i] * hprev[i]; }
+        }else{
+          for(let i=0;i<H;i++) dr[i]=0;
+        }
+
+        // dr_db = dr ⊙ r ⊙ (1-r)
+        for(let i=0;i<H;i++){ const ri=r[i]; drdb[i] = dr[i]*ri*(1-ri); }
+        // dz_dc = dz ⊙ z ⊙ (1-z)
+        for(let i=0;i<H;i++){ const zi=z[i]; dzdc[i] = dz[i]*zi*(1-zi); }
+
+        // grads for Wh, Uh, bh
+        for(let i=0;i<H;i++){
+          const a = da[i];
+          if(a!==0){
+            for(let d0=0; d0<D; d0++){
+              gWh[i*D + d0] += a * E[xoff + d0];
+            }
+          }
+          gbh[i] += a;
+        }
+        for(let i=0;i<H;i++){
+          const a = da[i];
+          if(a!==0 && hprev){
+            for(let j=0;j<H;j++){
+              gUh[i*H + j] += a * (r[j] * hprev[j]);
+            }
+          }
+        }
+
+        // grads for Wz, Uz, bz
+        for(let i=0;i<H;i++){
+          const g = dzdc[i];
+          if(g!==0){
+            for(let d0=0; d0<D; d0++){
+              gWz[i*D + d0] += g * E[xoff + d0];
+            }
+            if(hprev){ for(let j=0;j<H;j++){ gUz[i*H + j] += g * hprev[j]; } }
+            gbz[i] += g;
+          }
+        }
+        // grads for Wr, Ur, br
+        for(let i=0;i<H;i++){
+          const g = drdb[i];
+          if(g!==0){
+            for(let d0=0; d0<D; d0++){
+              gWr[i*D + d0] += g * E[xoff + d0];
+            }
+            if(hprev){ for(let j=0;j<H;j++){ gUr[i*H + j] += g * hprev[j]; } }
+            gbr[i] += g;
+          }
+        }
+
+        // d x = Wz^T dzdc + Wr^T drdb + Wh^T da
+        for(let d0=0; d0<D; d0++){
+          let s=0;
+          for(let i=0;i<H;i++){
+            s += Wz[i*D + d0]*dzdc[i] + Wr[i*D + d0]*drdb[i] + Wh[i*D + d0]*da[i];
+          }
+          dx[d0] = s;
+        }
+        for(let d0=0; d0<D; d0++){
+          gE[xoff + d0] += dx[d0];
+        }
+
+        // d h_prev
+        if(hprev){
+          for(let i=0;i<H;i++){ dhprev[i] = dh[i] * (1 - z[i]); }
+          for(let i=0;i<H;i++){ dhprev[i] += u[i] * r[i]; }
+          for(let j=0;j<H;j++){
+            let s=0; for(let i=0;i<H;i++){ s += Ur[i*H + j]*drdb[i]; }
+            dhprev[j] += s;
+          }
+          for(let j=0;j<H;j++){
+            let s=0; for(let i=0;i<H;i++){ s += Uz[i*H + j]*dzdc[i]; }
+            dhprev[j] += s;
+          }
+          for(let j=0;j<H;j++){ dhNext[b*H + j] = dhprev[j]; }
+        }else{
+          for(let j=0;j<H;j++) dhNext[b*H + j] = 0;
+        }
+      } // time
+    } // batch
+
+    // ---- Grad clipping ----
+    let gsq=0;
+    function addNorm(arr){ for(let i=0;i<arr.length;i++){ const v=arr[i]; gsq+=v*v; } }
+    addNorm(gE); addNorm(gWz); addNorm(gUz); addNorm(gbz);
+    addNorm(gWr); addNorm(gUr); addNorm(gbr);
+    addNorm(gWh); addNorm(gUh); addNorm(gbh);
+    addNorm(gWo); addNorm(gbo);
+    const gnorm = Math.sqrt(gsq) + 1e-12;
+    const clip = Math.max(0.0, CLIP);
+    const scale = (clip>0 && gnorm>clip) ? (clip/gnorm) : 1.0;
+    if(scale !== 1.0){
+      function scaleArr(a){ for(let i=0;i<a.length;i++) a[i]*=scale; }
+      scaleArr(gE); scaleArr(gWz); scaleArr(gUz); scaleArr(gbz);
+      scaleArr(gWr); scaleArr(gUr); scaleArr(gbr);
+      scaleArr(gWh); scaleArr(gUh); scaleArr(gbh);
+      scaleArr(gWo); scaleArr(gbo);
+    }
+
+    // ---- Adam update ----
+    tAdam += 1;
+    const b1=B1,b2=B2;
+    const b1t=Math.pow(b1,tAdam), b2t=Math.pow(b2,tAdam);
+    const corr = Math.sqrt(1-b2t)/(1-b1t);
+    function adam(param, m, v, grad){
+      for(let i=0;i<param.length;i++){
+        const g = grad[i] / (X.length); // normalize by tokens in batch
+        m[i] = b1*m[i] + (1-b1)*g;
+        v[i] = b2*v[i] + (1-b2)*g*g;
+        param[i] -= LR * corr * (m[i]/(Math.sqrt(v[i])+EPS));
+      }
+    }
+    adam(E, mE, vE, gE);
+    adam(Wz,mWz,vWz,gWz); adam(Uz,mUz,vUz,gUz); adam(bz,mbz,vbz,gbz);
+    adam(Wr,mWr,vWr,gWr); adam(Ur,mUr,vUr,gUr); adam(br,mbr,vbr,gbr);
+    adam(Wh,mWh,vWh,gWh); adam(Uh,mUh,vUh,gUh); adam(bh,mbh,vbh,gbh);
+    adam(Wout,mWo,vWo,gWo); adam(bout,mbo,vbo,gbo);
+
+    const avgNLL = totalNLL / (X.length);
+    return avgNLL;
+  }
+
+  /***********************
+   * Evaluation Perplexity (no grads)
+   ***********************/
+  function evalPerplexity(maxBatches=60){
+    if(valCount===0) return NaN;
+    const Bsz = Math.min(BATCH, 32);
+    const steps = Math.min(maxBatches, Math.ceil(valCount/Bsz));
+    let totalNLL=0, totalTok=0;
+
+    // Reuse per-batch buffers
+    const Hcur = new Float32Array(Bsz*H);
+    const z = WS.z, r = WS.r, htil = WS.htil;
+
+    for(let step=0; step<steps; step++){
+      const {X,Y} = sampleBatchSeq(valStarts, valCount, Bsz);
+      // reset h
+      for(let i=0;i<Hcur.length;i++) Hcur[i]=0;
+
+      for(let t0=0; t0<T; t0++){
+        // GRU step
+        for(let b=0;b<Bsz;b++){
+          const xId = X[b*T + t0];
+          const xoff = xId*D;
+          const hoff = b*H;
+
+          for(let i=0;i<H;i++){
+            let wzx=0, wrx=0;
+            for(let d0=0; d0<D; d0++){
+              const xv = E[xoff + d0];
+              wzx += Wz[i*D + d0]*xv;
+              wrx += Wr[i*D + d0]*xv;
+            }
+            let uzh=0, urh=0;
+            for(let j=0;j<H;j++){
+              const hp = Hcur[hoff+j];
+              uzh += Uz[i*H + j]*hp;
+              urh += Ur[i*H + j]*hp;
+            }
+            z[i] = sigmoid(bz[i] + wzx + uzh);
+            r[i] = sigmoid(br[i] + wrx + urh);
+          }
+          for(let i=0;i<H;i++){
+            let pre = bh[i];
+            let whx=0; for(let d0=0; d0<D; d0++){ whx += Wh[i*D + d0]*E[xoff + d0]; }
+            pre += whx;
+            let uhr=0; for(let j=0;j<H;j++){ uhr += Uh[i*H + j]*(r[j]*Hcur[hoff+j]); }
+            pre += uhr;
+            htil[i] = Math.tanh(pre);
+          }
+          for(let i=0;i<H;i++){
+            Hcur[hoff+i] = (1 - z[i])*Hcur[hoff+i] + z[i]*htil[i];
+          }
+        }
+        // output & nll
+        for(let b=0;b<Bsz;b++){
+          const hoff=b*H;
+          const logits = new Float32Array(V);
+          for(let v=0; v<V; v++){
+            let s=0; for(let j=0;j<H;j++){ s += Hcur[hoff+j]*Wout[j*V + v]; }
+            logits[v] = s + bout[v];
+          }
+          softmaxProbs(logits);
+          const y = Y[b*T + t0];
+          totalNLL += -Math.log(logits[y] + 1e-12);
+          totalTok += 1;
+        }
+      }
+    }
+    const avg = totalNLL/Math.max(1,totalTok);
+    return Math.exp(avg);
+  }
+
+  /***********************
+   * Training loop (Step-Cap für Mobile)
+   ***********************/
+  async function handleTrain(){
+    const btn=$('btnTrain'), spin=$('spinTrain'), txt=$('btnTrainText'), stats=$('trainStats');
+    T = clampInt($('inpT').value, 16, 256, 128);
+    D = clampInt($('inpD').value, 8, 128, 32);
+    H = clampInt($('inpH').value, 32, 512, 128);
+    EPOCHS = clampInt($('inpEpochs').value, 1, 20, 4);
+    BATCH  = clampInt($('inpBatch').value, 8, 128, 32);
+    LR     = clampNum($('inpLR').value, 0.0001, 0.05, 0.002);
+    VAL_SPLIT = clampInt($('inpValSplit').value, 0, 30, 10);
+    DO_NFKC = !!$('inpNormalize').checked;
+    CLIP  = clampNum($('inpClip').value, 0.0, 5.0, 1.0);
+    STEP_CAP = clampInt($('inpStepCap').value, 0, 50000, 900);
+
+    btn.disabled=true; spin.classList.remove('hidden'); txt.textContent="Trainiere…";
+    logMsg("Training gestartet.");
+
+    try{
+      const raw = $('trainingData').value || "";
+      if(!raw.trim()){ logMsg("Fehler: Kein Trainings-Text."); return; }
+
+      logMsg("Daten vorbereiten …");
+      buildVocabAndData(raw);
+      buildStarts(VAL_SPLIT);
+      initParams();
+
+      stats.textContent = `T=${T}, D=${D}, H=${H}, V=${V}, B=${BATCH}, LR=${LR}, Clip=${CLIP}, StepCap=${STEP_CAP||"auto"}`;
+
+      const rawSteps = Math.max(1, Math.floor(trainCount / BATCH));
+      const stepsPerEpoch = (STEP_CAP && STEP_CAP>0) ? Math.min(rawSteps, STEP_CAP) : rawSteps;
+
+      for(let ep=0; ep<EPOCHS; ep++){
+        let lossAcc=0;
+        const t0 = performance.now();
+        for(let s=0; s<stepsPerEpoch; s++){
+          const {X,Y} = sampleBatchSeq(trainStarts, trainCount, BATCH);
+          const caches = forwardGRU(X);
+          const loss = backwardAndUpdate(X, Y, caches);
+          lossAcc += loss;
+          if((s & 0x07)===0) await new Promise(r=>setTimeout(r,0));
+        }
+        const t1 = performance.now();
+        const avgLoss = lossAcc/stepsPerEpoch;
+        const ppl = evalPerplexity(60);
+        const toks = stepsPerEpoch * BATCH * T;
+        const toksPerSec = toks / Math.max(0.001, (t1 - t0)/1000);
+        $('metrics').innerHTML = `<b>Train-Loss:</b> ${avgLoss.toFixed(4)} &nbsp; | &nbsp; <b>Eval-Perplexity:</b> ${isFinite(ppl)?ppl.toFixed(2):"∞"} &nbsp; | &nbsp; <b>Epoche:</b> ${ep+1}/${EPOCHS} &nbsp; | &nbsp; <b>~Tok/s:</b> ${toksPerSec.toFixed(0)}`;
+        logMsg(`Epoche ${ep+1}/${EPOCHS}: ⌀Loss=${avgLoss.toFixed(4)} | Eval-PPL=${isFinite(ppl)?ppl.toFixed(2):"∞"} | Steps=${stepsPerEpoch}/${rawSteps} | ~${toksPerSec.toFixed(0)} tok/s | ${(t1-t0).toFixed(0)} ms`);
+        await new Promise(r=>setTimeout(r,0));
+      }
+      logMsg("Training abgeschlossen.");
+    }catch(e){
+      console.error(e); logMsg("Fehler: "+(e?.message||e));
+    }finally{
+      btn.disabled=false; spin.classList.add('hidden'); txt.textContent="Training starten";
+    }
+  }
+
+  /***********************
+   * Inference (Top-k / Top-p / Temp)
+   ***********************/
+  function sampleFromProbs(probs, topK=50, topP=0.9, temp=0.9){
+    const t = Math.max(0.1, temp);
+    // reuse PROBS_TMP as working copy of log-probs
+    let maxv=-1e9;
+    for(let i=0;i<V;i++){ const v=Math.log(probs[i]+1e-20)/t; PROBS_TMP[i]=v; if(v>maxv) maxv=v; }
+    let sum=0; for(let i=0;i<V;i++){ const e=Math.exp(PROBS_TMP[i]-maxv); PROBS_TMP[i]=e; sum+=e; }
+    for(let i=0;i<V;i++) PROBS_TMP[i]/=(sum+1e-12);
+
+    const order = Array.from({length:V}, (_,i)=>i).sort((a,b)=>PROBS_TMP[b]-PROBS_TMP[a]);
+    let keep = order.slice(0, Math.min(topK, V));
+    if(topP<0.999){
+      let cum=0, arr=[];
+      for(const i of keep){ arr.push(i); cum+=PROBS_TMP[i]; if(cum>=topP) break; }
+      keep = arr;
+    }
+    let s2=0; for(const i of keep) s2+=PROBS_TMP[i];
+    let r=Math.random()*s2;
+    for(const i of keep){ r-=PROBS_TMP[i]; if(r<=0) return i; }
+    return keep[keep.length-1];
+  }
+
+  function stepGRU_single(xId, hPrev, hOut){
+    const xoff = xId*D;
+    const z = WS.z, r = WS.r;
+
+    for(let i=0;i<H;i++){
+      let wzx=0, wrx=0;
+      for(let d0=0; d0<D; d0++){
+        const xv = E[xoff + d0];
+        wzx += Wz[i*D + d0]*xv;
+        wrx += Wr[i*D + d0]*xv;
+      }
+      let uzh=0, urh=0;
+      for(let j=0;j<H;j++){
+        const hp = hPrev[j];
+        uzh += Uz[i*H + j]*hp;
+        urh += Ur[i*H + j]*hp;
+      }
+      z[i] = sigmoid(bz[i] + wzx + uzh);
+      r[i] = sigmoid(br[i] + wrx + urh);
+    }
+    for(let i=0;i<H;i++){
+      let pre = bh[i];
+      let whx=0; for(let d0=0; d0<D; d0++){ whx += Wh[i*D + d0]*E[xoff + d0]; }
+      pre += whx;
+      let uhr=0; for(let j=0;j<H;j++){ uhr += Uh[i*H + j]*(r[j]*hPrev[j]); }
+      pre += uhr;
+      const htil = Math.tanh(pre);
+      hOut[i] = (1 - z[i])*hPrev[i] + z[i]*htil;
+    }
+  }
+
+  function handleGenerate(){
+    if(!E || V===0){ logMsg("Fehler: Bitte zuerst trainieren."); return; }
+    const prompt = $('prompt').value || "";
+    const topK = clampInt($('inpTopK').value, 1, 200, 50);
+    const topP = clampNum($('inpTopP').value, 0.05, 1.0, 0.9);
+    const temp = clampNum($('inpTemp').value, 0.1, 2.0, 0.9);
+    const nTok = clampInt($('inpNTokens').value, 1, 2000, 300);
+
+    const p = DO_NFKC ? nfkc(prompt) : prompt;
+    const seed = Array.from(p).map(ch => char2idx.has(ch) ? char2idx.get(ch) : -1).filter(i=>i>=0);
+    const h = WS.hPrev; // reuse
+    for(let i=0;i<H;i++) h[i]=0;
+
+    // warm up
+    for(let i=0;i<seed.length;i++){
+      stepGRU_single(seed[i], h, WS.nextH);
+      for(let j=0;j<H;j++) h[j]=WS.nextH[j];
+    }
+
+    let curId = seed.length? seed[seed.length-1] : 0;
+
+    const t0 = performance.now();
+    const out = [];
+    for(let i=0;i<nTok;i++){
+      stepGRU_single(curId, h, WS.nextH);
+      for(let j=0;j<H;j++) h[j]=WS.nextH[j];
+
+      // logits -> probs
+      let maxv=-1e9;
+      for(let v=0; v<V; v++){
+        let s=0; for(let j=0;j<H;j++){ s += h[j]*Wout[j*V + v]; }
+        const logit = s + bout[v];
+        PROBS_TMP[v] = logit; if(logit>maxv) maxv=logit;
+      }
+      let sum=0;
+      for(let v=0; v<V; v++){ const e = Math.exp(PROBS_TMP[v]-maxv); PROBS_TMP[v]=e; sum+=e; }
+      for(let v=0; v<V; v++) PROBS_TMP[v]/=(sum+1e-12);
+
+      const nxt = sampleFromProbs(PROBS_TMP, topK, topP, temp);
+      out.push(nxt);
+      curId = nxt;
+
+      if((i & 0x3f)===0) {/*yield point*/}
+    }
+    const t1 = performance.now();
+    $('inferStats').textContent = `Latenz ${(t1-t0).toFixed(1)} ms`;
+    const outText = out.map(i=>chars[i]).join("");
+    $('outText').textContent = prompt + outText;
+    logMsg(`Generiert ${out.length} Zeichen.`);
+  }
+
+  /***********************
+   * UI wiring
+   ***********************/
+  window.addEventListener('load', ()=>{
+    $('btnTrain').addEventListener('click', handleTrain);
+    $('btnGen').addEventListener('click', handleGenerate);
+    $('prompt').addEventListener('keydown', e=>{
+      if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleGenerate(); }
+    });
+    logMsg("System initialisiert. Paste Text, dann Training starten.");
+  });
+</script>
+</body>
+</html>
