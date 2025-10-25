@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (ANTI-FREEZE FINAL)</title>
+  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, RACE-SAFE)</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
-
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -24,7 +23,6 @@
     .btn.secondary{background:#059669}
     .btn.grey{background:#6b7280}
     .btn.warn{background:#f59e0b}
-    .btn.red{background:#ef4444}
     .btn:disabled{opacity:.5;cursor:not-allowed}
     .log{height:200px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -33,16 +31,17 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     .kpi{display:flex;gap:10px;flex-wrap:wrap}
     .kpi div{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px}
+    .chip{display:inline-block;background:#eef2ff;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}
   </style>
 </head>
 <body>
 <div class="container">
   <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M)$ Lineare Skalierung)</h1>
-  <div class="muted mb-4">Prototyp: Lineares Linearmodell auf komprimierten Laut-Atomen.</div>
+  <div class="muted mb-4">Prototyp von <b>Christian Heinrich Hohlfeld</b> (Konstanz, Deutschland): <b>Lineares Linearmodell</b> auf komprimierten Laut-Atomen.</div>
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">1) Korpus & Atomizer (PhenomEncoder: $L \to M$)</h3>
-    <textarea id="txt" placeholder="Großen Textkorpus einfügen … (DE/EN)"></textarea>
+    <textarea id="txt" placeholder="Füge einen großen Textkorpus (Deutsch/Englisch) ein, um die Laut-Atome zu lernen. Beispiel: Der schnelle braune Fuchs springt über den faulen Hund. The quick brown fox jumps over the lazy dog."></textarea>
 
     <div class="row" style="margin-top:10px">
       <div>
@@ -84,7 +83,7 @@
 
     <div class="mt-2 flex flex-wrap gap-3 items-center">
       <label class="muted"><input id="useGPU" type="checkbox" checked/> WebGPU bevorzugen</label>
-      <label class="muted"><input id="weightTying" type="checkbox" checked/> Weight-Tying</label>
+      <label class="muted"><input id="weightTying" type="checkbox" checked/> Weight-Tying (Effizienz)</label>
       <label class="muted"><input id="useDropout" type="checkbox"/> Dropout 0.1</label>
       <label class="muted"><input id="autoLR" type="checkbox" checked/> Auto-LR</label>
     </div>
@@ -94,7 +93,6 @@
         <span id="trainText">3. Training starten</span>
         <span id="spin" class="spinner" style="display:none;margin-left:8px"></span>
       </button>
-      <button id="btnStop" class="btn red" disabled>Stop</button>
       <button id="btnSave" class="btn warn">Modell Speichern</button>
       <button id="btnLoad" class="btn secondary">Modell Laden</button>
       <div id="stats" class="muted"></div>
@@ -119,7 +117,6 @@
       <div><label>Tokens generieren</label><input id="nGen" type="number" min="1" max="2000" value="200"/></div>
       <div class="flex items-end gap-3">
         <button id="btnGen" class="btn secondary" disabled>Generieren</button>
-        <button id="btnStopGen" class="btn red" disabled>Stop</button>
         <div id="inferStats" class="muted"></div>
       </div>
     </div>
@@ -138,15 +135,41 @@
 </div>
 
 <script>
-/* =================== Anti-Freeze Helpers =================== */
+/* =================== Core Logic (FINAL, RACE-SAFE) =================== */
+
 const $ = id => document.getElementById(id);
 const MAX_LOG_CHARS = 100000;
 const BOS_ID = 0, EOS_ID = 1;
 const CKPT_DB_KEY = 'pho-compress-om-model';
-const META_KEY   = 'pho-compress-om-atomizer';
+const META_KEY   = 'pho-compress-om-atomizer'; // Achtung: keine NBSP!
 
-let CANCEL_TRAIN=false, CANCEL_GEN=false;
+/* ---- Simple Mutex & Named Locks (race-safe) ---- */
+class Mutex {
+  constructor(){ this._locked=false; this._waiters=[]; }
+  async lock(){
+    return new Promise(res=>{
+      if(!this._locked){ this._locked=true; res(this._release.bind(this)); }
+      else { this._waiters.push(res); }
+    });
+  }
+  _release(){
+    const next=this._waiters.shift();
+    if(next) next(this._release.bind(this));
+    else this._locked=false;
+  }
+}
+async function withLock(lock, fn){
+  const release = await lock.lock();
+  try { return await fn(); }
+  finally { release(); }
+}
+const modelLock    = new Mutex();   // train/save/load/generate
+const atomizerLock = new Mutex();   // BPE/IPA
+const persistLock  = new Mutex();   // IndexedDB I/O
+let modelRev = 0;
+let atomizerRev = 0;
 
+/* --- Helpers & UI --- */
 function logLine(msg){
   const el = $('log');
   const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
@@ -170,10 +193,8 @@ function setButtonState(id, disabled, text, showSpinner=false) {
   btn.disabled = !!disabled;
 
   if (id === 'btnTrain') {
-    if (text !== undefined && text !== null) {
-      const labelEl = btn.querySelector('span#trainText');
-      if (labelEl) labelEl.textContent = String(text);
-    }
+    const labelEl = btn.querySelector('span#trainText');
+    if (labelEl && text !== undefined && text !== null) labelEl.textContent = String(text);
     const spinEl = btn.querySelector('span#spin');
     if (spinEl) spinEl.style.display = showSpinner ? 'inline-block' : 'none';
   } else {
@@ -181,14 +202,7 @@ function setButtonState(id, disabled, text, showSpinner=false) {
   }
 }
 
-/* Micro-Yield: gibt UI/Renderer Zeit */
-async function microYield(){
-  // zweistufig: Eventloop + TF-Queue
-  await new Promise(r=>setTimeout(r,0));
-  await tf.nextFrame();
-}
-
-/* =================== Text ⇄ IPA =================== */
+/* --- Text ⇄ IPA --- */
 function g2pConvert(text){
   if(!text) return '';
   const words = (text.normalize('NFC').toLowerCase().match(/[a-zäöüß]+|[a-z]+|[0-9]+|[^\s]/gi) || []).map(w=>w.toString());
@@ -219,122 +233,132 @@ function g2pConvert(text){
 
 function ipa2text(ipa){
   if(!ipa) return '';
-  let s = ipa.replace(/[ːˑ˞̃]/g,'').replace(/[ˈˌ]/g,'');
-  s = s
-    .replace(/t͡ʃ/g,'tsch').replace(/d͡ʒ/g,'dsch').replace(/t͡s/g,'z')
-    .replace(/aʊ̯/g,'au').replace(/aɪ̯/g,'ei').replace(/ɔɪ̯/g,'eu')
-    .replace(/iː/g,'ie').replace(/eː/g,'ee').replace(/oː/g,'o').replace(/uː/g,'u')
-    .replace(/yː/g,'ü').replace(/øː/g,'ö').replace(/ɛː/g,'ä');
-  s = s
-    .replace(/ʃ/g,'sch').replace(/ʒ|ʝ/g,'j')
-    .replace(/ç|x|χ/g,'ch')
-    .replace(/ŋk/g,'nk').replace(/ŋ/g,'ng')
-    .replace(/ɡ|ɣ/g,'g')
-    .replace(/ɹ|ʁ/g,'r');
-  s = s
-    .replace(/ɐ/g,'er').replace(/ə/g,'e')
-    .replace(/æ/g,'ä').replace(/ɑ/g,'a')
-    .replace(/ɛ/g,'ä').replace(/e/g,'e')
-    .replace(/ɪ/g,'i').replace(/i/g,'i')
-    .replace(/ʊ/g,'u').replace(/u/g,'u')
-    .replace(/ɔ/g,'o').replace(/o/g,'o')
-    .replace(/y/g,'ü').replace(/ø|œ/g,'ö');
-  s = s.replace(/k[wv](?=[aäeioöuüy])/g,'qu')
-       .replace(/schsch/g,'sch')
-       .replace(/ks/g,'x')
-       .replace(/\s+/g,' ').trim();
+  const table = [
+    [/t͡ʃ/g,'tsch'], [/t͡s/g,'z'],
+    [/aʊ̯/g,'au'], [/aɪ̯/g,'ei'], [/ɔɪ̯/g,'eu'],
+    [/iː/g,'ie'], [/eː/g,'ee'], [/oː/g,'o'], [/uː/g,'u'],
+    [/yː/g,'ü'], [/øː/g,'ö'], [/ɛː/g,'ä'],
+    [/ɹ/g,'r'], [/ʁ/g,'r'],
+
+    [/ʃ/g,'sch'], [/ʒ/g,'j'], [/ʝ/g,'j'],
+    [/ç/g,'ch'], [/x/g,'ch'], [/χ/g,'ch'],
+    [/ŋk/g,'nk'], [/ŋ/g,'ng'],
+    [/ɡ/g,'g'], [/ɣ/g,'g'],
+    [/v/g,'w'], [/j/g,'y'],
+
+    [/ɐ/g,'er'], [/ə/g,'e'],
+    [/æ/g,'ä'], [/ɑ/g,'a'], [/a/g,'a'],
+    [/ɛ/g,'ä'], [/e/g,'e'],
+    [/ɪ/g,'i'], [/i/g,'i'],
+    [/ʊ/g,'u'], [/u/g,'u'],
+    [/ɔ/g,'o'], [/o/g,'o'],
+    [/y/g,'ü'], [/ø/g,'ö'], [/œ/g,'ö'],
+
+    [/[ːˑ˞̃]/g, ''],
+    /[ˈˌ]/g
+  ];
+  let s = ipa;
+  for (const rule of table) {
+    if (Array.isArray(rule)) s = s.replace(rule[0], rule[1]);
+    else s = s.replace(rule, '');
+  }
+  s = s.replace(/#TS#/g, 'ts');
+  s = s.replace(/kv(?=[aeiouäöüy])/g, 'qu');
+  s = s.replace(/schsch/g,'sch');
+  s = s.replace(/\s+/g,' ').trim();
   return s;
 }
 
-/* =================== BPE (asynchron, chunked) =================== */
-function strToCodepoints(str){ const arr=[]; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
+/* --- BPE auf IPA (ASYNCHRON) --- */
+function strToCodepoints(str){ const arr = []; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
 function codepointsToStr(arr){ return String.fromCharCode(...arr); }
 
-async function buildAtomBPE(rawIPA, targetVocab=512){
-  const cps = strToCodepoints(rawIPA);
-  const uniq = Array.from(new Set(cps.filter(x=>!Number.isNaN(x)))).sort((a,b)=>a-b);
-  const cp2id = new Map(); const id2cp = new Map();
-  let nextId = 2;
-  for (const c of uniq){ cp2id.set(c,nextId); id2cp.set(nextId,c); nextId++; }
-  let seq = cps.map(c => cp2id.get(c) ?? BOS_ID);
+function buildAtomBPE(rawIPA, targetVocab=512){
+  return new Promise(async (resolve) => {
+    const cps = strToCodepoints(rawIPA);
+    const uniq = Array.from(new Set(cps.filter(x=>!Number.isNaN(x)))).sort((a,b)=>a-b);
+    const cp2id = new Map(); const id2cp = new Map();
+    let nextId = 2;
+    for (const c of uniq){ cp2id.set(c,nextId); id2cp.set(nextId,c); nextId++; }
+    let seq = cps.map(c => cp2id.get(c) ?? BOS_ID);
 
-  const merges = [];
-  const baseVocab = nextId;
+    const merges = [];
+    const baseVocab = nextId;
 
-  async function countPairsAsync(sequence){
-    const counts = new Map();
-    const N = sequence.length - 1;
-    const CHUNK = 200000; // Paare pro Yield
-    for (let i=0;i<N;i++){
-      const key = sequence[i] + ',' + sequence[i+1];
-      counts.set(key, (counts.get(key)||0) + 1);
-      if ((i % CHUNK) === 0) await microYield();
-    }
-    return counts;
-  }
-  function applyBestPair(sequence, a, b, newId){
-    const out = [];
-    for (let i=0;i<sequence.length;){
-      if (i<sequence.length-1 && sequence[i]===a && sequence[i+1]===b){ out.push(newId); i+=2; }
-      else { out.push(sequence[i]); i+=1; }
-    }
-    return out;
-  }
-
-  const target = Math.max(baseVocab+10, Math.min(targetVocab, 4096));
-  for (let step=0; step<(target - baseVocab); step++){
-    const counts = await countPairsAsync(seq);
-    if (counts.size===0) break;
-    let bestKey=null, bestCnt=0;
-    for (const [k,c] of counts){ if (c>bestCnt){ bestCnt=c; bestKey=k; } }
-    if (!bestKey) break;
-    const [aStr,bStr] = bestKey.split(',');
-    const a=parseInt(aStr,10), b=parseInt(bStr,10);
-    const id = nextId++;
-    merges.push({a,b,id});
-    seq = applyBestPair(seq, a, b, id);
-    if ((step % 16) === 0) { logLine(`BPE merge ${step+1}: (${a},${b}) → ${id} (count=${bestCnt})`); await microYield(); }
-  }
-
-  function encodeIPAtoAtoms(str, addBos=false, addEos=false){
-    const seq0 = strToCodepoints(str).map(c => cp2id.get(c));
-    let tokens = seq0.filter(v=>Number.isFinite(v));
-    for (const m of merges){
-      const {a,b,id} = m;
-      const out = [];
-      for (let i=0;i<tokens.length;){
-        if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
-        else { out.push(tokens[i]); i++; }
+    function countPairs(sequence){
+      const counts = new Map();
+      for (let i=0;i<sequence.length-1;i++){
+        const key = sequence[i] + ',' + sequence[i+1];
+        counts.set(key, (counts.get(key)||0) + 1);
       }
-      tokens = out;
+      return counts;
     }
-    if (addBos) tokens = [BOS_ID, ...tokens];
-    if (addEos) tokens = [...tokens, EOS_ID];
-    return tokens;
-  }
-  function decodeAtomsToIPA(tokens){
-    const id2pair = new Map(merges.map(m=>[m.id,[m.a,m.b]]));
-    function expand(id){
-      if (id===BOS_ID || id===EOS_ID) return [];
-      if (id2cp.has(id)) return [ id2cp.get(id) ];
-      const pr = id2pair.get(id);
-      if (!pr) return [];
-      return expand(pr[0]).concat(expand(pr[1]));
+    function applyBestPair(sequence, a, b, newId){
+      const out = [];
+      for (let i=0;i<sequence.length;){
+        if (i<sequence.length-1 && sequence[i]===a && sequence[i+1]===b){ out.push(newId); i+=2; }
+        else { out.push(sequence[i]); i+=1; }
+      }
+      return out;
     }
-    const cpsOut = [];
-    for (const t of tokens){
-      if (t===BOS_ID || t===EOS_ID) continue;
-      if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
-      else cpsOut.push(...expand(t));
-    }
-    return codepointsToStr(cpsOut);
-  }
 
-  const vocabSize = nextId;
-  return { encodeIPAtoAtoms, decodeAtomsToIPA, vocabSize, merges, cp2id, id2cp };
+    const target = Math.max(baseVocab+10, Math.min(targetVocab, 4096));
+    for (let step=0; step<(target - baseVocab); step++){
+      if ((step % 32) === 0) await tf.nextFrame(); // micro-yield
+
+      const counts = countPairs(seq);
+      if (counts.size===0) break;
+      let bestKey=null, bestCnt=0;
+      for (const [k,c] of counts){ if (c>bestCnt){ bestCnt=c; bestKey=k; } }
+      if (!bestKey) break;
+      const [aStr,bStr] = bestKey.split(',');
+      const a=parseInt(aStr,10), b=parseInt(bStr,10);
+      const id = nextId++;
+      merges.push({a,b,id});
+      seq = applyBestPair(seq, a, b, id);
+      if ((step % 128) === 0) logLine(`BPE merge ${step+1}: (${a},${b}) → ${id} (count=${bestCnt})`);
+    }
+
+    function encodeIPAtoAtoms(str, addBos=false, addEos=false){
+      const seq0 = strToCodepoints(str).map(c => cp2id.get(c));
+      let tokens = seq0.filter(v=>Number.isFinite(v));
+      for (const m of merges){
+        const {a,b,id} = m;
+        const out = [];
+        for (let i=0;i<tokens.length;){
+          if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
+          else { out.push(tokens[i]); i++; }
+        }
+        tokens = out;
+      }
+      if (addBos) tokens = [BOS_ID, ...tokens];
+      if (addEos) tokens = [...tokens, EOS_ID];
+      return tokens;
+    }
+    function decodeAtomsToIPA(tokens){
+      const id2pair = new Map(merges.map(m=>[m.id,[m.a,m.b]]));
+      function expand(id){
+        if (id===BOS_ID || id===EOS_ID) return [];
+        if (id2cp.has(id)) return [ id2cp.get(id) ];
+        const pr = id2pair.get(id);
+        if (!pr) return [];
+        return expand(pr[0]).concat(expand(pr[1]));
+      }
+      const cpsOut = [];
+      for (const t of tokens){
+        if (t===BOS_ID || t===EOS_ID) continue;
+        if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
+        else cpsOut.push(...expand(t));
+      }
+      return codepointsToStr(cpsOut);
+    }
+
+    const vocabSize = nextId;
+    resolve({ encodeIPAtoAtoms, decodeAtomsToIPA, vocabSize, merges, cp2id, id2cp });
+  });
 }
 
-/* =================== Lineares Modell =================== */
+/* --- LINEARES MODELL (O(M)) --- */
 function rmsNorm(x, gamma, eps=1e-5){
   const meanSq = tf.mean(tf.square(x), -1, true);
   const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps)));
@@ -345,8 +369,7 @@ function sinusoidalPositionalEncoding(T, d){
   const half = Math.floor(d/2);
   const i2 = tf.range(0, half, 1, 'float32');
   const div = tf.exp(tf.mul(i2, tf.scalar(-Math.log(10000.0)/(Math.max(1,half-1)))));
-  const ang = (tf.outerProduct ? tf.outerProduct(pos, div)
-                               : tf.matMul(pos.reshape([-1,1]), div.reshape([1,-1])));
+  const ang = tf.outerProduct(pos, div);
   const sin = tf.sin(ang), cos=tf.cos(ang);
   let pe = tf.concat([sin, cos], -1);
   if(2*half < d){ const pad = tf.zeros([T, d-2*half]); pe = tf.concat([pe, pad], -1); }
@@ -372,9 +395,11 @@ function buildModel(cfg){
     layers.push({
       g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`),
       g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
+
       W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
       W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
       b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
+
       W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`),
       b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
       W2: tf.variable(tf.randomNormal([dFF, dModel], 0, Math.sqrt(2/(dFF+dModel))), true, `L${l}_W2`),
@@ -396,34 +421,41 @@ function buildModel(cfg){
 
   function forward(ids, training=true){
     return tf.tidy(() => {
-      const B = ids.shape[0], Tcur = ids.shape[1], dModel = params.cfg.dModel;
-      const emb = tf.gather(params.E, ids.flatten()).reshape([B,Tcur,dModel]);
-      let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
+      const B = ids.shape[0], Tcur = ids.shape[1], dM = params.cfg.dModel, Vv = params.cfg.V;
+
+      const emb = tf.gather(params.E, ids.flatten()).reshape([B,Tcur,dM]);
+      let x = emb.add(params.pe.slice([0,0],[Tcur,dM]).reshape([1,Tcur,dM]));
       if (params.cfg.dropoutTrain && training) x = dropout(x, 0.1);
 
       for(const L of params.layers){
         let h = rmsNorm(x, L.g1);
+
+        // Kausale Conv1D + Gating (O(M))
         const K = params.CONV_KERNEL_SIZE;
-        const paddingSize = K - 1;
-        const zeroPadding = tf.zeros([B, paddingSize, dModel]);
+        const zeroPadding = tf.zeros([B, K - 1, dM]);
         const paddedH = tf.concat([zeroPadding, h], 1);
-        let conv_out_full = paddedH.conv1d(L.W_Conv, 1, 'valid');
-        let conv_out = conv_out_full.slice([0, 0, 0], [B, Tcur, dModel]);
-        const gate_proj = conv_out.reshape([-1, dModel]).matMul(L.W_Gate).add(L.b_Gate);
-        const gate = tf.sigmoid(gate_proj).reshape([B, Tcur, dModel]);
+
+        // Use tf.conv1d instead of instance method (safer across TFJS versions)
+        let conv_out_full = tf.conv1d(paddedH, L.W_Conv, 1, 'valid'); // [B, Tcur, dM]
+        let conv_out = conv_out_full.slice([0, 0, 0], [B, Tcur, dM]);
+
+        const gate_proj = conv_out.reshape([-1, dM]).matMul(L.W_Gate).add(L.b_Gate);
+        const gate = tf.sigmoid(gate_proj).reshape([B, Tcur, dM]);
+
         const linear_out = tf.mul(conv_out, gate);
         x = x.add(dropout(linear_out, 0.1));
 
+        // MLP
         let h2 = rmsNorm(x, L.g2);
-        const mlp2 = h2.reshape([-1, dModel]).matMul(L.W1).add(L.b1);
+        const mlp2 = h2.reshape([-1, dM]).matMul(L.W1).add(L.b1);
         const silu = tf.mul(mlp2, tf.sigmoid(mlp2));
-        const mlp_out = silu.matMul(L.W2).add(L.b2).reshape([B, Tcur, dModel]);
+        const mlp_out = silu.matMul(L.W2).add(L.b2).reshape([B, Tcur, dM]);
         x = x.add(dropout(mlp_out, 0.1));
       }
 
-      const x_2d = x.reshape([-1, dModel]);
+      const x_2d = x.reshape([-1, dM]);
       let logits_2d = params.cfg.weightTying ? x_2d.matMul(params.E.transpose()) : x_2d.matMul(params.W_out);
-      const logits = logits_2d.reshape([B, Tcur, params.cfg.V]);
+      const logits = logits_2d.reshape([B, Tcur, Vv]);
       return logits.add(params.bout);
     });
   }
@@ -439,10 +471,10 @@ function buildModel(cfg){
   return {params, forward, variables};
 }
 
-/* =================== Global & Backend =================== */
+/* =================== Global State, Training & Persistenz =================== */
 let ATOMIZER=null, MODEL=null, TOKENS=null, IPA_CORPUS='';
 
-const YIELD_EVERY = 64, LOG_EVERY = 200, MEM_EVERY = 512;
+const YIELD_EVERY = 128, LOG_EVERY = 200, MEM_EVERY = 512;
 
 async function setupBackend(preferGPU=true){
   try {
@@ -467,22 +499,30 @@ async function setupBackend(preferGPU=true){
   }
 }
 
-/* =================== Dataset Prep =================== */
+/* ---- Atomizer Build unter Lock + Versionierung ---- */
 async function buildTokenDataFromText(rawText, T, atomVocab){
-  IPA_CORPUS = g2pConvert(rawText);
-  const ipaLen = IPA_CORPUS.length;
-  $('kpiIPA').textContent = `IPA: ${ipaLen} Zeichen`;
+  return withLock(atomizerLock, async () => {
+    const myRev = ++atomizerRev;
+    const ipa = g2pConvert(rawText);
+    if (atomizerRev !== myRev) return;
 
-  ATOMIZER = await buildAtomBPE(IPA_CORPUS, atomVocab);
-  const atomIds = ATOMIZER.encodeIPAtoAtoms(IPA_CORPUS, true, true);
-  TOKENS = new Uint32Array(atomIds);
-  const atomCount = TOKENS.length;
+    IPA_CORPUS = ipa;
+    const ipaLen = IPA_CORPUS.length;
+    $('kpiIPA').textContent = `IPA: ${ipaLen} Zeichen`;
 
-  $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
-  const roughComp = (ipaLen>0) ? (ipaLen / atomCount).toFixed(2) : '–';
-  $('kpiComp').textContent = `Kompression (Zeichen→Atome): ${roughComp}×`;
+    const atomizer = await buildAtomBPE(IPA_CORPUS, atomVocab);
+    if (atomizerRev !== myRev) return;
 
-  logLine(`PhenomEncoder abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
+    const atomIds = atomizer.encodeIPAtoAtoms(IPA_CORPUS, true, true);
+    ATOMIZER = atomizer;
+    TOKENS = new Uint32Array(atomIds);
+
+    const atomCount = TOKENS.length;
+    $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
+    const roughComp = (ipaLen>0) ? (ipaLen / atomCount).toFixed(2) : '–';
+    $('kpiComp').textContent = `Kompression (Zeichen→Atome): ${roughComp}×`;
+    logLine(`PhenomEncoder abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
+  });
 }
 
 function buildStarts(tokens, T, valPct){
@@ -508,288 +548,324 @@ function sampleBatch(starts, tokens, B, T){
   return {X,Y};
 }
 
-/* =================== Training (asynchron, non-blocking) =================== */
+/* ---- Train exklusiv unter modelLock ---- */
 async function train(){
   await setupBackend(valBool('useGPU', true));
   const raw = ($('txt')?.value ?? '');
   if(!raw.trim()){ logLine('Fehler: Kein Korpus.'); return; }
   if(!ATOMIZER || !TOKENS){ logLine('Fehler: Bitte zuerst Atome lernen.'); return; }
 
+  $('btnGen').disabled = true;
+  $('btnSave').disabled = true;
+  $('btnLoad').disabled = true;
   setButtonState('btnTrain', true, 'Trainiere…', true);
-  $('btnStop').disabled = false;
-  CANCEL_TRAIN = false;
 
   try {
-    const T = valNum('seqLen', 128, 64, 768), epochs = valNum('epochs', 4), B = valNum('batch', 32);
-    let lr = valNum('lr', 0.002);
-    const stepCap = valNum('stepCap', 400), valSplit = 10, autoLR = valBool('autoLR', true);
-    const L = valNum('nLayers', 3), dModel = valNum('dModel', 256), dFF = valNum('dFF', 512);
-    const weightTying = valBool('weightTying', true), dropoutTrain = valBool('useDropout', false);
-    const V = ATOMIZER.vocabSize;
+    await withLock(modelLock, async () => {
+      const T = valNum('seqLen', 128, 64, 768), epochs = valNum('epochs', 4), B = valNum('batch', 32);
+      let lr = valNum('lr', 0.002);
+      const stepCap = valNum('stepCap', 400), valSplit = 10, autoLR = valBool('autoLR', true);
+      const L = valNum('nLayers', 3), dModel = valNum('dModel', 256), dFF = valNum('dFF', 512);
+      const weightTying = valBool('weightTying', true), dropoutTrain = valBool('useDropout', false);
+      const V = ATOMIZER.vocabSize;
 
-    if (MODEL) MODEL.variables().forEach(v => v.dispose());
-    MODEL = buildModel({V, dModel, dFF, nLayers: L, T, weightTying, dropoutTrain});
-    const optim = tf.train.adam(lr, 0.9, 0.999, 1e-8);
+      if (MODEL) MODEL.variables().forEach(v => v.dispose());
+      MODEL = buildModel({V, dModel, dFF, nLayers: L, T, weightTying, dropoutTrain});
+      const optim = tf.train.adam(lr, 0.9, 0.999, 1e-8);
 
-    const {train:trainStarts, val:valStarts} = buildStarts(TOKENS, T, valSplit);
-    const rawSteps = Math.max(1, Math.floor(trainStarts.length / B));
-    const stepsPerEpoch = stepCap>0 ? Math.min(stepCap, rawSteps) : rawSteps;
+      const {train:trainStarts, val:valStarts} = buildStarts(TOKENS, T, valSplit);
+      const rawSteps = Math.max(1, Math.floor(trainStarts.length / B));
+      const stepsPerEpoch = stepCap>0 ? Math.min(stepCap, rawSteps) : rawSteps;
 
-    $('stats').textContent = `V=${V} • M=${T} • B=${B} • L=${L} • d=${dModel} • dFF=${dFF} • Steps/Ep=${stepsPerEpoch}`;
+      $('stats').textContent = `V=${V} • M=${T} • B=${B} • L=${L} • d=${dModel} • dFF=${dFF} • Steps/Ep=${stepsPerEpoch}`;
 
-    let bestPPL=Infinity, bad=0;
+      let bestPPL=Infinity, bad=0;
+      const myModelRev = ++modelRev;
 
-    for (let ep=0; ep<epochs; ep++){
-      if (CANCEL_TRAIN) { logLine('Training abgebrochen.'); break; }
-      logLine(`Starte Epoche ${ep+1}/${epochs} mit LR=${lr.toFixed(6)}`);
-      const t0 = performance.now();
-      let lossAcc=0;
+      for (let ep=0; ep<epochs; ep++){
+        if (myModelRev !== modelRev) break;
+        logLine(`Starte Epoche ${ep+1}/${epochs} mit LR=${lr.toFixed(6)}`);
+        const t0 = performance.now();
+        let lossAcc=0;
 
-      for (let s=0;s<stepsPerEpoch;s++){
-        if (CANCEL_TRAIN) break;
-        const {X,Y} = sampleBatch(trainStarts, TOKENS, B, T);
+        for (let s=0;s<stepsPerEpoch;s++){
+          if (myModelRev !== modelRev) break;
+          const {X,Y} = sampleBatch(trainStarts, TOKENS, B, T);
 
-        const lossScalar = optim.minimize(() => {
-          const x = tf.tensor2d(X, [B,T], 'int32');
-          const y = tf.tensor2d(Y, [B,T], 'int32');
-          const logits = MODEL.forward(x, true);
-          const loss = softmaxCEfromLogits(logits, y);
-          return loss;
-        }, true, MODEL.variables());
+          const lossScalar = optim.minimize(() => {
+            const x = tf.tensor2d(X, [B,T], 'int32');
+            const y = tf.tensor2d(Y, [B,T], 'int32');
+            const logits = MODEL.forward(x, true);
+            const loss = softmaxCEfromLogits(logits, y);
+            return loss;
+          }, true, MODEL.variables());
 
-        const lossArr = await lossScalar.data(); // asynchron!
-        const lossVal = lossArr[0];
-        lossScalar.dispose();
-        if (!Number.isFinite(lossVal)) { logLine(`FEHLER: Loss=${lossVal}. Abbruch.`); throw new Error('NaN/Inf'); }
-        lossAcc += lossVal;
+          const lossVal = lossScalar.dataSync()[0];
+          lossScalar.dispose();
+          if (!Number.isFinite(lossVal)) { logLine(`FEHLER: Loss=${lossVal}. Abbruch.`); throw new Error('NaN/Inf'); }
+          lossAcc += lossVal;
 
-        if ((s % LOG_EVERY) === 0) logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`);
-        if ((s % MEM_EVERY) === 0) { const m=tf.memory(); logLine(`mem: tensors=${m.numTensors} bytes=${m.numBytes}`); }
-        await microYield(); // JEDEN Schritt yielding
+          if ((s % LOG_EVERY) === 0) logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`);
+          if ((s % MEM_EVERY) === 0) { const m=tf.memory(); logLine(`mem: tensors=${m.numTensors} bytes=${m.numBytes}`); }
+          if ((s % YIELD_EVERY) === 0) await tf.nextFrame();
+        }
+
+        const t1 = performance.now();
+        let nllSum = 0, tokCount = 0;
+        const evalB = Math.min(B, 32);
+        const evalSteps = Math.min(10, Math.max(0, Math.floor(valStarts.length / Math.max(1, evalB))));
+
+        for (let es=0; es<evalSteps; es++){
+          if (myModelRev !== modelRev) break;
+          const {X,Y} = sampleBatch(valStarts, TOKENS, evalB, T);
+          const loss = tf.tidy(() => {
+            const x = tf.tensor2d(X, [evalB,T], 'int32');
+            const y = tf.tensor2d(Y, [evalB,T], 'int32');
+            return softmaxCEfromLogits(MODEL.forward(x, false), y);
+          });
+          const v = loss.dataSync()[0];
+          loss.dispose();
+          nllSum += v * (evalB*T);
+          tokCount += (evalB*T);
+          if ((es & 3)===0) await tf.nextFrame();
+        }
+        const valPPL = Math.exp(nllSum/Math.max(1,tokCount));
+
+        const tokps = (stepsPerEpoch * B * T) / Math.max(0.001, (t1-t0)/1000);
+        $('metrics').innerHTML =
+          `<b>Epoche ${ep+1}/${epochs}</b> &nbsp; Loss=${(lossAcc/stepsPerEpoch).toFixed(4)} &nbsp; Val PPL=${valPPL.toFixed(2)} &nbsp; ~Tok/s=${tokps.toFixed(0)} &nbsp; LR=${lr.toFixed(5)}`;
+        logLine(`Ep ${ep+1}: loss=${(lossAcc/stepsPerEpoch).toFixed(4)} | ValPPL=${valPPL.toFixed(2)} | ${(t1-t0).toFixed(0)}ms | ~${tokps.toFixed(0)} tok/s`);
+
+        if (autoLR){
+          if (valPPL + 0.01 < bestPPL){ bestPPL=valPPL; bad=0; }
+          else { bad++; if (bad>=2 && lr>1e-4){ lr = Math.max(1e-4, lr*0.5); optim.setLearningRate(lr); bad=0; logLine(`Auto-LR → ${lr.toFixed(6)}`);} }
+        }
+        await tf.nextFrame();
       }
-
-      const t1 = performance.now();
-      if (CANCEL_TRAIN) break;
-
-      let nllSum = 0, tokCount = 0;
-      const evalB = Math.min(B, 32);
-      const evalSteps = Math.min(10, Math.max(0, Math.floor(valStarts.length / Math.max(1, evalB))));
-      for (let es=0; es<evalSteps; es++){
-        const {X,Y} = sampleBatch(valStarts, TOKENS, evalB, T);
-        const valLoss = tf.tidy(() => {
-          const x = tf.tensor2d(X, [evalB,T], 'int32');
-          const y = tf.tensor2d(Y, [evalB,T], 'int32');
-          return softmaxCEfromLogits(MODEL.forward(x, false), y);
-        });
-        const v = (await valLoss.data())[0]; // async read
-        valLoss.dispose();
-        nllSum += v * (evalB*T);
-        tokCount += (evalB*T);
-        await microYield();
-      }
-      const valPPL = Math.exp(nllSum/Math.max(1,tokCount));
-
-      const tokps = (stepsPerEpoch * B * T) / Math.max(0.001, (t1-t0)/1000);
-      $('metrics').innerHTML =
-        `<b>Epoche ${ep+1}/${epochs}</b> &nbsp; Loss=${(lossAcc/stepsPerEpoch).toFixed(4)} &nbsp; Val PPL=${valPPL.toFixed(2)} &nbsp; ~Tok/s=${tokps.toFixed(0)} &nbsp; LR=${lr.toFixed(5)}`;
-      logLine(`Ep ${ep+1}: loss=${(lossAcc/stepsPerEpoch).toFixed(4)} | ValPPL=${valPPL.toFixed(2)} | ${(t1-t0).toFixed(0)}ms | ~${tokps.toFixed(0)} tok/s`);
-
-      if (autoLR){
-        if (valPPL + 0.01 < bestPPL){ bestPPL=valPPL; bad=0; }
-        else { bad++; if (bad>=2 && lr>1e-4){ lr = Math.max(1e-4, lr*0.5); optim.setLearningRate(lr); bad=0; logLine(`Auto-LR → ${lr.toFixed(6)}`);} }
-      }
-      await microYield();
-    }
-    if (!CANCEL_TRAIN) logLine('Training abgeschlossen. Modell ist bereit zur Inferenz.');
-    $('prompt').disabled = false; $('btnGen').disabled = false;
+      logLine('Training abgeschlossen. Modell ist bereit zur Inferenz.');
+      $('prompt').disabled = false; $('btnGen').disabled = false;
+    });
   } catch(e){
     console.error(e); logLine('Fehler: '+(e?.message||e));
   } finally {
     setButtonState('btnTrain', false, '3. Training starten', false);
-    $('btnStop').disabled = true;
-    CANCEL_TRAIN=false;
+    $('btnSave').disabled = false;
+    $('btnLoad').disabled = false;
   }
 }
 
-/* =================== Persistenz =================== */
-function ab2b64(buf){ const bytes = new Uint8Array(buf); let bin=''; for (let i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]); return btoa(bin); }
-function b642ab(b64){ const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; }
-async function saveToIndexedDB(specs, data){ const handler = tf.io.browserIndexedDB(CKPT_DB_KEY); await handler.save({ modelTopology: null, weightSpecs: specs, weightData: data }); }
-async function loadFromIndexedDB(){ const handler = tf.io.browserIndexedDB(CKPT_DB_KEY); return handler.load(); }
+/* --- Persistenz (IndexedDB) unter Lock --- */
+async function saveToIndexedDB(specs, data){
+  const handler = tf.io.browserIndexedDB(CKPT_DB_KEY);
+  await handler.save({ modelTopology: null, weightSpecs: specs, weightData: data });
+}
+async function loadFromIndexedDB(){
+  const handler = tf.io.browserIndexedDB(CKPT_DB_KEY);
+  return handler.load();
+}
 
 async function saveModel() {
-  if (!MODEL) { logLine("FEHLER: Kein trainiertes Modell zum Speichern vorhanden."); return; }
-  setButtonState('btnTrain', true); setButtonState('btnSave', true, 'Speichere...', false); setButtonState('btnLoad', true);
-  try {
-    const named = {};
-    for (const v of MODEL.variables()) { if (!v.name) throw new Error('Variable ohne Namen.'); if (named[v.name]) throw new Error('Duplikat: '+v.name); named[v.name]=v; }
-    const {data, specs} = await tf.io.encodeWeights(named);
-    await saveToIndexedDB(specs, data);
-    const atomizerData = JSON.stringify({
-      merges: ATOMIZER.merges,
-      cp2id: Object.fromEntries(ATOMIZER.cp2id),
-      id2cp: Object.fromEntries(ATOMIZER.id2cp),
-      vocabSize: ATOMIZER.vocabSize,
-      cfg: MODEL.params.cfg,
-      ckptFormat: 'pho-ckpt-v1',
-      savedAt: new Date().toISOString()
+  await withLock(modelLock, async () => {
+    await withLock(persistLock, async () => {
+      if (!MODEL) { logLine("FEHLER: Kein trainiertes Modell zum Speichern vorhanden."); return; }
+      setButtonState('btnSave', true, 'Speichere...', false);
+
+      try {
+        const named = {};
+        for (const v of MODEL.variables()) {
+          if (!v.name) throw new Error('Variable ohne Namen gefunden.');
+          named[v.name] = v;
+        }
+        const {data, specs} = await tf.io.encodeWeights(named);
+        await saveToIndexedDB(specs, data);
+
+        const atomizerData = JSON.stringify({
+          merges: ATOMIZER.merges,
+          cp2id: Object.fromEntries(ATOMIZER.cp2id),
+          id2cp: Object.fromEntries(ATOMIZER.id2cp),
+          vocabSize: ATOMIZER.vocabSize,
+          cfg: MODEL.params.cfg
+        });
+        localStorage.setItem(META_KEY, atomizerData);
+
+        logLine(`Modell erfolgreich gespeichert! Gewichtungen: ${data.byteLength} Bytes.`);
+      } catch (e) {
+        logLine(`FEHLER beim Speichern: ${e.message}`);
+      } finally {
+        setButtonState('btnSave', false, 'Modell Speichern', false);
+      }
     });
-    localStorage.setItem(META_KEY, atomizerData);
-    logLine(`Modell gespeichert. Gewichtungen: ${data.byteLength} Bytes.`);
-  } catch (e) {
-    logLine(`FEHLER beim Speichern: ${e.message}`);
-  } finally {
-    setButtonState('btnTrain', false); setButtonState('btnSave', false, 'Modell Speichern', false); setButtonState('btnLoad', false);
-  }
+  });
 }
 
 async function loadModel() {
-  setButtonState('btnTrain', true); setButtonState('btnSave', true); setButtonState('btnLoad', true, 'Lade...', false);
-  const atomizerDataStr = localStorage.getItem(META_KEY);
-  if (!atomizerDataStr) {
-    logLine("FEHLER: Keine Atomizer-Metadaten gefunden.");
-    setButtonState('btnTrain', false); setButtonState('btnSave', false); setButtonState('btnLoad', false, 'Modell Laden', false);
-    return;
-  }
-  const atomizerData = JSON.parse(atomizerDataStr);
-  let artifacts = null;
-  try { artifacts = await loadFromIndexedDB(); } catch (e) { logLine('Fehler IndexedDB: ' + e.message); }
-  if (!artifacts || !artifacts.weightSpecs || !artifacts.weightData) {
-    logLine('Kein Modell in IndexedDB gefunden.');
-    setButtonState('btnTrain', false); setButtonState('btnSave', false); setButtonState('btnLoad', false, 'Modell Laden', false);
-    return;
-  }
+  await withLock(modelLock, async () => {
+    await withLock(persistLock, async () => {
+      setButtonState('btnLoad', true, 'Lade...', false);
 
-  try {
-    const cfg = atomizerData.cfg;
-    if (MODEL) MODEL.variables().forEach(v => v.dispose());
-    MODEL = buildModel(cfg);
-
-    const weightMap = await tf.io.decodeWeights(artifacts.weightData, artifacts.weightSpecs);
-    const byName = {};
-    for (const v of MODEL.variables()) byName[v.name] = v;
-    for (const [name, tensor] of Object.entries(weightMap)) {
-      if (byName[name]) { byName[name].assign(tensor); tensor.dispose(); }
-      else tensor.dispose();
-    }
-    // kein tf.dispose(weightMap) – Tensoren bereits disposed.
-
-    ATOMIZER = {
-      ...atomizerData,
-      cp2id: new Map(Object.entries(atomizerData.cp2id).map(([k, v]) => [Number(k), v])),
-      id2cp: new Map(Object.entries(atomizerData.id2cp).map(([k, v]) => [Number(k), v])),
-      encodeIPAtoAtoms: function(str, addBos, addEos) {
-        const merges = this.merges, cp2id = this.cp2id;
-        let tokens = strToCodepoints(str).map(c => cp2id.get(c)).filter(v=>Number.isFinite(v));
-        for (const m of merges){
-          const {a,b,id} = m, out=[];
-          for (let i=0;i<tokens.length;){
-            if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
-            else { out.push(tokens[i]); i++; }
-          }
-          tokens = out;
-        }
-        if (addBos) tokens = [BOS_ID, ...tokens];
-        if (addEos) tokens = [...tokens, EOS_ID];
-        return tokens;
-      },
-      decodeAtomsToIPA: function(tokens) {
-        const id2pair = new Map(this.merges.map(m=>[m.id,[m.a,m.b]]));
-        const id2cp = this.id2cp;
-        function expand(id){
-          if (id===BOS_ID || id===EOS_ID) return [];
-          if (id2cp.has(id)) return [ id2cp.get(id) ];
-          const pr = id2pair.get(id);
-          if (!pr) return [];
-          return expand(pr[0]).concat(expand(pr[1]));
-        }
-        const cpsOut = [];
-        for (const t of tokens){
-          if (t===BOS_ID || t===EOS_ID) continue;
-          if (id2cp.has(t)) cpsOut.push(id2cp.get(t)); else cpsOut.push(...expand(t));
-        }
-        return codepointsToStr(cpsOut);
+      const atomizerDataStr = localStorage.getItem(META_KEY);
+      if (!atomizerDataStr) {
+        logLine("FEHLER: Keine gespeicherten Atomizer-Metadaten gefunden. Führen Sie zuerst ein Training durch.");
+        setButtonState('btnLoad', false, 'Modell Laden', false);
+        return;
       }
-    };
+      const atomizerData = JSON.parse(atomizerDataStr);
 
-    logLine("Modell geladen. Inferenz freigeschaltet.");
-    $('prompt').disabled = false;
-    $('btnGen').disabled = false;
-  } catch (e) {
-    logLine(`FEHLER beim Laden: ${e.message}.`);
-  } finally {
-    setButtonState('btnTrain', false); setButtonState('btnSave', false, 'Modell Speichern', false); setButtonState('btnLoad', false, 'Modell Laden', false);
+      let artifacts = null;
+      try { artifacts = await loadFromIndexedDB(); } catch (e) { logLine('Fehler beim Laden aus IndexedDB: ' + e.message); }
+
+      if (!artifacts || !artifacts.weightSpecs || !artifacts.weightData) {
+        logLine('Kein Modell in IndexedDB gefunden. Laden nicht möglich.');
+        setButtonState('btnLoad', false, 'Modell Laden', false);
+        return;
+      }
+
+      try {
+        const cfg = atomizerData.cfg;
+        if (MODEL) MODEL.variables().forEach(v => v.dispose());
+        MODEL = buildModel(cfg);
+
+        const weightMap = await tf.io.decodeWeights(artifacts.weightData, artifacts.weightSpecs);
+        const byName = {};
+        for (const v of MODEL.variables()) byName[v.name] = v;
+
+        for (const [name, tensor] of Object.entries(weightMap)) {
+          if (!byName[name]) { tensor.dispose(); }
+          else { byName[name].assign(tensor); tensor.dispose(); }
+        }
+        tf.dispose(weightMap);
+
+        ATOMIZER = {
+          ...atomizerData,
+          cp2id: new Map(Object.entries(atomizerData.cp2id).map(([k, v]) => [Number(k), v])),
+          id2cp: new Map(Object.entries(atomizerData.id2cp).map(([k, v]) => [Number(k), v])),
+          encodeIPAtoAtoms: function(str, addBos, addEos) {
+            const merges = this.merges;
+            const cp2id = this.cp2id;
+            let tokens = strToCodepoints(str).map(c => cp2id.get(c)).filter(v=>Number.isFinite(v));
+            for (const m of merges){
+              const {a,b,id} = m;
+              const out = [];
+              for (let i=0;i<tokens.length;){
+                if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
+                else { out.push(tokens[i]); i++; }
+              }
+              tokens = out;
+            }
+            if (addBos) tokens = [BOS_ID, ...tokens];
+            if (addEos) tokens = [...tokens, EOS_ID];
+            return tokens;
+          },
+          decodeAtomsToIPA: function(tokens) {
+            const id2pair = new Map(this.merges.map(m=>[m.id,[m.a,m.b]]));
+            const id2cp = this.id2cp;
+            function expand(id){
+              if (id===BOS_ID || id===EOS_ID) return [];
+              if (id2cp.has(id)) return [ id2cp.get(id) ];
+              const pr = id2pair.get(id);
+              if (!pr) return [];
+              return expand(pr[0]).concat(expand(pr[1]));
+            }
+            const cpsOut = [];
+            for (const t of tokens){
+              if (t===BOS_ID || t===EOS_ID) continue;
+              if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
+              else cpsOut.push(...expand(t));
+            }
+            return codepointsToStr(cpsOut);
+          }
+        };
+
+        modelRev++; // neue Revision
+        logLine("Modell erfolgreich geladen und einsatzbereit. Inferenz freigeschaltet.");
+        $('prompt').disabled = false;
+        $('btnGen').disabled = false;
+      } catch (e) {
+        logLine(`FEHLER beim Laden des LLM: ${e.message}.`);
+        if(e.message.includes('Shape-Mismatch')) logLine('Ladefehler: Falsche Modellgröße.');
+        if(e.message.includes('No model found')) logLine('Der Speicher ist leer. Trainieren oder exportieren Sie ein Modell.');
+      } finally {
+        setButtonState('btnLoad', false, 'Modell Laden', false);
+      }
+    });
+  });
+}
+
+/* --- Sampling & Inferenz (unter modelLock) --- */
+function sampleFromProbs(p, mode, topK, topP, temp){
+  const t = clamp(temp, 0.1, 2.0);
+  const logp = p.map(x=>Math.log(x+1e-20)/t);
+  const maxv = Math.max(...logp);
+  const probs = logp.map(v=>Math.exp(v-maxv));
+  let Z = probs.reduce((a,b)=>a+b,0); for(let i=0;i<probs.length;i++) probs[i]/=Z;
+  const order = Array.from(probs.keys()).sort((a,b)=>probs[b]-probs[a]);
+  if(mode==='topk'){
+    const K = Math.max(1, Math.min(topK, probs.length));
+    const keep = order.slice(0,K);
+    let s=0; for(const i of keep) s+=probs[i];
+    let r=Math.random()*s;
+    for(const i of keep){ r-=probs[i]; if(r<=0) return i; }
+    return keep[keep.length-1];
+  } else {
+    const pth = clamp(topP, 0.05, 1.0);
+    let cum=0, keep=[];
+    for(const i of order){ keep.push(i); cum+=probs[i]; if(cum>=pth) break; }
+    let s=0; for(const i of keep) s+=probs[i];
+    let r=Math.random()*s;
+    for(const i of keep){ r-=probs[i]; if(r<=0) return i; }
+    return keep[keep.length-1];
   }
 }
 
-/* =================== Inferenz (async, non-blocking) =================== */
 async function generate(){
-  if (!MODEL || !ATOMIZER){ logLine('Bitte zuerst Atomizer + Modell trainieren/laden.'); return; }
-  $('btnGen').disabled = true; $('btnStopGen').disabled = false; $('inferStats').textContent = 'Generiere...';
-  CANCEL_GEN = false;
+  await withLock(modelLock, async () => {
+    if (!MODEL || !ATOMIZER){ logLine('Bitte zuerst Atomizer + Modell trainieren/laden.'); return; }
 
-  const mode = $('sampleMode').value, topK = valNum('topK', 64), topP = valNum('topP', 0.9), temp = valNum('temp', 0.9);
-  const nGen = valNum('nGen', 200), T = MODEL.params.cfg.T;
-  const prompt = ($('prompt')?.value ?? '').trim();
-  if (!prompt){ logLine('Kein Prompt.'); $('btnGen').disabled = false; $('btnStopGen').disabled = true; return; }
+    $('btnGen').disabled = true; $('inferStats').textContent = 'Generiere...';
 
-  const promptIPA = g2pConvert(prompt);
-  let ctx = ATOMIZER.encodeIPAtoAtoms(promptIPA, true, false);
-  const t0 = performance.now();
+    const mode = $('sampleMode').value, topK = valNum('topK', 64), topP = valNum('topP', 0.9), temp = valNum('temp', 0.9);
+    const nGen = valNum('nGen', 200), T = MODEL.params.cfg.T;
+    const prompt = ($('prompt')?.value ?? '').trim();
+    if (!prompt){ logLine('Kein Prompt.'); $('btnGen').disabled = false; return; }
 
-  let outTokens = [];
-  for(let step=0; step<nGen; step++){
-    if (CANCEL_GEN) { logLine('Generierung abgebrochen.'); break; }
-    const ctxSlice = ctx.slice(-T);
-    const len=ctxSlice.length, padLen = T - len;
-    const inpArr = (padLen>0) ? (new Int32Array([...Array(padLen).fill(BOS_ID), ...ctxSlice])) : new Int32Array(ctxSlice);
+    const promptIPA = g2pConvert(prompt);
+    let ctx = ATOMIZER.encodeIPAtoAtoms(promptIPA, true, false);
+    const t0 = performance.now();
 
-    const logits = MODEL.forward(tf.tensor2d(inpArr,[1,T],'int32'), false);
-    const lastTensor = logits.slice([0,T-1,0],[1,1,MODEL.params.cfg.V]).reshape([MODEL.params.cfg.V]);
-    const last = await lastTensor.data(); // async statt arraySync()
-    lastTensor.dispose(); logits.dispose();
+    let outTokens = [];
+    for(let step=0; step<nGen; step++){
+      const ctxSlice = ctx.slice(-T);
+      const B=1, len=ctxSlice.length, padLen = T - len;
+      const inp = (padLen>0) ? (new Int32Array([...Array(padLen).fill(BOS_ID), ...ctxSlice])) : new Int32Array(ctxSlice);
 
-    // Softmax
-    let maxv = -Infinity; for (let i=0;i<last.length;i++) if (last[i]>maxv) maxv=last[i];
-    const probs = new Float32Array(last.length);
-    let Z=0; for (let i=0;i<last.length;i++){ const e=Math.exp((last[i]-maxv)/clamp(temp,0.1,2.0)); probs[i]=e; Z+=e; }
-    for (let i=0;i<probs.length;i++) probs[i]/=Z;
+      const last = await tf.tidy(async ()=>{
+        const logits = MODEL.forward(tf.tensor2d(inp,[B,T],'int32'), false);
+        // Use dataSync to avoid allocating big JS arrays
+        const arr = logits.slice([0,T-1,0],[1,1,MODEL.params.cfg.V]).dataSync();
+        // copy to normal array for sampling
+        return Array.from(arr);
+      });
 
-    // Sampling
-    const order = Array.from(probs.keys()).sort((a,b)=>probs[b]-probs[a]);
-    let nxt;
-    if (mode==='topk'){
-      const K = Math.max(1, Math.min(topK, probs.length));
-      const keep = order.slice(0,K);
-      let s=0; for(const i of keep) s+=probs[i];
-      let r=Math.random()*s;
-      for(const i of keep){ r-=probs[i]; if(r<=0){ nxt=i; break; } }
-      if (nxt===undefined) nxt = keep[keep.length-1];
-    } else {
-      const pth = clamp(topP, 0.05, 1.0);
-      let cum=0, keep=[];
-      for(const i of order){ keep.push(i); cum+=probs[i]; if(cum>=pth) break; }
-      let s=0; for(const i of keep) s+=probs[i];
-      let r=Math.random()*s;
-      for(const i of keep){ r-=probs[i]; if(r<=0){ nxt=i; break; } }
-      if (nxt===undefined) nxt = keep[keep.length-1];
+      const maxv = Math.max(...last);
+      const probs = last.map(v=>Math.exp(v-maxv));
+      let Z = probs.reduce((a,b)=>a+b,0); for(let i=0;i<probs.length;i++) probs[i]/=Z;
+
+      const nxt = sampleFromProbs(probs, mode, topK, topP, temp);
+      if (nxt === EOS_ID) break;
+
+      ctx.push(nxt); outTokens.push(nxt);
+      if((step & 31)===0) await tf.nextFrame();
     }
+    const t1 = performance.now();
+    $('btnGen').disabled = false;
+    $('inferStats').textContent = `Tokens: ${outTokens.length} • Latenz ${(t1-t0).toFixed(1)} ms`;
 
-    if (nxt === EOS_ID) break;
-    ctx.push(nxt); outTokens.push(nxt);
-
-    if ((step % 8) === 0) await microYield();
-  }
-  const t1 = performance.now();
-
-  $('btnGen').disabled = false; $('btnStopGen').disabled = true;
-  $('inferStats').textContent = `Tokens: ${outTokens.length} • Latenz ${(t1-t0).toFixed(1)} ms`;
-
-  const genIPA = ATOMIZER.decodeAtomsToIPA(outTokens);
-  const genText = ipa2text(genIPA);
-  $('out').textContent = genText;
-  $('outIPA').textContent = `IPA: ${genIPA}`;
-  logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
+    const genIPA = ATOMIZER.decodeAtomsToIPA(outTokens);
+    const genText = ipa2text(genIPA);
+    $('out').textContent = genText;
+    $('outIPA').textContent = `IPA: ${genIPA}`;
+    logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
+  });
 }
 
 /* =================== UI Wiring =================== */
@@ -828,10 +904,7 @@ window.addEventListener('load', ()=>{
   });
 
   $('btnTrain').addEventListener('click', train);
-  $('btnStop').addEventListener('click', ()=>{ CANCEL_TRAIN=true; $('btnStop').disabled = true; });
-
   $('btnGen').addEventListener('click', generate);
-  $('btnStopGen').addEventListener('click', ()=>{ CANCEL_GEN=true; $('btnStopGen').disabled = true; });
 
   $('sampleMode').addEventListener('change', ()=>{
     const m=$('sampleMode').value;
