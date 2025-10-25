@@ -32,7 +32,7 @@
     .kpi{display:flex;gap:10px;flex-wrap:wrap}
     .kpi div{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px}
     .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-    
+
     /* Manuelle Tailwind-Utility-Klassen, die im HTML verwendet werden */
     .mb-1{margin-bottom:0.25rem}
     .mb-2{margin-bottom:0.5rem}
@@ -146,12 +146,12 @@
         <div id="inferStats" class="muted">Tokens: 0 • Latenz 0.0 ms</div>
       </div>
     </div>
-    
+
     <div class="mt-3">
       <div class="muted mb-1">Ausgabe (Text, mit Fuzzy-Matching)</div>
       <div id="outText" class="mono" style="white-space:pre-wrap;background:#fff;border:1px solid #c5d7f8;border-radius:10px;padding:10px;min-height:80px; font-size: 1.1em; line-height: 1.6;"></div>
     </div>
-    
+
     <div class="mt-3">
       <div class="muted mb-1">Ausgabe (IPA, Roh-Debug)</div>
       <div id="outIPA" class="mono" style="white-space:pre-wrap;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px; font-size: 0.9em; color: #6b7280;"></div>
@@ -287,8 +287,10 @@ function g2pConvert(text){
     if (hit){ out.push(hit); }
     else { out.push(`‹${t}›`); } // bewusst keine Regel-Hacks
   }
-  return out.join(' ').replace(/\s+/g,' ').trim();
+  // Stelle sicher, dass zwischen IPA-Strings und Satzzeichen immer ein Leerzeichen ist
+  return out.join(' ').replace(/\s*([,."?!;:()\[\]{}“”‘’' ])\s*/g, ' $1 ').replace(/\s+/g,' ').trim();
 }
+
 
 /* =================== Atomizer (BPE) — keine Parallelität =================== */
 function strToCodepoints(str){ const arr = []; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
@@ -370,13 +372,17 @@ function buildAtomBPE(rawIPA, targetVocab=512){
         if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
         else cpsOut.push(...expand(t));
       }
-      return codepointsToStr(cpsOut);
+      // Füge vor der Rückgabe Leerzeichen um Satzzeichen ein, um dem Greedy-Matcher zu helfen
+      let ipaStr = codepointsToStr(cpsOut);
+      return ipaStr.replace(/\s*([,."?!;:()\[\]{}“”‘’' ])\s*/g, ' $1 ').replace(/\s+/g,' ').trim();
     }
+
 
     const vocabSize = nextId;
     resolve({ encodeIPAtoAtoms, decodeAtomsToIPA, vocabSize, merges, cp2id, id2cp });
   });
 }
+
 
 /* =================== Modell =================== */
 function rmsNorm(x, gamma, eps=1e-5){
@@ -669,32 +675,22 @@ async function train(){
 
 let REVERSE_DICT = null;
 let REVERSE_DICT_SORTED_KEYS = []; // Für Greedy-Match (schnell)
-let REVERSE_DICT_ALL_KEYS = []; // Für Fuzzy-Match (langsam)
+let REVERSE_DICT_ALL_IPA_KEYS = []; // Nur IPA-Keys für Fuzzy-Match (langsam)
 
 /**
  * Standard Levenshtein-Distanz-Algorithmus.
- * Misst die "Editierdistanz" (Kosten für Einfügen, Löschen, Ersetzen)
- * zwischen zwei Strings a und b.
  */
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
-  // Optimiere für Platz: Nur zwei Zeilen der Matrix werden benötigt
   let v0 = new Uint16Array(n + 1);
   let v1 = new Uint16Array(n + 1);
-
   for (let i = 0; i <= n; i++) v0[i] = i;
-
   for (let i = 0; i < m; i++) {
     v1[0] = i + 1;
     for (let j = 0; j < n; j++) {
       const cost = (a[i] === b[j]) ? 0 : 1;
-      v1[j + 1] = Math.min(
-        v1[j] + 1,      // Löschen
-        v0[j + 1] + 1,  // Einfügen
-        v0[j] + cost    // Ersetzen
-      );
+      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
     }
-    // Tausche v0 und v1
     [v0, v1] = [v1, v0];
   }
   return v0[n];
@@ -709,181 +705,186 @@ function buildReverseDict() {
     logLine("Fehler: Wörterbuch (STATE.dict) nicht geladen für Reverse-Dict.");
     return;
   }
-  
+
   REVERSE_DICT = new Map();
   const allKeysSet = new Set();
+  const allIpaKeysSet = new Set(); // Nur reine IPA-Keys
 
   for (const [word, ipa_string] of STATE.dict.entries()) {
-    // 1. Speichern der vollen IPA-String-Variante (z.B. "ˈænd / ənd")
     let fullIpaKey = ipa_string.trim();
     if (!REVERSE_DICT.has(fullIpaKey)) {
         REVERSE_DICT.set(fullIpaKey, word);
     }
     allKeysSet.add(fullIpaKey);
+    allIpaKeysSet.add(fullIpaKey); // Füge auch den vollen Key hinzu
 
-    // 2. Speichern der einzelnen IPA-Varianten (z.B. "ˈænd" und "ənd")
     const parts = fullIpaKey.split(' / ');
     for (let ipa of parts) {
         ipa = ipa.trim();
         if (!ipa) continue;
         if (!REVERSE_DICT.has(ipa)) {
-            REVERSE_DICT.set(ipa, word); // Erste Wort-Zuordnung
+            REVERSE_DICT.set(ipa, word);
         }
         allKeysSet.add(ipa);
+        allIpaKeysSet.add(ipa); // Füge Einzelteile hinzu
     }
   }
 
-  // Satzzeichen als Identität hinzufügen
+  // Satzzeichen als Identität hinzufügen (wichtig für Greedy!)
   const punctuation = [",", ".", "“", "”", "?", "!", ";", ":", "'", '"', "-", "–", "/", "—", " "];
   for (const p of punctuation) {
     if (!REVERSE_DICT.has(p)) REVERSE_DICT.set(p, p);
     allKeysSet.add(p);
+    // Satzzeichen NICHT zu allIpaKeysSet hinzufügen!
   }
 
   // Sortierte Keys für Greedy-Match (längste zuerst)
   REVERSE_DICT_SORTED_KEYS = Array.from(allKeysSet);
   REVERSE_DICT_SORTED_KEYS.sort((a, b) => b.length - a.length);
 
-  // Alle Keys für Fuzzy-Match (Reihenfolge egal)
-  REVERSE_DICT_ALL_KEYS = Array.from(allKeysSet);
+  // Alle reinen IPA-Keys für Fuzzy-Match (Reihenfolge egal)
+  REVERSE_DICT_ALL_IPA_KEYS = Array.from(allIpaKeysSet);
 
-  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge. Keys (Greedy): ${REVERSE_DICT_SORTED_KEYS.length}, Keys (Fuzzy): ${REVERSE_DICT_ALL_KEYS.length}`);
+  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge. Keys (Greedy): ${REVERSE_DICT_SORTED_KEYS.length}, Keys (Fuzzy): ${REVERSE_DICT_ALL_IPA_KEYS.length}`);
 }
 
+
 /**
- * NEU: Fuzzy-Match-Fallback
- * Durchsucht das *gesamte* Vokabular nach der niedrigsten Levenshtein-Distanz.
+ * Fuzzy-Match-Fallback: Sucht nach dem IPA-Key mit der geringsten Distanz.
  */
 function findClosestPhonemeMatch(targetPhoneme) {
-    if (!targetPhoneme || targetPhoneme.length < 2) return null; // Ignoriere Trivialfälle
+    if (!targetPhoneme || targetPhoneme.length < 2) return null;
 
     let minDistance = Infinity;
-    let bestMatch = null;
-    
-    // Setze eine dynamische Schwelle:
-    // Erlaube 1 Edit für 3 Zeichen, 2 Edits für 6 Zeichen, max 3 Edits.
+    let bestMatchKey = null; // Der beste gefundene IPA-Key
+
+    // Dynamische Schwelle basierend auf der Länge des Ziel-Phonems
     const threshold = Math.max(1, Math.min(3, Math.floor(targetPhoneme.length / 3)));
 
-    for (const key of REVERSE_DICT_ALL_KEYS) {
-        // Optimierung: Überspringe offensichtlich unpassende Längen
-        if (Math.abs(key.length - targetPhoneme.length) > threshold) continue;
-        
+    // Nur über die REINEN IPA-Keys iterieren!
+    for (const key of REVERSE_DICT_ALL_IPA_KEYS) {
+        if (Math.abs(key.length - targetPhoneme.length) > threshold + 1) continue; // Großzügigere Längenprüfung
+
         const dist = levenshtein(targetPhoneme, key);
 
         if (dist < minDistance && dist <= threshold) {
             minDistance = dist;
-            bestMatch = key;
+            bestMatchKey = key;
+        }
+        // Bei gleicher Distanz, bevorzuge kürzere Keys (vermeidet z.B. Match mit "A / B" statt nur "A")
+        else if (dist === minDistance && dist <= threshold && key.length < bestMatchKey.length) {
+             bestMatchKey = key;
         }
     }
 
-    if (bestMatch) {
-        // logLine(`Fuzzy-Match: "${targetPhoneme}" -> "${bestMatch}" (Dist: ${minDistance})`);
-        return REVERSE_DICT.get(bestMatch); // Gib das Wort zurück
+    if (bestMatchKey) {
+        // console.log(`Fuzzy: "${targetPhoneme}" -> "${bestMatchKey}" (Dist: ${minDistance}, Thresh: ${threshold}) -> Word: ${REVERSE_DICT.get(bestMatchKey)}`);
+        return REVERSE_DICT.get(bestMatchKey); // Gib das Wort zurück
     }
-    
-    // logLine(`Fuzzy-Match: "${targetPhoneme}" -> Verworfen (Threshold: ${threshold})`);
+
+    // console.log(`Fuzzy: "${targetPhoneme}" -> Verworfen (Thresh: ${threshold})`);
     return null; // Nichts Gutes gefunden
 }
 
 
 /**
- * NEUE "HYBRID" DECODER-LOGIK (Greedy + Fuzzy Fallback)
+ * HYBRID DECODER-LOGIK (Greedy + Fuzzy Fallback)
  */
 function decodeIPAToText(ipa_string) {
+  // Stelle sicher, dass das Reverse Dict gebaut ist
   if (!REVERSE_DICT || REVERSE_DICT_SORTED_KEYS.length === 0) {
     if (STATE.dict.size > 0) buildReverseDict();
     else return "[Fehler: Reverse-Wörterbuch nicht bereit. Bitte 'en_US.txt laden'.]";
   }
-  
+
   let i = 0;
   const n = ipa_string.length;
   let output_words = [];
   let unknown_buffer = ""; // Sammelt Zeichen, die zu keinem Key passen
 
   while (i < n) {
-    // 1. OOV-Token prüfen (‹...›)
+    // 1. OOV-Token prüfen (‹...›) - Diese haben Vorrang
     if (ipa_string.substring(i).startsWith('‹')) {
         const endIdx = ipa_string.indexOf('›', i);
         if (endIdx > i) {
-            // Puffer davor per Fuzzy-Match auflösen
-            if (unknown_buffer) {
-                const fuzzyWord = findClosestPhonemeMatch(unknown_buffer);
+            // Puffer davor per Fuzzy-Match auflösen (falls vorhanden)
+            if (unknown_buffer.trim()) {
+                const fuzzyWord = findClosestPhonemeMatch(unknown_buffer.trim());
                 if (fuzzyWord) output_words.push(fuzzyWord);
+                // else console.log("Discarding pre-OOV buffer:", unknown_buffer.trim());
             }
-            unknown_buffer = "";
-            
+            unknown_buffer = ""; // Puffer leeren
+
             const oovWord = ipa_string.substring(i + 1, endIdx);
             output_words.push(oovWord); // OOV-Wort direkt verwenden
             i = endIdx + 1;
-            continue;
+            continue; // Nächste Iteration
         }
     }
-    
-    // 2. Greedy-Match (Perfekter Treffer)
+
+    // 2. Greedy-Match (Perfekter Treffer) - Nutze die vorsortierte Liste
     let foundMatch = false;
     for (const key of REVERSE_DICT_SORTED_KEYS) {
+        // Prüfe, ob der Key am aktuellen Index i beginnt
         if (ipa_string.substring(i).startsWith(key)) {
             foundMatch = true;
-            
-            // Puffer davor per Fuzzy-Match auflösen
-            if (unknown_buffer) {
-                 const fuzzyWord = findClosestPhonemeMatch(unknown_buffer);
+
+            // Puffer davor per Fuzzy-Match auflösen (falls vorhanden)
+            if (unknown_buffer.trim()) {
+                 const fuzzyWord = findClosestPhonemeMatch(unknown_buffer.trim());
                 if (fuzzyWord) output_words.push(fuzzyWord);
+                 // else console.log("Discarding pre-Greedy buffer:", unknown_buffer.trim());
             }
-            unknown_buffer = "";
+            unknown_buffer = ""; // Puffer leeren
 
             output_words.push(REVERSE_DICT.get(key)); // Das echte Wort hinzufügen
             i += key.length; // Position im String vorrücken
-            break; 
+            break; // Inner-Loop (key-Suche) beenden, da längster Match gefunden
         }
     }
 
-    // 3. KEIN Greedy-Match gefunden
+    // 3. KEIN Greedy-Match gefunden an dieser Position
     if (!foundMatch) {
-        // Dieses Zeichen zum Puffer hinzufügen
+        // Füge das aktuelle Zeichen zum Puffer hinzu
         unknown_buffer += ipa_string[i];
         i++; // Nur um 1 Zeichen vorrücken
     }
   }
 
-  // 4. Letzten Puffer am String-Ende auflösen
-  if (unknown_buffer) {
-      const fuzzyWord = findClosestPhonemeMatch(unknown_buffer);
+  // 4. Letzten Puffer am String-Ende auflösen (falls vorhanden)
+  if (unknown_buffer.trim()) {
+      const fuzzyWord = findClosestPhonemeMatch(unknown_buffer.trim());
       if (fuzzyWord) output_words.push(fuzzyWord);
+      // else console.log("Discarding final buffer:", unknown_buffer.trim());
   }
-  
+
   // 5. Array an Post-Processing übergeben
   return postProcessDecodedText(output_words);
 }
 
+
 /**
- * POST-PROCESSING
- * (Vereinfacht, da keine [Phonem:] Tags mehr erwartet werden)
+ * POST-PROCESSING (minimal angepasst)
  */
 function postProcessDecodedText(words) {
   let s = "";
   let needsSpace = false;
-  
+
   for (const word of words) {
     if (!word) continue;
 
-    // Keine Leerstelle *vor* Satzzeichen
-    if (",.?!;:”".includes(word)) {
-      s = s.trim();
+    // Keine Leerstelle *vor* Satzzeichen (außer öffnende Klammern/Anführungszeichen)
+    if (",.?!;:”)]}".includes(word)) {
+      // Entferne Leerzeichen davor, falls vorhanden
+      if (s.endsWith(' ')) s = s.slice(0, -1);
       s += word;
-      needsSpace = true;
-    } 
-    // Keine Leerstelle *nach* öffnenden Anführungszeichen
-    else if ("“".includes(word)) {
+      needsSpace = true; // Nach dem Satzzeichen wird ein Leerzeichen benötigt
+    }
+    // Keine Leerstelle *nach* öffnenden Klammern/Anführungszeichen
+    else if ("“([{".includes(word)) {
       if (needsSpace) s += " ";
       s += word;
-      needsSpace = false;
-    }
-    // Bindestriche, Schrägstriche (als Wörter behandeln)
-    else if (word === "-" || word === "/" || word === "—") {
-        if (needsSpace) s += " ";
-        s += word;
-        needsSpace = true;
+      needsSpace = false; // Direkt danach kein Leerzeichen
     }
     // Standard-Wort
     else {
@@ -892,14 +893,11 @@ function postProcessDecodedText(words) {
       needsSpace = true;
     }
   }
-  
-  // Letzte Aufräumarbeiten
-  s = s.replace(/\s+([,.?!;:”])/g, '$1'); // "word ." -> "word."
-  s = s.replace(/([“])\s+/g, '$1'); // "“ word" -> "“word"
-  s = s.replace(/\s+/g, ' '); // Mehrfach-Leerzeichen entfernen
 
-  return s.trim();
+  // Finale Bereinigung von überflüssigen Leerzeichen
+  return s.replace(/\s+/g, ' ').trim();
 }
+
 
 /* =================== Sampling & Inferenz =================== */
 function sampleFromProbs(probs, mode, topK, topP){
@@ -980,7 +978,7 @@ async function generate(){
   // Roh-IPA-String (wird jetzt vom Hybrid-Decoder verarbeitet)
   const genIPA = STATE.atomizer.decodeAtomsToIPA(outTokens);
   $('outIPA').textContent = genIPA; // Debug-Ansicht
-  
+
   // NEU: Dekodierung mit dem robusten HYBRID-Decoder (Greedy + Fuzzy)
   const genText = decodeIPAToText(genIPA);
   $('outText').textContent = genText; // Saubere Text-Ansicht
@@ -1060,13 +1058,13 @@ async function importModel(file){
         if (byName[name]) { byName[name].assign(tensor); tensor.dispose(); }
         else tensor.dispose();
       }
-      
-      // NOTE: STATE.dict (Wörterbuch) wird beim Import nicht wiederhergestellt, 
+
+      // NOTE: STATE.dict (Wörterbuch) wird beim Import nicht wiederhergestellt,
       // daher muss der Benutzer es erneut laden, um den P2G-Decoder zu aktivieren.
       REVERSE_DICT = null;
       REVERSE_DICT_SORTED_KEYS = [];
-      REVERSE_DICT_ALL_KEYS = [];
-      
+      REVERSE_DICT_ALL_IPA_KEYS = [];
+
       STATE.atomizer = {
         merges: obj.atomizer.merges,
         cp2id: new Map(Object.entries(obj.atomizer.cp2id).map(([k, v]) => [Number(k), v])),
@@ -1105,7 +1103,9 @@ async function importModel(file){
             if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
             else cpsOut.push(...expand(t));
           }
-          return codepointsToStr(cpsOut);
+          // Füge vor der Rückgabe Leerzeichen um Satzzeichen ein
+          let ipaStr = codepointsToStr(cpsOut);
+           return ipaStr.replace(/\s*([,."?!;:()\[\]{}“”‘’' ])\s*/g, ' $1 ').replace(/\s+/g,' ').trim();
         }
       };
 
@@ -1188,7 +1188,7 @@ window.addEventListener('load', async ()=>{
       $('btnTrainAtoms').disabled = false; $('btnBuildIPA').disabled = false;
     }
   });
-  
+
   // Enter-zum-Senden für das Prompt-Feld
   $('prompt').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1221,7 +1221,7 @@ window.addEventListener('load', async ()=>{
     STATE.tokens = null;
     REVERSE_DICT = null; // Wichtig: Reverse-Dict auch löschen
     REVERSE_DICT_SORTED_KEYS = [];
-    REVERSE_DICT_ALL_KEYS = [];
+    REVERSE_DICT_ALL_IPA_KEYS = [];
     if (STATE.model) { STATE.model.variables().forEach(v=>v.dispose()); STATE.model=null; }
     $('kpiDict').textContent='Wörterbuch: –';
     $('kpiIPA').textContent='IPA: –';
