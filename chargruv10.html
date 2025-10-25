@@ -288,7 +288,7 @@ function sampleBatch(starts, tokens, B, T){
   const n=starts.length;
   if (n === 0) {
       logLine("WARNUNG: sampleBatch mit leerem 'starts'-Array aufgerufen!");
-      return {X,Y}; // Gibt leere (oder 0-gefüllte) Arrays zurück
+      return {X,Y};
   }
   for(let b=0;b<B;b++){
     const s = starts[(Math.random()*n)|0];
@@ -337,7 +337,9 @@ function causalMask(T){
 }
 
 /*
-  Loss: jetzt stabil auf 2D [B*T,V] statt 3D.
+  CE-Loss stabil (2D-Flatten):
+  targets: [B,T] → oneHot → [B*T,V]
+  logits:  [B,T,V] → [B*T,V]
 */
 function softmaxCEfromLogits(logits, targets){
   const [B,T,V] = logits.shape;
@@ -372,7 +374,7 @@ function buildModel(cfg){
   }
   const bout = tf.variable(tf.zeros([V]));
   
-  // Separate Output-Matrix, falls Weight Tying deaktiviert ist.
+  // Output-Matrix nur wenn Weight Tying deaktiviert ist
   const W_out = weightTying ? null : tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'));
   
   const params = {E, layers, bout, pe, mask, cfg, W_out};
@@ -396,7 +398,7 @@ function buildModel(cfg){
     let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
 
     for(const L of params.layers){
-      // Self-Attn
+      // Self-Attention
       let h = rmsNorm(x, L.g1);
       const Q = h.matMul(L.Wq);
       const K = h.matMul(L.Wk);
@@ -411,24 +413,24 @@ function buildModel(cfg){
       let attnOut = combineHeads(ctx).matMul(L.Wo);
       x = x.add(dropout(attnOut, 0.1));
 
-      // ---- MLP (Patch) ----
+      // ----- MLP (Fix: über 2D rechnen, dann zurückreshapen) -----
       let h2 = rmsNorm(x, L.g2);
-      const h2_2d = h2.reshape([BT, dModel]);       // [B,T,d] -> [B*T,d]
-      let mlp2 = h2_2d.matMul(L.W1).add(L.b1);      // [BT,dFF]
-      mlp2 = tf.mul(mlp2, tf.sigmoid(mlp2));        // SiLU
-      mlp2 = mlp2.matMul(L.W2).add(L.b2);           // [BT,d]
-      const mlp = mlp2.reshape([B, Tcur, dModel]);  // -> [B,T,d]
+      const h2_2d = h2.reshape([BT, dModel]);          // [B*T, d]
+      let mlp2 = h2_2d.matMul(L.W1).add(L.b1);         // [B*T, dFF]
+      mlp2 = tf.mul(mlp2, tf.sigmoid(mlp2));           // SiLU
+      mlp2 = mlp2.matMul(L.W2).add(L.b2);              // [B*T, d]
+      const mlp = mlp2.reshape([B, Tcur, dModel]);     // zurück zu [B,T,d]
       x = x.add(dropout(mlp, 0.1));
     }
     
-    // Output-Projektion: ebenfalls 2D, stabiler Grad
+    // Output-Projektion (Fix: 2D MatMul, stabiler Grad)
     const x_2d = x.reshape([BT, dModel]);
     let logits_2d;
     if (params.cfg.weightTying) {
-      const E_T = params.E.transpose();           // [d,V]
-      logits_2d = x_2d.matMul(E_T);               // [BT,V]
+      const E_T = params.E.transpose(); // [d, V]
+      logits_2d = x_2d.matMul(E_T);     // [B*T, V]
     } else {
-      logits_2d = x_2d.matMul(params.W_out);      // [BT,V]
+      logits_2d = x_2d.matMul(params.W_out); // [B*T, V]
     }
     const logits = logits_2d.reshape([B, Tcur, V]);
     return logits.add(params.bout);
@@ -440,7 +442,7 @@ function buildModel(cfg){
       vs.push(L.g1,L.g2,L.Wq,L.Wk,L.Wv,L.Wo,L.W1,L.b1,L.W2,L.b2);
     }
     if (params.W_out) {
-        vs.push(params.W_out);
+      vs.push(params.W_out);
     }
     return vs;
   }
@@ -587,7 +589,7 @@ async function train(){
             return softmaxCEfromLogits(logits, y);
           }, vars);
 
-          // Check for null gradients
+          // Null-Gradient Check
           const gradValues = Object.values(grads);
           if (gradValues.some(g => g === null)) {
               logLine(`FEHLER bei Step ${s}: Null-Gradient entdeckt!`);
@@ -795,7 +797,7 @@ async function importModel(event) {
       await setupBackend(valBool('useGPU', true));
       if(MODEL) MODEL.variables().forEach(v => v.dispose());
       
-      // Wichtig: Baue das Modell mit der importierten Konfiguration
+      // Modell mit importierter Konfiguration bauen
       MODEL = buildModel(config); 
       
       const modelVars = MODEL.variables();
