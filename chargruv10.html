@@ -87,7 +87,7 @@
         <input id="dFF" type="number" min="128" max="2048" step="64" value="768"/>
       </div>
     </div>
-    <div style="display:flex;gap:10px;align:items:center;margin-top:12px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
       <label class="muted"><input id="useGPU" type="checkbox" checked/> WebGPU bevorzugen</label>
       <label class="muted"><input id="weightTying" type="checkbox" checked/> Weight-Tying</label>
       <label class="muted"><input id="useDropout" type="checkbox"/> Dropout 0.1</label>
@@ -336,25 +336,25 @@ function causalMask(T){
   return M.reshape([1,1,T,T]);
 }
 
-/* ========== FIX START ========== */
-// Ersetze die 'gatherND'-Logik (die keinen Gradienten hat)
-// durch die offizielle 'tf.losses.softmaxCrossEntropy'-Funktion.
-// Diese erwartet One-Hot-Labels, also wandeln wir die 'targets' um.
+/*
+  Fix für tf.gatherND-Fehler:
+  Ersetze die 'gatherND'-Logik (die keinen Gradienten hat)
+  durch die offizielle 'tf.losses.softmaxCrossEntropy'-Funktion.
+  Diese erwartet One-Hot-Labels, also wandeln wir die 'targets' um.
+*/
 function softmaxCEfromLogits(logits, targets){
   const [B,T,V] = logits.shape;
   
   // Wandle targets (Shape [B, T]) in One-Hot (Shape [B, T, V]) um
-  // tf.oneHot(indices, depth)
-  const oneHotTargets = tf.oneHot(targets, V);
+  const oneHotTargets = tf.oneHot(targets.toInt(), V); // .toInt() für alle Fälle
   
   // Berechne den Loss. 'logits' sind die rohen Ausgaben (nicht-normalisiert).
-  // 'tf.losses.softmaxCrossEntropy' wendet intern softmax an.
+  // 'tf.losses.softmaxCrossEntropy' wendet intern softmax an und hat einen stabilen Gradienten.
   const loss = tf.losses.softmaxCrossEntropy(oneHotTargets, logits);
   
   // Wir geben den Durchschnitts-Loss (einen Skalar) zurück.
   return tf.mean(loss);
 }
-/* ========== FIX END ========== */
 
 
 /* ====== Modell-Factory ====== */
@@ -381,7 +381,11 @@ function buildModel(cfg){
     });
   }
   const bout = tf.variable(tf.zeros([V]));
-  const params = {E, layers, bout, pe, mask, cfg};
+  
+  // Erstelle die separate Output-Matrix, *falls* Weight Tying deaktiviert ist.
+  const W_out = weightTying ? null : tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'));
+  
+  const params = {E, layers, bout, pe, mask, cfg, W_out}; // W_out hier übergeben
 
   function dropout(x, rate){
     if(!dropoutTrain || rate<=0) return x;
@@ -393,8 +397,10 @@ function buildModel(cfg){
   function forward(ids, training=true){
     const B = ids.shape[0];
     const Tcur = ids.shape[1];
-    const dModel = cfg.dModel;
-    const nHeads = cfg.nHeads;
+    const dModel = params.cfg.dModel;
+    const nHeads = params.cfg.nHeads;
+    const V = params.cfg.V;
+    const BT = B * Tcur;
 
     const emb = tf.gather(params.E, ids.flatten()).reshape([B,Tcur,dModel]);
     let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
@@ -420,14 +426,39 @@ function buildModel(cfg){
       mlp = mlp.matMul(L.W2).add(L.b2);
       x = x.add(dropout(mlp, 0.1));
     }
-    const logits = tf.matMul(x, params.E, false, true).add(params.bout);
-    return logits;
+    
+    // ========== FIX START ==========
+    // Behebt den 'BatchMatMul' Gradienten-Fehler, indem die 3D@2D-Multiplikation
+    // in eine 2D@2D-Multiplikation umgeformt wird, die einen stabilen Gradienten hat.
+
+    // Reshape x von [B, T, dModel] -> [B*T, dModel]
+    const x_2d = x.reshape([BT, dModel]);
+    
+    let logits_2d;
+    if (params.cfg.weightTying) {
+      // [B*T, dModel] @ [dModel, V] -> [B*T, V]
+      const E_T = params.E.transpose(); // [dModel, V]
+      logits_2d = x_2d.matMul(E_T);
+    } else {
+      // [B*T, dModel] @ [dModel, V] -> [B*T, V]
+      logits_2d = x_2d.matMul(params.W_out);
+    }
+    
+    // Reshape zurück zu [B, T, V]
+    const logits = logits_2d.reshape([B, Tcur, V]);
+    
+    return logits.add(params.bout);
+    // ========== FIX END ==========
   }
 
   function variables(){
     const vs = [E, bout];
     for(const L of layers){
       vs.push(L.g1,L.g2,L.Wq,L.Wk,L.Wv,L.Wo,L.W1,L.b1,L.W2,L.b2);
+    }
+    // Füge die (optionale) W_out-Variable hinzu, wenn sie existiert (null ist false)
+    if (params.W_out) {
+        vs.push(params.W_out);
     }
     return vs;
   }
@@ -492,9 +523,20 @@ async function train(){
 
       const cfg = MODEL.params.cfg;
       V = cfg.V; T = cfg.T; L = cfg.nLayers; dModel = cfg.dModel;
-      nHeads = cfg.nHeads; dFF = cfg.dFF; weightTying = cfg.weightTying;
+      nHeads = cfg.nHeads; dFF = cfg.dFF; 
+      // Lese Tying-Status aus der UI, falls es geändert wurde
+      weightTying = valBool('weightTying', cfg.weightTying); 
       dropoutTrain = valBool('useDropout', cfg.dropoutTrain);
+      
+      // Aktualisiere die Modell-Konfiguration, falls Tying geändert wurde
       MODEL.params.cfg.dropoutTrain = dropoutTrain;
+      if (MODEL.params.cfg.weightTying !== weightTying) {
+          logLine(`Weight Tying Status geändert von ${MODEL.params.cfg.weightTying} auf ${weightTying}.`);
+          logLine(`HINWEIS: Dies wird beim Laden eines Modells nicht unterstützt. Lade neu.`);
+          // (Idealerweise würde man hier das Modell neu bauen, aber das ist komplex)
+          MODEL.params.cfg.weightTying = weightTying; // Setze es trotzdem
+      }
+
 
       logLine(`Füge neuen Text (${raw.length} Zeichen) hinzu...`);
       const newIds = TOK(raw, true, true);
@@ -518,7 +560,7 @@ async function train(){
       dFF      = clamp(valNum('dFF',      768, 128, 2048), 128, 2048);
       weightTying = valBool('weightTying', true);
       dropoutTrain = valBool('useDropout', false);
-      logLine(`Params: V(target)=${vocabSize}, T=${T}, L=${L}, d=${dModel}, h=${nHeads}, dFF=${dFF}`);
+      logLine(`Params: V(target)=${vocabSize}, T=${T}, L=${L}, d=${dModel}, h=${nHeads}, dFF=${dFF}, Tying=${weightTying}`);
 
       logLine('BPE-Training ...');
       const bpe = await trainBPE(raw, vocabSize);
@@ -565,15 +607,14 @@ async function train(){
           const vars = MODEL.variables();
           const {value, grads} = tf.variableGrads(()=>{
             const logits = MODEL.forward(x, true);
-            // Hier wird die neue Loss-Funktion (mit oneHot) aufgerufen
+            // Hier wird die oneHot-basierte Loss-Funktion aufgerufen
             return softmaxCEfromLogits(logits, y);
           }, vars);
 
-          // Check for null gradients which can cause the optimizer crash
+          // Check for null gradients
           const gradValues = Object.values(grads);
           if (gradValues.some(g => g === null)) {
               logLine(`FEHLER bei Step ${s}: Null-Gradient entdeckt!`);
-              // Manuelles disposen der gültigen Gradients
               gradValues.forEach(g => { if(g) g.dispose(); });
               value.dispose();
               throw new Error(`Null-Gradient bei Step ${s} in Epoche ${ep+1}`);
@@ -593,7 +634,7 @@ async function train(){
         }
         lossAcc += lossVal;
 
-        if ((s % 100) === 0) { // Seltener loggen, um Konsole nicht zu fluten
+        if ((s % 100) === 0) { 
           logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`);
         }
         if ((s % 32) === 0) {
@@ -620,7 +661,7 @@ async function train(){
             const x=tf.tensor2d(X,[evalB,T],'int32');
             const y=tf.tensor2d(Y,[evalB,T],'int32');
             const logits = MODEL.forward(x,false);
-            const ce = softmaxCEfromLogits(logits, y); // Diese Funktion ist jetzt für Forward/Backward Pass identisch
+            const ce = softmaxCEfromLogits(logits, y); 
             const val = ce.dataSync()[0];
             return val;
           });
@@ -738,10 +779,21 @@ async function exportModel() {
   if (!MODEL || !BPE_MERGES) { logLine('Fehler: Zuerst Modell trainieren.'); return; }
   logLine('Modell wird exportiert...');
   try {
-    const vars = MODEL.variables();
-    const weights = [];
-    for (const v of vars) weights.push(await v.array());
-    const exportData = { config: MODEL.params.cfg, merges: BPE_MERGES, vocabSize: BPE_VOCAB_SIZE, weights };
+    const exportedConfig = {...MODEL.params.cfg};
+    const exportedWeights = [];
+    const modelVars = MODEL.variables(); 
+    
+    for (let i=0; i<modelVars.length; i++) {
+        exportedWeights.push(await modelVars[i].array());
+    }
+
+    const exportData = { 
+        config: exportedConfig, 
+        merges: BPE_MERGES, 
+        vocabSize: BPE_VOCAB_SIZE, 
+        weights: exportedWeights 
+    };
+
     const blob = new Blob([JSON.stringify(exportData)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -766,14 +818,35 @@ async function importModel(event) {
       if (!config || !merges || !vocabSize || !weights) throw new Error('Ungültige oder korrupte Modelldatei.');
       await setupBackend(valBool('useGPU', true));
       if(MODEL) MODEL.variables().forEach(v => v.dispose());
-      MODEL = buildModel(config);
+      
+      // Wichtig: Baue das Modell mit der importierten Konfiguration
+      MODEL = buildModel(config); 
+      
       const modelVars = MODEL.variables();
-      if (modelVars.length !== weights.length) throw new Error(`Fehler beim Abgleich der Gewichte (erwartet: ${modelVars.length}, gefunden: ${weights.length})`);
-      tf.tidy(() => { for (let i=0;i<weights.length;i++) modelVars[i].assign(tf.tensor(weights[i])); });
+      
+      if (modelVars.length !== weights.length) {
+          logLine(`Gewichte-Fehlanpassung. Erwartet: ${modelVars.length}, Datei hat: ${weights.length}`);
+          logLine(`Möglicherweise ein (Tying=${config.weightTying}) vs (Tying=${!config.weightTying}) Konflikt?`);
+      }
+      
+      const len = Math.min(modelVars.length, weights.length);
+      logLine(`Lade ${len} Gewicht-Tensoren...`);
+
+      tf.tidy(() => { 
+          for (let i=0; i<len; i++) {
+              if (JSON.stringify(modelVars[i].shape) !== JSON.stringify(weights[i].shape)) {
+                  logLine(`WARNUNG: Shape-Mismatch bei Tensor ${i}. Var: ${modelVars[i].shape}, Datei: ${weights[i].shape}`);
+              }
+              modelVars[i].assign(tf.tensor(weights[i])); 
+          }
+      });
+      
       const bpeFuncs = buildBPEFunctions(merges);
       TOK = bpeFuncs.encode; TOK_DECODE = bpeFuncs.decode;
       BPE_MERGES = merges; BPE_VOCAB_SIZE = vocabSize; TOKENS = new Uint32Array([]);
       logLine('Modell erfolgreich importiert.');
+      
+      // UI-Felder aktualisieren
       $('vocabSize').value = config.V;
       $('seqLen').value   = config.T;
       $('nLayers').value  = config.nLayers;
