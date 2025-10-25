@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL • en_US.txt lokal)</title>
+  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, Debug & Local en_US)</title>
 
   <!-- TFJS + WebGPU backend -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
 
-  <!-- Tailwind (CDN ok; dev warning is fine per requirement) -->
+  <!-- Tailwind (CDN; dev-warning ist ok) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -28,24 +28,24 @@
     .btn.warn{background:#f59e0b}
     .btn.red{background:#ef4444}
     .btn:disabled{opacity:.5;cursor:not-allowed}
-    .log{height:200px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    .log{height:220px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
     .muted{color:#6b7280}
     .spinner{border:4px solid rgba(0,0,0,.1);border-left-color:#4f46e5;border-radius:50%;width:20px;height:20px;animation:spin .8s linear infinite;display:inline-block}
     @keyframes spin{to{transform:rotate(360deg)}}
     .kpi{display:flex;gap:10px;flex-wrap:wrap}
     .kpi div{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px}
-    .row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   </style>
 </head>
 <body>
 <div class="container">
   <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M)$ Lineare Skalierung)</h1>
-  <div class="muted mb-4">Nur <b>en_US.txt</b> lokal (./data/en_US.txt), <b>Datei-Export/Import</b>, kein IndexedDB. Keine Parallelisierung bei G2P & Atome lernen.</div>
+  <div class="muted mb-4">Lokal: <b>/data/en_US.txt</b> (ipa-dict Text), <b>Datei-Export/Import</b>, Debug-Tools. Keine IPA-Regel-Hacks.</div>
 
   <div class="card">
-    <h3 class="font-bold text-lg mb-2">1) Korpus & G2P → IPA (Wörterbuch: en_US.txt lokal)</h3>
-    <textarea id="txt" placeholder="Füge einen Textkorpus (Englisch) ein …"></textarea>
+    <h3 class="font-bold text-lg mb-2">1) Korpus & G2P → IPA (lokales Wörterbuch)</h3>
+    <textarea id="txt" placeholder="Füge einen ENGLISCHEN Textkorpus ein …"></textarea>
 
     <div class="row" style="margin-top:10px">
       <div>
@@ -60,29 +60,34 @@
 
     <div class="row" style="margin-top:10px">
       <div class="flex items-center gap-3">
+        <button id="btnLoadDict" class="btn grey">en_US.txt laden</button>
         <button id="btnBuildIPA" class="btn grey" disabled>1. G2P → IPA erzeugen</button>
         <button id="btnTrainAtoms" class="btn warn" disabled>2. Atome lernen (BPE auf IPA)</button>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btnClear" class="btn red">Alles zurücksetzen</button>
+        <button id="btnDbgDump" class="btn">Debug Dump</button>
       </div>
     </div>
 
     <div class="kpi mt-3">
       <div id="kpiDict" class="muted">Wörterbuch: –</div>
       <div id="kpiIPA" class="muted">IPA: –</div>
-      <div id="kpiAtoms" class="muted">Atome (M): –</div>
+      <div id="kpiAtoms" class="muted">Atome: –</div>
       <div id="kpiComp" class="muted">Kompression: –</div>
     </div>
   </div>
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">2) Lineares Modell Setup & Training</h3>
-    <div class="row-4">
+    <div class="row4">
       <div><label>Schichten L</label><input id="nLayers" type="number" min="1" max="8" value="3"/></div>
       <div><label>d_model</label><input id="dModel" type="number" min="64" max="512" step="32" value="256"/></div>
       <div><label>FFN-Dim</label><input id="dFF" type="number" min="128" max="2048" step="64" value="512"/></div>
       <div><label>Epochen</label><input id="epochs" type="number" min="1" max="40" value="4"/></div>
     </div>
 
-    <div class="row-4 mt-3">
+    <div class="row4 mt-3">
       <div><label>LR (Adam)</label><input id="lr" type="number" min="0.00005" max="0.02" step="0.00005" value="0.002"/></div>
       <div><label>Batchgröße</label><input id="batch" type="number" min="8" max="128" step="8" value="32"/></div>
       <div><label>Steps/Epoche (0=auto)</label><input id="stepCap" type="number" min="0" max="50000" step="100" value="400"/></div>
@@ -100,7 +105,7 @@
       </button>
       <button id="btnStop" class="btn red" disabled>Stop</button>
 
-      <!-- Datei-basierter Export/Import -->
+      <!-- Datei-Export/Import -->
       <button id="btnExport" class="btn warn" disabled>Modell exportieren (Datei)</button>
       <label class="btn secondary" for="fileImport" style="cursor:pointer">Modell importieren (Datei)</label>
       <input id="fileImport" type="file" accept="application/json" style="display:none"/>
@@ -111,7 +116,7 @@
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">3) Inferenz (Atom → IPA)</h3>
-    <textarea id="prompt" placeholder="Prompt (englischer Text) …" disabled></textarea>
+    <textarea id="prompt" placeholder="Prompt (Text) eingeben …" disabled></textarea>
     <div class="row">
       <div><label>Sampling-Modus</label>
         <select id="sampleMode">
@@ -145,21 +150,22 @@
 </div>
 
 <script>
-/* =================== Core & State =================== */
+/* =================== Core & Debug =================== */
 const $ = id => document.getElementById(id);
-const MAX_LOG_CHARS = 100000;
+const MAX_LOG_CHARS = 120000;
 const BOS_ID = 0, EOS_ID = 1;
 
 const STATE = {
-  dict: new Map(),      // en_US lexicon
-  ipa: '',              // IPA corpus string
-  atomizer: null,       // { encodeIPAtoAtoms, decodeAtomsToIPA, vocabSize, merges, cp2id, id2cp }
-  tokens: null,         // Uint32Array of atom ids
-  model: null,          // tf model wrapper
+  dict: new Map(),   // en_US.txt Inhalte
+  ipa: '',           // gesamter IPA-String des Korpus
+  atomizer: null,    // {encodeIPAtoAtoms, decodeAtomsToIPA, ...}
+  tokens: null,      // Uint32Array
+  model: null,
+  modelRev: 0,
   cancelTrain: false,
-  cancelGen: false,
-  modelRev: 0
+  cancelGen: false
 };
+window.STATE = STATE; // für DevTools
 
 function logLine(msg){
   const el = $('log');
@@ -177,9 +183,9 @@ function valNum(id, fallback, lo=null, hi=null){
   return v;
 }
 function valBool(id, fallback=false){ return $(id)?.checked ?? fallback; }
+
 function setButtonState(id, disabled, text, showSpinner=false) {
-  const btn = $(id);
-  if (!btn) return;
+  const btn = $(id); if (!btn) return;
   btn.disabled = !!disabled;
   if (id === 'btnTrain') {
     const labelEl = btn.querySelector('span#trainText');
@@ -193,81 +199,82 @@ function setButtonState(id, disabled, text, showSpinner=false) {
   }
 }
 async function microYield(){
+  // kurze Entlastung fürs UI + TFJS Engine (siehe tf.nextFrame)
   await new Promise(r=>setTimeout(r,0));
   await tf.nextFrame();
 }
-
-/* =================== IPA Dictionary (local ./data/en_US.txt) =================== */
-function dictInfo(){
-  $('kpiDict').textContent = `Wörterbuch: en_US=${STATE.dict.size}`;
+function dbgState(tag=''){
+  const A = STATE.atomizer;
+  const T = STATE.tokens;
+  logLine(`[DBG ${tag}] atomizer=${!!A} vocab=${A?.vocabSize ?? '–'} merges=${A?.merges?.length ?? '–'} | tokens=${T ? (T.length+' (Uint32Array='+ (T instanceof Uint32Array)+')') : 'null'} | ipaLen=${STATE.ipa?.length ?? 0}`);
 }
 
-/** Parse ipa-dict TXT lines like:
- *   data /ˈdætə/, /ˈdeɪtə/
- * We keep the first /…/ as canonical.
- */
-function parseIpaTxt(txt){
+/* =================== Wörterbuch: /data/en_US.txt =================== */
+/* Format robust parsen:
+   - Zeilenweise: word /ipa1/, /ipa2/  ODER  word\tipa  ODER  word<space>ipa
+   - Kommentare (# ...) und leere Zeilen ignorieren.
+*/
+async function loadLocalDictEN(){
+  const url = '/data/en_US.txt';
+  const r = await fetch(url, {mode:'same-origin'});
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const text = await r.text();
   const map = new Map();
-  const lines = txt.split(/\r?\n/);
+  const lines = text.split(/\r?\n/);
+  let add=0, dup=0;
   for (let line of lines){
     line = line.trim();
     if (!line || line.startsWith('#')) continue;
 
-    // split word + rest (variants)
-    const m = line.match(/^(\S+)\s+(.+)$/);
-    if (!m) continue;
-    const word = m[1].toLowerCase();
-    const rest = m[2];
+    // Muster A: word /ipa1/, /ipa2/
+    let m = line.match(/^([^\s/]+)\s+(.+)$/);
+    if (m){
+      const w = m[1].toLowerCase();
+      let rest = m[2].trim();
 
-    // collect all /…/ occurrences
-    const variants = [];
-    const re = /\/([^\/]+)\//g;
-    let mm;
-    while ((mm = re.exec(rest))){ variants.push(mm[1].trim()); }
-    if (variants.length > 0){
-      map.set(word, variants[0]); // choose first variant
+      // Falls /ipa/ Kommaliste
+      const iph = [];
+      const slashParts = rest.match(/\/[^/]+\/(,\s*\/[^/]+\/)*/);
+      if (slashParts){
+        // Split bei /.../ , /.../
+        const tmp = rest.split(/,\s*/).map(s=>s.trim());
+        for (const t of tmp){
+          const mm = t.match(/^\/([^/]+)\/$/);
+          if (mm) iph.push(mm[1].trim());
+        }
+      } else {
+        // Kein Slash-Format, nimm kompletten Rest als IPA
+        iph.push(rest);
+      }
+      if (!map.has(w)) { map.set(w, iph.join(' / ')); add++; } else dup++;
+      continue;
     }
   }
-  return map;
+  STATE.dict = map;
+  $('kpiDict').textContent = `Wörterbuch geladen: en_US (words=${map.size})`;
+  logLine(`Wörterbuch geladen: en_US (words=${map.size}, added=${add}, dup=${dup})`);
 }
 
-async function loadLocalEnUS(){
-  try{
-    const r = await fetch('data/en_US.txt', {mode:'same-origin'});
-    if (!r.ok) throw new Error(String(r.status));
-    const txt = await r.text();
-    STATE.dict = parseIpaTxt(txt);
-    dictInfo();
-    $('btnBuildIPA').disabled = false;
-    logLine(`Wörterbuch geladen: en_US (words=${STATE.dict.size})`);
-  }catch(e){
-    STATE.dict = new Map();
-    dictInfo();
-    $('btnBuildIPA').disabled = true;
-    logLine('FEHLER: ./data/en_US.txt konnte nicht geladen werden. Bitte Datei bereitstellen.');
-  }
-}
-
-/* =================== G2P → IPA (no rules, pure dict) =================== */
 const WORD_RE = /[\p{L}\p{M}\p{Nd}]+/u;
 function tokenize(text){
   const m = text.normalize('NFC').match(/[\p{L}\p{M}\p{Nd}]+|[^\s]/gu) || [];
   return m.map(s=>s.toString());
 }
-function g2pConvert_en(text){
-  if (STATE.dict.size===0) throw new Error('IPA-Wörterbuch (en_US) nicht verfügbar.');
+
+function g2pConvert(text){
+  if (STATE.dict.size===0) throw new Error('IPA-Wörterbuch nicht geladen (/data/en_US.txt).');
   const toks = tokenize(text.toLowerCase());
   const out = [];
   for (const t of toks){
-    if (!WORD_RE.test(t)){ out.push(t); continue; } // punctuation/symbols
+    if (!WORD_RE.test(t)){ out.push(t); continue; } // Satzzeichen etc.
     const hit = STATE.dict.get(t);
     if (hit){ out.push(hit); }
-    else { out.push(`‹${t}›`); } // unknown word marked, no rule fallbacks
+    else { out.push(`‹${t}›`); } // bewusst keine Regel-Hacks
   }
   return out.join(' ').replace(/\s+/g,' ').trim();
 }
 
-/* =================== Atomizer (BPE) — single-threaded =================== */
+/* =================== Atomizer (BPE) — keine Parallelität =================== */
 function strToCodepoints(str){ const arr = []; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
 function codepointsToStr(arr){ return String.fromCharCode(...arr); }
 
@@ -276,7 +283,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
     const cps = strToCodepoints(rawIPA);
     const uniq = Array.from(new Set(cps.filter(x=>!Number.isNaN(x)))).sort((a,b)=>a-b);
     const cp2id = new Map(); const id2cp = new Map();
-    let nextId = 2; // reserve 0,1
+    let nextId = 2; // 0 BOS, 1 EOS reserviert
     for (const c of uniq){ cp2id.set(c,nextId); id2cp.set(nextId,c); nextId++; }
     let seq = cps.map(c => cp2id.get(c) ?? BOS_ID);
 
@@ -302,10 +309,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
 
     const target = Math.max(baseVocab+10, Math.min(targetVocab, 4096));
     for (let step=0; step<(target - baseVocab); step++){
-      if ((step % 32) === 0) {
-        $('inferStats').textContent = `BPE: ${step+1}/${target-baseVocab}`;
-        await microYield();
-      }
+      if ((step % 32) === 0) { $('inferStats').textContent = `BPE: ${step+1}/${target-baseVocab}`; await microYield(); }
       const counts = countPairs(seq);
       if (counts.size===0) break;
       let bestKey=null, bestCnt=0;
@@ -358,22 +362,22 @@ function buildAtomBPE(rawIPA, targetVocab=512){
   });
 }
 
-/* =================== Model (O(M) conv + gating) =================== */
+/* =================== Modell =================== */
 function rmsNorm(x, gamma, eps=1e-5){
   const meanSq = tf.mean(tf.square(x), -1, true);
   const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps)));
   return tf.mul(xhat, gamma);
 }
 function sinusoidalPositionalEncoding(T, d){
-  const pos = tf.range(0, T, 1, 'float32');                 // [T]
+  const pos = tf.range(0, T, 1, 'float32');
   const half = Math.floor(d/2);
-  const i2 = tf.range(0, half, 1, 'float32');               // [half]
+  const i2 = tf.range(0, half, 1, 'float32');
   const div = tf.exp(tf.mul(i2, tf.scalar(-Math.log(10000.0)/(Math.max(1,half-1)))));
   const ang = pos.reshape([T,1]).matMul(div.reshape([1,half]));
   const sin = tf.sin(ang), cos=tf.cos(ang);
-  let pe = tf.concat([sin, cos], -1);                       // [T, 2*half]
+  let pe = tf.concat([sin, cos], -1);
   if(2*half < d){ const pad = tf.zeros([T, d-2*half]); pe = tf.concat([pe, pad], -1); }
-  return pe;                                                // [T, d]
+  return pe;
 }
 function softmaxCEfromLogits(logits, targets){
   const [B,T,V] = logits.shape;
@@ -384,7 +388,7 @@ function softmaxCEfromLogits(logits, targets){
 }
 
 function buildModel(cfg){
-  const { V, dModel, dFF, nLayers, T, weightTying, dropoutTrain } = cfg;
+  const { V, dModel, dFF, nLayers, T, weightTying=true, dropoutTrain } = cfg;
 
   const E = tf.variable(tf.randomNormal([V, dModel], 0, 0.02, 'float32'), true, 'E');
   const pe = sinusoidalPositionalEncoding(T, dModel);
@@ -395,11 +399,9 @@ function buildModel(cfg){
     layers.push({
       g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`),
       g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
-
       W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
       W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
       b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
-
       W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`),
       b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
       W2: tf.variable(tf.randomNormal([dFF, dModel], 0, Math.sqrt(2/(dFF+dModel))), true, `L${l}_W2`),
@@ -432,12 +434,10 @@ function buildModel(cfg){
 
         // Kausale Conv1D (links gepaddet)
         const K = params.CONV_KERNEL_SIZE;
-        const paddingSize = K - 1;
-        const zeroPadding = tf.zeros([B, paddingSize, dM]);
+        const zeroPadding = tf.zeros([B, K-1, dM]);
         const paddedH = tf.concat([zeroPadding, h], 1);
-
-        let conv_out_full = tf.conv1d(paddedH, L.W_Conv, 1, 'valid');
-        let conv_out = conv_out_full.slice([0, 0, 0], [B, Tcur, dM]);
+        const conv_out_full = tf.conv1d(paddedH, L.W_Conv, 1, 'valid');
+        const conv_out = conv_out_full.slice([0, 0, 0], [B, Tcur, dM]);
 
         const gate_proj = conv_out.reshape([-1, dM]).matMul(L.W_Gate).add(L.b_Gate);
         const gate = tf.sigmoid(gate_proj).reshape([B, Tcur, dM]);
@@ -462,9 +462,7 @@ function buildModel(cfg){
 
   function variables(){
     const vs = [E, bout];
-    for (const L of params.layers){
-      vs.push(L.g1, L.g2, L.W_Conv, L.W_Gate, L.b_Gate, L.W1, L.b1, L.W2, L.b2);
-    }
+    for (const L of params.layers){ vs.push(L.g1, L.g2, L.W_Conv, L.W_Gate, L.b_Gate, L.W1, L.b1, L.W2, L.b2); }
     vs.push(W_out);
     return vs;
   }
@@ -495,7 +493,7 @@ async function setupBackend(preferGPU=true){
   }
 }
 
-/* =================== Data Prep & Training =================== */
+/* =================== Datenaufbereitung & Training =================== */
 function buildStarts(tokens, T, valPct){
   const N = tokens.length;
   const usable = Math.max(0, N - (T+1));
@@ -523,14 +521,27 @@ async function train(){
   await setupBackend(valBool('useGPU', true));
   const raw = ($('txt')?.value ?? '');
   if(!raw.trim()){ logLine('Fehler: Kein Korpus.'); return; }
-  if(!STATE.atomizer || !STATE.tokens){ logLine('Fehler: Bitte zuerst Atome lernen.'); return; }
+
+  // Strikte, laute Checks + Debug:
+  const Tctx = valNum('seqLen', 128, 64, 768);
+  const tokOk = (STATE.tokens instanceof Uint32Array) && (STATE.tokens.length >= (Tctx+1));
+  if (!STATE.atomizer || !(STATE.tokens instanceof Uint32Array)){
+    dbgState('train:pre');
+    logLine('Fehler: Bitte zuerst Atome lernen. (atomizer/tokens fehlen)');
+    return;
+  }
+  if (!tokOk){
+    dbgState('train:pre-too-short');
+    logLine(`Fehler: Token-Länge zu klein (tokens=${STATE.tokens.length}, benötigt ≥ T+1 = ${Tctx+1}). Erhöhe Korpus oder reduziere M.`);
+    return;
+  }
 
   setButtonState('btnTrain', true, 'Trainiere…', true);
-  $('btnStop').disabled = true; // we enable after first loop start
+  $('btnStop').disabled = false;
   STATE.cancelTrain = false;
 
   try {
-    const T = valNum('seqLen', 128, 64, 768), epochs = valNum('epochs', 4), B = valNum('batch', 32);
+    const epochs = valNum('epochs', 4), B = valNum('batch', 32);
     let lr = valNum('lr', 0.002);
     const stepCap = valNum('stepCap', 400), valSplit = 10, autoLR = valBool('autoLR', true);
     const L = valNum('nLayers', 3), dModel = valNum('dModel', 256), dFF = valNum('dFF', 512);
@@ -538,16 +549,16 @@ async function train(){
     const V = STATE.atomizer.vocabSize;
 
     if (STATE.model) STATE.model.variables().forEach(v => v.dispose());
-    STATE.model = buildModel({V, dModel, dFF, nLayers: L, T, weightTying, dropoutTrain});
+    STATE.model = buildModel({V, dModel, dFF, nLayers: L, T: Tctx, weightTying, dropoutTrain});
 
     let optim = tf.train.adam(lr, 0.9, 0.999, 1e-8);
 
-    const {train:trainStarts, val:valStarts} = buildStarts(STATE.tokens, T, valSplit);
+    const {train:trainStarts, val:valStarts} = buildStarts(STATE.tokens, Tctx, valSplit);
     const rawSteps = Math.max(1, Math.floor(trainStarts.length / B));
     const stepsPerEpoch = stepCap>0 ? Math.min(stepCap, rawSteps) : rawSteps;
 
-    $('stats').textContent = `V=${V} • M=${T} • B=${B} • L=${L} • d=${dModel} • dFF=${dFF} • Steps/Ep=${stepsPerEpoch}`;
-    $('btnStop').disabled = false;
+    $('stats').textContent = `V=${V} • M=${Tctx} • B=${B} • L=${L} • d=${dModel} • dFF=${dFF} • Steps/Ep=${stepsPerEpoch}`;
+    logLine(`[DBG train] starts: train=${trainStarts.length} val=${valStarts.length} rawSteps=${rawSteps} steps/Ep=${stepsPerEpoch}`);
 
     let bestPPL=Infinity, bad=0;
     const myModelRev = ++STATE.modelRev;
@@ -560,11 +571,11 @@ async function train(){
 
       for (let s=0;s<stepsPerEpoch;s++){
         if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
-        const {X,Y} = sampleBatch(trainStarts, STATE.tokens, B, T);
+        const {X,Y} = sampleBatch(trainStarts, STATE.tokens, B, Tctx);
 
         const lossScalar = optim.minimize(() => {
-          const x = tf.tensor2d(X, [B,T], 'int32');
-          const y = tf.tensor2d(Y, [B,T], 'int32');
+          const x = tf.tensor2d(X, [B,Tctx], 'int32');
+          const y = tf.tensor2d(Y, [B,Tctx], 'int32');
           const logits = STATE.model.forward(x, true);
           const loss = softmaxCEfromLogits(logits, y);
           return loss;
@@ -577,6 +588,7 @@ async function train(){
         lossAcc += lossVal;
 
         if ((s % 200) === 0) logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`);
+        if ((s % 512) === 0) { const m=tf.memory(); logLine(`mem: tensors=${m.numTensors} bytes=${m.numBytes}`); }
         await tf.nextFrame();
       }
       if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
@@ -588,22 +600,22 @@ async function train(){
 
       for (let es=0; es<evalSteps; es++){
         if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
-        const {X,Y} = sampleBatch(valStarts, STATE.tokens, evalB, T);
+        const {X,Y} = sampleBatch(valStarts, STATE.tokens, evalB, Tctx);
         const valLoss = tf.tidy(() => {
-          const x = tf.tensor2d(X, [evalB,T], 'int32');
-          const y = tf.tensor2d(Y, [evalB,T], 'int32');
+          const x = tf.tensor2d(X, [evalB,Tctx], 'int32');
+          const y = tf.tensor2d(Y, [evalB,Tctx], 'int32');
           return softmaxCEfromLogits(STATE.model.forward(x, false), y);
         });
         const v = (await valLoss.data())[0];
         valLoss.dispose();
-        nllSum += v * (evalB*T);
-        tokCount += (evalB*T);
+        nllSum += v * (evalB*Tctx);
+        tokCount += (evalB*Tctx);
         await tf.nextFrame();
       }
       if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
 
       const valPPL = Math.exp(nllSum/Math.max(1,tokCount));
-      const tokps = (stepsPerEpoch * B * T) / Math.max(0.001, (t1-t0)/1000);
+      const tokps = (stepsPerEpoch * B * Tctx) / Math.max(0.001, (t1-t0)/1000);
       $('metrics').innerHTML =
         `<b>Epoche ${ep+1}/${epochs}</b> &nbsp; Loss=${(lossAcc/stepsPerEpoch).toFixed(4)} &nbsp; Val PPL=${valPPL.toFixed(2)} &nbsp; ~Tok/s=${tokps.toFixed(0)} &nbsp; LR=${lr.toFixed(5)}`;
       logLine(`Ep ${ep+1}: loss=${(lossAcc/stepsPerEpoch).toFixed(4)} | ValPPL=${valPPL.toFixed(2)} | ${(t1-t0).toFixed(0)}ms | ~${tokps.toFixed(0)} tok/s`);
@@ -627,8 +639,7 @@ async function train(){
       await tf.nextFrame();
     }
     if (myModelRev === STATE.modelRev && !STATE.cancelTrain) logLine('Training abgeschlossen. Modell ist bereit zur Inferenz.');
-    $('prompt').disabled = true; // We generate IPA from a text prompt via dictionary again
-    $('btnGen').disabled = false; $('btnExport').disabled = false;
+    $('prompt').disabled = false; $('btnGen').disabled = false; $('btnExport').disabled = false;
   } catch(e){
     console.error(e); logLine('Fehler: '+(e?.message||e));
   } finally {
@@ -638,7 +649,7 @@ async function train(){
   }
 }
 
-/* =================== Sampling & Inference =================== */
+/* =================== Sampling & Inferenz =================== */
 function sampleFromProbs(probs, mode, topK, topP){
   const order = Array.from(probs.keys()).sort((a,b)=>probs[b]-probs[a]);
   if (mode==='topk'){
@@ -660,17 +671,17 @@ function sampleFromProbs(probs, mode, topK, topP){
 }
 
 async function generate(){
-  if (!STATE.model || !STATE.atomizer){ logLine('Bitte zuerst Atome lernen und Modell trainieren/laden.'); return; }
+  if (!STATE.model || !STATE.atomizer){ logLine('Bitte zuerst Atomizer + Modell trainieren/laden.'); return; }
 
   $('btnGen').disabled = true; $('btnStopGen').disabled = false; $('inferStats').textContent = 'Generiere...';
   STATE.cancelGen = false;
 
   const mode = $('sampleMode').value, topK = valNum('topK', 64), topP = valNum('topP', 0.9), temp = valNum('temp', 0.9);
   const nGen = valNum('nGen', 200), T = STATE.model.params.cfg.T;
-  const promptText = ($('prompt')?.value ?? '').trim();
-  if (!promptText){ logLine('Kein Prompt.'); $('btnGen').disabled = false; $('btnStopGen').disabled = true; return; }
+  const prompt = ($('prompt')?.value ?? '').trim();
+  if (!prompt){ logLine('Kein Prompt.'); $('btnGen').disabled = false; $('btnStopGen').disabled = true; return; }
 
-  const promptIPA = g2pConvert_en(promptText);               // reconvert fresh prompt via dict
+  const promptIPA = g2pConvert(prompt);
   let ctx = STATE.atomizer.encodeIPAtoAtoms(promptIPA, true, false);
   const t0 = performance.now();
 
@@ -709,7 +720,7 @@ async function generate(){
   logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
 }
 
-/* =================== Export / Import (file only) =================== */
+/* =================== Datei-Export / -Import =================== */
 function ab2b64(buf){
   const bytes = new Uint8Array(buf);
   let bin=''; for (let i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
@@ -824,9 +835,9 @@ async function importModel(file){
         }
       };
 
-      STATE.modelRev++;
       $('prompt').disabled = false; $('btnGen').disabled = false; $('btnExport').disabled = false;
       logLine('Import abgeschlossen. Modell & Atomizer geladen.');
+      dbgState('after-import');
     } catch(e){
       logLine('Import-Fehler: '+(e?.message||e));
     }
@@ -834,25 +845,31 @@ async function importModel(file){
   reader.readAsText(file);
 }
 
-/* =================== UI Wiring =================== */
+/* =================== UI =================== */
 window.addEventListener('load', async ()=>{
-  // Load local dictionary first (same-origin path)
-  await loadLocalEnUS();
-  setupBackend(valBool('useGPU', true));
+  // Backend vorbereiten (später train() setzt erneut)
+  await setupBackend(valBool('useGPU', true));
 
   // Buttons
-  $('btnStop').addEventListener('click', ()=>{ STATE.cancelTrain=true; $('btnStop').disabled = true; logLine('Training gestoppt (am Epochen-/Step-Ende).'); });
-  $('btnStopGen').addEventListener('click', ()=>{ STATE.cancelGen=true; $('btnStopGen').disabled = true; });
+  $('btnLoadDict').addEventListener('click', async ()=>{
+    try{
+      await loadLocalDictEN();
+      $('btnBuildIPA').disabled = false;
+    }catch(e){
+      logLine('Fehler beim Laden von /data/en_US.txt: '+(e?.message||e));
+    }
+  });
 
   $('btnBuildIPA').addEventListener('click', ()=>{
     const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
     try{
-      const ipa=g2pConvert_en(raw);
+      const ipa=g2pConvert(raw);
       STATE.ipa = ipa;
       $('kpiIPA').textContent = `IPA: ${ipa.length} Zeichen`;
       $('btnTrainAtoms').disabled = false;
       logLine('1. G2P → IPA fertig.');
+      dbgState('after-g2p');
     }catch(e){
       logLine('G2P-Fehler: '+(e?.message||e));
     }
@@ -861,8 +878,9 @@ window.addEventListener('load', async ()=>{
   $('btnTrainAtoms').addEventListener('click', async ()=>{
     const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
-    if (!STATE.ipa) { logLine('Bitte zuerst G2P → IPA ausführen.'); return; }
+    if(!STATE.ipa){ logLine('Bitte zuerst G2P → IPA ausführen.'); return; }
     const atomVocab = valNum('atomVocab', 512);
+    const T = valNum('seqLen', 128);
 
     $('btnTrainAtoms').disabled = true; $('btnBuildIPA').disabled = true;
     $('inferStats').textContent = '2. Atomizer wird trainiert...';
@@ -874,12 +892,19 @@ window.addEventListener('load', async ()=>{
       STATE.tokens = new Uint32Array(atomIds);
 
       const atomCount = STATE.tokens.length;
-      $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
+      $('kpiAtoms').textContent = `Atome (inkl. BOS/EOS): ${atomCount}`;
       const roughComp = (STATE.ipa.length>0) ? (STATE.ipa.length / atomCount).toFixed(2) : '–';
       $('kpiComp').textContent = `Kompression: ${roughComp}×`;
-      logLine(`PhenomEncoder abgeschlossen. Vocab=${STATE.atomizer.vocabSize}.`);
+      logLine(`PhenomEncoder abgeschlossen. Vocab=${STATE.atomizer.vocabSize}. Tokens=${atomCount}`);
+      dbgState('after-atomizer');
 
-      $('btnTrain').disabled = false;
+      // Training nur freigeben, wenn genug Tokens für (T+1)
+      if (STATE.tokens.length >= (T+1)) {
+        $('btnTrain').disabled = false;
+      } else {
+        $('btnTrain').disabled = true;
+        logLine(`Hinweis: Tokens=${STATE.tokens.length} < T+1=${T+1}. Bitte M reduzieren oder mehr Text bereitstellen.`);
+      }
       $('inferStats').textContent = 'Atome fertig. Bereit zum Training.';
     } catch (e) {
       logLine(`Fehler beim Atomizer-Training: ${e.message}`);
@@ -890,14 +915,44 @@ window.addEventListener('load', async ()=>{
 
   $('btnTrain').addEventListener('click', train);
   $('btnGen').addEventListener('click', generate);
+  $('btnStop').addEventListener('click', ()=>{ STATE.cancelTrain=true; $('btnStop').disabled = true; logLine('Training gestoppt (am Step-/Epochenende).'); });
+  $('btnStopGen').addEventListener('click', ()=>{ STATE.cancelGen=true; $('btnStopGen').disabled = true; });
+
+  $('btnDbgDump').addEventListener('click', ()=>{
+    dbgState('manual');
+    if (STATE.tokens instanceof Uint32Array){
+      const T = valNum('seqLen', 128);
+      const starts = buildStarts(STATE.tokens, T, 10);
+      logLine(`[DBG dump] seqLen=${T} tokens=${STATE.tokens.length} starts.train=${starts.train.length} starts.val=${starts.val.length}`);
+      if (STATE.atomizer) logLine(`[DBG dump] merges=${STATE.atomizer.merges.length} exampleMerge=${JSON.stringify(STATE.atomizer.merges[0]||null)}`);
+    }
+  });
+
+  $('btnClear').addEventListener('click', ()=>{
+    STATE.dict = new Map();
+    STATE.ipa = '';
+    STATE.atomizer = null;
+    STATE.tokens = null;
+    if (STATE.model) { STATE.model.variables().forEach(v=>v.dispose()); STATE.model=null; }
+    $('kpiDict').textContent='Wörterbuch: –';
+    $('kpiIPA').textContent='IPA: –';
+    $('kpiAtoms').textContent='Atome: –';
+    $('kpiComp').textContent='Kompression: –';
+    $('btnBuildIPA').disabled = true;
+    $('btnTrainAtoms').disabled = true;
+    $('btnTrain').disabled = true;
+    $('btnExport').disabled = true;
+    $('prompt').disabled = true;
+    $('btnGen').disabled = true;
+    logLine('Zustand zurückgesetzt.');
+  });
+
+  $('fileImport').addEventListener('change', (e)=> importModel(e.target.files?.[0]));
 
   $('sampleMode').addEventListener('change', ()=>{
     const m=$('sampleMode').value;
     $('topK').disabled = (m!=='topk'); $('topP').disabled=(m!=='topp');
   });
-
-  $('btnExport').addEventListener('click', exportModel);
-  $('fileImport').addEventListener('change', (e)=> importModel(e.target.files?.[0]));
 });
 </script>
 </body>
