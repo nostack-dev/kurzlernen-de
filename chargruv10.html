@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-    <title>PhO-Compress Atom-LLM — O(M) Lineares Modell Prototyp (Final & Stabilisiert)</title>
+    <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (PROD FINAL)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
@@ -244,9 +244,10 @@ function buildAtomBPE(rawIPA, targetVocab=512){
             return counts;
         }
         function applyBestPair(sequence, a, b, newId){
+            // FIX: Variable 'tokens' durch 'sequence' ersetzt
             const out = [];
             for (let i=0;i<sequence.length;){
-                if (i<sequence.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(newId); i+=2; }
+                if (i<sequence.length-1 && sequence[i]===a && sequence[i+1]===b){ out.push(newId); i+=2; }
                 else { out.push(sequence[i]); i+=1; }
             }
             return out;
@@ -354,7 +355,7 @@ function buildModel(cfg){
              // MLP VARIABLEN
              W1: tf.variable(tf.randomNormal([dModel,dFF], 0, Math.sqrt(2/(dModel+dFF)))),
              b1: tf.variable(tf.zeros([dFF])),
-             W2: tf.variable(tf.randomNormal([dFF,dModel], 0, Math.sqrt(2/(dModel+dFF)))),
+             W2: tf.variable(tf.randomNormal([dFF,dModel], 0, Math.sqrt(2/(dFF+dModel)))),
              b2: tf.variable(tf.zeros([dModel])),
          });
     }
@@ -425,11 +426,11 @@ function buildModel(cfg){
     }
 
     function variables(){
-        const vs = [params.E, params.bout];
+        const vs = [E, bout];
         for (const L of params.layers){ 
              vs.push(L.g1, L.g2, L.W_Conv, L.W_Gate, L.b_Gate, L.W1, L.b1, L.W2, L.b2); 
         }
-        vs.push(params.W_out); 
+        vs.push(W_out); 
         return vs;
     }
     return {params, forward, variables};
@@ -556,7 +557,7 @@ async function train(){
 
                 if ((s % LOG_EVERY) === 0) logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`);
                 if ((s % MEM_EVERY) === 0) { const m=tf.memory(); logLine(`mem: tensors=${m.numTensors} bytes=${m.numBytes}`); }
-                if ((s % YIELD_EVERY) === 0) await tf.nextFrame(); // KRITISCH: Gibt Kontrolle zurück
+                if ((s % YIELD_EVERY) === 0) await tf.nextFrame(); 
             }
 
             const t1 = performance.now();
@@ -600,29 +601,25 @@ async function train(){
 }
 
 
-// +++++++++++++++++++++++++++++++++++++++
-// NEU: Speichern und Laden Funktionen
-// +++++++++++++++++++++++++++++++++++++++
+/* --- Speichern und Laden Funktionen --- */
 
 async function saveModel() {
     if (!MODEL) {
         logLine("FEHLER: Kein trainiertes Modell zum Speichern vorhanden.");
         return;
     }
-    // Deaktiviere alle Buttons während der Speicherung
     setButtonState('btnTrain', true); setButtonState('btnSave', true, 'Speichere...', true); setButtonState('btnLoad', true);
     
     try {
         // 1. Speichere Modell-Gewichtungen in IndexedDB
         const saveResult = await tf.io.save(MODEL, 'indexeddb://pho-compress-om-model');
         
-        // 2. Speichere Atomizer-Metadaten in LocalStorage
+        // 2. Speichere Atomizer-Metadaten und Konfiguration in LocalStorage
         const atomizerData = JSON.stringify({
             merges: ATOMIZER.merges,
-            cp2id: Object.fromEntries(ATOMIZER.cp2id), // Maps zu Objekten konvertieren
+            cp2id: Object.fromEntries(ATOMIZER.cp2id), 
             id2cp: Object.fromEntries(ATOMIZER.id2cp),
             vocabSize: ATOMIZER.vocabSize,
-            // Speichere die Konfiguration für das Laden (sehr wichtig!)
             cfg: MODEL.params.cfg 
         });
         localStorage.setItem('pho-compress-om-atomizer', atomizerData);
@@ -652,7 +649,6 @@ async function loadModel() {
         const loadHandler = tf.io.browserIndexedDB('pho-compress-om-model');
         const loadedArtifacts = await loadHandler.load();
 
-        // Konfiguration und Modell erstellen
         const cfg = atomizerData.cfg;
         
         if (MODEL) MODEL.variables().forEach(v => v.dispose());
@@ -666,26 +662,58 @@ async function loadModel() {
             ...atomizerData,
             cp2id: new Map(Object.entries(atomizerData.cp2id).map(([k, v]) => [Number(k), v])),
             id2cp: new Map(Object.entries(atomizerData.id2cp).map(([k, v]) => [Number(k), v])),
-            // Binde die Kernfunktionen wieder an das rekonstruierte Objekt
-            encodeIPAtoAtoms: buildAtomBPE(IPA_CORPUS, 0).encodeIPAtoAtoms, // Platzhalter: muss über BPE-Logik neu gebunden werden
-            decodeAtomsToIPA: buildAtomBPE(IPA_CORPUS, 0).decodeAtomsToIPA 
+            
+            // Binde die Kernfunktionen für encode/decode neu (nutzt Merges/Maps aus dem geladenen Atomizer)
+            encodeIPAtoAtoms: function(str, addBos, addEos) {
+                 const merges = this.merges;
+                 const cp2id = this.cp2id;
+                 let tokens = strToCodepoints(str).map(c => cp2id.get(c)).filter(v=>Number.isFinite(v));
+                 for (const m of merges){
+                     const {a,b,id} = m;
+                     const out = [];
+                     for (let i=0;i<tokens.length;){
+                         if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
+                         else { out.push(tokens[i]); i++; }
+                     }
+                     tokens = out;
+                 }
+                 if (addBos) tokens = [BOS_ID, ...tokens];
+                 if (addEos) tokens = [...tokens, EOS_ID];
+                 return tokens;
+            },
+            decodeAtomsToIPA: function(tokens) {
+                 const id2pair = new Map(this.merges.map(m=>[m.id,[m.a,m.b]]));
+                 const id2cp = this.id2cp;
+                 function expand(id){
+                    if (id===BOS_ID || id===EOS_ID) return [];
+                    if (id2cp.has(id)) return [ id2cp.get(id) ];
+                    const pr = id2pair.get(id);
+                    if (!pr) return [];
+                    return expand(pr[0]).concat(expand(pr[1]));
+                 }
+                 const cpsOut = [];
+                 for (const t of tokens){
+                    if (t===BOS_ID || t===EOS_ID) continue;
+                    if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
+                    else cpsOut.push(...expand(t));
+                 }
+                 return codepointsToStr(cpsOut);
+            }
         };
-        // HACK: Da buildAtomBPE() asynchron ist, muss die Papiervorlage des Atomizers für decode/encode neu gebaut werden.
-        // Das ist die einzige saubere Möglichkeit im Browser-JS, die Merges/Codepoints wieder in die Closure zu bekommen.
-        
+
         logLine("Modell erfolgreich geladen und einsatzbereit. Inferenz freigeschaltet.");
         $('prompt').disabled = false;
         $('btnGen').disabled = false;
     } catch (e) {
         logLine(`FEHLER beim Laden des LLM: ${e.message}.`);
-        if(e.message.includes('No model found')) logLine('Der Speicher ist leer.');
+        if(e.message.includes('No model found')) logLine('Der Speicher ist leer. Trainieren oder exportieren Sie ein Modell.');
     } finally {
         setButtonState('btnTrain', false); setButtonState('btnSave', false); setButtonState('btnLoad', false, 'Modell Laden', false);
     }
 }
 
 
-function sampleFromProbs(p, mode, topK, topP, temp){ /* ... (Sampling Logic) ... */
+function sampleFromProbs(p, mode, topK, topP, temp){ 
     const t = clamp(temp, 0.1, 2.0);
     const logp = p.map(x=>Math.log(x+1e-20)/t);
     const maxv = Math.max(...logp);
