@@ -41,7 +41,7 @@
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">1) Korpus & Atomizer (PhenomEncoder: $L \to M$)</h3>
-    <textarea id="txt" placeholder="Füge einen großen Textkorpus (Deutsch/Englisch) ein, um die Laut-Atome zu lernen. Beispiel: Der schnelle braune Fuchs springt über den faulen Hund. The quick brown fox jumps over the lazy dog."></textarea>
+    <textarea id="txt" placeholder="Großen Textkorpus einfügen …"></textarea>
 
     <div class="row" style="margin-top:10px">
       <div>
@@ -95,6 +95,7 @@
       </button>
       <button id="btnSave" class="btn warn">Modell Speichern</button>
       <button id="btnLoad" class="btn secondary">Modell Laden</button>
+      <input id="fileImport" type="file" accept="application/json" style="display:none"/>
       <div id="stats" class="muted"></div>
     </div>
   </div>
@@ -135,13 +136,14 @@
 </div>
 
 <script>
-/* =================== Core Logic (PhO-Compress Stufe I) =================== */
+/* =================== Core Logic =================== */
 
 const $ = id => document.getElementById(id);
 const MAX_LOG_CHARS = 100000;
 const BOS_ID = 0, EOS_ID = 1;
+const CKPT_DB_KEY = 'pho-compress-om-model';
+const META_KEY   = 'pho-compress-om-atomizer';
 
-/* --- Helpers & UI --- */
 function logLine(msg){
   const el = $('log');
   const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
@@ -171,16 +173,12 @@ function setButtonState(id, disabled, text, showSpinner=false) {
   if (spinEl) spinEl.style.display = showSpinner ? 'inline-block' : 'none';
 }
 
-/* --- Text ⇄ IPA --- */
-/* G2P: längste Muster zuerst (vermeidet Zerlegung von 'tsch' durch 'sch') */
+/* -------- G2P / P2G ---------- */
 function g2pConvert(text){
   if(!text) return '';
   const words = (text.normalize('NFC').toLowerCase().match(/[a-zäöüß]+|[a-z]+|[0-9]+|[^\s]/gi) || []).map(w=>w.toString());
   const repl = [
-    [/tsch/g,'t͡ʃ'],  // längere zuerst
-    [/sch/g,'ʃ'],
-    [/ch/g,'ç'],
-    [/ts/g,'t͡s'],
+    [/tsch/g,'t͡ʃ'], [/sch/g,'ʃ'], [/ch/g,'ç'], [/ts/g,'t͡s'],
     [/th/g,'t'], [/ph/g,'f'], [/qu/g,'kv'],
     [/ng/g,'ŋ'], [/nk/g,'ŋk'],
     [/eau/g,'oː'], [/eou/g,'uː'],
@@ -192,12 +190,10 @@ function g2pConvert(text){
   ];
   const vowelLike = /[aɛəɪiɔoʊuœyː]/;
   const ipaWords = [];
-
   for (let w of words){
     if (!/[a-zäöüß]/i.test(w)) { ipaWords.push(w); continue; }
     let s = w;
     for (const [rg, to] of repl) s = s.replace(rg, to);
-    // Stress vor ersten vokalischen Laut
     let idx = s.search(vowelLike);
     if (idx >= 0) s = s.slice(0, idx) + 'ˈ' + s.slice(idx);
     s = s.replace(/ˈˈ+/g,'ˈ');
@@ -206,86 +202,53 @@ function g2pConvert(text){
   return ipaWords.join(' ').replace(/\s+/g,' ').trim();
 }
 
-/* Robust P2G (IPA → Grapheme) */
 function ipa2text(ipa){
   if(!ipa) return '';
-  // Wir halten Whitespaces und decodieren nur "wortartige" Abschnitte
-  const parts = ipa.split(/(\s+)/); // splittet und behält Spaces
+  const parts = ipa.split(/(\s+)/);
   const out = parts.map(part => {
     if (/^\s+$/.test(part)) return part;
-    // weiter in "wort"- und "nicht-wort"-Cluster aufteilen
     const chunks = part.match(/[A-Za-z\u00C0-\u024F\u0250-\u02AF\u1D00-\u1DFF\u0300-\u036Fˈˌː͡]+|[^A-Za-z\u00C0-\u024F\u0250-\u02AF\u1D00-\u1DFF\u0300-\u036Fˈˌː͡]+/g) || [part];
     return chunks.map(chunk => /[A-Za-z\u00C0-\u024F\u0250-\u02AF\u1D00-\u1DFF\u0300-\u036Fˈˌː͡]/.test(chunk) ? p2gDecodeWord(chunk) : chunk).join('');
   });
   return out.join('').replace(/\s+/g,' ').trim();
 }
-
 function p2gDecodeWord(w){
-  let s = w.normalize('NFC');
-
-  // Stress-/Sekundärstress-Zeichen raus (Länge berücksichtigen wir via Regeln)
-  s = s.replace(/[ˈˌ]/g, '');
-
-  // Reihenfolge: Affrikaten & Diphthonge, dann Langvokale, dann Konsonanten, dann Einzellaut
+  let s = w.normalize('NFC').replace(/[ˈˌ]/g, '');
   const rules = [
-    // Affrikaten
     [/d͡ʒ/g, 'dsch'],
     [/t͡ʃ/g, 'tsch'],
-    [/t͡s/g, '#TS#'], // später positionsabhängig
-
-    // Diphthonge (mit/ohne ̯)
+    [/t͡s/g, '#TS#'],
     [/(aʊ̯|aʊ)/g, 'au'],
     [/(aɪ̯|aɪ)/g, 'ei'],
-    [/(ɔɪ̯|ɔɪ)/g, 'eu'], // default dt
-    [/eɪ/g, 'ei'],
-    [/oʊ/g, 'ou'],
-
-    // Langvokale (dt-freundlich)
+    [/(ɔɪ̯|ɔɪ)/g, 'eu'],
+    [/eɪ/g, 'ei'], [/oʊ/g, 'ou'],
     [/iː/g,'ie'], [/eː/g,'ee'], [/oː/g,'o'], [/uː/g,'u'],
     [/yː/g,'ü'],  [/øː/g,'ö'],  [/ɛː/g,'ä'],
-
-    // R-Färbung & Schwa
-    [/ɐ/g,'er'],
-    [/ə/g,'e'],
-
-    // Konsonanten & Frikative
+    [/ɐ/g,'er'],  [/ə/g,'e'],
     [/ʃ/g,'sch'], [/ʒ/g,'j'], [/ʝ/g,'j'],
-    [/ç/g,'ch'], [/x/g,'ch'], [/χ/g,'ch'],
+    [/ç/g,'ch'],  [/x/g,'ch'], [/χ/g,'ch'],
     [/ŋk/g,'nk'], [/ŋ/g,'ng'],
-    [/ɡ/g,'g'],  [/ɣ/g,'g'],
-    [/θ/g,'th'], [/ð/g,'th'],
-    [/ɹ/g,'r'],  [/ʁ/g,'r'],
-    [/β/g,'b'],  [/ɫ/g,'l'],
+    [/ɡ/g,'g'],   [/ɣ/g,'g'],
+    [/θ/g,'th'],  [/ð/g,'th'],
+    [/ɹ/g,'r'],   [/ʁ/g,'r'],
+    [/β/g,'b'],   [/ɫ/g,'l'],
     [/ʔ/g,''],
-
-    // Vokale (Einzellaut)
     [/æ/g,'ä'], [/ɑ/g,'a'], [/a/g,'a'],
     [/ɛ/g,'ä'], [/e/g,'e'],
     [/ɪ/g,'i'], [/i/g,'i'],
     [/ʊ/g,'u'], [/u/g,'u'],
     [/ɔ/g,'o'], [/o/g,'o'],
     [/y/g,'ü'], [/ø/g,'ö'], [/œ/g,'ö'],
-
-    // Längen-/Sonderzeichen, die evtl. übrig blieben
     [/ː|ˑ|˞|̃/g, '']
   ];
-
   for (const [rg, to] of rules) s = s.replace(rg, to);
-
-  // Kontext-Heuristik: t͡s → "z" am Wortanfang, sonst "ts"
-  s = s.replace(/^#TS#/, 'z');
-  s = s.replace(/#TS#/g, 'ts');
-
-  // Rückabbildung G2P-Sonderregel: "kv" → "qu" vor Vokal
+  s = s.replace(/^#TS#/, 'z').replace(/#TS#/g, 'ts');
   s = s.replace(/kv(?=[aeiouäöüy])/g, 'qu');
-
-  // einfache Bereinigung: mehrfaches 'sch' vermeiden (selten)
   s = s.replace(/schsch/g,'sch');
-
   return s;
 }
 
-/* --- BPE auf IPA (ASYNCHRON) --- */
+/* --- BPE --- */
 function strToCodepoints(str){ const arr = []; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
 function codepointsToStr(arr){ return String.fromCharCode(...arr); }
 
@@ -338,8 +301,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
       const seq0 = strToCodepoints(str).map(c => cp2id.get(c));
       let tokens = seq0.filter(v=>Number.isFinite(v));
       for (const m of merges){
-        const {a,b,id} = m;
-        const out = [];
+        const {a,b,id} = m; const out=[];
         for (let i=0;i<tokens.length;){
           if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
           else { out.push(tokens[i]); i++; }
@@ -355,15 +317,13 @@ function buildAtomBPE(rawIPA, targetVocab=512){
       function expand(id){
         if (id===BOS_ID || id===EOS_ID) return [];
         if (id2cp.has(id)) return [ id2cp.get(id) ];
-        const pr = id2pair.get(id);
-        if (!pr) return [];
+        const pr = id2pair.get(id); if (!pr) return [];
         return expand(pr[0]).concat(expand(pr[1]));
       }
       const cpsOut = [];
       for (const t of tokens){
         if (t===BOS_ID || t===EOS_ID) continue;
-        if (id2cp.has(t)) cpsOut.push(id2cp.get(t));
-        else cpsOut.push(...expand(t));
+        if (id2cp.has(t)) cpsOut.push(id2cp.get(t)); else cpsOut.push(...expand(t));
       }
       return codepointsToStr(cpsOut);
     }
@@ -373,7 +333,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
   });
 }
 
-/* --- LINEARES MODELL (O(M)) --- */
+/* --- Modell --- */
 function rmsNorm(x, gamma, eps=1e-5){
   const meanSq = tf.mean(tf.square(x), -1, true);
   const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps)));
@@ -435,7 +395,7 @@ function buildModel(cfg){
 
   function forward(ids, training=true){
     return tf.tidy(() => {
-      const B = ids.shape[0], Tcur = ids.shape[1], dModel = params.cfg.dModel, V = params.cfg.V;
+      const B = ids.shape[0], Tcur = ids.shape[1], dModel = params.cfg.dModel;
 
       const emb = tf.gather(params.E, ids.flatten()).reshape([B,Tcur,dModel]);
       let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
@@ -443,19 +403,13 @@ function buildModel(cfg){
 
       for(const L of params.layers){
         let h = rmsNorm(x, L.g1);
-
-        // Kausale 1D Faltung (O(M))
         const K = params.CONV_KERNEL_SIZE;
-        const paddingSize = K - 1;
-        const zeroPadding = tf.zeros([B, paddingSize, dModel]);
-        const paddedH = tf.concat([zeroPadding, h], 1);
-        const conv_out_full = tf.conv1d(paddedH, L.W_Conv, 1, 'valid');
-        const conv_out = conv_out_full.slice([0, 0, 0], [B, Tcur, dModel]);
-
-        const gate_proj = conv_out.reshape([-1, dModel]).matMul(L.W_Gate).add(L.b_Gate);
-        const gate = tf.sigmoid(gate_proj).reshape([B, Tcur, dModel]);
-        const linear_out = tf.mul(conv_out, gate);
-        x = x.add(dropout(linear_out, 0.1));
+        const pad = tf.zeros([B, K-1, dModel]);
+        const padded = tf.concat([pad, h], 1);
+        const conv_out_full = tf.conv1d(padded, L.W_Conv, 1, 'valid');
+        const conv_out = conv_out_full.slice([0,0,0],[B,Tcur,dModel]);
+        const gate = tf.sigmoid(conv_out.reshape([-1,dModel]).matMul(L.W_Gate).add(L.b_Gate)).reshape([B,Tcur,dModel]);
+        x = x.add(dropout(tf.mul(conv_out, gate), 0.1));
 
         let h2 = rmsNorm(x, L.g2);
         const mlp2 = h2.reshape([-1, dModel]).matMul(L.W1).add(L.b1);
@@ -464,11 +418,9 @@ function buildModel(cfg){
         x = x.add(dropout(mlp_out, 0.1));
       }
 
-      const x_2d = x.reshape([-1, dModel]);
-      const logits_2d = params.cfg.weightTying ? x_2d.matMul(params.E.transpose())
-                                               : x_2d.matMul(params.W_out);
-      const logits = logits_2d.reshape([B, Tcur, V]);
-      return logits.add(params.bout);
+      const x2 = x.reshape([-1, dModel]);
+      const logits2 = params.cfg.weightTying ? x2.matMul(params.E.transpose()) : x2.matMul(params.W_out);
+      return logits2.reshape([B, Tcur, params.cfg.V]).add(params.bout);
     });
   }
 
@@ -483,7 +435,7 @@ function buildModel(cfg){
   return {params, forward, variables};
 }
 
-/* =================== Global State, Training & Inference =================== */
+/* =================== Global State =================== */
 let ATOMIZER=null, MODEL=null, TOKENS=null, IPA_CORPUS='';
 
 const YIELD_EVERY = 128, LOG_EVERY = 200, MEM_EVERY = 512;
@@ -511,7 +463,7 @@ async function setupBackend(preferGPU=true){
   }
 }
 
-// ASYNCHRONE BPE-Logik
+/* -------- Dataset Prep -------- */
 async function buildTokenDataFromText(rawText, T, atomVocab){
   IPA_CORPUS = g2pConvert(rawText);
   const ipaLen = IPA_CORPUS.length;
@@ -528,7 +480,6 @@ async function buildTokenDataFromText(rawText, T, atomVocab){
 
   logLine(`PhenomEncoder (Stufe I) abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
 }
-
 function buildStarts(tokens, T, valPct){
   const N = tokens.length;
   const usable = Math.max(0, N - (T+1));
@@ -552,6 +503,7 @@ function sampleBatch(starts, tokens, B, T){
   return {X,Y};
 }
 
+/* -------- Training -------- */
 async function train(){
   await setupBackend(valBool('useGPU', true));
   const raw = ($('txt')?.value ?? '');
@@ -587,13 +539,12 @@ async function train(){
 
       for (let s=0;s<stepsPerEpoch;s++){
         const {X,Y} = sampleBatch(trainStarts, TOKENS, B, T);
-
         const lossScalar = optim.minimize(() => {
           const x = tf.tensor2d(X, [B,T], 'int32');
           const y = tf.tensor2d(Y, [B,T], 'int32');
           const logits = MODEL.forward(x, true);
           return softmaxCEfromLogits(logits, y);
-        }, /*returnCost=*/true, MODEL.variables());
+        }, true, MODEL.variables());
 
         const lossVal = lossScalar.dataSync()[0];
         lossScalar.dispose();
@@ -606,7 +557,6 @@ async function train(){
       }
 
       const t1 = performance.now();
-      // schnelle Val-PPL (stichprobenartig)
       let nllSum = 0, tokCount = 0;
       const evalB = Math.min(B, 32);
       const evalSteps = Math.min(10, Math.max(0, Math.floor(valStarts.length / Math.max(1, evalB))));
@@ -624,7 +574,6 @@ async function train(){
         if ((es & 3)===0) await tf.nextFrame();
       }
       const valPPL = Math.exp(nllSum/Math.max(1,tokCount));
-
       const tokps = (stepsPerEpoch * B * T) / Math.max(0.001, (t1-t0)/1000);
       $('metrics').innerHTML =
         `<b>Epoche ${ep+1}/${epochs}</b> &nbsp; Loss=${(lossAcc/stepsPerEpoch).toFixed(4)} &nbsp; Val PPL=${valPPL.toFixed(2)} &nbsp; ~Tok/s=${tokps.toFixed(0)} &nbsp; LR=${lr.toFixed(5)}`;
@@ -643,23 +592,45 @@ async function train(){
   }
 }
 
-/* --- Speichern & Laden (robust, mit benannten Variablen) --- */
-async function saveModel() {
+/* -------- Persistenz: robust Save/Load -------- */
+function ab2b64(buf){
+  const bytes = new Uint8Array(buf);
+  let bin=''; for (let i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b642ab(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function saveToIndexedDB(specs, data){
+  const handler = tf.io.browserIndexedDB(CKPT_DB_KEY);
+  await handler.save({ modelTopology: null, weightSpecs: specs, weightData: data });
+}
+async function loadFromIndexedDB(){
+  const handler = tf.io.browserIndexedDB(CKPT_DB_KEY);
+  return handler.load(); // {weightSpecs, weightData, ...}
+}
+
+async function saveModel(){
   if (!MODEL) { logLine("FEHLER: Kein trainiertes Modell zum Speichern vorhanden."); return; }
   setButtonState('btnTrain', true); setButtonState('btnSave', true, 'Speichere...', true); setButtonState('btnLoad', true);
   try {
-    // 1) Variablen per Namen einsammeln
+    // Variablen benannt einsammeln
     const named = {};
     for (const v of MODEL.variables()) {
       if (!v.name) throw new Error('Variable ohne Namen gefunden.');
+      if (named[v.name]) throw new Error(`Duplikat-Name: ${v.name}`);
       named[v.name] = v;
     }
-    // 2) Gewichte encodieren
     const {data, specs} = await tf.io.encodeWeights(named);
-    // 3) In IndexedDB speichern
-    const handler = tf.io.browserIndexedDB('pho-compress-om-model');
-    await handler.save({ modelTopology: null, weightSpecs: specs, weightData: data });
-    // 4) Atomizer & CFG in LocalStorage
+
+    // 1) Primary: IndexedDB
+    await saveToIndexedDB(specs, data);
+
+    // 2) Metadaten (Atomizer + CFG)
     const atomizerData = JSON.stringify({
       merges: ATOMIZER.merges,
       cp2id: Object.fromEntries(ATOMIZER.cp2id),
@@ -667,8 +638,23 @@ async function saveModel() {
       vocabSize: ATOMIZER.vocabSize,
       cfg: MODEL.params.cfg
     });
-    localStorage.setItem('pho-compress-om-atomizer', atomizerData);
-    logLine(`Modell erfolgreich gespeichert (${data.byteLength} Bytes Gewichte).`);
+    localStorage.setItem(META_KEY, atomizerData);
+
+    logLine(`Modell in IndexedDB gespeichert (${data.byteLength} Bytes Gewichte).`);
+
+    // 3) Fallback/Export: eine JSON-Datei (optional)
+    const exportObj = {
+      format: 'pho-ckpt-v1',
+      specs,
+      weightDataB64: ab2b64(data),
+      meta: JSON.parse(atomizerData)
+    };
+    const blob = new Blob([JSON.stringify(exportObj)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'pho-compress-om-checkpoint.json';
+    a.click(); URL.revokeObjectURL(url);
+    logLine('Zusätzlich lokaler Checkpoint exportiert: pho-compress-om-checkpoint.json');
   } catch (e) {
     logLine(`FEHLER beim Speichern: ${e.message}`);
   } finally {
@@ -676,80 +662,121 @@ async function saveModel() {
   }
 }
 
-async function loadModel() {
+async function loadModel(){
   setButtonState('btnTrain', true); setButtonState('btnSave', true); setButtonState('btnLoad', true, 'Lade...', true);
   try {
-    const atomizerDataStr = localStorage.getItem('pho-compress-om-atomizer');
-    if (!atomizerDataStr) throw new Error('Keine Atomizer-Metadaten gefunden.');
-    const atomizerData = JSON.parse(atomizerDataStr);
+    // 1) Metadaten
+    let atomizerDataStr = localStorage.getItem(META_KEY);
 
-    const handler = tf.io.browserIndexedDB('pho-compress-om-model');
-    const artifacts = await handler.load();
+    // 2) Primary: IndexedDB
+    let artifacts = null;
+    try {
+      artifacts = await loadFromIndexedDB();
+    } catch (_) { /* ignore */ }
+
     if (!artifacts || !artifacts.weightSpecs || !artifacts.weightData) {
-      throw new Error('Keine Gewichte gefunden.');
+      logLine('Kein Modell in IndexedDB. Bitte Checkpoint-Datei wählen …');
+      // Fallback: Datei wählen
+      const fileInput = $('fileImport');
+      fileInput.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) { logLine('Kein Checkpoint ausgewählt.'); done(); return; }
+        const text = await file.text();
+        const json = JSON.parse(text);
+        if (json.format !== 'pho-ckpt-v1') throw new Error('Unbekanntes Checkpoint-Format.');
+        artifacts = { weightSpecs: json.specs, weightData: b642ab(json.weightDataB64) };
+        if (!atomizerDataStr && json.meta) {
+          atomizerDataStr = JSON.stringify(json.meta);
+          localStorage.setItem(META_KEY, atomizerDataStr);
+        }
+        await finalizeLoad(artifacts, atomizerDataStr);
+        done();
+      };
+      fileInput.click();
+      return;
     }
 
-    const cfg = atomizerData.cfg;
-    if (MODEL) MODEL.variables().forEach(v => v.dispose());
-    MODEL = buildModel(cfg);
+    if (!atomizerDataStr) throw new Error('Atomizer-Metadaten fehlen (LocalStorage).');
 
-    // Gewichte decodieren und per Namen zuweisen
-    const weightMap = await tf.io.decodeWeights(artifacts.weightData, artifacts.weightSpecs);
-    const byName = {};
-    for (const v of MODEL.variables()) byName[v.name] = v;
-    for (const [name, tensor] of Object.entries(weightMap)) {
-      if (byName[name]) byName[name].assign(tensor); else tensor.dispose();
-    }
-    tf.dispose(weightMap);
-
-    // Atomizer rekonstruieren
-    ATOMIZER = {
-      ...atomizerData,
-      cp2id: new Map(Object.entries(atomizerData.cp2id).map(([k,v]) => [Number(k), v])),
-      id2cp: new Map(Object.entries(atomizerData.id2cp).map(([k,v]) => [Number(k), v])),
-      encodeIPAtoAtoms: function(str, addBos=false, addEos=false){
-        const merges = this.merges, cp2id = this.cp2id;
-        let tokens = strToCodepoints(str).map(c => cp2id.get(c)).filter(v=>Number.isFinite(v));
-        for (const m of merges){
-          const {a,b,id} = m; const out=[];
-          for (let i=0;i<tokens.length;){
-            if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
-            else { out.push(tokens[i]); i++; }
-          }
-          tokens = out;
-        }
-        if (addBos) tokens = [BOS_ID, ...tokens];
-        if (addEos) tokens = [...tokens, EOS_ID];
-        return tokens;
-      },
-      decodeAtomsToIPA: function(tokens){
-        const id2pair = new Map(this.merges.map(m=>[m.id,[m.a,m.b]]));
-        const id2cp = this.id2cp;
-        function expand(id){
-          if (id===BOS_ID || id===EOS_ID) return [];
-          if (id2cp.has(id)) return [ id2cp.get(id) ];
-          const pr = id2pair.get(id); if (!pr) return [];
-          return expand(pr[0]).concat(expand(pr[1]));
-        }
-        const cpsOut = [];
-        for (const t of tokens){
-          if (t===BOS_ID || t===EOS_ID) continue;
-          if (id2cp.has(t)) cpsOut.push(id2cp.get(t)); else cpsOut.push(...expand(t));
-        }
-        return codepointsToStr(cpsOut);
-      }
-    };
-
-    logLine("Modell erfolgreich geladen. Inferenz freigeschaltet.");
-    $('prompt').disabled = false; $('btnGen').disabled = false;
+    await finalizeLoad(artifacts, atomizerDataStr);
   } catch (e) {
     logLine(`FEHLER beim Laden: ${e.message}`);
   } finally {
+    done();
+  }
+
+  function done(){
     setButtonState('btnTrain', false); setButtonState('btnSave', false); setButtonState('btnLoad', false, 'Modell Laden', false);
   }
 }
 
-/* --- Sampling & Inferenz --- */
+async function finalizeLoad(artifacts, atomizerDataStr){
+  const atomizerData = JSON.parse(atomizerDataStr);
+  const cfg = atomizerData.cfg;
+  if (MODEL) MODEL.variables().forEach(v => v.dispose());
+  MODEL = buildModel(cfg);
+
+  const weightMap = await tf.io.decodeWeights(artifacts.weightData, artifacts.weightSpecs);
+  const byName = {};
+  for (const v of MODEL.variables()) byName[v.name] = v;
+
+  for (const [name, tensor] of Object.entries(weightMap)) {
+    if (!byName[name]) {
+      tensor.dispose();
+      logLine(`Warnung: unbekanntes Gewicht übersprungen: ${name}`);
+    } else {
+      if (!tf.util.arraysEqual(byName[name].shape, tensor.shape)) {
+        throw new Error(`Shape-Mismatch bei ${name}: erwartet ${byName[name].shape}, erhalten ${tensor.shape}`);
+      }
+      byName[name].assign(tensor);
+      tensor.dispose();
+    }
+  }
+
+  tf.dispose(weightMap);
+
+  ATOMIZER = {
+    ...atomizerData,
+    cp2id: new Map(Object.entries(atomizerData.cp2id).map(([k,v]) => [Number(k), v])),
+    id2cp: new Map(Object.entries(atomizerData.id2cp).map(([k,v]) => [Number(k), v])),
+    encodeIPAtoAtoms: function(str, addBos=false, addEos=false){
+      const merges = this.merges, cp2id = this.cp2id;
+      let tokens = strToCodepoints(str).map(c => cp2id.get(c)).filter(v=>Number.isFinite(v));
+      for (const m of merges){
+        const {a,b,id} = m; const out=[];
+        for (let i=0;i<tokens.length;){
+          if (i<tokens.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(id); i+=2; }
+          else { out.push(tokens[i]); i++; }
+        }
+        tokens = out;
+      }
+      if (addBos) tokens = [BOS_ID, ...tokens];
+      if (addEos) tokens = [...tokens, EOS_ID];
+      return tokens;
+    },
+    decodeAtomsToIPA: function(tokens){
+      const id2pair = new Map(this.merges.map(m=>[m.id,[m.a,m.b]]));
+      const id2cp = this.id2cp;
+      function expand(id){
+        if (id===BOS_ID || id===EOS_ID) return [];
+        if (id2cp.has(id)) return [ id2cp.get(id) ];
+        const pr = id2pair.get(id); if (!pr) return [];
+        return expand(pr[0]).concat(expand(pr[1]));
+      }
+      const cpsOut = [];
+      for (const t of tokens){
+        if (t===BOS_ID || t===EOS_ID) continue;
+        if (id2cp.has(t)) cpsOut.push(id2cp.get(t)); else cpsOut.push(...expand(t));
+      }
+      return codepointsToStr(cpsOut);
+    }
+  };
+
+  logLine("Modell geladen. Inferenz freigeschaltet.");
+  $('prompt').disabled = false; $('btnGen').disabled = false;
+}
+
+/* -------- Inferenz -------- */
 function sampleFromProbs(p, mode, topK, topP, temp){ 
   const t = clamp(temp, 0.1, 2.0);
   const logp = p.map(x=>Math.log(x+1e-20)/t);
@@ -776,7 +803,7 @@ function sampleFromProbs(p, mode, topK, topP, temp){
 }
 
 async function generate(){
-  if (!MODEL || !ATOMIZER){ logLine('Bitte zuerst Atomizer + Modell trainieren.'); return; }
+  if (!MODEL || !ATOMIZER){ logLine('Bitte zuerst Atomizer + Modell trainieren/laden.'); return; }
 
   $('btnGen').disabled = true; $('inferStats').textContent = 'Generiere...';
 
@@ -821,7 +848,7 @@ async function generate(){
   logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
 }
 
-/* =================== UI Wiring =================== */
+/* -------- UI Wiring -------- */
 window.addEventListener('load', ()=>{
   $('btnBuildIPA').addEventListener('click', ()=>{
     const raw=($('txt')?.value??'').trim();
@@ -838,10 +865,8 @@ window.addEventListener('load', ()=>{
     if(!raw){ logLine('Kein Text.'); return; }
     const atomVocab = valNum('atomVocab', 512);
     const T = valNum('seqLen', 128);
-    
     $('btnTrainAtoms').disabled = true; $('btnBuildIPA').disabled = true;
-    $('inferStats').textContent = '2. Atomizer wird trainiert... (Bitte warten)';
-    
+    $('inferStats').textContent = '2. Atomizer wird trainiert...';
     try {
       await buildTokenDataFromText(raw, T, atomVocab);
       $('btnTrain').disabled = false; 
@@ -855,7 +880,6 @@ window.addEventListener('load', ()=>{
 
   $('btnTrain').addEventListener('click', train);
   $('btnGen').addEventListener('click', generate);
-
   $('btnSave').addEventListener('click', saveModel);
   $('btnLoad').addEventListener('click', loadModel);
 
