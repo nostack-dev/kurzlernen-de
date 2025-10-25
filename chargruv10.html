@@ -1,11 +1,12 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>MiniGPT-BPE — Kleiner Transformer mit Subword & Browser-Training (tf.js)</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.19.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.19.0/dist/tf-backend-webgpu.min.js"></script>
+  <!-- tf.js & WebGPU Backend (>= 4.22.0 wegen requestAdapterInfo-Deprecation) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
   <style>
     body{background:#f5f6f8;color:#1f2937;font-family:ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
     .container{max-width:1100px;margin:40px auto;padding:0 16px}
@@ -167,7 +168,6 @@ function clamp(v, lo, hi){
   v = Number.isFinite(v) ? v : lo;
   return Math.max(lo, Math.min(hi, v));
 }
-// Null-sichere Reader
 function valNum(id, fallback, lo=null, hi=null){
   const el = $(id);
   let v = Number(el?.value);
@@ -339,7 +339,7 @@ function causalMask(T){
 /* ===== Cross-Entropy stabil auf 2D ===== */
 function softmaxCEfromLogits(logits, targets){
   const [B,T,V] = logits.shape;
-  const labels2d = tf.oneHot(targets.toInt(), V).reshape([B*T, V]); // tf.oneHot in tf.js
+  const labels2d = tf.oneHot(targets.toInt(), V).reshape([B*T, V]);
   const logits2d = logits.reshape([B*T, V]);
   const lossPer = tf.losses.softmaxCrossEntropy(labels2d, logits2d);
   return tf.mean(lossPer);
@@ -369,10 +369,7 @@ function buildModel(cfg){
     });
   }
   const bout = tf.variable(tf.zeros([V]));
-  
-  // Separate Output-Matrix, falls Weight Tying deaktiviert ist.
   const W_out = weightTying ? null : tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'));
-  
   const params = {E, layers, bout, pe, mask, cfg, W_out};
 
   function dropout(x, rate){
@@ -394,39 +391,46 @@ function buildModel(cfg){
     let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
 
     for(const L of params.layers){
-      // Self-Attention
+      // ---- Self-Attention: Q,K,V als 2D @ 2D (Gradient stabil) ----
       let h = rmsNorm(x, L.g1);
-      const Q = h.matMul(L.Wq);
-      const K = h.matMul(L.Wk);
-      const Vv= h.matMul(L.Wv);
+      const h2d = h.reshape([BT, dModel]);             // [B,T,d] -> [BT,d]
+      const Q = h2d.matMul(L.Wq).reshape([B,Tcur,dModel]);
+      const K = h2d.matMul(L.Wk).reshape([B,Tcur,dModel]);
+      const Vv= h2d.matMul(L.Wv).reshape([B,Tcur,dModel]);
+
       let q = splitHeads(Q, nHeads);
       let k = splitHeads(K, nHeads);
       let v = splitHeads(Vv,nHeads);
+
       const dk = Math.sqrt(dModel/nHeads);
-      let scores = tf.matMul(q, k, false, true).div(dk).add(params.mask.slice([0,0,0,0],[1,1,Tcur,Tcur]));
+      let scores = tf.matMul(q, k, false, true).div(dk)
+                   .add(params.mask.slice([0,0,0,0],[1,1,Tcur,Tcur]));
       let attn = tf.softmax(scores, -1);
       let ctx = tf.matMul(attn, v);
-      let attnOut = combineHeads(ctx).matMul(L.Wo);
+
+      // Wo-Projektion ebenfalls 2D @ 2D
+      const attn2d = combineHeads(ctx).reshape([BT, dModel]);
+      const attnOut = attn2d.matMul(L.Wo).reshape([B, Tcur, dModel]);
       x = x.add(dropout(attnOut, 0.1));
 
-      // ---- MLP (Flatten nach 2D; verhindert BatchMatMul-Gradfehler) ----
+      // ---- MLP: 2D @ 2D ----
       let h2 = rmsNorm(x, L.g2);
-      const h2_2d = h2.reshape([BT, dModel]);       // [B,T,d] -> [B*T,d]
+      const h2_2d = h2.reshape([BT, dModel]);
       let mlp2 = h2_2d.matMul(L.W1).add(L.b1);      // [BT,dFF]
       mlp2 = tf.mul(mlp2, tf.sigmoid(mlp2));        // SiLU
       mlp2 = mlp2.matMul(L.W2).add(L.b2);           // [BT,d]
-      const mlp = mlp2.reshape([B, Tcur, dModel]);  // -> [B,T,d]
+      const mlp = mlp2.reshape([B, Tcur, dModel]);
       x = x.add(dropout(mlp, 0.1));
     }
-    
-    // Output-Projektion: ebenfalls 2D, stabiler Grad
+
+    // ---- Output logits: 2D @ 2D ----
     const x_2d = x.reshape([BT, dModel]);
     let logits_2d;
     if (params.cfg.weightTying) {
-      const E_T = params.E.transpose();           // [d,V]
-      logits_2d = x_2d.matMul(E_T);               // [BT,V]
+      const E_T = params.E.transpose();             // [d,V]
+      logits_2d = x_2d.matMul(E_T);                 // [BT,V]
     } else {
-      logits_2d = x_2d.matMul(params.W_out);      // [BT,V]
+      logits_2d = x_2d.matMul(params.W_out);        // [BT,V]
     }
     const logits = logits_2d.reshape([B, Tcur, V]);
     return logits.add(params.bout);
@@ -437,9 +441,7 @@ function buildModel(cfg){
     for(const L of layers){
       vs.push(L.g1,L.g2,L.Wq,L.Wk,L.Wv,L.Wo,L.W1,L.b1,L.W2,L.b2);
     }
-    if (params.W_out) {
-        vs.push(params.W_out);
-    }
+    if (params.W_out) vs.push(params.W_out);
     return vs;
   }
   return {params, forward, variables};
@@ -450,18 +452,35 @@ let MODEL=null, TOK=null, TOK_DECODE=null, TOKENS=null;
 let BPE_MERGES = null, BPE_VOCAB_SIZE = null;
 
 async function setupBackend(preferGPU=true){
-  const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const canWebGPU = !!tf.engine().registryFactory['webgpu'];
   const canWebGL  = !!tf.engine().registryFactory['webgl'];
 
-  if (preferGPU && canWebGPU && !isiOS) {
-    await tf.setBackend('webgpu');
-  } else if (canWebGL) {
-    await tf.setBackend('webgl');
-  } else {
-    await tf.setBackend('cpu');
+  try {
+    if (preferGPU && canWebGPU) {
+      await tf.setBackend('webgpu');
+      await tf.ready();
+      // Optional: neue API (keine Exception, nur Info)
+      if (window?.navigator?.gpu?.requestAdapter) {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (adapter && 'info' in adapter) {
+          const i = adapter.info;
+          logLine(`WebGPU-Adapter: ${i.vendor ?? 'unknown'} ${i.architecture ?? ''}`);
+        }
+      }
+      logLine(`Backend: ${tf.getBackend()}`);
+      return;
+    }
+    throw new Error('WebGPU factory not available');
+  } catch (e) {
+    logLine(`WebGPU init fehlgeschlagen (${e?.message||e}). Fallback auf WebGL/CPU...`);
   }
-  await tf.ready();
+
+  if (canWebGL) {
+    await tf.setBackend('webgl'); await tf.ready();
+    logLine(`Backend: ${tf.getBackend()}`);
+    return;
+  }
+  await tf.setBackend('cpu'); await tf.ready();
   logLine(`Backend: ${tf.getBackend()}`);
 }
 
@@ -585,7 +604,6 @@ async function train(){
             return softmaxCEfromLogits(logits, y);
           }, vars);
 
-          // Check for null gradients
           const gradValues = Object.values(grads);
           if (gradValues.some(g => g === null)) {
               logLine(`FEHLER bei Step ${s}: Null-Gradient entdeckt!`);
@@ -793,9 +811,7 @@ async function importModel(event) {
       await setupBackend(valBool('useGPU', true));
       if(MODEL) MODEL.variables().forEach(v => v.dispose());
       
-      // Wichtig: Baue das Modell mit der importierten Konfiguration
       MODEL = buildModel(config); 
-      
       const modelVars = MODEL.variables();
       
       if (modelVars.length !== weights.length) {
