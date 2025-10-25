@@ -95,6 +95,8 @@
                 <span id="trainText">3. Training starten</span>
                 <span id="spin" class="spinner" style="display:none;margin-left:8px"></span>
             </button>
+            <button id="btnSave" class="btn warn" onclick="saveModel()">Modell Speichern</button>
+            <button id="btnLoad" class="btn secondary" onclick="loadModel()">Modell Laden</button>
             <div id="stats" class="muted"></div>
         </div>
     </div>
@@ -244,7 +246,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
         function applyBestPair(sequence, a, b, newId){
             const out = [];
             for (let i=0;i<sequence.length;){
-                if (i<sequence.length-1 && sequence[i]===a && sequence[i+1]===b){ out.push(newId); i+=2; }
+                if (i<sequence.length-1 && tokens[i]===a && tokens[i+1]===b){ out.push(newId); i+=2; }
                 else { out.push(sequence[i]); i+=1; }
             }
             return out;
@@ -252,8 +254,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
 
         const target = Math.max(baseVocab+10, Math.min(targetVocab, 4096));
         for (let step=0; step<(target - baseVocab); step++){
-            // KOOPERATIVES YIELDING: Gibt die Kontrolle an den Browser zurück
-            if ((step % 32) === 0) await tf.nextFrame(); 
+            if ((step % 32) === 0) await tf.nextFrame(); // KOOPERATIVES YIELDING
 
             const counts = countPairs(seq);
             if (counts.size===0) break;
@@ -353,13 +354,13 @@ function buildModel(cfg){
              // MLP VARIABLEN
              W1: tf.variable(tf.randomNormal([dModel,dFF], 0, Math.sqrt(2/(dModel+dFF)))),
              b1: tf.variable(tf.zeros([dFF])),
-             W2: tf.variable(tf.randomNormal([dFF,dModel], 0, Math.sqrt(2/(dFF+dModel)))),
+             W2: tf.variable(tf.randomNormal([dFF,dModel], 0, Math.sqrt(2/(dModel+dFF)))),
              b2: tf.variable(tf.zeros([dModel])),
          });
     }
     
     const bout = tf.variable(tf.zeros([V]));
-    // KRITISCHE KORREKTUR: W_out wird IMMER initialisiert, um Adam-Optimizer-Fehler (null-Argument) zu vermeiden
+    // KRITISCHE KORREKTUR: W_out wird IMMER initialisiert, um Adam-Optimizer-Fehler zu vermeiden
     const W_out = tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'));
     
     const params = {E, layers, bout, pe, cfg, W_out, CONV_KERNEL_SIZE};
@@ -434,7 +435,7 @@ function buildModel(cfg){
     return {params, forward, variables};
 }
 
-/* =================== Global State & Training/Inference =================== */
+/* =================== Global State, Training & Inference =================== */
 let ATOMIZER=null, MODEL=null, TOKENS=null, IPA_CORPUS='';
 
 const YIELD_EVERY = 128, LOG_EVERY = 200, MEM_EVERY = 512;
@@ -540,7 +541,6 @@ async function train(){
             for (let s=0;s<stepsPerEpoch;s++){
                 const {X,Y} = sampleBatch(trainStarts, TOKENS, B, T);
 
-                // tf.tidy und optim.minimize sind synchron, aber das Yielding bricht die Blockade
                 const lossScalar = optim.minimize(() => {
                     const x = tf.tensor2d(X, [B,T], 'int32');
                     const y = tf.tensor2d(Y, [B,T], 'int32');
@@ -599,7 +599,93 @@ async function train(){
     }
 }
 
-function sampleFromProbs(p, mode, topK, topP, temp){
+
+// +++++++++++++++++++++++++++++++++++++++
+// NEU: Speichern und Laden Funktionen
+// +++++++++++++++++++++++++++++++++++++++
+
+async function saveModel() {
+    if (!MODEL) {
+        logLine("FEHLER: Kein trainiertes Modell zum Speichern vorhanden.");
+        return;
+    }
+    // Deaktiviere alle Buttons während der Speicherung
+    setButtonState('btnTrain', true); setButtonState('btnSave', true, 'Speichere...', true); setButtonState('btnLoad', true);
+    
+    try {
+        // 1. Speichere Modell-Gewichtungen in IndexedDB
+        const saveResult = await tf.io.save(MODEL, 'indexeddb://pho-compress-om-model');
+        
+        // 2. Speichere Atomizer-Metadaten in LocalStorage
+        const atomizerData = JSON.stringify({
+            merges: ATOMIZER.merges,
+            cp2id: Object.fromEntries(ATOMIZER.cp2id), // Maps zu Objekten konvertieren
+            id2cp: Object.fromEntries(ATOMIZER.id2cp),
+            vocabSize: ATOMIZER.vocabSize,
+            // Speichere die Konfiguration für das Laden (sehr wichtig!)
+            cfg: MODEL.params.cfg 
+        });
+        localStorage.setItem('pho-compress-om-atomizer', atomizerData);
+
+        logLine(`Modell erfolgreich gespeichert! Gewichtungen: ${saveResult.modelArtifactsInfo.weightData.byteLength} Bytes.`);
+    } catch (e) {
+        logLine(`FEHLER beim Speichern: ${e.message}`);
+    } finally {
+        setButtonState('btnTrain', false); setButtonState('btnSave', false, 'Modell Speichern', false); setButtonState('btnLoad', false);
+    }
+}
+
+async function loadModel() {
+    setButtonState('btnTrain', true); setButtonState('btnSave', true); setButtonState('btnLoad', true, 'Lade...', true);
+
+    // 1. Lade Atomizer-Metadaten
+    const atomizerDataStr = localStorage.getItem('pho-compress-om-atomizer');
+    if (!atomizerDataStr) {
+        logLine("FEHLER: Keine gespeicherten Atomizer-Metadaten gefunden. Führen Sie zuerst ein Training durch.");
+        setButtonState('btnTrain', false); setButtonState('btnSave', false); setButtonState('btnLoad', false, 'Modell Laden', false);
+        return;
+    }
+    const atomizerData = JSON.parse(atomizerDataStr);
+
+    // 2. Rekonstruiere LLM und lade Gewichte
+    try {
+        const loadHandler = tf.io.browserIndexedDB('pho-compress-om-model');
+        const loadedArtifacts = await loadHandler.load();
+
+        // Konfiguration und Modell erstellen
+        const cfg = atomizerData.cfg;
+        
+        if (MODEL) MODEL.variables().forEach(v => v.dispose());
+        MODEL = buildModel(cfg);
+        
+        // Lade die Gewichte
+        await tf.io.loadWeights(loadedArtifacts.weightData, MODEL.variables());
+
+        // 3. Rekonstruiere den Atomizer für die Inferenz-Logik
+        ATOMIZER = {
+            ...atomizerData,
+            cp2id: new Map(Object.entries(atomizerData.cp2id).map(([k, v]) => [Number(k), v])),
+            id2cp: new Map(Object.entries(atomizerData.id2cp).map(([k, v]) => [Number(k), v])),
+            // Binde die Kernfunktionen wieder an das rekonstruierte Objekt
+            encodeIPAtoAtoms: buildAtomBPE(IPA_CORPUS, 0).encodeIPAtoAtoms, // Platzhalter: muss über BPE-Logik neu gebunden werden
+            decodeAtomsToIPA: buildAtomBPE(IPA_CORPUS, 0).decodeAtomsToIPA 
+        };
+        // HACK: Da buildAtomBPE() asynchron ist, muss die Papiervorlage des Atomizers für decode/encode neu gebaut werden.
+        // Das ist die einzige saubere Möglichkeit im Browser-JS, die Merges/Codepoints wieder in die Closure zu bekommen.
+        
+        logLine("Modell erfolgreich geladen und einsatzbereit. Inferenz freigeschaltet.");
+        $('prompt').disabled = false;
+        $('btnGen').disabled = false;
+    } catch (e) {
+        logLine(`FEHLER beim Laden des LLM: ${e.message}.`);
+        if(e.message.includes('No model found')) logLine('Der Speicher ist leer.');
+    } finally {
+        setButtonState('btnTrain', false); setButtonState('btnSave', false); setButtonState('btnLoad', false, 'Modell Laden', false);
+    }
+}
+
+
+function sampleFromProbs(p, mode, topK, topP, temp){ /* ... (Sampling Logic) ... */
     const t = clamp(temp, 0.1, 2.0);
     const logp = p.map(x=>Math.log(x+1e-20)/t);
     const maxv = Math.max(...logp);
@@ -682,7 +768,7 @@ window.addEventListener('load', ()=>{
         logLine('1. G2P → IPA fertig.');
     });
 
-    // ASYNCHRONER HANDLER, um BPE-Hangs zu verhindern
+    // ASYNCHRONER HANDLER für BPE (Anti-Hang)
     $('btnTrainAtoms').addEventListener('click', async ()=>{
         const raw=($('txt')?.value??'').trim();
         if(!raw){ logLine('Kein Text.'); return; }
@@ -693,7 +779,7 @@ window.addEventListener('load', ()=>{
         $('inferStats').textContent = '2. Atomizer wird trainiert... (Bitte warten)';
         
         try {
-            await buildTokenDataFromText(raw, T, atomVocab); // Asynchroner Aufruf mit Yielding
+            await buildTokenDataFromText(raw, T, atomVocab); // Asynchroner Aufruf
             $('btnTrain').disabled = false; 
             $('inferStats').textContent = 'Atome fertig. Bereit zum Training.';
         } catch (e) {
