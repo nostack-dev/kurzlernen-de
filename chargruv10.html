@@ -8,8 +8,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     body{background:#f5f6f8;color:#1f2937;font-family:ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
     .container{max-width:1100px;margin:32px auto;padding:0 16px}
@@ -34,8 +32,22 @@
     .kpi{display:flex;gap:10px;flex-wrap:wrap}
     .kpi div{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px}
     .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    
+    /* Manuelle Tailwind-Utility-Klassen, die im HTML verwendet werden */
+    .mb-1{margin-bottom:0.25rem}
+    .mb-2{margin-bottom:0.5rem}
+    .mb-4{margin-bottom:1rem}
+    .mt-2{margin-top:0.5rem}
+    .mt-3{margin-top:0.75rem}
+    .flex{display:flex}
+    .items-end{align-items:flex-end}
+    .items-center{align-items:center}
+    .gap-3{gap:0.75rem}
+    .text-2xl{font-size:1.5rem;line-height:2rem}
+    .text-lg{font-size:1.125rem;line-height:1.75rem}
+    .font-bold{font-weight:700}
+    .font-extrabold{font-weight:800}
   </style>
-  <style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.container{width:100%}@media (min-width: 640px){.container{max-width:640px}}@media (min-width: 768px){.container{max-width:768px}}@media (min-width: 1024px){.container{max-width:1024px}}@media (min-width: 1280px){.container{max-width:1280px}}@media (min-width: 1536px){.container{max-width:1536px}}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-4{margin-bottom:1rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.flex{display:flex}.items-end{align-items:flex-end}.items-center{align-items:center}.gap-3{gap:0.75rem}.text-2xl{font-size:1.5rem;line-height:2rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}</style>
 </head>
 <body>
 <div class="container">
@@ -136,7 +148,7 @@
     </div>
     
     <div class="mt-3">
-      <div class="muted mb-1">Ausgabe (Text, bereinigt)</div>
+      <div class="muted mb-1">Ausgabe (Text, mit Fuzzy-Matching)</div>
       <div id="outText" class="mono" style="white-space:pre-wrap;background:#fff;border:1px solid #c5d7f8;border-radius:10px;padding:10px;min-height:80px; font-size: 1.1em; line-height: 1.6;"></div>
     </div>
     
@@ -653,12 +665,45 @@ async function train(){
   }
 }
 
-/* =================== IPA -> Text Decoder (P2G) — Robust "Greedy" Match =================== */
+/* =================== IPA -> Text Decoder (P2G) — HYBRID (Greedy + Fuzzy Fallback) =================== */
 
 let REVERSE_DICT = null;
-// NEU: Vor-sortierte Keys für den Greedy-Decoder
-let REVERSE_DICT_SORTED_KEYS = []; 
+let REVERSE_DICT_SORTED_KEYS = []; // Für Greedy-Match (schnell)
+let REVERSE_DICT_ALL_KEYS = []; // Für Fuzzy-Match (langsam)
 
+/**
+ * Standard Levenshtein-Distanz-Algorithmus.
+ * Misst die "Editierdistanz" (Kosten für Einfügen, Löschen, Ersetzen)
+ * zwischen zwei Strings a und b.
+ */
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  // Optimiere für Platz: Nur zwei Zeilen der Matrix werden benötigt
+  let v0 = new Uint16Array(n + 1);
+  let v1 = new Uint16Array(n + 1);
+
+  for (let i = 0; i <= n; i++) v0[i] = i;
+
+  for (let i = 0; i < m; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < n; j++) {
+      const cost = (a[i] === b[j]) ? 0 : 1;
+      v1[j + 1] = Math.min(
+        v1[j] + 1,      // Löschen
+        v0[j + 1] + 1,  // Einfügen
+        v0[j] + cost    // Ersetzen
+      );
+    }
+    // Tausche v0 und v1
+    [v0, v1] = [v1, v0];
+  }
+  return v0[n];
+}
+
+/**
+ * Baut das Reverse-Wörterbuch (IPA -> Wort) auf,
+ * inklusive der sortierten Listen für den Hybrid-Decoder.
+ */
 function buildReverseDict() {
   if (!STATE.dict || STATE.dict.size === 0) {
     logLine("Fehler: Wörterbuch (STATE.dict) nicht geladen für Reverse-Dict.");
@@ -666,15 +711,17 @@ function buildReverseDict() {
   }
   
   REVERSE_DICT = new Map();
+  const allKeysSet = new Set();
+
   for (const [word, ipa_string] of STATE.dict.entries()) {
     // 1. Speichern der vollen IPA-String-Variante (z.B. "ˈænd / ənd")
     let fullIpaKey = ipa_string.trim();
     if (!REVERSE_DICT.has(fullIpaKey)) {
         REVERSE_DICT.set(fullIpaKey, word);
-    } 
+    }
+    allKeysSet.add(fullIpaKey);
 
     // 2. Speichern der einzelnen IPA-Varianten (z.B. "ˈænd" und "ənd")
-    // Dies erhöht die Robustheit, falls das LLM nur eine der Alternativen generiert.
     const parts = fullIpaKey.split(' / ');
     for (let ipa of parts) {
         ipa = ipa.trim();
@@ -682,84 +729,127 @@ function buildReverseDict() {
         if (!REVERSE_DICT.has(ipa)) {
             REVERSE_DICT.set(ipa, word); // Erste Wort-Zuordnung
         }
+        allKeysSet.add(ipa);
     }
   }
 
-  // Satzzeichen als Identität hinzufügen (Token bleibt Satzzeichen)
-  // Wichtig für Greedy-Match, damit sie als gültige Tokens erkannt werden
+  // Satzzeichen als Identität hinzufügen
   const punctuation = [",", ".", "“", "”", "?", "!", ";", ":", "'", '"', "-", "–", "/", "—", " "];
   for (const p of punctuation) {
     if (!REVERSE_DICT.has(p)) REVERSE_DICT.set(p, p);
+    allKeysSet.add(p);
   }
 
-  // NEU: Sortierte Keys für Greedy-Match erstellen (längste zuerst)
-  REVERSE_DICT_SORTED_KEYS = Array.from(REVERSE_DICT.keys());
+  // Sortierte Keys für Greedy-Match (längste zuerst)
+  REVERSE_DICT_SORTED_KEYS = Array.from(allKeysSet);
   REVERSE_DICT_SORTED_KEYS.sort((a, b) => b.length - a.length);
 
-  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge. Längster Key: "${REVERSE_DICT_SORTED_KEYS[0]}"`);
+  // Alle Keys für Fuzzy-Match (Reihenfolge egal)
+  REVERSE_DICT_ALL_KEYS = Array.from(allKeysSet);
+
+  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge. Keys (Greedy): ${REVERSE_DICT_SORTED_KEYS.length}, Keys (Fuzzy): ${REVERSE_DICT_ALL_KEYS.length}`);
 }
 
 /**
- * NEUE "GREEDY" DECODER-LOGIK
- * Diese Funktion ist der Kern der "sauberen" Textausgabe.
- * Sie versucht, den längstmöglichen bekannten Phonem-String am Anfang
- * des Streams zu finden, anstatt naiv bei Leerzeichen zu trennen.
+ * NEU: Fuzzy-Match-Fallback
+ * Durchsucht das *gesamte* Vokabular nach der niedrigsten Levenshtein-Distanz.
+ */
+function findClosestPhonemeMatch(targetPhoneme) {
+    if (!targetPhoneme || targetPhoneme.length < 2) return null; // Ignoriere Trivialfälle
+
+    let minDistance = Infinity;
+    let bestMatch = null;
+    
+    // Setze eine dynamische Schwelle:
+    // Erlaube 1 Edit für 3 Zeichen, 2 Edits für 6 Zeichen, max 3 Edits.
+    const threshold = Math.max(1, Math.min(3, Math.floor(targetPhoneme.length / 3)));
+
+    for (const key of REVERSE_DICT_ALL_KEYS) {
+        // Optimierung: Überspringe offensichtlich unpassende Längen
+        if (Math.abs(key.length - targetPhoneme.length) > threshold) continue;
+        
+        const dist = levenshtein(targetPhoneme, key);
+
+        if (dist < minDistance && dist <= threshold) {
+            minDistance = dist;
+            bestMatch = key;
+        }
+    }
+
+    if (bestMatch) {
+        // logLine(`Fuzzy-Match: "${targetPhoneme}" -> "${bestMatch}" (Dist: ${minDistance})`);
+        return REVERSE_DICT.get(bestMatch); // Gib das Wort zurück
+    }
+    
+    // logLine(`Fuzzy-Match: "${targetPhoneme}" -> Verworfen (Threshold: ${threshold})`);
+    return null; // Nichts Gutes gefunden
+}
+
+
+/**
+ * NEUE "HYBRID" DECODER-LOGIK (Greedy + Fuzzy Fallback)
  */
 function decodeIPAToText(ipa_string) {
   if (!REVERSE_DICT || REVERSE_DICT_SORTED_KEYS.length === 0) {
-    if (STATE.dict.size > 0) buildReverseDict(); // Ad-hoc erstellen, falls vergessen
+    if (STATE.dict.size > 0) buildReverseDict();
     else return "[Fehler: Reverse-Wörterbuch nicht bereit. Bitte 'en_US.txt laden'.]";
   }
   
-  let i = 0; // Aktuelle Position im rohen ipa_string
+  let i = 0;
   const n = ipa_string.length;
   let output_words = [];
   let unknown_buffer = ""; // Sammelt Zeichen, die zu keinem Key passen
 
   while (i < n) {
-    // 1. OOV-Token prüfen (z.B. ‹canamanthing›)
+    // 1. OOV-Token prüfen (‹...›)
     if (ipa_string.substring(i).startsWith('‹')) {
         const endIdx = ipa_string.indexOf('›', i);
         if (endIdx > i) {
-            // Unbekannten Puffer davor als Halluzination "flushen"
-            if (unknown_buffer) output_words.push(`[Phonem: ${unknown_buffer}]`);
+            // Puffer davor per Fuzzy-Match auflösen
+            if (unknown_buffer) {
+                const fuzzyWord = findClosestPhonemeMatch(unknown_buffer);
+                if (fuzzyWord) output_words.push(fuzzyWord);
+            }
             unknown_buffer = "";
             
             const oovWord = ipa_string.substring(i + 1, endIdx);
-            output_words.push(`[OOV: ${oovWord}]`); // Als OOV markieren
+            output_words.push(oovWord); // OOV-Wort direkt verwenden
             i = endIdx + 1;
             continue;
         }
     }
     
-    // 2. Greedy-Match im Reverse-Wörterbuch
+    // 2. Greedy-Match (Perfekter Treffer)
     let foundMatch = false;
     for (const key of REVERSE_DICT_SORTED_KEYS) {
         if (ipa_string.substring(i).startsWith(key)) {
-            // Match gefunden!
             foundMatch = true;
             
-            // Unbekannten Puffer davor als Halluzination "flushen"
-            if (unknown_buffer) output_words.push(`[Phonem: ${unknown_buffer}]`);
+            // Puffer davor per Fuzzy-Match auflösen
+            if (unknown_buffer) {
+                 const fuzzyWord = findClosestPhonemeMatch(unknown_buffer);
+                if (fuzzyWord) output_words.push(fuzzyWord);
+            }
             unknown_buffer = "";
 
             output_words.push(REVERSE_DICT.get(key)); // Das echte Wort hinzufügen
             i += key.length; // Position im String vorrücken
-            break; // Inner-Loop (key-Suche) beenden
+            break; 
         }
     }
 
-    // 3. KEIN Match gefunden (Halluzination/unbekanntes Phonem-Zeichen)
+    // 3. KEIN Greedy-Match gefunden
     if (!foundMatch) {
-        // Dieses Zeichen zu einem Puffer hinzufügen
+        // Dieses Zeichen zum Puffer hinzufügen
         unknown_buffer += ipa_string[i];
         i++; // Nur um 1 Zeichen vorrücken
     }
   }
 
-  // 4. Letzten Puffer flushen, falls am Ende noch Reste sind
+  // 4. Letzten Puffer am String-Ende auflösen
   if (unknown_buffer) {
-      output_words.push(`[Phonem: ${unknown_buffer}]`);
+      const fuzzyWord = findClosestPhonemeMatch(unknown_buffer);
+      if (fuzzyWord) output_words.push(fuzzyWord);
   }
   
   // 5. Array an Post-Processing übergeben
@@ -767,27 +857,17 @@ function decodeIPAToText(ipa_string) {
 }
 
 /**
- * NEUE POST-PROCESSING-LOGIK
- * Diese Funktion nimmt die dekodierten "Wörter" (inkl. Artefakte)
- * und filtert die unerwünschten [Phonem: ...]-Tags heraus.
+ * POST-PROCESSING
+ * (Vereinfacht, da keine [Phonem:] Tags mehr erwartet werden)
  */
 function postProcessDecodedText(words) {
-  
-  // === HIER IST DER FILTER, DEN DU WOLLTEST ===
-  // Wirf alle "Wörter" weg, die kryptische Klammern sind.
-  const filteredWords = words.filter(w => 
-      !w.startsWith('[Phonem:') && 
-      !w.startsWith('[OOV:')
-  );
-  // ==========================================
-
   let s = "";
   let needsSpace = false;
   
-  for (const word of filteredWords) {
+  for (const word of words) {
     if (!word) continue;
 
-    // Keine Leerstelle *vor* Satzzeichen oder nach öffnenden Anführungszeichen
+    // Keine Leerstelle *vor* Satzzeichen
     if (",.?!;:”".includes(word)) {
       s = s.trim();
       s += word;
@@ -799,11 +879,11 @@ function postProcessDecodedText(words) {
       s += word;
       needsSpace = false;
     }
-    // Bindestriche, Schrägstriche, etc.
+    // Bindestriche, Schrägstriche (als Wörter behandeln)
     else if (word === "-" || word === "/" || word === "—") {
-        s = s.trim();
-        s += " " + word + " "; // Mit Leerzeichen umgeben (z.B. "a / b")
-        needsSpace = false;
+        if (needsSpace) s += " ";
+        s += word;
+        needsSpace = true;
     }
     // Standard-Wort
     else {
@@ -844,7 +924,7 @@ function sampleFromProbs(probs, mode, topK, topP){
 
 async function generate(){
   if (!STATE.model || !STATE.atomizer){ logLine('Bitte zuerst Atomizer + Modell trainieren/laden.'); return; }
-  // NEU: Sicherstellen, dass der P2G-Decoder bereit ist
+  // Sicherstellen, dass der P2G-Decoder bereit ist
   if (!REVERSE_DICT || REVERSE_DICT_SORTED_KEYS.length === 0) {
       if (STATE.dict.size > 0) {
           buildReverseDict(); // Versuche, ihn schnell zu bauen
@@ -897,11 +977,11 @@ async function generate(){
   $('btnGen').disabled = false; $('btnStopGen').disabled = true;
   $('inferStats').textContent = `Tokens: ${outTokens.length} • Latenz ${(t1-t0).toFixed(1)} ms`;
 
-  // Roh-IPA-String (wird jetzt vom Greedy-Decoder verarbeitet)
+  // Roh-IPA-String (wird jetzt vom Hybrid-Decoder verarbeitet)
   const genIPA = STATE.atomizer.decodeAtomsToIPA(outTokens);
   $('outIPA').textContent = genIPA; // Debug-Ansicht
   
-  // NEU: Dekodierung mit dem robusten Greedy-Decoder
+  // NEU: Dekodierung mit dem robusten HYBRID-Decoder (Greedy + Fuzzy)
   const genText = decodeIPAToText(genIPA);
   $('outText').textContent = genText; // Saubere Text-Ansicht
 
@@ -985,6 +1065,7 @@ async function importModel(file){
       // daher muss der Benutzer es erneut laden, um den P2G-Decoder zu aktivieren.
       REVERSE_DICT = null;
       REVERSE_DICT_SORTED_KEYS = [];
+      REVERSE_DICT_ALL_KEYS = [];
       
       STATE.atomizer = {
         merges: obj.atomizer.merges,
@@ -1108,7 +1189,7 @@ window.addEventListener('load', async ()=>{
     }
   });
   
-  // NEU: Enter-zum-Senden für das Prompt-Feld
+  // Enter-zum-Senden für das Prompt-Feld
   $('prompt').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault(); // Verhindert Zeilenumbruch
@@ -1140,6 +1221,7 @@ window.addEventListener('load', async ()=>{
     STATE.tokens = null;
     REVERSE_DICT = null; // Wichtig: Reverse-Dict auch löschen
     REVERSE_DICT_SORTED_KEYS = [];
+    REVERSE_DICT_ALL_KEYS = [];
     if (STATE.model) { STATE.model.variables().forEach(v=>v.dispose()); STATE.model=null; }
     $('kpiDict').textContent='Wörterbuch: –';
     $('kpiIPA').textContent='IPA: –';
