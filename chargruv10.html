@@ -520,7 +520,7 @@ async function buildTokenDataFromText(rawText, T, atomVocab){
     $('kpiIPA').textContent = `IPA: ${ipaLen} Zeichen`;
 
     const atomizer = await buildAtomBPE(IPA_CORPUS, atomVocab);
-    if (atomizerRev !== myRev) return;
+    if (atomizerRev !== myRev) return; // Check for cancellation during BPE
 
     const atomIds = atomizer.encodeIPAtoAtoms(IPA_CORPUS, true, true);
     ATOMIZER = atomizer;
@@ -530,7 +530,7 @@ async function buildTokenDataFromText(rawText, T, atomVocab){
     $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
     const roughComp = (ipaLen>0) ? (ipaLen / atomCount).toFixed(2) : '–';
     $('kpiComp').textContent = `Kompression (Zeichen→Atome): ${roughComp}×`;
-    logLine(`PhenomEncoder abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
+    logLine(`PhenomEncoder (Stufe I) abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
 
     return true;
   });
@@ -914,9 +914,6 @@ window.addEventListener('load', ()=>{
   $('btnSave').addEventListener('click', saveModel);
   $('btnLoad').addEventListener('click', loadModel);
   
-  $('btnStop').addEventListener('click', ()=>{ CANCEL_TRAIN=true; $('btnStop').disabled = true; logLine('Training gestoppt (Wartet auf Loop-Ende).'); });
-  $('btnStopGen').addEventListener('click', ()=>{ CANCEL_GEN=true; $('btnStopGen').disabled = true; });
-
   $('btnBuildIPA').addEventListener('click', ()=>{
     const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
@@ -953,6 +950,9 @@ window.addEventListener('load', ()=>{
 
   $('btnTrain').addEventListener('click', train);
   $('btnGen').addEventListener('click', generate);
+
+  $('btnStop').addEventListener('click', ()=>{ CANCEL_TRAIN=true; $('btnStop').disabled = true; logLine('Training gestoppt (Wartet auf Loop-Ende).'); });
+  $('btnStopGen').addEventListener('click', ()=>{ CANCEL_GEN=true; $('btnStopGen').disabled = true; });
 
   $('sampleMode').addEventListener('change', ()=>{
     const m=$('sampleMode').value;
