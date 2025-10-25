@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, Debug & Local en_US)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, Debug &amp; Local en_US)</title>
 
   <!-- TFJS + WebGPU backend -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
@@ -29,7 +29,7 @@
     .btn.red{background:#ef4444}
     .btn:disabled{opacity:.5;cursor:not-allowed}
     .log{height:220px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace; word-break: break-word; white-space: pre-wrap;}
     .muted{color:#6b7280}
     .spinner{border:4px solid rgba(0,0,0,.1);border-left-color:#4f46e5;border-radius:50%;width:20px;height:20px;animation:spin .8s linear infinite;display:inline-block}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -37,6 +37,7 @@
     .kpi div{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px}
     .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   </style>
+  <style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.container{width:100%}@media (min-width: 640px){.container{max-width:640px}}@media (min-width: 768px){.container{max-width:768px}}@media (min-width: 1024px){.container{max-width:1024px}}@media (min-width: 1280px){.container{max-width:1280px}}@media (min-width: 1536px){.container{max-width:1536px}}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-4{margin-bottom:1rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.flex{display:flex}.items-end{align-items:flex-end}.items-center{align-items:center}.gap-3{gap:0.75rem}.text-2xl{font-size:1.5rem;line-height:2rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}</style>
 </head>
 <body>
 <div class="container">
@@ -44,17 +45,17 @@
   <div class="muted mb-4">Lokal: <b>/data/en_US.txt</b> (ipa-dict Text), <b>Datei-Export/Import</b>, Debug-Tools. Keine IPA-Regel-Hacks.</div>
 
   <div class="card">
-    <h3 class="font-bold text-lg mb-2">1) Korpus & G2P → IPA (lokales Wörterbuch)</h3>
+    <h3 class="font-bold text-lg mb-2">1) Korpus &amp; G2P → IPA (lokales Wörterbuch)</h3>
     <textarea id="txt" placeholder="Füge einen ENGLISCHEN Textkorpus ein …"></textarea>
 
     <div class="row" style="margin-top:10px">
       <div>
         <label>Atom-Vokabular (Ziel)</label>
-        <input id="atomVocab" type="number" min="64" max="1024" step="32" value="512"/>
+        <input id="atomVocab" type="number" min="64" max="1024" step="32" value="512">
       </div>
       <div>
         <label>Max. Kontext M (Lineares Modell)</label>
-        <input id="seqLen" type="number" min="64" max="768" step="32" value="128"/>
+        <input id="seqLen" type="number" min="64" max="768" step="32" value="128">
       </div>
     </div>
 
@@ -79,38 +80,38 @@
   </div>
 
   <div class="card">
-    <h3 class="font-bold text-lg mb-2">2) Lineares Modell Setup & Training</h3>
+    <h3 class="font-bold text-lg mb-2">2) Lineares Modell Setup &amp; Training</h3>
     <div class="row4">
-      <div><label>Schichten L</label><input id="nLayers" type="number" min="1" max="8" value="3"/></div>
-      <div><label>d_model</label><input id="dModel" type="number" min="64" max="512" step="32" value="256"/></div>
-      <div><label>FFN-Dim</label><input id="dFF" type="number" min="128" max="2048" step="64" value="512"/></div>
-      <div><label>Epochen</label><input id="epochs" type="number" min="1" max="40" value="4"/></div>
+      <div><label>Schichten L</label><input id="nLayers" type="number" min="1" max="8" value="3"></div>
+      <div><label>d_model</label><input id="dModel" type="number" min="64" max="512" step="32" value="256"></div>
+      <div><label>FFN-Dim</label><input id="dFF" type="number" min="128" max="2048" step="64" value="512"></div>
+      <div><label>Epochen</label><input id="epochs" type="number" min="1" max="40" value="4"></div>
     </div>
 
     <div class="row4 mt-3">
-      <div><label>LR (Adam)</label><input id="lr" type="number" min="0.00005" max="0.02" step="0.00005" value="0.002"/></div>
-      <div><label>Batchgröße</label><input id="batch" type="number" min="8" max="128" step="8" value="32"/></div>
-      <div><label>Steps/Epoche (0=auto)</label><input id="stepCap" type="number" min="0" max="50000" step="100" value="400"/></div>
+      <div><label>LR (Adam)</label><input id="lr" type="number" min="0.00005" max="0.02" step="0.00005" value="0.002"></div>
+      <div><label>Batchgröße</label><input id="batch" type="number" min="8" max="128" step="8" value="32"></div>
+      <div><label>Steps/Epoche (0=auto)</label><input id="stepCap" type="number" min="0" max="50000" step="100" value="400"></div>
       <div class="flex items-end gap-3">
-        <label class="muted"><input id="useGPU" type="checkbox" checked/> WebGPU bevorzugen</label>
-        <label class="muted"><input id="useDropout" type="checkbox"/> Dropout 0.1</label>
-        <label class="muted"><input id="autoLR" type="checkbox" checked/> Auto-LR</label>
+        <label class="muted"><input id="useGPU" type="checkbox" checked=""> WebGPU bevorzugen</label>
+        <label class="muted"><input id="useDropout" type="checkbox"> Dropout 0.1</label>
+        <label class="muted"><input id="autoLR" type="checkbox" checked=""> Auto-LR</label>
       </div>
     </div>
 
     <div class="flex items-center gap-3 mt-3">
       <button id="btnTrain" class="btn" disabled>
         <span id="trainText">3. Training starten</span>
-        <span id="spin" class="spinner" style="display:none;margin-left:8px"></span>
+        <span id="spin" class="spinner" style="display: none; margin-left: 8px;"></span>
       </button>
       <button id="btnStop" class="btn red" disabled>Stop</button>
 
       <!-- Datei-Export/Import -->
       <button id="btnExport" class="btn warn" disabled>Modell exportieren (Datei)</button>
       <label class="btn secondary" for="fileImport" style="cursor:pointer">Modell importieren (Datei)</label>
-      <input id="fileImport" type="file" accept="application/json" style="display:none"/>
+      <input id="fileImport" type="file" accept="application/json" style="display:none">
 
-      <div id="stats" class="muted"></div>
+      <div id="stats" class="muted">V=512 • M=128 • B=32 • L=3 • d=128 • dFF=512 • Steps/Ep=400</div>
     </div>
   </div>
 
@@ -120,31 +121,36 @@
     <div class="row">
       <div><label>Sampling-Modus</label>
         <select id="sampleMode">
-          <option value="topp" selected>Top-p</option>
+          <option value="topp" selected="">Top-p</option>
           <option value="topk">Top-k</option>
         </select>
       </div>
-      <div><label>Top-k</label><input id="topK" type="number" min="1" max="200" value="64" disabled/></div>
-      <div><label>Top-p</label><input id="topP" type="number" min="0.05" max="1.0" step="0.05" value="0.9"/></div>
-      <div><label>Temperatur</label><input id="temp" type="number" min="0.1" max="2.0" step="0.1" value="0.9"/></div>
+      <div><label>Top-k</label><input id="topK" type="number" min="1" max="200" value="64" disabled></div>
+      <div><label>Top-p</label><input id="topP" type="number" min="0.05" max="1.0" step="0.05" value="0.9"></div>
+      <div><label>Temperatur</label><input id="temp" type="number" min="0.1" max="2.0" step="0.1" value="0.9"></div>
     </div>
     <div class="row mt-2">
-      <div><label>Tokens generieren</label><input id="nGen" type="number" min="1" max="2000" value="200"/></div>
+      <div><label>Tokens generieren</label><input id="nGen" type="number" min="1" max="2000" value="200"></div>
       <div class="flex items-end gap-3">
         <button id="btnGen" class="btn secondary" disabled>Generieren</button>
         <button id="btnStopGen" class="btn red" disabled>Stop</button>
-        <div id="inferStats" class="muted"></div>
+        <div id="inferStats" class="muted">Tokens: 0 • Latenz 0.0 ms</div>
       </div>
     </div>
     <div class="mt-3">
       <div class="muted mb-1">Ausgabe (IPA)</div>
       <div id="outIPA" class="mono" style="white-space:pre-wrap;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px"></div>
     </div>
+    <!-- NEU: Text-Decode mit Annotation unbekannter Phoneme -->
+    <div class="mt-3">
+      <div class="muted mb-1">Ausgabe (Text-Decode - P2G)</div>
+      <div id="outText" class="mono" style="white-space:pre-wrap;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px"></div>
+    </div>
   </div>
 
   <div class="card">
-    <h3 class="font-bold text-lg mb-2">Perplexity & Log</h3>
-    <div id="metrics" class="muted mb-2"></div>
+    <h3 class="font-bold text-lg mb-2">Perplexity &amp; Log</h3>
+    <div id="metrics" class="muted mb-2"><b>Epoche –/–</b> &nbsp; Loss=– &nbsp; Val PPL=– &nbsp; ~Tok/s=– &nbsp; LR=–</div>
     <div id="log" class="log">[Log bereit. Lineares $O(M)$-Modell aktiviert.]</div>
   </div>
 </div>
@@ -156,10 +162,10 @@ const MAX_LOG_CHARS = 120000;
 const BOS_ID = 0, EOS_ID = 1;
 
 const STATE = {
-  dict: new Map(),   // en_US.txt Inhalte
-  ipa: '',           // gesamter IPA-String des Korpus
-  atomizer: null,    // {encodeIPAtoAtoms, decodeAtomsToIPA, ...}
-  tokens: null,      // Uint32Array
+  dict: new Map(),   // en_US.txt Inhalte
+  ipa: '',           // gesamter IPA-String des Korpus
+  atomizer: null,    // {encodeIPAtoAtoms, decodeAtomsToIPA, ...}
+  tokens: null,      // Uint32Array
   model: null,
   modelRev: 0,
   cancelTrain: false,
@@ -211,8 +217,8 @@ function dbgState(tag=''){
 
 /* =================== Wörterbuch: /data/en_US.txt =================== */
 /* Format robust parsen:
-   - Zeilenweise: word /ipa1/, /ipa2/  ODER  word\tipa  ODER  word<space>ipa
-   - Kommentare (# ...) und leere Zeilen ignorieren.
+   - Zeilenweise: word /ipa1/, /ipa2/  ODER  word\tipa  ODER  word<space>ipa
+   - Kommentare (# ...) und leere Zeilen ignorieren.
 */
 async function loadLocalDictEN(){
   const url = '/data/en_US.txt';
@@ -251,7 +257,7 @@ async function loadLocalDictEN(){
     }
   }
   STATE.dict = map;
-  $('kpiDict').textContent = `Wörterbuch geladen: en_US (words=${map.size})`;
+  $('kpiDict').textContent = `Wörterbuch geladen: en_US (words=${map.size}, added=${add}, dup=${dup})`;
   logLine(`Wörterbuch geladen: en_US (words=${map.size}, added=${add}, dup=${dup})`);
 }
 
@@ -649,6 +655,132 @@ async function train(){
   }
 }
 
+/* =================== IPA -> Text Decoder (P2G) — Robust Token-Based =================== */
+
+let REVERSE_DICT = null;
+
+function buildReverseDict() {
+  if (!STATE.dict || STATE.dict.size === 0) {
+    logLine("Fehler: Wörterbuch (STATE.dict) nicht geladen für Reverse-Dict.");
+    return;
+  }
+  
+  // Wir verwenden nur die exakte IPA-Repräsentation (inkl. Alternativen) als Key.
+  REVERSE_DICT = new Map();
+  for (const [word, ipa_string] of STATE.dict.entries()) {
+    // 1. Speichern der vollen IPA-String-Variante (z.B. "ˈænd / ənd")
+    let fullIpaKey = ipa_string.trim();
+    if (!REVERSE_DICT.has(fullIpaKey)) {
+        REVERSE_DICT.set(fullIpaKey, word);
+    } 
+
+    // 2. Speichern der einzelnen IPA-Varianten (z.B. "ˈænd" und "ənd")
+    // Dies erhöht die Robustheit, falls das LLM nur eine der Alternativen generiert.
+    const parts = fullIpaKey.split(' / ');
+    for (let ipa of parts) {
+        ipa = ipa.trim();
+        if (!ipa) continue;
+        if (!REVERSE_DICT.has(ipa)) {
+            REVERSE_DICT.set(ipa, word); // Erste Wort-Zuordnung
+        }
+    }
+  }
+
+  // Satzzeichen als Identität hinzufügen (Token bleibt Satzzeichen)
+  const punctuation = [",", ".", "“", "”", "?", "!", ";", ":", "'", '"', "-", "–", "/", "—"];
+  for (const p of punctuation) {
+    if (!REVERSE_DICT.has(p)) REVERSE_DICT.set(p, p);
+  }
+
+  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge.`);
+}
+
+function decodeIPAToText(ipa_string) {
+  if (!REVERSE_DICT) {
+    buildReverseDict(); // Ad-hoc erstellen, falls vergessen
+  }
+  if (!REVERSE_DICT || REVERSE_DICT.size === 0) return "[Fehler: Reverse-Wörterbuch nicht bereit]";
+
+  // Tokens anhand von Whitespace trennen (Token-basierter Ansatz)
+  // Entfernt unnötige doppelte Leerzeichen vor der Aufteilung.
+  const ipaTokens = ipa_string.trim().replace(/\s+/g, ' ').split(' ');
+  
+  let output_words = [];
+  
+  for (const token of ipaTokens) {
+    if (!token) continue;
+
+    // 1. OOV-Token prüfen (z.B. ‹canamanthing›)
+    if (token.startsWith('‹') && token.endsWith('›') && token.length > 2) {
+      // Entferne die OOV-Klammern und nimm das Wort direkt
+      const word = token.substring(1, token.length - 1);
+      output_words.push(word);
+    } 
+    
+    // 2. Exakten Match im Reverse-Wörterbuch suchen (inkl. Alternativen-String)
+    else if (REVERSE_DICT.has(token)) {
+      output_words.push(REVERSE_DICT.get(token));
+    }
+    
+    // 3. KEIN Match (Halluzination/unbekanntes Phonem-Token)
+    else {
+      // Transparente Annotation (kein Ignorieren, kein kryptisches Zeichen)
+      output_words.push(`[Phonem: ${token}]`);
+    }
+  }
+  
+  return postProcessDecodedText(output_words);
+}
+
+function postProcessDecodedText(words) {
+  let s = "";
+  let needsSpace = false;
+  
+  for (const word of words) {
+    if (!word) continue;
+
+    // Behandele interne Markierungen (Phonem-Halluzinationen)
+    if (word.startsWith('[Phonem:')) {
+        if (needsSpace) s += " ";
+        s += word;
+        needsSpace = true;
+    }
+    // Keine Leerstelle *vor* Satzzeichen oder nach öffnenden Anführungszeichen
+    else if (",.?!;:”".includes(word)) {
+      s = s.trim();
+      s += word;
+      needsSpace = true;
+    } 
+    // Keine Leerstelle *nach* öffnenden Anführungszeichen
+    else if ("“".includes(word)) {
+      if (needsSpace) s += " ";
+      s += word;
+      needsSpace = false;
+    }
+    // Bindestriche, Schrägstriche, etc.
+    else if (word === "-" || word === "/" || word === "—") {
+        s = s.trim();
+        s += word;
+        needsSpace = false;
+    }
+    // Standard-Wort
+    else {
+      if (needsSpace) s += " ";
+      s += word;
+      needsSpace = true;
+    }
+  }
+  
+  // Letzte Aufräumarbeiten
+  s = s.replace(/\s+([,.?!;:”])/g, '$1'); // "word ." -> "word."
+  s = s.replace(/([“])\s+/g, '$1'); // "“ word" -> "“word"
+  s = s.replace(/([/-—])\s+/g, '$1'); // Entferne Leerzeichen nach Bindestrichen/Schrägstrichen
+  s = s.replace(/\s+([/-—])/g, '$1'); // Entferne Leerzeichen vor Bindestrichen/Schrägstrichen
+  s = s.replace(/\s+/g, ' '); // Mehrfach-Leerzeichen entfernen
+
+  return s.trim();
+}
+
 /* =================== Sampling & Inferenz =================== */
 function sampleFromProbs(probs, mode, topK, topP){
   const order = Array.from(probs.keys()).sort((a,b)=>probs[b]-probs[a]);
@@ -717,6 +849,11 @@ async function generate(){
 
   const genIPA = STATE.atomizer.decodeAtomsToIPA(outTokens);
   $('outIPA').textContent = genIPA;
+  
+  // NEU: Dekodierung mit Annotation
+  const genText = decodeIPAToText(genIPA);
+  $('outText').textContent = genText;
+
   logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
 }
 
@@ -792,7 +929,10 @@ async function importModel(file){
         if (byName[name]) { byName[name].assign(tensor); tensor.dispose(); }
         else tensor.dispose();
       }
-
+      
+      // NOTE: STATE.dict (Wörterbuch) wird beim Import nicht wiederhergestellt, 
+      // daher muss der Benutzer es erneut laden, um den P2G-Decoder zu aktivieren.
+      
       STATE.atomizer = {
         merges: obj.atomizer.merges,
         cp2id: new Map(Object.entries(obj.atomizer.cp2id).map(([k, v]) => [Number(k), v])),
@@ -836,7 +976,7 @@ async function importModel(file){
       };
 
       $('prompt').disabled = false; $('btnGen').disabled = false; $('btnExport').disabled = false;
-      logLine('Import abgeschlossen. Modell & Atomizer geladen.');
+      logLine('Import abgeschlossen. Modell & Atomizer geladen. Bitte Wörterbuch (en_US.txt) laden, um P2G zu nutzen.');
       dbgState('after-import');
     } catch(e){
       logLine('Import-Fehler: '+(e?.message||e));
@@ -854,6 +994,7 @@ window.addEventListener('load', async ()=>{
   $('btnLoadDict').addEventListener('click', async ()=>{
     try{
       await loadLocalDictEN();
+      buildReverseDict(); // WICHTIG: Reverse-Dict nach Laden des Forward-Dicts erstellen
       $('btnBuildIPA').disabled = false;
     }catch(e){
       logLine('Fehler beim Laden von /data/en_US.txt: '+(e?.message||e));
@@ -863,6 +1004,7 @@ window.addEventListener('load', async ()=>{
   $('btnBuildIPA').addEventListener('click', ()=>{
     const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
+    if(STATE.dict.size === 0) { logLine('Fehler: Wörterbuch nicht geladen. Bitte zuerst "en_US.txt laden" klicken.'); return; }
     try{
       const ipa=g2pConvert(raw);
       STATE.ipa = ipa;
@@ -938,6 +1080,8 @@ window.addEventListener('load', async ()=>{
     $('kpiIPA').textContent='IPA: –';
     $('kpiAtoms').textContent='Atome: –';
     $('kpiComp').textContent='Kompression: –';
+    $('outIPA').textContent='';
+    $('outText').textContent='';
     $('btnBuildIPA').disabled = true;
     $('btnTrainAtoms').disabled = true;
     $('btnTrain').disabled = true;
@@ -955,5 +1099,6 @@ window.addEventListener('load', async ()=>{
   });
 });
 </script>
-</body>
-</html>
+
+
+</body></html>
