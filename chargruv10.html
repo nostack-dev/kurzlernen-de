@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
@@ -288,7 +288,7 @@ function sampleBatch(starts, tokens, B, T){
   const n=starts.length;
   if (n === 0) {
       logLine("WARNUNG: sampleBatch mit leerem 'starts'-Array aufgerufen!");
-      return {X,Y}; // Gibt leere (oder 0-gefüllte) Arrays zurück
+      return {X,Y};
   }
   for(let b=0;b<B;b++){
     const s = starts[(Math.random()*n)|0];
@@ -337,25 +337,17 @@ function causalMask(T){
 }
 
 /*
-  Fix für tf.gatherND-Fehler:
-  Ersetze die 'gatherND'-Logik (die keinen Gradienten hat)
-  durch die offizielle 'tf.losses.softmaxCrossEntropy'-Funktion.
-  Diese erwartet One-Hot-Labels, also wandeln wir die 'targets' um.
+  CE-Loss stabil (2D-Flatten):
+  targets: [B,T] → oneHot → [B*T,V]
+  logits:  [B,T,V] → [B*T,V]
 */
 function softmaxCEfromLogits(logits, targets){
   const [B,T,V] = logits.shape;
-  
-  // Wandle targets (Shape [B, T]) in One-Hot (Shape [B, T, V]) um
-  const oneHotTargets = tf.oneHot(targets.toInt(), V); // .toInt() für alle Fälle
-  
-  // Berechne den Loss. 'logits' sind die rohen Ausgaben (nicht-normalisiert).
-  // 'tf.losses.softmaxCrossEntropy' wendet intern softmax an und hat einen stabilen Gradienten.
-  const loss = tf.losses.softmaxCrossEntropy(oneHotTargets, logits);
-  
-  // Wir geben den Durchschnitts-Loss (einen Skalar) zurück.
-  return tf.mean(loss);
+  const labels2d = tf.oneHot(targets.toInt(), V).reshape([B*T, V]);
+  const logits2d = logits.reshape([B*T, V]);
+  const lossPer = tf.losses.softmaxCrossEntropy(labels2d, logits2d);
+  return tf.mean(lossPer);
 }
-
 
 /* ====== Modell-Factory ====== */
 function buildModel(cfg){
@@ -370,22 +362,22 @@ function buildModel(cfg){
     layers.push({
       g1: tf.variable(tf.ones([dModel])),
       g2: tf.variable(tf.ones([dModel])),
-      Wq: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
-      Wk: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
-      Wv: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
-      Wo: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel)))),
-      W1: tf.variable(tf.randomNormal([dModel,dFF],0,Math.sqrt(2/(dModel+dFF)))),
+      Wq: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel))))),
+      Wk: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel))))),
+      Wv: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel))))),
+      Wo: tf.variable(tf.randomNormal([dModel,dModel],0,Math.sqrt(2/(dModel+dModel))))),
+      W1: tf.variable(tf.randomNormal([dModel,dFF],0,Math.sqrt(2/(dModel+dFF))))),
       b1: tf.variable(tf.zeros([dFF])),
-      W2: tf.variable(tf.randomNormal([dFF,dModel],0,Math.sqrt(2/(dFF+dModel)))),
+      W2: tf.variable(tf.randomNormal([dFF,dModel],0,Math.sqrt(2/(dFF+dModel))))),
       b2: tf.variable(tf.zeros([dModel])),
     });
   }
   const bout = tf.variable(tf.zeros([V]));
   
-  // Erstelle die separate Output-Matrix, *falls* Weight Tying deaktiviert ist.
+  // Output-Matrix nur wenn Weight Tying deaktiviert ist
   const W_out = weightTying ? null : tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'));
   
-  const params = {E, layers, bout, pe, mask, cfg, W_out}; // W_out hier übergeben
+  const params = {E, layers, bout, pe, mask, cfg, W_out};
 
   function dropout(x, rate){
     if(!dropoutTrain || rate<=0) return x;
@@ -406,6 +398,7 @@ function buildModel(cfg){
     let x = emb.add(params.pe.slice([0,0],[Tcur,dModel]).reshape([1,Tcur,dModel]));
 
     for(const L of params.layers){
+      // Self-Attention
       let h = rmsNorm(x, L.g1);
       const Q = h.matMul(L.Wq);
       const K = h.matMul(L.Wk);
@@ -420,35 +413,27 @@ function buildModel(cfg){
       let attnOut = combineHeads(ctx).matMul(L.Wo);
       x = x.add(dropout(attnOut, 0.1));
 
+      // ----- MLP (Fix: über 2D rechnen, dann zurückreshapen) -----
       let h2 = rmsNorm(x, L.g2);
-      let mlp = h2.matMul(L.W1).add(L.b1);
-      mlp = tf.mul(mlp, tf.sigmoid(mlp)); // SiLU
-      mlp = mlp.matMul(L.W2).add(L.b2);
+      const h2_2d = h2.reshape([BT, dModel]);          // [B*T, d]
+      let mlp2 = h2_2d.matMul(L.W1).add(L.b1);         // [B*T, dFF]
+      mlp2 = tf.mul(mlp2, tf.sigmoid(mlp2));           // SiLU
+      mlp2 = mlp2.matMul(L.W2).add(L.b2);              // [B*T, d]
+      const mlp = mlp2.reshape([B, Tcur, dModel]);     // zurück zu [B,T,d]
       x = x.add(dropout(mlp, 0.1));
     }
     
-    // ========== FIX START ==========
-    // Behebt den 'BatchMatMul' Gradienten-Fehler, indem die 3D@2D-Multiplikation
-    // in eine 2D@2D-Multiplikation umgeformt wird, die einen stabilen Gradienten hat.
-
-    // Reshape x von [B, T, dModel] -> [B*T, dModel]
+    // Output-Projektion (Fix: 2D MatMul, stabiler Grad)
     const x_2d = x.reshape([BT, dModel]);
-    
     let logits_2d;
     if (params.cfg.weightTying) {
-      // [B*T, dModel] @ [dModel, V] -> [B*T, V]
-      const E_T = params.E.transpose(); // [dModel, V]
-      logits_2d = x_2d.matMul(E_T);
+      const E_T = params.E.transpose(); // [d, V]
+      logits_2d = x_2d.matMul(E_T);     // [B*T, V]
     } else {
-      // [B*T, dModel] @ [dModel, V] -> [B*T, V]
-      logits_2d = x_2d.matMul(params.W_out);
+      logits_2d = x_2d.matMul(params.W_out); // [B*T, V]
     }
-    
-    // Reshape zurück zu [B, T, V]
     const logits = logits_2d.reshape([B, Tcur, V]);
-    
     return logits.add(params.bout);
-    // ========== FIX END ==========
   }
 
   function variables(){
@@ -456,9 +441,8 @@ function buildModel(cfg){
     for(const L of layers){
       vs.push(L.g1,L.g2,L.Wq,L.Wk,L.Wv,L.Wo,L.W1,L.b1,L.W2,L.b2);
     }
-    // Füge die (optionale) W_out-Variable hinzu, wenn sie existiert (null ist false)
     if (params.W_out) {
-        vs.push(params.W_out);
+      vs.push(params.W_out);
     }
     return vs;
   }
@@ -524,19 +508,14 @@ async function train(){
       const cfg = MODEL.params.cfg;
       V = cfg.V; T = cfg.T; L = cfg.nLayers; dModel = cfg.dModel;
       nHeads = cfg.nHeads; dFF = cfg.dFF; 
-      // Lese Tying-Status aus der UI, falls es geändert wurde
       weightTying = valBool('weightTying', cfg.weightTying); 
       dropoutTrain = valBool('useDropout', cfg.dropoutTrain);
-      
-      // Aktualisiere die Modell-Konfiguration, falls Tying geändert wurde
       MODEL.params.cfg.dropoutTrain = dropoutTrain;
       if (MODEL.params.cfg.weightTying !== weightTying) {
           logLine(`Weight Tying Status geändert von ${MODEL.params.cfg.weightTying} auf ${weightTying}.`);
           logLine(`HINWEIS: Dies wird beim Laden eines Modells nicht unterstützt. Lade neu.`);
-          // (Idealerweise würde man hier das Modell neu bauen, aber das ist komplex)
-          MODEL.params.cfg.weightTying = weightTying; // Setze es trotzdem
+          MODEL.params.cfg.weightTying = weightTying;
       }
-
 
       logLine(`Füge neuen Text (${raw.length} Zeichen) hinzu...`);
       const newIds = TOK(raw, true, true);
@@ -607,11 +586,10 @@ async function train(){
           const vars = MODEL.variables();
           const {value, grads} = tf.variableGrads(()=>{
             const logits = MODEL.forward(x, true);
-            // Hier wird die oneHot-basierte Loss-Funktion aufgerufen
             return softmaxCEfromLogits(logits, y);
           }, vars);
 
-          // Check for null gradients
+          // Null-Gradient Check
           const gradValues = Object.values(grads);
           if (gradValues.some(g => g === null)) {
               logLine(`FEHLER bei Step ${s}: Null-Gradient entdeckt!`);
@@ -819,7 +797,7 @@ async function importModel(event) {
       await setupBackend(valBool('useGPU', true));
       if(MODEL) MODEL.variables().forEach(v => v.dispose());
       
-      // Wichtig: Baue das Modell mit der importierten Konfiguration
+      // Modell mit importierter Konfiguration bauen
       MODEL = buildModel(config); 
       
       const modelVars = MODEL.variables();
