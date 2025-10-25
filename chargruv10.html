@@ -154,9 +154,22 @@ function valNum(id, fallback, lo=null, hi=null){
 }
 function valBool(id, fallback=false){ return $(id)?.checked ?? fallback; }
 function setButtonState(id, disabled, text, showSpinner=false) {
-    $(id).disabled = disabled;
-    if (text) $(id).querySelector('span#trainText')?.textContent = text;
-    $(id).querySelector('span#spin').style.display = showSpinner ? 'inline-block' : 'none';
+    const button = $(id);
+    if (!button) return; // Frühzeitiger Abbruch, wenn Button nicht gefunden
+    
+    button.disabled = disabled;
+    
+    // Sicherer Zugriff auf trainText und Zuweisung (expliziter Check)
+    const textSpan = button.querySelector('span#trainText');
+    if (text && textSpan) { 
+        textSpan.textContent = text;
+    }
+    
+    // Sicherer Zugriff auf Spinner
+    const spinnerSpan = button.querySelector('span#spin');
+    if (spinnerSpan) {
+        spinnerSpan.style.display = showSpinner ? 'inline-block' : 'none';
+    }
 }
 
 /* --- Text ⇄ IPA (PhenomEncoder: Stufe I - linguistische Basis) --- */
