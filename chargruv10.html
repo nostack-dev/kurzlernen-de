@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, IPA lokal aus ./data/*.txt)</title>
+  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, nur lokale en_US.txt)</title>
 
-  <!-- TensorFlow.js + WebGPU backend -->
+  <!-- TFJS + WebGPU backend -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
 
-  <!-- Tailwind (CDN, unminified dev CDN ist ok laut Vorgabe) -->
+  <!-- Tailwind (CDN; Hinweis im Dev-Console ist ok) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -28,7 +28,7 @@
     .btn.warn{background:#f59e0b}
     .btn.red{background:#ef4444}
     .btn:disabled{opacity:.5;cursor:not-allowed}
-    .log{height:220px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    .log{height:200px;overflow:auto;background:#0b1020;color:#d1d5db;border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
     .muted{color:#6b7280}
     .spinner{border:4px solid rgba(0,0,0,.1);border-left-color:#4f46e5;border-radius:50%;width:20px;height:20px;animation:spin .8s linear infinite;display:inline-block}
@@ -41,11 +41,11 @@
 <body>
 <div class="container">
   <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M)$ Lineare Skalierung)</h1>
-  <div class="muted mb-4">IPA aus lokalen Dateien (./data/*.txt), Datei-Export/Import des Modells, kein IndexedDB, keine Heuristik-G2P.</div>
+  <div class="muted mb-4">Nur lokale IPA-Dictionaries: <code>/data/en_US.txt</code> (Fallback: <code>/data/en_UK.txt</code>). Kein Deutsch, keine externen Links.</div>
 
   <div class="card">
-    <h3 class="font-bold text-lg mb-2">1) Korpus & G2P → IPA (Wörterbücher)</h3>
-    <textarea id="txt" placeholder="Füge einen Textkorpus (Deutsch/Englisch) ein …"></textarea>
+    <h3 class="font-bold text-lg mb-2">1) Korpus & G2P → IPA (nur en_US)</h3>
+    <textarea id="txt" placeholder="Füge einen Textkorpus (Englisch) ein …"></textarea>
 
     <div class="row" style="margin-top:10px">
       <div>
@@ -60,18 +60,8 @@
 
     <div class="row" style="margin-top:10px">
       <div class="flex items-center gap-3">
-        <label>Sprache G2P</label>
-        <select id="g2pLang">
-          <option value="de_DE" selected>Deutsch (de_DE)</option>
-          <option value="en_US">Englisch (en_US)</option>
-        </select>
         <button id="btnBuildIPA" class="btn grey">1. G2P → IPA erzeugen</button>
         <button id="btnTrainAtoms" class="btn warn" disabled>2. Atome lernen (BPE auf IPA)</button>
-      </div>
-      <div class="flex items-center gap-3">
-        <label class="muted">Zusatz-Wörterbuch (optional, TXT <wort>\t<ipa> oder JSON {"wort":"ipa"}):</label>
-        <input type="file" id="dictFile" accept=".txt,application/json"/>
-        <button id="btnClearDict" class="btn red">Zusatz-Wörterbuch leeren</button>
       </div>
     </div>
 
@@ -79,7 +69,7 @@
       <div id="kpiIPA" class="muted">IPA: –</div>
       <div id="kpiAtoms" class="muted">Atome (M): –</div>
       <div id="kpiComp" class="muted">Kompression: –</div>
-      <div id="kpiDict" class="muted">Wörterbücher: laden …</div>
+      <div id="kpiDict" class="muted">Wörterbuch: lade …</div>
     </div>
   </div>
 
@@ -121,7 +111,7 @@
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">3) Inferenz (Atom → IPA)</h3>
-    <textarea id="prompt" placeholder="Prompt (Text) eingeben …" disabled></textarea>
+    <textarea id="prompt" placeholder="Prompt (englischer Text) …" disabled></textarea>
     <div class="row">
       <div><label>Sampling-Modus</label>
         <select id="sampleMode">
@@ -155,10 +145,14 @@
 </div>
 
 <script>
-/* =================== Core Helpers =================== */
+/* =================== Core & Helpers =================== */
 const $ = id => document.getElementById(id);
-const MAX_LOG_CHARS = 120000;
+const MAX_LOG_CHARS = 100000;
 const BOS_ID = 0, EOS_ID = 1;
+
+let MODEL=null, ATOMIZER=null, TOKENS=null, IPA_CORPUS='';
+let CANCEL_TRAIN=false, CANCEL_GEN=false;
+let modelRev = 0;
 
 function logLine(msg){
   const el = $('log');
@@ -196,156 +190,72 @@ async function microYield(){
   await tf.nextFrame();
 }
 
-/* =================== IPA Wörterbücher – lokal laden =================== */
-/* Format laut ipa-dict: Tab-getrennt: [ENTRY][TAB][IPA], UTF-8. Quelle: README. */
-let EN_DICT = new Map(); // en_US / en_EN (lokal)
-let DE_DICT = new Map(); // de_DE (lokal)
-let EXTRA_DICT = new Map(); // Benutzer-Overrides
+/* =================== IPA Dictionary: nur lokale en_US.txt (Fallback en_UK.txt) =================== */
+let EN_DICT = new Map();
 
 function dictInfo(){
-  $('kpiDict').textContent =
-    `Wörterbücher: en=${EN_DICT.size} • de=${DE_DICT.size} • Zusatz=${EXTRA_DICT.size}`;
+  $('kpiDict').textContent = `Wörterbuch: en_US=${EN_DICT.size} Einträge`;
 }
 
-/* Parser für TXT (tab-delimited) */
-function parseTxtDict(text){
-  const map = new Map();
-  const lines = (text||'').split(/\r?\n/);
-  for (let line of lines){
-    if (!line) continue;
-    if (line.startsWith('#')) continue;
-    const parts = line.split('\t');
-    if (parts.length < 2) continue;
-    const key = String(parts[0]).trim().toLowerCase();
-    const ipa = String(parts.slice(1).join('\t')).trim();
-    if (!key || !ipa) continue;
-    map.set(key, ipa);
-  }
-  return map;
-}
-
-/* Parser für JSON (entweder {"wort":"ipa"} oder ipa-dict-ähnliche Struktur) */
-function parseJsonDict(jsonObj){
-  const map = new Map();
-  if (!jsonObj || typeof jsonObj !== 'object') return map;
-  // flach: {"word":"ipa"}
-  let flat = jsonObj;
-  // ipa-dict JSON kann {"LANG":[ { "word":"ipa", ... } ]} sein -> in flache Map umwandeln
-  if (Object.keys(jsonObj).length===1 && Array.isArray(Object.values(jsonObj)[0])){
-    const arr = Object.values(jsonObj)[0];
-    for (const obj of arr){
-      if (!obj || typeof obj!=='object') continue;
-      for (const [k,v] of Object.entries(obj)){
-        if (k && v) map.set(String(k).toLowerCase(), String(v));
-      }
-    }
-    return map;
-  }
-  for (const [k,v] of Object.entries(flat)){
-    if (k && v) map.set(String(k).toLowerCase(), String(v));
-  }
-  return map;
-}
-
-async function fetchText(url){
-  const r = await fetch(url, {mode:'same-origin'});
-  if(!r.ok) throw new Error(r.status+' '+r.statusText);
+// robustes Laden einer Textdatei (same-origin)
+async function fetchTextLocal(path){
+  const r = await fetch(path, {mode:'same-origin', cache:'no-store'});
+  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return await r.text();
 }
-async function fetchJSON(url){
-  const r = await fetch(url, {mode:'same-origin'});
-  if(!r.ok) throw new Error(r.status+' '+r.statusText);
-  return await r.json();
+
+// Parser: "word<TAB or SPACE+>IPA" ; ignoriert leere/Kommentarzeilen
+function parseIpaTxt(text){
+  const map = new Map();
+  const lines = text.split(/\r?\n/);
+  for (let line of lines){
+    line = line.trim();
+    if (!line || line.startsWith('#')) continue;
+    const m = line.match(/^([^\t\s]+)[\t ]+(.+)$/);
+    if (!m) continue;
+    const word = m[1].toLowerCase();
+    const ipa  = m[2].trim();
+    if (word && ipa) map.set(word, ipa);
+  }
+  return map;
 }
 
-/* Lädt lokal verfügbare Dateien (gleicher Origin), ohne CORS-Fehler.
-   Reihenfolge: en_EN.txt → en_US.txt → en_US.json ; de_DE.txt → de_DE.json */
-async function tryLoadDictsLocal(){
-  let enLoaded = false, deLoaded = false;
-
-  // Englisch
-  const enCandidates = [
-    './data/en_EN.txt', // Wunschpfad
-    './data/en_US.txt',
-    './data/en_US.json'
-  ];
-  for (const url of enCandidates){
+async function loadEnUsDict(){
+  try{
+    const txt = await fetchTextLocal('/data/en_US.txt');
+    EN_DICT = parseIpaTxt(txt);
+    dictInfo();
+    logLine(`Wörterbuch geladen: /data/en_US.txt (${EN_DICT.size} Einträge)`);
+  }catch(e1){
+    logLine(`Warnung: /data/en_US.txt nicht verfügbar (${e1?.message||e1}). Versuche /data/en_UK.txt …`);
     try{
-      if (url.endsWith('.txt')){
-        const txt = await fetchText(url);
-        const m = parseTxtDict(txt);
-        if (m.size>0){ EN_DICT = m; enLoaded = true; logLine(`Englisches IPA-WB geladen: ${url} (${m.size} Einträge)`); break; }
-      } else {
-        const obj = await fetchJSON(url);
-        const m = parseJsonDict(obj);
-        if (m.size>0){ EN_DICT = m; enLoaded = true; logLine(`Englisches IPA-WB geladen: ${url} (${m.size} Einträge)`); break; }
-      }
-    } catch(e){
-      // still try next
+      const txt2 = await fetchTextLocal('/data/en_UK.txt');
+      EN_DICT = parseIpaTxt(txt2);
+      dictInfo();
+      logLine(`Wörterbuch geladen: /data/en_UK.txt (${EN_DICT.size} Einträge)`);
+    }catch(e2){
+      EN_DICT = new Map();
+      dictInfo();
+      logLine('FEHLER: Kein lokales Wörterbuch gefunden. Bitte /data/en_US.txt bereitstellen.');
     }
   }
-
-  // Deutsch
-  const deCandidates = [
-    './data/de_DE.txt',
-    './data/de_DE.json'
-  ];
-  for (const url of deCandidates){
-    try{
-      if (url.endsWith('.txt')){
-        const txt = await fetchText(url);
-        const m = parseTxtDict(txt);
-        if (m.size>0){ DE_DICT = m; deLoaded = true; logLine(`Deutsches IPA-WB geladen: ${url} (${m.size} Einträge)`); break; }
-      } else {
-        const obj = await fetchJSON(url);
-        const m = parseJsonDict(obj);
-        if (m.size>0){ DE_DICT = m; deLoaded = true; logLine(`Deutsches IPA-WB geladen: ${url} (${m.size} Einträge)`); break; }
-      }
-    } catch(e){
-      // still try next
-    }
-  }
-
-  dictInfo();
-  if (!enLoaded) logLine('Hinweis: Kein englisches IPA-Wörterbuch unter ./data/en_EN.txt|en_US.txt|en_US.json gefunden.');
-  if (!deLoaded) logLine('Hinweis: Kein deutsches IPA-Wörterbuch unter ./data/de_DE.txt|de_DE.json gefunden.');
 }
 
-/* Zusatz-Wörterbuch importieren (txt oder json) */
-function mergeExtraDictFromTxt(text){
-  const m = parseTxtDict(text);
-  let added=0; for (const [k,v] of m){ EXTRA_DICT.set(k,v); added++; }
-  dictInfo(); logLine(`Zusatz-Wörterbuch (TXT): +${added} Einträge.`);
-}
-function mergeExtraDictFromJson(obj){
-  const m = parseJsonDict(obj);
-  let added=0; for (const [k,v] of m){ EXTRA_DICT.set(k,v); added++; }
-  dictInfo(); logLine(`Zusatz-Wörterbuch (JSON): +${added} Einträge.`);
-}
-
-/* Tokenizer (reine Wort-/Zeichen-Separierung, kein Heuristik-G2P) */
-const WORD_RE = /[\p{L}\p{M}\p{Nd}]+/u;
+/* =================== G2P (nur Dictionary, keine Heuristik) =================== */
+const WORD_RE = /[\p{L}\p{M}\p{Nd}']+/u;
 function tokenize(text){
-  const m = text.normalize('NFC').match(/[\p{L}\p{M}\p{Nd}]+|[^\s]/gu) || [];
+  const m = text.normalize('NFC').match(/[\p{L}\p{M}\p{Nd}']+|[^\s]/gu) || [];
   return m.map(s=>s.toString());
 }
-
 function g2pConvert(text){
-  const lang = $('g2pLang').value; // 'de_DE' oder 'en_US'
-  const BASE = (lang==='de_DE') ? DE_DICT : EN_DICT;
-  if (BASE.size===0 && EXTRA_DICT.size===0){
-    throw new Error('IPA-Wörterbuch nicht verfügbar (lokale Dateien fehlen und kein Zusatz-WB).');
-  }
+  if (EN_DICT.size===0) throw new Error('IPA-Wörterbuch (en_US) nicht geladen.');
   const toks = tokenize(text.toLowerCase());
   const out = [];
   for (const t of toks){
-    if (!WORD_RE.test(t)){ out.push(t); continue; } // Satzzeichen etc.
-    const hit = EXTRA_DICT.get(t) ?? BASE.get(t);
+    if (!WORD_RE.test(t)){ out.push(t); continue; }
+    const hit = EN_DICT.get(t);
     if (hit){ out.push(hit); }
-    else {
-      // bewusst KEINE Regel-Heuristik – unbekannte Wörter klar markieren
-      out.push(`‹${t}›`);
-    }
+    else { out.push(`‹${t}›`); } // keine Regel-Hacks, kennzeichne unbekannt
   }
   return out.join(' ').replace(/\s+/g,' ').trim();
 }
@@ -441,7 +351,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
   });
 }
 
-/* =================== Modell (O(M) mit kausaler Conv + Gate + MLP) =================== */
+/* =================== Modell (O(M) simuliert) =================== */
 function rmsNorm(x, gamma, eps=1e-5){
   const meanSq = tf.mean(tf.square(x), -1, true);
   const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps)));
@@ -467,7 +377,7 @@ function softmaxCEfromLogits(logits, targets){
 }
 
 function buildModel(cfg){
-  const { V, dModel, dFF, nLayers, T, weightTying=true, dropoutTrain } = cfg;
+  const { V, dModel, dFF, nLayers, T, weightTying, dropoutTrain } = cfg;
 
   const E = tf.variable(tf.randomNormal([V, dModel], 0, 0.02, 'float32'), true, 'E');
   const pe = sinusoidalPositionalEncoding(T, dModel);
@@ -478,11 +388,9 @@ function buildModel(cfg){
     layers.push({
       g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`),
       g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
-
       W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
       W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
       b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
-
       W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`),
       b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
       W2: tf.variable(tf.randomNormal([dFF, dModel], 0, Math.sqrt(2/(dFF+dModel))), true, `L${l}_W2`),
@@ -515,9 +423,8 @@ function buildModel(cfg){
 
         // Kausale Conv1D (links gepaddet)
         const K = params.CONV_KERNEL_SIZE;
-        const paddingSize = K - 1;
-        const zeroPadding = tf.zeros([B, paddingSize, dM]);
-        const paddedH = tf.concat([zeroPadding, h], 1);
+        const pad = tf.zeros([B, K-1, dM]);
+        const paddedH = tf.concat([pad, h], 1);
 
         let conv_out_full = tf.conv1d(paddedH, L.W_Conv, 1, 'valid');
         let conv_out = conv_out_full.slice([0, 0, 0], [B, Tcur, dM]);
@@ -579,10 +486,6 @@ async function setupBackend(preferGPU=true){
 }
 
 /* =================== Datenaufbereitung & Training =================== */
-let MODEL=null, ATOMIZER=null, TOKENS=null, IPA_CORPUS='';
-let CANCEL_TRAIN=false, CANCEL_GEN=false;
-let modelRev = 0;
-
 function buildStarts(tokens, T, valPct){
   const N = tokens.length;
   const usable = Math.max(0, N - (T+1));
@@ -861,7 +764,8 @@ async function importModel(file){
 
       const weightData = b642ab(obj.weightDataB64);
       const weightMap = await tf.io.decodeWeights(weightData, obj.weightSpecs);
-      const byName = {}; for (const v of MODEL.variables()) byName[v.name] = v;
+      const byName = {};
+      for (const v of MODEL.variables()) byName[v.name] = v;
       for (const [name, tensor] of Object.entries(weightMap)) {
         if (byName[name]) { byName[name].assign(tensor); tensor.dispose(); }
         else tensor.dispose();
@@ -919,34 +823,10 @@ async function importModel(file){
   reader.readAsText(file);
 }
 
-/* =================== UI Wiring =================== */
+/* =================== UI =================== */
 window.addEventListener('load', async ()=>{
-  // Backend init
-  setupBackend(valBool('useGPU', true));
-
-  // Wörterbücher lokal laden (kein CORS)
-  try {
-    await tryLoadDictsLocal();
-  } catch(e){
-    logLine('Fehler beim Laden lokaler IPA-Wörterbücher: '+(e?.message||e));
-  }
-
   $('btnStop').addEventListener('click', ()=>{ CANCEL_TRAIN=true; $('btnStop').disabled = true; logLine('Training gestoppt (am Epochen-/Step-Ende).'); });
   $('btnStopGen').addEventListener('click', ()=>{ CANCEL_GEN=true; $('btnStopGen').disabled = true; });
-
-  $('dictFile').addEventListener('change', (e)=>{
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const fr = new FileReader();
-    if (file.name.toLowerCase().endsWith('.txt')){
-      fr.onload = ()=>{ try { mergeExtraDictFromTxt(fr.result); } catch(err){ logLine('Zusatz-WB (TXT) Fehler: '+err.message);} };
-      fr.readAsText(file, 'utf-8');
-    } else {
-      fr.onload = ()=>{ try { mergeExtraDictFromJson(JSON.parse(fr.result)); } catch(err){ logLine('Zusatz-WB (JSON) Fehler: '+err.message);} };
-      fr.readAsText(file, 'utf-8');
-    }
-  });
-  $('btnClearDict').addEventListener('click', ()=>{ EXTRA_DICT = new Map(); dictInfo(); logLine('Zusatz-Wörterbuch geleert.'); });
 
   $('btnBuildIPA').addEventListener('click', ()=>{
     const raw=($('txt')?.value??'').trim();
@@ -958,15 +838,13 @@ window.addEventListener('load', async ()=>{
       $('btnTrainAtoms').disabled = false;
       logLine('1. G2P → IPA fertig.');
     }catch(e){
-      logLine('G2P-Fehler: '+(e?.message||e)+'. Lege bitte die Wortlisten in ./data/ ab.');
+      logLine('G2P-Fehler: '+(e?.message||e));
     }
   });
 
   $('btnTrainAtoms').addEventListener('click', async ()=>{
     const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
-    let ipa;
-    try { ipa=g2pConvert(raw); } catch(e){ logLine('G2P-Fehler: '+(e?.message||e)); return; }
     const atomVocab = valNum('atomVocab', 512);
     const T = valNum('seqLen', 128);
 
@@ -974,18 +852,17 @@ window.addEventListener('load', async ()=>{
     $('inferStats').textContent = '2. Atomizer wird trainiert...';
 
     try {
+      const ipa = IPA_CORPUS || g2pConvert(raw);
       const atomizer = await buildAtomBPE(ipa, atomVocab);
       const atomIds = atomizer.encodeIPAtoAtoms(ipa, true, true);
       ATOMIZER = atomizer;
       TOKENS = new Uint32Array(atomIds);
 
-      const ipaLen = ipa.length;
-      const atomCount = TOKENS.length;
-      $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
-      const roughComp = (ipaLen>0) ? (ipaLen / atomCount).toFixed(2) : '–';
+      $('kpiAtoms').textContent = `Atome (M): ${TOKENS.length} (inkl. BOS/EOS)`;
+      const roughComp = (ipa.length>0) ? (ipa.length / TOKENS.length).toFixed(2) : '–';
       $('kpiComp').textContent = `Kompression: ${roughComp}×`;
-
       logLine(`PhenomEncoder abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
+
       $('btnTrain').disabled = false;
       $('inferStats').textContent = 'Atome fertig. Bereit zum Training.';
     } catch (e) {
@@ -997,14 +874,15 @@ window.addEventListener('load', async ()=>{
 
   $('btnTrain').addEventListener('click', train);
   $('btnGen').addEventListener('click', generate);
+  $('fileImport').addEventListener('change', e => importModel(e.target.files?.[0]));
 
   $('sampleMode').addEventListener('change', ()=>{
     const m=$('sampleMode').value;
     $('topK').disabled = (m!=='topk'); $('topP').disabled=(m!=='topp');
   });
 
-  $('btnExport').addEventListener('click', exportModel);
-  $('fileImport').addEventListener('change', (e)=>importModel(e.target.files?.[0]));
+  await loadEnUsDict();
+  setupBackend(valBool('useGPU', true));
 });
 </script>
 </body>
