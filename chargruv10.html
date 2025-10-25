@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, Debug &amp; Local en_US)</title>
 
-  <!-- TFJS + WebGPU backend -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
 
-  <!-- Tailwind (CDN; dev-warning ist ok) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -106,7 +104,6 @@
       </button>
       <button id="btnStop" class="btn red" disabled>Stop</button>
 
-      <!-- Datei-Export/Import -->
       <button id="btnExport" class="btn warn" disabled>Modell exportieren (Datei)</button>
       <label class="btn secondary" for="fileImport" style="cursor:pointer">Modell importieren (Datei)</label>
       <input id="fileImport" type="file" accept="application/json" style="display:none">
@@ -117,7 +114,7 @@
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">3) Inferenz (Atom → IPA)</h3>
-    <textarea id="prompt" placeholder="Prompt (Text) eingeben …" disabled></textarea>
+    <textarea id="prompt" placeholder="Prompt (Text) eingeben … (Enter zum Senden, Shift+Enter für Zeilenumbruch)" disabled></textarea>
     <div class="row">
       <div><label>Sampling-Modus</label>
         <select id="sampleMode">
@@ -137,14 +134,15 @@
         <div id="inferStats" class="muted">Tokens: 0 • Latenz 0.0 ms</div>
       </div>
     </div>
+    
     <div class="mt-3">
-      <div class="muted mb-1">Ausgabe (IPA)</div>
-      <div id="outIPA" class="mono" style="white-space:pre-wrap;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px"></div>
+      <div class="muted mb-1">Ausgabe (Text, bereinigt)</div>
+      <div id="outText" class="mono" style="white-space:pre-wrap;background:#fff;border:1px solid #c5d7f8;border-radius:10px;padding:10px;min-height:80px; font-size: 1.1em; line-height: 1.6;"></div>
     </div>
-    <!-- NEU: Text-Decode mit Annotation unbekannter Phoneme -->
+    
     <div class="mt-3">
-      <div class="muted mb-1">Ausgabe (Text-Decode - P2G)</div>
-      <div id="outText" class="mono" style="white-space:pre-wrap;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px"></div>
+      <div class="muted mb-1">Ausgabe (IPA, Roh-Debug)</div>
+      <div id="outIPA" class="mono" style="white-space:pre-wrap;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;min-height:80px; font-size: 0.9em; color: #6b7280;"></div>
     </div>
   </div>
 
@@ -655,9 +653,11 @@ async function train(){
   }
 }
 
-/* =================== IPA -> Text Decoder (P2G) — Robust Token-Based =================== */
+/* =================== IPA -> Text Decoder (P2G) — Robust "Greedy" Match =================== */
 
 let REVERSE_DICT = null;
+// NEU: Vor-sortierte Keys für den Greedy-Decoder
+let REVERSE_DICT_SORTED_KEYS = []; 
 
 function buildReverseDict() {
   if (!STATE.dict || STATE.dict.size === 0) {
@@ -665,7 +665,6 @@ function buildReverseDict() {
     return;
   }
   
-  // Wir verwenden nur die exakte IPA-Repräsentation (inkl. Alternativen) als Key.
   REVERSE_DICT = new Map();
   for (const [word, ipa_string] of STATE.dict.entries()) {
     // 1. Speichern der vollen IPA-String-Variante (z.B. "ˈænd / ənd")
@@ -687,66 +686,109 @@ function buildReverseDict() {
   }
 
   // Satzzeichen als Identität hinzufügen (Token bleibt Satzzeichen)
-  const punctuation = [",", ".", "“", "”", "?", "!", ";", ":", "'", '"', "-", "–", "/", "—"];
+  // Wichtig für Greedy-Match, damit sie als gültige Tokens erkannt werden
+  const punctuation = [",", ".", "“", "”", "?", "!", ";", ":", "'", '"', "-", "–", "/", "—", " "];
   for (const p of punctuation) {
     if (!REVERSE_DICT.has(p)) REVERSE_DICT.set(p, p);
   }
 
-  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge.`);
+  // NEU: Sortierte Keys für Greedy-Match erstellen (längste zuerst)
+  REVERSE_DICT_SORTED_KEYS = Array.from(REVERSE_DICT.keys());
+  REVERSE_DICT_SORTED_KEYS.sort((a, b) => b.length - a.length);
+
+  logLine(`Reverse-Wörterbuch erstellt: ${REVERSE_DICT.size} Einträge. Längster Key: "${REVERSE_DICT_SORTED_KEYS[0]}"`);
 }
 
+/**
+ * NEUE "GREEDY" DECODER-LOGIK
+ * Diese Funktion ist der Kern der "sauberen" Textausgabe.
+ * Sie versucht, den längstmöglichen bekannten Phonem-String am Anfang
+ * des Streams zu finden, anstatt naiv bei Leerzeichen zu trennen.
+ */
 function decodeIPAToText(ipa_string) {
-  if (!REVERSE_DICT) {
-    buildReverseDict(); // Ad-hoc erstellen, falls vergessen
+  if (!REVERSE_DICT || REVERSE_DICT_SORTED_KEYS.length === 0) {
+    if (STATE.dict.size > 0) buildReverseDict(); // Ad-hoc erstellen, falls vergessen
+    else return "[Fehler: Reverse-Wörterbuch nicht bereit. Bitte 'en_US.txt laden'.]";
   }
-  if (!REVERSE_DICT || REVERSE_DICT.size === 0) return "[Fehler: Reverse-Wörterbuch nicht bereit]";
-
-  // Tokens anhand von Whitespace trennen (Token-basierter Ansatz)
-  // Entfernt unnötige doppelte Leerzeichen vor der Aufteilung.
-  const ipaTokens = ipa_string.trim().replace(/\s+/g, ' ').split(' ');
   
+  let i = 0; // Aktuelle Position im rohen ipa_string
+  const n = ipa_string.length;
   let output_words = [];
-  
-  for (const token of ipaTokens) {
-    if (!token) continue;
+  let unknown_buffer = ""; // Sammelt Zeichen, die zu keinem Key passen
 
+  while (i < n) {
     // 1. OOV-Token prüfen (z.B. ‹canamanthing›)
-    if (token.startsWith('‹') && token.endsWith('›') && token.length > 2) {
-      // Entferne die OOV-Klammern und nimm das Wort direkt
-      const word = token.substring(1, token.length - 1);
-      output_words.push(word);
-    } 
-    
-    // 2. Exakten Match im Reverse-Wörterbuch suchen (inkl. Alternativen-String)
-    else if (REVERSE_DICT.has(token)) {
-      output_words.push(REVERSE_DICT.get(token));
+    if (ipa_string.substring(i).startsWith('‹')) {
+        const endIdx = ipa_string.indexOf('›', i);
+        if (endIdx > i) {
+            // Unbekannten Puffer davor als Halluzination "flushen"
+            if (unknown_buffer) output_words.push(`[Phonem: ${unknown_buffer}]`);
+            unknown_buffer = "";
+            
+            const oovWord = ipa_string.substring(i + 1, endIdx);
+            output_words.push(`[OOV: ${oovWord}]`); // Als OOV markieren
+            i = endIdx + 1;
+            continue;
+        }
     }
     
-    // 3. KEIN Match (Halluzination/unbekanntes Phonem-Token)
-    else {
-      // Transparente Annotation (kein Ignorieren, kein kryptisches Zeichen)
-      output_words.push(`[Phonem: ${token}]`);
+    // 2. Greedy-Match im Reverse-Wörterbuch
+    let foundMatch = false;
+    for (const key of REVERSE_DICT_SORTED_KEYS) {
+        if (ipa_string.substring(i).startsWith(key)) {
+            // Match gefunden!
+            foundMatch = true;
+            
+            // Unbekannten Puffer davor als Halluzination "flushen"
+            if (unknown_buffer) output_words.push(`[Phonem: ${unknown_buffer}]`);
+            unknown_buffer = "";
+
+            output_words.push(REVERSE_DICT.get(key)); // Das echte Wort hinzufügen
+            i += key.length; // Position im String vorrücken
+            break; // Inner-Loop (key-Suche) beenden
+        }
+    }
+
+    // 3. KEIN Match gefunden (Halluzination/unbekanntes Phonem-Zeichen)
+    if (!foundMatch) {
+        // Dieses Zeichen zu einem Puffer hinzufügen
+        unknown_buffer += ipa_string[i];
+        i++; // Nur um 1 Zeichen vorrücken
     }
   }
+
+  // 4. Letzten Puffer flushen, falls am Ende noch Reste sind
+  if (unknown_buffer) {
+      output_words.push(`[Phonem: ${unknown_buffer}]`);
+  }
   
+  // 5. Array an Post-Processing übergeben
   return postProcessDecodedText(output_words);
 }
 
+/**
+ * NEUE POST-PROCESSING-LOGIK
+ * Diese Funktion nimmt die dekodierten "Wörter" (inkl. Artefakte)
+ * und filtert die unerwünschten [Phonem: ...]-Tags heraus.
+ */
 function postProcessDecodedText(words) {
+  
+  // === HIER IST DER FILTER, DEN DU WOLLTEST ===
+  // Wirf alle "Wörter" weg, die kryptische Klammern sind.
+  const filteredWords = words.filter(w => 
+      !w.startsWith('[Phonem:') && 
+      !w.startsWith('[OOV:')
+  );
+  // ==========================================
+
   let s = "";
   let needsSpace = false;
   
-  for (const word of words) {
+  for (const word of filteredWords) {
     if (!word) continue;
 
-    // Behandele interne Markierungen (Phonem-Halluzinationen)
-    if (word.startsWith('[Phonem:')) {
-        if (needsSpace) s += " ";
-        s += word;
-        needsSpace = true;
-    }
     // Keine Leerstelle *vor* Satzzeichen oder nach öffnenden Anführungszeichen
-    else if (",.?!;:”".includes(word)) {
+    if (",.?!;:”".includes(word)) {
       s = s.trim();
       s += word;
       needsSpace = true;
@@ -760,7 +802,7 @@ function postProcessDecodedText(words) {
     // Bindestriche, Schrägstriche, etc.
     else if (word === "-" || word === "/" || word === "—") {
         s = s.trim();
-        s += word;
+        s += " " + word + " "; // Mit Leerzeichen umgeben (z.B. "a / b")
         needsSpace = false;
     }
     // Standard-Wort
@@ -774,8 +816,6 @@ function postProcessDecodedText(words) {
   // Letzte Aufräumarbeiten
   s = s.replace(/\s+([,.?!;:”])/g, '$1'); // "word ." -> "word."
   s = s.replace(/([“])\s+/g, '$1'); // "“ word" -> "“word"
-  s = s.replace(/([/-—])\s+/g, '$1'); // Entferne Leerzeichen nach Bindestrichen/Schrägstrichen
-  s = s.replace(/\s+([/-—])/g, '$1'); // Entferne Leerzeichen vor Bindestrichen/Schrägstrichen
   s = s.replace(/\s+/g, ' '); // Mehrfach-Leerzeichen entfernen
 
   return s.trim();
@@ -804,6 +844,16 @@ function sampleFromProbs(probs, mode, topK, topP){
 
 async function generate(){
   if (!STATE.model || !STATE.atomizer){ logLine('Bitte zuerst Atomizer + Modell trainieren/laden.'); return; }
+  // NEU: Sicherstellen, dass der P2G-Decoder bereit ist
+  if (!REVERSE_DICT || REVERSE_DICT_SORTED_KEYS.length === 0) {
+      if (STATE.dict.size > 0) {
+          buildReverseDict(); // Versuche, ihn schnell zu bauen
+      } else {
+          logLine("Fehler: Wörterbuch nicht geladen. Bitte 'en_US.txt laden' klicken, um Text zu dekodieren.");
+          $('outText').textContent = "[Fehler: Wörterbuch nicht geladen. Bitte 'en_US.txt laden' klicken.]";
+          return;
+      }
+  }
 
   $('btnGen').disabled = true; $('btnStopGen').disabled = false; $('inferStats').textContent = 'Generiere...';
   STATE.cancelGen = false;
@@ -847,12 +897,13 @@ async function generate(){
   $('btnGen').disabled = false; $('btnStopGen').disabled = true;
   $('inferStats').textContent = `Tokens: ${outTokens.length} • Latenz ${(t1-t0).toFixed(1)} ms`;
 
+  // Roh-IPA-String (wird jetzt vom Greedy-Decoder verarbeitet)
   const genIPA = STATE.atomizer.decodeAtomsToIPA(outTokens);
-  $('outIPA').textContent = genIPA;
+  $('outIPA').textContent = genIPA; // Debug-Ansicht
   
-  // NEU: Dekodierung mit Annotation
+  // NEU: Dekodierung mit dem robusten Greedy-Decoder
   const genText = decodeIPAToText(genIPA);
-  $('outText').textContent = genText;
+  $('outText').textContent = genText; // Saubere Text-Ansicht
 
   logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
 }
@@ -932,6 +983,8 @@ async function importModel(file){
       
       // NOTE: STATE.dict (Wörterbuch) wird beim Import nicht wiederhergestellt, 
       // daher muss der Benutzer es erneut laden, um den P2G-Decoder zu aktivieren.
+      REVERSE_DICT = null;
+      REVERSE_DICT_SORTED_KEYS = [];
       
       STATE.atomizer = {
         merges: obj.atomizer.merges,
@@ -1054,6 +1107,16 @@ window.addEventListener('load', async ()=>{
       $('btnTrainAtoms').disabled = false; $('btnBuildIPA').disabled = false;
     }
   });
+  
+  // NEU: Enter-zum-Senden für das Prompt-Feld
+  $('prompt').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); // Verhindert Zeilenumbruch
+        if (!$('btnGen').disabled) {
+            generate(); // Löst Generierung aus
+        }
+    }
+  });
 
   $('btnTrain').addEventListener('click', train);
   $('btnGen').addEventListener('click', generate);
@@ -1075,6 +1138,8 @@ window.addEventListener('load', async ()=>{
     STATE.ipa = '';
     STATE.atomizer = null;
     STATE.tokens = null;
+    REVERSE_DICT = null; // Wichtig: Reverse-Dict auch löschen
+    REVERSE_DICT_SORTED_KEYS = [];
     if (STATE.model) { STATE.model.variables().forEach(v=>v.dispose()); STATE.model=null; }
     $('kpiDict').textContent='Wörterbuch: –';
     $('kpiIPA').textContent='IPA: –';
@@ -1091,7 +1156,10 @@ window.addEventListener('load', async ()=>{
     logLine('Zustand zurückgesetzt.');
   });
 
-  $('fileImport').addEventListener('change', (e)=> importModel(e.target.files?.[0]));
+  $('fileImport').addEventListener('change', (e)=> {
+      if(e.target.files?.[0]) importModel(e.target.files[0]);
+      e.target.value = null; // Erlaube Re-Import derselben Datei
+  });
 
   $('sampleMode').addEventListener('change', ()=>{
     const m=$('sampleMode').value;
