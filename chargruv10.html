@@ -41,8 +41,8 @@
 </head>
 <body>
 <div class="container">
-  <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M)$ Lineare Skalierung)</h1>
-  <div class="muted mb-4">IPA via <b>ipa-dict</b> (CDN), <b>Datei-Export/Import</b>, kein IndexedDB, keine Regel-Hacks.</div>
+  <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M)$) — FINAL</h1>
+  <div class="muted mb-4">IPA via <b>ipa-dict</b> (CDN GitHub jsDelivr) mit Fallback (.txt Parser) & Datei-Export/Import; kein IndexedDB; keine Parallelisierung bei G2P/Atomen.</div>
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">1) Korpus & G2P → IPA (Wörterbücher)</h3>
@@ -70,9 +70,9 @@
         <button id="btnTrainAtoms" class="btn warn" disabled>2. Atome lernen (BPE auf IPA)</button>
       </div>
       <div class="flex items-center gap-3">
-        <label class="muted">Zusatz-Wörterbuch (optional, JSON { "wort":"ipa" }):</label>
-        <input type="file" id="dictFile" accept="application/json"/>
-        <button id="btnClearDict" class="btn red" type="button">Zusatz-Wörterbuch leeren</button>
+        <label class="muted">Zusatz-Wörterbuch (optional): JSON { "wort":"ipa" } oder TXT “wort<TAB>ipa”</label>
+        <input type="file" id="dictFile" accept=".json,.txt,text/plain,application/json"/>
+        <button id="btnClearDict" class="btn red">Zusatz-Wörterbuch leeren</button>
       </div>
     </div>
 
@@ -157,6 +157,7 @@
 
 <script>
 /* =================== Core =================== */
+"use strict";
 const $ = id => document.getElementById(id);
 const MAX_LOG_CHARS = 100000;
 const BOS_ID = 0, EOS_ID = 1;
@@ -198,54 +199,89 @@ async function microYield(){
 }
 
 /* =================== IPA Dictionaries (CDN) =================== */
+/* Primär: jsDelivr GitHub (meist CORS-freundlich). Fallback: TXT-Parser oder User-Upload. */
 let EN_DICT = new Map(); // en_US
 let DE_DICT = new Map(); // de_DE
 let EXTRA_DICT = new Map(); // user-imported overrides
 
 function dictInfo(){
-  const en = EN_DICT.size;
-  const de = DE_DICT.size;
-  const ex = EXTRA_DICT.size;
-  $('kpiDict').textContent = `Wörterbücher: en_US=${en} • de_DE=${de} • Zusatz=${ex}`;
+  $('kpiDict').textContent = `Wörterbücher: en_US=${EN_DICT.size} • de_DE=${DE_DICT.size} • Zusatz=${EXTRA_DICT.size}`;
 }
 
-async function fetchJSONAny(urls){
-  for (const url of urls){
+async function fetchText(url){
+  const r = await fetch(url, {mode:'cors'});
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return await r.text();
+}
+async function fetchJSON(url){
+  const r = await fetch(url, {mode:'cors'});
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return await r.json();
+}
+function parseTxtDict(txt){
+  // Format: each line "word<TAB>ipa", comments with "#" skipped
+  const map = new Map();
+  const lines = txt.split(/\r?\n/);
+  for (const line of lines){
+    const s = line.trim();
+    if (!s || s.startsWith('#')) continue;
+    const tab = s.indexOf('\t');
+    if (tab <= 0) continue;
+    const key = s.slice(0,tab).normalize('NFC').toLowerCase();
+    const ipa = s.slice(tab+1).normalize('NFC');
+    if (key && ipa) map.set(key, ipa);
+  }
+  return map;
+}
+
+async function tryLoadDictPair(){
+  // Prefer JSON (if you host JSON yourself), else fall back to TXT from repo
+  // jsDelivr GH endpoints (version "master" is fine for prototyping)
+  const urls = {
+    en_json: 'https://cdn.jsdelivr.net/gh/open-dict-data/ipa-dict@master/data/en_US.json',
+    de_json: 'https://cdn.jsdelivr.net/gh/open-dict-data/ipa-dict@master/data/de_DE.json',
+    en_txt:  'https://cdn.jsdelivr.net/gh/open-dict-data/ipa-dict@master/data/en_US.txt',
+    de_txt:  'https://cdn.jsdelivr.net/gh/open-dict-data/ipa-dict@master/data/de_DE.txt'
+  };
+  EN_DICT = new Map();
+  DE_DICT = new Map();
+  let okEn=false, okDe=false;
+
+  // EN
+  try {
+    const enJson = await fetchJSON(urls.en_json);
+    EN_DICT = new Map(Object.entries(enJson).map(([k,v])=>[k.toLowerCase(), String(v)]));
+    okEn=true;
+  } catch(_){
     try {
-      const r = await fetch(url, {mode:'cors'});
-      if (!r.ok) throw new Error(String(r.status));
-      return await r.json();
+      const enTxt = await fetchText(urls.en_txt);
+      EN_DICT = parseTxtDict(enTxt);
+      okEn = EN_DICT.size>0;
     } catch(e){
-      logLine(`Warnung: Konnte nicht laden: ${url} (${e?.message||e})`);
+      logLine('EN ipa-dict konnte nicht geladen werden: '+(e?.message||e));
     }
   }
-  throw new Error('Alle Quellen fehlgeschlagen.');
-}
-
-async function loadIpaDicts(){
-  const enUrls = [
-    'https://cdn.jsdelivr.net/npm/ipa-dict/data/en_US.json',
-    'https://unpkg.com/ipa-dict/data/en_US.json'
-  ];
-  const deUrls = [
-    'https://cdn.jsdelivr.net/npm/ipa-dict/data/de_DE.json',
-    'https://unpkg.com/ipa-dict/data/de_DE.json'
-  ];
-  try{
-    const [en,de] = await Promise.all([fetchJSONAny(enUrls), fetchJSONAny(deUrls)]);
-    EN_DICT = new Map(Object.entries(en).map(([k,v])=>[k.toLowerCase(), String(v)]));
-    DE_DICT = new Map(Object.entries(de).map(([k,v])=>[k.toLowerCase(), String(v)]));
-    dictInfo();
-    logLine(`ipa-dict geladen: en_US=${EN_DICT.size}, de_DE=${DE_DICT.size}`);
-  }catch(e){
-    EN_DICT = new Map();
-    DE_DICT = new Map();
-    dictInfo();
-    logLine('FEHLER: ipa-dict konnte nicht geladen werden. Importiere optional ein eigenes Wörterbuch.');
+  // DE
+  try {
+    const deJson = await fetchJSON(urls.de_json);
+    DE_DICT = new Map(Object.entries(deJson).map(([k,v])=>[k.toLowerCase(), String(v)]));
+    okDe=true;
+  } catch(_){
+    try {
+      const deTxt = await fetchText(urls.de_txt);
+      DE_DICT = parseTxtDict(deTxt);
+      okDe = DE_DICT.size>0;
+    } catch(e){
+      logLine('DE ipa-dict konnte nicht geladen werden: '+(e?.message||e));
+    }
   }
+  if (!okEn || !okDe){
+    logLine('Hinweis: Lade ggf. eigene Wörterbuch-Dateien (JSON oder TXT) über den Datei-Picker.');
+  }
+  dictInfo();
 }
 
-function mergeExtraDict(obj){
+function mergeExtraDictFromObject(obj){
   let added=0;
   for (const [k,v] of Object.entries(obj||{})){
     const key = String(k).normalize('NFC').toLowerCase().trim();
@@ -253,7 +289,13 @@ function mergeExtraDict(obj){
     if (key && ipa){ EXTRA_DICT.set(key, ipa); added++; }
   }
   dictInfo();
-  logLine(`Zusatz-Wörterbuch: +${added} Einträge.`);
+  logLine(`Zusatz-Wörterbuch (JSON): +${added} Einträge.`);
+}
+function mergeExtraDictFromTxt(txt){
+  const m = parseTxtDict(txt);
+  for (const [k,v] of m) EXTRA_DICT.set(k,v);
+  dictInfo();
+  logLine(`Zusatz-Wörterbuch (TXT): +${m.size} Einträge.`);
 }
 
 /* =================== G2P using ipa-dict =================== */
@@ -276,7 +318,7 @@ function g2pConvert(text){
     const hit = EXTRA_DICT.get(t) ?? BASE.get(t);
     if (hit){ out.push(hit); }
     else {
-      // Keine Regel-Hacks: markiere als unbekannt und behalte Rohform
+      // strikt: ohne Heuristik; markiere unbekannte Wörter
       out.push(`‹${t}›`);
     }
   }
@@ -284,6 +326,7 @@ function g2pConvert(text){
 }
 
 /* =================== Atomizer (BPE) =================== */
+/* Keine Parallelisierung/Locks in diesem Schritt. */
 function strToCodepoints(str){ const arr = []; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
 function codepointsToStr(arr){ return String.fromCharCode(...arr); }
 
@@ -411,9 +454,11 @@ function buildModel(cfg){
     layers.push({
       g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`),
       g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
+
       W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
       W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
       b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
+
       W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`),
       b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
       W2: tf.variable(tf.randomNormal([dFF, dModel], 0, Math.sqrt(2/(dFF+dModel))), true, `L${l}_W2`),
@@ -626,7 +671,7 @@ async function train(){
         `<b>Epoche ${ep+1}/${epochs}</b> &nbsp; Loss=${(lossAcc/stepsPerEpoch).toFixed(4)} &nbsp; Val PPL=${valPPL.toFixed(2)} &nbsp; ~Tok/s=${tokps.toFixed(0)} &nbsp; LR=${lr.toFixed(5)}`;
       logLine(`Ep ${ep+1}: loss=${(lossAcc/stepsPerEpoch).toFixed(4)} | ValPPL=${valPPL.toFixed(2)} | ${(t1-t0).toFixed(0)}ms | ~${tokps.toFixed(0)} tok/s`);
 
-      if (autoLR){
+      if (valBool('autoLR', true)){
         if (valPPL + 0.01 < bestPPL){ bestPPL=valPPL; bad=0; }
         else {
           bad++;
@@ -751,7 +796,11 @@ async function exportModel(){
   setButtonState('btnExport', true, 'Exportiere …', false);
   try {
     const named = {};
-    for (const v of MODEL.variables()) { if (!v.name) throw new Error('Variable ohne Namen.'); if (named[v.name]) throw new Error('Duplikat: '+v.name); named[v.name]=v; }
+    for (const v of MODEL.variables()) {
+      if (!v.name) throw new Error('Variable ohne Namen.');
+      if (named[v.name]) throw new Error('Duplikat: '+v.name);
+      named[v.name]=v;
+    }
     const {data, specs} = await tf.io.encodeWeights(named);
 
     const payload = {
@@ -847,79 +896,80 @@ async function importModel(file){
   reader.readAsText(file);
 }
 
-/* =================== Helper: Atome aus Text bauen (ohne Locks/Parallelismus) =================== */
-async function buildAtomsFromText(rawText, atomVocab){
-  const ipa = g2pConvert(rawText);
-  IPA_CORPUS = ipa;
-  const ipaLen = IPA_CORPUS.length;
-  $('kpiIPA').textContent = `IPA: ${ipaLen} Zeichen`;
-
-  const atomizer = await buildAtomBPE(IPA_CORPUS, atomVocab);
-  const atomIds = atomizer.encodeIPAtoAtoms(IPA_CORPUS, true, true);
-  ATOMIZER = atomizer;
-  TOKENS = new Uint32Array(atomIds);
-
-  const atomCount = TOKENS.length;
-  $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
-  const roughComp = (ipaLen>0) ? (ipaLen / atomCount).toFixed(2) : '–';
-  $('kpiComp').textContent = `Kompression: ${roughComp}×`;
-  logLine(`PhenomEncoder abgeschlossen. Vocab=${ATOMIZER.vocabSize}.`);
-  return true;
-}
-
 /* =================== UI =================== */
 window.addEventListener('load', async ()=>{
-  // Backend early init
-  setupBackend(valBool('useGPU', true));
-
   // Wörterbücher laden
-  loadIpaDicts();
+  try {
+    await tryLoadDictPair();
+    logLine('ipa-dict geladen (sofern CORS erlaubt).');
+  } catch(e){
+    logLine('FEHLER: ipa-dict konnte nicht geladen werden: '+(e?.message||e));
+  }
 
-  // Stop Buttons
   $('btnStop').addEventListener('click', ()=>{ CANCEL_TRAIN=true; $('btnStop').disabled = true; logLine('Training gestoppt (am Epochen-/Step-Ende).'); });
   $('btnStopGen').addEventListener('click', ()=>{ CANCEL_GEN=true; $('btnStopGen').disabled = true; });
 
-  // Zusatz-Wörterbuch importieren
   $('dictFile').addEventListener('change', (e)=>{
     const file = e.target.files?.[0];
     if (!file) return;
     const fr = new FileReader();
-    fr.onload = ()=>{ try { mergeExtraDict(JSON.parse(fr.result)); } catch(err){ logLine('Zusatz-Wörterbuch Fehler: '+(err?.message||err)); } };
+    fr.onload = ()=>{
+      try {
+        if (file.name.endsWith('.json')) mergeExtraDictFromObject(JSON.parse(fr.result));
+        else mergeExtraDictFromTxt(String(fr.result));
+      } catch(err){
+        logLine('Zusatz-Wörterbuch: Lese-Fehler: '+(err?.message||err));
+      }
+    };
     fr.readAsText(file);
   });
-  $('btnClearDict').addEventListener('click', ()=>{ EXTRA_DICT = new Map(); dictInfo(); logLine('Zusatz-Wörterbuch geleert.'); });
+  $('btnClearDict').addEventListener('click', ()=>{
+    EXTRA_DICT = new Map();
+    dictInfo();
+    logLine('Zusatz-Wörterbuch geleert.');
+  });
 
-  // Schritt 1: IPA erzeugen
   $('btnBuildIPA').addEventListener('click', ()=>{
-    const raw = ($('txt')?.value ?? '').trim();
+    const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
-    try{
-      const ipa = g2pConvert(raw);
-      IPA_CORPUS = ipa;
+    try {
+      const ipa=g2pConvert(raw);
+      window.IPA_CORPUS = ipa;
       $('kpiIPA').textContent = `IPA: ${ipa.length} Zeichen`;
       $('btnTrainAtoms').disabled = false;
       logLine('1. G2P → IPA fertig.');
-    }catch(e){
+    } catch(e){
       logLine('G2P-Fehler: '+(e?.message||e));
     }
   });
 
-  // Schritt 2: Atome lernen (BPE)
   $('btnTrainAtoms').addEventListener('click', async ()=>{
-    const raw = ($('txt')?.value ?? '').trim();
+    const raw=($('txt')?.value??'').trim();
     if(!raw){ logLine('Kein Text.'); return; }
+    if (!window.IPA_CORPUS || !window.IPA_CORPUS.length){
+      try { window.IPA_CORPUS = g2pConvert(raw); }
+      catch(e){ logLine('Atomizer: G2P fehlgeschlagen: '+(e?.message||e)); return; }
+    }
     const atomVocab = valNum('atomVocab', 512);
+    const T = valNum('seqLen', 128);
+
     $('btnTrainAtoms').disabled = true; $('btnBuildIPA').disabled = true;
     $('inferStats').textContent = '2. Atomizer wird trainiert...';
 
     try {
-      const ok = await buildAtomsFromText(raw, atomVocab);
-      if (ok) {
-        $('btnTrain').disabled = false;
-        $('inferStats').textContent = 'Atome fertig. Bereit zum Training.';
-      } else {
-        $('inferStats').textContent = 'Atomizer abgebrochen/Übersprungen.';
-      }
+      const atomizer = await buildAtomBPE(window.IPA_CORPUS, atomVocab);
+      const atomIds = atomizer.encodeIPAtoAtoms(window.IPA_CORPUS, true, true);
+      window.ATOMIZER = atomizer;
+      window.TOKENS = new Uint32Array(atomIds);
+
+      const ipaLen = window.IPA_CORPUS.length;
+      const atomCount = window.TOKENS.length;
+      $('kpiAtoms').textContent = `Atome (M): ${atomCount} (inkl. BOS/EOS)`;
+      const roughComp = (ipaLen>0) ? (ipaLen / atomCount).toFixed(2) : '–';
+      $('kpiComp').textContent = `Kompression: ${roughComp}×`;
+      logLine(`PhenomEncoder abgeschlossen. Vocab=${window.ATOMIZER.vocabSize}.`);
+      $('btnTrain').disabled = false;
+      $('inferStats').textContent = 'Atome fertig. Bereit zum Training.';
     } catch (e) {
       logLine(`Fehler beim Atomizer-Training: ${e.message}`);
     } finally {
@@ -927,22 +977,29 @@ window.addEventListener('load', async ()=>{
     }
   });
 
-  // Training
   $('btnTrain').addEventListener('click', train);
+  $('btnGen').addEventListener('click', generate);
 
-  // Sampling-Modus toggles
   $('sampleMode').addEventListener('change', ()=>{
     const m=$('sampleMode').value;
     $('topK').disabled = (m!=='topk'); $('topP').disabled=(m!=='topp');
   });
 
-  // Inferenz
-  $('btnGen').addEventListener('click', generate);
-
-  // Export/Import
   $('btnExport').addEventListener('click', exportModel);
   $('fileImport').addEventListener('change', (e)=>importModel(e.target.files?.[0]));
+
+  setupBackend(valBool('useGPU', true));
 });
+
+/* =================== Optional: eSpeak NG Fallback (regelbasierte IPA)
+   Hinweis: Dafür brauchst du die in deiner Domain gehosteten Assets
+   (siehe Doku mit Worker-Pfaden). Danach:
+   - lade/initialisiere espeakng.js/wasm
+   - implementiere g2pConvert() so, dass bei fehlendem Wörterbuch
+     automatisch eSpeak NG (mit --ipa) genutzt wird.
+   Doku/Beispiel & Worker-Hinweis: https://replicate.com/blog/run-espeakng-emscripten-js
+   eSpeak NG Manpage (Option --ipa): siehe Dokumentation.
+*/
 </script>
 </body>
 </html>
