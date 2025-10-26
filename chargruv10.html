@@ -745,65 +745,108 @@ function softmaxCEfromLogits(logits, targets){
 }
 
 
+/* =================== Modell (OHNE Dilatation - WebGPU-kompatibel) =================== */
+function rmsNorm(x, gamma, eps=1e-5){
+  const meanSq = tf.mean(tf.square(x), -1, true);
+  const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps))); return tf.mul(xhat, gamma);
+}
+function sinusoidalPositionalEncoding(T, d){
+  const pos = tf.range(0, T, 1, 'float32'); const half = Math.floor(d/2);
+  const i2 = tf.range(0, half, 1, 'float32');
+  const div = tf.exp(tf.mul(i2, tf.scalar(-Math.log(10000.0)/(Math.max(1,half-1)))));
+  const ang = pos.reshape([T,1]).matMul(div.reshape([1,half]));
+  const sin = tf.sin(ang), cos=tf.cos(ang); let pe = tf.concat([sin, cos], -1);
+  if(2*half < d){ const pad = tf.zeros([T, d-2*half]); pe = tf.concat([pe, pad], -1); } return pe;
+}
+function softmaxCEfromLogits(logits, targets){
+  const [B,T,V] = logits.shape;
+  const oneHot = tf.oneHot(targets.toInt(), V).reshape([B*T, V]);
+  const logits2d = logits.reshape([B*T, V]);
+  const lossPer = tf.losses.softmaxCrossEntropy(oneHot, logits2d); return tf.mean(lossPer);
+}
 
 function buildModel(cfg){
+  const { V, dModel, dFF, nLayers, T, weightTying=true, dropoutTrain } = cfg;
+  const E = tf.variable(tf.randomNormal([V, dModel], 0, 0.02, 'float32'), true, 'E');
+  const pe = sinusoidalPositionalEncoding(T, dModel);
+  const layers = [];
+  const CONV_KERNEL_SIZE = 5; // Kernel-Größe
 
-  const { V, dModel, dFF, nLayers, T, weightTying=true, dropoutTrain } = cfg;
-
-  const E = tf.variable(tf.randomNormal([V, dModel], 0, 0.02, 'float32'), true, 'E');
-
-  const pe = sinusoidalPositionalEncoding(T, dModel);
-
-  const layers = []; 
-
-  const CONV_KERNEL_SIZE = 5; // Kernel-Größe
-
-  
-
-  for(let l=0;l<nLayers;l++){
-
-    const dilationRate = Math.pow(2, l); // Exponentielle Dilatation: 1, 2, 4, 8, ...
-
-    layers.push({
-
+  for(let l=0;l<nLayers;l++){
+    // *** ÄNDERUNG: DilationRate immer 1 ***
+    const dilationRate = 1;
+    // ***************************************
+    layers.push({
       l: l,
-
-      dilationRate: dilationRate,
-
-      g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`), g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
-
+      dilationRate: dilationRate, // Wird jetzt immer 1 sein
+      g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`), g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
       W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
+      W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
+      b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
+      W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`), b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
+      W2: tf.variable(tf.randomNormal([dFF, dModel], 0, Math.sqrt(2/(dFF+dModel))), true, `L${l}_W2`), b2: tf.variable(tf.zeros([dModel]), true, `L${l}_b2`),
+    });
+  }
+  const bout = tf.variable(tf.zeros([V]), true, 'bout');
+  const W_out = tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'), true, 'W_out');
+  const params = {E, layers, bout, pe, cfg, W_out, CONV_KERNEL_SIZE};
 
-      W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
+  function dropout(x, rate){
+    if(!dropoutTrain || rate<=0) return x; const keep = 1-rate;
+    const m = tf.randomUniform(x.shape,'float32').greater(tf.scalar(rate)).toFloat();
+    return tf.mul(x, tf.div(m, tf.scalar(keep)));
+  }
 
-      b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
+  function forward(ids, training=true){
+    return tf.tidy(() => {
+      const B = ids.shape[0], Tcur = ids.shape[1], dM = params.cfg.dModel;
+      const emb = tf.gather(params.E, ids.flatten()).reshape([B,Tcur,dM]);
+      let x = emb.add(params.pe.slice([0,0],[Tcur,dM]).reshape([1,Tcur,dM]));
+      if (params.cfg.dropoutTrain && training) x = dropout(x, 0.1);
 
-      W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`), b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
+      for(const L of params.layers){
+        let h = rmsNorm(x, L.g1);
+        const K = params.CONV_KERNEL_SIZE;
+        // *** ÄNDERUNG: DilationRate immer 1 ***
+        const D = 1; // L.dilationRate;
+        // ***************************************
+        const paddingAmount = (K - 1) * D; // Ist jetzt immer K-1
+        const zeroPadding = tf.zeros([B, paddingAmount, dM]);
+        const paddedH = tf.concat([zeroPadding, h], 1); // Vorne padden
 
-      W2: tf.variable(tf.randomNormal([dFF, dModel], 0, Math.sqrt(2/(dFF+dModel))), true, `L${l}_W2`), b2: tf.variable(tf.zeros([dModel]), true, `L${l}_b2`),
+        // Normale (nicht-dilatierte) kausale Faltung
+        const conv_out = tf.conv1d(
+            paddedH,
+            L.W_Conv,
+            1,          // stride
+            'valid',    // 'valid' auf gepaddetem Tensor == 'causal'
+            'NWC',      // dataFormat
+            D           // dilationRate (jetzt 1)
+        );
 
-    });
+        const gate_proj = conv_out.reshape([-1, dM]).matMul(L.W_Gate).add(L.b_Gate);
+        const gate = tf.sigmoid(gate_proj).reshape([B, Tcur, dM]);
+        const linear_out = tf.mul(conv_out, gate);
+        x = x.add((params.cfg.dropoutTrain && training) ? dropout(linear_out, 0.1) : linear_out);
 
-  }
+        let h2 = rmsNorm(x, L.g2);
+        const mlp2 = h2.reshape([-1, dM]).matMul(L.W1).add(L.b1);
+        const silu = tf.mul(mlp2, tf.sigmoid(mlp2));
+        const mlp_out = silu.matMul(L.W2).add(L.b2).reshape([B, Tcur, dM]);
+        x = x.add((params.cfg.dropoutTrain && training) ? dropout(mlp_out, 0.1) : mlp_out);
+      }
 
-  const bout = tf.variable(tf.zeros([V]), true, 'bout');
-
-  const W_out = tf.variable(tf.randomNormal([dModel, V], 0, 0.02, 'float32'), true, 'W_out');
-
-  const params = {E, layers, bout, pe, cfg, W_out, CONV_KERNEL_SIZE};
-
-
-
-  function dropout(x, rate){
-
-    if(!dropoutTrain || rate<=0) return x; const keep = 1-rate;
-
-    const m = tf.randomUniform(x.shape,'float32').greater(tf.scalar(rate)).toFloat();
-
-    return tf.mul(x, tf.div(m, tf.scalar(keep)));
-
-  }
-
+      const x_2d = x.reshape([-1, dM]);
+      let logits_2d = params.cfg.weightTying ? x_2d.matMul(params.E.transpose()) : x_2d.matMul(params.W_out);
+      const logits = logits_2d.reshape([B, Tcur, params.cfg.V]); return logits.add(params.bout);
+    });
+  }
+  function variables(){
+    const vs = [E, bout];
+    for (const L of params.layers){ vs.push(L.g1, L.g2, L.W_Conv, L.W_Gate, L.b_Gate, L.W1, L.b1, L.W2, L.b2); }
+    vs.push(W_out); return vs;
+  } return {params, forward, variables};
+}
   
 
   function forward(ids, training=true){
