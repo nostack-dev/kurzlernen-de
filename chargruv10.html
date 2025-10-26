@@ -42,7 +42,7 @@
 <div class="container">
   <h1 class="text-2xl font-extrabold mb-1">Text-BPE Atom-LLM — O(M) dilatiert (schnell) + LLM-Refiner</h1>
   <div class="muted mb-4">
-    Presets: <b>M=64</b>, <b>L=5</b>, <b>K=5</b> (dilat. emuliert, RF≥M), <b>d=192</b>, <b>dFF=640</b>, <b>B=16</b>, <b>LR=0.001</b>, <b>Heads=4</b>, <b>λ=0.5</b> (ab Ep. 2).
+    Presets: <b>M=64</b>, <b>L=5</b>, <b>K=5</b> (RF≥M), <b>d=192</b>, <b>dFF=640</b>, <b>B=16</b>, <b>LR=0.001</b>, <b>Heads=4</b>, <b>λ=0.5</b> (ab Ep. 2).
   </div>
 
   <div class="card">
@@ -320,12 +320,16 @@ function buildModel(cfg){
       if(params.cfg.dropoutTrain&&training)x=dropout(x,0.1);
       for(const L of params.layers){
         let h=rmsNorm(x,L.g1);
-        const K=params.cfg.CONV_KERNEL_SIZE;
-        const D=L.dilationRate;
-        const Kexp=L.Kexp;
+        const dM=params.cfg.dModel;
 
-        const Wexp = tf.tidy(()=>tf.tensordot(L.maskKD, L.W_Conv, [[1],[0]]));
-        const paddingAmount = Kexp - 1;
+        const Wexp = tf.tidy(() => {
+          const K = params.cfg.CONV_KERNEL_SIZE;
+          const W2 = L.W_Conv.reshape([K, dM * dM]);     // [K, d*d]
+          const Wexp2d = tf.matMul(L.maskKD, W2);        // [Kexp, d*d]
+          return Wexp2d.reshape([L.Kexp, dM, dM]);       // [Kexp, d, d]
+        });
+
+        const paddingAmount = L.Kexp - 1;
         const zeroPadding = tf.zeros([B, paddingAmount, dM]);
         const paddedH = tf.concat([zeroPadding, h], 1);
         const conv_out = tf.conv1d(paddedH, Wexp, 1, 'valid', 'NWC', 1);
