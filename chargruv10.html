@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>PhO-Compress Atom-LLM — O(M)-Training + LLM-Inferenz (mit Presets)</title>
+  <title>PhO-Compress Atom-LLM — O(M)-Training + LLM-Inferenz (Final)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js"></script>
   <style>
@@ -41,7 +41,7 @@
 <body>
 <div class="container">
   <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM (O(M) Training + LLM-Inferenz)</h1>
-  <div class="muted mb-4">Voreinstellungen: <b>M=64</b>, <b>K=9</b>, <b>L=8</b>, <b>d=192</b>, <b>dFF=768</b>, <b>B=16</b>, <b>LR=0.001</b>, <b>λ=0.5</b>. Refiner standardmäßig aktiv.</div>
+  <div class="muted mb-4">Voreinstellungen: <b>M=64</b>, <b>K=9</b>, <b>L=8</b>, <b>d=192</b>, <b>dFF=768</b>, <b>B=16</b>, <b>LR=0.001</b>, <b>λ=0.5</b>. Refiner aktiv, Pad-Maske aktiv.</div>
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">1) Korpus &amp; Wörterbuch laden</h3>
@@ -101,14 +101,16 @@
       <div class="flex items-end gap-3">
         <label class="muted"><input id="useGPU" type="checkbox" checked> WebGL</label>
         <label class="muted"><input id="useDropout" type="checkbox"> Dropout 0.1</label>
-        <label class="muted"><input id="autoLR" type="checkbox"> Auto-LR (steuert über Refiner-CE)</label>
+        <label class="muted"><input id="autoLR" type="checkbox"> Auto-LR (Refiner-CE)</label>
       </div>
     </div>
     <div class="row4 mt-3">
       <div><label>LLM-Refiner λ (Train)</label><input id="attLambda" type="number" min="0.0" max="1.0" step="0.05" value="0.5"></div>
       <div><label>Refiner Köpfe</label><input id="attHeads" type="number" min="1" max="16" step="1" value="4"></div>
-      <div><label>Kernel-Größe K</label><input id="kernel" type="number" min="3" max=" nine " step="2" value="9" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
-      <div></div>
+      <div><label>Kernel-Größe K</label><input id="kernel" type="number" min="3" max="15" step="2" value="9"></div>
+      <div class="flex items-end gap-3">
+        <label class="muted"><input id="maskPadRef" type="checkbox" checked> Pad-Maske im Refiner</label>
+      </div>
     </div>
     <div class="flex items-center gap-3 mt-3">
       <button id="btnTrain" class="btn" disabled>
@@ -159,7 +161,7 @@
   <div class="card">
     <h3 class="font-bold text-lg mb-2">Perplexity &amp; Log</h3>
     <div id="metrics" class="muted mb-2"><b>Epoche –/–</b> &nbsp; Loss=– &nbsp; Val PPL(conv)=– &nbsp; RefCE=– &nbsp; ~Tok/s=– &nbsp; LR=–</div>
-    <div id="log" class="log">[Log bereit. O(M)-Training (Conv-Stack) aktiv. Inferenz-Refiner optional.]</div>
+    <div id="log" class="log">[Log bereit. O(M)-Training (Conv-Stack) aktiv. Inferenz-Refiner aktiv.]</div>
   </div>
 </div>
 
@@ -216,22 +218,50 @@ function buildModel(cfg){
       b2:tf.variable(tf.zeros([dModel]),true,`L${l}_b2`)
     })
   }
-  const h=Math.max(1,Math.floor(attHeads))
-  const heads=(dModel%h===0)?h:1
-  const dHead=Math.floor(dModel/heads)
+  const h=(dModel%attHeads===0)?attHeads:1
+  const dHead=Math.floor(dModel/h)
   const Wq=tf.variable(tf.randomNormal([dModel,dModel],0,0.02),true,'ATT_Wq')
   const Wk=tf.variable(tf.randomNormal([dModel,dModel],0,0.02),true,'ATT_Wk')
   const Wv=tf.variable(tf.randomNormal([dModel,dModel],0,0.02),true,'ATT_Wv')
   const Wo=tf.variable(tf.randomNormal([dModel,dModel],0,0.02),true,'ATT_Wo')
   const bout=tf.variable(tf.zeros([V]),true,'bout')
   const W_out=tf.variable(tf.randomNormal([dModel,V],0,0.02,'float32'),true,'W_out')
-  const params={E,layers,bout,pe,cfg:{...cfg,attHeads:heads,dHead,CONV_KERNEL_SIZE},W_out,Wq,Wk,Wv,Wo}
+  const params={E,layers,bout,pe,cfg:{...cfg,attHeads:h,dHead,CONV_KERNEL_SIZE},W_out,Wq,Wk,Wv,Wo}
 
   function dropout(x,rate){if(!dropoutTrain||rate<=0)return x;const keep=1-rate;const m=tf.randomUniform(x.shape,'float32').greater(tf.scalar(rate)).toFloat();return tf.mul(x,tf.div(m,tf.scalar(keep)))}
   function forwardHidden(ids,training=true){return tf.tidy(()=>{const B=ids.shape[0],Tcur=ids.shape[1],dM=params.cfg.dModel;const emb=tf.gather(params.E,ids.flatten()).reshape([B,Tcur,dM]);let x=tf.add(emb,params.pe.slice([0,0],[Tcur,dM]).reshape([1,Tcur,dM]));if(params.cfg.dropoutTrain&&training)x=dropout(x,0.1);for(const L of params.layers){let h=rmsNorm(x,L.g1);const K=params.cfg.CONV_KERNEL_SIZE;const D=1;const paddingAmount=(K-1)*D;const zeroPadding=tf.zeros([B,paddingAmount,dM]);const paddedH=tf.concat([zeroPadding,h],1);const conv_out=tf.conv1d(paddedH,L.W_Conv,1,'valid','NWC',D);const gate_proj=tf.add(tf.matMul(conv_out.reshape([-1,dM]),L.W_Gate),L.b_Gate);const gate=tf.sigmoid(gate_proj).reshape([B,Tcur,dM]);const linear_out=tf.mul(conv_out,gate);x=tf.add(x,(params.cfg.dropoutTrain&&training)?dropout(linear_out,0.1):linear_out);let h2=rmsNorm(x,L.g2);const mlp=tf.add(tf.matMul(h2.reshape([-1,dM]),L.W1),L.b1);const silu=tf.mul(mlp,tf.sigmoid(mlp));const mlp_out=tf.add(tf.matMul(silu,L.W2),L.b2).reshape([B,Tcur,dM]);x=tf.add(x,(params.cfg.dropoutTrain&&training)?dropout(mlp_out,0.1):mlp_out)}return x})}
   function projectToVocab(x3d){const dM=params.cfg.dModel;const x_2d=x3d.reshape([-1,dM]);const logits_2d=params.cfg.weightTying?tf.matMul(x_2d,params.E.transpose()):tf.matMul(x_2d,params.W_out);const[B,T]=x3d.shape;const logits=logits_2d.reshape([B,T,params.cfg.V]);return tf.add(logits,params.bout)}
   function forward(ids,training=true){return tf.tidy(()=>projectToVocab(forwardHidden(ids,training)))}
-  function attnLastLogitsFromHidden(x){const B=x.shape[0],Tcur=x.shape[1],dM=params.cfg.dModel;const h=params.cfg.attHeads,dH=params.cfg.dHead;const q_in=x.slice([0,Tcur-1,0],[B,1,dM]).reshape([B,dM]);const k_in=x.reshape([B*Tcur,dM]);const v_in=k_in;const Q=tf.matMul(q_in,params.Wq).reshape([B,h,dH]);const K=tf.matMul(k_in,params.Wk).reshape([B,Tcur,h,dH]).transpose([0,2,1,3]);const V=tf.matMul(v_in,params.Wv).reshape([B,Tcur,h,dH]).transpose([0,2,1,3]);const Qe=Q.reshape([B,h,1,dH]);const KT=K.transpose([0,1,3,2]);let scores=tf.matMul(Qe,KT);scores=scores.div(tf.scalar(Math.sqrt(dH)));const attn=tf.softmax(scores,-1);const ctx=tf.matMul(attn,V);const ctx2=ctx.transpose([0,2,1,3]).reshape([B,dM]);const z=tf.matMul(ctx2,params.Wo);const z3d=z.reshape([B,1,dM]);const logits_1=params.cfg.weightTying?tf.matMul(z3d.reshape([B,dM]),params.E.transpose()):tf.matMul(z3d.reshape([B,dM]),params.W_out);return tf.add(logits_1,params.bout)}
+
+  function buildPadMask(ids){
+    // ids: [B,T] -> mask True an PAD/BOS-Positionen (wir nutzen BOS_ID als Linkspad im Generate)
+    const B=ids.shape[0], Tcur=ids.shape[1];
+    const mask = ids.equal(tf.scalar(BOS_ID,'int32')).toFloat().reshape([B,1,1,Tcur]); // [B,1,1,T]
+    return mask; // broadcastbar auf [B,h,1,T]
+  }
+
+  function attnLastLogitsFromHidden(x, ids=null, usePadMask=false){
+    const B=x.shape[0],Tcur=x.shape[1],dM=params.cfg.dModel;const h=params.cfg.attHeads,dH=params.cfg.dHead;
+    const q_in=x.slice([0,Tcur-1,0],[B,1,dM]).reshape([B,dM]);
+    const k_in=x.reshape([B*Tcur,dM]);const v_in=k_in;
+    const Q=tf.matMul(q_in,params.Wq).reshape([B,h,dH]);
+    const K=tf.matMul(k_in,params.Wk).reshape([B,Tcur,h,dH]).transpose([0,2,1,3]);
+    const V=tf.matMul(v_in,params.Wv).reshape([B,Tcur,h,dH]).transpose([0,2,1,3]);
+    const Qe=Q.reshape([B,h,1,dH]);const KT=K.transpose([0,1,3,2]);
+    let scores=tf.matMul(Qe,KT).div(tf.scalar(Math.sqrt(dH)));
+    if(usePadMask && ids){
+      const m = buildPadMask(ids); // [B,1,1,T]
+      const neg = tf.mul(m, tf.scalar(-1e9));
+      scores = tf.add(scores, neg); // maskiert PAD/BOS Spalten
+    }
+    const attn=tf.softmax(scores,-1);
+    const ctx=tf.matMul(attn,V);
+    const ctx2=ctx.transpose([0,2,1,3]).reshape([B,dM]);
+    const z=tf.matMul(ctx2,params.Wo).reshape([B,1,dM]);
+    const logits_1=params.cfg.weightTying?tf.matMul(z.reshape([B,dM]),params.E.transpose()):tf.matMul(z.reshape([B,dM]),params.W_out);
+    return tf.add(logits_1,params.bout);
+  }
+
   function variables(){const vs=[E,bout];for(const L of params.layers)vs.push(L.g1,L.g2,L.W_Conv,L.W_Gate,L.b_Gate,L.W1,L.b1,L.W2,L.b2);vs.push(W_out,Wq,Wk,Wv,Wo);return vs}
   return{params,forward,forwardHidden,projectToVocab,attnLastLogitsFromHidden,variables}
 }
@@ -240,7 +270,7 @@ function buildModel(cfg){
 async function setupBackend(preferGPU=true){try{logLine("Setze WebGL-Backend …");await tf.setBackend('webgl');await tf.ready();logLine(`Backend erfolgreich auf ${tf.getBackend()} gesetzt.`);if(tf.getBackend()!=='webgl')throw new Error('WebGL konnte nicht als Backend gesetzt werden.')}catch(e){logLine(`WebGL ist nicht verfügbar (${e?.message||e}). Fallback auf CPU …`);await tf.setBackend('cpu');await tf.ready();logLine(`Backend: ${tf.getBackend()} (CPU)`)}} 
 
 /* Datenaufbereitung */
-function buildStarts(tokens,T,valPct){const N=tokens.length;const T_plus_1=T+1;const usable=Math.max(0,N-T_plus_1);const all_starts=[];const tokenBuffer=new Uint32Array(tokens);logLine(`Scanne ${usable.toLocaleString()} mögliche Startpunkte…`);for(let i=0;i<usable;i++){if(tokenBuffer[i+T]!==BOS_ID){all_starts.push(i)}}logLine(`… ${all_starts.length.toLocaleString()} valide Startpunkte gefunden (ohne Padding am Ende).`);const all=new Uint32Array(all_starts);const valN=Math.floor(all.length*(valPct/100));const trainN=all.length-valN;return{train:all.slice(0,trainN),val:all.slice(trainN)}}
+function buildStarts(tokens,T,valPct){const N=tokens.length;const T_plus_1=T+1;const usable=Math.max(0,N-T_plus_1);const all_starts=[];const tokenBuffer=new Uint32Array(tokens);logLine(`Scanne ${usable.toLocaleString()} mögliche Startpunkte…`);for(let i=0;i<usable;i++){if(tokenBuffer[i+T]!==BOS_ID){all_starts.push(i)}}logLine(`… ${all_starts.length.toLocaleString()} valide Startpunkte gefunden (ohne Padding am Ende).`);const all=new Uint32Array(all_starts);const valN=Math.floor(all.length*(valPct/100));const trainN=all.length-valN;return{train:all.slice(0,trainN),val:all.slice(valN ? trainN : all.length)}}
 function sampleBatch(starts,tokens,B,T){const X=new Int32Array(B*T),Y=new Int32Array(B*T);const n=starts.length;if(n===0){logLine("WARNUNG: sampleBatch hat 0 valide Startpunkte erhalten.");return{X:tf.tensor2d(X,[B,T],'int32'),Y:tf.tensor2d(Y,[B,T],'int32')}}for(let b=0;b<B;b++){const s=starts[(Math.random()*n)|0];for(let t=0;t<T;t++){X[b*T+t]=tokens[s+t];Y[b*T+t]=tokens[s+t+1]}}return{X:tf.tensor2d(X,[B,T],'int32'),Y:tf.tensor2d(Y,[B,T],'int32')}}
 
 /* Training */
@@ -259,9 +289,10 @@ async function train(){
     const L=valNum('nLayers',8),dModel=valNum('dModel',192),dFF=valNum('dFF',768)
     const weightTying=true,dropoutTrain=valBool('useDropout',false)
     const V=STATE.atomizer.vocabSize
-    const K=valNum('kernel',9,3,9)|0
+    const K=valNum('kernel',9,3,15)|0
     const attHeads=valNum('attHeads',4,1,16)|0
     const attLambda=clamp(valNum('attLambda',0.5,0,1),0,1)
+    const usePadMask = valBool('maskPadRef',true)
     const maxReceptiveField=1+L*(K-1)
     logLine(`Modell-Setup: ${L} Schichten (K=${K}). Max. rezeptiver Horizont: ${maxReceptiveField} Atome.`)
     if(Tctx>maxReceptiveField){logLine(`WARNUNG: Kontext M (${Tctx}) > RF (${maxReceptiveField}). Erwäge K/L anzuheben oder M zu senken.`)}
@@ -283,7 +314,25 @@ async function train(){
 
       for(let s=0;s<stepsPerEpoch;s++){
         if(myModelRev!==STATE.modelRev||STATE.cancelTrain)break
-        const lossVal=tf.tidy(()=>{const lossTensor=optim.minimize(()=>{const{X,Y}=sampleBatch(trainStarts,STATE.tokens,B,Tctx);const H=STATE.model.forwardHidden(X,true);const logits_all=STATE.model.projectToVocab(H);const loss_conv=softmaxCEfromLogits(logits_all,Y);let total=loss_conv;if(attLambda>0){const logits_last=STATE.model.attnLastLogitsFromHidden(H);const y_last=Y.slice([0,Tctx-1],[B,1]).reshape([B]);const ce_last=tf.losses.softmaxCrossEntropy(tf.oneHot(y_last.toInt(),V),logits_last);total=total.add(ce_last.mul(attLambda))}return total},true);const v=lossTensor.dataSync()[0];lossTensor.dispose();return v})
+        const lossVal=tf.tidy(()=>{
+          const lossTensor=optim.minimize(()=>{
+            const{X,Y}=sampleBatch(trainStarts,STATE.tokens,B,Tctx)
+            const H=STATE.model.forwardHidden(X,true)
+            const logits_all=STATE.model.projectToVocab(H)
+            const loss_conv=softmaxCEfromLogits(logits_all,Y)
+            let total=loss_conv
+            if(attLambda>0){
+              const logits_last=STATE.model.attnLastLogitsFromHidden(H, X, usePadMask)
+              const y_last=Y.slice([0,Tctx-1],[B,1]).reshape([B])
+              const ce_last=tf.losses.softmaxCrossEntropy(tf.oneHot(y_last.toInt(),V),logits_last)
+              total=total.add(ce_last.mul(attLambda))
+            }
+            return total
+          },true)
+          const v=lossTensor.dataSync()[0]
+          lossTensor.dispose()
+          return v
+        })
         if(!Number.isFinite(lossVal)){logLine(`FEHLER: Loss=${lossVal}. Abbruch.`);throw new Error('NaN/Inf')}
         lossAcc+=lossVal
         if((s%100)===0||s===stepsPerEpoch-1){logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`)}
@@ -305,7 +354,13 @@ async function train(){
         const convLoss=(await convLossTensor.data())[0];convLossTensor.dispose()
         nllSum+=convLoss*(evalB*Tctx);tokCount+=(evalB*Tctx)
 
-        const refLossTensor=tf.tidy(()=>{const H=STATE.model.forwardHidden(X,false);const logitsLast=STATE.model.attnLastLogitsFromHidden(H);const yLast=Y.slice([0,Tctx-1],[evalB,1]).reshape([evalB]);const oh=tf.oneHot(yLast.toInt(),STATE.model.params.cfg.V);return tf.losses.softmaxCrossEntropy(oh,logitsLast)})
+        const refLossTensor=tf.tidy(()=>{
+          const H=STATE.model.forwardHidden(X,false)
+          const logitsLast=STATE.model.attnLastLogitsFromHidden(H, X, usePadMask)
+          const yLast=Y.slice([0,Tctx-1],[evalB,1]).reshape([evalB])
+          const oh=tf.oneHot(yLast.toInt(),STATE.model.params.cfg.V)
+          return tf.losses.softmaxCrossEntropy(oh,logitsLast)
+        })
         const refLoss=(await refLossTensor.data())[0];refLossTensor.dispose()
         refSum+=refLoss;refCnt+=1
 
@@ -348,6 +403,7 @@ async function generate(){
   const mode=$('sampleMode').value,topK=valNum('topK',64),topP=valNum('topP',0.9),temp=valNum('temp',0.9)
   const nGen=valNum('nGen',200),T=STATE.model.params.cfg.T;const prompt=($('prompt')?.value??'').trim()
   const useAttn=valBool('useAttnInfer',true)
+  const usePadMask=valBool('maskPadRef',true)
   if(!prompt){logLine('Kein Prompt.');$('btnGen').disabled=false;$('btnStopGen').disabled=true;return}
   const promptIPA=g2pConvert(prompt)
   let ctx=STATE.atomizer.encodeIPAtoAtoms(promptIPA,true,false)
@@ -357,7 +413,7 @@ async function generate(){
     if(STATE.cancelGen){logLine('Generierung abgebrochen.');break}
     const ctxSlice=ctx.slice(-T);const len=ctxSlice.length,padLen=T-len
     const inpArr=(padLen>0)?(new Int32Array([...Array(padLen).fill(BOS_ID),...ctxSlice])):new Int32Array(ctxSlice)
-    const last=(()=>{const t=tf.tidy(()=>{const input=tf.tensor2d(inpArr,[1,T],'int32');if(!useAttn){const logits=STATE.model.forward(input,false);return logits.slice([0,T-1,0],[1,1,STATE.model.params.cfg.V]).reshape([STATE.model.params.cfg.V])}else{const H=STATE.model.forwardHidden(input,false);return STATE.model.attnLastLogitsFromHidden(H).reshape([STATE.model.params.cfg.V])}});const arr=t.dataSync();t.dispose();return arr})()
+    const last=(()=>{const t=tf.tidy(()=>{const input=tf.tensor2d(inpArr,[1,T],'int32');if(!useAttn){const logits=STATE.model.forward(input,false);return logits.slice([0,T-1,0],[1,1,STATE.model.params.cfg.V]).reshape([STATE.model.params.cfg.V])}else{const H=STATE.model.forwardHidden(input,false);return STATE.model.attnLastLogitsFromHidden(H, input, usePadMask).reshape([STATE.model.params.cfg.V])}});const arr=t.dataSync();t.dispose();return arr})()
     let maxv=-Infinity;for(let i=0;i<last.length;i++)if(last[i]>maxv)maxv=last[i]
     const probs=new Float32Array(last.length);let Z=0;const invT=1/clamp(temp,0.1,2.0)
     for(let i=0;i<last.length;i++){const e=Math.exp((last[i]-maxv)*invT);probs[i]=e;Z+=e}for(let i=0;i<probs.length;i++)probs[i]/=Z
@@ -370,7 +426,7 @@ async function generate(){
   $('btnGen').disabled=false;$('btnStopGen').disabled=true;$('inferStats').textContent=`Tokens: ${outTokens.length} • Latenz ${(t1-t0).toFixed(1)} ms`
   const genIPA=STATE.atomizer.decodeAtomsToIPA(outTokens);$('outIPA').textContent=genIPA
   const genText=decodeIPAToText(genIPA);$('outText').textContent=genText
-  logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms) — Inferenzmodus: ${useAttn?'LLM-Refiner':'Conv-only'}.`)
+  logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms) — Inferenzmodus: ${useAttn?'LLM-Refiner':'Conv-only'} (PadMask=${usePadMask}).`)
 }
 
 /* Export/Import */
@@ -402,13 +458,86 @@ window.addEventListener('load',async()=>{
   await setupBackend(valBool('useGPU',true))
   const fileInput=$('corpusFiles');const fileInfo=$('fileInfo')
 
-  fileInput.addEventListener('change',async(event)=>{const files=event.target.files;if(!files||files.length===0){fileInfo.textContent='Keine Korpus-Dateien ausgewählt.';STATE.corpusText='';$('btnBuildIPA').disabled=true;return}fileInfo.textContent=`Lese ${files.length} Datei(en)…`;setButtonState('btnLoadDict',true,'...');setButtonState('btnBuildIPA',true);setButtonState('btnTrainAtoms',true);let combinedText='';const jsonlKey=$('jsonlKey').value.trim()||'text';try{for(const file of files){logLine(`Lese Datei: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`);const fileContent=await file.text();if(file.name.endsWith('.jsonl')){logLine(`Verarbeite .jsonl-Datei mit Schlüssel '${jsonlKey}'…`);const lines=fileContent.split('\n');let added=0;for(const line of lines){if(line.trim()==='')continue;try{const obj=JSON.parse(line);if(obj[jsonlKey]&&typeof obj[jsonlKey]==='string'){combinedText+=obj[jsonlKey]+"\n";added++}}catch(e){}}logLine(`… ${added} Einträge aus .jsonl extrahiert.`)}else{combinedText+=fileContent+"\n"}await microYield()}STATE.corpusText=combinedText;$('txt').value='';fileInfo.textContent=`${files.length} Datei(en) geladen (${(STATE.corpusText.length/1024/1024).toFixed(2)} MB Text).`;logLine(`Korpus aus ${files.length} Datei(en) geladen. Gesamtgröße: ${(STATE.corpusText.length/1024/1024).toFixed(2)} MB.`);if(STATE.dict.size>0){$('btnBuildIPA').disabled=false}else{logLine("Wörterbuch noch nicht geladen. Bitte 'en_US.txt laden' klicken.")}}catch(error){logLine(`Fehler beim Laden der Dateien: ${error}`);fileInfo.textContent=`Fehler: ${error}`;STATE.corpusText='';$('btnBuildIPA').disabled=true}finally{setButtonState('btnLoadDict',false,'en_US.txt laden (Wörterbuch)')}})
+  fileInput.addEventListener('change',async(event)=>{
+    const files=event.target.files;
+    if(!files||files.length===0){fileInfo.textContent='Keine Korpus-Dateien ausgewählt.';STATE.corpusText='';$('btnBuildIPA').disabled=true;return}
+    fileInfo.textContent=`Lese ${files.length} Datei(en)…`;
+    setButtonState('btnLoadDict',true,'...');
+    setButtonState('btnBuildIPA',true);
+    setButtonState('btnTrainAtoms',true);
+    let combinedText='';
+    const jsonlKey=$('jsonlKey').value.trim()||'text';
+    try{
+      for(const file of files){
+        logLine(`Lese Datei: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`);
+        const fileContent=await file.text();
+        if(file.name.endsWith('.jsonl')){
+          logLine(`Verarbeite .jsonl-Datei mit Schlüssel '${jsonlKey}'…`);
+          const lines=fileContent.split('\n');let added=0;
+          for(const line of lines){if(line.trim()==='')continue;try{const obj=JSON.parse(line);if(obj[jsonlKey]&&typeof obj[jsonlKey]==='string'){combinedText+=obj[jsonlKey]+"\n";added++}}catch(e){}}
+          logLine(`… ${added} Einträge aus .jsonl extrahiert.`);
+        }else{
+          combinedText+=fileContent+"\n"
+        }
+        await microYield()
+      }
+      STATE.corpusText=combinedText;$('txt').value='';
+      fileInfo.textContent=`${files.length} Datei(en) geladen (${(STATE.corpusText.length/1024/1024).toFixed(2)} MB Text).`;
+      logLine(`Korpus aus ${files.length} Datei(en) geladen. Gesamtgröße: ${(STATE.corpusText.length/1024/1024).toFixed(2)} MB.`);
+      if(STATE.dict.size>0){$('btnBuildIPA').disabled=false}else{logLine("Wörterbuch noch nicht geladen. Bitte 'en_US.txt laden' klicken.")}
+    }catch(error){
+      logLine(`Fehler beim Laden der Dateien: ${error}`);fileInfo.textContent=`Fehler: ${error}`;STATE.corpusText='';$('btnBuildIPA').disabled=true
+    }finally{
+      setButtonState('btnLoadDict',false,'en_US.txt laden (Wörterbuch)')
+    }
+  })
 
-  $('btnLoadDict').addEventListener('click',async()=>{try{setButtonState('btnLoadDict',true,'Lade...',false);await loadLocalDictEN();buildReverseDict();if(STATE.corpusText||$('txt').value.trim()){$('btnBuildIPA').disabled=false}}catch(e){logLine('Fehler beim Laden von /data/en_US.txt: '+(e?.message||e))}finally{setButtonState('btnLoadDict',false,'en_US.txt laden (Wörterbuch)',false)}})
+  $('btnLoadDict').addEventListener('click',async()=>{
+    try{setButtonState('btnLoadDict',true,'Lade...',false);await loadLocalDictEN();buildReverseDict();if(STATE.corpusText||$('txt').value.trim()){$('btnBuildIPA').disabled=false}}
+    catch(e){logLine('Fehler beim Laden von /data/en_US.txt: '+(e?.message||e))}
+    finally{setButtonState('btnLoadDict',false,'en_US.txt laden (Wörterbuch)',false)}
+  })
 
-  $('btnBuildIPA').addEventListener('click',()=>{const textToProcess=STATE.corpusText||($('txt')?.value??'').trim();if(!textToProcess){logLine('Kein Text zum Verarbeiten.');return}if(STATE.dict.size===0){logLine('Fehler: Wörterbuch nicht geladen.');return}try{logLine("Starte G2P-Konvertierung …");setButtonState('btnBuildIPA',true,'G2P läuft...',false);const ipa=g2pConvert(textToProcess);STATE.ipa=ipa;$('kpiIPA').textContent=`IPA: ${ipa.length.toLocaleString()} Zeichen`;$('btnTrainAtoms').disabled=false;logLine(`1. G2P → IPA fertig (${(STATE.ipa.length/1024/1024).toFixed(2)} MB IPA).`);dbgState('after-g2p')}catch(e){logLine('G2P-Fehler: '+(e?.message||e))}finally{setButtonState('btnBuildIPA',false,'1. G2P → IPA erzeugen',false)}})
+  $('btnBuildIPA').addEventListener('click',()=>{
+    const textToProcess=STATE.corpusText||($('txt')?.value??'').trim();
+    if(!textToProcess){logLine('Kein Text zum Verarbeiten.');return}
+    if(STATE.dict.size===0){logLine('Fehler: Wörterbuch nicht geladen.');return}
+    try{
+      logLine("Starte G2P-Konvertierung …");
+      setButtonState('btnBuildIPA',true,'G2P läuft...',false);
+      const ipa=g2pConvert(textToProcess);STATE.ipa=ipa;
+      $('kpiIPA').textContent=`IPA: ${ipa.length.toLocaleString()} Zeichen`;
+      $('btnTrainAtoms').disabled=false;
+      logLine(`1. G2P → IPA fertig (${(STATE.ipa.length/1024/1024).toFixed(2)} MB IPA).`);
+      dbgState('after-g2p')
+    }catch(e){logLine('G2P-Fehler: '+(e?.message||e))}
+    finally{setButtonState('btnBuildIPA',false,'1. G2P → IPA erzeugen',false)}
+  })
 
-  $('btnTrainAtoms').addEventListener('click',async()=>{if(!STATE.ipa){logLine('Bitte zuerst G2P → IPA ausführen.');return}const atomVocab=valNum('atomVocab',512);const T=valNum('seqLen',64);setButtonState('btnTrainAtoms',true,'Lerne Atome...',false);setButtonState('btnBuildIPA',true);try{const atomizer=await buildAtomBPE(STATE.ipa,atomVocab);const atomIds=atomizer.encodeIPAtoAtoms(STATE.ipa,true,true);STATE.atomizer=atomizer;logLine("Erstelle Uint32Array für Token…");STATE.tokens=new Uint32Array(atomIds);logLine("…Token-Array erstellt.");const atomCount=STATE.tokens.length;$('kpiAtoms').textContent=`Atome: ${atomCount.toLocaleString()} (Vocab: ${STATE.atomizer.vocabSize})`;const roughComp=(STATE.ipa.length>0)?(STATE.ipa.length/atomCount).toFixed(2):'–';$('kpiComp').textContent=`Kompression: ${roughComp}×`;logLine(`PhenomEncoder abgeschlossen. Vocab=${STATE.atomizer.vocabSize}. Tokens=${atomCount}`);dbgState('after-atomizer');if(STATE.tokens.length>=(T+1)){$('btnTrain').disabled=false}else{$('btnTrain').disabled=true;logLine(`Hinweis: Tokens=${STATE.tokens.length} < T+1=${T+1}. Training nicht möglich.`)}}catch(e){logLine(`Fehler beim Atomizer-Training: ${e.message}`)}finally{setButtonState('btnTrainAtoms',false,'2. Atome lernen (BPE auf IPA)',false);setButtonState('btnBuildIPA',false)}})
+  $('btnTrainAtoms').addEventListener('click',async()=>{
+    if(!STATE.ipa){logLine('Bitte zuerst G2P → IPA ausführen.');return}
+    const atomVocab=valNum('atomVocab',512);const T=valNum('seqLen',64);
+    setButtonState('btnTrainAtoms',true,'Lerne Atome...',false);setButtonState('btnBuildIPA',true);
+    try{
+      const atomizer=await buildAtomBPE(STATE.ipa,atomVocab);
+      const atomIds=atomizer.encodeIPAtoAtoms(STATE.ipa,true,true);
+      STATE.atomizer=atomizer;
+      logLine("Erstelle Uint32Array für Token…");
+      STATE.tokens=new Uint32Array(atomIds);
+      logLine("…Token-Array erstellt.");
+      const atomCount=STATE.tokens.length;
+      $('kpiAtoms').textContent=`Atome: ${atomCount.toLocaleString()} (Vocab: ${STATE.atomizer.vocabSize})`;
+      const roughComp=(STATE.ipa.length>0)?(STATE.ipa.length/atomCount).toFixed(2):'–';
+      $('kpiComp').textContent=`Kompression: ${roughComp}×`;
+      logLine(`PhenomEncoder abgeschlossen. Vocab=${STATE.atomizer.vocabSize}. Tokens=${atomCount}`);
+      dbgState('after-atomizer');
+      if(STATE.tokens.length>=(T+1)){$('btnTrain').disabled=false}else{$('btnTrain').disabled=true;logLine(`Hinweis: Tokens=${STATE.tokens.length} < T+1=${T+1}. Training nicht möglich.`)}
+    }catch(e){logLine(`Fehler beim Atomizer-Training: ${e.message}`)}
+    finally{
+      setButtonState('btnTrainAtoms',false,'2. Atome lernen (BPE auf IPA)',false);
+      setButtonState('btnBuildIPA',false)
+    }
+  })
 
   $('prompt').addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!$('btnGen').disabled){generate()}}})
   $('btnTrain').addEventListener('click',train)
