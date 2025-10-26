@@ -107,7 +107,7 @@
       <div><label>Batchgröße</label><input id="batch" type="number" min="8" max="128" step="8" value="32"></div>
       <div><label>Steps/Epoche (0=auto)</label><input id="stepCap" type="number" min="0" max="50000" step="100" value="400"></div>
       <div class="flex items-end gap-3">
-        <label class="muted"><input id="useGPU" type="checkbox" checked="" disabled> WebGL</label>
+        <div id="backendStatus" class="muted">WebGL/CPU-Backend erzwungen.</div>
         <label class="muted"><input id="useDropout" type="checkbox"> Dropout 0.1</label>
         <label class="muted"><input id="autoLR" type="checkbox" checked=""> Auto-LR</label>
       </div>
@@ -754,8 +754,8 @@ async function exportModel(){
   try {
     const named = {}; for (const v of STATE.model.variables()) { if (!v.name) throw new Error('Variable ohne Namen.'); if (named[v.name]) throw new Error('Duplikat: '+v.name); named[v.name]=v; }
     const {data, specs} = await tf.io.encodeWeights(named);
-    const payload = { version: 4, cfg: STATE.model.params.cfg, weightSpecs: specs, weightDataB64: ab2b64(data), // Version 4: Dilated (forced WebGL)
-      atomizer: { merges: STATE.atomizer.merges, cp2id: Object.fromEntries(STATE.atomizer.cp2id), id2cp: Object.fromEntries(STATE.atomizer.id2cp), vocabSize: STATE.atomizer.vocabSize }
+    const payload = { version: 4, cfg: STATE.model.params.cfg, weightSpecs: specs, weightDataB64: ab2b64(data),
+      atomizer: { merges: STATE.atomizer.merges, cp2id: Object.fromEntries(STATE.atomizer.cp2id), id2cp: new Map(Object.entries(STATE.atomizer.id2cp).map(([k, v]) => [Number(k), v])), vocabSize: STATE.atomizer.vocabSize }
     };
     const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
     downloadBlob('pho-atom-llm-dilated-webgl-model.json', blob);
@@ -885,7 +885,7 @@ window.addEventListener('load', async ()=>{
       logLine("...Token-Array erstellt.");
       const atomCount = STATE.tokens.length;
       $('kpiAtoms').textContent = `Atome: ${atomCount.toLocaleString()} (Vocab: ${STATE.atomizer.vocabSize})`;
-      const textLength = (STATE.corpusText || $('txt').value).length; // Textlänge statt IPA-Länge für C
+      const textLength = (STATE.corpusText || $('txt').value).length;
       const roughComp = (textLength > 0 && atomCount > 0) ? (textLength / atomCount).toFixed(2) : '–';
       $('kpiComp').textContent = `Kompression: ${roughComp}×`;
       logLine(`PhenomEncoder abgeschlossen. Vocab=${STATE.atomizer.vocabSize}. Tokens=${atomCount}`); dbgState('after-atomizer');
