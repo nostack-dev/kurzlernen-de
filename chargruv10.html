@@ -1226,7 +1226,7 @@ async function train(){
 
       if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
 
-    t   const valPPL = Math.exp(nllSum/Math.max(1,tokCount));
+      const valPPL = Math.exp(nllSum/Math.max(1,tokCount));
 
       const tokps = (stepsPerEpoch * B * Tctx) / Math.max(0.001, (t1-t0)/1000);
 
