@@ -452,9 +452,9 @@ function buildModel(cfg){
     const vs = [E, bout];
     for (const L of params.layers){ vs.push(L.g1, L.g2, L.W_Conv, L.W_Gate, L.b_Gate, L.W1, L.b1, L.W2, L.b2); }
     vs.push(W_out); return vs;
-  } return {params, forward, variables};
+  }
 }
-
+ return {params, forward, variables};}
 /* =================== Backend =================== */
 async function setupBackend(preferGPU=true){
   try {
