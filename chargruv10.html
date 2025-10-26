@@ -914,29 +914,22 @@ function buildModel(cfg){
 
 /* =================== Backend =================== */
 
-async function setupBackend(preferGPU=true){
-
-  try {
-
-    if (preferGPU) { await tf.setBackend('webgpu'); }
-
-    else { throw new Error('Skip WebGPU'); }
-
-  } catch(e){ 
-
-    logLine(`WebGPU nicht verfügbar (${e?.message||e}). Fallback auf WebGL...`);
-
-    await tf.setBackend('webgl'); 
-
-  }
-
-  await tf.ready();
-
-  logLine(`Backend: ${tf.getBackend()}`);
-
+async function setupBackend(preferGPU=true){ // preferGPU wird hier ignoriert
+  try {
+    logLine("Erzwinge WebGL-Backend, da WebGPU die benötigten Gradienten (noch) nicht unterstützt...");
+    await tf.setBackend('webgl');
+    await tf.ready(); // Warte, bis das Backend initialisiert ist
+    logLine(`Backend erfolgreich auf ${tf.getBackend()} gesetzt.`);
+    if (tf.getBackend() !== 'webgl') {
+        throw new Error('WebGL konnte nicht als Backend gesetzt werden.');
+    }
+  } catch(e){
+    logLine(`WebGL ist nicht verfügbar oder konnte nicht gesetzt werden (${e?.message||e}). Fallback auf CPU (sehr langsam!)...`);
+    await tf.setBackend('cpu');
+    await tf.ready();
+    logLine(`Backend: ${tf.getBackend()} (CPU)`);
+  }
 }
-
-
 
 /* =================== Datenaufbereitung & Training =================== */
 
