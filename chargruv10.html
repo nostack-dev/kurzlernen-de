@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Text-BPE Atom-LLM — O(M) mit Dilatation (schnell) + LLM-Refiner</title>
+  <title>Text-BPE Atom-LLM — O(M) dilatiert (schnell) + LLM-Refiner (FINAL)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js"></script>
   <style>
@@ -42,8 +42,7 @@
 <div class="container">
   <h1 class="text-2xl font-extrabold mb-1">Text-BPE Atom-LLM — O(M) dilatiert (schnell) + LLM-Refiner</h1>
   <div class="muted mb-4">
-    Presets: <b>M=64</b>, <b>L=5</b>, <b>K=5</b>, Dilations auto (typ. [1,1,2,4,8] → RF=65),
-    <b>d=192</b>, <b>dFF=640</b>, <b>B=16</b>, <b>LR=0.001</b>, <b>Heads=4</b>, <b>λ=0.5</b> (ab Ep. 2).
+    Presets: <b>M=64</b>, <b>L=5</b>, <b>K=5</b> (dilat. emuliert, RF≥M), <b>d=192</b>, <b>dFF=640</b>, <b>B=16</b>, <b>LR=0.001</b>, <b>Heads=4</b>, <b>λ=0.5</b> (ab Ep. 2).
   </div>
 
   <div class="card">
@@ -158,7 +157,7 @@
   <div class="card">
     <h3 class="font-bold text-lg mb-2">Perplexity &amp; Log</h3>
     <div id="metrics" class="muted mb-2"><b>Epoche –/–</b> &nbsp; Loss=– &nbsp; Val PPL(conv)=– &nbsp; RefCE=– &nbsp; ~Tok/s=– &nbsp; LR=–</div>
-    <div id="log" class="log">[Log bereit. O(M)-Training (dilatierte Convs) aktiv. LLM-Refiner warmup → voll.]</div>
+    <div id="log" class="log">[Log bereit. O(M)-Training (dilatierte Convs emuliert) aktiv. LLM-Refiner warmup → voll.]</div>
   </div>
 </div>
 
@@ -227,7 +226,7 @@ function buildAtomBPE(rawText, targetVocab=512){
 }
 
 /* ---------- Dilations & RF ---------- */
-function requiredSumD(T, K){return Math.ceil((T-1)/Math.max(1,(K-1)))} // sum(D_l) needed
+function requiredSumD(T, K){return Math.ceil((T-1)/Math.max(1,(K-1)))}
 function makeDilations(nLayers, K, T){
   const need=requiredSumD(T,K);
   const ds=[]; let sum=0; let d=1;
@@ -239,6 +238,18 @@ function makeDilations(nLayers, K, T){
   return ds;
 }
 function receptiveField(K, dilations){const sumD=dilations.reduce((a,b)=>a+b,0);return 1 + (K-1)*sumD}
+
+/* ---------- Dilation-Emulation (Gradient-fähig in WebGL) ---------- */
+function buildDilationMask(K, D){
+  const Kexp = 1 + (K - 1) * D;
+  const data = new Float32Array(Kexp * K);
+  for (let j = 0; j < K; j++) {
+    const i = j * D;
+    data[i * K + j] = 1;
+  }
+  const mask = tf.tensor2d(data, [Kexp, K], 'float32');
+  return { mask, Kexp };
+}
 
 /* ---------- Modell ---------- */
 function rmsNorm(x,gamma,eps=1e-5){const meanSq=tf.mean(tf.square(x),-1,true);const xhat=tf.div(x,tf.sqrt(tf.add(meanSq,eps)));return tf.mul(xhat,gamma)}
@@ -263,10 +274,15 @@ function buildModel(cfg){
   const E=tf.variable(tf.randomNormal([V,dModel],0,0.02,'float32'),true,'E');
   const pe=sinusoidalPositionalEncoding(T,dModel);
   const layers=[];
+  const fixedTensors=[];
+
   for(let l=0;l<nLayers;l++){
     const dilationRate=dilations[l]||1;
+    const { mask, Kexp } = buildDilationMask(CONV_KERNEL_SIZE, dilationRate);
+    fixedTensors.push(mask);
     layers.push({
-      l,dilationRate,
+      l,dilationRate,Kexp,
+      maskKD: mask,
       g1:tf.variable(tf.ones([dModel]),true,`L${l}_g1`),
       g2:tf.variable(tf.ones([dModel]),true,`L${l}_g2`),
       W_Conv:tf.variable(tf.randomNormal([CONV_KERNEL_SIZE,dModel,dModel],0,Math.sqrt(2/(dModel+dModel))),true,`L${l}_W_Conv`),
@@ -288,7 +304,7 @@ function buildModel(cfg){
   const bout=tf.variable(tf.zeros([V]),true,'bout');
   const W_out=tf.variable(tf.randomNormal([dModel,V],0,0.02,'float32'),true,'W_out');
 
-  const params={E,layers,bout,pe,cfg:{...cfg,attHeads:h,dHead,CONV_KERNEL_SIZE},W_out,Wq,Wk,Wv,Wo};
+  const params={E,layers,bout,pe,cfg:{...cfg,attHeads:h,dHead,CONV_KERNEL_SIZE},W_out,Wq,Wk,Wv,Wo,fixedTensors};
 
   function dropout(x,rate){
     if(!dropoutTrain||rate<=0)return x;
@@ -306,10 +322,15 @@ function buildModel(cfg){
         let h=rmsNorm(x,L.g1);
         const K=params.cfg.CONV_KERNEL_SIZE;
         const D=L.dilationRate;
-        const paddingAmount=(K-1)*D;
-        const zeroPadding=tf.zeros([B,paddingAmount,dM]);
-        const paddedH=tf.concat([zeroPadding,h],1);
-        const conv_out=tf.conv1d(paddedH,L.W_Conv,1,'valid','NWC',D);
+        const Kexp=L.Kexp;
+
+        const Wexp = tf.tidy(()=>tf.tensordot(L.maskKD, L.W_Conv, [[1],[0]]));
+        const paddingAmount = Kexp - 1;
+        const zeroPadding = tf.zeros([B, paddingAmount, dM]);
+        const paddedH = tf.concat([zeroPadding, h], 1);
+        const conv_out = tf.conv1d(paddedH, Wexp, 1, 'valid', 'NWC', 1);
+        Wexp.dispose();
+
         const gate_proj=tf.add(tf.matMul(conv_out.reshape([-1,dM]),L.W_Gate),L.b_Gate);
         const gate=tf.sigmoid(gate_proj).reshape([B,Tcur,dM]);
         const linear_out=tf.mul(conv_out,gate);
@@ -356,7 +377,12 @@ function buildModel(cfg){
     return tf.add(logits_1,params.bout);
   }
   function variables(){const vs=[E,bout];for(const L of params.layers)vs.push(L.g1,L.g2,L.W_Conv,L.W_Gate,L.b_Gate,L.W1,L.b1,L.W2,L.b2);vs.push(W_out,Wq,Wk,Wv,Wo);return vs}
-  return {params,forward,forwardHidden,projectToVocab,attnLastLogitsFromHidden,variables};
+  function dispose(){
+    for(const v of variables()) try{v.dispose()}catch(_){}
+    try{pe.dispose()}catch(_){}
+    for(const t of fixedTensors) try{t.dispose()}catch(_){}
+  }
+  return {params,forward,forwardHidden,projectToVocab,attnLastLogitsFromHidden,variables,dispose};
 }
 
 /* ---------- Backend ---------- */
@@ -383,7 +409,7 @@ function sampleBatch(starts,tokens,B,T){
   return {X:tf.tensor2d(X,[B,T],'int32'), Y:tf.tensor2d(Y,[B,T],'int32')};
 }
 
-/* ---------- Training (variableGrads + Clip + Dilations + Warmup) ---------- */
+/* ---------- Training ---------- */
 async function train(){
   await setupBackend(valBool('useGPU',true));
   const textToProcess=STATE.corpusText||($('txt')?.value??'').trim();
@@ -410,7 +436,7 @@ async function train(){
     if(Tctx>RF){logLine(`WARNUNG: RF=${RF} < M=${Tctx}. Dilations werden angepasst.`)}
     logLine(`Dilations: [${dilations.join(', ')}], RF=${RF} für K=${K}, L=${L}`);
 
-    if(STATE.model)STATE.model.variables().forEach(v=>v.dispose());
+    if(STATE.model){STATE.model.dispose(); STATE.model=null}
     STATE.model=buildModel({V,dModel,dFF,nLayers:L,T:Tctx,weightTying,dropoutTrain,CONV_KERNEL_SIZE:K,attHeads,dilations});
 
     let optim=tf.train.adam(lr,0.9,0.999,1e-8);
@@ -448,7 +474,6 @@ async function train(){
             return total;
           };
           const {value,grads}=tf.variableGrads(f, STATE.model.variables());
-          // simple clip by value (robust in TFJS)
           const clipped={}; for(const [name,g] of Object.entries(grads)){clipped[name]=tf.clipByValue(g,-1,1)}
           return {loss:value, grads:clipped};
         });
@@ -467,7 +492,6 @@ async function train(){
       }
       if(myModelRev!==STATE.modelRev||STATE.cancelTrain)break;
 
-      // Validierung (schlank)
       const t1=performance.now(); let nllSum=0,tokCount=0,refSum=0,refCnt=0;
       const evalB=Math.min(B,32);
       const evalSteps=Math.min(5, Math.max(0, Math.floor(valStarts.length/Math.max(1,evalB))));
@@ -480,7 +504,7 @@ async function train(){
         const convLoss=(await convLossTensor.data())[0]; convLossTensor.dispose();
         nllSum += convLoss*(evalB*Tctx); tokCount += (evalB*Tctx);
 
-        if(lam>0 && (es%2===0)){ // ref CE jede zweite Val-Iteration
+        if(lam>0 && (es%2===0)){
           const refLossTensor=tf.tidy(()=>{
             const H=STATE.model.forwardHidden(X,false);
             const logitsLast=STATE.model.attnLastLogitsFromHidden(H, X, usePadMask);
@@ -509,7 +533,6 @@ async function train(){
     }
 
     logLine('Training abgeschlossen. Modell bereit zur Inferenz.');
-    $('prompt').disabled=true; // erst aktivieren nach Import/Export? — wir aktivieren jetzt:
     $('prompt').disabled=false; $('btnGen').disabled=false; $('btnExport').disabled=false;
 
   }catch(e){console.error(e);logLine('Fehler: '+(e?.message||e))}
@@ -601,7 +624,7 @@ async function importModel(file){
       const obj=JSON.parse(reader.result);
       if(!obj.cfg||!obj.atomizer)throw new Error("Import-Datei ungültig ('cfg' oder 'atomizer' fehlt).");
       const cfg=obj.cfg;
-      if(STATE.model)STATE.model.variables().forEach(v=>v.dispose());
+      if(STATE.model){STATE.model.dispose(); STATE.model=null}
       logLine("Baue Modell-Architektur …");
       STATE.model=buildModel(cfg);
       const weightData=b642ab(obj.weightDataB64);
@@ -703,7 +726,7 @@ window.addEventListener('load', async ()=>{
   });
   $('btnClear').addEventListener('click',()=>{
     STATE.corpusText=''; STATE.atomizer=null; STATE.tokens=null;
-    if(STATE.model){STATE.model.variables().forEach(v=>v.dispose()); STATE.model=null}
+    if(STATE.model){STATE.model.dispose(); STATE.model=null}
     $('kpiChars').textContent='Textzeichen: –'; $('kpiAtoms').textContent='Atome: –'; $('kpiComp').textContent='Kompression: –';
     $('outText').textContent=''; $('txt').value=''; $('fileInfo').textContent='Keine Korpus-Dateien ausgewählt.'; $('corpusFiles').value=null;
     $('btnTrain').disabled=true; $('btnExport').disabled=true; $('prompt').disabled=true; $('btnGen').disabled=true;
