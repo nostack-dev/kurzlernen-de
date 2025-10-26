@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>PhO-Compress Atom-LLM — O(M) Lineares Modell (FINAL, JSONL, No Dilation)</title>
+  <title>PhO-Compress Atom-LLM — O(M) Dilated (FINAL, JSONL, WebGL)</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js"></script>
+
 
   <style>
     body{background:#f5f6f8;color:#1f2937;font-family:ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
@@ -41,8 +43,8 @@
 </head>
 <body>
 <div class="container">
-  <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M^1)$ Lineare Skalierung)</h1>
-  <div class="muted mb-4">Lokal: <b>/data/en_US.txt</b> (ipa-dict Text), <b>JSONL/TXT-Korpus</b>, Debug-Tools. (Modell ohne Dilatation > 1 wg. TF.js WebGPU Limitierung).</div>
+  <h1 class="text-2xl font-extrabold mb-1">PhO-Compress Atom-LLM ($O(M^1)$ Dilated)</h1>
+  <div class="muted mb-4">Lokal: <b>/data/en_US.txt</b>, <b>JSONL/TXT-Korpus</b>. Erzwingt WebGL für dilatierte Gradienten.</div>
 
   <div class="card">
     <h3 class="font-bold text-lg mb-2">1) Korpus &amp; Wörterbuch laden</h3>
@@ -94,7 +96,7 @@
   <div class="card">
     <h3 class="font-bold text-lg mb-2">2) Lineares Modell Setup &amp; Training</h3>
     <div class="row4">
-      <div><label>Schichten L</label><input id="nLayers" type="number" min="1" max="12" value="4"></div>
+      <div><label>Schichten L (Dilatiert)</label><input id="nLayers" type="number" min="1" max="12" value="4"></div>
       <div><label>d_model</label><input id="dModel" type="number" min="64" max="512" step="32" value="256"></div>
       <div><label>FFN-Dim</label><input id="dFF" type="number" min="128" max="2048" step="64" value="512"></div>
       <div><label>Epochen</label><input id="epochs" type="number" min="1" max="40" value="4"></div>
@@ -105,7 +107,7 @@
       <div><label>Batchgröße</label><input id="batch" type="number" min="8" max="128" step="8" value="32"></div>
       <div><label>Steps/Epoche (0=auto)</label><input id="stepCap" type="number" min="0" max="50000" step="100" value="400"></div>
       <div class="flex items-end gap-3">
-        <label class="muted"><input id="useGPU" type="checkbox" checked=""> WebGPU</label>
+        <label class="muted"><input id="useGPU" type="checkbox" checked="" disabled> WebGL</label>
         <label class="muted"><input id="useDropout" type="checkbox"> Dropout 0.1</label>
         <label class="muted"><input id="autoLR" type="checkbox" checked=""> Auto-LR</label>
       </div>
@@ -163,28 +165,27 @@
   <div class="card">
     <h3 class="font-bold text-lg mb-2">Perplexity &amp; Log</h3>
     <div id="metrics" class="muted mb-2"><b>Epoche –/–</b> &nbsp; Loss=– &nbsp; Val PPL=– &nbsp; ~Tok/s=– &nbsp; LR=–</div>
-    <div id="log" class="log">[Log bereit. Lineares $O(M^1)$-Modell (ConvNet ohne Dilatation) aktiviert.]</div>
+    <div id="log" class="log">[Log bereit. Lineares $O(M^1)$-Modell (Dilated ConvNet, WebGL erzwungen) aktiviert.]</div>
   </div>
 </div>
 
 <script>
-/* =================== Core & Debug =================== */
 const $ = id => document.getElementById(id);
 const MAX_LOG_CHARS = 120000;
-const BOS_ID = 0, EOS_ID = 1; // 0=Padding/BOS, 1=EOS
+const BOS_ID = 0, EOS_ID = 1;
 
 const STATE = {
-  dict: new Map(),   // en_US.txt Inhalte
-  ipa: '',           // gesamter IPA-String des Korpus
-  corpusText: '',    // Text aus geladenen Dateien
-  atomizer: null,    // {encodeIPAtoAtoms, decodeAtomsToIPA, ...}
-  tokens: null,      // Uint32Array ($Z_{Phenom}$)
+  dict: new Map(),
+  ipa: '',
+  corpusText: '',
+  atomizer: null,
+  tokens: null,
   model: null,
   modelRev: 0,
   cancelTrain: false,
   cancelGen: false
 };
-window.STATE = STATE; // für DevTools
+window.STATE = STATE;
 
 function logLine(msg){
   const el = $('log');
@@ -212,9 +213,11 @@ function setButtonState(id, disabled, text, showSpinner=false) {
     const spinEl = btn.querySelector('span#spin');
     if (spinEl) spinEl.style.display = showSpinner ? 'inline-block' : 'none';
   } else {
-    const span = btn.querySelector('span');
+    const span = btn.querySelector('span:not(.spinner)');
     if (span && text != null) span.textContent = String(text);
     else if (text != null) btn.textContent = String(text);
+    const spinEl = btn.querySelector('.spinner');
+     if (spinEl && id !== 'btnTrain') spinEl.style.display = showSpinner ? 'inline-block' : 'none';
   }
 }
 async function microYield(){ await new Promise(r=>setTimeout(r,0)); }
@@ -224,7 +227,6 @@ function dbgState(tag=''){
   logLine(`[DBG ${tag}] atomizer=${!!A} vocab=${A?.vocabSize ?? '–'} | tokens=${T ? (T.length+' (Uint32Array='+ (T instanceof Uint32Array)+')') : 'null'} | ipaLen=${STATE.ipa?.length ?? 0}`);
 }
 
-/* =================== Wörterbuch: /data/en_US.txt =================== */
 async function loadLocalDictEN(){
   const url = '/data/en_US.txt';
   const r = await fetch(url, {mode:'same-origin'});
@@ -257,7 +259,6 @@ async function loadLocalDictEN(){
   logLine(`Wörterbuch geladen: en_US (words=${map.size})`);
 }
 
-/* =================== G2P (Text -> IPA) =================== */
 const WORD_RE = /[\p{L}\p{M}\p{Nd}]+/u;
 function tokenize(text){
   const m = text.normalize('NFC').match(/[\p{L}\p{M}\p{Nd}]+|[^\s]/gu) || [];
@@ -271,12 +272,11 @@ function g2pConvert(text){
     if (!WORD_RE.test(t)){ out.push(t); continue; }
     const hit = STATE.dict.get(t);
     if (hit){ out.push(hit); }
-    else { out.push(`‹${t}›`); } // ‹ › für Out-of-Vocabulary
+    else { out.push(`‹${t}›`); }
   }
   return out.join(' ').replace(/\s*([,."?!;:()\[\]{}“”‘’' ])\s*/g, ' $1 ').replace(/\s+/g,' ').trim();
 }
 
-/* =================== Atomizer (BPE auf IPA) =================== */
 function strToCodepoints(str){ const arr = []; for (let i=0;i<str.length;i++) arr.push(str.charCodeAt(i)); return arr; }
 function codepointsToStr(arr){ return String.fromCharCode(...arr); }
 
@@ -286,7 +286,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
     const cps = strToCodepoints(rawIPA);
     const uniq = Array.from(new Set(cps.filter(x=>!Number.isNaN(x)))).sort((a,b)=>a-b);
     const cp2id = new Map(); const id2cp = new Map();
-    let nextId = 2; // 0=BOS/PAD, 1=EOS
+    let nextId = 2;
     for (const c of uniq){ cp2id.set(c,nextId); id2cp.set(nextId,c); nextId++; }
     let seq = cps.map(c => cp2id.get(c) ?? BOS_ID);
     const merges = [];
@@ -318,7 +318,7 @@ function buildAtomBPE(rawIPA, targetVocab=512){
       const [aStr,bStr] = bestKey.split(',');
       const a=parseInt(aStr,10), b=parseInt(bStr,10);
       const id = nextId++; merges.push({a,b,id}); seq = applyBestPair(seq, a, b, id);
-      if ((step % 200) === 0) logLine(`BPE merge ${step+1}: (${a},${b}) $\rightarrow$ ${id} (count=${bestCnt})`);
+      if ((step % 200) === 0) logLine(`BPE merge ${step+1}: (${a},${b}) -> ${id} (count=${bestCnt})`);
     }
     logLine(`BPE-Training abgeschlossen. Vokabulargröße: ${nextId}`);
     function encodeIPAtoAtoms(str, addBos=false, addEos=false){
@@ -352,7 +352,6 @@ function buildAtomBPE(rawIPA, targetVocab=512){
   });
 }
 
-/* =================== Modell (OHNE Dilatation - WebGPU-kompatibel) =================== */
 function rmsNorm(x, gamma, eps=1e-5){
   const meanSq = tf.mean(tf.square(x), -1, true);
   const xhat = tf.div(x, tf.sqrt(tf.add(meanSq, eps))); return tf.mul(xhat, gamma);
@@ -377,17 +376,15 @@ function buildModel(cfg){
   const E = tf.variable(tf.randomNormal([V, dModel], 0, 0.02, 'float32'), true, 'E');
   const pe = sinusoidalPositionalEncoding(T, dModel);
   const layers = [];
-  const CONV_KERNEL_SIZE = 5; // Kernel-Größe
+  const CONV_KERNEL_SIZE = 5;
 
   for(let l=0;l<nLayers;l++){
-    // *** ÄNDERUNG: DilationRate immer 1 ***
-    const dilationRate = 1;
-    // ***************************************
+    const dilationRate = Math.pow(2, l);
     layers.push({
-      l: l,
-      dilationRate: dilationRate, // Wird jetzt immer 1 sein
+      l: l,
+      dilationRate: dilationRate,
       g1: tf.variable(tf.ones([dModel]), true, `L${l}_g1`), g2: tf.variable(tf.ones([dModel]), true, `L${l}_g2`),
-      W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
+      W_Conv: tf.variable(tf.randomNormal([CONV_KERNEL_SIZE, dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Conv`),
       W_Gate: tf.variable(tf.randomNormal([dModel, dModel], 0, Math.sqrt(2/(dModel+dModel))), true, `L${l}_W_Gate`),
       b_Gate: tf.variable(tf.zeros([dModel]), true, `L${l}_b_Gate`),
       W1: tf.variable(tf.randomNormal([dModel, dFF], 0, Math.sqrt(2/(dModel+dFF))), true, `L${l}_W1`), b1: tf.variable(tf.zeros([dFF]), true, `L${l}_b1`),
@@ -413,23 +410,20 @@ function buildModel(cfg){
 
       for(const L of params.layers){
         let h = rmsNorm(x, L.g1);
-        const K = params.CONV_KERNEL_SIZE;
-        // *** ÄNDERUNG: DilationRate immer 1 ***
-        const D = 1; // L.dilationRate;
-        // ***************************************
-        const paddingAmount = (K - 1) * D; // Ist jetzt immer K-1
+        const K = params.CONV_KERNEL_SIZE;
+        const D = L.dilationRate;
+        const paddingAmount = (K - 1) * D;
         const zeroPadding = tf.zeros([B, paddingAmount, dM]);
-        const paddedH = tf.concat([zeroPadding, h], 1); // Vorne padden
+        const paddedH = tf.concat([zeroPadding, h], 1);
 
-        // Normale (nicht-dilatierte) kausale Faltung
         const conv_out = tf.conv1d(
-            paddedH,
-            L.W_Conv,
-            1,          // stride
-            'valid',    // 'valid' auf gepaddetem Tensor == 'causal'
-            'NWC',      // dataFormat
-            D           // dilationRate (jetzt 1)
-        );
+            paddedH,
+            L.W_Conv,
+            1,
+            'valid',
+            'NWC',
+            D
+        );
 
         const gate_proj = conv_out.reshape([-1, dM]).matMul(L.W_Gate).add(L.b_Gate);
         const gate = tf.sigmoid(gate_proj).reshape([B, Tcur, dM]);
@@ -437,7 +431,7 @@ function buildModel(cfg){
         x = x.add((params.cfg.dropoutTrain && training) ? dropout(linear_out, 0.1) : linear_out);
 
         let h2 = rmsNorm(x, L.g2);
-        const mlp2 = h2.reshape([-1, dM]).matMul(L.W1).add(L.b1);
+        const mlp2 = h2.reshape([-1, dM]).matMul(L.W1).add(L.b1);
         const silu = tf.mul(mlp2, tf.sigmoid(mlp2));
         const mlp_out = silu.matMul(L.W2).add(L.b2).reshape([B, Tcur, dM]);
         x = x.add((params.cfg.dropoutTrain && training) ? dropout(mlp_out, 0.1) : mlp_out);
@@ -453,48 +447,36 @@ function buildModel(cfg){
     for (const L of params.layers){ vs.push(L.g1, L.g2, L.W_Conv, L.W_Gate, L.b_Gate, L.W1, L.b1, L.W2, L.b2); }
     vs.push(W_out); return vs;
   }
+  return {params, forward, variables};
 }
- return {params, forward, variables};}
-/* =================== Backend =================== */
+
 async function setupBackend(preferGPU=true){
   try {
-    if (preferGPU) {
-        logLine("Versuche WebGPU-Backend...");
-        await tf.setBackend('webgpu');
-        await tf.ready();
-        logLine(`Backend: ${tf.getBackend()} (WebGPU)`);
-    } else {
-        throw new Error('GPU nicht bevorzugt');
+    logLine("Erzwinge WebGL-Backend, da WebGPU die benötigten Gradienten (noch) nicht unterstützt...");
+    await tf.setBackend('webgl');
+    await tf.ready();
+    logLine(`Backend erfolgreich auf ${tf.getBackend()} gesetzt.`);
+    if (tf.getBackend() !== 'webgl') {
+        throw new Error('WebGL konnte nicht als Backend gesetzt werden.');
     }
   } catch(e){
-    logLine(`WebGPU nicht verfügbar oder nicht bevorzugt (${e?.message||e}). Fallback auf WebGL...`);
-    try {
-        await tf.setBackend('webgl');
-        await tf.ready();
-        logLine(`Backend: ${tf.getBackend()} (WebGL)`);
-    } catch (e2) {
-        logLine(`WebGL auch nicht verfügbar (${e2?.message||e2}). Fallback auf CPU (sehr langsam!)...`);
-        await tf.setBackend('cpu');
-        await tf.ready();
-        logLine(`Backend: ${tf.getBackend()} (CPU)`);
-    }
+    logLine(`WebGL ist nicht verfügbar oder konnte nicht gesetzt werden (${e?.message||e}). Fallback auf CPU (sehr langsam!)...`);
+    await tf.setBackend('cpu');
+    await tf.ready();
+    logLine(`Backend: ${tf.getBackend()} (CPU)`);
   }
 }
 
-/* =================== Datenaufbereitung & Training =================== */
 function buildStarts(tokens, T, valPct){
-  // Findet alle Sequenz-Startpunkte, die nicht in Padding (BOS_ID=0) oder EOS (EOS_ID=1) enden
   const N = tokens.length;
   const T_plus_1 = T + 1;
   const usable = Math.max(0, N - T_plus_1);
   const all_starts = [];
-  // Wir erstellen einen Puffer, um das Slicen im Loop zu vermeiden
   const tokenBuffer = new Uint32Array(tokens);
 
   logLine(`Scanne ${usable.toLocaleString()} mögliche Startpunkte...`);
   for (let i = 0; i < usable; i++) {
-    // Überprüfe nur das *letzte* Token der Y-Sequenz
-    if (tokenBuffer[i + T] !== BOS_ID) { // Stelle sicher, dass Y[T-1] (also token[i+T]) kein Pad ist
+    if (tokenBuffer[i + T] !== BOS_ID) {
         all_starts.push(i);
     }
   }
@@ -513,7 +495,7 @@ function sampleBatch(starts, tokens, B, T){
       return {X: tf.tensor2d(X, [B,T], 'int32'), Y: tf.tensor2d(Y, [B,T], 'int32')};
   }
   for (let b=0;b<B;b++){
-    const s = starts[(Math.random()*n)|0]; // Wähle einen validen Startpunkt
+    const s = starts[(Math.random()*n)|0];
     for (let t=0;t<T;t++){
       X[b*T+t] = tokens[s+t];
       Y[b*T+t] = tokens[s+t+1];
@@ -541,8 +523,17 @@ async function train(){
     const weightTying = true, dropoutTrain = valBool('useDropout', false);
     const V = STATE.atomizer.vocabSize;
 
-    // Rezeptiver Horizont wird hier nicht mehr berechnet/geloggt, da Dilatation entfernt wurde.
-    logLine(`Modell-Setup: ${L} Schichten (K=5, keine Dilatation).`);
+    const K = 5;
+    let maxReceptiveField = 1;
+    for(let l=0; l<L; l++) {
+        maxReceptiveField += (K - 1) * Math.pow(2, l);
+    }
+    logLine(`Modell-Setup: ${L} dil. Schichten (K=${K}). Max. rezeptiver Horizont: ${maxReceptiveField} Atome.`);
+    if(Tctx > maxReceptiveField) {
+      logLine(`WARNUNG: Kontext M (${Tctx}) ist GRÖSSER als der max. rezeptive Horizont (${maxReceptiveField}). Das Modell kann nicht den gesamten Kontext sehen. Erwäge, M=${maxReceptiveField} zu setzen oder L zu erhöhen.`);
+    } else if (Tctx < maxReceptiveField) {
+      logLine(`Info: Kontext M (${Tctx}) ist kleiner als max. rezeptiver Horizont (${maxReceptiveField}).`);
+    }
 
     if (STATE.model) STATE.model.variables().forEach(v => v.dispose());
     STATE.model = buildModel({V, dModel, dFF, nLayers: L, T: Tctx, weightTying, dropoutTrain});
@@ -581,7 +572,7 @@ async function train(){
         const lossVal = (await loss.data())[0];
         loss.dispose();
         optim.applyGradients(grads);
-        tf.dispose(grads); // Manuelles Freigeben der Gradients
+        tf.dispose(grads);
 
         if (!Number.isFinite(lossVal)) { logLine(`FEHLER: Loss=${lossVal}. Abbruch.`); throw new Error('NaN/Inf'); }
         lossAcc += lossVal;
@@ -589,13 +580,12 @@ async function train(){
           logLine(`Ep ${ep+1} Step ${s}/${stepsPerEpoch} Loss=${lossVal.toFixed(4)}`);
         }
         if ((s % 200) === 0) { const m=tf.memory(); logLine(`mem: tensors=${m.numTensors} bytes=${m.numBytes}`); }
-        await tf.nextFrame(); // Wichtig, um UI nicht einzufrieren
+        await tf.nextFrame();
       }
       if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
 
-        // Validierungs-Schleife
         const t1 = performance.now(); let nllSum = 0, tokCount = 0; const evalB = Math.min(B, 32);
-      const evalSteps = Math.min(20, Math.max(0, Math.floor(valStarts.length / Math.max(1, evalB)))); // Mehr Val-Steps
+      const evalSteps = Math.min(20, Math.max(0, Math.floor(valStarts.length / Math.max(1, evalB))));
       logLine(`Starte Validierung (${evalSteps} Steps)...`);
       for (let es=0; es<evalSteps; es++){
         if (myModelRev !== STATE.modelRev || STATE.cancelTrain) break;
@@ -621,9 +611,9 @@ async function train(){
       if (autoLR){
         if (valPPL + 0.01 < bestPPL){ bestPPL=valPPL; bad=0; }
         else { bad++;
-          if (bad>=2 && lr>1e-5){ lr = Math.max(1e-5, lr*0.5); // Reduziere min LR
+          if (bad>=2 && lr>1e-5){ lr = Math.max(1e-5, lr*0.5);
             optim.setLearningRate(lr);
-            bad=0; logLine(`Auto-LR $\rightarrow$ ${lr.toFixed(6)}`);
+            bad=0; logLine(`Auto-LR -> ${lr.toFixed(6)}`);
           }
         }
       } await tf.nextFrame();
@@ -636,8 +626,6 @@ async function train(){
   finally { setButtonState('btnTrain', false, '3. Training starten', false); $('btnStop').disabled = true; STATE.cancelTrain=false; }
 }
 
-
-/* =================== IPA -> Text Decoder (P2G) =================== */
 let REVERSE_DICT = null;
 let REVERSE_DICT_SORTED_KEYS = [];
 let REVERSE_DICT_ALL_IPA_KEYS = [];
@@ -707,7 +695,6 @@ function postProcessDecodedText(words) {
   } return s.replace(/\s+/g, ' ').trim();
 }
 
-/* =================== Sampling & Inferenz =================== */
 function sampleFromProbs(probs, mode, topK, topP){
   const order = Array.from(probs.keys()).sort((a,b)=>probs[b]-probs[a]); if (mode==='topk'){ const K = Math.max(1, Math.min(topK, probs.length)); const keep = order.slice(0,K); let s=0; for(const i of keep) s+=probs[i]; let r=Math.random()*s; for(const i of keep){ r-=probs[i]; if(r<=0) return i; } return keep[keep.length-1]; } else { const pth = clamp(topP, 0.05, 1.0); let cum=0, keep=[]; for(const i of order){ keep.push(i); cum+=probs[i]; if(cum>=pth) break; } let s=0; for(const i of keep) s+=probs[i]; let r=Math.random()*s; for(const i of keep){ r-=probs[i]; if(r<=0) return i; } return keep[keep.length-1]; }
 }
@@ -731,13 +718,11 @@ async function generate(){
     if (STATE.cancelGen) { logLine('Generierung abgebrochen.'); break; }
 
     const ctxSlice = ctx.slice(-T); const len=ctxSlice.length, padLen = T - len;
-    // Padde vorne mit BOS_ID (das als Pad-Token dient)
     const inpArr = (padLen>0) ? (new Int32Array([...Array(padLen).fill(BOS_ID), ...ctxSlice])) : new Int32Array(ctxSlice);
 
     const [last] = await tf.tidy(() => {
         const input = tf.tensor2d(inpArr,[1,T],'int32');
         const logits = STATE.model.forward(input, false);
-        // Nimm nur den Logit für das *letzte* echte Token (Position T-1)
         const lastTensor = logits.slice([0, T-1, 0], [1, 1, STATE.model.params.cfg.V]).reshape([STATE.model.params.cfg.V]);
         return lastTensor.data();
     });
@@ -755,12 +740,11 @@ async function generate(){
   const t1 = performance.now();
 
   $('btnGen').disabled = false; $('btnStopGen').disabled = true; $('inferStats').textContent = `Tokens: ${outTokens.length} • Latenz ${(t1-t0).toFixed(1)} ms`;
-  const genIPA = STATE.atomizer.decodeAtomsToIPA(outTokens); $('outIPA').textContent = genIPA; // Debug
-  const genText = decodeIPAToText(genIPA); $('outText').textContent = genText; // Clean text
+  const genIPA = STATE.atomizer.decodeAtomsToIPA(outTokens); $('outIPA').textContent = genIPA;
+  const genText = decodeIPAToText(genIPA); $('outText').textContent = genText;
   logLine(`Generiert ${outTokens.length} Atome (${(t1-t0).toFixed(0)} ms).`);
 }
 
-/* =================== Datei-Export / -Import =================== */
 function ab2b64(buf){ const bytes = new Uint8Array(buf); let bin=''; for (let i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]); return btoa(bin); }
 function b642ab(b64){ const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i); return bytes.buffer; }
 function downloadBlob(filename, blob){ const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
@@ -770,11 +754,11 @@ async function exportModel(){
   try {
     const named = {}; for (const v of STATE.model.variables()) { if (!v.name) throw new Error('Variable ohne Namen.'); if (named[v.name]) throw new Error('Duplikat: '+v.name); named[v.name]=v; }
     const {data, specs} = await tf.io.encodeWeights(named);
-    const payload = { version: 3, cfg: STATE.model.params.cfg, weightSpecs: specs, weightDataB64: ab2b64(data), // Version 3: No Dilation
+    const payload = { version: 4, cfg: STATE.model.params.cfg, weightSpecs: specs, weightDataB64: ab2b64(data), // Version 4: Dilated (forced WebGL)
       atomizer: { merges: STATE.atomizer.merges, cp2id: Object.fromEntries(STATE.atomizer.cp2id), id2cp: Object.fromEntries(STATE.atomizer.id2cp), vocabSize: STATE.atomizer.vocabSize }
     };
     const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
-    downloadBlob('pho-atom-llm-no-dilation-model.json', blob); // Dateiname geändert
+    downloadBlob('pho-atom-llm-dilated-webgl-model.json', blob);
     logLine(`Export abgeschlossen: ${(data.byteLength/1024/1024).toFixed(2)} MiB`);
   } catch(e){ logLine('Export-Fehler: '+(e?.message||e)); } finally { setButtonState('btnExport', false, 'Modell exportieren (JSON)', false); }
 }
@@ -787,7 +771,7 @@ async function importModel(file){
       const cfg = obj.cfg;
       if (STATE.model) STATE.model.variables().forEach(v => v.dispose());
       logLine("Baue Modell-Architektur aus importierter Konfiguration...");
-      STATE.model = buildModel(cfg); // Baut das Modell *ohne* Dilatation
+      STATE.model = buildModel(cfg);
       const weightData = b642ab(obj.weightDataB64); const weightMap = await tf.io.decodeWeights(weightData, obj.weightSpecs);
       const byName = {}; for (const v of STATE.model.variables()) byName[v.name] = v;
       for (const [name, tensor] of Object.entries(weightMap)) { if (byName[name]) { byName[name].assign(tensor); tensor.dispose(); } else { logLine(`Warnung: Gewicht '${name}' in Datei, aber nicht in Modell.`); tensor.dispose();} }
@@ -815,12 +799,10 @@ async function importModel(file){
   }; reader.readAsText(file);
 }
 
-/* =================== UI Event Listeners =================== */
 window.addEventListener('load', async ()=>{
-  await setupBackend(valBool('useGPU', true)); // Versuche wieder WebGPU, da Dilatation weg ist
+  await setupBackend(true);
   const fileInput = $('corpusFiles'); const fileInfo = $('fileInfo');
 
-  // Event Listener für Korpus-Dateiauswahl (JSONL-fähig)
   fileInput.addEventListener('change', async (event) => {
     const files = event.target.files;
     if (!files || files.length === 0) { fileInfo.textContent = 'Keine Korpus-Dateien ausgewählt.'; STATE.corpusText = ''; $('btnBuildIPA').disabled = true; return; }
@@ -845,54 +827,50 @@ window.addEventListener('load', async ()=>{
               try {
                 const obj = JSON.parse(line);
                 if (obj[jsonlKey] && typeof obj[jsonlKey] === 'string') {
-                  combinedText += obj[jsonlKey] + "\n"; // Füge Zeilenumbruch als Trenner hinzu
+                  combinedText += obj[jsonlKey] + "\n";
                   added++;
                 }
-              } catch (e) { /* Ignoriere fehlerhafte JSON-Zeilen */ }
+              } catch (e) { /* Ignore */ }
             }
             logLine(`... ${added} Einträge aus .jsonl extrahiert.`);
         } else {
-            // Standard .txt-Verhalten
             combinedText += fileContent + "\n";
         }
         await microYield();
       }
-      STATE.corpusText = combinedText; $('txt').value = ''; // Textarea leeren
+      STATE.corpusText = combinedText; $('txt').value = '';
       fileInfo.textContent = `${files.length} Datei(en) geladen (${(STATE.corpusText.length / 1024 / 1024).toFixed(2)} MB Text).`;
       logLine(`Korpus aus ${files.length} Datei(en) geladen. Gesamtgröße: ${(STATE.corpusText.length / 1024 / 1024).toFixed(2)} MB.`);
-      if (STATE.dict.size > 0) { $('btnBuildIPA').disabled = false; } else { logLine("Wörterbuch noch nicht geladen. Bitte 'en_US.txt laden' klicken."); }
+      if (STATE.dict.size > 0) { $('btnBuildIPA').disabled = false; } else { logLine("Wörterbuch noch nicht geladen."); }
     } catch (error) { logLine(`Fehler beim Laden der Dateien: ${error}`); fileInfo.textContent = `Fehler: ${error}`; STATE.corpusText = ''; $('btnBuildIPA').disabled = true;
     } finally { setButtonState('btnLoadDict', false, 'en_US.txt laden (Wörterbuch)'); }
   });
 
-  // Event Listener für Wörterbuch laden
   $('btnLoadDict').addEventListener('click', async ()=>{
     try{
       setButtonState('btnLoadDict', true, 'Lade...', false);
       await loadLocalDictEN();
-      buildReverseDict(); // WICHTIG: Reverse-Dict hier bauen!
+      buildReverseDict();
       if (STATE.corpusText || $('txt').value.trim()) { $('btnBuildIPA').disabled = false; }
     } catch(e){ logLine('Fehler beim Laden von /data/en_US.txt: '+(e?.message||e));
     } finally { setButtonState('btnLoadDict', false, 'en_US.txt laden (Wörterbuch)', false); }
   });
 
-  // Event Listener für G2P
   $('btnBuildIPA').addEventListener('click', ()=>{
     const textToProcess = STATE.corpusText || ($('txt')?.value ?? '').trim();
     if(!textToProcess){ logLine('Kein Text zum Verarbeiten.'); return; }
     if(STATE.dict.size === 0) { logLine('Fehler: Wörterbuch nicht geladen.'); return; }
     try{
-      logLine("Starte G2P-Konvertierung (kann bei großen Texten dauern)...");
+      logLine("Starte G2P-Konvertierung...");
       setButtonState('btnBuildIPA', true, 'G2P läuft...', false);
       const ipa = g2pConvert(textToProcess); STATE.ipa = ipa;
       $('kpiIPA').textContent = `IPA: ${ipa.length.toLocaleString()} Zeichen`;
       $('btnTrainAtoms').disabled = false;
-      logLine(`1. G2P $\rightarrow$ IPA fertig (${(STATE.ipa.length / 1024 / 1024).toFixed(2)} MB IPA).`); dbgState('after-g2p');
+      logLine(`1. G2P -> IPA fertig (${(STATE.ipa.length / 1024 / 1024).toFixed(2)} MB IPA).`); dbgState('after-g2p');
     }catch(e){ logLine('G2P-Fehler: '+(e?.message||e));
     } finally { setButtonState('btnBuildIPA', false, '1. G2P → IPA erzeugen', false); }
   });
 
-  // Event Listener für Atomizer Training
   $('btnTrainAtoms').addEventListener('click', async ()=>{
     if(!STATE.ipa){ logLine('Bitte zuerst G2P → IPA ausführen.'); return; }
     const atomVocab = valNum('atomVocab', 512); const T = valNum('seqLen', 128);
@@ -900,15 +878,15 @@ window.addEventListener('load', async ()=>{
     setButtonState('btnBuildIPA', true);
     try {
       const atomizer = await buildAtomBPE(STATE.ipa, atomVocab);
-      const atomIds = atomizer.encodeIPAtoAtoms(STATE.ipa, true, true); // Füge BOS/EOS zu den *gesamten* Daten hinzu
+      const atomIds = atomizer.encodeIPAtoAtoms(STATE.ipa, true, true);
       STATE.atomizer = atomizer;
-      // WICHTIG: Wir verwenden Uint32Array für große Korpora
       logLine("Erstelle Uint32Array für Token...");
       STATE.tokens = new Uint32Array(atomIds);
       logLine("...Token-Array erstellt.");
       const atomCount = STATE.tokens.length;
       $('kpiAtoms').textContent = `Atome: ${atomCount.toLocaleString()} (Vocab: ${STATE.atomizer.vocabSize})`;
-      const roughComp = (STATE.ipa.length>0 && atomCount > 0) ? (STATE.ipa.length / atomCount).toFixed(2) : '–';
+      const textLength = (STATE.corpusText || $('txt').value).length; // Textlänge statt IPA-Länge für C
+      const roughComp = (textLength > 0 && atomCount > 0) ? (textLength / atomCount).toFixed(2) : '–';
       $('kpiComp').textContent = `Kompression: ${roughComp}×`;
       logLine(`PhenomEncoder abgeschlossen. Vocab=${STATE.atomizer.vocabSize}. Tokens=${atomCount}`); dbgState('after-atomizer');
       if (STATE.tokens.length >= (T+1)) { $('btnTrain').disabled = false; }
@@ -920,10 +898,8 @@ window.addEventListener('load', async ()=>{
     }
   });
 
-  // Enter-zum-Senden
   $('prompt').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!$('btnGen').disabled) { generate(); } } });
 
-  // Restliche Buttons
   $('btnTrain').addEventListener('click', train);
   $('btnGen').addEventListener('click', generate);
   $('btnStop').addEventListener('click', ()=>{ STATE.cancelTrain=true; $('btnStop').disabled = true; logLine('Training gestoppt (am Step-/Epochenende).'); });
