@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>STL → VoxelShaper (Negative Space Inversion • No Worker)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+  <!-- One Three.js instance for all ESM imports -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/controls/OrbitControls.js": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+      "three/loaders/STLLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js"
+    }
+  }
+  </script>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; background: oklch(var(--b1)); color: oklch(var(--bc)); }
+    header { position: sticky; top: 0; z-index: 10; }
+    #viewer { position: relative; min-height: 60vh; }
+    #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <!-- Controls -->
+  <header class="w-full border-b border-base-300 bg-base-200/70 backdrop-blur">
+    <div class="max-w-7xl mx-auto p-3 flex flex-wrap items-center gap-3">
+      <h1 class="text-lg sm:text-xl font-extrabold text-primary whitespace-nowrap">
+        <i class="fa-solid fa-cubes mr-2"></i> STL → VoxelShaper (Negative Space)
+      </h1>
+
+      <label for="file" class="btn btn-primary btn-sm sm:btn-md">
+        <i class="fa-solid fa-upload mr-2"></i> Upload STL
+      </label>
+      <input id="file" type="file" accept=".stl" class="hidden" />
+
+      <div class="flex items-center gap-3">
+        <div class="text-sm sm:text-base font-semibold">Grid</div>
+        <input id="grid" type="range" min="32" max="192" value="96" step="1" class="range range-primary range-xs w-48">
+        <div id="gridLabel" class="w-14 text-right mono">96³</div>
+      </div>
+
+      <label class="label cursor-pointer ml-2 gap-2">
+        <span class="label-text text-xs">Close tiny holes (1-voxel)</span>
+        <input id="closeHoles" type="checkbox" class="toggle toggle-xs toggle-secondary" />
+      </label>
+
+      <div class="ml-auto flex items-center gap-2">
+        <button id="voxelizeBtn" class="btn btn-secondary btn-sm sm:btn-md" disabled>
+          <i class="fa-solid fa-bolt mr-2"></i> Voxelize
+        </button>
+        <button id="downloadBtn" class="btn btn-success btn-sm sm:btn-md" disabled>
+          <i class="fa-solid fa-download mr-2"></i> Download JSON
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Viewer -->
+  <main>
+    <section id="viewer">
+      <canvas id="canvas"></canvas>
+
+      <div id="emptyHint" class="absolute inset-0 flex flex-col items-center justify-center text-base-content/70 gap-2 p-6 text-center pointer-events-none">
+        <i class="fa-regular fa-file text-6xl mb-2"></i>
+        <div class="text-lg">Upload an STL to voxelize.</div>
+        <div class="text-sm">We detect <b>outside air</b> (negative space) and invert it.</div>
+      </div>
+
+      <div id="progressWrap" class="absolute left-1/2 -translate-x-1/2 bottom-6 w-[min(92%,700px)] hidden">
+        <progress id="progressBar" class="progress progress-primary w-full" value="0" max="100"></progress>
+        <div id="progressText" class="mt-2 text-center text-xs mono text-base-content/80"></div>
+      </div>
+    </section>
+
+    <section class="max-w-7xl mx-auto w-full px-3 py-3">
+      <div id="log" class="text-xs sm:text-sm mono text-base-content/70"></div>
+    </section>
+  </main>
+
+  <div class="toast toast-top toast-end z-50" id="toasts"></div>
+
+  <!-- App -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/controls/OrbitControls.js';
+    import { STLLoader } from 'three/loaders/STLLoader.js';
+
+    // ---------- DOM helpers ----------
+    const $ = id => document.getElementById(id);
+    const fileEl = $('file');
+    const gridEl = $('grid');
+    const gridLabel = $('gridLabel');
+    const voxelizeBtn = $('voxelizeBtn');
+    const downloadBtn = $('downloadBtn');
+    const closeHolesEl = $('closeHoles');
+    const canvas = $('canvas');
+    const emptyHint = $('emptyHint');
+    const progressWrap = $('progressWrap');
+    const progressBar = $('progressBar');
+    const progressText = $('progressText');
+    const log = $('log');
+    const toasts = $('toasts');
+
+    const ui = {
+      toast(type, title, msg, ms=3000) {
+        const t = document.createElement('div');
+        t.className = `alert alert-${type} shadow-lg`;
+        t.innerHTML = `<div><span class="font-bold">${title}</span><br><span class="text-xs">${msg ?? ''}</span></div>`;
+        toasts.appendChild(t);
+        setTimeout(()=>t.remove(), ms);
+      },
+      setProgress(pct, text) {
+        progressWrap.classList.remove('hidden');
+        progressBar.value = pct;
+        progressText.textContent = text || '';
+      },
+      hideProgress() {
+        progressWrap.classList.add('hidden');
+        progressBar.value = 0;
+        progressText.textContent = '';
+      }
+    };
+    const nextFrame = ()=>new Promise(requestAnimationFrame);
+
+    // ---------- Three viewer ----------
+    let renderer, scene, camera, controls, stlMesh=null, instanced=null, bboxHelper=null, currentFileName=null;
+
+    function initViewer() {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+      scene    = new THREE.Scene();
+      scene.background = new THREE.Color(0x16181d);
+
+      camera = new THREE.PerspectiveCamera(55, 1, 0.01, 1000);
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const amb = new THREE.AmbientLight(0xffffff, 0.55);
+      const dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(2,3,2);
+      scene.add(amb, dir);
+
+      window.addEventListener('resize', resize);
+      resize();
+      animate();
+    }
+    function animate(){ requestAnimationFrame(animate); controls?.update(); renderer?.render(scene,camera); }
+    function resize(){
+      const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+      const h = canvas.clientHeight || canvas.parentElement.clientHeight || 600;
+      renderer.setSize(w, h, false);
+      camera.aspect = (w/h) || 1; camera.updateProjectionMatrix();
+    }
+
+    function clearPreview() {
+      if (stlMesh){ stlMesh.geometry?.dispose?.(); stlMesh.material?.dispose?.(); scene.remove(stlMesh); stlMesh=null; }
+      if (instanced){ instanced.geometry?.dispose?.(); instanced.material?.dispose?.(); scene.remove(instanced); instanced=null; }
+      if (bboxHelper){ scene.remove(bboxHelper); bboxHelper=null; }
+    }
+
+    function frameObject(obj){
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const dist = Math.max(0.6, maxDim * 2.2);
+      camera.position.set(center.x + dist, center.y + dist*0.6, center.z + dist);
+      controls.target.copy(center); controls.update();
+    }
+
+    // Normalize for preview only (voxelization uses geometry space → grid mapping)
+    function normalizeGeometry(geometry){
+      geometry.computeBoundingBox();
+      const bb = geometry.boundingBox.clone();
+      const size = bb.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x,size.y,size.z) || 1;
+      const scale = 1 / maxDim;
+      const center = bb.getCenter(new THREE.Vector3());
+      geometry.translate(-center.x,-center.y,-center.z);
+      geometry.scale(scale,scale,scale);
+      geometry.computeBoundingBox();
+    }
+
+    // ---------- Bitset utils ----------
+    function makeBitset(N){ return new Uint32Array( ((N*N*N)+31>>>5) ); }
+    function getIndex(N,x,y,z){ return x + N*(y + N*z); }
+    function setBitAt(bs, idx){ bs[idx>>>5] |= (1 << (idx & 31)); }
+    function clrBitAt(bs, idx){ bs[idx>>>5] &= ~(1 << (idx & 31)); }
+    function getBitAt(bs, idx){ return (bs[idx>>>5] >>> (idx & 31)) & 1; }
+    function bitCount32(v){ v-= (v>>>1)&0x55555555; v=(v&0x33333333)+((v>>>2)&0x33333333); return (((v+(v>>>4))&0x0F0F0F0F)*0x01010101)>>>24; }
+    function countBits(bs){ let c=0; for(let i=0;i<bs.length;i++) c+=bitCount32(bs[i]>>>0); return c; }
+    function bitsetToCoords(bs,N){
+      const total = countBits(bs); const coords = new Uint32Array(total*3);
+      let p=0;
+      for(let w=0,base=0; w<bs.length; w++, base+=32){
+        let v = bs[w]>>>0;
+        while(v){
+          const t=v & -v, b=Math.log2(t)|0;
+          const idx = base+b;
+          const x = idx % N;
+          const y = ((idx / N)|0) % N;
+          const z = (idx / (N*N))|0;
+          coords[p++]=x; coords[p++]=y; coords[p++]=z;
+          v ^= t;
+        }
+      }
+      return coords;
+    }
+
+    // ---------- Correct triangle–AABB SAT (grid space) ----------
+    const HX=0.5, HY=0.5, HZ=0.5, EPS=1e-7;
+    function triBoxOverlapGrid(cx, cy, cz, v0x,v0y,v0z, v1x,v1y,v1z, v2x,v2y,v2z){
+      // translate so box center is origin
+      v0x-=cx; v0y-=cy; v0z-=cz;
+      v1x-=cx; v1y-=cy; v1z-=cz;
+      v2x-=cx; v2y-=cy; v2z-=cz;
+
+      // edges
+      const e0x=v1x-v0x, e0y=v1y-v0y, e0z=v1z-v0z;
+      const e1x=v2x-v1x, e1y=v2y-v1y, e1z=v2z-v1z;
+      const e2x=v0x-v2x, e2y=v0y-v2y, e2z=v0z-v2z;
+
+      // 1) box axes
+      let min,max;
+      min=Math.min(v0x,v1x,v2x); max=Math.max(v0x,v1x,v2x); if(min>HX||max<-HX) return false;
+      min=Math.min(v0y,v1y,v2y); max=Math.max(v0y,v1y,v2y); if(min>HY||max<-HY) return false;
+      min=Math.min(v0z,v1z,v2z); max=Math.max(v0z,v1z,v2z); if(min>HZ||max<-HZ) return false;
+
+      // 2) 9 cross tests
+      const axisTest=(ax,ay,az)=>{
+        const p0=v0x*ax+v0y*ay+v0z*az, p1=v1x*ax+v1y*ay+v1z*az, p2=v2x*ax+v2y*ay+v2z*az;
+        const r = HX*Math.abs(ax)+HY*Math.abs(ay)+HZ*Math.abs(az)+EPS;
+        const mn=Math.min(p0,p1,p2), mx=Math.max(p0,p1,p2);
+        return !(mn>r || mx<-r);
+      };
+      if(!axisTest( 0,  e0z,-e0y)) return false;
+      if(!axisTest(-e0z, 0, e0x))  return false;
+      if(!axisTest( e0y,-e0x,0))   return false;
+
+      if(!axisTest( 0,  e1z,-e1y)) return false;
+      if(!axisTest(-e1z, 0, e1x))  return false;
+      if(!axisTest( e1y,-e1x,0))   return false;
+
+      if(!axisTest( 0,  e2z,-e2y)) return false;
+      if(!axisTest(-e2z, 0, e2x))  return false;
+      if(!axisTest( e2y,-e2x,0))   return false;
+
+      // 3) plane test
+      const nx = e0y*e1z - e0z*e1y;
+      const ny = e0z*e1x - e0x*e1z;
+      const nz = e0x*e1y - e0y*e1x;
+      const d  = -(nx*v0x + ny*v0y + nz*v0z);
+      const r  = HX*Math.abs(nx) + HY*Math.abs(ny) + HZ*Math.abs(nz) + EPS;
+      return Math.abs(d) <= r;
+    }
+
+    // ---------- Triangle shell rasterization (grid space, tight inner loops) ----------
+    async function rasterizeShellSAT_grid(gridVerts, index, N, onProgress){
+      const shell = makeBitset(N);
+      const idx = index;
+      const triCount = (idx ? idx.length : gridVerts.length/3) / 3;
+
+      const CHUNK_TRIS = 400;
+      for (let t=0; t<triCount; t++){
+        const i0 = idx ? idx[t*3]   : t*3;
+        const i1 = idx ? idx[t*3+1] : t*3+1;
+        const i2 = idx ? idx[t*3+2] : t*3+2;
+
+        const p0=i0*3, p1=i1*3, p2=i2*3;
+        const v0x=gridVerts[p0],   v0y=gridVerts[p0+1],   v0z=gridVerts[p0+2];
+        const v1x=gridVerts[p1],   v1y=gridVerts[p1+1],   v1z=gridVerts[p1+2];
+        const v2x=gridVerts[p2],   v2y=gridVerts[p2+1],   v2z=gridVerts[p2+2];
+
+        // triangle AABB (grid)
+        let minx=Math.min(v0x,v1x,v2x), maxx=Math.max(v0x,v1x,v2x);
+        let miny=Math.min(v0y,v1y,v2y), maxy=Math.max(v0y,v1y,v2y);
+        let minz=Math.min(v0z,v1z,v2z), maxz=Math.max(v0z,v1z,v2z);
+
+        // clamp to voxel index ranges (centers at i+0.5)
+        let iMin = Math.max(0, Math.floor(minx - 0.5));
+        let iMax = Math.min(N-1, Math.floor(maxx - 0.5));
+        let jMin = Math.max(0, Math.floor(miny - 0.5));
+        let jMax = Math.min(N-1, Math.floor(maxy - 0.5));
+        let kMin = Math.max(0, Math.floor(minz - 0.5));
+        let kMax = Math.min(N-1, Math.floor(maxz - 0.5));
+        if (iMin>iMax || jMin>jMax || kMin>kMax){
+          if (t % CHUNK_TRIS === 0) { onProgress?.( (t/triCount)*60, `Shell ${((t/triCount)*60)|0}%` ); await nextFrame(); }
+          continue;
+        }
+
+        // scan subgrid
+        for (let k=kMin; k<=kMax; k++){
+          const cz = k + 0.5;
+          for (let j=jMin; j<=jMax; j++){
+            const cy = j + 0.5;
+            for (let i=iMin; i<=iMax; i++){
+              const cx = i + 0.5;
+              if (triBoxOverlapGrid(cx,cy,cz, v0x,v0y,v0z, v1x,v1y,v1z, v2x,v2y,v2z)) {
+                setBitAt(shell, getIndex(N,i,j,k));
+              }
+            }
+          }
+        }
+
+        if (t % CHUNK_TRIS === 0){
+          onProgress?.( (t/triCount)*60, `Shell ${((t/triCount)*60)|0}%` );
+          await nextFrame();
+        }
+      }
+      onProgress?.(60, 'Shell 60%');
+      return shell;
+    }
+
+    // ---------- Morphological ops on bitset (optional hole closing) ----------
+    function dilate6(bs, N){
+      const out = bs.slice();
+      const total = N*N*N;
+      for(let idx=0; idx<total; idx++){
+        if(((bs[idx>>>5] >>> (idx&31)) & 1)===0) continue;
+        const x = idx % N, y=((idx/N)|0)%N, z=(idx/(N*N))|0;
+        if(x+1<N) setBitAt(out, idx+1);
+        if(x-1>=0) setBitAt(out, idx-1);
+        if(y+1<N) setBitAt(out, idx+N);
+        if(y-1>=0) setBitAt(out, idx-N);
+        if(z+1<N) setBitAt(out, idx+N*N);
+        if(z-1>=0) setBitAt(out, idx-N*N);
+      }
+      return out;
+    }
+    function erode6(bs, N){
+      const out = bs.slice();
+      const total = N*N*N;
+      for(let idx=0; idx<total; idx++){
+        if(((bs[idx>>>5] >>> (idx&31)) & 1)===0) { clrBitAt(out, idx); continue; }
+        const x = idx % N, y=((idx/N)|0)%N, z=(idx/(N*N))|0;
+        // if any neighbor is 0, clear this (strict 6-neighborhood)
+        const n0 = (x+1<N) ? getBitAt(bs,idx+1):0;
+        const n1 = (x-1>=0)? getBitAt(bs,idx-1):0;
+        const n2 = (y+1<N) ? getBitAt(bs,idx+N):0;
+        const n3 = (y-1>=0)? getBitAt(bs,idx-N):0;
+        const n4 = (z+1<N) ? getBitAt(bs,idx+N*N):0;
+        const n5 = (z-1>=0)? getBitAt(bs,idx-N*N):0;
+        if(!(n0&&n1&&n2&&n3&&n4&&n5)) clrBitAt(out, idx);
+      }
+      return out;
+    }
+    function close1(bs,N){ return erode6(dilate6(bs,N), N); }
+
+    // ---------- Flood-fill outside (negative space) ----------
+    async function floodFillOutside(shellMask, N, onProgress){
+      const total = N*N*N;
+      const outside = new Uint8Array(total);
+      const q = new Uint32Array(total);
+      let qh=0, qt=0;
+
+      const tryPush = (idx)=>{
+        if (!outside[idx] && !getBitAt(shellMask, idx)) { outside[idx]=1; q[qt++]=idx; }
+      };
+
+      // seed faces
+      for(let i=0;i<N;i++){
+        for(let j=0;j<N;j++){
+          tryPush(getIndex(N,i,j,0));     tryPush(getIndex(N,i,j,N-1));
+          tryPush(getIndex(N,i,0,j));     tryPush(getIndex(N,i,N-1,j));
+          tryPush(getIndex(N,0,i,j));     tryPush(getIndex(N,N-1,i,j));
+        }
+      }
+
+      const CHUNK=20000;
+      let processed=0;
+
+      while(qh<qt){
+        const idx = q[qh++];
+        const x = idx % N;
+        const y = ((idx / N)|0) % N;
+        const z = (idx / (N*N))|0;
+
+        if (x+1<N) tryPush(idx+1);
+        if (x-1>=0) tryPush(idx-1);
+        if (y+1<N) tryPush(idx+N);
+        if (y-1>=0) tryPush(idx-N);
+        if (z+1<N) tryPush(idx+N*N);
+        if (z-1>=0) tryPush(idx-N*N);
+
+        if((++processed % CHUNK)===0){
+          const pct = 60 + Math.min(39, Math.floor((qh/total)*39));
+          onProgress?.(pct, `Flood fill ${pct}%`);
+          await nextFrame();
+        }
+      }
+
+      onProgress?.(99, 'Flood fill 99%');
+      return outside; // 1 = negative space (outside air)
+    }
+
+    // ---------- Compose solid by inverting negative space ----------
+    function invertNegativeSpace(shell, outside, N){
+      const words = shell.length;
+      const solid = new Uint32Array(words);
+      for (let w=0; w<words; w++){
+        let outWord = 0;
+        const base = w<<5;
+        for (let b=0; b<32; b++){
+          const idx = base+b;
+          if (idx >= N*N*N) break;
+          if (outside[idx]) outWord |= (1<<b);
+        }
+        // inside = NOT outside AND NOT shell
+        const insideWord = (~outWord) & (~shell[w]);
+        solid[w] = insideWord | shell[w]; // include shell voxels
+      }
+      return solid;
+    }
+
+    // ---------- Preview ----------
+    let lastSolid=null, lastGrid=0;
+    function showInstanced(bitset, N){
+      if (instanced){ scene.remove(instanced); instanced.geometry.dispose(); instanced.material.dispose(); instanced=null; }
+
+      const count = countBits(bitset);
+      const MAX_PREVIEW = 300_000;
+      const shown = Math.min(count, MAX_PREVIEW);
+
+      const cell = 1 / N;
+      const geo = new THREE.BoxGeometry(cell*0.98, cell*0.98, cell*0.98);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x4ade80, metalness: 0.0, roughness: 0.9 });
+
+      instanced = new THREE.InstancedMesh(geo, mat, shown);
+      instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+      const dummy = new THREE.Object3D();
+      const min = -0.5 + cell*0.5;
+
+      let written=0;
+      for(let w=0, base=0; w<bitset.length && written<shown; w++, base+=32){
+        let v = bitset[w]>>>0;
+        while(v && written<shown){
+          const t=v & -v, b=Math.log2(t)|0;
+          const idx = base+b;
+          const x = idx % N;
+          const y = ((idx / N)|0) % N;
+          const z = (idx / (N*N))|0;
+          dummy.position.set(min + x*cell, min + y*cell, min + z*cell);
+          dummy.updateMatrix();
+          instanced.setMatrixAt(written++, dummy.matrix);
+          v ^= t;
+        }
+      }
+      instanced.instanceMatrix.needsUpdate = true;
+      scene.add(instanced);
+
+      frameObject(instanced);
+      log.innerHTML = `Preview voxels: <b>${shown.toLocaleString()}</b> / ${count.toLocaleString()} (grid ${N})`;
+      if (count > MAX_PREVIEW){
+        ui.toast('info','Preview capped',`Rendered ${MAX_PREVIEW.toLocaleString()} / ${count.toLocaleString()} for FPS.`, 3500);
+      }
+    }
+
+    // ---------- App flow ----------
+    initViewer();
+    ui.toast('info','Ready','Drop in an STL to voxelize.');
+
+    gridEl.addEventListener('input', ()=>{
+      gridLabel.textContent = `${gridEl.value}³`;
+      downloadBtn.disabled = true;
+    });
+
+    fileEl.addEventListener('change', async (e)=>{
+      const file = e.target.files?.[0]; if (!file) return;
+      currentFileName = file.name.replace(/\.[^.]+$/, '');
+      voxelizeBtn.disabled = true; downloadBtn.disabled = true; emptyHint.classList.add('hidden');
+      ui.toast('info','Loading STL…', file.name, 1400);
+
+      try{
+        clearPreview();
+        const ab = await file.arrayBuffer();
+        const loader = new STLLoader();
+        const geom = loader.parse(ab);
+        normalizeGeometry(geom);
+
+        const mat = new THREE.MeshLambertMaterial({ color: 0x3da0ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+        stlMesh = new THREE.Mesh(geom, mat);
+        scene.add(stlMesh);
+        bboxHelper = new THREE.BoxHelper(stlMesh, 0xffa500); scene.add(bboxHelper);
+        frameObject(stlMesh);
+
+        voxelizeBtn.disabled = false;
+      }catch(err){
+        ui.toast('error','STL parse failed', err?.message || String(err));
+      }
+    });
+
+    voxelizeBtn.addEventListener('click', async ()=>{
+      if (!stlMesh){ ui.toast('warning','No model','Upload an STL first.'); return; }
+      voxelizeBtn.disabled = true; downloadBtn.disabled = true;
+
+      const N = parseInt(gridEl.value,10);
+      const geom = stlMesh.geometry;
+      geom.computeBoundingBox();
+
+      // World→grid transform
+      const bbMin = geom.boundingBox.min;
+      const bbSize = geom.boundingBox.getSize(new THREE.Vector3());
+      const sx = N / bbSize.x, sy = N / bbSize.y, sz = N / bbSize.z;
+      const ox = -bbMin.x * sx, oy = -bbMin.y * sy, oz = -bbMin.z * sz;
+
+      // Grid-space vertices
+      const posAttr = geom.attributes.position;
+      const positions = posAttr.array; // Float32Array
+      const gridVerts = new Float32Array(positions.length);
+      for (let i=0, n=positions.length/3; i<n; i++){
+        const x = positions[i*3], y = positions[i*3+1], z = positions[i*3+2];
+        gridVerts[i*3]   = x*sx + ox;
+        gridVerts[i*3+1] = y*sy + oy;
+        gridVerts[i*3+2] = z*sz + oz;
+      }
+      const index = geom.index ? (geom.index.array.BYTES_PER_ELEMENT===2 ? new Uint32Array(geom.index.array) : geom.index.array) : null;
+
+      ui.setProgress(0, 'Shell 0%');
+      const t0 = performance.now();
+      let shell = await rasterizeShellSAT_grid(gridVerts, index, N, (pct,label)=>ui.setProgress(pct,label));
+
+      if (closeHolesEl.checked){
+        ui.setProgress(61, 'Closing tiny holes…');
+        shell = close1(shell, N);
+      }
+
+      ui.setProgress(62, 'Flood fill (negative space)…');
+      const outside = await floodFillOutside(shell, N, (pct,label)=>ui.setProgress(pct,label));
+      const solid = invertNegativeSpace(shell, outside, N);
+      const t1 = performance.now();
+
+      // Switch preview to voxels
+      if (stlMesh){ scene.remove(stlMesh); stlMesh=null; }
+      if (bboxHelper){ scene.remove(bboxHelper); bboxHelper=null; }
+
+      lastSolid = solid; lastGrid = N;
+      ui.hideProgress();
+      ui.toast('success','Voxelization complete', `${countBits(solid).toLocaleString()} voxels • ${Math.round(t1-t0)} ms`);
+      showInstanced(solid, N);
+      downloadBtn.disabled = false;
+      voxelizeBtn.disabled = false;
+    });
+
+    downloadBtn.addEventListener('click', ()=>{
+      if (!lastSolid){ ui.toast('warning','Nothing to download','Voxelize first.'); return; }
+      const N = lastGrid;
+      const coords = bitsetToCoords(lastSolid, N);
+
+      const voxels = new Array(coords.length/3);
+      const COLOR = '#FFFFFF';
+      for (let i=0,v=0; i<coords.length; i+=3, v++){
+        voxels[v] = { x: coords[i], y: coords[i+1], z: coords[i+2], color: COLOR };
+      }
+      const project = {
+        gridSize: N,
+        currentDrawingAxis: "y",
+        activeDrawingLevel: { x: 0, y: 0, z: 0 },
+        voxels,
+        creator: "Christian Heinrich Hohlfeld",
+        source: (currentFileName ? (currentFileName + ".stl") : "STL Import"),
+        conversionDate: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(project)], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const name = `${currentFileName || 'model'}_${N}x${N}x${N}.json`;
+      const a = Object.assign(document.createElement('a'), { href:url, download:name });
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      ui.toast('success','Project saved', name, 2200);
+    });
+  </script>
+</body>
+</html>
