@@ -1,0 +1,2520 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- V50.1: Titel für Finale-Metadaten-Fix (Behebt HTML-ID-Konflikt) aktualisiert -->
+    <title>Aligniertes $O(m)$ RNN (C. Hohlfeld) [V50.1 Finale-Metadaten-Fix]</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // V37.4 FIX: Tailwind Konfiguration hinzugefügt, um dynamische Klassen zu ermöglichen
+        tailwind.config = {
+          theme:{extend:{colors:{'phenom-blue':'#0ea5e9'}}},
+          safelist:[
+            'text-yellow-600','text-green-600',
+            'border-yellow-600','border-green-600',
+            'bg-phenom-blue','hover:bg-phenom-blue/90',
+            'focus:ring-phenom-blue','focus:border-phenom-blue'
+          ]
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+
+        .code-block {
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.875rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        .card {
+            background-color: #fff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+        }
+
+        @keyframes pulse-green {
+            0% { border-color: #34d399; }
+            50% { border-color: #065f46; }
+            100% { border-color: #34d399; }
+        }
+        #model-status-card.border-green-600 { animation: pulse-green 1.5s infinite; }
+
+        @keyframes pulse-yellow {
+            0% { border-color: #f59e0b; }
+            50% { border-color: #78350f; }
+            100% { border-color: #f59e0b; }
+        }
+        #model-status-card.border-yellow-600 { animation: pulse-yellow 2s infinite; }
+
+
+        .phenom-marker {
+            color: #d97706;
+            font-weight: bold;
+        }
+        
+        #autosave-prompt {
+            /* V37.4: Hohe Z-Index Priorität + weiche Transitions */
+            z-index: 50; 
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        
+        #training-log p {
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+            display: flex;
+            align-items: flex-start;
+        }
+        #training-log p span:first-child {
+            display: inline-block;
+            width: 1.5rem;
+            flex-shrink: 0;
+            padding-top: 0.125rem;
+        }
+    </style>
+
+    <script>
+        // --- GLOBALE VARIABLEN (MAIN-THREAD "KONSISTENTER ZUSTAND") ---
+        
+        // --- SYSTEM 1: INTUITION (O(m) RNN - Statistische Muster) ---
+        let PHO_VOCAB = new Map();
+        let WORD_VOCAB = new Map();
+        let PHO_EMBEDDING_MATRIX = [];
+        let WORD_EMBEDDING_MATRIX = [];
+        let POSITIONAL_ENCODING_MATRIX = []; 
+        let H_long_state = [];
+        let trainingSentences = []; // V12.0: Wird jetzt mit dem Modell gespeichert
+        let trainingPhenomMap = new Map(); // V12.0: Wird jetzt mit dem Modell gespeichert
+        
+        // V37.1: SYSTEM 2 (Intellekt) entfernt, da es ein statischer Hack war.
+
+        // --- Training-Worker & Status-Variablen ---
+        // V23.0: Dual-Worker-System
+        let trainingWorker = null; // Worker 1: Verarbeitet Gradienten (TRAIN_STEP)
+        let discoveryWorker = null; // Worker 2: Verarbeitet Vorverarbeitung (PROCESS_NEW_TEXT)
+        
+        let isTrainingPaused = false; 
+        let isDiscovering = false; // V23.0: Sperre für den Discovery-Worker
+        let totalUpdates = 0;
+        let smoothedLoss = 0.0; // V31.0: Geglätteter Verlust für die Anzeige
+        
+        // V15.0: Priorisiertes Lernsystem
+        let priorityTrainingBuffer = []; // Speichert *Indizes* neuer Sätze für fokussiertes Training
+        let recentPrompts = []; // Speichert letzte N Benutzereingaben für kontextuelle 'Innere Gedanken'
+        const MAX_RECENT_PROMPTS = 5;
+
+        const AUTOSAVE_THRESHOLD = 10000; 
+        let nextAutosaveMilestone = AUTOSAVE_THRESHOLD;
+
+        // --- Hyperparameter (Für Inferenz & Worker-Erstellung) ---
+        const D_MODEL = 64;
+        const CONTEXT_WINDOW_SIZE = 6;
+        const GENERATION_LENGTH = 17;
+        const MAX_PHONEME_LEN = 64;
+        const TOP_K = 5;
+        const LEARNING_RATE = 0.05; // V45.0 FIX: Lernrate für schnelleres Konvergieren erhöht
+        const K_NEGATIVES = 10;
+        const LAMBDA_SHORT = 0.7;
+        const LAMBDA_LONG = 0.3;
+        const EMA_ALPHA = 0.4; // V45.0 FIX: EMA-Alpha (Memory Volatility) für schnellere H_long-Updates erhöht
+        const SMOOTHING_ALPHA = 0.01; // V31.0: Alpha für die Verlustglättung
+
+        // --- G2P KONSTANTEN (Für Inferenz & Worker-Erstellung) ---
+        // V26.0: Veraltet. Ersetzt durch regelbasierte Engine g2pConvert_wordToPhonemes()
+        
+        // V21.0: Autonomes Lernen (Gezielt + Ungezielt)
+        // V33.0: Erweitert um RSS-Feeds für "aktuelles" und "massive text"
+        let AUTONOMOUS_LEARNING_STATE = {
+            isEnabled: false,
+            intervalId: null,
+            isFetching: false, // Globale Fetch-Sperre
+            // V34.0: Umgestellt auf MediaWiki API (action=query)
+            WIKI_API_ENDPOINT: "https://de.wikipedia.org/w/api.php", // V34.0: Neuer API-Endpunkt
+            // V33.0: RSS-FEEDS für ungerichtete Neugier (Nachrichten)
+            RSS_FEEDS: [
+                "https://www.tagesschau.de/xml/rss2/",
+                "https://www.spiegel.de/schlagzeilen/tops/index.rss",
+                "http://newsfeed.zeit.de/all"
+            ],
+            RSS2JSON_API_URL: "https://api.rss2json.com/v1/api.json?rss_url=",
+            FETCH_INTERVAL: 5000 // V31.2: Aggressiverer "Herzschlag" (5 Sek.)
+        };
+
+        // V42.0: Globale Liste der zu erforschenden Konzepte
+        let SELF_CONCEPTS = new Set();
+
+
+        // V37.3 FIX: IGNORE_LIST als globale Konstante für Query-Hygiene.
+        // V39.1: Substantiv-Endungen zur Unterscheidung von Verben/Füllwörtern
+        const NOUN_SUFFIXES = new Set(['ung', 'keit', 'heit', 'schaft', 'ion', 'e', 'er', 'en', 'es', 's']);
+        // V40.0: Zusätzliche Verben/Adverbien zur IGNORE_LIST hinzugefügt, um Such-Loops zu stoppen
+        const IGNORE_LIST = new Set([
+            'der', 'die', 'das', 'ein', 'eine', 'einer', 'eines', 'einem', 'einen',
+            'er', 'sie', 'es', 'ich', 'du', 'wir', 'ihr', 'sie',
+            'und', 'oder', 'aber', 'als', 'wenn', 'weil',
+            'ist', 'sind', 'war', 'waren', 'wird', 'werden', 'wurde',
+            'mit', 'von', 'zu', 'an', 'auf', 'in', 'für', 'um',
+            'was', 'wer', 'wie', 'wo', 'wann', 'warum',
+            'nicht', 'auch', 'noch', 'schon',
+            'sich', 'mich', 'dich', 'uns', 'euch', 'mir', 'dir',
+            'habe', 'hast', 'hat', 'bin', 'bist', 'sein', 'ihre', 'seine',
+            // Häufige Verben/Adverbien aus Logs:
+            'geht', 'lerns', 'lernst', 'meinst', 'rede', 'redest', 'versteh', 'wirs', 'willst', 'macht', 'machst', 'wmmm', 'wovon', 'kannst', 'kann', 'beantworte', 'antworten', 'bezweifle', 'bezweifl', 'bezweif', 'wovon'
+        ]);
+
+
+        // --- 1. MATHEMATISCHE HILFSFUNKTIONEN (Für INFERENZ & WORKER) ---
+
+        function dotProduct(v1, v2) {
+            let sum = 0;
+            const len = Math.min(v1.length, v2.length);
+            for (let i = 0; i < len; i++) { sum += (v1[i] || 0) * (v2[i] || 0); }
+            return sum;
+        }
+
+        function addVectors(v1, v2) {
+            if (!v1 || v1.length === 0) return (v2 && v2.length > 0) ? [...v2] : Array(D_MODEL).fill(0);
+            if (!v2 || v2.length === 0) return [...v1];
+            return v1.map((val, i) => val + (v2[i] || 0));
+        }
+        
+        function subtractVectors(v1, v2) {
+            if (!v1 || v1.length === 0) return Array(D_MODEL).fill(0);
+            if (!v2 || v2.length === 0) return [...v1];
+            return v1.map((val, i) => val - (v2[i] || 0));
+        }
+
+        function multiplyVectors(v1, v2) {
+            if (!v1 || !v2 || v1.length === 0 || v2.length === 0) return Array(D_MODEL).fill(0);
+            const len = Math.min(v1.length, v2.length);
+            let result = Array(len);
+            for (let i = 0; i < len; i++) { result[i] = (v1[i] || 0) * (v2[i] || 0); }
+            return result;
+        }
+
+        function scaleVector(v, scalar) { 
+            if (!v) return Array(D_MODEL).fill(0);
+            return v.map(val => val * scalar); 
+        }
+
+        function layerNorm(x) {
+            if (!x || x.length === 0) return Array(D_MODEL).fill(0);
+            const mean = x.reduce((a, b) => a + b, 0) / x.length;
+            const variance = x.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / x.length;
+            const stdDev = Math.sqrt(variance + 1e-5);
+            if (stdDev === 0) return Array(x.length).fill(0);
+            return x.map(val => (val - mean) / stdDev);
+        }
+
+        function softmax(logits) {
+            if (!logits || logits.length === 0) return [];
+            const maxLogit = Math.max(...logits);
+            const exps = logits.map(l => Math.exp(l - maxLogit));
+            const sumExps = exps.reduce((a, b) => a + b, 0);
+            return exps.map(e => e / (sumExps + 1e-9));
+        }
+        
+        function initNewVector(cols = D_MODEL) {
+            // Xavier/Glorot-Initialisierung
+            const limit = Math.sqrt(6.0 / (1 + cols)); 
+            return Array(cols).fill(0).map(() => (Math.random() * 2 - 1) * limit);
+        }
+        
+        // V33.0: Hilfsfunktion zum Bereinigen von HTML aus RSS-Beschreibungen
+        function stripHtml(html) {
+            if (!html) return "";
+            // Einfache, aber effektive Regex, um HTML-Tags zu entfernen
+            let doc = new DOMParser().parseFromString(html, 'text/html');
+            return doc.body.textContent || "";
+        }
+
+        
+        // --- V14.0: NEUER UI-LOGGER ---
+        /**
+         * Loggt eine formatierte Nachricht an das #training-log UI-Element.
+         * @param {string} message Der zu loggende Text.
+         * @param {string} type 'info', 'train', 'thought', 'brain', 'system', 'save', 'load', 'error'
+         */
+        function logToUI(message, type = 'info') {
+            const logEl = document.getElementById('training-log');
+            if (!logEl) return;
+
+            const p = document.createElement('p');
+            let icon = 'ℹ️';
+            let colorClass = 'text-gray-700';
+
+            switch (type) {
+                case 'train':
+                    icon = '⚙️';
+                    colorClass = 'text-green-700';
+                    break;
+                case 'thought':
+                    icon = '💡';
+                    colorClass = 'text-purple-600';
+                    break;
+                case 'brain':
+                    icon = '🧠';
+                    colorClass = 'text-pink-600';
+                    break;
+                case 'system':
+                    icon = '🖥️';
+                    colorClass = 'text-gray-500';
+                    break;
+                case 'save':
+                    icon = '💾';
+                    colorClass = 'text-blue-600';
+                    break;
+                case 'load':
+                    icon = '📥';
+                    colorClass = 'text-blue-700';
+                    break;
+                case 'info':
+                    icon = '💬'; // V36.1: Geändert für Raw-Prompt
+                    colorClass = 'text-blue-600';
+                    break;
+                case 'error':
+                    icon = '❌';
+                    colorClass = 'text-red-600 font-bold';
+                    break;
+            }
+
+            p.className = colorClass;
+            p.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            logEl.appendChild(p);
+
+            // Auto-Scroll nach unten
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // --- PhO-COMPRESS INTEGRATION (V46.0) ---
+        class PhOCompressEncoder {
+            constructor() {
+                this.linguisticBudget = 0.08; // V45.0 FIX: Weniger aggressiv
+                this.visualBudget = 0.05;      // V45.0 FIX: Weniger aggressiv
+                this.compressionStats = { stage1: 0, stage2: 0, total: 0 };
+            }
+            
+            // Stage I: S-sufficient phonetic reduction (Your core innovation)
+            encodeLinguistic(ipaTokens) {
+                const originalLength = ipaTokens.length;
+                
+                // Apply S-sufficiency: Remove redundant phonemes while preserving semantics
+                const compressed = ipaTokens.filter((token, index) => {
+                    const semanticWeight = this.calculateSemanticWeight(token, index, ipaTokens);
+                    return semanticWeight > this.linguisticBudget;
+                });
+                
+                this.compressionStats.stage1 = originalLength / Math.max(compressed.length, 1);
+                logToUI(`🔊 [PhO-Stage1] ${originalLength} → ${compressed.length} Phoneme (C_L: ${this.compressionStats.stage1.toFixed(2)}x)`, 'system');
+                
+                return compressed;
+            }
+            
+            // Stage II: Simulated optical encoding (Browser-scale)
+            encodeOptical(phonemeTokens) {
+                const stage1Length = phonemeTokens.length;
+                
+                // V45.0 FIX: TEMPORARILY DISABLED for aggressive word preservation/growth
+                const compressed = phonemeTokens; // No compression
+                
+                this.compressionStats.stage2 = 1.0;
+                this.compressionStats.total = this.compressionStats.stage1;
+                
+                logToUI(`👁️ [PhO-Stage2] ${stage1Length} → ${compressed.length} Tokens (C_V: 1.00x - DISABLED)`, 'system');
+                logToUI(`🚀 [PhO-Total] Multiplicative Compression: C_Total = ${this.compressionStats.total.toFixed(2)}x`, 'brain');
+                
+                return compressed;
+            }
+            
+            calculateSemanticWeight(token, index, context) {
+                // Your PhO-Compress insight: Stressed vowels carry more semantic weight
+                if (token.includes('ˈ')) return 0.8; // Stressed syllables
+                if ('aeiouäöüɛøyaɪɔʏi:'.includes(token.charAt(0))) return 0.6; // Vowels
+                if (index === 0 || index === context.length - 1) return 0.5; // Position importance
+                return 0.3; // Consonants and other
+            }
+        }
+        // Initialize PhO-Compress
+        const phoCompress = new PhOCompressEncoder();
+
+
+        // --- 3. KERNARCHITEKTUR (Für INFERENZ im Main-Thread) ---
+        // --- SYSTEM 1: O(m) RNN (Intuition) ---
+
+        function getMultiplicativeCBOPState(phenomTokenIndices, posMatrix, phoMatrix) {
+            let H_state = Array(D_MODEL).fill(0);
+            let tokenCount = 0;
+            const indicesToProcess = phenomTokenIndices.slice(0, MAX_PHONEME_LEN);
+
+            for (let pos = 0; pos < indicesToProcess.length; pos++) {
+                const index = indicesToProcess[pos];
+                if (index !== undefined && index < phoMatrix.length && pos < posMatrix.length) {
+                    const pho_vec = phoMatrix[index];
+                    const pos_vec = posMatrix[pos];
+                    
+                    if (pho_vec && pos_vec) { 
+                        const combined_vec = multiplyVectors(pho_vec, pos_vec);
+                        H_state = addVectors(H_state, combined_vec);
+                        tokenCount++;
+                    }
+                }
+            }
+            if (tokenCount > 0) return layerNorm(H_state);
+            return null;
+        }
+
+        function getRecursiveState(H_short, H_long) {
+            if (!H_short && !H_long) return null;
+            if (!H_short || H_short.length === 0) return H_long;
+            if (!H_long || H_long.length === 0) return H_short;
+            const scaled_short = scaleVector(H_short, LAMBDA_SHORT);
+            const scaled_long = scaleVector(H_long, LAMBDA_LONG);
+            return layerNorm(addVectors(scaled_short, scaled_long));
+        }
+
+        function updateLongTermMemory(H_long_global, H_short_last) {
+            if (!H_short_last) return H_long_global;
+            if (!H_long_global || H_long_global.length === 0) return H_short_last;
+            // Exponential Moving Average (EMA) Update
+            const scaled_long = scaleVector(H_long_global, 1.0 - EMA_ALPHA);
+            const scaled_short = scaleVector(H_long_global, EMA_ALPHA);
+            return layerNorm(addVectors(scaled_long, scaled_short));
+        }
+
+
+        // --- 4. PHONEM-KOMPRESSION (Für INFERENZ im Main-Thread) ---
+        
+        // V26.0: Neue G2P-Hilfsfunktion
+        function isVowel(char) {
+            if (char === undefined) return false;
+            return 'aeiouäöü'.includes(char.toLowerCase());
+        }
+
+        // V37.2: GEPATCHTE ('c'-Regel ENTFERNT für V30-Kompatibilität) deutsche G2P-Engine
+        function g2pConvert_wordToPhonemes(word) {
+            let phonemes = [];
+            let i = 0;
+            word = word.toLowerCase();
+
+            // 1) Initial st/sp
+            if (word.startsWith('st')) { phonemes.push('ʃt'); i = 2; }
+            else if (word.startsWith('sp')) { phonemes.push('ʃp'); i = 2; }
+
+            while (i < word.length) {
+                const char = word[i];
+                const next = word[i + 1];
+                const next2 = word[i + 2];
+                const prev = word[i - 1];
+                const prev2 = word[i - 2];
+
+                // 2) 3-char
+                if (char === 's' && next === 'c' && next2 === 'h') { phonemes.push('ʃ'); i += 3; continue; }
+
+                // 3) 2-char
+                if ((char === 'e' && next === 'i') || (char === 'a' && next === 'i') || (char === 'e' && next === 'y') || (char === 'a' && next === 'y')) { phonemes.push('aɪ'); i += 2; continue; }
+                if ((char === 'e' && next === 'u') || (char === 'ä' && next === 'u')) { phonemes.push('ɔʏ'); i += 2; continue; }
+                if (char === 'i' && next === 'e') { phonemes.push('i:'); i += 2; continue; }
+                if (char === 'c' && next === 'h') {
+                    // ich/ach-Laut: ach after a/o/u or 'au', otherwise ich
+                    // V29.1 FIX: 'i === 0' entfernt, korrekte Logik für prev/prev2
+                    const achEnv = (prev === 'a' || prev === 'o' || prev === 'u' || (prev === 'u' && prev2 === 'a'));
+                    phonemes.push(achEnv ? 'x' : 'ç');
+                    i += 2; continue;
+                }
+                if (char === 'p' && next === 'f') { phonemes.push('pf'); i += 2; continue; }
+                if (char === 'q' && next === 'u') { phonemes.push('kv'); i += 2; continue; }
+                if (char === 's' && next === 't' && i > 0) { phonemes.push('st'); i += 2; continue; }
+                if (char === 's' && next === 'p' && i > 0) { phonemes.push('sp'); i += 2; continue; }
+
+                // 4) Contextual single-char
+                if (char === 'g' && (i === word.length - 1 || !isVowel(next))) { phonemes.push('k'); i++; continue; }
+                if (char === 'd' && (i === word.length - 1 || !isVowel(next))) { phonemes.push('t'); i++; continue; }
+                if (char === 'b' && (i === word.length - 1 || !isVowel(next))) { phonemes.push('p'); i++; continue; }
+                if (char === 's' && isVowel(next)) { phonemes.push('z'); i++; continue; }
+
+                // 5) Simple map
+                switch (char) {
+                    case 'ä': phonemes.push('ɛ'); break;
+                    case 'ö': phonemes.push('ø'); break;
+                    case 'ü': phonemes.push('y'); break;
+                    case 'a': phonemes.push('a'); break;
+                    case 'e': phonemes.push('ə'); break;
+                    case 'i': phonemes.push('ɪ'); break;
+                    case 'o': phonemes.push('ɔ'); break;
+                    case 'u': phonemes.push('ʊ'); break;
+                    case 'b': phonemes.push('b'); break;
+                    // case 'c': phonemes.push('k'); // V37.2: ENTFERNT, um Kompatibilität mit geladenem Modell V30.x wiederherzustellen
+                    case 'd': phonemes.push('d'); break;
+                    case 'f': phonemes.push('f'); break;
+                    case 'v': phonemes.push('f'); break;
+                    case 'g': phonemes.push('g'); break;
+                    case 'h': phonemes.push('h'); break;
+                    case 'j': phonemes.push('j'); break;
+                    case 'k': phonemes.push('k'); break;
+                    case 'l': phonemes.push('l'); break;
+                    case 'm': phonemes.push('m'); break;
+                    case 'n': phonemes.push('n'); break;
+                    case 'p': phonemes.push('p'); break;
+                    case 'r': phonemes.push('r'); break;
+                    case 's': phonemes.push('s'); break;
+                    case 'ß': phonemes.push('s'); break;
+                    case 't': phonemes.push('t'); break;
+                    case 'w': phonemes.push('v'); break;
+                    case 'x': phonemes.push('ks'); break;
+                    case 'z': phonemes.push('ts'); break;
+                }
+                i++;
+            }
+            return phonemes;
+        }
+
+        // V29.1: GEPATCHTE g2pConvert (behebt Umlaut-Tokenisierungsfehler)
+        function g2pConvert(text) {
+            // V29.1 FIX: Regex \b\w+\b durch eine ersetzt, die Umlaute korrekt behandelt
+            const words = (text || '').toLowerCase().match(/[a-zäöüß]+/g) || [];
+            let ipaResult = [];
+            for (const word of words) {
+                const phonemes = g2pConvert_wordToPhonemes(word);
+                if (phonemes.length > 0) {
+                    let stressed = false;
+                    let ipaWord = "";
+                    const VOWELS = "aeiouäöüɛøyaɪɔʏi:";
+                    for (const p of phonemes) {
+                        if (!stressed && VOWELS.includes(p.charAt(0))) { ipaWord += 'ˈ' + p; stressed = true; }
+                        else { ipaWord += p; }
+                    }
+                    if (!stressed && ipaWord.length > 0) ipaWord = 'ˈ' + ipaWord;
+                    ipaResult.push(ipaWord);
+                }
+            }
+            return ipaResult.join(' ');
+        }
+
+
+        function phenomEncode(ipaSequence) {
+            // Diese Funktion bleibt gleich, sie teilt nur nach Leerzeichen
+            const ipaTokens = ipaSequence.split(/\s+/).filter(t => t.length > 0);
+            return ipaTokens;
+        }
+
+
+        // --- 5. IN-LINE WORKER-ERSTELLUNG (NATIVES JS-TRAINING) ---
+
+        // V44.1 FIX: Definition außerhalb von window.onload verschoben
+        function createDiscoveryWorker() {
+            const workerCode = `
+                // --- Worker-Globale Variablen ---
+                let PHO_VOCAB_WORKER = new Map();
+                let WORD_VOCAB_WORKER = new Map();
+                let WORD_TO_PHENOM_MAP_WORKER = new Map(); 
+
+                let NEW_PHONEMES = new Set();
+                let NEW_WORDS = new Set();
+                
+                // V37.1: S2 (Fakten-Extraktion) entfernt
+                // let POTENTIAL_FACTS = [];
+                // const FACT_REGEX_SPO = [ ... ];
+                // const IGNORE_LIST = new Set([ ... ]);
+
+
+                // --- Hyperparameter (Vom Main-Thread gespiegelt) ---
+                const CONTEXT_WINDOW_SIZE = ${CONTEXT_WINDOW_SIZE};
+                // V26.3: FIX - Verwaiste Referenzen entfernt, die den ReferenceError verursacht haben
+                
+
+                // --- 4. PHONEM-KOMPRESSION (Natives JS) ---
+                
+                // V26.0: Neue G2P-Hilfsfunktion im Worker
+                function isVowel(char) {
+                    if (char === undefined) return false;
+                    return 'aeiouäöü'.includes(char.toLowerCase());
+                }
+
+                // V37.2: GEPATCHTE ('c'-Regel ENTFERNT für V30-Kompatibilität) deutsche G2P-Engine im Worker
+                function g2pConvert_wordToPhonemes(word) {
+                    let phonemes = [];
+                    let i = 0;
+                    word = word.toLowerCase();
+
+                    // 1) Initial st/sp
+                    if (word.startsWith('st')) { phonemes.push('ʃt'); i = 2; }
+                    else if (word.startsWith('sp')) { phonemes.push('ʃp'); i = 2; }
+
+                    while (i < word.length) {
+                        const char = word[i];
+                        const next = word[i + 1];
+                        const next2 = word[i + 2];
+                        const prev = word[i - 1];
+                        const prev2 = word[i - 2];
+
+                        // 2) 3-char
+                        if (char === 's' && next === 'c' && next2 === 'h') { phonemes.push('ʃ'); i += 3; continue; }
+
+                        // 3) 2-char
+                        if ((char === 'e' && next === 'i') || (char === 'a' && next === 'i') || (char === 'e' && next === 'y') || (char === 'a' && next === 'y')) { phonemes.push('aɪ'); i += 2; continue; }
+                        if ((char === 'e' && next === 'u') || (char === 'ä' && next === 'u')) { phonemes.push('ɔʏ'); i += 2; continue; }
+                        if (char === 'i' && next === 'e') { phonemes.push('i:'); i += 2; continue; }
+                        if (char === 'c' && next === 'h') {
+                            // ich/ach-Laut: ach after a/o/u or 'au', otherwise ich
+                            // V29.1 FIX: 'i === 0' entfernt, korrekte Logik für prev/prev2
+                            const achEnv = (prev === 'a' || prev === 'o' || prev === 'u' || (prev === 'u' && prev2 === 'a'));
+                            phonemes.push(achEnv ? 'x' : 'ç');
+                            i += 2; continue;
+                        }
+                        if (char === 'p' && next === 'f') { phonemes.push('pf'); i += 2; continue; }
+                        if (char === 'q' && next === 'u') { phonemes.push('kv'); i += 2; continue; }
+                        if (char === 's' && next === 't' && i > 0) { phonemes.push('st'); i += 2; continue; }
+                        if (char === 's' && next === 'p' && i > 0) { phonemes.push('sp'); i += 2; continue; }
+
+                        // 4) Contextual single-char
+                        if (char === 'g' && (i === word.length - 1 || !isVowel(next))) { phonemes.push('k'); i++; continue; }
+                        if (char === 'd' && (i === word.length - 1 || !isVowel(next))) { phonemes.push('t'); i++; continue; }
+                        if (char === 'b' && (i === word.length - 1 || !isVowel(next))) { phonemes.push('p'); i++; continue; }
+                        if (char === 's' && isVowel(next)) { phonemes.push('z'); i++; continue; }
+
+                        // 5) Simple map
+                        switch (char) {
+                            case 'ä': phonemes.push('ɛ'); break;
+                            case 'ö': phonemes.push('ø'); break;
+                            case 'ü': phonemes.push('y'); break;
+                            case 'a': phonemes.push('a'); break;
+                            case 'e': phonemes.push('ə'); break;
+                            case 'i': phonemes.push('ɪ'); break;
+                            case 'o': phonemes.push('ɔ'); break;
+                            case 'u': phonemes.push('ʊ'); break;
+                            case 'b': phonemes.push('b'); break;
+                            // case 'c': phonemes.push('k'); // V37.2: ENTFERNT, um Kompatibilität mit geladenem Modell V30.x wiederherzustellen
+                            case 'd': phonemes.push('d'); break;
+                            case 'f': phonemes.push('f'); break;
+                            case 'v': phonemes.push('f'); break;
+                            case 'g': phonemes.push('g'); break;
+                            case 'h': phonemes.push('h'); break;
+                            case 'j': phonemes.push('j'); break;
+                            case 'k': phonemes.push('k'); break;
+                            case 'l': phonemes.push('l'); break;
+                            case 'm': phonemes.push('m'); break;
+                            case 'n': phonemes.push('n'); break;
+                            case 'p': phonemes.push('p'); break;
+                            case 'r': phonemes.push('r'); break;
+                            case 's': phonemes.push('s'); break;
+                            case 'ß': phonemes.push('s'); break;
+                            case 't': phonemes.push('t'); break;
+                            case 'w': phonemes.push('v'); break;
+                            case 'x': phonemes.push('ks'); break;
+                            case 'z': phonemes.push('ts'); break;
+                        }
+                        i++;
+                    }
+                    return phonemes;
+                }
+
+                // V29.1: GEPATCHTE g2pConvert im Worker (behebt Umlaut-Tokenisierungsfehler)
+                function g2pConvert(text) {
+                    // V29.1 FIX: Regex \b\w+\b durch eine ersetzt, die Umlaute korrekt behandelt
+                    const words = (text || '').toLowerCase().match(/[a-zäöüß]+/g) || [];
+                    let ipaResult = [];
+                    for (const word of words) {
+                        const phonemes = g2pConvert_wordToPhonemes(word);
+                        if (phonemes.length > 0) {
+                            let stressed = false;
+                            let ipaWord = "";
+                            const VOWELS = "aeiouäöüɛøyaɪɔʏi:";
+                            for (const p of phonemes) {
+                                if (!stressed && VOWELS.includes(p.charAt(0))) { ipaWord += 'ˈ' + p; stressed = true; }
+                                else { ipaWord += p; }
+                            }
+                            if (!stressed && ipaWord.length > 0) ipaWord = 'ˈ' + ipaWord;
+                            ipaResult.push(ipaWord);
+                        }
+                    }
+                    return ipaResult.join(' ');
+                }
+
+                function phenomEncode(ipaSequence) {
+                    const ipaTokens = ipaSequence.split(/\\s+/).filter(t => t.length > 0);
+                    return ipaTokens;
+                }
+
+                // --- PhO-Compress Core Funktionalität in Worker kopiert (für Injection)
+                const LINGUISTIC_BUDGET = 0.08;
+                const VISUAL_BUDGET = 0.05;
+
+                function calculateSemanticWeight(token, index, context) {
+                    if (token.includes('ˈ')) return 0.8; 
+                    if ('aeiouäöüɛøyaɪɔʏi:'.includes(token.charAt(0))) return 0.6;
+                    if (index === 0 || index === context.length - 1) return 0.5;
+                    return 0.3; 
+                }
+
+                function encodeLinguistic(ipaTokens) {
+                    return ipaTokens.filter((token, index) => {
+                        return calculateSemanticWeight(token, index, ipaTokens) > LINGUISTIC_BUDGET;
+                    });
+                }
+                
+                function encodeOptical(phonemeTokens) {
+                    // V45.0 FIX: Stage II TEMPORARILY DISABLED
+                    return phonemeTokens;
+                }
+                // --- Ende PhO-Compress Core ---
+
+                // --- 5. VORVERARBEITUNG (Natives JS) ---
+                function getOrAddVocab(token, vocabMap, isNewSet) {
+                    let index = vocabMap.get(token);
+                    if (index === undefined) {
+                        index = vocabMap.size; 
+                        vocabMap.set(token, index);
+                        isNewSet.add(token); 
+                    } 
+                    return index;
+                }
+                
+                // V37.1: S2 (Fakten-Extraktion) entfernt
+                // function extractFactsFromSentence(sentence) { ... }
+                
+                function preprocessAndCacheCorpus(sentences) {
+                    let new_tokenized_sentences_as_strings = []; 
+                    const g2p_string_cache = new Map();
+
+                    for (const sentence of sentences) {
+                        const trimmed_sentence = sentence.trim();
+                        if (trimmed_sentence.length === 0) continue;
+                        
+                        // V37.1: S2 (Fakten-Extraktion) entfernt
+                        // extractFactsFromSentence(trimmed_sentence);
+                        
+                        // V29.1 FIX: Regex \b\w+\b durch eine ersetzt, die Umlaute korrekt behandelt
+                        const words = trimmed_sentence.match(/[a-zäöüß]+/g) || [];
+                        
+                        for (const word of words) {
+                            getOrAddVocab(word, WORD_VOCAB_WORKER, NEW_WORDS); 
+                            
+                            if (!g2p_string_cache.has(word)) {
+                                const ipa = g2pConvert(word); 
+                                const phenomTokens = phenomEncode(ipa);
+                                g2p_string_cache.set(word, phenomTokens);
+                                for (const token of phenomTokens) {
+                                    getOrAddVocab(token, PHO_VOCAB_WORKER, NEW_PHONEMES); 
+                                }
+                            }
+                        }
+                    
+                        let sentence_word_indices = [];
+                        for (const word of words) {
+                            const word_idx = WORD_VOCAB_WORKER.get(word);
+                            sentence_word_indices.push(word_idx);
+                            
+                            if (!WORD_TO_PHENOM_MAP_WORKER.has(word)) {
+                                const phenomTokens = g2p_string_cache.get(word);
+                                let phenom_indices_for_word = [];
+                                for (const token of phenomTokens) {
+                                    phenom_indices_for_word.push(PHO_VOCAB_WORKER.get(token));
+                                }
+                                WORD_TO_PHENOM_MAP_WORKER.set(word, phenom_indices_for_word.join(' '));
+                            }
+                        }
+                        
+                        if(sentence_word_indices.length > CONTEXT_WINDOW_SIZE) {
+                            // V46.0: PhO-Compress TRAININGS INJECTION
+                            
+                            // 1. Unkomprimierte Phonemsequenz für diesen Satz sammeln
+                            let raw_phoneme_sequence = [];
+                            for(const word of words) {
+                                const phonemes = g2p_string_cache.get(word);
+                                raw_phoneme_sequence.push(...phonemes);
+                            }
+                            
+                            // 2. Komprimierung anwenden (S-sufficient + Optical)
+                            const compressedPhonemes = encodeOptical(encodeLinguistic(raw_phoneme_sequence));
+                            
+                            // 3. Komprimierte Phoneme in Indizes konvertieren
+                            let compressed_indices = [];
+                            for(const token of compressedPhonemes) {
+                                compressed_indices.push(PHO_VOCAB_WORKER.get(token));
+                            }
+
+                            // 4. Den komprimierten Index-Satz zum Training hinzufügen
+                            if (compressed_indices.length > 0) {
+                                // V44.0 FIX: Korrigiert, um die richtige Variable zu verwenden
+                                new_tokenized_sentences_as_strings.push(compressed_indices.join(' '));
+                            }
+                        }
+                    }
+                    return new_tokenized_sentences_as_strings;
+                }
+
+                // V30.0: Timing-Fix
+                function runPreprocessing(newText, _startTime, phoVocabObj, wordVocabObj) {
+                    const t0 = performance.now(); // V30.0 FIX: Zeitmessung im Worker starten
+                    
+                    PHO_VOCAB_WORKER = new Map(Object.entries(phoVocabObj));
+                    WORD_VOCAB_WORKER = new Map(Object.entries(wordVocabObj));
+                    NEW_PHONEMES.clear();
+                    NEW_WORDS.clear();
+                    WORD_TO_PHENOM_MAP_WORKER.clear(); 
+                    // V37.1: S2 (Fakten-Extraktion) entfernt
+                    // POTENTIAL_FACTS = []; 
+                    
+                    const sentences = newText.split(/[\.!\?]\s+/); 
+                    if (sentences.length === 0) { 
+                        return { type: 'ERROR', data: 'Keine gültigen Sätze im neuen Text.' }; 
+                    }
+
+                    postMessage({ type: 'PROGRESS', data: 'Discovery-Worker: Verarbeite (Vokabular)...' }); // V37.1: Text angepasst
+
+                    const new_tokenized_sentences_as_strings = preprocessAndCacheCorpus(sentences);
+                    
+                    if (new_tokenized_sentences_as_strings.length === 0) { 
+                        return { type: 'ERROR', data: \`Neuer Text enthält keine Sätze > \${CONTEXT_WINDOW_SIZE} Wörter.\` }; 
+                    }
+                    
+                    // V30.0 FIX: Korrekte Dauerberechnung
+                    const duration = ((performance.now() - t0) / 1000).toFixed(2);
+                    
+                    const serializablePhenomMap = Object.fromEntries(WORD_TO_PHENOM_MAP_WORKER);
+
+                    return { 
+                        type: 'PREPROCESSING_DONE', 
+                        data: {
+                            duration: duration,
+                            new_tokens: {
+                                new_phonemes: Array.from(NEW_PHONEMES),
+                                new_words: Array.from(NEW_WORDS)
+                            },
+                            new_tokenized_sentences_as_strings: new_tokenized_sentences_as_strings, 
+                            new_word_to_phenom_map_as_strings: serializablePhenomMap
+                            // V37.1: S2 (Fakten-Extraktion) entfernt
+                            // potential_facts: POTENTIAL_FACTS
+                        } 
+                    };
+                }
+
+                // --- Worker Event-Listener ---
+                self.onmessage = function(e) {
+                    if (e.data.type === 'PROCESS_NEW_TEXT') {
+                        postMessage({ type: 'PROGRESS', data: 'Discovery-Worker: Text empfangen. Starte...' });
+                        const { newText, startTime, phoVocab, wordVocab, isAutonomous } = e.data;
+                        
+                        const resultPayload = runPreprocessing(newText, startTime, phoVocab, wordVocab);
+                        
+                        postMessage({ ...resultPayload, isAutonomous: isAutonomous });
+                    }
+                };
+            `; 
+            try {
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(blob);
+                return new Worker(workerUrl);
+            } catch (error) {
+                console.error("Training-Worker Erstellung fehlgeschlagen:", error);
+                logToUI("FEHLER: Training-Worker konnte nicht erstellt werden.", 'error'); 
+                return null;
+            }
+        }
+
+
+        // V44.1 FIX: Definition außerhalb von window.onload verschoben
+        function createTrainingWorker() {
+            const workerCode = `
+                // --- Hyperparameter (Vom Main-Thread gespiegelt) ---
+                const D_MODEL = ${D_MODEL};
+                const MAX_PHONEME_LEN = ${MAX_PHONEME_LEN};
+                const LAMBDA_SHORT = ${LAMBDA_SHORT};
+                const LAMBDA_LONG = ${LAMBDA_LONG};
+                const EMA_ALPHA = ${EMA_ALPHA};
+                
+                // --- 1. MATHEMATISCHE HILFSFUNKTIONEN (Natives JS) ---
+                
+                function dotProduct(v1, v2) {
+                    let sum = 0; const len = Math.min(v1.length, v2.length);
+                    for (let i = 0; i < len; i++) { sum += (v1[i] || 0) * (v2[i] || 0); }
+                    return sum;
+                }
+                function addVectors(v1, v2) {
+                    if (!v1 || v1.length === 0) return (v2 && v2.length > 0) ? [...v2] : Array(D_MODEL).fill(0);
+                    if (!v2 || v2.length === 0) return [...v1];
+                    return v1.map((val, i) => val + (v2[i] || 0));
+                }
+                function subtractVectors(v1, v2) {
+                    if (!v1 || v1.length === 0) return Array(D_MODEL).fill(0);
+                    if (!v2 || v2.length === 0) return [...v1];
+                    return v1.map((val, i) => val - (v2[i] || 0));
+                }
+                function multiplyVectors(v1, v2) {
+                    if (!v1 || !v2 || v1.length === 0 || v2.length === 0) return Array(D_MODEL).fill(0);
+                    const len = Math.min(v1.length, v2.length);
+                    let result = Array(len);
+                    for (let i = 0; i < len; i++) { result[i] = (v1[i] || 0) * (v2[i] || 0); }
+                    return result;
+                }
+                function scaleVector(v, scalar) {
+                    if (!v) return Array(D_MODEL).fill(0);
+                    return v.map(val => val * scalar); 
+                }
+                function layerNorm(x) {
+                    if (!x || x.length === 0) return Array(D_MODEL).fill(0);
+                    const mean = x.reduce((a, b) => a + b, 0) / x.length;
+                    const variance = x.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / x.length;
+                    const stdDev = Math.sqrt(variance + 1e-5);
+                    if (stdDev === 0) return Array(x.length).fill(0);
+                    return x.map(val => (val - mean) / stdDev);
+                }
+                
+                function softmax(logits) {
+                    if (!logits || logits.length === 0) return [];
+                    const maxLogit = Math.max(...logits);
+                    const exps = logits.map(l => Math.exp(l - maxLogit));
+                    const sumExps = exps.reduce((a, b) => a + b, 0);
+                    return exps.map(e => e / (sumExps + 1e-9));
+                }
+
+                // --- 3. KERNARCHITEKTUR (Natives JS) ---
+                function getMultiplicativeCBOPState(phenomTokenIndices, posMatrix, phoMatrix) {
+                    let H_state = Array(D_MODEL).fill(0);
+                    let tokenCount = 0;
+                    const indicesToProcess = phenomTokenIndices.slice(0, MAX_PHONEME_LEN);
+                    for (let pos = 0; pos < indicesToProcess.length; pos++) {
+                        const index = indicesToProcess[pos];
+                        if (index !== undefined && index < phoMatrix.length && pos < posMatrix.length) {
+                            const pho_vec = phoMatrix[index];
+                            const pos_vec = posMatrix[pos];
+                            if (pho_vec && pos_vec) {
+                                const combined_vec = multiplyVectors(pho_vec, pos_vec);
+                                H_state = addVectors(H_state, combined_vec);
+                                tokenCount++;
+                            }
+                        }
+                    }
+                    if (tokenCount > 0) return layerNorm(H_state);
+                    return null;
+                }
+                function getRecursiveState(H_short, H_long) {
+                    if (!H_short && !H_long) return null;
+                    if (!H_short || H_short.length === 0) return H_long;
+                    if (!H_long || H_long.length === 0) return H_short;
+                    const scaled_short = scaleVector(H_short, LAMBDA_SHORT);
+                    const scaled_long = scaleVector(H_long, LAMBDA_LONG);
+                    return layerNorm(addVectors(scaled_short, scaled_long));
+                }
+                function updateLongTermMemory(H_long_global, H_short_last) {
+                    if (!H_short_last) return H_long_global;
+                    if (!H_long_global || H_long_global.length === 0) return H_short_last;
+                    const scaled_long = scaleVector(H_long_global, 1.0 - EMA_ALPHA);
+                    const scaled_short = scaleVector(H_short_last, EMA_ALPHA);
+                    return layerNorm(addVectors(scaled_long, scaled_short));
+                }
+                
+                // V7.0: Diese Funktion führt EINEN Schritt des Vorwärts-/Rückwärtsdurchlaufs aus
+                function calculateGradientForStep(data) {
+                    const {
+                        phenom_indices,
+                        cand_ids,
+                        y_target_local_idx,
+                        H_long,
+                        PHO_EMBEDDING_MATRIX,
+                        WORD_EMBEDDING_MATRIX,
+                        POSITIONAL_ENCODING_MATRIX
+                    } = data;
+
+                    // --- 1. VORWÄRTSDURCHLAUF ---
+                    
+                    const H_short = getMultiplicativeCBOPState(phenom_indices, POSITIONAL_ENCODING_MATRIX, PHO_EMBEDDING_MATRIX);
+                    if (!H_short) {
+                        return { gradients: null, error: "H_short ist null." }; 
+                    }
+
+                    const H_final = getRecursiveState(H_short, H_long);
+                    if (!H_final) { 
+                        return { gradients: null, error: "H_final ist null." }; 
+                    }
+
+                    let logits = [];
+                    let sampled_word_vecs = [];
+                    for (const id of cand_ids) {
+                        if (id < WORD_EMBEDDING_MATRIX.length) {
+                            const vec = WORD_EMBEDDING_MATRIX[id];
+                            sampled_word_vecs.push(vec);
+                            logits.push(dotProduct(H_final, vec));
+                        } else {
+                            sampled_word_vecs.push(Array(D_MODEL).fill(0));
+                            logits.push(-Infinity);
+                        }
+                    }
+
+                    const probs = softmax(logits); 
+                    
+                    // V31.0: Verlustberechnung (Cross-Entropy)
+                    const loss = -Math.log(probs[y_target_local_idx] + 1e-9);
+
+                    // --- 2. RÜCKWÄRTSDURCHLAUF (Native JS Gradienten) ---
+
+                    let dLogits = [...probs];
+                    dLogits[y_target_local_idx] -= 1; // (p_i - y_i)
+
+                    let word_gradients = new Map(); 
+                    let dH_final = Array(D_MODEL).fill(0);
+
+                    for (let i = 0; i < cand_ids.length; i++) {
+                        const global_word_idx = cand_ids[i];
+                        const dL = dLogits[i];
+                        const W_word = sampled_word_vecs[i];
+                        
+                        const grad_W_word = scaleVector(H_final, dL);
+                        word_gradients.set(global_word_idx, grad_W_word);
+                        
+                        dH_final = addVectors(dH_final, scaleVector(W_word, dL));
+                    }
+                    
+                    const dH_short = scaleVector(dH_final, LAMBDA_SHORT);
+
+                    let pho_gradients = new Map(); 
+                    let pos_gradients = new Map(); 
+
+                    for (let pos = 0; pos < phenom_indices.length; pos++) {
+                        const pho_idx = phenom_indices[pos];
+                        
+                        if (pho_idx < PHO_EMBEDDING_MATRIX.length && pos < POSITIONAL_ENCODING_MATRIX.length) {
+                            const PHO_vec = PHO_EMBEDDING_MATRIX[pho_idx];
+                            const POS_vec = POSITIONAL_ENCODING_MATRIX[pos];
+                            
+                            const grad_PHO = multiplyVectors(dH_short, POS_vec);
+                            const grad_POS = multiplyVectors(dH_short, PHO_vec);
+
+                            pho_gradients.set(pho_idx, addVectors(pho_gradients.get(pho_idx), grad_PHO));
+                            pos_gradients.set(pos, addVectors(pos_gradients.get(pos), grad_POS));
+                        }
+                    }
+
+                    // --- 3. H_long_state aktualisieren (Vorwärtsdurchlauf) ---
+                    const H_long_new = updateLongTermMemory(H_long, H_short);
+                    
+                    return { 
+                        gradients: {
+                            pho: pho_gradients,
+                            pos: pos_gradients,
+                            word: word_gradients
+                        },
+                        H_long_new: H_long_new, 
+                        loss: loss, // V31.0: Verlust zurückgeben
+                        error: null
+                    };
+                }
+
+                // --- Worker Event-Listener ---
+                self.onmessage = function(e) {
+                    if (e.data.type === 'TRAIN_STEP') {
+                        const {
+                            stepData,
+                            H_long,
+                            PHO_EMBEDDING_MATRIX,
+                            WORD_EMBEDDING_MATRIX,
+                            POSITIONAL_ENCODING_MATRIX
+                        } = e.data;
+                        
+                        const result = calculateGradientForStep({
+                            ...stepData,
+                            H_long,
+                            PHO_EMBEDDING_MATRIX,
+                            WORD_EMBEDDING_MATRIX,
+                            POSITIONAL_ENCODING_MATRIX
+                        });
+                        
+                        if (result.error) {
+                            postMessage({ type: 'STEP_ERROR', data: result.error });
+                        } else {
+                            postMessage({ 
+                                type: 'STEP_DONE', 
+                                gradients: result.gradients,
+                                H_long_new: result.H_long_new,
+                                loss: result.loss // V31.0
+                            });
+                        }
+                    }
+                };
+            `; 
+            try {
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(blob);
+                return new Worker(workerUrl);
+            } catch (error) {
+                console.error("Training-Worker Erstellung fehlgeschlagen:", error);
+                logToUI("FEHLER: Training-Worker konnte nicht erstellt werden.", 'error'); 
+                return null;
+            }
+        }
+
+
+        // --- 6. INFERENZ (Natives JS, Main-Thread) ---
+
+        function sampleTopK(logits, k) {
+            const logitsWithIndices = logits.map((logit, index) => ({ logit, index }));
+            logitsWithIndices.sort((a, b) => b.logit - a.logit);
+            
+            const topK = logitsWithIndices.slice(0, k);
+            const topKLogits = topK.map(p => p.logit);
+            
+            const topKProbs = softmax(topKLogits);
+            
+            const rand = Math.random();
+            let cumulativeProb = 0;
+            
+            for (let i = 0; i < topKProbs.length; i++) {
+                cumulativeProb += topKProbs[i];
+                if (rand < cumulativeProb) {
+                    return topK[i].index; 
+                }
+            }
+            return topK[0].index; // Fallback
+        }
+
+        // --- ENHANCED INFERENCE WITH PhO-COMPRESS ---
+        function autoRegressivelyGenerate(initialPrompt, maxSteps) {
+            // V30.1 PATCH: Umlaut-sichere Regex
+            let promptWords = initialPrompt.toLowerCase().match(/[a-zäöüß]+/g) || []; 
+            let generatedWords = [];
+            const wordVocabSize = WORD_VOCAB.size;
+            
+            let revWordVocab = null; 
+            let lastPattern = ""; 
+
+            // --- PhO-COMPRESS ENHANCED PROCESSING ---
+            let ipaContext = g2pConvert(promptWords.join(' '));
+            let phenomTokens = phenomEncode(ipaContext);
+            
+            // APPLY PhO-COMPRESS: Stage I + Stage II
+            logToUI("🔊 [PhO-Compress] Starting two-stage compression...", 'system');
+            const stage1Compressed = phoCompress.encodeLinguistic(phenomTokens);
+            const stage2Compressed = phoCompress.encodeOptical(stage1Compressed);
+            
+            phenomTokens = stage2Compressed; // Use compressed representation
+            // --- END PhO-COMPRESS ---
+            
+            let phenomIndices = phenomTokens.map(t => PHO_VOCAB.get(t)).filter(idx => idx !== undefined);
+            lastPattern = phenomTokens.join(' ');
+
+            // V32.2: Detailliertes Inferenz-Logging (Encode)
+            logToUI(`🖥️ [S1-ENCODE] Prompt-Phoneme: '${phenomTokens.join(' ')}' (${phenomIndices.length} Indizes)`, 'system');
+
+            let H_long_inference = H_long_state; 
+            let H_short_from_prompt = getMultiplicativeCBOPState(phenomIndices, POSITIONAL_ENCODING_MATRIX, PHO_EMBEDDING_MATRIX);
+            
+            if (H_short_from_prompt) {
+                 H_long_inference = updateLongTermMemory(H_long_inference, H_short_from_prompt);
+                 // V32.2: Detailliertes Inferenz-Logging (State)
+                 logToUI(`🖥️ [S1-STATE] H_long (global) wurde mit Prompt-Zustand (H_short) aktualisiert.`, 'system');
+            } else {
+                // V32.2: console.warn zu logToUI verschoben
+                logToUI(`🖥️ [S1-STATE] Prompt-Phoneme konnten nicht extrahiert werden. Benutze globalen H_long.`, 'system');
+            }
+            
+            if (!H_long_inference || H_long_inference.length === 0) {
+                 H_long_inference = Array(D_MODEL).fill(0); 
+            }
+
+            let last_H_short = H_short_from_prompt || Array(D_MODEL).fill(0);
+
+            // --- 2. Autoregressive Generierungsschleife ---
+            for (let step = 0; step < maxSteps; step++) {
+                const currentContextWords = [...promptWords, ...generatedWords];
+                const windowedContext = currentContextWords.slice(-CONTEXT_WINDOW_SIZE);
+                
+                ipaContext = g2pConvert(windowedContext.join(' '));
+                phenomTokens = phenomEncode(ipaContext);
+                
+                // APPLY PhO-COMPRESS: Stage I + Stage II
+                const stage1Compressed_loop = phoCompress.encodeLinguistic(phenomTokens);
+                const stage2Compressed_loop = phoCompress.encodeOptical(stage1Compressed_loop);
+                phenomTokens = stage2Compressed_loop;
+                // --- END PhO-COMPRESS ---
+                
+                phenomIndices = phenomTokens.map(t => PHO_VOCAB.get(t)).filter(idx => idx !== undefined);
+                lastPattern = phenomTokens.join(' '); 
+
+
+                const H_short_state = getMultiplicativeCBOPState(phenomIndices, POSITIONAL_ENCODING_MATRIX, PHO_EMBEDDING_MATRIX);
+
+                let H_final_state;
+                if (!H_short_state) { 
+                    H_final_state = H_long_inference; 
+                } else {
+                    H_final_state = getRecursiveState(H_short_state, H_long_inference);
+                    last_H_short = H_short_state; 
+                }
+
+                // --- 3. Logits abrufen & Sampeln ---
+                let logits = new Array(wordVocabSize).fill(-Infinity);
+                for (let i = 0; i < wordVocabSize; i++) {
+                    if (i < WORD_EMBEDDING_MATRIX.length && WORD_EMBEDDING_MATRIX[i]) {
+                        logits[i] = dotProduct(H_final_state, WORD_EMBEDDING_MATRIX[i]);
+                    }
+                }
+
+                const nextTokenIdx = sampleTopK(logits, TOP_K);
+                
+                if (nextTokenIdx === WORD_VOCAB.get('[EOS]') || nextTokenIdx === WORD_VOCAB.get('[PAD]')) { 
+                    break; 
+                }
+                
+                if (!revWordVocab) {
+                    revWordVocab = new Map();
+                    for (const [key, value] of WORD_VOCAB.entries()) {
+                        revWordVocab.set(value, key);
+                    }
+                }
+                
+                const nextWord = revWordVocab.get(nextTokenIdx) || `[IDX_${nextTokenIdx}]`;
+                
+                // V32.2: Detailliertes Inferenz-Logging (Decode) - Nur den ersten Schritt loggen (Signal > Rauschen)
+                if (step === 0) {
+                    logToUI(`🖥️ [S1-DECODE] H_final -> Top-Wort: '${nextWord}' (Index: ${nextTokenIdx})`, 'system');
+                }
+
+                generatedWords.push(nextWord);
+                
+                // --- 4. Inferenz-Zustand aktualisieren ---
+                H_long_inference = updateLongTermMemory(H_long_inference, last_H_short);
+            }
+            return { generated: generatedWords, error: null, lastPattern: lastPattern };
+        }
+        
+        // --- 7. UI-HANDLER (V16.0: Alle Funktionen in window.onload verschoben) ---
+        // Funktionen werden *innerhalb* von window.onload definiert
+        
+
+        // --- HAUPTINITIALISIERUNG (window.onload) ---
+        window.onload = () => {
+
+            // --- V16.0: Alle Hilfsfunktionen in window.onload verschoben, um ReferenceError zu vermeiden ---
+            
+            // V37.1: ENTITY_ALIASES entfernt (kein statischer Hack)
+            
+            function deUmlauts(s){
+              return s.replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
+            }
+            
+            function canonicalizeEntity(str){
+              let x = deUmlauts(str.toLowerCase().trim());
+              x = x.replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim();
+              // V37.1: Statische Aliase entfernt
+              // if (ENTITY_ALIASES.has(x)) x = ENTITY_ALIASES.get(x);
+              return x;
+            }
+            
+            function getEntityId(name){ return canonicalizeEntity(name); }
+            
+            // V37.1: S2-Helfer entfernt
+            // function addToMulti(mapObj, key, field, value){ ... }
+            // function getMulti(mapObj, key, field){ ... }
+
+
+            // --- V19.0: SYSTEM 2: "WELT-KERN" (Intellekt) ---
+
+            function normalize(str) {
+                return str.toLowerCase().trim();
+            }
+
+            // V37.1: S2 (Fakten-Extraktion/Integration) entfernt
+            // function integrateNewFacts(potential_facts) { ... }
+            
+            // V37.1: S2 (Fakten-Findung) entfernt
+            // function findFact(subject, predicate) { ... }
+            
+            // V37.1: S2 (Graphensuche) entfernt
+            // function bfsIsASubclass(start, goal, maxDepth, seenGlobal) { ... }
+            
+            // V37.1: S2 (Entitätsextraktion) entfernt
+            // function extractEntities(text) { ... }
+            
+            // V37.1: S2 (Validierung) entfernt
+            // function validateRelationship(promptEntities, answerEntities) { ... }
+            
+            // V37.1: S2 (Boolescher Beweiser) entfernt
+            // function yesNoQAIfApplicable(prompt) { ... }
+
+
+            // V29.0: VÖLLIG NEUE "generateResponse"-Funktion
+            // Folgt dem "Alignierten" S1->S2-Pipeline-Prinzip
+            // V37.1: S2-Logik (Validierung) entfernt für pures RNN
+            function generateResponse(prompt) {
+                if (WORD_VOCAB.size <= 2) {
+                    return "Modell ist nicht trainiert. Bitte lade einen Korpus.";
+                }
+                
+                // V37.1: Konfidenz existiert nicht mehr
+                // CONFIDENCE_SCORE = 0.0; 
+                
+                // V36.1: Detailliertes Prompt-Logging
+                logToUI(`[EINGABE] ${prompt}`, 'info');
+
+                // 1. Internen Zustand aktualisieren (Proaktives Lernen)
+                addPromptToRecents(prompt);
+                const query = extractQueryFromPrompt(prompt);
+                if(query) {
+                    fetchAndLearn(query, true); 
+                }
+                
+                // V37.1: S2-Kurzschluss (yesNoQAIfApplicable) entfernt
+
+                // 2. SYSTEM 1 FÜHRT: (Intuition / RNN)
+                // System 1 verarbeitet den *gesamten* phonemischen Prompt
+                logToUI(`💡 System 1 (Intuition) verarbeitet die Anfrage...`, 'thought');
+                const result = autoRegressivelyGenerate(prompt, GENERATION_LENGTH);
+                const intuitiveAntwort = result.generated.join(' ');
+                
+                if (result.error) {
+                    document.getElementById('inference-stats').innerHTML = "";
+                    return `Generierung fehlgeschlagen. ${result.error}`;
+                }
+
+                const displayStats = `
+                    <p class="mt-1 text-xs text-green-700">Zustandsbehaftetes AR $O(m)$. Input $Z_{\text{IPA}}$ (letzter Schritt): ${result.lastPattern ? result.lastPattern.replace(/ˈ/g, '<span class="phenom-marker">ˈ</span>') : '//'}</p>
+                `;
+                document.getElementById('inference-stats').innerHTML = displayStats;
+                
+                // V37.1: S2-Validierungs-Pipeline entfernt
+                
+                // 4. Finale Ausgabe
+                // updateConfidenceUI(); // V37.1: Entfernt
+                return intuitiveAntwort;
+            }
+
+            function handleFileLoad(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('training-data').value = e.target.result;
+                    logToUI(`Datei geladen (${(e.target.result.length / 1024).toFixed(1)} KB). Bereit zur nahtlosen Integration.`, 'info');
+                    updateStatus('Korpus geladen', 'yellow');
+                };
+                reader.readAsText(file);
+            }
+
+            function exportModel() {
+                if (WORD_VOCAB.size <= 2) {
+                    logToUI("Modell ist untrainiert und kann nicht exportiert werden.", 'error');
+                    return;
+                }
+
+                logToUI("Exportiere Modell...", 'save');
+                try {
+                    // --- Serialisiere SYSTEM 1 (Intuition) ---
+                    const serializableWordVocab = Object.fromEntries(WORD_VOCAB);
+                    const serializablePhoVocab = Object.fromEntries(PHO_VOCAB);
+                    const serializablePhenomMap = Object.fromEntries(trainingPhenomMap);
+                    
+                    // V37.1: S2 (Serialisierung) entfernt
+
+                    const modelData = {
+                        version: "V44.0", // V44.0: Version aktualisiert
+                        author: "Christian Heinrich Hohlfeld",
+                        timestamp: new Date().toISOString(),
+                        architecture: "Aligned O(m) RNN (V44.0 Pures-Tabula-Rasa-Edition)", // V44.0
+                        hyperparameters: {
+                            D_MODEL: D_MODEL,
+                            CONTEXT_WINDOW_SIZE: CONTEXT_WINDOW_SIZE,
+                            MAX_PHONEME_LEN: MAX_PHONEME_LEN
+                        },
+                        state: {
+                            H_long_state: H_long_state,
+                            totalUpdates: totalUpdates,
+                            smoothedLoss: smoothedLoss, // V31.0
+                            nextAutosaveMilestone: nextAutosaveMilestone,
+                            recentPrompts: recentPrompts, 
+                            priorityTrainingBuffer: priorityTrainingBuffer
+                        },
+                        // V19.0: Nur System 1 speichern
+                        system1_intuition: {
+                            vocabularies: {
+                                word: serializableWordVocab,
+                                phoneme: serializablePhoVocab
+                            },
+                            matrices: {
+                                word: WORD_EMBEDDING_MATRIX,
+                                phoneme: PHO_EMBEDDING_MATRIX,
+                                positional: POSITIONAL_ENCODING_MATRIX
+                            },
+                            training_data: {
+                                sentences: trainingSentences, 
+                                phenom_map: serializablePhenomMap 
+                            }
+                        }
+                    };
+
+                    const blob = new Blob([JSON.stringify(modelData)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.download = `Hohlfeld_Om_RNN_V44-0_${new Date().toISOString().split('T')[0]}.json`;
+                    a.href = url;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    logToUI(`Modell mit ${totalUpdates} Schritten exportiert. (Pures RNN)`, 'save'); // V37.1
+                    
+                    hideAutosavePrompt();
+
+                } catch (error) {
+                    console.error("Export fehlgeschlagen:", error);
+                    logToUI("Export fehlgeschlagen. Siehe Konsole für Details.", 'error');
+                }
+            }
+
+            // V31.0: Neuer Log-Export
+            function exportTrainingLog() {
+                try {
+                    const logEl = document.getElementById('training-log');
+                    // Ersetze <p><span>...</span><span>...</span></p> durch "ICON ... TEXT \n"
+                    const formattedLog = Array.from(logEl.children).map(p => {
+                        const icon = p.children[0] ? p.children[0].textContent : '';
+                        const text = p.children[1] ? p.children[1].textContent : p.textContent;
+                        return `${icon} ${text}`;
+                    }).join('\n');
+
+                    const blob = new Blob([formattedLog], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.download = `NanoRNN_TrainingLog_${new Date().toISOString().split('T')[0]}.txt`;
+                    a.href = url;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    logToUI("Trainingsprotokoll erfolgreich als .txt exportiert.", 'save');
+                } catch (error) {
+                    console.error("Log-Export fehlgeschlagen:", error);
+                    logToUI("Log-Export fehlgeschlagen. Siehe Konsole für Details.", 'error');
+                }
+            }
+
+
+            function importModel(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                logToUI("Importiere Modell...", 'load');
+                isTrainingPaused = true; 
+                const loadStartTime = performance.now();
+
+                // V37.1: S2 entfernt
+                // const deserializeKnowledgeBase = (obj) => { ... };
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const modelData = JSON.parse(e.target.result);
+
+                        // V19.0: Aktualisierte Validierung
+                        if (!modelData.system1_intuition || !modelData.architecture?.includes("O(m) RNN")) {
+                            // V19.0: Auf älteres Format prüfen
+                            if (modelData.matrices && modelData.vocabularies) {
+                                logToUI("Importiere älteres Modell (V18.0 oder älter). 'Welt-Kern' wird ignoriert.", 'info'); // V37.1
+                                // --- LADE SYSTEM 1 (Intuition) ---
+                                WORD_VOCAB = new Map(Object.entries(modelData.vocabularies.word));
+                                PHO_VOCAB = new Map(Object.entries(modelData.vocabularies.phoneme));
+                                WORD_EMBEDDING_MATRIX = modelData.matrices.word;
+                                PHO_EMBEDDING_MATRIX = modelData.matrices.phoneme;
+                                POSITIONAL_ENCODING_MATRIX = modelData.matrices.positional;
+                                trainingSentences = modelData.training_data.sentences || [];
+                                trainingPhenomMap = new Map(Object.entries(modelData.training_data.phenom_map || {}));
+                                // --- LADE ZUSTAND ---
+                                H_long_state = modelData.state.H_long_state || Array(D_MODEL).fill(0);
+                                totalUpdates = modelData.state.totalUpdates || 0;
+                                smoothedLoss = modelData.state.smoothedLoss || 0.0; // V31.0
+                                nextAutosaveMilestone = (modelData.state.nextAutosaveMilestone || totalUpdates) + AUTOSAVE_THRESHOLD;
+                                recentPrompts = modelData.state.recentPrompts || []; 
+                                priorityTrainingBuffer = modelData.state.priorityTrainingBuffer || []; 
+                                // V37.1: S2 entfernt
+
+                            } else {
+                                throw new Error("Dies ist keine gültige Hohlfeld O(m) RNN Modelldatei.");
+                            }
+                        } else {
+                            // --- V19.0+: Lade Dual-System-Modell ---
+                            logToUI("Modelldatei validiert. Lade System 1...", 'load'); // V37.1
+
+                            // --- LADE SYSTEM 1 (Intuition) ---
+                            const s1 = modelData.system1_intuition;
+                            WORD_VOCAB = new Map(Object.entries(s1.vocabularies.word));
+                            PHO_VOCAB = new Map(Object.entries(s1.vocabularies.phoneme));
+                            WORD_EMBEDDING_MATRIX = s1.matrices.word;
+                            PHO_EMBEDDING_MATRIX = s1.matrices.phoneme;
+                            POSITIONAL_ENCODING_MATRIX = s1.matrices.positional;
+                            trainingSentences = s1.training_data.sentences || [];
+                            trainingPhenomMap = new Map(Object.entries(s1.training_data.phenom_map || {}));
+                            
+                            // V37.1: S2 entfernt
+                            // const s2 = modelData.system2_intellect || {};
+
+                            // --- LADE ZUSTAND ---
+                            H_long_state = modelData.state.H_long_state || Array(D_MODEL).fill(0);
+                            totalUpdates = modelData.state.totalUpdates || 0;
+                            smoothedLoss = modelData.state.smoothedLoss || 0.0; // V31.0
+                            nextAutosaveMilestone = (modelData.state.nextAutosaveMilestone || totalUpdates) + AUTOSAVE_THRESHOLD;
+                            recentPrompts = modelData.state.recentPrompts || []; 
+                            priorityTrainingBuffer = modelData.state.priorityTrainingBuffer || [];
+                        }
+                        
+                        // --- Ladevorgang abschließen ---
+                        if (trainingSentences.length > 0 && priorityTrainingBuffer.length > 0) {
+                             logToUI(`Lade ${priorityTrainingBuffer.length} Sätze in den Prioritätspuffer.`, 'brain');
+                        }
+                        
+                        isTrainingPaused = false; // Immer Pausierung aufheben
+
+                        // --- UI AKTUALISIEREN ---
+                        const wordVocabSize = WORD_VOCAB.size;
+                        const logMsg = `Modell von ${modelData.timestamp || 'unbekannt'} erfolgreich geladen. (${totalUpdates} Updates)`;
+                        logToUI(logMsg, 'load');
+                        
+                        if (trainingSentences.length === 0) {
+                            updateStatus(`Bereit (${wordVocabSize} Wörter, ${totalUpdates} Upd.) - Warte auf Korpus...`, 'yellow');
+                        } else {
+                            updateStatus(`Training läuft (${wordVocabSize} Wörter)`, 'yellow');
+                        }
+                        updateTrainingStats();
+                        
+                        event.target.value = null; // Dateieingabe zurücksetzen
+                        
+                        const loadEndTime = performance.now();
+                        logToUI(`Modellimport dauerte ${(loadEndTime - loadStartTime).toFixed(2)}ms`, 'system');
+                        
+                    } catch (error) {
+                        console.error("Import fehlgeschlagen:", error);
+                        logToUI(`FEHLER: ${error.message}`, 'error');
+                        event.target.value = null;
+                        isTrainingPaused = false; 
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            // V15.0: Diese Funktion verarbeitet jetzt *nur* den neuen Text aus der Textarea
+            function handleCorpusLoadClick(isAutonomous = false) {
+                // V23.0: Den Discovery-Worker verwenden
+                if (isDiscovering) {
+                    logToUI("Discovery-Worker ist bereits beschäftigt. Bitte warten.", 'error');
+                    return;
+                }
+                
+                const trainingData = document.getElementById('training-data').value;
+                if (trainingData.trim().length < 50) {
+                    logToUI("Bitte einen Korpus laden (min. 50 Zeichen).", 'error');
+                    return;
+                }
+
+                logToUI(isAutonomous ? "AUTONOM: Verarbeite neues Wissen..." : "MANUELL: Verarbeite neuen Text aus Textfeld...", 'info');
+                
+                // V23.0: Wir pausieren nur die Entdeckung, nicht das Training!
+                isDiscovering = true; 
+                updateStatus('Entdecke neues Wissen...', 'yellow');
+                
+                if (isAutonomous) {
+                    logToUI("INNERER GEDANKE: Verarbeite neues Wissen...", 'thought');
+                } else {
+                    logToUI("Starte Korpus-Verarbeitung (Nahtlos)...", 'system');
+                }
+
+                // V29.1: FIX - Race-Condition-Guard
+                if (!discoveryWorker) {
+                    logToUI("FEHLER: Discovery-Worker noch nicht bereit.", 'error');
+                    isDiscovering = false;
+                    return;
+                }
+                // V23.0: An discoveryWorker senden
+                discoveryWorker.postMessage({
+                    type: 'PROCESS_NEW_TEXT',
+                    newText: trainingData, 
+                    startTime: performance.now(),
+                    phoVocab: Object.fromEntries(PHO_VOCAB),
+                    wordVocab: Object.fromEntries(WORD_VOCAB),
+                    isAutonomous: isAutonomous
+                });
+                
+                if (!isAutonomous) {
+                    document.getElementById('training-data').value = "";
+                    logToUI("Textfeld-Inhalt an Discovery-Worker gesendet und geleert.", 'system');
+                }
+            }
+
+            // V50.0: Neue Funktion zum Abrufen externer Korpusdaten
+// V50.2: Robuste Mehrquellen-Variante mit sauberem Logging und CORS-sicheren Endpoints
+// === DROP-IN: ersetzt deine bisherige fetchRemoteCorpus() vollständig ===
+// nutzt prompt-input als Suchbegriff und schreibt Plain-Text nach #training-data,
+// danach wird handleCorpusLoadClick(false) aufgerufen — keine Dialoge, keine Popups.
+
+async function fetchRemoteCorpus() {
+  try {
+    const q = (document.getElementById('prompt-input')?.value || '').trim();
+    if (!q) {
+      logToUI("FEHLER: Kein Suchbegriff im Prompt-Feld.", 'error');
+      return;
+    }
+    const text = await wikiFetchPlainText(q);
+    if (!text || text.replace(/\s/g,'').length < 80) {
+      logToUI(`FEHLER: Kein verwertbarer Wikipedia-Text gefunden für „${q}“.`, 'error');
+      return;
+    }
+    document.getElementById('training-data').value = text;
+    logToUI(`Wikipedia-Text geladen (${text.length.toLocaleString('de-DE')} Zeichen) – „${q}“.`, 'load');
+    handleCorpusLoadClick(false);
+  } catch (err) {
+    logToUI(`FEHLER: ${err?.message || err}`, 'error');
+  }
+}
+
+// --- Helper: robustes Wikipedia-Plaintext-Fetching (DE) ---
+async function wikiFetchPlainText(query) {
+  const ACTION_API = 'https://de.wikipedia.org/w/api.php';
+  const CORE_SUMMARY = 'https://api.wikimedia.org/core/v1/wikipedia/de/page/summary/';
+  const ORIGIN = 'origin=*'; // CORS
+  const timeoutMs = 10000;
+
+  const fetchJSON = (url) => withTimeout(fetch(url, { headers: { 'Accept': 'application/json' } }), timeoutMs)
+    .then(r => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.json();
+    });
+
+  // 1) Suche Top-Treffer (tolerant ggü. Nicht-Existenz/Schreibweise)
+  const searchUrl = `${ACTION_API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=1&srlimit=1&format=json&${ORIGIN}`;
+  const search = await fetchJSON(searchUrl);
+  const hit = search?.query?.search?.[0];
+  const title = hit?.title || query;
+
+  // 2) Primär: prop=extracts (Plain-Text, Redirects folgen)
+  //    Bevorzugt via pageid (stabiler), fallback via titles
+  let extractText = '';
+  if (hit?.pageid != null) {
+    const exById = `${ACTION_API}?action=query&prop=extracts&explaintext=1&exsectionformat=plain&redirects=1&formatversion=2&pageids=${hit.pageid}&format=json&${ORIGIN}`;
+    extractText = await tryExtractText(exById);
+  }
+  if (!extractText) {
+    const exByTitle = `${ACTION_API}?action=query&prop=extracts&explaintext=1&exsectionformat=plain&redirects=1&formatversion=2&titles=${encodeURIComponent(title)}&format=json&${ORIGIN}`;
+    extractText = await tryExtractText(exByTitle);
+  }
+
+  // 3) Fallback: action=parse (HTML → Text) wenn Extracts leer/zu kurz
+  if (!extractText || extractText.replace(/\s/g,'').length < 80) {
+    const parseUrl = `${ACTION_API}?action=parse&page=${encodeURIComponent(title)}&prop=text&formatversion=2&format=json&${ORIGIN}`;
+    try {
+      const parsed = await fetchJSON(parseUrl);
+      const html = parsed?.parse?.text || '';
+      extractText = cleanPlainText(fromHTML(html));
+    } catch { /* ignore */ }
+  }
+
+  // 4) Letzter Fallback: Core v1 Summary API (kurzer Lead-Absatz)
+  if (!extractText || extractText.replace(/\s/g,'').length < 80) {
+    try {
+      const res = await fetchJSON(CORE_SUMMARY + encodeURIComponent(title));
+      const sum = res?.extract || res?.description || '';
+      extractText = cleanPlainText(sum);
+    } catch { /* ignore */ }
+  }
+
+  return cleanPlainText(extractText);
+
+  // --- kleine Utilities ---
+  async function tryExtractText(url) {
+    try {
+      const data = await fetchJSON(url);
+      const page = data?.query?.pages?.[0];
+      const txt = page?.extract || '';
+      return cleanPlainText(txt);
+    } catch {
+      return '';
+    }
+  }
+
+  function cleanPlainText(s) {
+    if (!s) return '';
+    return s
+      .replace(/\u00A0/g, ' ')             // nbsp → space
+      .replace(/[ \t]+/g, ' ')             // Mehrfach-Spaces
+      .replace(/\s*\n\s*/g, '\n')          // Zeilenenden säubern
+      .replace(/\n{3,}/g, '\n\n')          // Max 1 Leerzeile
+      .trim();
+  }
+
+  function fromHTML(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html || '';
+    const txt = div.textContent || div.innerText || '';
+    return txt;
+  }
+
+  function withTimeout(promise, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    return fetch(promise instanceof Request ? promise : promise, { signal: ctrl.signal })
+  }
+
+}
+
+            function handlePromptClick() {
+                const prompt = document.getElementById('prompt-input').value;
+                // V30.0 FIX: Umlaut-sichere Validierung
+                if (!prompt.match(/[A-Za-zÄÖÜäöüß]+/g)) {
+                    document.getElementById('llm-output').innerHTML = `<div class="code-block bg-red-50 text-red-800">FEHLER: Eingabe muss mindestens 1 Wort enthalten.</div>`;
+                    return;
+                }
+                const response = generateResponse(prompt);
+                logToUI(`🔊 [PhO-Compress] Processing with C_Total: ${phoCompress.compressionStats.total.toFixed(2)}x compression`, 'brain');
+                document.getElementById('llm-output').innerHTML = `<div class="code-block ${response.includes("FEHLER") || response.includes("fehlgeschlagen") ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}">${response}</div>`;
+            }
+            
+            function addPromptToRecents(prompt) {
+                recentPrompts.unshift(prompt);
+                if (recentPrompts.length > MAX_RECENT_PROMPTS) {
+                    recentPrompts.pop();
+                }
+            }
+            
+            function getContextualQuery() {
+                if (recentPrompts.length === 0) return null;
+                const randomPrompt = recentPrompts[Math.floor(Math.random() * recentPrompts.length)];
+                // V30.1 PATCH: Umlaut-sichere Regex
+                const words = randomPrompt.match(/[a-zäöüß]{4,}/g); 
+                
+                if (words && words.length > 0) {
+                    // V37.1: S2 entfernt
+                    const filteredWords = words.filter(w => !IGNORE_LIST.has(getEntityId(w)));
+                    if (filteredWords.length === 0) return null;
+                    const queryWord = filteredWords[Math.floor(Math.random() * filteredWords.length)];
+                    return queryWord; 
+                }
+                return null;
+            }
+            
+            function extractQueryFromPrompt(prompt) {
+                // V30.1 PATCH: Umlaut-sichere Regex
+                const words = prompt.match(/[a-zäöüß]{5,}/g); 
+                if (!words) return null; 
+                // V37.1: S2 entfernt
+                // V43.0: Intelligente Filterung (nur Substantive suchen)
+                const filteredWords = words.filter(w => {
+                    const id = getEntityId(w);
+                    if (IGNORE_LIST.has(id)) return false;
+                    
+                    // Prüfe, ob es eine Chance hat, ein Substantiv zu sein (minimaler Heuristik-Check)
+                    if (w.length >= 5 || NOUN_SUFFIXES.has(id.slice(-4))) {
+                         return true;
+                    }
+                    return false;
+                });
+                
+                if (filteredWords.length === 0) return null;
+                return filteredWords[Math.floor(Math.random() * filteredWords.length)]; 
+            }
+
+            // V36.0: "Unschärfe"-Funktion (Resilienz) wieder eingeführt, da sie ein alignierter Lernmechanismus ist
+            function simplifyQuery(query) {
+                // V29.1 FIX: Regex an \b\w+\b angepasst, um Umlaute einzuschließen
+                const words = query.match(/[a-zäöüß]{4,}/g); 
+                
+                if (words && words.length > 1) {
+                    return words[words.length - 1]; // "Römisches Reich" -> "Reich"
+                } else if (query.length > 6) { // "Römer" -> "Röme"
+                    return query.slice(0, -1);
+                } else if (query.length > 4) { // "Rom" -> "Ro"
+                    // V39.2: Stoppe die Unschärfe, bevor sie zu kurz wird (min 4 Zeichen)
+                    return null;
+                }
+                
+                return null; // Kann nicht weiter vereinfachen
+            }
+
+            // V18.0: Resilienter "WILLE"
+            async function fetchAndLearn(query, isProactiveSignal) {
+                // V23.0: Discovery-Sperre prüfen, nicht Fetching-Sperre
+                if (isDiscovering) {
+                    // V31.2: "Stille" Prüfung, kein Log-Spam
+                    // logToUI("💡 Discovery-Worker ist beschäftigt. Anfrage wird eingereiht.", 'thought');
+                    return; 
+                }
+                
+                // V23.0: Discovery-Sperre verwenden
+                isDiscovering = true; 
+                // V23.0: TRAINING NICHT PAUSIEREN
+                // isTrainingPaused = true; 
+
+                let logMsg;
+                if (isProactiveSignal) {
+                    logMsg = `💡 Proaktives Feedback: Ziel ist, etwas über '${query}' zu lernen.`;
+                } else {
+                    logMsg = `💡 'Innerer Gedanke' ist neugierig auf '${query}'.`;
+                }
+                logToUI(logMsg, 'thought');
+                
+                try {
+                    // V36.0: Statische WIKI_TITLE_ALIASES_DE entfernt.
+                    const wikiTitle = query; // Nutze die rohe (oder vereinfachte) Anfrage direkt
+
+                    // V34.0: URL-Konstruktion für MediaWiki API (action=query)
+                    const params = new URLSearchParams({
+                        action: 'query',
+                        titles: wikiTitle,
+                        prop: 'extracts',
+                        format: 'json',
+                        exintro: '1',
+                        redirects: '1', // Folgt Weiterleitungen (z.B. Sokrates -> Sokrates)
+                        origin: '*' // CORS-Header
+                    });
+                    const fetchUrl = AUTONOMOUS_LEARNING_STATE.WIKI_API_ENDPOINT + "?" + params.toString();
+                    
+                    const response = await fetch(fetchUrl); // Headers nicht mehr nötig für api.php mit origin=*
+                    if (!response.ok) throw new Error(`Wikipedia API-Fehler: ${response.statusText}`);
+                    
+                    const data = await response.json();
+                    
+                    // V34.0: JSON-Antwort-Parser für MediaWiki API
+                    if (!data.query || !data.query.pages) {
+                        throw new Error(`Seite für '${query}' API-Antwort ungültig.`);
+                    }
+                    
+                    const pages = data.query.pages;
+                    const pageId = Object.keys(pages)[0]; // Holt die erste (und einzige) Seiten-ID
+                    
+                    if (pageId === "-1") { // MediaWiki-Weg, um "not found" anzuzeigen
+                         throw new Error(`Seite für '${query}' (Titel: ${wikiTitle}) nicht gefunden.`);
+                    }
+
+                    const pageData = pages[pageId];
+                    const newKnowledge = pageData.extract;
+                    const actualTitle = pageData.title;
+
+
+                    // --- ERFOLGSFALL ---
+                    if (newKnowledge && newKnowledge.trim().length > 50) {
+                        logToUI(`💡 Neues Wissen über '${actualTitle}' gefunden. Sende an Discovery-Worker...`, 'thought');
+                        
+                        // V37.1: S2 entfernt, Speicherung von 'fetched' nicht mehr nötig
+                        
+                        // V29.1: FIX - Race-Condition-Guard
+                        if (!discoveryWorker) {
+                            logToUI("FEHLER: Discovery-Worker noch nicht bereit.", 'error');
+                            isDiscovering = false;
+                            return;
+                        }
+                        // V23.0: An Discovery-Worker senden
+                        discoveryWorker.postMessage({
+                            type: 'PROCESS_NEW_TEXT',
+                            newText: newKnowledge,
+                            startTime: performance.now(),
+                            phoVocab: Object.fromEntries(PHO_VOCAB),
+                            wordVocab: Object.fromEntries(WORD_VOCAB),
+                            isAutonomous: true 
+                        });
+                        // 'isDiscovering' wird vom 'PREPROCESSING_DONE'-Handler des Workers auf false gesetzt
+                    } else {
+                        logToUI(`💡 Abgerufene Daten für '${actualTitle}' sind zu kurz, ignoriere.`, 'thought');
+                        isDiscovering = false; // V23.0: Sperre freigeben
+                    }
+
+                } catch (error) {
+                    logToUI(`❌ ${error.message}`, 'error');
+                    
+                    // V37.1: S2 entfernt, Speicherung von 'not_found' nicht mehr nötig
+
+                    // V36.0: "Resilienter Wille" (simplifyQuery) WIEDER EINGEFÜHRT
+                    const simplifiedQuery = simplifyQuery(query); 
+                    
+                    // V37.1: S2 entfernt, 'not_found'-Prüfung nicht mehr möglich, nur auf 'null' prüfen
+                    if (simplifiedQuery) { 
+                        logToUI(`💡 Werde 'unschärfer'... Versuche '${simplifiedQuery}'.`, 'thought'); // V39.0: Typo-Fix
+                        isDiscovering = false; // V23.0: Sperre freigeben
+                        setTimeout(() => fetchAndLearn(simplifiedQuery, isProactiveSignal), 1000);
+                    } else {
+                        logToUI(`💡 Kann nicht weiter vereinfachen. Gebe diesen Pfad auf.`, 'thought');
+                        isDiscovering = false; // V23.0: Sperre freigeben
+                    }
+                } 
+            }
+
+
+            // V21.0: "Neugieriges Kind" (Gezielt + Ungezielt)
+            function autonomousLearningStep() {
+                // V31.2: "Stille" Prüfung. Überspringt, wenn beschäftigt, ohne Log-Spam.
+                if (isDiscovering) { 
+                    return; 
+                }
+                if (!AUTONOMOUS_LEARNING_STATE.isEnabled) return; 
+
+                // V37.1: 3-Stufen-Neugier vereinfacht, da S2 (Introspektion) entfernt wurde
+
+                // 1. "Proaktiv" (Zielorientiert auf Prompts)
+                const query = getContextualQuery();
+                if (query) {
+                    fetchAndLearn(query, false); // false = kein direktes Prompt-Feedback
+                    return; 
+                } 
+                
+                // V44.0: Introspektion (Self-Concept) entfernt.
+                // if (SELF_CONCEPTS.size > 0) { ... }
+
+                // 2. "Neugierig" (Neues aus der Welt / Nachrichten)
+                logToUI(`'Innerer Gedanke': Kein Kontext. Suche nach aktuellen Nachrichten...`, 'thought');
+                fetchRandomNewsArticle();
+            }
+            
+            // V37.1: S2 (Introspektion) entfernt
+            // function exploreLearnedKnowledge() { ... }
+
+            // V33.0: Neue Funktion, um "aktuelles" (News) zu holen (ersetzt fetchAndLearnRandom_Bootstrap)
+            async function fetchRandomNewsArticle() {
+                if (isDiscovering) return; // Doppelte Prüfung
+                
+                isDiscovering = true;
+                
+                try {
+                    // 1. Wähle einen zufälligen Feed
+                    const randomFeedUrl = AUTONOMOUS_LEARNING_STATE.RSS_FEEDS[Math.floor(Math.random() * AUTONOMOUS_LEARNING_STATE.RSS_FEEDS.length)];
+                    const fetchUrl = AUTONOMOUS_LEARNING_STATE.RSS2JSON_API_URL + encodeURIComponent(randomFeedUrl);
+                    
+                    logToUI(`'Innerer Gedanke': Frage Nachrichten-Feed ab...`, 'thought');
+
+                    const response = await fetch(fetchUrl);
+                    if (!response.ok) throw new Error(`RSS2JSON API-Fehler: ${response.statusText}`);
+                    
+                    const data = await response.json();
+                    if (data.status !== 'ok' || !data.items || data.items.length === 0) {
+                        throw new Error(`RSS-Feed ist leer oder fehlerhaft: ${randomFeedUrl}`);
+                    }
+
+                    // 2. Wähle einen zufälligen Artikel
+                    const randomItem = data.items[Math.floor(Math.random() * data.items.length)];
+                    const title = stripHtml(randomItem.title);
+                    const description = stripHtml(randomItem.description);
+                    
+                    if (!title || !description) {
+                         throw new Error("RSS-Item hatte keinen Titel oder keine Beschreibung.");
+                    }
+
+                    const newKnowledge = title + ". " + description; // Kombiniere Titel und Beschreibung
+
+                    // --- ERFOLGSFALL ---
+                    if (newKnowledge && newKnowledge.trim().length > 50) {
+                        logToUI(`💡 Neues Wissen (News) über '${title}' gefunden. Sende an Discovery-Worker...`, 'thought');
+                        
+                        if (!discoveryWorker) {
+                            logToUI("FEHLER: Discovery-Worker noch nicht bereit.", 'error');
+                            isDiscovering = false;
+                            return;
+                        }
+                        // V44.2 FIX: Neue Priorisierung im Worker sorgt für Multi-Pass Training
+                        discoveryWorker.postMessage({
+                            type: 'PROCESS_NEW_TEXT',
+                            newText: newKnowledge,
+                            startTime: performance.now(),
+                            phoVocab: Object.fromEntries(PHO_VOCAB),
+                            wordVocab: Object.fromEntries(WORD_VOCAB),
+                            isAutonomous: true 
+                        });
+                        // 'isDiscovering' wird vom 'PREPROCESSING_DONE'-Handler des Workers auf false gesetzt
+                    } else {
+                        logToUI(`💡 Zufällige Nachrichtendaten für '${title}' sind zu kurz, ignoriere.`, 'thought');
+                        isDiscovering = false; // V23.0: Sperre freigeben
+                    }
+
+                } catch (error) {
+                    logToUI(`❌ ${error.message}`, 'error');
+                    isDiscovering = false;
+                } 
+            }
+            
+            // V31.2: "setInterval" (persistenter Herzschlag) wieder eingeführt
+            function handleAutonomousToggle(event) {
+                AUTONOMOUS_LEARNING_STATE.isEnabled = event.target.checked;
+                if (AUTONOMOUS_LEARNING_STATE.isEnabled) {
+                    logToUI("'Innerer Gedanke' aktiviert. Starte persistenten Herzschlag.", 'thought'); // V31.2
+                    
+                    if (AUTONOMOUS_LEARNING_STATE.intervalId) {
+                        clearInterval(AUTONOMOUS_LEARNING_STATE.intervalId);
+                    }
+                    
+                    // V31.2: "Herzschlag" (setInterval) wieder eingeführt
+                    AUTONOMOUS_LEARNING_STATE.intervalId = setInterval(
+                        autonomousLearningStep, 
+                        AUTONOMOUS_LEARNING_STATE.FETCH_INTERVAL
+                    );
+                    autonomousLearningStep(); // Sofort einmal auslösen
+
+                } else {
+                    logToUI("'Innerer Gedanke' deaktiviert. Stoppe Herzschlag.", 'thought'); // V31.2
+                    if (AUTONOMOUS_LEARNING_STATE.intervalId) {
+                        clearInterval(AUTONOMOUS_LEARNING_STATE.intervalId);
+                        AUTONOMOUS_LEARNING_STATE.intervalId = null;
+                    }
+                }
+            }
+
+            // V9.0: Diese Funktion erweitert nahtlos das "Gehirn" des Modells
+            function addNewTokensToModel(new_tokens) {
+                const { new_phonemes, new_words } = new_tokens;
+                
+                if (new_phonemes.length === 0 && new_words.length === 0) {
+                    logToUI("Kein neues Vokabular gefunden. Setze Training fort.", 'brain');
+                    return; 
+                }
+                
+                logToUI(`Füge ${new_words.length} neue Wörter und ${new_phonemes.length} neue Phoneme zum 'Gehirn' hinzu.`, 'brain');
+                
+                for (const token of new_phonemes) {
+                    if (!PHO_VOCAB.has(token)) {
+                        PHO_VOCAB.set(token, PHO_VOCAB.size);
+                        PHO_EMBEDDING_MATRIX.push(initNewVector(D_MODEL));
+                    }
+                }
+                
+                for (const token of new_words) {
+                    if (!WORD_VOCAB.has(token)) {
+                        WORD_VOCAB.set(token, WORD_VOCAB.size);
+                        WORD_EMBEDDING_MATRIX.push(initNewVector(D_MODEL));
+                    }
+                }
+                
+                logToUI(`'Gehirn' erweitert. Wort-Vokabular: ${WORD_VOCAB.size}, Phonem-Vokabular: ${PHO_VOCAB.size}`, 'brain');
+            }
+            
+            // V15.0: Die "Priorisierte" Trainingsschleife
+            function perpetualTrainingLoop() {
+                // V23.0: Diese Schleife wird NIEMALS durch die Entdeckung pausiert
+                if (isTrainingPaused) {
+                    requestAnimationFrame(perpetualTrainingLoop); 
+                    return; 
+                }
+
+                if (trainingSentences.length === 0) {
+                    requestAnimationFrame(perpetualTrainingLoop); // Leerlauf, auf Daten warten
+                    return;
+                }
+                
+                let sentenceIdx;
+                let trainingMode;
+                
+                // --- V15.0: Priorisierungslogik ---
+                if (priorityTrainingBuffer.length > 0) {
+                    // 1. FOKUS-MODUS: Trainiere zuerst mit den neuesten Daten
+                    sentenceIdx = priorityTrainingBuffer.shift(); // Von vorne aus der Warteschlange nehmen
+                    trainingMode = 'Fokus';
+                } else {
+                    // 2. KONSOLIDIERUNGS-MODUS: Trainiere mit zufälligen alten Daten
+                    sentenceIdx = Math.floor(Math.random() * trainingSentences.length);
+                    trainingMode = 'Konsolidierung';
+                }
+                // --- Ende der Logik ---
+
+                if (sentenceIdx === undefined || sentenceIdx >= trainingSentences.length) {
+                    requestAnimationFrame(perpetualTrainingLoop);
+                    return;
+                }
+
+                const sentence_indices_str = trainingSentences[sentenceIdx];
+                const sentence_indices = sentence_indices_str.split(' ').map(Number);
+                
+                if (sentence_indices.length <= CONTEXT_WINDOW_SIZE + 1) {
+                    requestAnimationFrame(perpetualTrainingLoop); 
+                    return;
+                }
+                
+                const j = Math.floor(Math.random() * (sentence_indices.length - (CONTEXT_WINDOW_SIZE + 1)));
+
+                const context_word_indices = sentence_indices.slice(j, j + CONTEXT_WINDOW_SIZE);
+                const target_idx = sentence_indices[j + CONTEXT_WINDOW_SIZE];
+
+                let phenom_indices = [];
+                let revWordVocab = null; 
+                
+                for (const word_idx of context_word_indices) {
+                    if (!revWordVocab) { 
+                        revWordVocab = new Map();
+                        for (const [key, value] of WORD_VOCAB.entries()) {
+                            revWordVocab.set(value, key);
+                        }
+                    }
+                    const word_token = revWordVocab.get(word_idx); 
+                    
+                    if (word_token) {
+                        const phenom_indices_str = trainingPhenomMap.get(word_token);
+                        if (phenom_indices_str) {
+                            phenom_indices.push(...phenom_indices_str.split(' ').map(Number));
+                        }
+                    }
+                }
+                phenom_indices = phenom_indices.slice(0, MAX_PHONEME_LEN);
+                
+                if (phenom_indices.length === 0) {
+                    requestAnimationFrame(perpetualTrainingLoop);
+                    return;
+                }
+
+                const wordVocabSize = WORD_VOCAB.size;
+                const candidate_set = new Set([target_idx]); 
+                while (candidate_set.size < K_NEGATIVES + 1 && candidate_set.size < wordVocabSize) {
+                    candidate_set.add(Math.floor(Math.random() * wordVocabSize));
+                }
+                const cand_ids = Array.from(candidate_set);
+                const y_target_local_idx = cand_ids.indexOf(target_idx); 
+                
+                if (y_target_local_idx === -1) {
+                    requestAnimationFrame(perpetualTrainingLoop);
+                    return;
+                }
+                
+                // V23.0: An trainingWorker senden
+                trainingWorker.postMessage({
+                    type: 'TRAIN_STEP',
+                    stepData: {
+                        phenom_indices: phenom_indices,
+                        cand_ids: cand_ids,
+                        y_target_local_idx: y_target_local_idx,
+                        trainingMode: trainingMode 
+                    },
+                    H_long: H_long_state, 
+                    PHO_EMBEDDING_MATRIX: PHO_EMBEDDING_MATRIX,
+                    WORD_EMBEDDING_MATRIX: WORD_EMBEDDING_MATRIX,
+                    POSITIONAL_ENCODING_MATRIX: POSITIONAL_ENCODING_MATRIX
+                });
+            }
+            
+            // V31.0: Verlust-Glättung und Logging integriert
+            function applyGradients(gradients, loss) {
+                const { pho, pos, word } = gradients;
+                
+                for (const [idx, grad] of pho.entries()) {
+                    if (idx < PHO_EMBEDDING_MATRIX.length && PHO_EMBEDDING_MATRIX[idx]) {
+                        const scaled_grad = scaleVector(grad, LEARNING_RATE);
+                        PHO_EMBEDDING_MATRIX[idx] = subtractVectors(PHO_EMBEDDING_MATRIX[idx], scaled_grad);
+                    }
+                }
+                
+                for (const [idx, grad] of pos.entries()) {
+                    if (idx < POSITIONAL_ENCODING_MATRIX.length && POSITIONAL_ENCODING_MATRIX[idx]) {
+                        const scaled_grad = scaleVector(grad, LEARNING_RATE);
+                        POSITIONAL_ENCODING_MATRIX[idx] = subtractVectors(POSITIONAL_ENCODING_MATRIX[idx], scaled_grad);
+                    }
+                }
+                
+                for (const [idx, grad] of word.entries()) {
+                    if (idx < WORD_EMBEDDING_MATRIX.length && WORD_EMBEDDING_MATRIX[idx]) {
+                        const scaled_grad = scaleVector(grad, LEARNING_RATE);
+                        WORD_EMBEDDING_MATRIX[idx] = subtractVectors(WORD_EMBEDDING_MATRIX[idx], scaled_grad);
+                    }
+                }
+                
+                totalUpdates++;
+                
+                // V31.0: Verlust glätten
+                if (totalUpdates === 1 || smoothedLoss === 0.0) { // V31.1: Auch bei Import initialisieren
+                    smoothedLoss = loss; // Initialen Verlust setzen
+                } else {
+                    smoothedLoss = SMOOTHING_ALPHA * loss + (1 - SMOOTHING_ALPHA) * smoothedLoss;
+                }
+
+                if (totalUpdates >= nextAutosaveMilestone) {
+                    promptForAutosave();
+                    nextAutosaveMilestone += AUTOSAVE_THRESHOLD; 
+                }
+
+                if (totalUpdates % 20 === 0) {
+                    if (totalUpdates % 100 === 0) {
+                        logToUI(`Trainingsschritt ${totalUpdates} (Verlust: ${smoothedLoss.toFixed(4)}). (Prio-Warteschlange: ${priorityTrainingBuffer.length})`, 'train');
+                        updateTrainingStats();
+                    }
+                }
+            }
+            
+            function updateStatus(message, color) {
+                const statusEl = document.getElementById('model-status');
+                const cardEl = document.getElementById('model-status-card');
+                
+                statusEl.textContent = message;
+                
+                // V30.1: Border-Clash-Fix (Doppelte Klassen vermeiden)
+                const colors = ['red', 'yellow', 'green'];
+                cardEl.classList.remove('border-red-500', 'border-yellow-600', 'border-green-600');
+                statusEl.classList.remove('text-red-600', 'text-yellow-600', 'text-green-600');
+                
+                statusEl.classList.add(`text-${color}-600`);
+                cardEl.classList.add(`border-${color}-600`);
+            }
+            
+            function updateTrainingStats() {
+                document.getElementById('stats-updates').textContent = totalUpdates;
+                document.getElementById('stats-words').textContent = WORD_VOCAB.size;
+                document.getElementById('stats-phonemes').textContent = PHO_VOCAB.size;
+                // V37.1: S2 entfernt
+                // document.getElementById('stats-facts').textContent = FACT_BASE.size + SEMANTIC_GRAPH.size;
+                // V31.0: Geglätteten Verlust anzeigen
+                
+                // V46.0: PhO-Compress Stats anzeigen
+                let lossHtml = smoothedLoss.toFixed(4);
+                if (phoCompress.compressionStats.total > 0) {
+                     lossHtml = `${lossHtml} <span class="text-xs text-blue-600">(PhO: ${phoCompress.compressionStats.total.toFixed(1)}x)</span>`;
+                }
+                document.getElementById('stats-loss').innerHTML = lossHtml;
+            }
+            
+            // V37.1: S2 entfernt
+            // function updateConfidenceUI() { ... }
+            
+            function promptForAutosave() {
+                const promptEl = document.getElementById('autosave-prompt');
+                const updatesEl = document.getElementById('autosave-updates');
+                
+                updatesEl.textContent = totalUpdates.toLocaleString('de-DE');
+                promptEl.classList.remove('hidden', 'opacity-0', 'translate-y-4');
+                promptEl.classList.add('opacity-100', 'translate-y-0');
+            }
+            
+            // V37.4: Klick-Fix integriert (Fügt 'hidden' nach Transition hinzu)
+            function hideAutosavePrompt() {
+                const promptEl = document.getElementById('autosave-prompt');
+                // Führt die Fade-Out/Slide-Down-Animation aus
+                promptEl.classList.add('opacity-0', 'translate-y-4');
+                
+                // Fügt 'hidden' hinzu, nachdem die Animation (300ms) abgeschlossen ist, 
+                // um Klicks auf die Elemente darunter zu ermöglichen.
+                setTimeout(() => {
+                    promptEl.classList.add('hidden');
+                }, 300);
+            }
+
+
+            // --- 1. Event-Listener ---
+            
+            function bindEventListeners() {
+                const fileUpload = document.getElementById('file-upload');
+                const fileImportInput = document.getElementById('file-import-input');
+                const promptInput = document.getElementById('prompt-input');
+                const promptButton = document.getElementById('prompt-button');
+                const loadCorpusButton = document.getElementById('load-corpus-button');
+                const exportModelButton = document.getElementById('export-model-button');
+                const importModelButton = document.getElementById('import-model-button');
+                const exportLogButton = document.getElementById('export-log-button');
+                const autonomousToggle = document.getElementById('autonomous-toggle');
+                const autosaveDoSave = document.getElementById('autosave-do-save');
+                const autosaveDismiss = document.getElementById('autosave-dismiss');
+                
+                // V50.0 NEU: Button für externes Korpus-Streaming
+                const streamCorpusButton = document.getElementById('stream-corpus-button');
+
+                if (fileUpload) fileUpload.addEventListener('change', handleFileLoad);
+                if (fileImportInput) fileImportInput.addEventListener('change', importModel);
+
+                if (promptInput) promptInput.addEventListener('keypress', (e) => { 
+                    if (e.key === 'Enter') { e.preventDefault(); handlePromptClick(); } 
+                });
+                if (promptButton) promptButton.addEventListener('click', handlePromptClick);
+                
+                if (loadCorpusButton) loadCorpusButton.addEventListener('click', () => handleCorpusLoadClick(false));
+                
+                // V50.0 NEU: Event-Listener für Streaming-Button
+                if (streamCorpusButton) streamCorpusButton.addEventListener('click', fetchRemoteCorpus);
+
+                if (exportModelButton) exportModelButton.addEventListener('click', exportModel);
+                if (importModelButton) importModelButton.addEventListener('click', () => {
+                    if (fileImportInput) fileImportInput.click();
+                });
+                if (exportLogButton) exportLogButton.addEventListener('click', exportTrainingLog);
+                
+                if (autonomousToggle) autonomousToggle.addEventListener('change', handleAutonomousToggle);
+                
+                // Autosave-Prompt-Listener
+                if (autosaveDoSave) autosaveDoSave.addEventListener('click', () => {
+                    logToUI("Autom. Speichern vom Benutzer bestätigt.", 'save');
+                    exportModel(); 
+                    hideAutosavePrompt(); 
+                });
+                if (autosaveDismiss) autosaveDismiss.addEventListener('click', () => {
+                    logToUI(`Autom. Speichern verworfen. Nächste Meldung bei ${nextAutosaveMilestone.toLocaleString('de-DE')}.`, 'info');
+                    hideAutosavePrompt();
+                });
+            }
+
+
+            // --- 2. Initiale Modellzustands-Initialisierung ---
+            
+            PHO_VOCAB.set('[PAD]', 0); PHO_VOCAB.set('[EOS]', 1);
+            WORD_VOCAB.set('[PAD]', 0); WORD_VOCAB.set('[EOS]', 1);
+            
+            PHO_EMBEDDING_MATRIX = [initNewVector(), initNewVector()];
+            WORD_EMBEDDING_MATRIX = [initNewVector(), initNewVector()];
+            H_long_state = Array(D_MODEL).fill(0); 
+            
+            for(let i = 0; i < MAX_PHONEME_LEN; i++) {
+                POSITIONAL_ENCODING_MATRIX.push(initNewVector());
+            }
+
+            // V39.0: Tabula Rasa — KEIN Bootstrap/keine Seeds.
+            // trainingSentences bleibt leer; das Modell lernt erst nach Korpus-Load.
+
+            
+            updateStatus('Initialisiert (2 Vokabulare)', 'red');
+            updateTrainingStats();
+            // V37.1: S2 entfernt
+            // updateConfidenceUI(); 
+            document.getElementById('training-log').innerHTML = '';
+            logToUI('System initialisiert. Warte auf Korpus.', 'system');
+
+            // --- 3. Worker starten ---
+            // V44.1 FIX: Call worker functions *after* they are globally defined.
+            trainingWorker = createTrainingWorker();
+            discoveryWorker = createDiscoveryWorker();
+            
+            // V49.2 FIX: Binde Event Listener, nachdem Worker und UI initialisiert sind
+            bindEventListeners();
+
+            if (trainingWorker && discoveryWorker) {
+                // --- 4. Worker-Nachrichten-Handler ---
+                
+                // V23.0: Handler für den Training-Worker (Gradientenberechnungen)
+                trainingWorker.onmessage = (e) => {
+                    const { type, data } = e.data;
+                    if (type === 'STEP_DONE') {
+                        // Ein einzelner Trainingsschritt ist abgeschlossen
+                        applyGradients(e.data.gradients, e.data.loss); // V31.0: Verlust übergeben
+                        H_long_state = e.data.H_long_new;
+                        requestAnimationFrame(perpetualTrainingLoop); 
+                    
+                    } else if (type === 'STEP_ERROR') {
+                        const errorMsg = data;
+                        logToUI(`FEHLER (TrainingWorker): ${errorMsg}`, 'error');
+                        console.error("FEHLER (TrainingWorker):", errorMsg); 
+                        updateStatus('Fehler im Training-Worker', 'red');
+                        isTrainingPaused = true; // Bei Fehler pausieren
+                    }
+                };
+                
+                // V23.0: Handler für den Discovery-Worker (Vorverarbeitung, Faktenextraktion)
+                discoveryWorker.onmessage = (e) => {
+                    const { type, data, isAutonomous } = e.data;
+
+                    if (type === 'PROGRESS') {
+                        logToUI(data, 'system'); 
+                    
+                    } else if (type === 'PREPROCESSING_DONE') {
+                        logToUI("Entdeckung abgeschlossen. Integriere neues Wissen...", 'brain');
+                        
+                        // 1. Erweitere SYSTEM 1 (Intuition)
+                        addNewTokensToModel(data.new_tokens);
+                        
+                        const newSentenceBaseIndex = trainingSentences.length;
+                        trainingSentences.push(...data.new_tokenized_sentences_as_strings);
+                        
+                        const newPhenomMap = new Map(Object.entries(data.new_word_to_phenom_map_as_strings));
+                        trainingPhenomMap = new Map([...trainingPhenomMap, ...newPhenomMap]);
+                        
+                        const newIndices = [];
+                        for(let i = 0; i < data.new_tokenized_sentences_as_strings.length; i++) {
+                            newIndices.push(newSentenceBaseIndex + i);
+                        }
+                        
+                        // V45.0 FIX: Hyperspeed-Priorisierung (10x)
+                        for (let i = 0; i < 10; i++) {
+                             priorityTrainingBuffer.unshift(...newIndices); 
+                        }
+                        logToUI(`Priorisiere ${newIndices.length} neue Sätze, ${10}x, für 'Intuition'.`, 'brain');
+                        
+                        // V37.1: S2 entfernt
+                        
+                        // 3. Fortsetzen
+                        const logMsg = `Entdeckung (Nahtlos) abgeschlossen in ${data.duration}s. Setze fort...`;
+                        logToUI(logMsg, 'system');
+                        
+                        updateStatus(`Training läuft (${WORD_VOCAB.size} Wörter)`, 'yellow');
+                        updateTrainingStats();
+                        
+                        // V23.0: Discovery-Sperre freigeben
+                        isDiscovering = false;
+                        
+                        // V31.2: "Chain Reaction"-Logik entfernt. Der "Herzschlag" (setInterval) übernimmt.
+                        
+                    } else if (type === 'ERROR' || type === 'STEP_ERROR') {
+                        const errorMsg = data;
+                        logToUI(`FEHLER (DiscoveryWorker): ${errorMsg}`, 'error');
+                        console.error("FEHLER (DiscoveryWorker):", errorMsg); 
+                        updateStatus('Fehler im Discovery-Worker', 'red');
+                        isDiscovering = false; // V23.0: Sperre freigeben
+
+                        // V31.2: "Chain Reaction"-Logik entfernt. Der "Herzschlag" (setInterval) übernimmt.
+                    }
+                };
+                
+                // --- 5. Starte die unbefristete Trainingsschleife ---
+                logToUI("Unbefristete Trainingsschleife gestartet (aktiv).", 'system');
+                perpetualTrainingLoop(); // Schleife starten (wartet im Leerlauf, bis Daten geladen sind)
+            }
+        }; // --- ENDE VON window.onload ---
+    </script>
+</head>
+
+<body class="p-4 sm:p-8 bg-gray-50">
+
+    <div class="container mx-auto max-w-5xl space-y-6">
+        
+        <!-- TITEL -->
+        <div class="text-center">
+            <h1 class="text-3xl font-extrabold text-gray-800 mb-2">Aligniertes $O(m)$ RNN (C. Hohlfeld)</h1>
+            <!-- V45.0: Titel aktualisiert -->
+            <p class="text-lg font-semibold text-phenom-blue">[V45.0 Performance-Alignment]</p>
+            <p class="text-sm text-gray-600 mt-2 max-w-3xl mx-auto">
+                <!-- V37.1: Beschreibung aktualisiert -->
+                Ein pures $O(m)$ RNN (System 1), das Sprache und Fakten implizit durch phonemische Mustererkennung lernt.
+            </p>
+        </div>
+
+        <!-- STEUERFELD -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="card space-y-4">
+                <h2 class="text-xl font-semibold mb-2 text-phenom-blue">1. Datenverwaltung &amp; Speicher</h2>
+                
+                <textarea id="training-data" rows="8" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-phenom-blue focus:border-phenom-blue text-gray-900 text-sm" placeholder="Fügen Sie hier reinen Text (z.B. aus German Commons) ein. Das System verarbeitet diesen Korpus und priorisiert das Training der darin enthaltenen Muster."></textarea>
+                
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="file" id="file-upload" accept=".txt" class="hidden">
+                    <button onclick="document.getElementById('file-upload').click()" class="flex-1 bg-gray-200 text-gray-800 p-2 rounded-lg shadow-sm hover:bg-gray-300 transition font-bold text-center">
+                        Datei auswählen (.txt)
+                    </button>
+                    <button id="stream-corpus-button" class="flex-1 bg-purple-600 text-white p-2 rounded-lg shadow-md hover:bg-purple-700 transition font-bold">
+                        Großen Korpus streamen
+                    </button>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="load-corpus-button" class="flex-1 bg-green-600 text-white p-2 rounded-lg shadow-md hover:bg-green-700 transition font-bold">
+                        Text laden / Training priorisieren
+                    </button>
+                </div>
+
+                <div class="relative flex items-start pt-2">
+                    <div class="flex items-center h-5">
+                        <input id="autonomous-toggle" type="checkbox" class="focus:ring-phenom-blue h-4 w-4 text-phenom-blue border-gray-300 rounded">
+                    </div>
+                    <div class="ml-3 text-sm">
+                        <label for="autonomous-toggle" class="font-medium text-gray-700">Aktiviere 'Innerer Gedanke'</label>
+                        <p class="text-xs text-gray-500">Sucht autonom nach Wissen: zielgerichtet (aus Prompts) oder ungerichtet (zufällig) bei Leerlauf.</p>
+                    </div>
+                </div>
+                
+                <div class="pt-4 border-t border-gray-200 grid grid-cols-2 gap-4">
+                    <button id="export-model-button" class="bg-blue-600 text-white p-2 rounded-lg shadow-md transition font-bold hover:bg-blue-700">
+                        Modell exportieren
+                    </button>
+                    
+                    <button id="import-model-button" class="bg-blue-200 text-blue-800 p-2 rounded-lg shadow-md transition font-bold hover:bg-blue-300">
+                        Modell importieren
+                    </button>
+                    <input type="file" id="file-import-input" accept=".json" class="hidden">
+                    <!-- V31.0: Log-Export-Button -->
+                    <button id="export-log-button" class="col-span-2 bg-gray-600 text-white p-2 rounded-lg shadow-md transition font-bold hover:bg-gray-700">
+                        Trainingsprotokoll exportieren (.txt)
+                    </button>
+                </div>
+            </div>
+            
+            <div id="model-status-card" class="card border-l-4 border-red-500">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">Modellstatus (Live)</h2>
+                <p id="model-status" class="font-bold text-2xl text-red-600">Initialisiert (2 Vokabulare)</p>
+                
+                <h3 class="mt-4 font-semibold text-phenom-blue">Live-Statistiken (Konsistenter Zustand):</h3>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2">
+                    <span class="font-medium text-gray-600">Gesamte Trainingsschritte:</span>
+                    <span id="stats-updates" class="font-mono text-gray-900 font-bold">0</span>
+                    
+                    <!-- V50.1 FIX: Element-Struktur korrigiert -->
+                    <span class="font-medium text-gray-600">Geglätteter Verlust (Loss):</span>
+                    <span id="stats-loss" class="font-mono text-gray-900 font-bold">0.0000</span>
+
+                    <span class="font-medium text-gray-600">Gelernte Wörter:</span>
+                    <span id="stats-words" class="font-mono text-gray-900 font-bold">2</span>
+                    
+                    <span class="font-medium text-gray-600">Gelernte Phoneme:</span>
+                    <span id="stats-phonemes" class="font-mono text-gray-900 font-bold">2</span>
+                </div>
+
+                <h3 class="mt-4 font-semibold text-phenom-blue">Architektur (V50.0):</h3>
+                <p class="text-sm text-gray-600">**System 1 (Intuition):** $O(m)$ Pures-RNN (Muster) + PhO-Compress</p>
+                <p class="text-sm text-gray-600">**PhO-Compress:** 2-Stufen-Multiplikative Komprimierung</p>
+                <p class="text-sm text-gray-600">**Phonetik:** Regelbasierte G2P + S-Sufficient Reduction</p>
+                <p class="text-sm text-gray-600">**Lernen:** 2-Stufen-Neugier (Proaktiv -> Nachrichten-RSS)</p>
+                <p class="text-sm text-gray-600">**Training:** Zielorientiertes Online-SGD (10x Priorisierung)</p>
+                <p class="text-sm text-gray-600">**Inferenz:** Pures S1 (Intuition)</p>
+            </div>
+        </div>
+        
+        <!-- TRAININGSPROTOKOLL -->
+        <div class="card">
+            <h2 class="text-xl font-semibold mb-3 text-gray-700">Trainingsprotokoll (Live)</h2>
+            <div id="training-log" class="code-block bg-gray-50 text-gray-700 text-xs h-64 overflow-y-scroll">
+                <!-- Logs werden hier von logToUI() eingefügt -->
+            </div>
+        </div>
+
+        <!-- EINGABEAUFFORDERUNG -->
+        <div class="card">
+            <h2 class="text-xl font-semibold mb-3 text-phenom-blue">2. Eingabe (Live-Inferenz)</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Sucht autonom nach Wissen: zielgerichtet (aus Prompts) oder ungerichtet (zufällig) bei Leerlauf.
+            </p>
+
+            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                <input type="text" id="prompt-input" placeholder="Geben Sie eine Eingabe ein (z.B. 'Ist Sokrates sterblich?' oder 'Was ist ein Delfin?')..." class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-phenom-blue focus:border-phenom-blue text-gray-900">
+                <button id="prompt-button" class="bg-phenom-blue text-white p-3 rounded-lg shadow-md hover:bg-phenom-blue/90 transition font-bold">
+                    Generieren
+                </button>
+            </div>
+
+            <div id="inference-stats" class="text-sm mt-2">
+                 <!-- Status der Inferenz wird hier angezeigt -->
+            </div>
+
+            <h3 class="mt-6 font-semibold text-gray-700">NanoLLM-Ausgabe (Dekodierung):</h3>
+            <div id="llm-output" class="code-block bg-gray-100 mt-2 min-h-[50px]">
+                Die generierte (zustandsbehaftet gelernte) Antwort wird hier erscheinen.
+            </div>
+        </div>
+    </div>
+    
+    <!-- V11.0: Autosave-Prompt -->
+    <div id="autosave-prompt" class="hidden opacity-0 translate-y-4 fixed bottom-4 right-4 w-full max-w-sm p-4 bg-white rounded-lg shadow-2xl border border-blue-200" role="alert">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-3 w-0 flex-1">
+                <p class="text-sm font-medium text-gray-900">Trainings-Meilenstein erreicht!</p>
+                <!-- V37.4 FIX: </g> zu </p> korrigiert -->
+                <p class="mt-1 text-sm text-gray-500">
+                    Modell hat <span id="autosave-updates" class="font-bold">0</span> Schritte gelernt. Möchten Sie Ihren Fortschritt speichern?
+                </p>
+                <div class="mt-3 flex space-x-3">
+                    <button id="autosave-do-save" type="button" class="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Jetzt speichern
+                    </button>
+                    <button id="autosave-dismiss" type="button" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Verwerfen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
