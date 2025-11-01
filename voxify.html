@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>STL → VoxelShaper (Cubic Export • Robust Slicer • Y-up)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+  <!-- Three.js (single version) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; display: flex; flex-direction: column; background: #0b0f14; color: #e5e7eb; }
+    #canvas-wrap { position: relative; flex: 1; min-height: 0; }
+    #renderer { position:absolute; inset:0; display:block; width:100%; height:100%; }
+    .pill { padding:.25rem .5rem; border-radius:999px; background:#111827; }
+    .mono { font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <header class="p-3 bg-base-200 shadow flex flex-wrap items-center gap-3">
+    <div class="text-xl font-bold text-primary">STL → VoxelShaper</div>
+
+    <label class="btn btn-primary btn-sm gap-2">
+      <i class="fa-solid fa-file-arrow-up"></i> Load STL
+      <input id="stl-file" type="file" accept=".stl" class="hidden" />
+    </label>
+
+    <div class="flex items-center gap-2">
+      <span class="pill">Grid <span id="gridLabel" class="mono">96</span>³</span>
+      <input id="grid" type="range" min="16" max="256" value="96" step="1" class="range range-sm range-primary w-48">
+    </div>
+
+    <label class="flex items-center gap-2 ml-2 text-sm">
+      <input id="zUp" type="checkbox" class="toggle toggle-xs" checked />
+      <span>Input STL is Z-up → rotate to Y-up</span>
+    </label>
+
+    <label class="flex items-center gap-2 ml-4 text-sm">
+      <input id="autosave" type="checkbox" class="toggle toggle-xs" checked />
+      <span>Auto-save</span>
+    </label>
+
+    <div class="ml-auto flex gap-2">
+      <button id="voxelize" class="btn btn-secondary btn-sm" disabled>
+        <i class="fa-solid fa-cubes"></i> Voxelize
+      </button>
+      <button id="download" class="btn btn-success btn-sm" disabled>
+        <i class="fa-solid fa-download"></i> Download JSON
+      </button>
+      <button id="clear" class="btn btn-outline btn-sm">
+        <i class="fa-solid fa-broom"></i> Reset
+      </button>
+    </div>
+  </header>
+
+  <div class="px-3 py-2 flex items-center gap-4 bg-base-300/40">
+    <div class="flex items-center gap-2">
+      <span class="text-xs opacity-70">Status:</span>
+      <span id="status" class="text-xs pill mono">idle</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs opacity-70">Progress:</span>
+      <progress id="prog" class="progress progress-primary w-60" value="0" max="100"></progress>
+      <span id="progLabel" class="text-xs mono w-16 text-right">0%</span>
+    </div>
+    <div class="text-xs opacity-70">Uniform cubic map • parity fill • island cleanup • Y is height.</div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="renderer"></canvas>
+    <div id="hint" class="absolute inset-0 flex items-center justify-center text-center pointer-events-none">
+      <div class="opacity-60">
+        <div class="text-3xl mb-2">Drop an STL here</div>
+        <div class="text-sm">Y-up (height), X/Z plane. Autosave & Confirm-Reset enabled.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // ==== UI ====
+    var elFile = document.getElementById('stl-file');
+    var elGrid = document.getElementById('grid');
+    var elGridLabel = document.getElementById('gridLabel');
+    var elZup = document.getElementById('zUp');
+    var elAutosave = document.getElementById('autosave');
+    var elVoxelize = document.getElementById('voxelize');
+    var elDownload = document.getElementById('download');
+    var elClear = document.getElementById('clear');
+    var elStatus = document.getElementById('status');
+    var elProg = document.getElementById('prog');
+    var elProgLabel = document.getElementById('progLabel');
+    var elHint = document.getElementById('hint');
+
+    elGrid.addEventListener('input', function(){ elGridLabel.textContent = elGrid.value; savePrefs(); });
+    elZup.addEventListener('change', savePrefs);
+    elAutosave.addEventListener('change', savePrefs);
+    function setStatus(s){ elStatus.textContent = s; }
+    function setProg(v, max){ elProg.max = max||100; elProg.value = v; var p = (v/(max||100))*100; elProgLabel.textContent = (p|0) + "%"; }
+
+    // ==== THREE ====
+    var canvas = document.getElementById('renderer');
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0f14);
+    var camera = new THREE.PerspectiveCamera(45, 16/9, 0.01, 5000);
+    camera.position.set(2, 1.5, 2.5);
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+
+    function resize(){
+      var w = canvas.clientWidth = canvas.parentElement.clientWidth;
+      var h = canvas.clientHeight = canvas.parentElement.clientHeight;
+      renderer.setSize(w, h, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+      camera.aspect = w/h; camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    var key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(3,4,2); scene.add(key);
+
+    var modelGroup = new THREE.Group(); scene.add(modelGroup);
+    var voxGroup = new THREE.Group(); scene.add(voxGroup);
+
+    // Helpers / state
+    var stlMesh = null, stlName = "";
+    var meshBBHelper = null;     // STL (non-cubic)
+    var gridCubeHelper = null;   // cubic export/grid helper
+    var voxelData = null;
+    var gridN = parseInt(elGrid.value,10);
+    var lastMap = null; // {min,size,s,offX,offY,offZ,N}
+
+    var PREVIEW_VOXEL_COLOR = '#22C55E';
+
+    function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); }
+    loop(); resize();
+
+    function clearScene(){
+      if (stlMesh){ modelGroup.remove(stlMesh); stlMesh.geometry.dispose(); stlMesh.material.dispose(); stlMesh=null; }
+      if (meshBBHelper){ modelGroup.remove(meshBBHelper); meshBBHelper=null; }
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      voxelData=null; stlName=""; lastMap=null;
+      elVoxelize.disabled = true; elDownload.disabled = true; setProg(0,100); setStatus("idle"); elHint.style.display="";
+      saveAutosave();
+    }
+
+    // ==== persistence ====
+    var LS_KEY_JSON = "vx_proj_final_matrixscale_v1";
+    var LS_KEY_PREF = "vx_pref_final_matrixscale_v1";
+    function saveAutosave(){
+      if (!elAutosave.checked){ try{ localStorage.removeItem(LS_KEY_JSON); }catch(_){} return; }
+      if (voxelData){
+        try{ localStorage.setItem(LS_KEY_JSON, JSON.stringify(voxelData)); }catch(e){}
+      } else { try{ localStorage.removeItem(LS_KEY_JSON); }catch(_){} }
+    }
+    function savePrefs(){
+      try{ localStorage.setItem(LS_KEY_PREF, JSON.stringify({grid:+elGrid.value, zUp:!!elZup.checked, autosave:!!elAutosave.checked})); }catch(_){}
+    }
+    (function restore(){
+      try{
+        var p = JSON.parse(localStorage.getItem(LS_KEY_PREF)||"null");
+        if (p){ elGrid.value=p.grid||96; elGridLabel.textContent=elGrid.value; elZup.checked=!!p.zUp; elAutosave.checked=!!p.autosave; }
+        var j = JSON.parse(localStorage.getItem(LS_KEY_JSON)||"null");
+        if (j && j.gridSize && j.voxels){
+          voxelData=j; gridN=j.gridSize|0; elGrid.value=gridN; elGridLabel.textContent=gridN;
+          previewSurfaceFromVoxels(j); elDownload.disabled=true; setStatus("restored (preview only)");
+        }
+      }catch(_){}
+    })();
+
+    // ==== drag & drop ====
+    (function setupDnD(){
+      var wrap = document.getElementById('canvas-wrap');
+      ['dragenter','dragover'].forEach(function(ev){
+        wrap.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); wrap.classList.add('ring','ring-primary'); }, false);
+      });
+      ['dragleave','drop'].forEach(function(ev){
+        wrap.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); wrap.classList.remove('ring','ring-primary'); }, false);
+      });
+      wrap.addEventListener('drop', function(e){
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) { if (stlMesh||voxelData){ if(!confirm("Replace current scene?")) return; } loadStlFile(f); }
+      }, false);
+    })();
+
+    // ==== file UI ====
+    elFile.addEventListener('change', function(e){
+      var f = e.target.files[0];
+      if (!f) return;
+      if (stlMesh || voxelData){ if (!confirm("Replace current scene? This will reset the view.")) { elFile.value=""; return; } }
+      loadStlFile(f);
+    });
+    elClear.addEventListener('click', function(){
+      if (!stlMesh && !voxelData) return;
+      if (confirm("Reset scene to empty?")) clearScene();
+    });
+
+    function loadStlFile(file){
+      clearScene();
+      setStatus("reading STL…");
+      var fr = new FileReader();
+      fr.onload = function(e){
+        try{
+          var loader = new THREE.STLLoader();
+          var geo = loader.parse(e.target.result);
+          stlName = file.name||"model";
+          placeMesh(geo);
+          elVoxelize.disabled = false;
+          setStatus("STL loaded: "+stlName);
+          elHint.style.display = "none";
+        }catch(err){ setStatus("STL parse failed"); console.error(err); }
+      };
+      fr.readAsArrayBuffer(file);
+    }
+
+    // Normalize & center mesh (world coords)
+    function placeMesh(geometry){
+      geometry.computeBoundingBox();
+      var bb = geometry.boundingBox.clone();
+      var size = new THREE.Vector3(); bb.getSize(size);
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var scale = 1.0 / maxDim;
+      var mat = new THREE.Matrix4().makeScale(scale, scale, scale);
+      if (elZup.checked){ var rotX = new THREE.Matrix4().makeRotationX(-Math.PI/2); mat.premultiply(rotX); }
+      geometry.applyMatrix4(mat);
+      geometry.computeBoundingBox(); geometry.computeVertexNormals();
+
+      var cent = new THREE.Vector3(); geometry.boundingBox.getCenter(cent);
+      geometry.translate(-cent.x, -cent.y, -cent.z);
+
+      var matMesh = new THREE.MeshStandardMaterial({ color: 0x1e90ff, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
+      stlMesh = new THREE.Mesh(geometry, matMesh);
+      modelGroup.add(stlMesh);
+
+      if (meshBBHelper){ modelGroup.remove(meshBBHelper); meshBBHelper=null; }
+      var bbs = new THREE.Box3().setFromObject(stlMesh);
+      meshBBHelper = new THREE.Box3Helper(bbs, 0x7f7f7f);
+      modelGroup.add(meshBBHelper);
+
+      var s = new THREE.Vector3(); bbs.getSize(s);
+      var r = Math.max(s.x, s.y, s.z) * 0.65 + 0.25;
+      camera.position.set(r, r*0.7, r);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    // World→Grid uniform cubic map for current geometry and grid N
+    function computeUniformMap(geometry, N){
+      geometry.computeBoundingBox();
+      var bb = geometry.boundingBox;
+      var min = bb.min.clone();
+      var size = new THREE.Vector3(); bb.getSize(size);
+
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var s = (N - 1) / maxDim; // uniform
+
+      var gxSpan = size.x * s;
+      var gySpan = size.y * s;
+      var gzSpan = size.z * s;
+
+      var offX = ((N - 1) - gxSpan) * 0.5;
+      var offY = ((N - 1) - gySpan) * 0.5;
+      var offZ = ((N - 1) - gzSpan) * 0.5;
+
+      return { min:min, size:size, s:s, offX:offX, offY:offY, offZ:offZ, N:N };
+    }
+    function worldToGrid(vx,vy,vz,map){
+      return {
+        x: (vx - map.min.x)*map.s + map.offX,
+        y: (vy - map.min.y)*map.s + map.offY,
+        z: (vz - map.min.z)*map.s + map.offZ
+      };
+    }
+
+    // Precompute triangles in GRID space + Y-slice bins
+    function buildTriDataAndBinsUniform(geometry, map){
+      var pos = geometry.getAttribute('position');
+      var triCount = pos.count / 3;
+      var tri = new Float32Array(triCount * 9);
+      var binsY = new Array(map.N); for (var i=0;i<map.N;i++) binsY[i]=[];
+
+      for (var i=0;i<triCount;i++){
+        var ax=pos.getX(i*3+0), ay=pos.getY(i*3+0), az=pos.getZ(i*3+0);
+        var bx=pos.getX(i*3+1), by=pos.getY(i*3+1), bz=pos.getZ(i*3+1);
+        var cx=pos.getX(i*3+2), cy=pos.getY(i*3+2), cz=pos.getZ(i*3+2);
+
+        var A=worldToGrid(ax,ay,az,map), B=worldToGrid(bx,by,bz,map), C=worldToGrid(cx,cy,cz,map);
+
+        var t9=i*9;
+        tri[t9  ]=A.x; tri[t9+1]=A.y; tri[t9+2]=A.z;
+        tri[t9+3]=B.x; tri[t9+4]=B.y; tri[t9+5]=B.z;
+        tri[t9+6]=C.x; tri[t9+7]=C.y; tri[t9+8]=C.z;
+
+        var minY = Math.min(A.y,B.y,C.y);
+        var maxY = Math.max(A.y,B.y,C.y);
+        var start = Math.ceil(minY - 0.5);
+        var end   = Math.floor(maxY - 0.5);
+        if (start < 0) start = 0;
+        if (end > map.N-1) end = map.N-1;
+        if (start <= end){
+          for (var y=start;y<=end;y++){ binsY[y].push(i); }
+        }
+      }
+      return { tri:tri, triCount:triCount, binsY:binsY };
+    }
+
+    // half-open rules (no eps)
+    function edgeCross(y1, y2, yStar){ return (y1 <= yStar && y2 > yStar) || (y2 <= yStar && y1 > yStar); }
+    function rowCross(z1, z2, zRow){ return (z1 <= zRow && z2 > zRow) || (z2 <= zRow && z1 > zRow); }
+
+    elVoxelize.addEventListener('click', function(){
+      if (!stlMesh){ alert("Load an STL first."); return; }
+      gridN = parseInt(elGrid.value,10);
+      voxelizeBySlicesUniform(stlMesh.geometry, gridN);
+    });
+
+    async function voxelizeBySlicesUniform(geometry, N){
+      setStatus("preparing…"); setProg(0,100);
+      elVoxelize.disabled = true; elDownload.disabled = true;
+
+      lastMap = computeUniformMap(geometry, N);
+      var data = buildTriDataAndBinsUniform(geometry, lastMap);
+      var tri = data.tri, binsY = data.binsY;
+
+      // exported cubic grid helper (world)
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      gridCubeHelper = buildGridCubeHelper(lastMap);
+      modelGroup.add(gridCubeHelper);
+
+      var N2 = N*N, total = N*N*N;
+      var occ = new Uint8Array(total);
+
+      setStatus("slice raster…");
+      for (var y=0;y<N;y++){
+        var yStar = y + 0.5;
+        var list = binsY[y];
+        if (list.length){
+          // gather all segment crossings for this Y
+          var segX1=[], segZ1=[], segX2=[], segZ2=[];
+          var segBins = new Array(N); for (var i=0;i<N;i++) segBins[i]=[];
+
+          for (var k=0; k<list.length; k++){
+            var t = list[k]*9;
+            var ax=tri[t], ay=tri[t+1], az=tri[t+2];
+            var bx=tri[t+3], by=tri[t+4], bz=tri[t+5];
+            var cx=tri[t+6], cy=tri[t+7], cz=tri[t+8];
+
+            var px0=0,pz0=0,px1=0,pz1=0, c=0;
+
+            if (edgeCross(ay,by,yStar)){ var t1=(yStar-ay)/(by-ay); px0=ax+t1*(bx-ax); pz0=az+t1*(bz-az); c=1; }
+            if (edgeCross(by,cy,yStar)){
+              var t2=(yStar-by)/(cy-by);
+              if (c===0){ px0=bx+t2*(cx-bx); pz0=bz+t2*(cz-bz); c=1; }
+              else      { px1=bx+t2*(cx-bx); pz1=bz+t2*(cz-bz); c=2; }
+            }
+            if (c<2 && edgeCross(cy,ay,yStar)){
+              var t3=(yStar-cy)/(ay-cy);
+              if (c===0){ px0=cx+t3*(ax-cx); pz0=cz+t3*(az-cz); c=1; }
+              else      { px1=cx+t3*(ax-cx); pz1=cz+t3*(az-cz); c=2; }
+            }
+
+            if (c===2){
+              var si=segX1.length;
+              segX1.push(px0); segZ1.push(pz0); segX2.push(px1); segZ2.push(pz1);
+
+              var zmin = pz0 < pz1 ? pz0 : pz1;
+              var zmax = pz0 > pz1 ? pz0 : pz1;
+              var zs = Math.ceil(zmin - 0.5);
+              var ze = Math.floor(zmax - 0.5);
+              if (zs<0) zs=0; if (ze>N-1) ze=N-1;
+              for (var zz=zs; zz<=ze; zz++){ segBins[zz].push(si); }
+            }
+          }
+
+          // parity fill along X for each Z row
+          for (var z=0; z<N; z++){
+            var zRow = z + 0.5;
+            var indices = segBins[z];
+            if (!indices.length) continue;
+
+            var xs = [];
+            for (var ii=0; ii<indices.length; ii++){
+              var sIdx = indices[ii];
+              var x1=segX1[sIdx], z1=segZ1[sIdx], x2=segX2[sIdx], z2=segZ2[sIdx];
+              if (rowCross(z1, z2, zRow)){
+                var tt=(zRow - z1)/(z2 - z1);
+                xs.push(x1 + tt*(x2 - x1));
+              }
+            }
+            if (xs.length<2) continue;
+            xs.sort(function(a,b){ return a-b; });
+
+            for (var p=0; p+1<xs.length; p+=2){
+              var x0 = xs[p], x1 = xs[p+1];
+              var sx = Math.ceil(x0 - 0.5);
+              var ex = Math.floor(x1 - 0.5);
+              if (sx<0) sx=0; if (ex>N-1) ex=N-1;
+              if (sx<=ex){
+                var base = y*N2 + z*N;
+                for (var xx=sx; xx<=ex; xx++){ occ[base+xx]=1; }
+              }
+            }
+          }
+        }
+        if ((y & 3)===0){ setProg((y/N)*80,100); await idle(); }
+      }
+
+      setProg(80,100); setStatus("surface + islands…");
+
+      // surface marking
+      var surf = new Uint8Array(total);
+      for (var yy=0; yy<N; yy++){
+        var yOff = yy*N2;
+        for (var zz=0; zz<N; zz++){
+          var base=yOff+zz*N;
+          for (var xx=0; xx<N; xx++){
+            var id=base+xx; if (!occ[id]) continue;
+            var border = (xx===0||yy===0||zz===0||xx===N-1||yy===N-1||zz===N-1);
+            var neighEmpty =
+              (xx>0   ? (occ[id-1]===0)    : true) ||
+              (xx<N-1 ? (occ[id+1]===0)    : true) ||
+              (yy>0   ? (occ[id-N2]===0)   : true) ||
+              (yy<N-1 ? (occ[id+N2]===0)   : true) ||
+              (zz>0   ? (occ[id-N]===0)    : true) ||
+              (zz<N-1 ? (occ[id+N]===0)    : true);
+            if (border || neighEmpty) surf[id]=1;
+          }
+        }
+        if ((yy & 7)===0){ setProg(80 + (yy/N)*10, 100); await idle(); }
+      }
+
+      // BFS keep only content connected to surface
+      var keep = new Uint8Array(total);
+      var q = new Int32Array(total); var qh=0, qt=0;
+      for (var i=0;i<total;i++){ if (surf[i]===1){ keep[i]=1; q[qt++]=i; } }
+      while (qh<qt){
+        var id=q[qh++]; var x=id%N; var yz=(id/N)|0; var y=(yz/N)|0; var z=yz%N;
+        var n;
+        if (x>0   ){ n=id-1;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (x<N-1 ){ n=id+1;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (y>0   ){ n=id-N2;  if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (y<N-1 ){ n=id+N2;  if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (z>0   ){ n=id-N;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (z<N-1 ){ n=id+N;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+      }
+
+      // occupied content bounds (grid)
+      var cmin = {x:N, y:N, z:N}, cmax = {x:-1, y:-1, z:-1};
+      for (var id2=0; id2<total; id2++){
+        if (keep[id2] && occ[id2]){
+          var x5=id2%N; var yz5=(id2/N)|0; var y5=(yz5/N)|0; var z5=yz5%N;
+          if (x5<cmin.x) cmin.x=x5; if (x5>cmax.x) cmax.x=x5;
+          if (y5<cmin.y) cmin.y=y5; if (y5>cmax.y) cmax.y=y5;
+          if (z5<cmin.z) cmin.z=z5; if (z5>cmax.z) cmax.z=z5;
+        }
+      }
+      if (cmax.x<0){ cmin={x:0,y:0,z:0}; cmax={x:0,y:0,z:0}; }
+
+      // build voxels w/ palette (color index + legacy color)
+      var voxels = [];
+      var palette = [PREVIEW_VOXEL_COLOR.toUpperCase()];
+      for (var id3=0; id3<total; id3++){
+        if (keep[id3] && occ[id3]){
+          var x6=id3%N; var yz6=(id3/N)|0; var y6=(yz6/N)|0; var z6=yz6%N;
+          voxels.push({x:x6,y:y6,z:z6,ci:0,color:palette[0]});
+        }
+      }
+
+      // final JSON (cubic export)
+      var worldVoxel = 1/N;
+      voxelData = {
+        name: (stlName||"model").replace(/\.[^/.]+$/, ""),
+        yUp: true,
+        gridSize: N, gridSizeX: N, gridSizeY: N, gridSizeZ: N,
+        bounds: {
+          grid: { min:{x:0,y:0,z:0}, max:{x:N-1,y:N-1,z:N-1}, size:{x:N,y:N,z:N} },
+          worldCube: { min:{x:-0.5,y:-0.5,z:-0.5}, max:{x:0.5,y:0.5,z:0.5} },
+          voxelSizeWorld: { x:worldVoxel, y:worldVoxel, z:worldVoxel }
+        },
+        contentBounds: { grid: { min:cmin, max:cmax } },
+        palette: palette,
+        currentDrawingAxis: "y",
+        activeDrawingLevel: {x:0,y:0,z:0},
+        voxels: voxels,
+        creator: "Christian Heinrich Hohlfeld",
+        source: stlName||"STL Import",
+        conversionDate: new Date().toISOString()
+      };
+      saveAutosave();
+
+      setProg(95,100); setStatus("preview…");
+      previewSurfaceFromOcc(occ, lastMap);
+      elDownload.disabled = false;
+      setProg(100,100); setStatus("done: "+voxels.length+" voxels");
+    }
+
+    function idle(){ return new Promise(function(res){ requestAnimationFrame(res); }); }
+
+    function buildGridCubeHelper(map){
+      var N=map.N, s=map.s, min=map.min, offX=map.offX, offY=map.offY, offZ=map.offZ;
+      function g2w(gx,gy,gz){ return new THREE.Vector3((gx-offX)/s+min.x, (gy-offY)/s+min.y, (gz-offZ)/s+min.z); }
+      var wmin=g2w(0,0,0), wmax=g2w(N-1,N-1,N-1);
+      return new THREE.Box3Helper(new THREE.Box3(wmin,wmax), 0xffa500);
+    }
+
+    // ---------- FIXED PREVIEW (compose per-instance scale; DO NOT scale InstancedMesh) ----------
+    function previewSurfaceFromOcc(occ, map){
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      var N=map.N, N2=N*N;
+      var coords=[];
+      for (var y=0;y<N;y++){
+        var yOff=y*N2;
+        for (var z=0;z<N;z++){
+          var base=yOff+z*N;
+          for (var x=0;x<N;x++){
+            var id=base+x; if (!occ[id]) continue;
+            var border = (x===0||y===0||z===0||x===N-1||y===N-1||z===N-1);
+            var neighEmpty =
+              (x>0   ? (occ[id-1]===0)    : true) ||
+              (x<N-1 ? (occ[id+1]===0)    : true) ||
+              (y>0   ? (occ[id-N*N]===0)  : true) ||
+              (y<N-1 ? (occ[id+N*N]===0)  : true) ||
+              (z>0   ? (occ[id-N]===0)    : true) ||
+              (z<N-1 ? (occ[id+N]===0)    : true);
+            if (border || neighEmpty){ coords.push(x,y,z); }
+          }
+        }
+      }
+      if (!coords.length){ setStatus("no surface voxels"); return; }
+
+      var box = new THREE.BoxGeometry(1,1,1);
+      var mat = new THREE.MeshBasicMaterial({ color: PREVIEW_VOXEL_COLOR, wireframe: true, transparent: true, opacity: 0.85 });
+      var inst = new THREE.InstancedMesh(box, mat, (coords.length/3)|0);
+      var m = new THREE.Matrix4();
+      var q = new THREE.Quaternion();
+      var svec = new THREE.Vector3();
+
+      var invS = map.s;                 // world units per grid unit denominator
+      var vEdge = 1 / invS;             // world voxel edge
+      svec.set(vEdge, vEdge, vEdge);    // constant per instance scale
+
+      var min=map.min, offX=map.offX, offY=map.offY, offZ=map.offZ, s=map.s;
+
+      for (var i=0, idx=0; i<coords.length; ){
+        var gx=coords[i++], gy=coords[i++], gz=coords[i++];
+        var wx = ( (gx + 0.5) - offX)/s + min.x;
+        var wy = ( (gy + 0.5) - offY)/s + min.y;
+        var wz = ( (gz + 0.5) - offZ)/s + min.z;
+        m.compose(new THREE.Vector3(wx,wy,wz), q, svec);
+        inst.setMatrixAt(idx++, m);
+      }
+      inst.instanceMatrix.needsUpdate=true;
+      // IMPORTANT: do NOT set inst.scale — that would compress translations!
+      voxGroup.add(inst);
+    }
+
+    // Preview from saved JSON (no STL overlay)
+    function previewSurfaceFromVoxels(project){
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      var N=project.gridSize|0, occ=new Uint8Array(N*N*N);
+      for (var i=0;i<project.voxels.length;i++){ var v=project.voxels[i]; occ[(v.y*N + v.z)*N + v.x]=1; }
+      // Build a simple "unit cube in world" map so each voxel is 1 unit edge; camera will still show it.
+      var map = { N:N, s:1, min:new THREE.Vector3(-N*0.5,-N*0.5,-N*0.5), offX:0,offY:0,offZ:0 };
+      previewSurfaceFromOcc(occ,map);
+      elVoxelize.disabled = true; setStatus("preview (restored; export after re-voxelize)");
+    }
+
+    elDownload.addEventListener('click', function(){
+      if (!voxelData){ alert("Nothing to export."); return; }
+      var name = (stlName||voxelData.name||"model").replace(/\.[^/.]+$/, "");
+      var fn = name+"_"+voxelData.gridSize+"x"+voxelData.gridSize+"x"+voxelData.gridSize+".json";
+      var json = JSON.stringify(voxelData);
+      var blob = new Blob([json], {type:"application/json"});
+      var url  = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 0);
+    });
+
+    window.addEventListener('beforeunload', function(e){
+      if (elAutosave.checked) return;
+      if (voxelData || stlMesh){ e.preventDefault(); e.returnValue = ""; }
+    });
+
+  })();
+  </script>
+</body>
+</html>
