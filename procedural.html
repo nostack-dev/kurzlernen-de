@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>STL → VoxelShaper (Procedural + Voxelizer • Ground-Aligned • Cubic • Y-up)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+  <!-- Three.js (non-module) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; display: flex; flex-direction: column; background: #0b0f14; color: #e5e7eb; }
+    #canvas-wrap { position: relative; flex: 1; min-height: 0; }
+    #renderer { position:absolute; inset:0; display:block; width:100%; height:100%; }
+    .pill { padding:.25rem .5rem; border-radius:999px; background:#111827; }
+    .mono { font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    .divider-v { width:1px; height:24px; background:#1f2937; margin:0 .5rem; }
+  </style>
+</head>
+<body>
+  <header class="p-3 bg-base-200 shadow flex flex-wrap items-center gap-3">
+    <div class="text-xl font-bold text-primary">STL → VoxelShaper</div>
+
+    <!-- Load STL -->
+    <label class="btn btn-primary btn-sm gap-2">
+      <i class="fa-solid fa-file-arrow-up"></i> Load STL
+      <input id="stl-file" type="file" accept=".stl" class="hidden" />
+    </label>
+
+    <!-- Voxelizer grid -->
+    <div class="flex items-center gap-2">
+      <span class="pill">Voxel Grid <span id="gridLabel" class="mono">128</span>³</span>
+      <input id="grid" type="range" min="16" max="512" value="128" step="1" class="range range-sm range-primary w-56">
+    </div>
+
+    <label class="flex items-center gap-2 ml-2 text-sm">
+      <input id="zUp" type="checkbox" class="toggle toggle-xs" checked />
+      <span>Input STL is Z-up → rotate to Y-up</span>
+    </label>
+
+    <div class="divider-v hidden md:block"></div>
+
+    <!-- Procedural generator controls -->
+    <div class="flex items-center gap-2">
+      <span class="pill">Proc Res <span id="procResLabel" class="mono">64</span>³</span>
+      <input id="procRes" type="range" min="24" max="96" value="64" step="2" class="range range-xs range-secondary w-44">
+    </div>
+
+    <select id="preset" class="select select-bordered select-xs w-44">
+      <option value="twistedTorus">Twisted Torus (smooth)</option>
+      <option value="organicSculpt">Organic Sculpture (smooth unions)</option>
+      <option value="superquadric">Superquadric Sculpture</option>
+      <option value="spireTower">Spire Tower (architectural)</option>
+      <option value="rock">Rock (noisy)</option>
+    </select>
+
+    <div class="flex items-center gap-2">
+      <span class="pill">Seed <span id="seedLabel" class="mono">12345</span></span>
+      <input id="seed" type="range" min="1" max="99999" value="12345" step="1" class="range range-xs range-accent w-40">
+      <button id="randSeed" class="btn btn-ghost btn-xs" title="Randomize seed"><i class="fa-solid fa-dice"></i></button>
+    </div>
+
+    <button id="genProc" class="btn btn-info btn-sm">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Procedural
+    </button>
+
+    <div class="divider-v hidden md:block"></div>
+
+    <!-- Toggles -->
+    <div class="flex items-center gap-4">
+      <label class="flex items-center gap-2 text-sm">
+        <input id="showSTL" type="checkbox" class="toggle toggle-xs" checked />
+        <span>Show Mesh</span>
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input id="showVox" type="checkbox" class="toggle toggle-xs" checked disabled />
+        <span>Show Voxels</span>
+      </label>
+    </div>
+
+    <div class="ml-auto flex gap-2">
+      <button id="voxelize" class="btn btn-secondary btn-sm" disabled>
+        <i class="fa-solid fa-cubes"></i> Voxelize
+      </button>
+      <button id="download" class="btn btn-success btn-sm" disabled>
+        <i class="fa-solid fa-download"></i> Download JSON
+      </button>
+      <button id="clear" class="btn btn-outline btn-sm">
+        <i class="fa-solid fa-broom"></i> Reset
+      </button>
+    </div>
+  </header>
+
+  <div class="px-3 py-2 flex items-center gap-4 bg-base-300/40">
+    <div class="flex items-center gap-2">
+      <span class="text-xs opacity-70">Status:</span>
+      <span id="status" class="text-xs pill mono">idle</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs opacity-70">Progress:</span>
+      <progress id="prog" class="progress progress-primary w-60" value="0" max="100"></progress>
+      <span id="progLabel" class="text-xs mono w-16 text-right">0%</span>
+    </div>
+    <div id="syncNote" class="text-xs opacity-70"></div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="renderer"></canvas>
+    <div id="hint" class="absolute inset-0 flex items-center justify-center text-center pointer-events-none">
+      <div class="opacity-60">
+        <div class="text-3xl mb-2">Drop an STL here or Generate a Procedural Model</div>
+        <div class="text-sm">Ground (0,0,0) shared for Mesh & Voxels • Auto-voxelize on grid release.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // ==== UI refs ====
+    var elFile = document.getElementById('stl-file');
+    var elGrid = document.getElementById('grid');
+    var elGridLabel = document.getElementById('gridLabel');
+    var elZup = document.getElementById('zUp');
+    var elVoxelize = document.getElementById('voxelize');
+    var elDownload = document.getElementById('download');
+    var elClear = document.getElementById('clear');
+    var elStatus = document.getElementById('status');
+    var elProg = document.getElementById('prog');
+    var elProgLabel = document.getElementById('progLabel');
+    var elHint = document.getElementById('hint');
+    var elShowSTL = document.getElementById('showSTL');
+    var elShowVox = document.getElementById('showVox');
+    var elSyncNote = document.getElementById('syncNote');
+
+    var elProcRes = document.getElementById('procRes');
+    var elProcResLabel = document.getElementById('procResLabel');
+    var elPreset = document.getElementById('preset');
+    var elSeed = document.getElementById('seed');
+    var elSeedLabel = document.getElementById('seedLabel');
+    var elRandSeed = document.getElementById('randSeed');
+    var elGenProc = document.getElementById('genProc');
+
+    function setStatus(s){ elStatus.textContent = s; }
+    function setProg(v, max){ elProg.max = max||100; elProg.value = v; var p = (v/(max||100))*100; elProgLabel.textContent = (p|0) + "%"; }
+    function setSyncNote(text){ elSyncNote.textContent = text||""; }
+
+    // ==== THREE ====
+    var canvas = document.getElementById('renderer');
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0f14);
+    var camera = new THREE.PerspectiveCamera(45, 16/9, 0.01, 5000);
+    camera.position.set(2, 1.5, 2.5);
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+
+    function resize(){
+      var w = canvas.clientWidth = canvas.parentElement.clientWidth;
+      var h = canvas.clientHeight = canvas.parentElement.clientHeight;
+      renderer.setSize(w, h, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+      camera.aspect = w/h; camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    var key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(3,4,2); scene.add(key);
+
+    var modelGroup = new THREE.Group(); scene.add(modelGroup);
+    var voxGroup = new THREE.Group(); scene.add(voxGroup);
+
+    // Helpers / state
+    var stlMesh = null, stlName = "";
+    var meshBBHelper = null;     // mesh bbox
+    var gridCubeHelper = null;   // cubic voxel export helper
+    var voxelData = null;
+    var gridN = parseInt(elGrid.value,10);
+    var lastMap = null; // {min,size,s,offX,offY,offZ,N}
+    var PREVIEW_VOXEL_COLOR = '#22C55E';
+    var busy = false;
+
+    function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); }
+    loop(); resize();
+
+    function applyVisibility(){
+      if (stlMesh) stlMesh.visible = !!elShowSTL.checked;
+      voxGroup.visible = !!elShowVox.checked;
+    }
+    elShowSTL.addEventListener('change', applyVisibility);
+    elShowVox.addEventListener('change', applyVisibility);
+
+    function clearScene(){
+      if (stlMesh){ modelGroup.remove(stlMesh); if (stlMesh.geometry) stlMesh.geometry.dispose(); if (stlMesh.material) stlMesh.material.dispose(); stlMesh=null; }
+      if (meshBBHelper){ modelGroup.remove(meshBBHelper); meshBBHelper=null; }
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      voxelData=null; stlName=""; lastMap=null;
+      elVoxelize.disabled = true; elDownload.disabled = true; elShowVox.disabled = true;
+      setProg(0,100); setStatus("idle"); setSyncNote(""); elHint.style.display="";
+    }
+
+    function idle(){ return new Promise(function(res){ requestAnimationFrame(res); }); }
+
+    // === Ground align mesh: center XZ, put minY at 0, then frame camera ===
+    function placeMeshGroundAligned(geometry){
+      geometry.computeBoundingBox();
+      var bb = geometry.boundingBox;
+      var size = new THREE.Vector3(); bb.getSize(size);
+
+      // scale to maxDim = 1.0
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var sc = 1.0 / maxDim;
+      var M = new THREE.Matrix4().makeScale(sc, sc, sc);
+      geometry.applyMatrix4(M);
+
+      // recompute, center XZ, ground Y
+      geometry.computeBoundingBox();
+      bb = geometry.boundingBox;
+      var cx = 0.5*(bb.min.x + bb.max.x);
+      var cz = 0.5*(bb.min.z + bb.max.z);
+      var minY = bb.min.y;
+      geometry.translate(-cx, -minY, -cz);
+      geometry.computeBoundingBox(); geometry.computeVertexNormals();
+
+      // create mesh + helper
+      var matMesh = new THREE.MeshStandardMaterial({ color: 0x1e90ff, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
+      stlMesh = new THREE.Mesh(geometry, matMesh);
+      modelGroup.add(stlMesh);
+
+      if (meshBBHelper){ modelGroup.remove(meshBBHelper); meshBBHelper=null; }
+      var bbs = new THREE.Box3().setFromObject(stlMesh);
+      meshBBHelper = new THREE.Box3Helper(bbs, 0x7f7f7f);
+      modelGroup.add(meshBBHelper);
+
+      // frame camera
+      var s = new THREE.Vector3(); bbs.getSize(s);
+      var r = Math.max(s.x, s.y, s.z) * 0.8 + 0.35;
+      camera.position.set(r, r*0.7, r);
+      controls.target.set(0, s.y*0.5, 0);
+      controls.update();
+
+      elVoxelize.disabled = false;
+      elHint.style.display = "none";
+      applyVisibility();
+    }
+
+    // ==== File handling ====
+    elFile.addEventListener('change', function(e){
+      var f = e.target.files[0];
+      if (!f) return;
+      if (stlMesh || voxelData){ if (!confirm("Replace current scene? This will reset the view.")) { elFile.value=""; return; } }
+      loadStlFile(f);
+    });
+
+    function loadStlFile(file){
+      clearScene();
+      setStatus("reading STL…");
+      var fr = new FileReader();
+      fr.onload = function(e){
+        try{
+          var loader = new THREE.STLLoader();
+          var geo = loader.parse(e.target.result);
+          stlName = file.name||"model";
+          if (elZup.checked){
+            var Rx = new THREE.Matrix4().makeRotationX(-Math.PI/2);
+            geo.applyMatrix4(Rx);
+          }
+          placeMeshGroundAligned(geo);
+          setStatus("STL loaded: "+stlName);
+        }catch(err){ setStatus("STL parse failed"); console.error(err); }
+      };
+      fr.readAsArrayBuffer(file);
+    }
+
+    // ==== Drag & drop ====
+    (function setupDnD(){
+      var wrap = document.getElementById('canvas-wrap');
+      ['dragenter','dragover'].forEach(function(ev){
+        wrap.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); wrap.classList.add('ring','ring-primary'); }, false);
+      });
+      ['dragleave','drop'].forEach(function(ev){
+        wrap.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); wrap.classList.remove('ring','ring-primary'); }, false);
+      });
+      wrap.addEventListener('drop', function(e){
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) { if (stlMesh||voxelData){ if(!confirm("Replace current scene?")) return; } loadStlFile(f); }
+      }, false);
+    })();
+
+    // ==== UI interactions ====
+    elGridLabel.textContent = elGrid.value;
+    elGrid.addEventListener('input', function(){
+      elGridLabel.textContent = elGrid.value;
+      if (stlMesh){
+        var n = parseInt(elGrid.value,10);
+        if (voxelData && voxelData.gridSize && voxelData.gridSize !== n){
+          setSyncNote("Preview is " + voxelData.gridSize + "³; slider " + n + "³ — release slider or click Voxelize to update.");
+        } else setSyncNote("");
+        setStatus("Adjusting grid… (preview stays visible)");
+      }
+    });
+    var autoTimer = null;
+    elGrid.addEventListener('change', function(){
+      setSyncNote("");
+      if (stlMesh){
+        if (autoTimer) clearTimeout(autoTimer);
+        autoTimer = setTimeout(function(){
+          if (!busy) {
+            gridN = parseInt(elGrid.value,10);
+            voxelizeBySlicesUniform(stlMesh.geometry, gridN);
+          }
+        }, 80);
+      }
+    });
+
+    elProcResLabel.textContent = elProcRes.value;
+    elProcRes.addEventListener('input', function(){ elProcResLabel.textContent = elProcRes.value; });
+    elSeedLabel.textContent = elSeed.value;
+    elSeed.addEventListener('input', function(){ elSeedLabel.textContent = elSeed.value; });
+    elRandSeed.addEventListener('click', function(){
+      var s = 1 + Math.floor(Math.random()*99998);
+      elSeed.value = s; elSeedLabel.textContent = s;
+    });
+
+    elClear.addEventListener('click', function(){
+      if (!stlMesh && !voxelData) return;
+      if (confirm("Reset scene to empty?")) clearScene();
+    });
+
+    // ==== Procedural SDF + Marching Tetrahedra (no giant tables) ====
+
+    // xorshift32 RNG
+    function XRand(seed){
+      var x = (seed|0) || 123456789;
+      return function(){
+        x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+        return ((x>>>0) / 4294967296);
+      }
+    }
+    // Smoothstep
+    function sstep(t){ return t*t*(3-2*t); }
+
+    // 3D value noise (fast, deterministic)
+    function Noise3(seed){
+      var rnd = XRand(seed||1337);
+      var table = new Float32Array(256);
+      for (var i=0;i<256;i++) table[i] = rnd();
+      function hash(ix,iy,iz){
+        var h = (ix*73856093) ^ (iy*19349663) ^ (iz*83492791);
+        return table[(h>>>0) & 255];
+      }
+      return function(x,y,z, freq){
+        var fx = x*freq, fy = y*freq, fz = z*freq;
+        var x0 = Math.floor(fx), y0 = Math.floor(fy), z0 = Math.floor(fz);
+        var tx = fx - x0, ty = fy - y0, tz = fz - z0;
+        var sx = sstep(tx), sy = sstep(ty), sz = sstep(tz);
+        var c000 = hash(x0,  y0,  z0), c100 = hash(x0+1,y0,  z0);
+        var c010 = hash(x0,  y0+1,z0), c110 = hash(x0+1,y0+1,z0);
+        var c001 = hash(x0,  y0,  z0+1), c101 = hash(x0+1,y0,  z0+1);
+        var c011 = hash(x0,  y0+1,z0+1), c111 = hash(x0+1,y0+1,z0+1);
+        var x00 = c000*(1-sx) + c100*sx, x10 = c010*(1-sx) + c110*sx;
+        var x01 = c001*(1-sx) + c101*sx, x11 = c011*(1-sx) + c111*sx;
+        var y0v = x00*(1-sy) + x10*sy,   y1v = x01*(1-sy) + x11*sy;
+        return y0v*(1-sz) + y1v*sz;
+      }
+    }
+
+    // SDF helpers
+    function lengthV(x,y,z){ return Math.sqrt(x*x+y*y+z*z); }
+    function sdfSphere(p, r){ return lengthV(p.x,p.y,p.z) - r; }
+    function sdfBox(p, b){
+      var qx = Math.max(Math.abs(p.x)-b.x, 0);
+      var qy = Math.max(Math.abs(p.y)-b.y, 0);
+      var qz = Math.max(Math.abs(p.z)-b.z, 0);
+      return Math.sqrt(qx*qx+qy*qy+qz*qz) + Math.min(Math.max(Math.abs(p.x)-b.x, Math.max(Math.abs(p.y)-b.y, Math.abs(p.z)-b.z)), 0);
+    }
+    function sdfTorus(p, R, r){
+      var qx = Math.sqrt(p.x*p.x + p.z*p.z) - R;
+      return Math.sqrt(qx*qx + p.y*p.y) - r;
+    }
+    function sdfCylY(p, r, h){
+      var dx = Math.sqrt(p.x*p.x + p.z*p.z) - r;
+      var dy = Math.abs(p.y) - h;
+      return Math.min(Math.max(dx,dy), 0.0) + Math.sqrt(Math.max(dx,0.0)*Math.max(dx,0.0) + Math.max(dy,0.0)*Math.max(dy,0.0));
+    }
+    function smin(a,b,k){ var h = Math.max(k - Math.abs(a-b), 0.0)/k; return Math.min(a,b) - h*h*h*k*(1.0/6.0); }
+    function twistY(p, k){ var ang = k * p.y, c = Math.cos(ang), s = Math.sin(ang); return {x:c*p.x - s*p.z, y:p.y, z:s*p.x + c*p.z}; }
+    function bendXZ(p, k){ var c = Math.cos(k*p.x), s = Math.sin(k*p.x); return { x:p.x, y: c*p.y - s*p.z, z: s*p.y + c*p.z }; }
+
+    function makeSDF(preset, seed){
+      var noise = Noise3(seed);
+      return function(x,y,z){
+        var p = {x:x, y:y, z:z}, d, t;
+
+        if (preset === 'twistedTorus'){
+          var pt = twistY(p, 1.5);
+          d = sdfTorus(pt, 0.55, 0.22);
+          d -= (noise(x*2.5,y*2.5,z*2.5, 2.5)-0.5)*0.06;
+          return d;
+        }
+
+        if (preset === 'organicSculpt'){
+          var centers = [
+            {x:-0.35, y: 0.30, z: 0.00, r:0.42},
+            {x: 0.35, y: 0.25, z:-0.10, r:0.38},
+            {x: 0.00, y: 0.55, z: 0.10, r:0.36},
+            {x:-0.10, y: 0.05, z: 0.35, r:0.30},
+            {x: 0.15, y: 0.10, z:-0.35, r:0.28}
+          ];
+          var k = 0.25; d = 1e9;
+          for (var i=0;i<centers.length;i++){
+            var c = centers[i];
+            t = sdfSphere({x:p.x-c.x, y:p.y-c.y, z:p.z-c.z}, c.r);
+            d = smin(d, t, k);
+          }
+          d = Math.max(d, p.y-0.02);
+          d -= (noise(x*6,y*6,z*6, 6)-0.5)*0.035;
+          return d;
+        }
+
+        if (preset === 'superquadric'){
+          var n1=0.6, n2=0.8;
+          var px = Math.pow(Math.abs(p.x), 2.0/n2);
+          var py = Math.pow(Math.abs(p.y*1.2), 2.0/n1);
+          var pz = Math.pow(Math.abs(p.z), 2.0/n2);
+          var q = Math.pow( Math.pow(px+pz, n2/2.0) + Math.pow(py, n1/2.0), 2.0/2.0 );
+          d = Math.sqrt(q) - 0.9;
+          d = Math.max(d, p.y-0.02);
+          return d;
+        }
+
+        if (preset === 'spireTower'){
+          var pp = bendXZ(p, 0.8);
+          var base = sdfCylY({x:pp.x,y:pp.y-0.15,z:pp.z}, 0.45, 0.20);
+          var mid  = sdfCylY({x:pp.x*0.85,y:pp.y-0.05,z:pp.z*0.85}, 0.33, 0.22);
+          var top  = sdfCylY({x:pp.x*0.70,y:pp.y+0.20,z:pp.z*0.70}, 0.25, 0.22);
+          d = smin(base, mid, 0.18);
+          d = smin(d, top, 0.16);
+          var crown = sdfTorus({x:p.x,y:p.y-0.02,z:p.z}, 0.28, 0.08);
+          d = smin(d, crown, 0.10);
+          var grooves = (Math.sin(12.0*Math.atan2(p.z,p.x)))*0.02;
+          d -= grooves;
+          d = Math.max(d, p.y-0.02);
+          return d;
+        }
+
+        // 'rock'
+        var r = 0.75;
+        d = lengthV(p.x,p.y,p.z) - r;
+        var amp=0.18, freq=1.5, sum=0;
+        for (var o=0;o<3;o++){
+          sum += (noise(x,y,z, freq) - 0.5)*2.0 * amp;
+          freq *= 2.1; amp *= 0.45;
+        }
+        d -= sum*0.5;
+        d = Math.max(d, p.y-0.02);
+        return d;
+      };
+    }
+
+    // Linear interpolation on an edge (safe)
+    function interpPT(p1, p2, v1, v2, iso){
+      var t = (v2 - v1);
+      t = t!==0 ? (iso - v1)/t : 0.5;
+      return { x: p1.x + t*(p2.x - p1.x),
+               y: p1.y + t*(p2.y - p1.y),
+               z: p1.z + t*(p2.z - p1.z) };
+    }
+
+    // Marching Tetrahedra (6 tets per cube along diagonal 0-7)
+    async function marchingTetrahedraToGeometry(f, res, iso){
+      var nx=res, ny=res, nz=res, total = nx*ny*nz;
+      setStatus("sampling field…"); setProg(0,100);
+      var field = new Float32Array(total);
+
+      var gx,gy,gz, idx=0;
+      for (gy=0; gy<ny; gy++){
+        var y = -1 + 2*gy/(ny-1);
+        for (gz=0; gz<nz; gz++){
+          var z = -1 + 2*gz/(nz-1);
+          for (gx=0; gx<nx; gx++, idx++){
+            var x = -1 + 2*gx/(nx-1);
+            field[idx] = f(x,y,z);
+          }
+        }
+        if ((gy & 3)===0){ setProg((gy/ny)*30,100); await idle(); }
+      }
+
+      setStatus("marching tetrahedra…");
+      var positions = [];
+      var normals = [];
+
+      function getVal(i,j,k){
+        if (i<0||j<0||k<0||i>=nx||j>=ny||k>=nz) return 1e9;
+        return field[(j* nz + k)*nx + i];
+      }
+      function grad(px,py,pz){
+        var e = 0.002;
+        var dx = f(px+e,py,pz) - f(px-e,py,pz);
+        var dy = f(px,py+e,pz) - f(px,py-e,pz);
+        var dz = f(px,py,pz+e) - f(px,py,pz-e);
+        var inv = 1.0/Math.max(1e-8, Math.sqrt(dx*dx+dy*dy+dz*dz));
+        return {x:dx*inv, y:dy*inv, z:dz*inv};
+      }
+      function pushTri(a,b,c){
+        positions.push(a.x,a.y,a.z, b.x,b.y,b.z, c.x,c.y,c.z);
+        var ga = grad(a.x,a.y,a.z), gb = grad(b.x,b.y,b.z), gc = grad(c.x,c.y,c.z);
+        normals.push(ga.x,ga.y,ga.z, gb.x,gb.y,gb.z, gc.x,gc.y,gc.z);
+      }
+
+      // Tetrahedra indices for cube with corners:
+      // 0:(x0,y0,z0) 1:(x1,y0,z0) 2:(x1,y0,z1) 3:(x0,y0,z1)
+      // 4:(x0,y1,z0) 5:(x1,y1,z0) 6:(x1,y1,z1) 7:(x0,y1,z1)
+      var tets = [
+        [0,1,3,7],
+        [1,2,3,7],
+        [1,2,6,7],
+        [1,5,6,7],
+        [1,5,4,7],
+        [0,1,4,7]
+      ];
+
+      for (gy=0; gy<ny-1; gy++){
+        var y0 = -1 + 2*gy/(ny-1);
+        var y1 = -1 + 2*(gy+1)/(ny-1);
+        for (gz=0; gz<nz-1; gz++){
+          var z0 = -1 + 2*gz/(nz-1);
+          var z1 = -1 + 2*(gz+1)/(nz-1);
+          for (gx=0; gx<nx-1; gx++){
+            var x0 = -1 + 2*gx/(nx-1);
+            var x1 = -1 + 2*(gx+1)/(nx-1);
+
+            var p = [
+              {x:x0,y:y0,z:z0}, {x:x1,y:y0,z:z0}, {x:x1,y:y0,z:z1}, {x:x0,y:y0,z:z1},
+              {x:x0,y:y1,z:z0}, {x:x1,y:y1,z:z0}, {x:x1,y:y1,z:z1}, {x:x0,y:y1,z:z1}
+            ];
+            var v = [
+              getVal(gx,gy,gz), getVal(gx+1,gy,gz), getVal(gx+1,gy,gz+1), getVal(gx,gy,gz+1),
+              getVal(gx,gy+1,gz), getVal(gx+1,gy+1,gz), getVal(gx+1,gy+1,gz+1), getVal(gx,gy+1,gz+1)
+            ];
+
+            // march each tetra
+            for (var ti=0; ti<6; ti++){
+              var id = tets[ti];
+              var id0=id[0], id1=id[1], id2=id[2], id3=id[3];
+
+              var pv = [p[id0], p[id1], p[id2], p[id3]];
+              var vv = [v[id0], v[id1], v[id2], v[id3]];
+
+              // classify
+              var inside = [ vv[0]<iso, vv[1]<iso, vv[2]<iso, vv[3]<iso ];
+              var count = (inside[0]?1:0)+(inside[1]?1:0)+(inside[2]?1:0)+(inside[3]?1:0);
+              if (count===0 || count===4) continue;
+
+              // one inside → one tri
+              if (count===1){
+                var i0 = inside[0]?0: (inside[1]?1: (inside[2]?2:3));
+                var o = [0,1,2,3].filter(function(a){return a!==i0;});
+                var a = interpPT(pv[i0], pv[o[0]], vv[i0], vv[o[0]], iso);
+                var b = interpPT(pv[i0], pv[o[1]], vv[i0], vv[o[1]], iso);
+                var c = interpPT(pv[i0], pv[o[2]], vv[i0], vv[o[2]], iso);
+                pushTri(a,b,c);
+                continue;
+              }
+              // three inside → also one tri (complement)
+              if (count===3){
+                var o0 = inside[0]? (inside[1]? (inside[2]? 3:2) :1) :0;
+                var i = [0,1,2,3].filter(function(a){return a!==o0;});
+                var a2 = interpPT(pv[o0], pv[i[0]], vv[o0], vv[i[0]], iso);
+                var b2 = interpPT(pv[o0], pv[i[1]], vv[o0], vv[i[1]], iso);
+                var c2 = interpPT(pv[o0], pv[i[2]], vv[o0], vv[i[2]], iso);
+                pushTri(a2,b2,c2);
+                continue;
+              }
+              // two inside → quad → two tris
+              if (count===2){
+                var ins = [], outs=[];
+                for (var q=0;q<4;q++){ (inside[q]?ins:outs).push(q); }
+                // edges: ins[0]-outs[0], ins[0]-outs[1], ins[1]-outs[0], ins[1]-outs[1]
+                var a3 = interpPT(pv[ins[0]], pv[outs[0]], vv[ins[0]], vv[outs[0]], iso);
+                var b3 = interpPT(pv[ins[0]], pv[outs[1]], vv[ins[0]], vv[outs[1]], iso);
+                var c3 = interpPT(pv[ins[1]], pv[outs[1]], vv[ins[1]], vv[outs[1]], iso);
+                var d3 = interpPT(pv[ins[1]], pv[outs[0]], vv[ins[1]], vv[outs[0]], iso);
+                pushTri(a3,b3,c3);
+                pushTri(a3,c3,d3);
+                continue;
+              }
+            }
+          }
+        }
+        if ((gy & 1)===0){ setProg(30 + (gy/(ny-1))*65, 100); await idle(); }
+      }
+
+      var geo = new THREE.BufferGeometry();
+      var posArr = new Float32Array(positions);
+      var norArr = new Float32Array(normals);
+      geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(norArr, 3));
+      geo.computeBoundingBox();
+      setProg(95,100);
+      return geo;
+    }
+
+    // Generate procedural model
+    elGenProc.addEventListener('click', async function(){
+      if (busy) return;
+      busy = true;
+      clearScene();
+      setStatus("Generating procedural…"); setProg(0,100);
+
+      var res = parseInt(elProcRes.value,10);
+      var preset = elPreset.value;
+      var seed = parseInt(elSeed.value,10) || 12345;
+      var f = makeSDF(preset, seed);
+
+      try{
+        var geo = await marchingTetrahedraToGeometry(f, res, 0.0);
+        stlName = "procedural_"+preset+"_"+res;
+        placeMeshGroundAligned(geo);
+        setStatus("Procedural mesh ready");
+      }catch(e){
+        console.error(e);
+        setStatus("Failed to generate procedural mesh");
+      }
+      busy = false;
+    });
+
+    // ==== Voxelizer (robust scanline + BFS to remove islands) ====
+
+    function computeUniformMap(geometry, N){
+      geometry.computeBoundingBox();
+      var bb = geometry.boundingBox;
+      var min = bb.min.clone();
+      var size = new THREE.Vector3(); bb.getSize(size);
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var s = (N - 1) / maxDim; // uniform
+      var gxSpan = size.x * s, gzSpan = size.z * s;
+      var offX = ((N - 1) - gxSpan) * 0.5; // center in X
+      var offY = 0;                        // ground align in Y
+      var offZ = ((N - 1) - gzSpan) * 0.5; // center in Z
+      return { min:min, size:size, s:s, offX:offX, offY:offY, offZ:offZ, N:N };
+    }
+    function worldToGrid(vx,vy,vz,map){
+      return {
+        x: (vx - map.min.x)*map.s + map.offX,
+        y: (vy - map.min.y)*map.s + map.offY,
+        z: (vz - map.min.z)*map.s + map.offZ
+      };
+    }
+
+    function buildTriDataAndBinsUniform(geometry, map){
+      var pos = geometry.getAttribute('position');
+      var triCount = pos.count / 3;
+      var tri = new Float32Array(triCount * 9);
+      var binsY = new Array(map.N); for (var i=0;i<map.N;i++) binsY[i]=[];
+
+      for (var i=0;i<triCount;i++){
+        var ax=pos.getX(i*3+0), ay=pos.getY(i*3+0), az=pos.getZ(i*3+0);
+        var bx=pos.getX(i*3+1), by=pos.getY(i*3+1), bz=pos.getZ(i*3+1);
+        var cx=pos.getX(i*3+2), cy=pos.getY(i*3+2), cz=pos.getZ(i*3+2);
+
+        var A=worldToGrid(ax,ay,az,map), B=worldToGrid(bx,by,bz,map), C=worldToGrid(cx,cy,cz,map);
+
+        var t9=i*9;
+        tri[t9  ]=A.x; tri[t9+1]=A.y; tri[t9+2]=A.z;
+        tri[t9+3]=B.x; tri[t9+4]=B.y; tri[t9+5]=B.z;
+        tri[t9+6]=C.x; tri[t9+7]=C.y; tri[t9+8]=C.z;
+
+        var minY = Math.min(A.y,B.y,C.y);
+        var maxY = Math.max(A.y,B.y,C.y);
+        var start = Math.ceil(minY - 0.5);
+        var end   = Math.floor(maxY - 0.5);
+        if (start < 0) start = 0;
+        if (end > map.N-1) end = map.N-1;
+        if (start <= end){
+          for (var y=start;y<=end;y++){ binsY[y].push(i); }
+        }
+      }
+      return { tri:tri, triCount:triCount, binsY:binsY };
+    }
+
+    function edgeCross(y1, y2, yStar){ return (y1 <= yStar && y2 > yStar) || (y2 <= yStar && y1 > yStar); }
+    function rowCross(z1, z2, zRow){ return (z1 <= zRow && z2 > zRow) || (z2 <= zRow && z1 > zRow); }
+
+    elVoxelize.addEventListener('click', function(){
+      if (!stlMesh || busy){ return; }
+      gridN = parseInt(elGrid.value,10);
+      voxelizeBySlicesUniform(stlMesh.geometry, gridN);
+    });
+
+    async function voxelizeBySlicesUniform(geometry, N){
+      if (busy) return;
+      busy = true;
+      setStatus("preparing…"); setProg(0,100); setSyncNote("");
+      elVoxelize.disabled = true; elDownload.disabled = true; elShowVox.disabled = true;
+
+      lastMap = computeUniformMap(geometry, N);
+      var data = buildTriDataAndBinsUniform(geometry, lastMap);
+      var tri = data.tri, binsY = data.binsY;
+
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      gridCubeHelper = buildGridCubeHelper(lastMap);
+      modelGroup.add(gridCubeHelper);
+
+      var N2 = N*N, total = N*N*N;
+      var occ = new Uint8Array(total);
+
+      setStatus("slice raster…");
+      for (var y=0;y<N;y++){
+        var yStar = y + 0.5;
+        var list = binsY[y];
+        if (list.length){
+          var segX1=[], segZ1=[], segX2=[], segZ2=[];
+          var segBins = new Array(N); for (var i=0;i<N;i++) segBins[i]=[];
+
+          for (var k=0; k<list.length; k++){
+            var t = list[k]*9;
+            var ax=tri[t], ay=tri[t+1], az=tri[t+2];
+            var bx=tri[t+3], by=tri[t+4], bz=tri[t+5];
+            var cx=tri[t+6], cy=tri[t+7], cz=tri[t+8];
+
+            var px0=0,pz0=0,px1=0,pz1=0, c=0;
+
+            if (edgeCross(ay,by,yStar)){ var t1=(yStar-ay)/(by-ay); px0=ax+t1*(bx-ax); pz0=az+t1*(bz-az); c=1; }
+            if (edgeCross(by,cy,yStar)){
+              var t2=(yStar-by)/(cy-by);
+              if (c===0){ px0=bx+t2*(cx-bx); pz0=bz+t2*(cz-bz); c=1; }
+              else      { px1=bx+t2*(cx-bx); pz1=bz+t2*(cz-bz); c=2; }
+            }
+            if (c<2 && edgeCross(cy,ay,yStar)){
+              var t3=(yStar-cy)/(ay-cy);
+              if (c===0){ px0=cx+t3*(ax-cx); pz0=cz+t3*(az-cz); c=1; }
+              else      { px1=cx+t3*(ax-cx); pz1=cz+t3*(az-cz); c=2; }
+            }
+
+            if (c===2){
+              var si=segX1.length;
+              segX1.push(px0); segZ1.push(pz0); segX2.push(px1); segZ2.push(pz1);
+
+              var zmin = pz0 < pz1 ? pz0 : pz1;
+              var zmax = pz0 > pz1 ? pz0 : pz1;
+              var zs = Math.ceil(zmin - 0.5);
+              var ze = Math.floor(zmax - 0.5);
+              if (zs<0) zs=0; if (ze>N-1) ze=N-1;
+              for (var zz=zs; zz<=ze; zz++){ segBins[zz].push(si); }
+            }
+          }
+
+          for (var z=0; z<N; z++){
+            var zRow = z + 0.5;
+            var indices = segBins[z];
+            if (!indices.length) continue;
+
+            var xs = [];
+            for (var ii=0; ii<indices.length; ii++){
+              var sIdx = indices[ii];
+              var x1=segX1[sIdx], z1=segZ1[sIdx], x2=segX2[sIdx], z2=segZ2[sIdx];
+              if (rowCross(z1, z2, zRow)){
+                var tt=(zRow - z1)/(z2 - z1);
+                xs.push(x1 + tt*(x2 - x1));
+              }
+            }
+            if (xs.length<2) continue;
+            xs.sort(function(a,b){ return a-b; });
+
+            for (var p=0; p+1<xs.length; p+=2){
+              var x0 = xs[p], x1 = xs[p+1];
+              var sx = Math.ceil(x0 - 0.5);
+              var ex = Math.floor(x1 - 0.5);
+              if (sx<0) sx=0; if (ex>N-1) ex=N-1;
+              if (sx<=ex){
+                var base = y*N2 + z*N;
+                for (var xx=sx; xx<=ex; xx++){ occ[base+xx]=1; }
+              }
+            }
+          }
+        }
+        if ((y & 3)===0){ setProg((y/N)*80,100); await idle(); }
+      }
+
+      setProg(80,100); setStatus("surface + islands…");
+
+      // surface marking
+      var surf = new Uint8Array(total);
+      for (var yy=0; yy<N; yy++){
+        var yOff = yy*N2;
+        for (var zz=0; zz<N; zz++){
+          var base=yOff+zz*N;
+          for (var xx=0; xx<N; xx++){
+            var id=base+xx; if (!occ[id]) continue;
+            var border = (xx===0||yy===0||zz===0||xx===N-1||yy===N-1||zz===N-1);
+            var neighEmpty =
+              (xx>0   ? (occ[id-1]===0)    : true) ||
+              (xx<N-1 ? (occ[id+1]===0)    : true) ||
+              (yy>0   ? (occ[id-N2]===0)   : true) ||
+              (yy<N-1 ? (occ[id+N2]===0)   : true) ||
+              (zz>0   ? (occ[id-N]===0)    : true) ||
+              (zz<N-1 ? (occ[id+N]===0)    : true);
+            if (border || neighEmpty) surf[id]=1;
+          }
+        }
+        if ((yy & 7)===0){ setProg(80 + (yy/N)*10, 100); await idle(); }
+      }
+
+      // BFS keep only content connected to surface
+      var keep = new Uint8Array(total);
+      var q = new Int32Array(total); var qh=0, qt=0;
+      for (var i=0;i<total;i++){ if (surf[i]===1){ keep[i]=1; q[qt++]=i; } }
+      while (qh<qt){
+        var id=q[qh++]; var x=id%N; var yz=(id/N)|0; var y=(yz/N)|0; var z=yz%N; var n;
+        if (x>0   ){ n=id-1;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (x<N-1 ){ n=id+1;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (y>0   ){ n=id-N*N; if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (y<N-1 ){ n=id+N*N; if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (z>0   ){ n=id-N;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+        if (z<N-1 ){ n=id+N;   if(!keep[n]&&occ[n]){keep[n]=1;q[qt++]=n;} }
+      }
+
+      // occupied content bounds (grid)
+      var cmin = {x:N, y:N, z:N}, cmax = {x:-1, y:-1, z:-1};
+      for (var id2=0; id2<total; id2++){
+        if (keep[id2] && occ[id2]){
+          var x5=id2%N; var yz5=(id2/N)|0; var y5=(yz5/N)|0; var z5=yz5%N;
+          if (x5<cmin.x) cmin.x=x5; if (x5>cmax.x) cmax.x=x5;
+          if (y5<cmin.y) cmin.y=y5; if (y5>cmax.y) cmax.y=y5;
+          if (z5<cmin.z) cmin.z=z5; if (z5>cmax.z) cmax.z=z5;
+        }
+      }
+      if (cmax.x<0){ cmin={x:0,y:0,z:0}; cmax={x:0,y:0,z:0}; }
+
+      // build voxels w/ palette
+      var voxels = [];
+      var palette = [PREVIEW_VOXEL_COLOR.toUpperCase()];
+      for (var id4=0; id4<total; id4++){
+        if (keep[id4] && occ[id4]){
+          var x6=id4%N; var yz6=(id4/N)|0; var y6=(yz6/N)|0; var z6=yz6%N;
+          voxels.push({x:x6,y:y6,z:z6,ci:0,color:palette[0]});
+        }
+      }
+
+      var worldVoxel = 1/lastMap.s;
+      voxelData = {
+        name: (stlName||"model").replace(/\.[^/.]+$/, ""),
+        yUp: true,
+        anchor: "minY",
+        gridSize: N, gridSizeX: N, gridSizeY: N, gridSizeZ: N,
+        bounds: {
+          grid: { min:{x:0,y:0,z:0}, max:{x:N-1,y:N-1,z:N-1}, size:{x:N,y:N,z:N} },
+          worldCube: { min:{x: ((0   - lastMap.offX)/lastMap.s + lastMap.min.x),
+                             y: ((0   - lastMap.offY)/lastMap.s + lastMap.min.y),
+                             z: ((0   - lastMap.offZ)/lastMap.s + lastMap.min.z) },
+                       max:{x: (((N-1) - lastMap.offX)/lastMap.s + lastMap.min.x),
+                             y: (((N-1) - lastMap.offY)/lastMap.s + lastMap.min.y),
+                             z: (((N-1) - lastMap.offZ)/lastMap.s + lastMap.min.z) } },
+          voxelSizeWorld: { x:worldVoxel, y:worldVoxel, z:worldVoxel }
+        },
+        contentBounds: { grid: { min:cmin, max:cmax } },
+        palette: palette,
+        currentDrawingAxis: "y",
+        activeDrawingLevel: {x:0,y:0,z:0},
+        voxels: voxels,
+        creator: "Christian Heinrich Hohlfeld",
+        source: stlName||"Procedural",
+        conversionDate: new Date().toISOString()
+      };
+
+      previewSurfaceFromOcc(occ, lastMap);
+      elDownload.disabled = false;
+      elVoxelize.disabled = false;
+      elShowVox.disabled = false;
+      applyVisibility();
+      setProg(100,100); setStatus("done: "+voxels.length+" voxels");
+      busy = false;
+    }
+
+    function buildGridCubeHelper(map){
+      var N=map.N, s=map.s, min=map.min, offX=map.offX, offY=map.offY, offZ=map.offZ;
+      function g2w(gx,gy,gz){ return new THREE.Vector3((gx-offX)/s+min.x, (gy-offY)/s+min.y, (gz-offZ)/s+min.z); }
+      var wmin=g2w(0,0,0), wmax=g2w(N-1,N-1,N-1);
+      return new THREE.Box3Helper(new THREE.Box3(wmin,wmax), 0xffa500);
+    }
+
+    function previewSurfaceFromOcc(occ, map){
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      var N=map.N, N2=N*N;
+      var coords=[];
+      for (var y=0;y<N;y++){
+        var yOff=y*N2;
+        for (var z=0;z<N;z++){
+          var base=yOff+z*N;
+          for (var x=0;x<N;x++){
+            var id=base+x; if (!occ[id]) continue;
+            var border = (x===0||y===0||z===0||x===N-1||y===N-1||z===N-1);
+            var neighEmpty =
+              (x>0   ? (occ[id-1]===0)    : true) ||
+              (x<N-1 ? (occ[id+1]===0)    : true) ||
+              (y>0   ? (occ[id-N*N]===0)  : true) ||
+              (y<N-1 ? (occ[id+N*N]===0)  : true) ||
+              (z>0   ? (occ[id-N]===0)    : true) ||
+              (z<N-1 ? (occ[id+N]===0)    : true);
+            if (border || neighEmpty){ coords.push(x,y,z); }
+          }
+        }
+      }
+      if (!coords.length){ setStatus("no surface voxels"); return; }
+
+      var box = new THREE.BoxGeometry(1,1,1);
+      var mat = new THREE.MeshStandardMaterial({ color: PREVIEW_VOXEL_COLOR, roughness: 0.8, metalness: 0.0 });
+      var inst = new THREE.InstancedMesh(box, mat, (coords.length/3)|0);
+      var m = new THREE.Matrix4();
+      var q = new THREE.Quaternion();
+      var svec = new THREE.Vector3();
+      var vEdge = 1 / map.s; svec.set(vEdge, vEdge, vEdge);
+      var min=map.min, offX=map.offX, offY=map.offY, offZ=map.offZ, s=map.s;
+
+      for (var i=0, idx=0; i<coords.length; ){
+        var gx=coords[i++], gy=coords[i++], gz=coords[i++];
+        var wx = ( (gx + 0.5) - offX)/s + min.x;
+        var wy = ( (gy + 0.5) - offY)/s + min.y;
+        var wz = ( (gz + 0.5) - offZ)/s + min.z;
+        m.compose(new THREE.Vector3(wx,wy,wz), q, svec);
+        inst.setMatrixAt(idx++, m);
+      }
+      inst.instanceMatrix.needsUpdate=true;
+      voxGroup.add(inst);
+    }
+
+    elDownload.addEventListener('click', function(){
+      if (!voxelData){ alert("Nothing to export."); return; }
+      var name = (stlName||voxelData.name||"model").replace(/\.[^/.]+$/, "");
+      var fn = name+"_"+voxelData.gridSize+"x"+voxelData.gridSize+"x"+voxelData.gridSize+".json";
+      var json = JSON.stringify(voxelData);
+      var blob = new Blob([json], {type:"application/json"});
+      var url  = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 0);
+    });
+
+  })();
+  </script>
+</body>
+</html>
