@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mogul P2P Sync</title>
+    <title>Mogul</title>
     <!--
-        FINALE VERSION: Mogul P2P Chef Sync
+        FINALE VERSION: Mogul localStorage MVP
         Entwickelt für Christian Heinrich Hohlfeld, Konstanz.
-        Architektur: Zero-Trust, Serverless, Passkey (WebAuthn) & P2P (WebRTC)
-        Kein Theming, reiner Fokus auf Funktionalität und Sicherheit.
+        Architektur: Robustes LocalStorage, Undo/Redo, Drag & Drop, JSON Import/Export.
+        Kein P2P-Sync, keine externe Abhängigkeiten (außer DaisyUI/Tailwind).
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,13 +16,10 @@
     <style>
         :root {
             font-family: 'Inter', sans-serif;
-            /* Corporate Theme (Light) wird als Standard genutzt */
-            --theme-bg: oklch(100% 0 0);
-            --theme-text: oklch(0% 0 0);
         }
         html[data-theme="corporate"] {
-            --theme-bg: oklch(100% 0 0);
-            --theme-text: oklch(0% 0 0);
+             --theme-bg: oklch(100% 0 0);
+             --theme-text: oklch(0% 0 0);
         }
 
         /* --- Minimales CSS für Drag & Drop und Cursor --- */
@@ -73,22 +70,16 @@
         <div class="flex-1 px-2 mx-2">
             <span class="text-2xl font-extrabold text-primary">Mogul</span>
         </div>
-        <div class="flex-none flex items-center gap-4 text-xs">
+        <div class="flex-none flex items-center gap-4 text-xs text-base-content/50">
             
-            <!-- SYNC STATUS -->
-            <div id="sync-status-indicator" class="tooltip tooltip-bottom" data-tip="Initialisierung...">
-                <span id="sync-status-text" class="font-bold text-warning uppercase">INIT...</span>
-            </div>
+            <!-- Sound Toggle Button -->
+            <button id="sound-toggle-btn" class="btn btn-ghost btn-sm rounded-lg text-base-content/50" title="Sound Ein/Aus">
+                <svg id="sound-icon-on" xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5v14l-5-5H3V9h3l5-5zM15.5 17.5l-1.41-1.41C15.82 15.11 17 13.62 17 12s-1.18-3.11-2.91-4.09l1.41-1.41C17.9 7.79 19 9.8 19 12s-1.1 4.21-2.49 5.5z"/></svg>
+                <svg id="sound-icon-off" xmlns="http://www.w3.org/2000/svg" class="svg-icon hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.74 2.5-2.26 2.5-4.02zM15 3.24l-1.41 1.41C15.93 5.48 17 8.52 17 12s-1.07 6.52-2.91 7.35l1.41 1.41C17.9 19.21 19 16.8 19 12s-1.1-7.21-2.49-8.76z"/></svg>
+            </button>
 
-            <!-- SYNC KONTROLLEN -->
-            <button id="import-gsf-btn" class="btn btn-sm btn-info rounded-lg" title="Global Status File (GSF) importieren, um PULL zu starten.">Import GSF</button>
-            <button id="export-gsf-btn" class="btn btn-sm btn-success rounded-lg hidden" title="Aktuellen Chef-Status (GSF) exportieren (PUSH).">Export GSF</button>
-            <button id="manage-devices-btn" class="btn btn-sm btn-ghost rounded-lg" title="Geräte verwalten (Max 4).">
-                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
-            </button>
-            <button id="p2p-modal-btn" class="btn btn-sm btn-ghost rounded-lg" title="P2P-Verbindung manuell starten (für Daten-PULL).">
-                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
-            </button>
+            <span class="hidden md:inline">STRG+Z/Y: Undo/Redo</span>
+            <span class="hidden md:inline">STRG+S/O: Export/Import</span>
             
             <!-- STANDARD MOGUL KONTROLLEN -->
             <button id="edit-selected-btn" class="btn btn-primary btn-md rounded-lg shadow-md hover:shadow-lg hidden" title="Ausgewählte Aufgabe bearbeiten (Doppelklick)">
@@ -174,223 +165,176 @@
             </div>
         </div>
     </dialog>
-
-    <!-- MODAL 3: Passkey/Auth Flow (Login / Registrierung) -->
-    <dialog id="auth_modal" class="modal modal-open"> <!-- Startet geöffnet -->
-        <div class="modal-box w-96 bg-base-100 shadow-2xl rounded-xl">
-            <h3 id="auth-title" class="font-bold text-lg">🔒 Mogul P2P-Authentifizierung</h3>
-            <div id="auth-loading" class="py-4 text-center hidden">
-                <span class="loading loading-dots loading-lg"></span>
-                <p>Initialisiere Sicherheit...</p>
-            </div>
-            
-            <!-- Registrierungs-Ansicht (Erstes Gerät) -->
-            <div id="auth-register-view" class="py-4 hidden">
-                <p class="mb-4">Willkommen! Dies scheint Ihr erstes Gerät zu sein. Bitte registrieren Sie einen Passkey (Face ID, Touch ID, PIN), um Ihren Account zu erstellen und die Verschlüsselung zu starten.</p>
-                <div class="modal-action">
-                    <button id="register-passkey-btn" class="btn btn-primary rounded-lg w-full">Account mit Passkey erstellen</button>
-                </div>
-            </div>
-            
-            <!-- Login-Ansicht (Folgegeräte) -->
-            <div id="auth-login-view" class="py-4 hidden">
-                <p class="mb-4">Bitte melden Sie sich mit Ihrem Passkey (Face ID, Touch ID, PIN) an, um die Sitzung zu entschlüsseln und zu starten.</p>
-                <div class="modal-action">
-                    <button id="login-passkey-btn" class="btn btn-primary rounded-lg w-full">Mit Passkey anmelden</button>
-                </div>
-            </div>
-        </div>
-    </dialog>
-
-    <!-- MODAL 4: Geräteverwaltung (Device Registry) -->
-    <dialog id="manage_devices_modal" class="modal">
-        <div class="modal-box w-11/12 max-w-2xl bg-base-100 shadow-2xl rounded-xl">
-            <h3 class="font-bold text-lg">📱 Geräteverwaltung (Max 4)</h3>
-            <p class="py-2 text-sm">Dies ist die Liste der autorisierten Geräte. Nur Geräte auf dieser Liste können Daten synchronisieren.</p>
-            
-            <div class="form-control mb-4">
-                <label class="label"><span class="label-text">Eigene Geräte-ID (Für Aktivierung)</span></label>
-                <input type="text" id="current-device-id-display" class="input input-bordered w-full rounded-md bg-base-200" readonly title="Geben Sie diese ID auf einem Chef-Gerät ein, um dieses Gerät zu aktivieren.">
-            </div>
-
-            <div class="font-semibold mb-2">Autorisierte Geräte:</div>
-            <div id="device-list-container" class="flex flex-col gap-2 p-2 bg-base-200 rounded-lg min-h-24">
-                <!-- Geräteliste wird hier dynamisch eingefügt -->
-            </div>
-
-            <div id="device-activation-section" class="mt-4 pt-4 border-t border-base-300">
-                <h4 class="font-semibold text-primary">Neues Gerät aktivieren</h4>
-                <div class="form-control mt-2">
-                    <label class="label"><span class="label-text">Geräte-ID des neuen Geräts</span></label>
-                    <div class="flex gap-2">
-                        <input type="text" id="new-device-id-input" class="input input-bordered w-full rounded-md bg-base-200" placeholder="ID von neuem Gerät hier einfügen">
-                        <button id="add-device-btn" class="btn btn-success rounded-lg">Aktivieren</Dbutton>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-action border-t pt-4 border-base-300 mt-6">
-                <button type="button" class="btn rounded-lg" onclick="manage_devices_modal.close()">Schließen</button>
-            </div>
-        </div>
-    </dialog>
-
-    <!-- MODAL 5: P2P Manuelle Kopplung (WebRTC) -->
-    <dialog id="p2p_modal" class="modal">
-        <div class="modal-box w-11/12 max-w-2xl bg-base-100 shadow-2xl rounded-xl">
-            <h3 class="font-bold text-lg">🔄 P2P Daten-PULL</h3>
-            <p class="py-2 text-sm">Um Daten zu empfangen (PULL), starten Sie hier und senden Sie den Code an das Chef-Gerät. Fügen Sie dann die Antwort des Chefs hier ein.</p>
-
-            <div id="p2p-status" class="text-info font-semibold my-2">Status: Getrennt</div>
-
-            <div class="tabs tabs-lifted">
-                <input type="radio" name="p2p-tabs" role="tab" class="tab" aria-label="1. Angebot (Offer) senden" id="tab-offer" checked />
-                <div role="tabpanel" class="tab-content bg-base-200 border-base-300 rounded-box p-4">
-                    <p class="text-xs mb-2">Starten Sie hier, wenn Sie Daten PULLEN (empfangen) möchten. Kopieren Sie diesen Code und fügen Sie ihn auf dem Chef-Gerät ein.</p>
-                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 rounded-md" readonly placeholder="Klicken Sie auf 'PULL starten', um Code zu generieren..."></textarea>
-                </div>
-
-                <input type="radio" name="p2p-tabs" role="tab" class="tab" aria-label="2. Antwort (Answer) importieren" id="tab-answer" />
-                <div role="tabpanel" class="tab-content bg-base-200 border-base-300 rounded-box p-4">
-                    <p class="text-xs mb-2">Fügen Sie den Antwort-Code (den Sie vom Chef-Gerät erhalten haben) hier ein, um die Verbindung herzustellen.</p>
-                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 rounded-md" placeholder="Antwort-Code vom Chef-Gerät hier einfügen..."></textarea>
-                </div>
-            </div>
-
-            <div class="modal-action border-t pt-4 border-base-300 mt-6">
-                <button type="button" class="btn rounded-lg" onclick="p2p_modal.close()">Abbrechen</button>
-                <button type="button" class="btn btn-primary rounded-lg" id="p2p-start-pull-btn">PULL starten</button>
-            </div>
-        </div>
-    </dialog>
+    
+    <!-- KEINE WEITEREN MODALS (Auth, P2P, Devices entfernt) -->
 
     <!-- ### START: SCRIPT BLOCK (VOLLSTÄNDIG) ### -->
     <script>
-    // === 1. MOGUL KERN-LOGIK (BASIS-APP) ===
-    // Diese Funktionen definieren die UI-Logik (Drag & Drop, Modals, CRUD)
-    // Sie sind von der P2P/Crypto-Logik entkoppelt.
+    // === 1. KERN-LOGIK (BASIS-APP) ===
     // -----------------------------------------------------------------
 
-    // --- 1.1 Globale Variablen (Mogul UI) ---
-    const STORAGE_KEY = 'mogul_tasks_local_cache'; // Nur noch Cache, Wahrheit ist in IndexedDB
+    // --- 1.1 Globale Variablen ---
+    const STORAGE_KEY = 'christian_hohlfeld_kanban_tasks';
+    const SOUND_STATE_KEY = 'chh_planner_sound_enabled';
     const BUCKETS = ['open', 'in_progress', 'done'];
-    let tasks = []; // Lokaler In-Memory-Zustand (Cache)
     
+    let tasks = []; // Lokaler In-Memory-Zustand
     let selectedTaskIds = new Set();
     let lastSelectedId = null;
     let isDragging = false;
     let draggedTaskId = null;
-    let currentDropTargetCard = null; // Für CSS Drop-Indikator
+    let currentDropTargetCard = null;
+    let isSoundEnabled = true;
 
     // --- 1.2 Undo/Redo Logik ---
     let history = [];
     let historyIndex = -1;
     const MAX_HISTORY = 50;
 
+    /**
+     * Nimmt einen Snapshot des aktuellen Task-Zustands für Undo/Redo.
+     * Wird von saveState() aufgerufen.
+     */
     const takeSnapshot = () => {
-        // ... (Implementierung wie in der Basis-App, speichert 'tasks' in 'history')
-        history = history.slice(0, historyIndex + 1);
+        history = history.slice(0, historyIndex + 1); // Schneidet "vorwärts" liegende Historie ab
         const currentTasksJSON = JSON.stringify(tasks);
+        
+        // Dedupe: Fügt keinen Snapshot hinzu, wenn er identisch zum letzten ist
         if (historyIndex >= 0 && history[historyIndex] === currentTasksJSON) {
             return;
         }
+        
         history.push(currentTasksJSON);
         historyIndex = history.length - 1;
+        
+        // Verhindert, dass die Historie zu groß wird
         if (history.length > MAX_HISTORY) {
             history.shift();
             historyIndex--;
         }
     };
 
+    /**
+     * Macht die letzte Aktion rückgängig.
+     */
     const undo = () => {
-        if (historyIndex > 0) {
+        if (historyIndex > 0) { // Kann nicht den initialen (leeren) Snapshot rückgängig machen
             historyIndex--;
             tasks = JSON.parse(history[historyIndex]);
-            // ACHTUNG: saveState() wird hier *absichtlich* NICHT aufgerufen, 
-            // um keinen P2P-Commit auszulösen. Nur renderTasks().
+            // Ruft saveState OHNE Snapshot auf, um nur localStorage zu aktualisieren
+            saveStateToLocalStorage(tasks); 
             renderTasks();
-            // Ein echtes P2P-Undo müsste einen neuen Commit erzeugen.
-            // Für diese Implementierung ist Undo/Redo ein reines Client-Feature.
         }
     };
 
+    /**
+     * Wiederholt die letzte rückgängig gemachte Aktion.
+     */
     const redo = () => {
         if (historyIndex < history.length - 1) {
             historyIndex++;
             tasks = JSON.parse(history[historyIndex]);
+            // Ruft saveState OHNE Snapshot auf, um nur localStorage zu aktualisieren
+            saveStateToLocalStorage(tasks);
             renderTasks();
         }
     };
 
     // --- 1.3 State Management (Laden/Speichern) ---
-    // HINWEIS: Diese werden von der P2P-Logik (ChefDB) überschrieben oder aufgerufen.
-    // loadState lädt nur den *letzten bekannten* Zustand aus localStorage, 
-    // die P2P-Logik muss ihn dann validieren/überschreiben.
 
+    /**
+     * Lädt den Zustand aus localStorage beim Start.
+     * Führt Schema-Guards (ensureTaskFormat) aus und setzt Standard-Tasks.
+     */
     const loadState = () => {
+        let loadedTasks = [];
         try {
             const json = localStorage.getItem(STORAGE_KEY);
             if (json) {
-                const loadedData = JSON.parse(json);
-                // Validiere, ob es das neue Datenformat ist
-                if (loadedData.appData && Array.isArray(loadedData.appData.tasks)) {
-                    tasks = loadedData.appData.tasks.map(ensureTaskFormat);
-                } 
-                // Fallback für altes Format (nur Task-Array)
-                else if (Array.isArray(loadedData)) {
-                    tasks = loadedData.map(ensureTaskFormat);
-                }
-                else {
-                    tasks = getDefaultTasks();
+                const parsed = JSON.parse(json);
+                // Schema-Guard: Validiert Import (erwartet Array)
+                if (Array.isArray(parsed)) {
+                    loadedTasks = parsed.map(ensureTaskFormat); // Schema-Guard für jedes Task-Objekt
+                } else {
+                    console.warn("Ungültige Daten im localStorage, lade Standard.");
+                    loadedTasks = getDefaultTasks();
                 }
             } else {
-                tasks = getDefaultTasks();
+                // Seed: Erzeugt erste Demo-Aufgabe
+                loadedTasks = getDefaultTasks();
             }
         } catch (e) {
             console.error('Fehler beim Laden des Zustands:', e);
-            tasks = getDefaultTasks();
+            loadedTasks = getDefaultTasks();
         }
-        takeSnapshot(); // Ersten Snapshot nach dem Laden erstellen
+        
+        tasks = loadedTasks;
+        takeSnapshot(); // WICHTIG: Erster Snapshot nach dem Laden
     };
     
-    // WICHTIG: saveState() wird nun von der P2P-Logik (p2pSaveState) gesteuert.
-    // Diese Funktion hier ist nur der lokale Cache-Speicher.
+    /**
+     * Speichert den aktuellen Task-Zustand in localStorage.
+     * Dies ist die Hauptfunktion, die bei Aktionen aufgerufen wird.
+     * @param {boolean} [shouldTakeSnapshot=true] - Ob ein Undo-Snapshot erstellt werden soll.
+     */
+    const saveState = (shouldTakeSnapshot = true) => {
+        if (shouldTakeSnapshot) {
+            takeSnapshot(); 
+        }
+        saveStateToLocalStorage(tasks);
+    };
+
+    /**
+     * Interne Speicherfunktion. Fängt Quota-Fehler ab.
+     */
     const saveStateToLocalStorage = (dataToSave) => {
          try {
-            // Speichere das gesamte P2P-Datenobjekt (inkl. Registry)
             localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
         } catch (e) {
-            console.error('Fehler beim Speichern des Zustands im Cache:', e);
+            console.error('Fehler beim Speichern des Zustands (Quota überschritten?):', e);
+            // Nicht-blockierende Warnung (MVP-Anforderung)
         }
     };
 
 
     // --- 1.4 Hilfsfunktionen (Formatierung, Defaults) ---
     
-    const ensureTaskFormat = (t) => ({
-        ...t,
-        id: t.id || Date.now(),
-        currentBucketStartTime: t.currentBucketStartTime || Date.now(),
-        timeInBucketsMs: t.timeInBucketsMs || { open: 0, in_progress: 0, done: 0 },
-        lastDoneTime: t.lastDoneTime || null,
-        createdTimeMs: t.createdTimeMs || t.id,
-        isDeleted: t.isDeleted || false, // Wichtig für P2P-Sync
-        lastModified: t.lastModified || Date.now() // Wichtig für P2P-Sync
-    });
+    /**
+     * Schema-Guard: Stellt sicher, dass ein Task-Objekt alle erforderlichen Felder hat.
+     */
+    const ensureTaskFormat = (t) => {
+        const now = Date.now();
+        const tId = t.id || now;
+        return {
+            id: tId,
+            title: t.title || "Unbenannte Aufgabe",
+            details: t.details || "",
+            bucket: t.bucket || "open",
+            createdDate: t.createdDate || getCurrentDateString(),
+            createdTimeMs: t.createdTimeMs || tId,
+            startDate: t.startDate || getCurrentDateString(),
+            dueDate: t.dueDate || "",
+            completed: t.completed || false,
+            lastDoneTime: t.lastDoneTime || null,
+            currentBucketStartTime: t.currentBucketStartTime || now,
+            timeInBucketsMs: t.timeInBucketsMs || { open: 0, in_progress: 0, done: 0 },
+            isDeleted: t.isDeleted || false, // Für Soft-Delete (obwohl MVP Hard-Delete verwendet)
+            lastModified: t.lastModified || now
+        };
+    };
 
+    /**
+     * Erzeugt die Standard-Demo-Aufgabe.
+     */
     const getDefaultTasks = () => {
         const createdTimeMs = Date.now();
-        const creationDate = new Date(createdTimeMs).toISOString().split('T')[0];
         return [
             ensureTaskFormat({
                 id: createdTimeMs,
-                title: 'Mogul P2P-Sync einrichten',
-                details: 'Passkey registrieren und erstes Gerät als Chef festlegen.',
+                title: 'Mogul MVP abschließen',
+                details: 'Alle MVP-Must-Haves implementieren und testen.',
                 bucket: 'open',
-                createdDate: creationDate,
-                startDate: creationDate,
-                dueDate: '',
-                completed: false,
+                createdTimeMs: createdTimeMs,
             })
         ];
     };
@@ -398,16 +342,114 @@
     const getCurrentDateString = () => new Date().toISOString().split('T')[0];
 
     // --- 1.5 Sound Management ---
-    // (Sound-Logik wird aus Platzgründen und Fokus auf P2P entfernt)
-    // const playSound = (type) => {}; 
-    // const loadSoundState = () => {};
-    // const toggleSound = () => {};
-
-    // --- 1.6 Task Status & Zeitmessung (WICHTIG: Implementiert) ---
     
+    const playSound = (type) => {
+        if (!isSoundEnabled) return;
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            let tones = [];
+            // (Definitionen für 'completion', 'start_work', 'reset', 'add', 'edit', 'delete')
+            // ... (Sound-Definitionen wie in der Basis-App) ...
+             if (type === 'completion') {
+                tones = [
+                    { freq: 660, duration: 0.05, delay: 0.00, volume: 0.3 }, 
+                    { freq: 990, duration: 0.15, delay: 0.05, volume: 0.3 }  
+                ];
+            } else if (type === 'start_work') {
+                tones = [
+                    { freq: 392, duration: 0.03, delay: 0.00, volume: 0.2 }, 
+                    { freq: 330, duration: 0.05, delay: 0.03, volume: 0.2 }  
+                ];
+            } else if (type === 'reset') {
+                 tones = [
+                    { freq: 440, duration: 0.02, delay: 0.00, volume: 0.15 }, 
+                    { freq: 220, duration: 0.05, delay: 0.02, volume: 0.15 }  
+                ];
+            } else if (type === 'add') {
+                 tones = [
+                    { freq: 880, duration: 0.05, delay: 0.00, volume: 0.2 }, 
+                    { freq: 1320, duration: 0.1, delay: 0.05, volume: 0.2 }  
+                ];
+            } else if (type === 'edit') {
+                 tones = [
+                    { freq: 110, duration: 0.08, delay: 0.00, volume: 0.1, type: 'triangle' }
+                ];
+            } else if (type === 'delete') {
+                 tones = [
+                    { freq: 330, duration: 0.05, delay: 0.00, volume: 0.2 }, 
+                    { freq: 165, duration: 0.1, delay: 0.05, volume: 0.2 } 
+                ];
+            } else {
+                return;
+            }
+            // ...
+            tones.forEach(tone => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode).connect(audioCtx.destination);
+                oscillator.type = tone.type || 'sine';
+                oscillator.frequency.setValueAtTime(tone.freq, now + tone.delay);
+                gainNode.gain.setValueAtTime(tone.volume, now + tone.delay);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + tone.delay + tone.duration);
+                oscillator.start(now + tone.delay);
+                oscillator.stop(now + tone.delay + tone.duration);
+            });
+        } catch (e) {
+            console.warn('AudioContext nicht verfügbar oder Start fehlgeschlagen:', e);
+            isSoundEnabled = false; // Deaktiviert Sound, wenn Kontext fehlschlägt
+            updateSoundToggleButton();
+        }
+    };
+
+    const loadSoundState = () => {
+        const savedState = localStorage.getItem(SOUND_STATE_KEY);
+        isSoundEnabled = savedState === 'true'; // Standard ist true, wenn nichts gespeichert ist (falsch, muss 'false' sein, wenn null)
+        // Korrektur: Standard ist true (wie oben initialisiert), außer es wurde explizit 'false' gespeichert.
+        if (savedState !== null) {
+            isSoundEnabled = savedState === 'true';
+        }
+        updateSoundToggleButton();
+    };
+
+    const saveSoundState = () => {
+        localStorage.setItem(SOUND_STATE_KEY, isSoundEnabled);
+    };
+
+    const updateSoundToggleButton = () => {
+        const btn = document.getElementById('sound-toggle-btn');
+        const iconOn = document.getElementById('sound-icon-on');
+        const iconOff = document.getElementById('sound-icon-off');
+        if (!btn || !iconOn || !iconOff) return; 
+
+        if (isSoundEnabled) {
+            iconOn.classList.remove('hidden');
+            iconOff.classList.add('hidden');
+            btn.classList.remove('text-content/50');
+            btn.classList.add('text-primary');
+        } else {
+            iconOn.classList.add('hidden');
+            iconOff.classList.remove('hidden');
+            btn.classList.remove('text-primary');
+            btn.classList.add('text-base-content/50'); 
+        }
+    };
+
+    const toggleSound = () => {
+        isSoundEnabled = !isSoundEnabled;
+        saveSoundState();
+        updateSoundToggleButton();
+    };
+
+    // --- 1.6 Task Status & Zeitmessung (IMPLEMENTIERT) ---
+    
+    /**
+     * Implementierung von Patch (D): Berechnet Zeitakkumulation und Statuswechsel.
+     */
     function updateTaskStatusAndTiming(task, targetBucket) {
         const now = Date.now();
         const prevBucket = task.bucket;
+        let soundType = null;
 
         if (!task.timeInBucketsMs) task.timeInBucketsMs = { open: 0, in_progress: 0, done: 0 };
         if (!task.currentBucketStartTime) task.currentBucketStartTime = task.createdTimeMs || now;
@@ -419,17 +461,30 @@
         // Statuswechsel
         task.bucket = targetBucket;
         task.currentBucketStartTime = now;
-        task.lastModified = now; // Wichtig für Sync
+        task.lastModified = now;
 
         if (targetBucket === 'done') {
-            task.completed = true;
-            task.lastDoneTime = now;
+            if (prevBucket !== 'done') { // Nur beim Wechsel *in* done
+                task.completed = true;
+                task.lastDoneTime = now;
+                soundType = 'completion';
+            }
         } else {
             task.completed = false;
+            if (targetBucket === 'in_progress' && prevBucket !== 'in_progress') {
+                soundType = 'start_work';
+            } else if (targetBucket === 'open' && prevBucket === 'in_progress') {
+                soundType = 'reset';
+            }
         }
-        return task; // Gibt das modifizierte Objekt zurück
+        
+        if (soundType) playSound(soundType);
+        return task;
     }
 
+    /**
+     * Wrapper für Button-Klicks, ruft Status-Update, saveState und render auf.
+     */
     const performTaskAction = (taskId, targetBucket) => {
         const task = tasks.find(t => t.id === taskId);
         if (!task || task.bucket === targetBucket) return;
@@ -438,7 +493,7 @@
         const index = tasks.findIndex(t => t.id === updatedTask.id);
         if (index > -1) tasks[index] = updatedTask;
 
-        p2pSaveState(); // P2P-Speichern auslösen
+        saveState(); // Löst Snapshot + Speichern aus
         renderTasks();
     };
 
@@ -475,7 +530,6 @@
         if (bucketChanged) {
             updateTaskStatusAndTiming(draggedTask, targetBucket);
         } else {
-            // Nur Zeitstempel aktualisieren, wenn Sortierung ändert
             draggedTask.lastModified = Date.now();
         }
 
@@ -490,7 +544,7 @@
         tasks = newTasks; // Globalen State aktualisieren
 
         // 4. Speichern und Rendern
-        p2pSaveState(); // P2P-Speichern auslösen
+        saveState(); // Löst Snapshot + Speichern aus
         renderTasks();
     };
 
@@ -567,50 +621,57 @@
 
     // --- 1.8 CRUD Operationen ---
     
-    // Verwendet nun Soft-Delete
+    /**
+     * Löscht Tasks (Hard-Delete für MVP).
+     */
     const deleteTasks = (taskIds) => {
         let deletedCount = 0;
-        tasks = tasks.map(t => {
-            if (taskIds.includes(t.id) && !t.isDeleted) {
-                t.isDeleted = true;
-                t.lastModified = Date.now();
+        tasks = tasks.filter(t => {
+            if (taskIds.includes(t.id)) {
                 deletedCount++;
-                return t;
+                return false;
             }
-            return t;
+            return true;
         });
         
         if (deletedCount > 0) {
-            p2pSaveState(); // P2P-Speichern auslösen
+            saveState(); // Löst Snapshot + Speichern aus
             renderTasks();
-            // playSound('delete');
+            playSound('delete');
         }
         selectedTaskIds.clear();
         updateDeleteSelectedButton();
     };
 
+    /**
+     * Erzeugt eine neue Task-Struktur.
+     */
     const createNewTask = (title) => {
         const newTask = ensureTaskFormat({
             id: Date.now(),
             title: title,
-            details: '',
             bucket: 'open',
-            createdDate: getCurrentDateString(),
             startDate: getCurrentDateString(),
-            dueDate: '',
-            completed: false,
         });
-        tasks.push(newTask);
+        tasks.push(newTask); // Fügt am Ende der Liste hinzu
         return newTask;
     };
     
+    /**
+     * Handler für "Neue Aufgabe" Button.
+     * Erstellt Task, speichert, rendert und öffnet Modal (MVP-Anforderung).
+     */
     const openTaskModalForNewTask = () => {
         const newTask = createNewTask('Neue Aufgabe');
-        p2pSaveState(); // P2P-Speichern auslösen
+        saveState(); // Löst Snapshot + Speichern aus
         renderTasks();
         openTaskModal(newTask.id); // Modal zum Bearbeiten öffnen
+        playSound('add');
     };
 
+    /**
+     * Öffnet das Bestätigungsmodal für Löschungen.
+     */
     const openDeleteConfirmModal = (taskId = null, title = null) => {
         const count = selectedTaskIds.size;
         const isBatch = taskId === null && count > 0;
@@ -624,23 +685,30 @@
         } else if (title) {
             deleteCountSpan.textContent = `die Aufgabe "${title}"`;
         } else {
-            deleteCountSpan.textContent = `diese Aufgabe`;
+            // Fallback, wenn Titel nicht übergeben wurde
+            const taskTitle = tasks.find(t => t.id === taskId)?.title || "diese Aufgabe";
+            deleteCountSpan.textContent = `die Aufgabe "${taskTitle}"`;
         }
         
+        // Definiert, was der "Ja, löschen" Button tut
         document.getElementById('confirm-delete-btn').onclick = () => {
             deleteTasks(idsToDelete);
             confirm_delete_modal.close();
         };
         
-        task_modal.close(); 
+        task_modal.close(); // Schließt Edit-Modal, falls offen
         confirm_delete_modal.showModal();
     };
 
+    /**
+     * Öffnet das Edit-Modal und befüllt es.
+     */
     const openTaskModal = (taskId) => {
         clearSelection();
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
 
+        // Felder befüllen
         document.getElementById('modal-title-text').textContent = task.title;
         document.getElementById('task-id-input').value = task.id;
         document.getElementById('task-title-input').value = task.title;
@@ -648,11 +716,15 @@
         document.getElementById('task-start-date-input').value = task.startDate;
         document.getElementById('task-due-date-input').value = task.dueDate;
         
+        // Lösch-Button im Modal verknüpfen
         document.getElementById('delete-task-btn').onclick = () => {
             openDeleteConfirmModal(task.id, task.title);
         };
 
         task_modal.showModal();
+        
+        // Fokus auf Titel-Input setzen
+        setTimeout(() => document.getElementById('task-title-input').focus(), 100);
     };
 
     // --- 1.9 Multi-Select Logik ---
@@ -663,10 +735,11 @@
         if (!card) return;
 
         if (isShift && lastSelectedId !== null) {
+            // Range-Selektion
             const taskIdsInOrder = Array.from(document.querySelectorAll('.task-card')).map(el => Number(el.dataset.taskId));
             const startIndex = taskIdsInOrder.indexOf(lastSelectedId);
             const endIndex = taskIdsInOrder.indexOf(taskId);
-            if (startIndex === -1 || endIndex === -1) return;
+            if (startIndex === -1 || endIndex === -1) return; // Sollte nicht passieren
 
             clearSelection(false); // Visuell bereinigen, aber Button noch nicht updaten
 
@@ -677,6 +750,7 @@
                 document.querySelector(`.task-card[data-task-id="${currentId}"]`)?.classList.add('selected');
             }
         } else if (isCtrlCmd) {
+            // Toggle-Selektion
             if (isCurrentlySelected) {
                 selectedTaskIds.delete(taskId);
                 card.classList.remove('selected');
@@ -686,11 +760,13 @@
             }
             lastSelectedId = taskId; 
         } else {
+            // Single-Selektion
             if (selectedTaskIds.size > 1 || !isCurrentlySelected) {
                 clearSelection(false); // Visuell bereinigen
                 selectedTaskIds.add(taskId);
                 card.classList.add('selected');
             }
+            // Wenn 1 ausgewählt ist und man darauf klickt, bleibt es ausgewählt
             lastSelectedId = taskId;
         }
         
@@ -711,6 +787,7 @@
             deleteBtn.classList.add('hidden');
         }
         
+        // Edit-Button nur bei GENAU 1 Auswahl
         if (count === 1) {
             editBtn.classList.remove('hidden');
         } else {
@@ -731,11 +808,12 @@
     
     const renderTasks = () => {
         const counts = { open: 0, in_progress: 0, done: 0 };
-        const activeTasks = tasks.filter(t => !t.isDeleted); // Nur nicht gelöschte anzeigen
+        // MVP verwendet Hard-Delete, daher kein .filter(t => !t.isDeleted) nötig
+        const activeTasks = tasks; 
 
         BUCKETS.forEach(bucket => {
             const container = document.getElementById(`bucket-${bucket}`);
-            container.innerHTML = '';
+            container.innerHTML = ''; // Liste leeren
             const bucketTasks = activeTasks.filter(t => t.bucket === bucket); 
             
             bucketTasks.forEach(task => {
@@ -746,13 +824,8 @@
             document.getElementById(`count-${bucket}`).textContent = counts[bucket];
         });
         
-        addDragListeners();
-        updateDeleteSelectedButton();
-        
-        // Geräte-Registry im Modal aktualisieren (falls Mogul-Daten geladen)
-        if (p2pDataStore) {
-            renderDeviceRegistry();
-        }
+        addDragListeners(); // Drag-Listener nach jedem Render neu binden
+        updateDeleteSelectedButton(); // Toolbar-Buttons aktualisieren
     };
     
     const getCardActions = (task) => {
@@ -769,9 +842,13 @@
         }
     };
 
+    /**
+     * Erzeugt das DOM-Element für eine einzelne Task-Karte.
+     */
     const createTaskCard = (task) => {
         const card = document.createElement('div');
         const statusColor = task.bucket === 'open' ? 'border-l-primary' : (task.bucket === 'in_progress' ? 'border-l-warning' : 'border-l-success');
+        // Completed-Styling (durchgestrichen) nur im 'done'-Bucket (MVP-Anforderung)
         const completedClass = task.completed && task.bucket === 'done' ? 'completed opacity-90' : '';
         const selectedClass = selectedTaskIds.has(task.id) ? 'selected' : '';
 
@@ -789,9 +866,11 @@
         actionButtonsHTML += '</div>';
 
         let topIconHtml = '';
+        // Checkmark (MVP-Anforderung)
         if (task.completed && task.bucket === 'done') {
             topIconHtml = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success absolute top-2 right-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
         } else {
+            // Edit Button (Stift)
             topIconHtml = `<button class="btn btn-xs btn-ghost text-base-content/50 absolute top-2 right-2 z-10 edit-btn" title="Details bearbeiten"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 17.21a4.5 4.5 0 0 1-1.897 1.13L6 18.24l.842-2.793a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 14.25H2.25" /></svg></button>`;
         }
 
@@ -807,23 +886,30 @@
             </div>
         `;
         
+        // --- Event Listener für die Karte ---
+        
+        // Klick (Selektion)
         card.addEventListener('click', (e) => {
             const isCtrlCmd = e.ctrlKey || e.metaKey;
             const isShift = e.shiftKey;
+            // Verhindert Selektion, wenn auf einen Button geklickt wird oder gezogen wird
             if (e.target.closest('.task-advance-btn') || e.target.closest('.edit-btn') || isDragging) return;
             handleTaskSelection(task.id, isCtrlCmd, isShift);
         });
         
+        // Doppelklick (Edit)
         card.addEventListener('dblclick', (e) => {
             if (e.target.closest('.task-advance-btn') || e.target.closest('.edit-btn') || isDragging) return;
             openTaskModal(task.id);
         });
 
+        // Edit-Button (Stift)
         card.querySelector('.edit-btn')?.addEventListener('click', (e) => {
-            e.stopPropagation();
+            e.stopPropagation(); // Verhindert, dass Klick-Handler der Karte ausgelöst wird
             openTaskModal(task.id);
         });
 
+        // Status-Pfeile
         card.querySelectorAll('.task-advance-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -835,39 +921,124 @@
         return card;
     };
     
-    // --- 1.11 Event Handler (Tastatur, Klicks) ---
+    // --- 1.11 JSON Export / Import ---
+
+    /**
+     * Löst den Download des aktuellen Zustands als JSON aus (Ctrl+S).
+     */
+    const downloadTasks = () => {
+        const jsonString = JSON.stringify(tasks); // Holt den aktuellen In-Memory-Zustand
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const date = new Date().toISOString().split('T')[0];
+        a.href = url;
+        a.download = `mogul_export_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('Zustand als Datei exportiert.');
+    };
+
+    /**
+     * Öffnet den Datei-Dialog für den JSON-Import (Ctrl+O).
+     */
+    const triggerUpload = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'application/json, .json';
+        
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const loadedTasks = JSON.parse(event.target.result);
+                    
+                    // MVP-Import-Validierung
+                    if (Array.isArray(loadedTasks) && loadedTasks.every(t => typeof t.id === 'number' && typeof t.title === 'string')) {
+                        
+                        tasks = loadedTasks.map(ensureTaskFormat); // Stellt sicher, dass auch importierte Tasks alle Felder haben
+                        
+                        // MVP-Anforderung: Historie zurücksetzen
+                        history = []; 
+                        historyIndex = -1;
+                        saveState(); // Speichert den neuen Zustand UND erstellt ersten Snapshot
+                        
+                        renderTasks();
+                        console.log(`Import erfolgreich: ${tasks.length} Aufgaben geladen. Historie zurückgesetzt.`);
+                    } else {
+                        console.error('Import-Fehler: Ungültiges Dateiformat. Erwartet ein Array von Task-Objekten mit id (number) und title (string).');
+                    }
+                } catch (error) {
+                    console.error('Import-Fehler: Fehler beim Parsen der JSON-Datei:', error);
+                }
+            };
+            reader.readAsText(file);
+        };
+        
+        fileInput.click();
+    };
+    
+    // --- 1.12 Globale Event Handler (Tastatur, Klicks) ---
     
     const addGlobalEventListeners = () => {
         document.addEventListener('keydown', (e) => {
             const isControl = e.ctrlKey || e.metaKey;
+            // Verhindert Shortcuts, wenn ein Modal offen ist oder in einem Input getippt wird
             const isModalOpen = document.querySelector('dialog.modal[open]');
             const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
 
-            if (isControl && !isInputFocused) {
+            if (isControl && !isInputFocused && !isModalOpen) {
                 switch (e.key.toLowerCase()) {
-                    case 'z': e.preventDefault(); (e.shiftKey ? redo() : undo()); break;
-                    case 'y': e.preventDefault(); redo(); break;
-                    // STRG+S / O sind jetzt durch GSF-Sync ersetzt
+                    case 'z': 
+                        e.preventDefault(); 
+                        (e.shiftKey ? redo() : undo()); 
+                        break;
+                    case 'y': 
+                        e.preventDefault(); 
+                        redo(); 
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        downloadTasks();
+                        break;
+                    case 'o':
+                        e.preventDefault();
+                        triggerUpload();
+                        break;
                 }
             }
             
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTaskIds.size > 0 && !isInputFocused) {
+            // Delete-Shortcut
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTaskIds.size > 0 && !isInputFocused && !isModalOpen) {
                 e.preventDefault();
-                openDeleteConfirmModal(); // Batch delete
+                openDeleteConfirmModal(); // Öffnet Batch-Delete-Modal
             }
 
+            // Escape-Shortcut (nur wenn kein Modal offen ist)
             if (e.key === 'Escape' && !isModalOpen) {
                 clearSelection();
             }
         });
 
+        // Klick auf den Hintergrund (Canvas) löscht Selektion
         document.body.addEventListener('click', (e) => {
-            if (!e.target.closest('.task-card') && !e.target.closest('dialog.modal') && !e.target.closest('.navbar')) {
-                clearSelection();
+            if (
+                !e.target.closest('.task-card') && 
+                !e.target.closest('dialog.modal') &&
+                !e.target.closest('.navbar') // Klick auf Navbar löscht auch nicht
+            ) {
+                 clearSelection();
             }
         });
         
-        // Navbar Button Listeners
+        // --- Navbar Button Listeners ---
+        document.getElementById('sound-toggle-btn').addEventListener('click', toggleSound);
+
         document.getElementById('edit-selected-btn').addEventListener('click', () => {
              if (selectedTaskIds.size === 1) {
                 const taskId = selectedTaskIds.values().next().value; 
@@ -877,939 +1048,40 @@
         document.getElementById('delete-selected-btn').addEventListener('click', () => openDeleteConfirmModal());
         document.getElementById('add-task-btn').addEventListener('click', openTaskModalForNewTask);
         
-        // Modal Listeners
+        // --- Modal Listeners ---
+        
+        // Speichern im Edit-Modal
         document.getElementById('task-detail-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const taskId = Number(document.getElementById('task-id-input').value);
             const task = tasks.find(t => t.id === taskId);
             if (task) {
-                task.title = document.getElementById('task-title-input').value.trim();
+                task.title = document.getElementById('task-title-input').value.trim() || "Unbenannte Aufgabe";
                 task.details = document.getElementById('task-details-input').value.trim();
                 task.startDate = document.getElementById('task-start-date-input').value;
                 task.dueDate = document.getElementById('task-due-date-input').value;
                 task.lastModified = Date.now();
-                p2pSaveState(); // P2P-Speichern auslösen
+                
+                saveState(); // Löst Snapshot + Speichern aus
                 renderTasks();
+                playSound('edit');
             }
             task_modal.close();
         });
     };
 
-
-    // === 2. P2P-CHEF-SYNC LOGIK (KERN) ===
-    // Enthält Passkey, Crypto, IndexedDB, Device-Registry und P2P-Logik.
-    // -----------------------------------------------------------------
-
-    // --- 2.1 Konstanten & Globale P2P-Variablen ---
-    const DB_NAME_PREFIX = 'MogulChefDB_';
-    const DB_VERSION = 1;
-    const COMMIT_STORE = 'commits';
-    const KEK_STORE_KEY = 'mogul_device_kek'; // Key Encryption Key (im localStorage)
-    const WRAPPED_UK_KEY = 'mogul_wrapped_uk'; // Universal Key (im localStorage)
-    const DEVICE_ID_KEY = 'mogul_device_id';
-    const PASSKEY_ID_KEY = 'mogul_passkey_cred_id';
-    const AUTH_ID = 'ChristianHeinrichHohlfeld'; // Statische RP-User-ID
-    const GSF_APP_ID = 'MogulP2P_v1';
-    const MAX_DEVICES = 4;
-    
-    // Globale Zustandsvariablen (P2P)
-    let db; // IndexedDB-Instanz
-    let currentDeviceId = null;
-    let currentUniversalKey = null; // Universal Key (AES-GCM, 32 Byte), NUR IM RAM!
-    let currentCommitHash = 'initial';
-    let isChefDevice = false;
-    let p2pDataStore = null; // Haupt-Datenobjekt (tasks + deviceRegistry)
-    
-    // WebRTC-Objekte
-    let peerConnection;
-    let dataChannel;
-    let p2pIsOffer = false;
-
-    // --- 2.2 Crypto- & Hilfsfunktionen (WebCrypto) ---
-
-    // Konvertiert ArrayBuffer zu Base64URL (für Passkeys/JSON)
-    function arrayBufferToBase64Url(buffer) {
-        return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
-            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
-
-    // Konvertiert Base64URL zu ArrayBuffer
-    function base64UrlToArrayBuffer(base64Url) {
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const padLength = (4 - (base64.length % 4)) % 4;
-        const padded = base64 + '='.repeat(padLength);
-        const binary = atob(padded);
-        const buffer = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-            buffer[i] = binary.charCodeAt(i);
-        }
-        return buffer.buffer;
-    }
-
-    // Erzeugt einen SHA-256 Hash von einem Objekt
-    async function hashData(data) {
-        const json = JSON.stringify(data);
-        const buffer = new TextEncoder().encode(json);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-        return arrayBufferToBase64Url(hashBuffer);
-    }
-
-    // Erzeugt einen HMAC (für GSF-Integrität)
-    async function hmac(dataBytes, keyBytes) {
-        const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-        const sig = await crypto.subtle.sign('HMAC', k, dataBytes);
-        return arrayBufferToBase64Url(sig);
-    }
-
-    // Verifiziert einen HMAC
-    async function verifyHmac(dataString, signatureBase64Url, keyBytes) {
-        if (!keyBytes || keyBytes.byteLength === 0) return false;
-        try {
-            const calculatedSig = await hmac(new TextEncoder().encode(dataString), keyBytes);
-            return calculatedSig === signatureBase64Url;
-        } catch (e) {
-            console.error("HMAC Verifikation fehlgeschlagen", e);
-            return false;
-        }
-    }
-
-    // --- 2.3 Geräte-ID Management ---
-    
-    function getDeviceId() {
-        let id = localStorage.getItem(DEVICE_ID_KEY);
-        if (!id) {
-            id = `dev_${arrayBufferToBase64Url(crypto.getRandomValues(new Uint8Array(16)))}`;
-            localStorage.setItem(DEVICE_ID_KEY, id);
-        }
-        return id;
-    }
-
-    // --- 2.4 Universal Key (UK) & Key Encryption Key (KEK) Management ---
-    
-    // (A) Erzeugt den KEK (Device Key, nicht extrahierbar)
-    async function getOrCreateKEK() {
-        // Wir können CryptoKey nicht direkt in localStorage speichern.
-        // Stattdessen nutzen wir indexedDB, was aber async ist.
-        // Für dieses Setup (Symmetrie mit localStorage) verwenden wir eine
-        // vereinfachte KEK-Logik, die den KEK im RAM hält.
-        // Die *korrekte* Implementierung (Punkt 4 der Analyse) würde crypto.subtle.generateKey
-        // mit "extractable: false" nutzen und ihn in IndexedDB speichern.
-        
-        // Pragmatischer Mittelweg (wie in Analyse):
-        // Erzeuge KEK im WebCrypto Keystore (nicht extrahierbar)
-        let kek = await crypto.subtle.generateKey(
-            { name: "AES-GCM", length: 256 },
-            false, // nicht extrahierbar!
-            ["wrapKey", "unwrapKey"]
-        );
-        // Da wir ihn nicht speichern können (ohne IndexedDB), müssen wir ihn
-        // für diese Implementierung bei jedem Laden neu generieren,
-        // was den Nutzen des Wrappings aufhebt.
-        
-        // FIX (Implementierung von Punkt 4 der Analyse):
-        // Wir müssen den KEK in IndexedDB speichern, da er nicht extrahierbar ist.
-        // Dies erfordert eine separate DB-Verbindung VOR der ChefDB.
-        
-        // *** VEREINFACHUNG für diese Implementierung (RAM-basiert) ***
-        // Wir verwenden einen extrahierbaren KEK, der im localStorage gespeichert wird,
-        // ABER wir leiten ihn vom Passkey ab. Das ist sicherer.
-        // Wir verzichten auf den KEK und nutzen den Passkey direkt, 
-        // um den UK zu entschlüsseln (wie im P2P-Hello-Flow).
-        
-        // Die Logik aus der Analyse (KEK/Wrapping) ist für *Persistenz bei Reload*
-        // OHNE Passkey-Eingabe. Da wir Passkey bei jedem Start erzwingen, 
-        // brauchen wir den KEK/Wrapping-Flow nicht.
-        
-        // Wir bleiben bei der Logik: Passkey -> UK (im RAM)
-        // Der P2P-Hello-Flow (Punkt B) ist der Schlüssel für den Bootstrap.
-        
-        console.log("KEK/Wrapping-Logik übersprungen, da Passkey-Login bei jedem Start erfolgt.");
-    }
-    
-    // (B) Erzeugt den Universal Key (UK)
-    async function generateUniversalKey() {
-        const key = await crypto.subtle.generateKey(
-            { name: "AES-GCM", length: 256 },
-            true, // Extrahierbar, damit wir ihn in den Commit packen können
-            ["encrypt", "decrypt"]
-        );
-        const keyBytes = await crypto.subtle.exportKey('raw', key);
-        return arrayBufferToBase64Url(keyBytes); // 32 Byte Key als Base64URL
-    }
-
-    // --- 2.5 IndexedDB (ChefDB) ---
-    // Diese Klasse verwaltet die verschlüsselte Commit-Historie.
-    
-    class ChefDB {
-        constructor(deviceId) {
-            this.dbName = `${DB_NAME_PREFIX}${deviceId}`;
-            this.db = null;
-        }
-
-        async init() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(this.dbName, DB_VERSION);
-                
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains(COMMIT_STORE)) {
-                        // Speichert den Commit-Block (Metadaten + verschlüsselte Daten)
-                        db.createObjectStore(COMMIT_STORE, { keyPath: 'hash' });
-                    }
-                };
-                request.onsuccess = (event) => {
-                    this.db = event.target.result;
-                    console.log("ChefDB initialisiert:", this.dbName);
-                    resolve(this.db);
-                };
-                request.onerror = (event) => reject(event.target.error);
-            });
-        }
-
-        // (A) AES-GCM Verschlüsselung (Nutzt UK im RAM)
-        async encrypt(data) {
-            if (!currentUniversalKey) throw new Error("Verschlüsselungsfehler: Universal Key fehlt.");
-            
-            const key = await crypto.subtle.importKey('raw', base64UrlToArrayBuffer(currentUniversalKey), "AES-GCM", false, ["encrypt"]);
-            const iv = crypto.getRandomValues(new Uint8Array(12)); // 96 bits
-            const encoded = new TextEncoder().encode(JSON.stringify(data));
-            
-            const encrypted = await crypto.subtle.encrypt(
-                { name: 'AES-GCM', iv: iv }, key, encoded
-            );
-            
-            // Gibt IV + Ciphertext (als Base64URL) zurück
-            return {
-                iv: arrayBufferToBase64Url(iv),
-                data: arrayBufferToBase64Url(encrypted)
-            };
-        }
-
-        // (B) AES-GCM Entschlüsselung
-        async decrypt(encryptedPayload) {
-            if (!currentUniversalKey) throw new Error("Entschlüsselungsfehler: Universal Key fehlt.");
-            
-            const key = await crypto.subtle.importKey('raw', base64UrlToArrayBuffer(currentUniversalKey), "AES-GCM", false, ["decrypt"]);
-            const iv = base64UrlToArrayBuffer(encryptedPayload.iv);
-            const dataBuffer = base64UrlToArrayBuffer(encryptedPayload.data);
-            
-            const decrypted = await crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv: iv }, key, dataBuffer
-            );
-            
-            const json = new TextDecoder().decode(decrypted);
-            return JSON.parse(json);
-        }
-
-        // (C) Erzeugt einen neuen Commit in der DB
-        async commitData(dataStore, prevHash) {
-            const payload = {
-                appData: dataStore, // Enthält tasks + deviceRegistry
-                prevHash: prevHash,
-                timestamp: Date.now()
-            };
-            
-            const encryptedPayload = await this.encrypt(payload);
-            const currentHash = await hashData(encryptedPayload); // Hash über den Ciphertext
-
-            const commitBlock = {
-                hash: currentHash,
-                payload: encryptedPayload
-            };
-            
-            const tx = this.db.transaction(COMMIT_STORE, 'readwrite');
-            await tx.objectStore(COMMIT_STORE).put(commitBlock);
-            await tx.done;
-            
-            return currentHash;
-        }
-
-        // (D) Lädt einen Commit aus der DB und entschlüsselt ihn
-        async checkoutCommit(hash) {
-            return new Promise((resolve, reject) => {
-                const tx = this.db.transaction(COMMIT_STORE, 'readonly');
-                const request = tx.objectStore(COMMIT_STORE).get(hash);
-
-                request.onsuccess = async (event) => {
-                    const commitBlock = event.target.result;
-                    if (!commitBlock) {
-                        return reject(new Error(`Commit ${hash} nicht gefunden.`));
-                    }
-                    try {
-                        const decryptedPayload = await this.decrypt(commitBlock.payload);
-                        resolve(decryptedPayload); // { appData, prevHash, timestamp }
-                    } catch (e) {
-                        reject(new Error(`Entschlüsselung fehlgeschlagen: ${e.message}`));
-                    }
-                };
-                request.onerror = () => reject(request.error);
-            });
-        }
-        
-        // (E) Lädt einen rohen Commit-Block (für P2P-Transfer)
-        async getRawCommitBlock(hash) {
-             return new Promise((resolve, reject) => {
-                const tx = this.db.transaction(COMMIT_STORE, 'readonly');
-                const request = tx.objectStore(COMMIT_STORE).get(hash);
-                request.onsuccess = (event) => {
-                    if (!event.target.result) return reject(new Error("Commit nicht gefunden."));
-                    resolve(event.target.result); // Gibt { hash, payload } zurück
-                };
-                request.onerror = () => reject(request.error);
-            });
-        }
-        
-        // (F) Speichert einen rohen Commit-Block (von P2P-Transfer)
-        async putRawCommitBlock(commitBlock) {
-            const tx = this.db.transaction(COMMIT_STORE, 'readwrite');
-            await tx.objectStore(COMMIT_STORE).put(commitBlock);
-            return tx.done;
-        }
-    }
-
-    // --- 2.6 WebAuthn (Passkey) Logik ---
-    
-    // (A) Startet den gesamten Auth-Fluss
-    function initializePasskeyFlow() {
-        // Diese Funktion wird in window.onload aufgerufen
-        const authModal = document.getElementById('auth_modal');
-        const loadingView = document.getElementById('auth-loading');
-        const registerView = document.getElementById('auth-register-view');
-        const loginView = document.getElementById('auth-login-view');
-
-        loadingView.classList.remove('hidden');
-        registerView.classList.add('hidden');
-        loginView.classList.add('hidden');
-        
-        if (!window.PublicKeyCredential) {
-            updateSyncStatus("WebAuthn nicht unterstützt", true);
-            loadingView.innerHTML = "<p class='text-error'>Dieser Browser unterstützt keine Passkeys (WebAuthn). Sicherer Modus nicht verfügbar.</p>";
-            return;
-        }
-
-        const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
-
-        if (passkeyId) {
-            // Login-Flow
-            loadingView.classList.add('hidden');
-            loginView.classList.remove('hidden');
-            document.getElementById('login-passkey-btn').onclick = startPasskeyAssertion;
-        } else {
-            // Registrierungs-Flow
-            loadingView.classList.add('hidden');
-            registerView.classList.remove('hidden');
-            document.getElementById('register-passkey-btn').onclick = startPasskeyRegistration;
-        }
-    }
-    
-    // (B) Registrierung (Erstes Gerät)
-    async function startPasskeyRegistration() {
-        try {
-            const challenge = crypto.getRandomValues(new Uint8Array(32));
-            
-            const publicKeyCredentialCreationOptions = {
-                challenge,
-                rp: { name: "Mogul P2P App", id: location.hostname },
-                user: { id: new TextEncoder().encode(AUTH_ID), name: AUTH_ID, displayName: "Christian Heinrich Hohlfeld" },
-                pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256 (Standard)
-                timeout: 60000,
-                attestation: "none", // Wichtig für Kompatibilität, keine Server-Verifizierung
-                authenticatorSelection: { 
-                    userVerification: "required" // Erzwingt Face ID/Touch ID/PIN
-                }
-            };
-
-            const credential = await navigator.credentials.create({
-                publicKey: publicKeyCredentialCreationOptions
-            });
-
-            // Speichere die Credential ID (wichtig für den Login)
-            const credentialIdBase64Url = arrayBufferToBase64Url(credential.rawId);
-            localStorage.setItem(PASSKEY_ID_KEY, credentialIdBase64Url);
-            
-            // === WICHTIG: Erster Universal Key & Commit ===
-            // 1. Erzeuge den UK
-            currentUniversalKey = await generateUniversalKey();
-            
-            // 2. Initialisiere die ChefDB
-            currentDeviceId = getDeviceId();
-            chefDBInstance = new ChefDB(currentDeviceId);
-            await chefDBInstance.init();
-            
-            // 3. Erzeuge die Device Registry (mit diesem Gerät als erstem Chef)
-            p2pDataStore = {
-                appData: {
-                    tasks: getDefaultTasks(),
-                    deviceRegistry: {
-                        ids: [currentDeviceId], // Dieses Gerät ist das erste
-                        names: { [currentDeviceId]: "Chef-Gerät (PC/Mac)" }
-                    }
-                }
-            };
-            tasks = p2pDataStore.appData.tasks; // Lokalen Cache setzen
-
-            // 4. Erzeuge den allerersten Commit (mit dem UK im Payload)
-            // (In dieser Architektur wird der UK nicht im Commit gespeichert, 
-            // sondern muss per P2P-Hello-Flow übertragen werden.)
-            currentCommitHash = await chefDBInstance.commitData(p2pDataStore.appData, 'initial');
-            localStorage.setItem(`mogul_last_hash_${currentDeviceId}`, currentCommitHash);
-
-            // 5. Erzwinge GSF-Export (Bootstrap)
-            await generateGSF(currentCommitHash);
-
-            updateSyncStatus(`Registriert. Sie sind Chef!`, false);
-            auth_modal.close();
-            renderTasks();
-
-        } catch (e) {
-            console.error("Passkey-Registrierung fehlgeschlagen:", e);
-            updateSyncStatus("Registrierung fehlgeschlagen", true);
-        }
-    }
-    
-    // (C) Login (Assertion)
-    async function startPasskeyAssertion() {
-        try {
-            const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
-            if (!passkeyId) throw new Error("Keine Passkey-ID gefunden.");
-
-            const challenge = crypto.getRandomValues(new Uint8Array(32));
-
-            const publicKeyCredentialRequestOptions = {
-                challenge,
-                allowCredentials: [{
-                    type: "public-key",
-                    id: base64UrlToArrayBuffer(passkeyId)
-                }],
-                timeout: 60000,
-                userVerification: "required" // Erzwingt Face ID/Touch ID/PIN
-            };
-
-            const assertion = await navigator.credentials.get({
-                publicKey: publicKeyCredentialRequestOptions
-            });
-
-            // === HIER FEHLT DIE LOKALE SIGNATUR-PRÜFUNG (Punkt 1 der Analyse) ===
-            // In einer echten Prod-App MUSS die 'assertion.response.signature' 
-            // lokal mit dem gespeicherten Public Key (aus der Registrierung)
-            // und der 'challenge' verifiziert werden.
-            // Für diese Implementierung (ohne Server) akzeptieren wir den 
-            // erfolgreichen Abschluss der Biometrie als "UX-Gate".
-            
-            console.log("Passkey-Assertion erfolgreich (UX-Gate passiert).");
-
-            // === WICHTIG: Fortsetzung nach Login ===
-            // Der UK ist NOCH NICHT im RAM. Der Nutzer muss jetzt
-            // (A) die GSF importieren (neues Gerät) oder
-            // (B) die App normal laden (existierendes Gerät).
-            
-            await initializeSyncContinuation();
-
-
-        } catch (e) {
-            console.error("Passkey-Login fehlgeschlagen:", e);
-            updateSyncStatus("Login fehlgeschlagen", true);
-        }
-    }
-    
-    // (D) Wird nach erfolgreichem Login/Registrierung aufgerufen
-    async function initializeSyncContinuation() {
-        currentDeviceId = getDeviceId();
-        chefDBInstance = new ChefDB(currentDeviceId);
-        await chefDBInstance.init();
-        
-        // Versuche, den letzten Hash zu laden
-        const lastHash = localStorage.getItem(`mogul_last_hash_${currentDeviceId}`);
-        
-        if (lastHash) {
-            currentCommitHash = lastHash;
-            try {
-                // Versuche, den UK aus dem P2P-Hello-Flow zu bekommen.
-                // Da wir bei Reload den UK verlieren, müssen wir ihn
-                // JEDES MAL per P2P-Hello-Flow ODER GSF-Import holen.
-                
-                // *** KERNPROBLEM (Punkt 4 der Analyse) ***
-                // Wenn wir den UK nicht persistieren, MUSS der Nutzer
-                // bei jedem Reload einen PULL von einem anderen Gerät machen.
-                
-                // FIX: Implementierung des KEK/Wrapping (Punkt 4)
-                // Wir MÜSSEN den UK persistieren, aber verschlüsselt mit einem
-                // nicht extrahierbaren Geräte-Schlüssel (KEK).
-                
-                // Da diese Implementierung (oben in 2.4) den KEK-Flow
-                // übersprungen hat, müssen wir den UK beim PULL holen.
-                
-                updateSyncStatus("Angemeldet. Bereit für GSF-Import/PULL.", false);
-                // Der Nutzer MUSS jetzt eine GSF importieren, um den UK zu erhalten
-                // ODER den P2P-PULL starten.
-                
-            } catch (e) {
-                updateSyncStatus("Lokale Daten korrupt? PULL erforderlich.", true);
-            }
-        } else {
-            // Neues Gerät (oder Cache gelöscht)
-            updateSyncStatus("Neues Gerät. Bitte GSF importieren.", true);
-        }
-        
-        // UI entsperren
-        auth_modal.close();
-        loadState(); // Lade Cache (Tasks werden später überschrieben)
-        renderTasks();
-    }
-
-
-    // --- 2.7 GSF (Global Status File) Logik ---
-    
-    // (A) GSF Exportieren (Der "PUSH")
-    async function generateGSF(hash) {
-        if (!isChefDevice) {
-            updateSyncStatus("Nur Chef kann GSF exportieren", true);
-            return;
-        }
-        if (!currentUniversalKey) {
-            updateSyncStatus("Fehler: UK fehlt. PULL erforderlich.", true);
-            return;
-        }
-
-        const payload = {
-            app: GSF_APP_ID,
-            hash: hash,
-            timestamp: Date.now(),
-            deviceId: currentDeviceId
-        };
-        const payloadString = JSON.stringify(payload);
-        
-        // Signieren mit HMAC
-        const keyBytes = base64UrlToArrayBuffer(currentUniversalKey);
-        const sig = await hmac(new TextEncoder().encode(payloadString), keyBytes);
-        
-        const gsf = { ...payload, sig };
-        
-        // Download auslösen
-        const jsonString = JSON.stringify(gsf);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const date = new Date().toISOString().split('T')[0];
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mogul_sync_state_${date}.json`; 
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        updateSyncStatus(`GSF Exportiert (Chef: ${currentDeviceId.substring(0, 7)})`, false);
-    }
-
-    // (B) GSF Importieren (Startet den PULL / Chef-Check)
-    async function handleGSFImport(file) {
-        if (!chefDBInstance || !currentDeviceId) {
-            updateSyncStatus("Fehler: Auth nicht abgeschlossen", true);
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            let gsf;
-            try {
-                gsf = JSON.parse(event.target.result);
-                if (gsf.app !== GSF_APP_ID || !gsf.hash || !gsf.timestamp || !gsf.deviceId || !gsf.sig) {
-                    throw new Error("Ungültiges GSF-Format.");
-                }
-            } catch (e) {
-                updateSyncStatus(`GSF-Fehler: ${e.message}`, true);
-                return;
-            }
-
-            // === Chef-Status-Prüfung ===
-            // GSF ist die Quelle der Wahrheit.
-            
-            // 1. Lade lokalen Hash
-            const localHash = localStorage.getItem(`mogul_last_hash_${currentDeviceId}`) || 'initial';
-
-            if (gsf.hash === localHash) {
-                updateSyncStatus("Bereits synchron.", false);
-                isChefDevice = (gsf.deviceId === currentDeviceId);
-                if (isChefDevice) {
-                    // Lade den UK (falls wir ihn durch Reload verloren haben)
-                    // ... (Hier ist das KEK-Problem wieder)
-                    // Wir nehmen an, der UK ist im RAM (durch P2P-Hello-Flow)
-                    if (!currentUniversalKey) {
-                        updateSyncStatus("Synchron, aber UK fehlt. P2P-PULL nötig.", true);
-                    }
-                }
-                return;
-            }
-
-            // 2. GSF ist neuer ODER wir haben den UK nicht
-            updateSyncStatus(`GSF importiert. Globaler Chef: ${gsf.deviceId.substring(0, 7)}`, false);
-            isChefDevice = false;
-
-            // 3. P2P-Modal öffnen, um PULL zu starten
-            p2p_modal.showModal();
-            p2pIsOffer = true; // Wir (Client) machen das Angebot
-            document.getElementById('tab-offer').click(); // Offer-Tab zeigen
-            await p2pCreateOffer();
-        };
-        reader.readAsText(file);
-    }
-    
-    // --- 2.8 P2P (WebRTC) Logik (Manuelle Kopplung) ---
-
-    function p2pCleanup() {
-        if (dataChannel) dataChannel.close();
-        if (peerConnection) peerConnection.close();
-        dataChannel = null;
-        peerConnection = null;
-        p2pIsOffer = false;
-        document.getElementById('p2p-status').textContent = "Getrennt";
-    }
-
-    // (A) Initialisiert die PC-Instanz
-    async function p2pInitConnection() {
-        p2pCleanup();
-        peerConnection = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Öffentlicher STUN
-        });
-
-        peerConnection.onicecandidate = (e) => {
-            if (e.candidate) {
-                // Kandidaten werden gesammelt...
-            } else {
-                // Alle Kandidaten gesammelt. Aktualisiere Offer/Answer Textarea.
-                if (p2pIsOffer) {
-                    document.getElementById('p2p-offer-output').value = JSON.stringify(peerConnection.localDescription);
-                } else {
-                    // Chef-Seite
-                    document.getElementById('p2p-answer-input').value = JSON.stringify(peerConnection.localDescription);
-                }
-            }
-        };
-        
-        peerConnection.onconnectionstatechange = () => {
-             document.getElementById('p2p-status').textContent = `Status: ${peerConnection.connectionState}`;
-             if (peerConnection.connectionState === 'connected') {
-                 p2p_modal.close();
-             }
-        };
-
-        // Wenn wir der Empfänger sind (Chef-Gerät, das PULL bedient)
-        peerConnection.ondatachannel = (event) => {
-            dataChannel = event.channel;
-            p2pSetupDataChannel();
-        };
-    }
-
-    // (B) Client (Handy) startet PULL (erzeugt Offer)
-    async function p2pCreateOffer() {
-        await p2pInitConnection();
-        p2pIsOffer = true;
-        
-        dataChannel = peerConnection.createDataChannel("mogul-sync-channel");
-        p2pSetupDataChannel(); // Setup Callbacks, *bevor* Offer erstellt wird
-        
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        // (onicecandidate füllt jetzt die 'p2p-offer-output' Textarea)
-    }
-
-    // (C) Chef (PC) akzeptiert PULL (erzeugt Answer)
-    async function p2pCreateAnswer(offerString) {
-        await p2pInitConnection();
-        p2pIsOffer = false;
-        
-        const offer = JSON.parse(offerString);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        // (onicecandidate füllt jetzt die 'p2p-answer-input' Textarea)
-    }
-
-    // (D) Client (Handy) finalisiert PULL (akzeptiert Answer)
-    async function p2pAcceptAnswer(answerString) {
-        const answer = JSON.parse(answerString);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    }
-
-    // (E) Data Channel Callbacks (Beide Seiten)
-    function p2pSetupDataChannel() {
-        dataChannel.onopen = () => {
-            document.getElementById('p2p-status').textContent = "Verbunden!";
-            
-            // P2P Hello-Gate (Punkt B der Analyse)
-            // Client (der den PULL startet) sendet 'hello'
-            if (p2pIsOffer) {
-                dataChannel.send(JSON.stringify({ type: 'hello', deviceId: currentDeviceId }));
-            }
-        };
-
-        dataChannel.onmessage = async (ev) => {
-            const msg = JSON.parse(ev.data);
-            
-            if (msg.type === 'hello') {
-                // Chef-Seite (PC) empfängt 'hello'
-                if (!isChefDevice) return; // Nur Chef antwortet
-
-                // 1. Geräte-Registry prüfen
-                const reg = p2pDataStore.appData.deviceRegistry;
-                if (!reg.ids.includes(msg.deviceId)) {
-                    dataChannel.send(JSON.stringify({ type: 'deny', reason: 'Gerät nicht autorisiert.' }));
-                    p2pCleanup();
-                    return;
-                }
-                
-                // 2. Gerät ist autorisiert. Sende Key + Hash (P2P Key Bootstrap)
-                dataChannel.send(JSON.stringify({
-                    type: 'key',
-                    key: currentUniversalKey,
-                    latestHash: currentCommitHash
-                }));
-                
-                // 3. Sende den Commit-Block
-                const commitBlock = await chefDBInstance.getRawCommitBlock(currentCommitHash);
-                dataChannel.send(JSON.stringify({
-                    type: 'commit',
-                    block: commitBlock
-                }));
-            } 
-            else if (msg.type === 'key') {
-                // Client-Seite (Handy) empfängt den UK
-                currentUniversalKey = msg.key;
-                currentCommitHash = msg.latestHash;
-                localStorage.setItem(`mogul_last_hash_${currentDeviceId}`, currentCommitHash);
-                updateSyncStatus("Schlüssel empfangen...", false);
-            }
-            else if (msg.type === 'commit') {
-                // Client-Seite (Handy) empfängt den Commit
-                const commitBlock = msg.block;
-                
-                // 1. Speichere den rohen Block
-                await chefDBInstance.putRawCommitBlock(commitBlock);
-                
-                // 2. Entschlüssele und lade
-                const payload = await chefDBInstance.checkoutCommit(commitBlock.hash);
-                
-                // 3. Daten übernehmen
-                p2pDataStore = payload.appData;
-                tasks = p2pDataStore.appData.tasks;
-                
-                // 4. Chef werden und GSF exportieren
-                isChefDevice = true;
-                await generateGSF(commitBlock.hash);
-                
-                updateSyncStatus(`SYNC ERFOLG. Sie sind Chef!`, false);
-                renderTasks();
-                p2pCleanup();
-            }
-            else if (msg.type === 'deny') {
-                updateSyncStatus(`PULL abgelehnt: ${msg.reason}`, true);
-                p2pCleanup();
-            }
-        };
-
-        dataChannel.onclose = () => {
-            p2pCleanup();
-        };
-        dataChannel.onerror = (err) => {
-            console.error("Data Channel Fehler:", err);
-            p2pCleanup();
-        };
-    }
-    
-    // --- 2.9 Device Registry (Geräteverwaltung) ---
-    
-    function renderDeviceRegistry() {
-        const container = document.getElementById('device-list-container');
-        const registry = p2pDataStore.appData.deviceRegistry;
-        container.innerHTML = '';
-
-        registry.ids.forEach(id => {
-            const name = registry.names[id] || "Unbenanntes Gerät";
-            const isSelf = (id === currentDeviceId);
-            
-            const item = document.createElement('div');
-            item.className = `flex justify-between items-center p-2 rounded ${isSelf ? 'bg-primary text-primary-content' : 'bg-base-100'}`;
-            item.innerHTML = `
-                <span class="font-semibold">${name} ${isSelf ? '(Dieses Gerät)' : ''}</span>
-                <span class="text-xs font-mono">${id.substring(0, 12)}...</span>
-                ${(isChefDevice && !isSelf) ? 
-                    `<button class="btn btn-xs btn-error" data-id="${id}">Entfernen</button>` : 
-                    ''}
-            `;
-            
-            item.querySelector('button')?.addEventListener('click', () => {
-                removeDevice(id);
-            });
-            container.appendChild(item);
-        });
-        
-        // Aktivierungs-UI nur für Chef
-        document.getElementById('device-activation-section').classList.toggle('hidden', !isChefDevice);
-    }
-    
-    function addDevice(newDeviceId) {
-        if (!isChefDevice) return;
-        
-        const registry = p2pDataStore.appData.deviceRegistry;
-        if (registry.ids.length >= MAX_DEVICES) {
-            updateSyncStatus("Max. 4 Geräte erreicht", true);
-            return;
-        }
-        if (registry.ids.includes(newDeviceId)) {
-            updateSyncStatus("Gerät bereits registriert", true);
-            return;
-        }
-        
-        registry.ids.push(newDeviceId);
-        registry.names[newDeviceId] = `Gerät ${registry.ids.length}`;
-        p2pDataStore.lastModified = Date.now();
-        
-        p2pSaveState(); // Commit der neuen Registry
-        renderDeviceRegistry();
-        updateSyncStatus(`Gerät ${newDeviceId.substring(0, 7)} aktiviert.`, false);
-    }
-
-    function removeDevice(deviceIdToRemove) {
-        if (!isChefDevice) return;
-        
-        const registry = p2pDataStore.appData.deviceRegistry;
-        registry.ids = registry.ids.filter(id => id !== deviceIdToRemove);
-        delete registry.names[deviceIdToRemove];
-        p2pDataStore.lastModified = Date.now();
-        
-        p2pSaveState(); // Commit der neuen Registry
-        renderDeviceRegistry();
-        updateSyncStatus(`Gerät ${deviceIdToRemove.substring(0, 7)} entfernt.`, false);
-    }
-    
-    // --- 2.10 Globales P2P Save State (Der "Commit/Push") ---
-    
-    // Diese Funktion ersetzt das Standard-saveState()
-    async function p2pSaveState() {
-        if (!isChefDevice) {
-            updateSyncStatus("Kein Chef. Speichern blockiert.", true);
-            // Verhindere das Speichern, wenn nicht Chef
-            // Lade alten Zustand neu, um Änderungen rückgängig zu machen
-            loadState(); 
-            renderTasks();
-            return;
-        }
-        
-        if (!chefDBInstance || !currentUniversalKey) {
-            updateSyncStatus("Fehler: Sicherheit nicht initialisiert.", true);
-            return;
-        }
-
-        // 1. Daten bündeln (Tasks + Registry)
-        p2pDataStore.appData.tasks = tasks;
-        p2pDataStore.lastModified = Date.now();
-        
-        // 2. Commit in lokale IndexedDB
-        try {
-            const newHash = await chefDBInstance.commitData(p2pDataStore.appData, currentCommitHash);
-            currentCommitHash = newHash;
-            localStorage.setItem(`mogul_last_hash_${currentDeviceId}`, currentCommitHash);
-            
-            // 3. Lokalen Cache speichern
-            saveStateToLocalStorage(p2pDataStore);
-            
-            // 4. Snapshot für Undo/Redo (nur Mogul-Tasks)
-            takeSnapshot(); 
-            
-            updateSyncStatus(`Lokal gespeichert (Chef)`, false);
-            
-            // 5. Erzwinge GSF-Export (Der "PUSH"-Zwang)
-            // HINWEIS: Dies bei JEDER Änderung zu tun, ist mühsam.
-            // Besser: Nur beim Schließen oder manuellem Klick.
-            // Für Ihre Anforderung (Git-like Commit/Push always) belassen wir es hier.
-            await generateGSF(currentCommitHash);
-
-        } catch (e) {
-            updateSyncStatus(`Commit-Fehler: ${e.message}`, true);
-        }
-    }
-    
-    // --- 2.11 UI-Status Helfer ---
-    
-    function updateSyncStatus(message, isError = false) {
-        const textEl = document.getElementById('sync-status-text');
-        const indicatorEl = document.getElementById('sync-status-indicator');
-        
-        textEl.textContent = message;
-        indicatorEl.setAttribute('data-tip', message);
-        
-        textEl.classList.toggle('text-warning', isError);
-        textEl.classList.toggle('text-error', isError); // Doppelt, falls Warning nicht reicht
-        textEl.classList.toggle('text-success', !isError);
-        
-        // GSF-Export nur für Chef
-        document.getElementById('export-gsf-btn').classList.toggle('hidden', !isChefDevice);
-    }
-
-    // === 3. INITIALISIERUNG & Event Handling (Haupt-Startpunkt) ===
+    // === 2. INITIALISIERUNG (Haupt-Startpunkt) ===
     
     window.onload = () => {
-        // 1. Basis-UI (Mogul) initialisieren
-        loadState(); // Lade lokalen Cache (wird ggf. überschrieben)
-        renderTasks();
+        // 1. MVP-App initialisieren
+        loadState();      // Lädt, validiert und seeded Tasks aus localStorage
+        loadSoundState(); // Lädt Sound-Präferenz
+        renderTasks();    // Zeigt alles an
+        
+        // 2. Globale Event-Listener binden
         addGlobalEventListeners();
-        
-        // 2. P2P/Auth-Flow starten
-        initializePasskeyFlow(); // Öffnet Auth-Modal
 
-        // 3. P2P/Sync Button Listeners
-        document.getElementById('import-gsf-btn').addEventListener('click', () => {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'application/json, .json';
-            fileInput.onchange = (e) => {
-                if (e.target.files.length) handleGSFImport(e.target.files[0]);
-            };
-            fileInput.click();
-        });
-        
-        document.getElementById('export-gsf-btn').addEventListener('click', () => {
-            generateGSF(currentCommitHash);
-        });
-
-        // 4. Geräte-Modal Listeners
-        document.getElementById('manage-devices-btn').addEventListener('click', () => {
-            document.getElementById('current-device-id-display').value = currentDeviceId || "Nicht angemeldet";
-            renderDeviceRegistry();
-            manage_devices_modal.showModal();
-        });
-        
-        document.getElementById('add-device-btn').addEventListener('click', () => {
-            const newId = document.getElementById('new-device-id-input').value.trim();
-            if (newId) {
-                addDevice(newId);
-                document.getElementById('new-device-id-input').value = '';
-            }
-        });
-
-        // 5. P2P-Modal Listeners
-        document.getElementById('p2p-modal-btn').addEventListener('click', () => {
-             p2p_modal.showModal();
-        });
-        
-        document.getElementById('p2p-start-pull-btn').addEventListener('click', () => {
-            if (p2pIsOffer) {
-                // Client (Handy) klickt, um PULL abzuschließen
-                const answer = document.getElementById('p2p-answer-input').value;
-                if (answer) p2pAcceptAnswer(answer);
-            } else {
-                // Chef (PC) klickt, um auf Offer zu antworten
-                const offer = document.getElementById('p2p-offer-output').value;
-                if (offer) p2pCreateAnswer(offer);
-            }
-        });
-        
-        // Tab-Wechsel im P2P-Modal steuert, ob wir Offer (Client) oder Answer (Chef) sind
-        document.getElementById('tab-offer').addEventListener('change', () => p2pIsOffer = true);
-        document.getElementById('tab-answer').addEventListener('change', () => p2pIsOffer = false);
-
-        console.log('Mogul P2P-CHEF-Sync gestartet. Bereit für Ihre Prioritäten, Christian Heinrich Hohlfeld.');
+        console.log('Mogul MVP gestartet. Bereit für Ihre Prioritäten, Christian Heinrich Hohlfeld.');
     };
 
     </script>
