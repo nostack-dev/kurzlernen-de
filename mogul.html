@@ -1020,6 +1020,7 @@
                 localStorage.removeItem(STORAGE_KEY); 
                 setTimeout(() => startConnection(storedSdp), 500);
             } else if (storedSdp && !answerCode) {
+                // NEU: Nur wenn storedSdp existiert UND wir KEINEN aktiven Neustart-Klick hatten
                 setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
                 document.getElementById('start-button-container').classList.add('hidden');
             } else if (answerCode && !storedSdp) {
@@ -1030,6 +1031,8 @@
                     document.getElementById('start-button-container').classList.remove('hidden');
                     document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                 }, 500);
+            } else {
+                resetConnectionState();
             }
 
             console.log('Mogul P2P Sync - Finaler Code geladen.');
