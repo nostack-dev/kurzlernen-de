@@ -88,42 +88,67 @@
         </form>
     </dialog>
 
-    <!-- 2. P2P-Sync Modal -->
+    <!-- 2. P2P-Sync Modal (Steve Jobs Style) -->
     <dialog id="p2p_modal" class="modal">
-        <div class="modal-box w-11/12 max-w-2xl">
-            <h3 class="font-bold text-xl mb-4">P2P Daten-Transfer</h3>
-            <p class="mb-4">Bitte wählen Sie, ob Sie die Daten senden (Offer) oder empfangen (Answer) möchten.</p>
+        <div class="modal-box w-11/12 max-w-2xl bg-white shadow-2xl rounded-xl">
+            <h3 class="font-extrabold text-3xl mb-4 text-primary">Mogul P2P Sync. Einfach. Sofort.</h3>
+            <p class="text-lg mb-6 text-gray-700">Wählen Sie, ob Sie Daten von diesem Gerät **senden** oder **empfangen** möchten.</p>
 
-            <div role="tablist" class="tabs tabs-boxed mb-4">
-                <input type="radio" name="p2p_tabs" role="tab" class="tab" aria-label="Daten senden (Offer)" id="tab-offer" checked />
-                <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-                    <h4 class="text-lg font-semibold mb-2">1. Offer erstellen (Sendevorgang)</h4>
-                    <p class="text-sm mb-4">Erstellen Sie den Offer Code und senden Sie ihn an das Zielgerät (z.B. per QR-Code oder Chat).</p>
-                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 font-mono text-sm" readonly placeholder="Offer Code wird hier generiert..."></textarea>
-                    <button id="p2p-create-offer-btn" class="btn btn-sm btn-info mt-2">Offer Code generieren</button>
+            <div role="tablist" class="tabs tabs-boxed bg-gray-100 p-1 rounded-lg mb-4">
+                
+                <!-- Tab 1: Senden (Offer) -->
+                <input type="radio" name="p2p_tabs" role="tab" class="tab font-semibold" aria-label="Daten senden (Offer)" id="tab-offer" checked />
+                <div role="tabpanel" class="tab-content bg-white border border-gray-200 rounded-box p-6 shadow-inner">
+                    <h4 class="text-xl font-bold mb-3 text-secondary">Daten senden (Gerät A)</h4>
+                    <p class="text-sm mb-4 text-gray-600">Dieses Gerät generiert den Start-Code (`Offer`).</p>
                     
-                    <h4 class="text-lg font-semibold mt-6 mb-2">2. Answer Code akzeptieren</h4>
-                    <p class="text-sm mb-4">Fügen Sie den Answer Code, den Sie vom Zielgerät erhalten haben, hier ein.</p>
-                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Fügen Sie den Answer Code hier ein..."></textarea>
-                    <button id="p2p-accept-answer-btn" class="btn btn-sm btn-success mt-2">Answer Code akzeptieren & Daten synchronisieren</button>
+                    <div class="space-y-4">
+                        <div>
+                            <span class="badge badge-info text-md font-bold">SCHRITT 1: OFFER ERSTELLEN</span>
+                            <p class="text-xs mt-1 mb-2">Generieren Sie den geheimen Start-Code. Senden Sie ihn an Gerät B.</p>
+                            <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 font-mono text-sm" readonly placeholder="Offer Code wird hier generiert..."></textarea>
+                            <button id="p2p-create-offer-btn" class="btn btn-sm btn-info w-full mt-2">Offer Code generieren</button>
+                        </div>
+                        
+                        <div class="divider"></div>
+                        
+                        <div>
+                            <span class="badge badge-success text-md font-bold">SCHRITT 2: ANTWORT AKZEPTIEREN</span>
+                            <p class="text-xs mt-1 mb-2">Fügen Sie den Antwort-Code (`Answer`) von Gerät B hier ein, um den Sync zu starten.</p>
+                            <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Fügen Sie den Answer Code hier ein..."></textarea>
+                            <button id="p2p-accept-answer-btn" class="btn btn-sm btn-success w-full mt-2">Answer Code akzeptieren & SYNC STARTEN</button>
+                        </div>
+                    </div>
                 </div>
 
-                <input type="radio" name="p2p_tabs" role="tab" class="tab" aria-label="Daten empfangen (Answer)" id="tab-answer" />
-                <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-                    <h4 class="text-lg font-semibold mb-2">1. Offer Code einfügen</h4>
-                    <p class="text-sm mb-4">Fügen Sie den Offer Code des sendenden Geräts hier ein.</p>
-                    <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Fügen Sie den Offer Code hier ein..."></textarea>
-                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-info mt-2">Answer Code generieren</button>
-                    
-                    <h4 class="text-lg font-semibold mt-6 mb-2">2. Answer Code senden</h4>
-                    <p class="text-sm mb-4">Kopieren Sie den generierten Answer Code und senden Sie ihn an das sendende Gerät.</p>
-                    <textarea id="p2p-answer-output" class="textarea textarea-bordered w-full h-24 font-mono text-sm" readonly placeholder="Answer Code wird hier generiert..."></textarea>
+                <!-- Tab 2: Empfangen (Answer) -->
+                <input type="radio" name="p2p_tabs" role="tab" class="tab font-semibold" aria-label="Daten empfangen (Answer)" id="tab-answer" />
+                <div role="tabpanel" class="tab-content bg-white border border-gray-200 rounded-box p-6 shadow-inner">
+                    <h4 class="text-xl font-bold mb-3 text-secondary">Daten empfangen (Gerät B)</h4>
+                    <p class="text-sm mb-4 text-gray-600">Dieses Gerät empfängt den Start-Code und antwortet mit dem Rück-Code (`Answer`).</p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <span class="badge badge-warning text-md font-bold">SCHRITT 1: OFFER CODE EINFÜGEN</span>
+                            <p class="text-xs mt-1 mb-2">Fügen Sie den Start-Code (`Offer`) von Gerät A hier ein.</p>
+                            <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Fügen Sie den Offer Code hier ein..."></textarea>
+                            <button id="p2p-create-answer-btn" class="btn btn-sm btn-warning w-full mt-2">Answer Code generieren</button>
+                        </div>
+                        
+                        <div class="divider"></div>
+                        
+                        <div>
+                            <span class="badge badge-info text-md font-bold">SCHRITT 2: ANSWER CODE SENDEN</span>
+                            <p class="text-xs mt-1 mb-2">Senden Sie den generierten Antwort-Code an Gerät A. Der Sync beginnt.</p>
+                            <textarea id="p2p-answer-output" class="textarea textarea-bordered w-full h-24 font-mono text-sm" readonly placeholder="Answer Code wird hier generiert..."></textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="modal-action">
                 <form method="dialog">
-                    <button class="btn">Schließen</button>
+                    <button class="btn btn-ghost">Abbrechen</button>
                 </form>
             </div>
         </div>
@@ -138,7 +163,7 @@
         const DEVICE_LIST_KEY = 'mogul_device_list'; // Geräte-IDs, in localStorage
         const DB_HASH_KEY = 'mogul_db_hash';         // Hash des letzten Datenbank-Inhalts, in localStorage
         
-        // Neue Konstante für Session-Timeout (30 Minuten)
+        // NEU: Konstante für Session-Timeout (30 Minuten)
         const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
         const SESSION_EXPIRY_KEY = 'mogul_session_expires';
 
@@ -166,7 +191,7 @@
 
         function base64UrlToUint8Array(base664Url) {
             const padding = '='.repeat((4 - base664Url.length % 4) % 4);
-            const base64 = (base664Url + padding)
+            const base64 = (base64Url + padding)
                 .replace(/\-/g, '+')
                 .replace(/_/g, '/');
             const rawData = window.atob(base64);
@@ -271,7 +296,7 @@
                 // UK im RAM speichern
                 currentUniversalKey = universalKey;
                 
-                // NEU: UK im sessionStorage speichern & Timeout setzen
+                // UK im sessionStorage speichern & Timeout setzen
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
                 log('Universal Key in sessionStorage für die Sitzungsdauer gespeichert.');
@@ -321,7 +346,7 @@
                 // UK im RAM speichern
                 currentUniversalKey = universalKey;
                 
-                // NEU: UK im sessionStorage speichern & Timeout setzen
+                // UK im sessionStorage speichern & Timeout setzen
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
                 log('Universal Key in sessionStorage für die Sitzungsdauer gespeichert.');
@@ -355,7 +380,7 @@
             mogul_id_display.textContent = userId;
         }
 
-        // NEU: Logik für die Inaktivitätsprüfung
+        // Logik für die Inaktivitätsprüfung
         function setupActivityMonitor() {
             // Prüft alle 60 Sekunden, ob die Session abgelaufen ist
             setInterval(() => {
@@ -381,7 +406,7 @@
 
 
         async function initializePasskeyFlow() {
-            // NEU: Hybrid-Check (Session Storage zuerst prüfen)
+            // Hybrid-Check (Session Storage zuerst prüfen)
             const sessionUK = sessionStorage.getItem(WRAPPED_UK_KEY);
             const sessionExpires = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY) || 0);
 
@@ -422,7 +447,7 @@
                     return;
                 }
 
-                // NEU: Wenn aus Session Storage, Timer verlängern (Aktivität erkannt)
+                // Wenn aus Session Storage, Timer verlängern (Aktivität erkannt)
                 if (fromSessionStorage) {
                     sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
                     log('Sitzung verlängert bis: ' + new Date(Date.now() + SESSION_TIMEOUT_MS).toLocaleTimeString('de-DE'));
@@ -493,7 +518,8 @@
                 return;
             }
             log("Erstelle P2P Offer (Simuliert)...");
-            document.getElementById('p2p-offer-output').value = "MOCK_OFFER_CODE_12345";
+            // Simulation des Offer Codes, der den UK indirekt teilt.
+            document.getElementById('p2p-offer-output').value = "MOCK_OFFER_CODE_" + crypto.randomUUID().substring(0, 8);
             // In einer echten App: RTCPeerConnection erstellen und Offer SDP generieren.
         }
 
@@ -506,6 +532,8 @@
                 log(`Verschlüsselungsschlüssel: UK (Base64Url): ${currentUniversalKey.substring(0, 10)}...`);
                 // Nach Transfer:
                 p2p_modal.close();
+            } else {
+                 log("Ungültiger Answer Code.", true);
             }
         }
         
@@ -515,8 +543,13 @@
                 return;
             }
             log(`Erstelle P2P Answer auf Offer: ${offer.substring(0, 15)}... (Simuliert)`);
-            document.getElementById('p2p-answer-output').value = "MOCK_ANSWER_CODE_54321";
-            // In einer echten App: Offer SDP in RTCPeerConnection einfügen und Answer SDP generieren.
+            if (offer.startsWith("MOCK_OFFER")) {
+                 // Simulation des Answer Codes, der den UK indirekt teilt.
+                document.getElementById('p2p-answer-output').value = "MOCK_ANSWER_CODE_" + crypto.randomUUID().substring(0, 8);
+                // In einer echten App: Offer SDP in RTCPeerConnection einfügen und Answer SDP generieren.
+            } else {
+                log("Ungültiger Offer Code.", true);
+            }
         }
 
 
@@ -526,7 +559,7 @@
             // Globale Variablen für Auth-Status
             loadState();
             
-            // NEU: Startet den Inaktivitäts-Monitor
+            // Startet den Inaktivitäts-Monitor
             setupActivityMonitor(); 
 
             // 1. Initialer Auth-Flow
@@ -556,11 +589,14 @@
                  p2p_modal.showModal();
             });
             
+            // Senden (Offer)
             document.getElementById('p2p-create-offer-btn').addEventListener('click', p2pCreateOffer);
             document.getElementById('p2p-accept-answer-btn').addEventListener('click', () => {
                 const answer = document.getElementById('p2p-answer-input').value;
                 if (answer) p2pAcceptAnswer(answer);
             });
+            
+            // Empfangen (Answer)
             document.getElementById('p2p-create-answer-btn').addEventListener('click', () => {
                 const offer = document.getElementById('p2p-offer-input').value;
                 if (offer) p2pCreateAnswer(offer);
