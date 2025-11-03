@@ -235,7 +235,6 @@
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
                 
-                // Native Share Button Logik entfernen (nur Copy-Button bleibt)
                 const copyBtn = document.getElementById('copy-offer');
                 copyBtn.className = 'btn btn-outline btn-primary w-full';
 
@@ -328,10 +327,8 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Native Share Logik entfernt, Funktion bleibt nur als Platzhalter
         async function shareOfferLink() {
-            // Wird nicht mehr verwendet, aber die Funktion bleibt für sauberen Code
-            console.log('Native Share API wurde entfernt. Bitte Link kopieren.');
+            // Funktion ist entfernt, bleibt als Platzhalter
         }
 
         // =================================================================
@@ -447,7 +444,6 @@
             
             peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
             
-            // KEINE setRemoteDescription(offerAsRemote) HIER!
             await waitForAnswer(true); 
         }
 
@@ -803,69 +799,6 @@
         }
 
 
-        function setupDataChannel(channel) {
-            channel.onopen = () => {
-                console.log('DataChannel geöffnet');
-            };
-
-            channel.onmessage = async (event) => {
-                if (typeof event.data === 'string') {
-                    try {
-                        const data = JSON.parse(event.data);
-                        
-                        if (data.type === 'chat') {
-                            const sender = data.deviceName;
-                            displayChatMessage(sender, data.message, false);
-                        } else if (data.type === 'file-meta') {
-                            handleIncomingFileMeta(data);
-                        } else if (data.type === 'file-end') {
-                            handleFileTransferEnd();
-                        } else if (data.type === 'sync-data') {
-                            displaySyncData(data);
-                        }
-                    } catch (e) {
-                        console.log('Empfangene Nachricht (Nicht-JSON):', event.data);
-                    }
-                } else if (event.data instanceof ArrayBuffer) {
-                    handleIncomingFileChunk(event.data);
-                }
-            };
-
-            channel.onclose = () => {
-                updateStatus('ready', 'Verbindung geschlossen');
-                document.getElementById('start-button-container').classList.remove('hidden'); 
-                document.getElementById('link-section').classList.add('hidden');
-                document.getElementById('connected-section').classList.add('hidden');
-                document.getElementById('data-section').classList.add('hidden');
-                document.getElementById('chat-section').classList.add('hidden');
-                document.getElementById('file-progress-container').classList.add('hidden');
-                localStorage.removeItem(STORAGE_KEY); 
-            };
-
-            channel.onerror = (error) => {
-                console.error('DataChannel Fehler:', error);
-                updateStatus('error', 'Verbindungsfehler im DataChannel');
-                document.getElementById('start-button-container').classList.remove('hidden'); 
-                localStorage.removeItem(STORAGE_KEY); 
-            };
-        }
-
-        function sendMessage(message) {
-            if (dataChannel && dataChannel.readyState === 'open') {
-                const chatData = {
-                    type: 'chat',
-                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
-                    message: message,
-                    timestamp: new Date().toISOString()
-                };
-                
-                dataChannel.send(JSON.stringify(chatData));
-                displayChatMessage('Ich', message, true);
-            } else {
-                alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
-            }
-        }
-
         // =================================================================
         // EVENT LISTENER & INITIALISIERUNG
         // =================================================================
@@ -875,10 +808,9 @@
             const mediaTriggerButton = document.getElementById('media-trigger');
             const fileInput = document.getElementById('media-file-input');
             
-            // NOTE: shareOfferButton wurde entfernt
-
             // --- P2P Start / End ---
             document.getElementById('start-connection').addEventListener('click', () => {
+                 // **BEREINIGUNG:** Lösche LocalStorage beim expliziten Start
                  localStorage.removeItem(STORAGE_KEY); 
                  startConnection();
             });
@@ -929,14 +861,18 @@
             const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
             if (offerCode) {
+                // Responder Start
                 setTimeout(startConnection, 500);
             } else if (answerCode && storedSdp) {
+                // Initiator lädt neu MIT Answer-Code
                 localStorage.removeItem(STORAGE_KEY); 
                 setTimeout(() => startConnection(storedSdp), 500);
             } else if (storedSdp && !answerCode) {
+                // Initiator lädt neu im WAITING-Zustand (F5)
                 setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
                 document.getElementById('start-button-container').classList.add('hidden');
             } else if (answerCode && !storedSdp) {
+                // Fehler: Answer-Code ist da, aber der SDP wurde gelöscht
                 history.replaceState(null, '', window.location.pathname);
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
