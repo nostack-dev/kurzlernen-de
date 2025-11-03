@@ -194,13 +194,20 @@
         let receivedSlices = [];
         let receivingFileMeta = null;
         let answerCheckInterval = null;
-        
+
         // **GIF API PLATZHALTER**
-        // HINWEIS: Da ich keine echten API-Schlüssel verwenden kann, muss der Benutzer einen eigenen
-        // GIPHY-API-Schlüssel für die dynamische Suche einfügen.
         const GIPHY_API_KEY = 'YOUR_GIPHY_API_KEY_HERE'; // *** BITTE HIER EINFÜGEN ***
         const GIPHY_BASE_URL = 'https://api.giphy.com/v1/gifs/search';
         const GIPHY_TRENDING_URL = 'https://api.giphy.com/v1/gifs/trending';
+
+        const SICK_GIF_GALLERY = [
+            'https://i.imgur.com/uGzH32x.gif', 
+            'https://i.imgur.com/lM8mP2t.gif', 
+            'https://i.imgur.com/2Xy5E1P.gif', 
+            'https://i.imgur.com/g8vB4z0.gif', 
+            'https://i.imgur.com/QhS67Y9.gif', 
+            'https://i.imgur.com/yU4lG6C.gif', 
+        ];
 
 
         const config = {
@@ -259,19 +266,20 @@
         }
 
         function showSection(sectionId) {
+            // Versteckt alle aktiven Sektionen
             document.getElementById('link-section').classList.add('hidden');
             document.getElementById('offer-section').classList.add('hidden');
             document.getElementById('answer-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('cancel-connection').classList.add('hidden'); // Verstecke Cancel
+
             
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
-                
-                const copyBtn = document.getElementById('copy-offer');
-                copyBtn.className = 'btn btn-outline btn-primary w-full';
+                document.getElementById('copy-offer').className = 'btn btn-outline btn-primary w-full';
 
             } else if (sectionId === 'answer-section') {
                 document.getElementById('link-section').classList.remove('hidden');
@@ -622,9 +630,11 @@
             }
             localStorage.removeItem(STORAGE_KEY);
             
+            // Setze UI auf READY Zustand zurück
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
             
+            // Verstecke ALLE spezifischen Sektionen
             document.getElementById('link-section').classList.add('hidden');
             document.getElementById('offer-section').classList.add('hidden');
             document.getElementById('answer-section').classList.add('hidden');
@@ -634,6 +644,7 @@
             document.getElementById('file-progress-container').classList.add('hidden');
             
             document.getElementById('cancel-connection').classList.add('hidden');
+            currentRole = null; 
         }
 
         function endConnection() {
@@ -890,15 +901,12 @@
                     const fetchGifs = async (query = '') => {
                         gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Suche läuft...</p>';
                         
-                        // **WICHTIG:** Simuliere hier den API-Aufruf
                         if (GIPHY_API_KEY === 'YOUR_GIPHY_API_KEY_HERE') {
-                            // Verwende statische GIFs, da kein API-Schlüssel vorhanden ist
                             gallery.innerHTML = '<p class="col-span-3 text-center text-red-500 font-bold">FEHLER: Bitte GIPHY_API_KEY einfügen. Nutze statische Platzhalter...</p>';
                             
-                            const staticGifs = SICK_GIF_GALLERY.filter((_, i) => i < 6);
+                            const staticGifs = SICK_GIF_GALLERY.filter((_, i) => i < 9);
                             displayGifGallery(staticGifs);
                         } else {
-                            // Führe tatsächlichen API-Aufruf aus (wenn Schlüssel vorhanden)
                             const url = query ? `${GIPHY_BASE_URL}?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=9&rating=r` : `${GIPHY_TRENDING_URL}?api_key=${GIPHY_API_KEY}&limit=9&rating=r`;
                             
                             try {
@@ -933,7 +941,7 @@
                     searchButton.onclick = () => fetchGifs(searchInput.value);
                     searchInput.onkeydown = (e) => { if (e.key === 'Enter') fetchGifs(searchInput.value); };
 
-                    fetchGifs(); // Lade initiale GIFs
+                    fetchGifs();
                     
 
                 } else {
