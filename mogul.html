@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -82,9 +81,12 @@
                     </div>
 
                 </div>
+                <p class="text-xs text-gray-500 mt-2">
+                    *Dieser Link ist lang, da er alle Verbindungsdaten ohne Server enthält.
+                </p>
             </div>
 
-            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 hidden shadow-md">
+            <div id="answer-section" class="hidden bg-green-50 p-4 rounded-xl border border-green-200 shadow-md">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500"></span>
                     Schritt 2: Auf Antwort warten
@@ -95,7 +97,7 @@
                 <div class="text-center py-2">
                     <div class="loading loading-spinner text-green-500"></div>
                 </div>
-                <button id="cancel-connection" class="btn btn-warning btn-sm w-full mt-3">
+                <button id="cancel-connection" class="btn btn-link text-red-500 hover:text-red-700 btn-sm w-full mt-3">
                     ❌ Sitzung abbrechen / Neustarten
                 </button>
             </div>
@@ -141,6 +143,10 @@
             <div class="flex space-x-2 items-center">
                 <input type="file" id="media-file-input" accept="video/*,audio/*,image/*" class="hidden" />
 
+                <button id="gif-trigger" class="btn btn-ghost text-xs font-bold text-gray-600 hover:text-blue-500 transition-colors">
+                    GIF
+                </button>
+
                 <button id="media-trigger" class="btn btn-ghost btn-circle text-gray-600 hover:text-blue-500 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path></svg>
                 </button>
@@ -153,6 +159,26 @@
         </div>
     </div>
 
+    <dialog id="gif_modal" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🔥 Dynamische GIF Suche (Uncut Stuff)</h3>
+            <div class="flex mb-4">
+                <input type="text" id="gif-search-input" placeholder="Nach GIFs suchen..." class="input input-bordered w-full" />
+                <button id="gif-search-button" class="btn btn-primary ml-2">Suchen</button>
+            </div>
+            <div id="gif-gallery" class="grid grid-cols-3 gap-3 overflow-y-auto max-h-96">
+                <p class="col-span-3 text-center text-gray-500">Lade GIFs...</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-4">Wählen Sie ein GIF zum Senden über den P2P DataChannel.</p>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-sm btn-ghost">Schließen</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+
+
     <script>
         // =================================================================
         // GLOBALE VARIABLEN & KONFIGURATION
@@ -164,14 +190,28 @@
         const MAX_ATTEMPTS = 3;
         const STORAGE_KEY = 'mogul-p2p-offer-sdp'; 
         
-        // **MEDIENDATEN GLOBALS**
         const CHUNK_SIZE = 16384; 
         let file = null;
         let fileReader = null;
         let nextSlice = 0;
         let receivedSlices = [];
         let receivingFileMeta = null;
-        let answerCheckInterval = null; // NEU: Globaler Handler für das Warte-Intervall
+        let answerCheckInterval = null;
+
+        // **GIF API PLATZHALTER**
+        const GIPHY_API_KEY = 'YOUR_GIPHY_API_KEY_HERE'; // *** BITTE HIER EINFÜGEN ***
+        const GIPHY_BASE_URL = 'https://api.giphy.com/v1/gifs/search';
+        const GIPHY_TRENDING_URL = 'https://api.giphy.com/v1/gifs/trending';
+
+        const SICK_GIF_GALLERY = [
+            'https://i.imgur.com/uGzH32x.gif', 
+            'https://i.imgur.com/lM8mP2t.gif', 
+            'https://i.imgur.com/2Xy5E1P.gif', 
+            'https://i.imgur.com/g8vB4z0.gif', 
+            'https://i.imgur.com/QhS67Y9.gif', 
+            'https://i.imgur.com/yU4lG6C.gif', 
+        ];
+
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -229,20 +269,26 @@
         }
 
         function showSection(sectionId) {
+            // Versteckt alle aktiven Sektionen
             document.getElementById('link-section').classList.add('hidden');
             document.getElementById('offer-section').classList.add('hidden');
             document.getElementById('answer-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('cancel-connection').classList.add('hidden'); 
+
             
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
-                
-                const copyBtn = document.getElementById('copy-offer');
-                copyBtn.className = 'btn btn-outline btn-primary w-full';
+                document.getElementById('copy-offer').className = 'btn btn-outline btn-primary w-full';
 
+            } else if (sectionId === 'answer-section') {
+                document.getElementById('link-section').classList.remove('hidden');
+                document.getElementById('answer-section').classList.remove('hidden');
+                document.getElementById('cancel-connection').classList.remove('hidden'); 
+            
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
@@ -330,10 +376,6 @@
             `;
             chatBox.appendChild(messageElement);
             chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        async function shareOfferLink() {
-            // Funktion ist entfernt, bleibt als Platzhalter
         }
 
         // =================================================================
@@ -501,9 +543,10 @@
                 
                 updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
                 document.getElementById('offer-link').textContent = finalAnswerUrl;
+                showSection('link-section');
+                
                 document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
                 document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
-                showSection('link-section');
                 
                 document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
                 
@@ -524,20 +567,25 @@
             }
 
             updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
-            document.getElementById('answer-section').classList.remove('hidden');
+            showSection('answer-section'); 
+            document.getElementById('wait-message').textContent = 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...';
+            document.getElementById('cancel-connection').classList.remove('hidden');
+
 
             return new Promise((resolve, reject) => {
-                answerCheckInterval = setInterval(async () => { // NEU: Speichere Intervall-ID
+                answerCheckInterval = setInterval(async () => { 
                     try {
                         const answerCode = getAnswerCodeFromUrl();
                         
                         if (answerCode) {
                             clearInterval(answerCheckInterval);
+                            answerCheckInterval = null; 
                             await processAnswer(answerCode);
                             resolve();
                         }
                     } catch (error) {
                         clearInterval(answerCheckInterval);
+                        answerCheckInterval = null; 
                         reject(error);
                     }
                 }, 1000);
@@ -545,6 +593,7 @@
                 setTimeout(() => {
                     if (answerCheckInterval) {
                         clearInterval(answerCheckInterval);
+                        answerCheckInterval = null; 
                         reject(new Error('Timeout: Keine Antwort erhalten'));
                     }
                 }, 120000);
@@ -571,25 +620,38 @@
             await establishConnection();
         }
 
-        // NEU: Allgemeine Reset-Funktion
         function resetConnectionState() {
+            // 1. **KRITISCH:** LocalStorage löschen, bevor UI/Connection manipuliert wird
+            localStorage.removeItem(STORAGE_KEY); 
+
             if (peerConnection) {
-                peerConnection.close();
+                if (peerConnection.connectionState !== 'closed' && peerConnection.connectionState !== 'failed') {
+                    peerConnection.close();
+                }
                 peerConnection = null;
             }
             if (answerCheckInterval) {
                 clearInterval(answerCheckInterval);
                 answerCheckInterval = null;
             }
-            localStorage.removeItem(STORAGE_KEY);
             
+            // 2. Globale Variablen zurücksetzen
+            currentRole = null; 
+
+            // 3. UI auf READY Zustand zurücksetzen
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
+            
+            // 4. Alle spezifischen Sektionen verstecken
             document.getElementById('link-section').classList.add('hidden');
+            document.getElementById('offer-section').classList.add('hidden');
+            document.getElementById('answer-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
             document.getElementById('file-progress-container').classList.add('hidden');
+            
+            document.getElementById('cancel-connection').classList.add('hidden');
         }
 
         function endConnection() {
@@ -674,12 +736,12 @@
             };
 
             channel.onclose = () => {
-                resetConnectionState(); // Nutze die allgemeine Reset-Funktion
+                resetConnectionState(); 
             };
 
             channel.onerror = (error) => {
                 console.error('DataChannel Fehler:', error);
-                resetConnectionState(); // Nutze die allgemeine Reset-Funktion
+                resetConnectionState();
                 updateStatus('error', 'Verbindungsfehler im DataChannel');
             };
         }
@@ -816,8 +878,9 @@
             const copyOfferButton = document.getElementById('copy-offer');
             const endConnectionButton = document.getElementById('end-connection');
             const mediaTriggerButton = document.getElementById('media-trigger');
+            const gifTriggerButton = document.getElementById('gif-trigger');
             const fileInput = document.getElementById('media-file-input');
-            const cancelButton = document.getElementById('cancel-connection'); // NEU: Cancel Button
+            const cancelButton = document.getElementById('cancel-connection'); 
 
             // --- P2P Start / End / Cancel ---
             document.getElementById('start-connection').addEventListener('click', () => {
@@ -828,14 +891,86 @@
                 endConnectionButton.addEventListener('click', endConnection);
             }
             if (cancelButton) {
-                cancelButton.addEventListener('click', () => {
-                    // NEU: Abbruch der Wartezeit und vollständiges Reset
-                    if (answerCheckInterval) {
-                        clearInterval(answerCheckInterval);
-                    }
-                    resetConnectionState();
-                });
+                cancelButton.addEventListener('click', resetConnectionState); 
             }
+
+            // --- GIF Trigger ---
+            gifTriggerButton.addEventListener('click', function() {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    const modal = document.getElementById('gif_modal');
+                    const gallery = document.getElementById('gif-gallery');
+                    const searchInput = document.getElementById('gif-search-input');
+                    const searchButton = document.getElementById('gif-search-button');
+
+                    gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Lade trendende GIFs...</p>';
+                    modal.showModal();
+
+                    const fetchGifs = async (query = '') => {
+                        gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Suche läuft...</p>';
+                        
+                        if (GIPHY_API_KEY === 'YOUR_GIPHY_API_KEY_HERE') {
+                            gallery.innerHTML = '<p class="col-span-3 text-center text-red-500 font-bold">FEHLER: Bitte GIPHY_API_KEY einfügen. Nutze statische Platzhalter...</p>';
+                            
+                            const staticGifs = SICK_GIF_GALLERY.filter((_, i) => i < 9);
+                            displayGifGallery(staticGifs);
+                        } else {
+                            const url = query ? `${GIPHY_BASE_URL}?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=9&rating=r` : `${GIPHY_TRENDING_URL}?api_key=${GIPHY_API_KEY}&limit=9&rating=r`;
+                            
+                            try {
+                                const response = await fetch(url);
+                                const json = await response.json();
+                                const gifUrls = json.data.map(item => item.images.fixed_width.url);
+                                displayGifGallery(gifUrls);
+                            } catch (e) {
+                                gallery.innerHTML = '<p class="col-span-3 text-center text-red-500">Fehler beim Laden von GIPHY. Netzwerkproblem oder ungültiger Schlüssel.</p>';
+                            }
+                        }
+                    };
+
+                    const displayGifGallery = (urls) => {
+                        gallery.innerHTML = '';
+                        urls.forEach(url => {
+                            const imgWrapper = document.createElement('div');
+                            imgWrapper.className = 'cursor-pointer p-0.5 border-2 border-transparent hover:border-blue-500 transition-all duration-100';
+                            imgWrapper.innerHTML = `<img src="${url}" class="w-full h-auto rounded" />`;
+                            
+                            imgWrapper.addEventListener('click', () => {
+                                selectAndSendGif(url);
+                                modal.close();
+                            });
+                            gallery.appendChild(imgWrapper);
+                        });
+                        if (urls.length === 0) {
+                            gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Keine Ergebnisse gefunden.</p>';
+                        }
+                    };
+
+                    searchButton.onclick = () => fetchGifs(searchInput.value);
+                    searchInput.onkeydown = (e) => { if (e.key === 'Enter') fetchGifs(searchInput.value); };
+
+                    fetchGifs();
+                    
+
+                } else {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
+                }
+            });
+
+            function selectAndSendGif(gifUrl) {
+                const chatData = {
+                    type: 'chat',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    message: gifUrl, 
+                    mimeType: 'image/gif',
+                    isMedia: true,
+                    timestamp: new Date().toISOString()
+                };
+                
+                dataChannel.send(JSON.stringify(chatData));
+                
+                displayMediaPreview(chatData.deviceName, chatData.message, 'GIF', 'image/gif', true);
+            }
+
 
             // --- Datei Senden Trigger ---
             mediaTriggerButton.addEventListener('click', function() {
@@ -849,7 +984,7 @@
             fileInput.addEventListener('change', function() {
                 if (this.files.length > 0) {
                     file = this.files[0];
-                    if (file.size > 200 * 1024 * 1024) { // 200 MB Limit
+                    if (file.size > 200 * 1024 * 1024) { 
                          alert('Die Datei ist zu groß (max. 200 MB).');
                          this.value = '';
                          return;
@@ -885,6 +1020,7 @@
                 localStorage.removeItem(STORAGE_KEY); 
                 setTimeout(() => startConnection(storedSdp), 500);
             } else if (storedSdp && !answerCode) {
+                // NEU: Nur wenn storedSdp existiert UND wir KEINEN aktiven Neustart-Klick hatten
                 setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
                 document.getElementById('start-button-container').classList.add('hidden');
             } else if (answerCode && !storedSdp) {
@@ -895,6 +1031,8 @@
                     document.getElementById('start-button-container').classList.remove('hidden');
                     document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                 }, 500);
+            } else {
+                resetConnectionState();
             }
 
             console.log('Mogul P2P Sync - Finaler Code geladen.');
