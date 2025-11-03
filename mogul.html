@@ -244,9 +244,10 @@
             const link = document.getElementById('offer-link').textContent;
             try {
                 if (navigator.share) {
+                    // **KORRIGIERT FÜR MOBILE ERKENNUNG:** Füge den Link explizit in das Textfeld ein.
                     await navigator.share({
-                        title: 'Mogul P2P Sync Verbindung',
-                        text: 'Bitte öffne diesen Link, um die sichere Peer-to-Peer-Synchronisation zu starten:',
+                        title: 'Mogul P2P Sync',
+                        text: 'Möchtest du mit mir synchronisieren? Hier ist der Link:\n' + link, 
                         url: link
                     });
                 } else {
@@ -501,7 +502,7 @@
             if (peerConnection) {
                 peerConnection.close();
             }
-            // Manuelle Rücksetzung in den Ready-Zustand, falls close() nicht alle Events fängt
+            // Manuelle Rücksetzung (wird auch durch onclose gefangen, aber hier als Fallback)
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
             document.getElementById('link-section').classList.add('hidden');
@@ -627,7 +628,7 @@
                  startConnection();
             });
             
-            // NEU: Listener für den Trenn-Button
+            // Listener für den Trenn-Button
             if (endConnectionButton) {
                 endConnectionButton.addEventListener('click', endConnection);
             }
@@ -669,7 +670,7 @@
                 }
             }
 
-            console.log('Mogul P2P Sync - Verbindung trennen implementiert.');
+            console.log('Mogul P2P Sync - Finaler Code geladen.');
         });
     </script>
 </body>
