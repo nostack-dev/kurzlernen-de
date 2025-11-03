@@ -244,7 +244,6 @@
             const link = document.getElementById('offer-link').textContent;
             try {
                 if (navigator.share) {
-                    // **KORRIGIERT FÜR MOBILE ERKENNUNG:** Füge den Link explizit in das Textfeld ein.
                     await navigator.share({
                         title: 'Mogul P2P Sync',
                         text: 'Möchtest du mit mir synchronisieren? Hier ist der Link:\n' + link, 
@@ -497,12 +496,10 @@
             await establishConnection();
         }
 
-        // **NEU:** Funktion zum Beenden der Verbindung
         function endConnection() {
             if (peerConnection) {
                 peerConnection.close();
             }
-            // Manuelle Rücksetzung (wird auch durch onclose gefangen, aber hier als Fallback)
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
             document.getElementById('link-section').classList.add('hidden');
@@ -628,7 +625,6 @@
                  startConnection();
             });
             
-            // Listener für den Trenn-Button
             if (endConnectionButton) {
                 endConnectionButton.addEventListener('click', endConnection);
             }
@@ -661,6 +657,9 @@
                 if (answerCode && storedSdp) {
                     setTimeout(() => startConnection(storedSdp), 500);
                 } else if (answerCode && !storedSdp) {
+                    // **KORRIGIERT:** Entferne Hash-Teil bei Fehler, bevor der Benutzer den Button erneut klickt.
+                    history.replaceState(null, '', window.location.pathname);
+                    
                     setTimeout(() => {
                         document.getElementById('start-connection').disabled = true;
                         updateStatus('error', 'Fehler: Sitzung abgelaufen.');
