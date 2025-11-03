@@ -50,9 +50,16 @@
                 </p>
                 <div class="bg-white p-3 rounded-lg border border-blue-300">
                     <div id="offer-link" class="text-xs break-all font-mono text-blue-800 mb-2"></div>
-                    <button id="copy-offer" class="btn btn-sm btn-outline btn-primary w-full">
-                        📋 Link kopieren
-                    </button>
+                    
+                    <div id="share-buttons" class="flex space-x-2 mt-2">
+                        <button id="share-offer" class="btn btn-secondary w-1/2 hidden">
+                            📤 Teilen (Native)
+                        </button>
+                        <button id="copy-offer" class="btn btn-outline btn-primary w-full">
+                            📋 Link kopieren
+                        </button>
+                    </div>
+
                 </div>
             </div>
 
@@ -179,6 +186,17 @@
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
+                // **NEU:** Passe die Button-Breite an, falls der Share-Button sichtbar ist
+                const copyBtn = document.getElementById('copy-offer');
+                const shareBtn = document.getElementById('share-offer');
+                if (navigator.share) {
+                    shareBtn.classList.remove('hidden');
+                    copyBtn.className = 'btn btn-outline btn-primary w-1/2';
+                } else {
+                    shareBtn.classList.add('hidden');
+                    copyBtn.className = 'btn btn-outline btn-primary w-full';
+                }
+
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
@@ -215,6 +233,28 @@
             `;
             chatBox.appendChild(messageElement);
             chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // **NEU:** Funktion für native Share API
+        async function shareOfferLink() {
+            const link = document.getElementById('offer-link').textContent;
+            try {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: 'Mogul P2P Sync Verbindung',
+                        text: 'Bitte öffne diesen Link, um die sichere Peer-to-Peer-Synchronisation zu starten:',
+                        url: link
+                    });
+                } else {
+                    // Fallback: Kopiere Link, falls Share API nicht verfügbar
+                    await navigator.clipboard.writeText(link);
+                    const copyBtn = document.getElementById('copy-offer');
+                    copyBtn.textContent = '✅ Link kopiert!';
+                    setTimeout(() => { copyBtn.textContent = '📋 Link kopieren'; }, 2000);
+                }
+            } catch (error) {
+                console.error('Fehler beim Teilen:', error);
+            }
         }
 
         // =================================================================
@@ -287,7 +327,6 @@
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             
-            // SPEICHERN: Den lokalen Offer SDP in localStorage speichern (für Tab-Unabhängigkeit)
             localStorage.setItem(STORAGE_KEY, peerConnection.localDescription.sdp);
 
             await new Promise(resolve => {
@@ -316,41 +355,25 @@
             showSection('link-section');
             updateStatus('waiting', 'Teilen Sie diesen Link mit der anderen Person');
             
-            try {
-                await navigator.clipboard.writeText(shareableUrl);
-                document.getElementById('copy-offer').textContent = '✅ Link kopiert!';
-                setTimeout(() => {
-                    document.getElementById('copy-offer').textContent = '📋 Link kopieren';
-                }, 2000);
-            } catch (e) {
-                // Fallback
-            }
-
+            // **NEU:** Initialisiere den Share-Button, wenn die Seite geladen wird, aber kopiere nicht automatisch
+            // Die Benutzer entscheiden jetzt, ob sie teilen oder kopieren.
+            // Automatisches Kopieren entfernt, um native Share-Erfahrung zu bevorzugen.
+            
             await waitForAnswer();
         }
 
-        /**
-         * **KORRIGIERT:** Stellt die PeerConnection wieder her und setzt den gespeicherten Offer-SDP 
-         * als lokale Beschreibung (ohne setLocalDescription) und als Remote Description (um den Zustand zu spiegeln).
-         * @param {string} restoredSdp Der ursprüngliche lokale SDP-String des Offers.
-         */
         async function continueInitiatorFlow(restoredSdp) {
             updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
             
-            // 1. PeerConnection neu erstellen und DataChannel vorbereiten
             peerConnection = new RTCPeerConnection(config);
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
             
-            // 2. Setze den Offer-SDP als LocalDescription (nur im Objekt), um den Fehler zu umgehen.
             peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
             
-            // 3. Setze den Offer-SDP als RemoteDescription. Dies ist der WebRTC-Trick, um den Zustand
-            // kurz vor Empfang des Answers auf der neuen Verbindung abzubilden.
             const offerAsRemote = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
             await peerConnection.setRemoteDescription(offerAsRemote);
 
-            // 4. Warte auf den Answer-Code, der jetzt in der URL ist
             await waitForAnswer(true); 
         }
 
@@ -406,8 +429,10 @@
                 document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
                 document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
                 showSection('link-section');
+                
+                // **NEU:** Aktualisiere den Copy-Button auf Gerät B
                 document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
-
+                
             } catch (error) {
                 console.error('Fehler bei eingehender Verbindung:', error);
                 throw new Error(`Verbindungsfehler: ${error.message}`);
@@ -571,21 +596,30 @@
         // EVENT LISTENER & INITIALISIERUNG
         // =================================================================
         document.addEventListener('DOMContentLoaded', function() {
+            const copyOfferButton = document.getElementById('copy-offer');
+            const shareOfferButton = document.getElementById('share-offer');
+
             document.getElementById('start-connection').addEventListener('click', () => {
                  localStorage.removeItem(STORAGE_KEY); 
                  startConnection();
             });
             
-            document.getElementById('copy-offer').addEventListener('click', function() {
+            // Link kopieren Logik (Fall-Back/Alternative)
+            copyOfferButton.addEventListener('click', function() {
                 const link = document.getElementById('offer-link').textContent;
                 navigator.clipboard.writeText(link).then(() => {
                     this.textContent = '✅ Kopiert!';
                     setTimeout(() => {
-                        this.textContent = '📋 Link kopieren';
+                        this.textContent = (currentRole === 'responder' ? '📋 Antwort-Link kopieren' : '📋 Link kopieren');
                     }, 2000);
                 });
             });
 
+            // Native Share Logik
+            if (shareOfferButton) {
+                shareOfferButton.addEventListener('click', shareOfferLink);
+            }
+            
             // Automatischer Start bei URL-Parametern
             const offerCode = getOfferCodeFromUrl();
             
@@ -606,7 +640,7 @@
                 }
             }
 
-            console.log('Mogul P2P Sync - Wiederherstellung des Initiators korrigiert');
+            console.log('Mogul P2P Sync - Native Share-Funktion implementiert.');
         });
     </script>
 </body>
