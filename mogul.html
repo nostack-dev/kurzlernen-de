@@ -8,8 +8,7 @@
         FINALE VERSION: Mogul P2P Chef Sync (Simplifizierter Link-Workflow)
         Architektur: Zero-Trust, Serverless, Passkey (WebAuthn) & P2P (WebRTC)
         Workflow: P2P Signaling erfolgt über einfache Copy-Paste-Links (Offer-Link -> Answer-Link)
-        NEU: Automatische stille Anmeldung auf bekanntem Gerät bei leerem Session Storage.
-        NEU: Debug-Funktion zum Löschen des gesamten Zustands (localStorage & sessionStorage).
+        BUGFIX: Erlaube stille Wiederanmeldung auf Chef-Gerät, auch wenn ein Answer-Link fälschlich geöffnet wurde.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -328,9 +327,11 @@
             
             const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
             
-            // LOGIK FÜR CHEF/PC NEUER TAB: Versuche stille Wiederanmeldung, wenn UK fehlt, aber Passkey ID existiert und KEIN P2P Link aktiv ist.
-            if (passkeyId && !offerParam && !answerParam) {
-                log('Passkey-ID gefunden. Versuche stille Wiederherstellung der Sitzung (Neuer Tab/Chef)...');
+            // NEU: LOGIK FÜR CHEF/PC WIEDERANMELDUNG (Fix 1): Versuche stille Wiederanmeldung, 
+            // wenn UK fehlt, Passkey ID existiert und KEIN OFFER-Link aktiv ist. 
+            // Das schließt den Fall ein, dass der Nutzer fälschlicherweise den ANSWER-Link geöffnet hat.
+            if (passkeyId && !offerParam) {
+                log('Passkey-ID gefunden. Versuche stille Wiederherstellung der Sitzung (Chef-Gerät)...');
                 await startPasskeyAssertion(false); 
                 
                 // Wenn UK jetzt da ist, waren wir erfolgreich.
@@ -384,8 +385,9 @@
             const answerParam = urlParams.get('answer'); 
 
             // SICHERHEITSABFRAGE: Wenn Answer in URL, Stoppen und Anweisung geben.
+            // Der User ist jetzt dank Fix 1 wieder angemeldet, aber der WebRTC-Zustand ist weg.
             if (answerParam) {
-                 log('ACHTUNG: Answer-Link in URL erkannt. Dieser Link sollte NICHT direkt geöffnet, sondern in das Feld auf dem Master-Gerät kopiert werden.', true);
+                 log('ACHTUNG: Answer-Link in URL erkannt. WebRTC-Zustand auf PC verloren. Bitte Link in Feld kopieren!', true);
                  updateSyncStatus('FEHLER: Link nicht direkt öffnen!', true);
                  
                  // UI aufräumen und klare Anweisung geben
@@ -408,6 +410,9 @@
                     <button id="p2p-copy-answer-link-btn" class="btn btn-warning w-full mt-3">Link kopieren</button>
                 `;
                 document.getElementById('p2p-copy-answer-link-btn').addEventListener('click', () => copyToClipboard(window.location.href));
+                 
+                 // URL aufräumen, um nicht im Loop zu landen.
+                 window.history.replaceState({}, document.title, window.location.pathname);
                  
                  return; // Beende die Ausführung, um den normalen P2P-Flow zu verhindern.
             }
@@ -539,9 +544,22 @@
                  log("Bitte Answer-Link einfügen.", true);
                  return;
             }
+            
+            // NEUE PRÜFUNG (Fix 2): Wenn der Zustand durch Seiten-Neuladen verloren ging, muss der Offer-Flow neu gestartet werden.
             if (p2pMode !== 'offer' || !peerConnection) {
-                log("Fehler: Zuerst Offer-Link generieren.", true);
-                return;
+                log("FEHLER: Der P2P Offer-Zustand ist verloren gegangen (p2pMode ist nicht 'offer' oder peerConnection fehlt).", true);
+                updateSyncStatus("FEHLER: OFFER-ZUSTAND VERLOREN. Generieren Sie den Link neu.", true);
+                
+                // Visuelle Warnung hinzufügen
+                const step2Div = document.getElementById('p2p-step-2');
+                step2Div.classList.remove('border-secondary');
+                step2Div.classList.add('border-error');
+                
+                // Clear the input field to force them to restart the process cleanly.
+                document.getElementById('p2p-answer-input').value = '';
+                document.getElementById('p2p-accept-link-btn').disabled = true;
+
+                return; 
             }
             
             try {
@@ -559,6 +577,10 @@
                 
                 updateSyncStatus('Answer-Link akzeptiert. Warte auf P2P-Verbindung...');
                 log('Answer akzeptiert. ICE-Austausch läuft...');
+                
+                // Visuelle Warnung entfernen, wenn erfolgreich
+                document.getElementById('p2p-step-2').classList.remove('border-error');
+                document.getElementById('p2p-step-2').classList.add('border-secondary');
 
             } catch (e) {
                 log('Fehler beim Akzeptieren des Answer-Links: ' + e.message, true);
