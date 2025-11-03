@@ -63,7 +63,7 @@
         
         <!-- Log Bereich -->
         <div class="bg-base-200 p-6 rounded-lg shadow-xl">
-            <h2 class="text-xl font-semibold mb-3">Aktivitäts-Protokoll</h2>
+            <h2 class="text-xl font-semibold mb-3">Aktivitäts-Protokoll </h2>
             <textarea id="log-output" class="textarea textarea-bordered w-full h-48 font-mono text-xs" readonly>Warte auf Passkey-Authentifizierung...</textarea>
         </div>
     </div>
@@ -157,23 +157,21 @@
     <script>
         // --- Globale Konstanten & Variablen ---
         
-        // Konstanten für Zero-Trust Keys und Speicherung
-        const WRAPPED_UK_KEY = 'mogul_uk';           // Universal Key (UK), in sessionStorage
-        const PASSKEY_ID_KEY = 'mogul_passkey_id';   // ID des Passkeys, in localStorage
-        const DEVICE_LIST_KEY = 'mogul_device_list'; // Geräte-IDs, in localStorage
-        const DB_HASH_KEY = 'mogul_db_hash';         // Hash des letzten Datenbank-Inhalts, in localStorage
+        const WRAPPED_UK_KEY = 'mogul_uk';           
+        const PASSKEY_ID_KEY = 'mogul_passkey_id';   
+        const DEVICE_LIST_KEY = 'mogul_device_list'; 
+        const DB_HASH_KEY = 'mogul_db_hash';         
         
-        // NEU: Konstante für Session-Timeout (30 Minuten)
         const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
         const SESSION_EXPIRY_KEY = 'mogul_session_expires';
 
-        let currentUniversalKey = null; // Der abgeleitete, unverschlüsselte Universal Key (Base64URL-String)
-        let userId = 'MogulCHEF';      // Feste ID für dieses Gerät (wird in P2P verwendet)
-        let deviceList = [];           // Liste der vertrauenswürdigen Geräte-IDs
+        let currentUniversalKey = null; 
+        let userId = 'MogulCHEF';      
+        let deviceList = [];           
         let db = {
             data: 'Dies ist die initiale Datenbank. Alle vertraulichen Inhalte werden mit dem UK verschlüsselt.',
             version: 1
-        }; // Mock-Datenbank
+        }; 
 
         // DOM-Elemente
         const auth_modal = document.getElementById('auth_modal');
@@ -184,13 +182,12 @@
         const auth_message = document.getElementById('auth-message');
         
         // P2P State
-        let p2pConnection = null;
-        let p2pIsOffer = true; // Steuert, ob wir ein Offer (Client) oder Answer (Chef) sind
+        let p2pIsOffer = true; 
 
         // --- Hilfsfunktionen für Base64URL und ArrayBuffer ---
 
-        function base64UrlToUint8Array(base664Url) {
-            const padding = '='.repeat((4 - base664Url.length % 4) % 4);
+        function base64UrlToUint8Array(base64Url) {
+            const padding = '='.repeat((4 - base64Url.length % 4) % 4);
             const base64 = (base64Url + padding)
                 .replace(/\-/g, '+')
                 .replace(/_/g, '/');
@@ -221,35 +218,32 @@
 
         // --- 1. Passkey / Zero-Trust Core Logik (WebAuthn) ---
 
-        // Der zentrale Verschlüsselungsalgorithmus für den UK
         const HKDF_ALG = { 
             name: "HKDF", 
             hash: "SHA-256", 
-            salt: new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]), // Feste Salt
+            salt: new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]), 
             info: new TextEncoder().encode("mogul-universal-key-derivation")
         };
-        const UK_LENGTH = 32; // 256 Bit
+        const UK_LENGTH = 32; 
 
         async function deriveUniversalKey(credentialId) {
             log('Leite Universal Key (UK) aus der Passkey-ID ab...');
             const masterKey = await crypto.subtle.importKey(
                 "raw",
-                base64UrlToUint8Array(credentialId).buffer, // Credential ID als Master Key Material (High Entropy)
+                base64UrlToUint8Array(credentialId).buffer, 
                 HKDF_ALG.name,
                 false,
                 ["deriveKey"]
             );
 
-            // UK ableiten
             const derivedKey = await crypto.subtle.deriveKey(
                 HKDF_ALG,
                 masterKey,
-                { name: "AES-GCM", length: 256 }, // UK wird als AES-GCM Key (256-Bit) verwendet
-                true, // Exportierbar, da wir die Raw-Bytes speichern müssen
+                { name: "AES-GCM", length: 256 }, 
+                true, 
                 ["encrypt", "decrypt"]
             );
             
-            // UK als Raw Bytes exportieren
             const keyBytes = await crypto.subtle.exportKey("raw", derivedKey);
             log('UK-Ableitung erfolgreich. Länge: ' + keyBytes.byteLength + ' Bytes');
             return keyBytes;
@@ -266,15 +260,18 @@
                 
                 log('Starte Passkey Registrierung...');
 
+                const challengeBytes = crypto.getRandomValues(new Uint8Array(32)); 
+                const userIdBytes = crypto.getRandomValues(new Uint8Array(16));    
+
                 const publicKeyCredentialCreationOptions = {
                     rp: { id: window.location.hostname, name: "Mogul P2P Sync" },
                     user: {
-                        id: base64UrlToUint8Array(crypto.randomUUID()),
+                        id: userIdBytes.buffer, 
                         name: passkeyName,
                         displayName: passkeyName
                     },
-                    challenge: base64UrlToUint8Array(crypto.randomUUID()),
-                    pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ECDSA mit P-256 und SHA-256
+                    challenge: challengeBytes.buffer, 
+                    pubKeyCredParams: [{ alg: -7, type: "public-key" }], 
                     timeout: 60000,
                     attestation: "direct",
                     authenticatorSelection: {
@@ -293,10 +290,8 @@
                 const keyBytes = await deriveUniversalKey(credentialId);
                 const universalKey = arrayBufferToBase64Url(keyBytes);
                 
-                // UK im RAM speichern
                 currentUniversalKey = universalKey;
                 
-                // UK im sessionStorage speichern & Timeout setzen
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
                 log('Universal Key in sessionStorage für die Sitzungsdauer gespeichert.');
@@ -319,11 +314,13 @@
                 }
 
                 log('Starte Passkey Anmeldung...');
+                
+                const challengeBytes = crypto.getRandomValues(new Uint8Array(32)); 
 
                 const publicKeyCredentialRequestOptions = {
-                    challenge: base64UrlToUint8Array(crypto.randomUUID()),
+                    challenge: challengeBytes.buffer, 
                     allowCredentials: [{
-                        id: base64UrlToUint8Array(credentialId),
+                        id: base64UrlToUint8Array(credentialId).buffer, 
                         type: 'public-key',
                         transports: ['usb', 'nfc', 'ble', 'internal']
                     }],
@@ -343,10 +340,8 @@
                 const keyBytes = await deriveUniversalKey(credentialId);
                 const universalKey = arrayBufferToBase64Url(keyBytes);
 
-                // UK im RAM speichern
                 currentUniversalKey = universalKey;
                 
-                // UK im sessionStorage speichern & Timeout setzen
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
                 log('Universal Key in sessionStorage für die Sitzungsdauer gespeichert.');
@@ -363,34 +358,27 @@
         // --- 2. Initialisierungs- & Status-Logik ---
 
         function loadState() {
-            // 1. Geräte-IDs laden
             const storedDevices = localStorage.getItem(DEVICE_LIST_KEY);
             if (storedDevices) {
                 deviceList = JSON.parse(storedDevices);
             }
             renderDeviceList();
 
-            // 2. Mock-Datenbank Hash laden (für Check)
             const storedDbHash = localStorage.getItem(DB_HASH_KEY);
             if (storedDbHash) {
                 log(`Datenbank-Hash aus localStorage: ${storedDbHash}`);
-                // In einer echten Anwendung würde hier die DB vom Server geladen und der Hash geprüft
             }
             
             mogul_id_display.textContent = userId;
         }
 
-        // Logik für die Inaktivitätsprüfung
         function setupActivityMonitor() {
-            // Prüft alle 60 Sekunden, ob die Session abgelaufen ist
             setInterval(() => {
                 const sessionExpires = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY) || 0);
                 if (sessionExpires > 0 && sessionExpires < Date.now()) {
-                    // Session ist abgelaufen, UK muss gelöscht werden
                     sessionStorage.removeItem(WRAPPED_UK_KEY);
                     sessionStorage.removeItem(SESSION_EXPIRY_KEY);
                     
-                    // UI sperren und Auth-Flow erzwingen
                     currentUniversalKey = null;
                     auth_modal.showModal(); 
                     auth_title.textContent = "Sitzung abgelaufen";
@@ -400,38 +388,32 @@
                     updateSyncStatus("Sitzung abgelaufen. Erneute Anmeldung erforderlich.", true);
                     log("Sitzung aufgrund von Inaktivität abgelaufen.", true);
                 }
-            }, 60000); // Check jede Minute
+            }, 60000); 
             log("Inaktivitäts-Monitor gestartet (30 Min Timeout).");
         }
 
 
         async function initializePasskeyFlow() {
-            // Hybrid-Check (Session Storage zuerst prüfen)
             const sessionUK = sessionStorage.getItem(WRAPPED_UK_KEY);
             const sessionExpires = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY) || 0);
 
             if (sessionUK && sessionExpires > Date.now()) {
-                // UK aus Session Storage übernehmen und Timeout verlängern (UX WIN!)
                 currentUniversalKey = sessionUK;
                 log('UK aus Session Storage geladen. Fortfahren ohne erneute Passkey-Assertion.');
                 
-                // Timeout wird in initializeSyncContinuation verlängert
                 auth_modal.close(); 
                 return initializeSyncContinuation(true);
             } 
             
-            // Altes Verhalten: Passkey Login/Registrierung erzwingen
             const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
             auth_modal.showModal();
 
             if (passkeyId) {
-                // Login
                 auth_title.textContent = "Mit Passkey anmelden";
                 auth_message.textContent = "Ihr Passkey ist bereits registriert. Bitte melden Sie sich an, um den Universal Key abzuleiten.";
                 document.getElementById('auth-view-login').classList.remove('hidden');
                 document.getElementById('auth-view-register').classList.add('hidden');
             } else {
-                // Registrierung
                 auth_title.textContent = "Passkey registrieren";
                 auth_message.textContent = "Dies ist Ihre Erstanmeldung. Bitte registrieren Sie einen Passkey.";
                 document.getElementById('auth-view-login').classList.add('hidden');
@@ -439,7 +421,6 @@
             }
         }
         
-        // Fügt einen Flag hinzu, um zu wissen, ob der Aufruf vom Session Storage kam
         async function initializeSyncContinuation(fromSessionStorage = false) {
             try {
                 if (!currentUniversalKey) {
@@ -447,14 +428,10 @@
                     return;
                 }
 
-                // Wenn aus Session Storage, Timer verlängern (Aktivität erkannt)
                 if (fromSessionStorage) {
                     sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
                     log('Sitzung verlängert bis: ' + new Date(Date.now() + SESSION_TIMEOUT_MS).toLocaleTimeString('de-DE'));
                 }
-                
-                // Hier würden die DB-Operationen folgen (Entschlüsselung des Hashs etc.)
-                // Der UK ist nun im RAM (currentUniversalKey) und kann verwendet werden.
                 
                 updateSyncStatus("Zero-Trust Authentifiziert. System bereit.");
                 log('System voll einsatzbereit. Verschlüsselungs-UK aktiv.');
@@ -507,48 +484,210 @@
             }
         }
 
-        // --- 4. WebRTC (P2P) Logik (Mockup) ---
+        // --- 4. WebRTC (P2P) Logik (Vollständig implementiert) ---
 
-        // Mock-Funktionen, da WebRTC komplex ist und den Rahmen sprengen würde, 
-        // hier nur die Logik-Schnittstellen.
-        
+        const RTC_CONFIG = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+            ]
+        };
+        const CHANNEL_NAME = 'mogul-sync-channel';
+
+        let p2pConnection = null; 
+        let p2pDataChannel = null; 
+
+        function setupDataChannelListeners(channel) {
+            channel.onopen = () => {
+                log('P2P Verbindung erfolgreich hergestellt (Data Channel OPEN).');
+                updateSyncStatus('P2P verbunden. Bereit zum verschlüsselten Datentransfer.');
+                document.getElementById('p2p-offer-output').value = "P2P VERBUNDEN";
+                document.getElementById('p2p-answer-output').value = "P2P VERBUNDEN";
+                document.getElementById('p2p-answer-input').value = "P2P VERBUNDEN";
+                document.getElementById('p2p-offer-input').value = "P2P VERBUNDEN";
+
+                const mockEncryptedData = 'ENCRYPTED_DATA_WITH_UK_' + currentUniversalKey.substring(0, 10);
+                channel.send(mockEncryptedData);
+                log('Sende mock-verschlüsselte Daten: ' + mockEncryptedData.substring(0, 35) + '...');
+                p2p_modal.close();
+            };
+
+            channel.onmessage = (event) => {
+                const receivedData = event.data;
+                log('Empfange Daten: ' + receivedData.substring(0, 35) + '...');
+            };
+
+            channel.onclose = () => {
+                log('P2P Verbindung getrennt.', true);
+                updateSyncStatus('System bereit (P2P getrennt).', false);
+                p2pConnection = null;
+                p2pDataChannel = null;
+            };
+
+            channel.onerror = (error) => {
+                log('P2P Data Channel Fehler.', true);
+            };
+        }
+
+        function combineSignalData(sdp, iceCandidates) {
+            return JSON.stringify({ sdp: sdp, ice: iceCandidates });
+        }
+
+        function parseSignalData(signalString) {
+            try {
+                const data = JSON.parse(signalString);
+                if (data && data.sdp && Array.isArray(data.ice)) return data;
+                throw new Error("Ungültiges Signaling-Datenformat.");
+            } catch (e) {
+                log("Fehler beim Parsen der P2P-Signalisierung: Ungültiges JSON oder Format.", true);
+                return null;
+            }
+        }
+
+        function createPeerConnection(isOffer) {
+            if (p2pConnection) p2pConnection.close();
+            
+            p2pConnection = new RTCPeerConnection(RTC_CONFIG);
+            
+            const iceCandidates = [];
+            p2pConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    iceCandidates.push(event.candidate);
+                }
+            };
+            
+            p2pConnection.onconnectionstatechange = () => {
+                log(`Verbindungsstatus: ${p2pConnection.connectionState}`);
+                if (p2pConnection.connectionState === 'failed') {
+                    p2pConnection.close();
+                    log('P2P Verbindung fehlgeschlagen.', true);
+                    updateSyncStatus('P2P Fehler: Verbindung fehlgeschlagen.', true);
+                }
+            };
+
+            if (!isOffer) {
+                p2pConnection.ondatachannel = (event) => {
+                    p2pDataChannel = event.channel;
+                    log('Data Channel von Offer-Gerät empfangen.');
+                    setupDataChannelListeners(p2pDataChannel);
+                };
+            }
+            
+            return { connection: p2pConnection, iceCandidates: iceCandidates };
+        }
+
         async function p2pCreateOffer() {
             if (!currentUniversalKey) {
                 log("Fehler: UK ist für P2P erforderlich. Bitte zuerst anmelden.", true);
                 return;
             }
-            log("Erstelle P2P Offer (Simuliert)...");
-            // Simulation des Offer Codes, der den UK indirekt teilt.
-            document.getElementById('p2p-offer-output').value = "MOCK_OFFER_CODE_" + crypto.randomUUID().substring(0, 8);
-            // In einer echten App: RTCPeerConnection erstellen und Offer SDP generieren.
+            log("Erstelle P2P Offer...");
+            updateSyncStatus('Erstelle P2P Offer...');
+
+            try {
+                const { connection, iceCandidates } = createPeerConnection(true);
+                p2pDataChannel = connection.createDataChannel(CHANNEL_NAME);
+                setupDataChannelListeners(p2pDataChannel);
+
+                const offer = await connection.createOffer();
+                await connection.setLocalDescription(offer);
+
+                await new Promise(resolve => {
+                    setTimeout(() => {
+                        resolve();
+                    }, 1500); 
+                    connection.onicegatheringstatechange = () => {
+                        if (connection.iceGatheringState === 'complete') resolve();
+                    };
+                });
+                
+                const signalData = combineSignalData(connection.localDescription.sdp, iceCandidates);
+                document.getElementById('p2p-offer-output').value = signalData;
+                log('Offer Code generiert (SDP + ICE). Bereit für Gerät B.');
+                updateSyncStatus('Offer Code generiert. Warte auf Answer...');
+
+            } catch (e) {
+                log('Fehler beim Erstellen des Offers: ' + e.message, true);
+            }
         }
 
-        async function p2pAcceptAnswer(answer) {
-            log(`Akzeptiere P2P Answer: ${answer.substring(0, 15)}... (Simuliert)`);
-            if (answer.startsWith("MOCK_ANSWER")) {
-                // In einer echten App: Answer SDP in RTCPeerConnection einfügen.
-                // Bei Erfolg: Datentransfer starten und UK zur Verschlüsselung nutzen.
-                log("P2P Verbindung hergestellt. Starte verschlüsselten Datentransfer...");
-                log(`Verschlüsselungsschlüssel: UK (Base64Url): ${currentUniversalKey.substring(0, 10)}...`);
-                // Nach Transfer:
-                p2p_modal.close();
-            } else {
-                 log("Ungültiger Answer Code.", true);
+        async function p2pAcceptAnswer(answerSignal) {
+            if (!p2pConnection) {
+                 log("Fehler: Zuerst Offer erstellen.", true);
+                 return;
+            }
+            log("Akzeptiere P2P Answer und starte Verbindung...");
+            updateSyncStatus('Verbinde mit Answer-Gerät...');
+
+            try {
+                const signalData = parseSignalData(answerSignal);
+                if (!signalData) return;
+
+                const remoteDesc = new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: signalData.sdp
+                });
+
+                await p2pConnection.setRemoteDescription(remoteDesc);
+                log('Remote Description (Answer) gesetzt.');
+                
+                for (const candidate of signalData.ice) {
+                    await p2pConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+                log('ICE-Kandidaten vom Answer-Gerät hinzugefügt.');
+                
+                log('Verbindung wird nun automatisch hergestellt...');
+
+            } catch (e) {
+                log('Fehler beim Akzeptieren des Answers: ' + e.message, true);
             }
         }
         
-        async function p2pCreateAnswer(offer) {
+        async function p2pCreateAnswer(offerSignal) {
              if (!currentUniversalKey) {
                 log("Fehler: UK ist für P2P erforderlich. Bitte zuerst anmelden.", true);
                 return;
             }
-            log(`Erstelle P2P Answer auf Offer: ${offer.substring(0, 15)}... (Simuliert)`);
-            if (offer.startsWith("MOCK_OFFER")) {
-                 // Simulation des Answer Codes, der den UK indirekt teilt.
-                document.getElementById('p2p-answer-output').value = "MOCK_ANSWER_CODE_" + crypto.randomUUID().substring(0, 8);
-                // In einer echten App: Offer SDP in RTCPeerConnection einfügen und Answer SDP generieren.
-            } else {
-                log("Ungültiger Offer Code.", true);
+            log("Erstelle P2P Answer auf Offer...");
+            updateSyncStatus('Erstelle P2P Answer...');
+
+            try {
+                const signalData = parseSignalData(offerSignal);
+                if (!signalData) return;
+                
+                const { connection, iceCandidates } = createPeerConnection(false);
+
+                const remoteDesc = new RTCSessionDescription({
+                    type: 'offer',
+                    sdp: signalData.sdp
+                });
+
+                await connection.setRemoteDescription(remoteDesc);
+                log('Remote Description (Offer) gesetzt.');
+                
+                for (const candidate of signalData.ice) {
+                    await connection.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+                log('ICE-Kandidaten vom Offer-Gerät hinzugefügt.');
+
+                const answer = await connection.createAnswer();
+                await connection.setLocalDescription(answer);
+
+                await new Promise(resolve => {
+                    setTimeout(() => {
+                        resolve();
+                    }, 1500); 
+                    connection.onicegatheringstatechange = () => {
+                        if (connection.iceGatheringState === 'complete') resolve();
+                    };
+                });
+
+                const signalDataAnswer = combineSignalData(connection.localDescription.sdp, iceCandidates);
+                document.getElementById('p2p-answer-output').value = signalDataAnswer;
+                log('Answer Code generiert (SDP + ICE). Senden Sie diesen an Gerät A.');
+                updateSyncStatus('Answer Code generiert. Bereit zum Senden.');
+
+            } catch (e) {
+                log('Fehler beim Erstellen des Answers: ' + e.message, true);
             }
         }
 
@@ -556,20 +695,15 @@
         // --- 5. Event Listeners und Start ---
 
         window.onload = function () {
-            // Globale Variablen für Auth-Status
             loadState();
             
-            // Startet den Inaktivitäts-Monitor
             setupActivityMonitor(); 
 
-            // 1. Initialer Auth-Flow
             initializePasskeyFlow();
 
-            // 2. Auth-Modal Listeners
             document.getElementById('register-btn').addEventListener('click', startPasskeyRegistration);
             document.getElementById('login-btn').addEventListener('click', startPasskeyAssertion);
 
-            // 3. Device Management Listeners
             document.getElementById('add-device-btn').addEventListener('click', () => {
                 const newId = document.getElementById('new-device-id-input').value.trim();
                 if (newId) {
@@ -578,7 +712,6 @@
                 }
             });
 
-            // 4. P2P-Modal Listeners (Offer/Answer Logik)
             document.getElementById('p2p-modal-btn').addEventListener('click', () => {
                  if (!currentUniversalKey) {
                     auth_title.textContent = "Fehlende Anmeldung";
@@ -589,20 +722,17 @@
                  p2p_modal.showModal();
             });
             
-            // Senden (Offer)
             document.getElementById('p2p-create-offer-btn').addEventListener('click', p2pCreateOffer);
             document.getElementById('p2p-accept-answer-btn').addEventListener('click', () => {
                 const answer = document.getElementById('p2p-answer-input').value;
                 if (answer) p2pAcceptAnswer(answer);
             });
             
-            // Empfangen (Answer)
             document.getElementById('p2p-create-answer-btn').addEventListener('click', () => {
                 const offer = document.getElementById('p2p-offer-input').value;
                 if (offer) p2pCreateAnswer(offer);
             });
             
-            // Tab-Wechsel im P2P-Modal steuert, ob wir Offer (Client) oder Answer (Chef) sind
             document.getElementById('tab-offer').addEventListener('change', () => p2pIsOffer = true);
             document.getElementById('tab-answer').addEventListener('change', () => p2pIsOffer = false);
 
