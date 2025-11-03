@@ -44,7 +44,7 @@
 <body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
 
     <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
-        <h1 class="text-3xl font-bold mb-6 border-b pb-2 text-primary">Mogul P2P Synchronisation (Voll Funktionstüchtig)</h1>
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2 text-primary">Mogul P2P Synchronisation (State-Hardened)</h1>
         
         <div class="alert alert-info shadow-lg mb-6 rounded-xl">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -321,19 +321,46 @@
             };
         }
 
+        // 🔧 VERBESSERTE INIT-FUNKTION MIT STATE-MONITORING
         async function initP2P(isOffer) {
-            if (peerConnection) peerConnection.close();
+            // SICHERER CLEANUP ZUERST
+            if (peerConnection) {
+                try {
+                    // Schließe alle DataChannels zuerst
+                    if (dataChannel) {
+                        dataChannel.close();
+                        dataChannel = null;
+                    }
+                    peerConnection.close();
+                } catch (e) {
+                    console.warn('Fehler beim Schließen alter PeerConnection:', e);
+                }
+            }
+            
             peerConnection = null;
             dataChannel = null;
 
             currentSdpType = isOffer ? 'offer' : 'answer';
             peerConnection = new RTCPeerConnection(config);
+            
+            // 🔧 STATE MONITORING FÜR DEBUGGING
+            peerConnection.onsignalingstatechange = () => {
+                console.log(`SignalingState geändert: ${peerConnection.signalingState}`);
+                addLog(`WebRTC State: ${peerConnection.signalingState}`);
+            };
+            
+            peerConnection.onconnectionstatechange = () => {
+                console.log(`ConnectionState geändert: ${peerConnection.connectionState}`);
+                addLog(`Verbindungsstatus: ${peerConnection.connectionState}`);
+            };
+
             addLog(`Neue RTCPeerConnection als ${currentSdpType} gestartet.`);
 
-            // Sammle ICE-Kandidaten, aber der SDP-Code wird nach einer kurzen Wartezeit erzeugt (Bundle)
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    // console.log("ICE Candidate: ", event.candidate); // Für Debugging nützlich
+                    // console.log("ICE Candidate: ", event.candidate);
+                } else {
+                    console.log("ICE Gathering abgeschlossen");
                 }
             };
             
@@ -412,6 +439,7 @@
         }
 
         // 2. Answer generieren (Gerät B)
+        // 🔧 VERBESSERTER ANSWER-FLOW
         async function p2pCreateAnswer(parsedOffer) {
             try {
                 currentPin = parsedOffer.pin;
@@ -428,7 +456,13 @@
                 const remoteOffer = stringToSdp(offerSdpString, 'offer');
                 if (!remoteOffer) throw new Error("Ungültiges Offer-Format oder Dekodierung fehlgeschlagen.");
                 
+                // 🔧 STATE PRÜFUNG
+                console.log(`SignalingState vor setRemoteDescription (Offer): ${peerConnection.signalingState}`);
+                
                 await peerConnection.setRemoteDescription(remoteOffer);
+                
+                // 🔧 KURZE PAUSE FÜR STATE-STABILISIERUNG
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
@@ -455,28 +489,31 @@
 
             } catch (e) {
                 console.error("Fehler im Answer-Flow:", e);
-                setStatus(`🚨 Fehler im Answer-Flow (Code oder PIN falsch): ${e.message}`, 'error');
+                setStatus(`🚨 Fehler im Answer-Flow: ${e.message}`, 'error');
                 UI.showStart();
                 window.location.hash = ''; 
             }
         }
 
-        // 3. Answer akzeptieren und verbinden (Gerät A)
+        // 3. Answer akzeptieren und verbinden (Gerät A) - FIXED VERSION
         async function p2pAcceptAnswer(parsedAnswer) {
             try {
                 currentPin = parsedAnswer.pin;
                 
-                // --- KORREKTUR FÜR "Called in wrong state: stable" ---
-                // Wenn die peerConnection fehlt oder nicht im Zustand "have-local-offer" ist,
-                // wurde die ursprüngliche Offer-Session von Gerät A verloren (z.B. durch Neuladen).
-                if (!peerConnection || peerConnection.signalingState !== 'have-local-offer') {
-                    console.error("Signalungszustand: ", peerConnection ? peerConnection.signalingState : 'null');
-                    setStatus('🚨 Verbindungsfehler (Falscher Zustand). Ihre OFFER-Sitzung ist verloren. Bitte starten Sie den Offer-Prozess (Schritt 1) neu und verwenden Sie dann den Answer-Link (Schritt 3).', 'error');
+                if (!peerConnection) {
+                    setStatus('Lokale Offer-Session verloren. Bitte Offer neu generieren (Schritt 1) und Answer erneut einfügen/klicken.', 'error');
                     UI.showStart();
                     window.location.hash = '';
                     return;
                 }
-                // --------------------------------------------------------
+
+                // 🔧 KRITISCHE KORREKTUR: Prüfe den Verbindungszustand
+                if (peerConnection.signalingState !== 'have-local-offer') {
+                    console.warn(`Unerwarteter SignalingState: ${peerConnection.signalingState}. Erwartet: have-local-offer`);
+                    setStatus('Verbindungszustand ungültig. Die Offer-Sitzung wurde unterbrochen. Bitte Prozess neu starten.', 'error');
+                    resetP2PSession();
+                    return;
+                }
 
                 setStatus(`Entschlüssele Answer-Code (PIN: ${currentPin}) und schließe Verbindung ab (Schritt 3/3)...`, 'loading');
                 UI.hideAllSteps();
@@ -488,17 +525,24 @@
                 const remoteAnswer = stringToSdp(answerSdpString, 'answer');
                 if (!remoteAnswer) throw new Error("Ungültiges Answer-Format oder Dekodierung fehlgeschlagen.");
                 
+                // 🔧 WICHTIG: Prüfung vor setRemoteDescription
+                console.log(`SignalingState vor setRemoteDescription: ${peerConnection.signalingState}`);
+                
                 await peerConnection.setRemoteDescription(remoteAnswer);
                 
                 setStatus('Answer akzeptiert. Warte auf P2P-Verbindung...', 'loading');
                 
             } catch (e) {
                 console.error("Fehler beim Akzeptieren der Answer:", e);
-                setStatus(`🚨 Fehler beim Verbindungsaufbau: ${e.message}`, 'error');
-                // Falls ein Fehler auftritt, zurück zum Start und Hash löschen, falls es ein manueller Prozess war
-                if (!window.location.hash) {
-                    UI.showStart();
+                
+                // 🔧 SPEZIFISCHE FEHLERBEHANDLUNG
+                if (e.toString().includes('wrong state: stable')) {
+                    setStatus('🚨 Verbindung bereits hergestellt oder Status inkonsistent. Bitte Prozess neu starten.', 'error');
+                } else {
+                    setStatus(`🚨 Fehler beim Verbindungsaufbau: ${e.message}`, 'error');
                 }
+                
+                resetP2PSession();
             }
         }
         
@@ -599,6 +643,7 @@
             }
         }
 
+        // 🔧 VERBESSERTE RESET-FUNKTION
         function resetP2PSession() {
             // Lösche interne Zustände
             currentPin = null;
@@ -611,19 +656,27 @@
             UI.showStart();
             setStatus('Status: Bereit. Wählen Sie "Start-Link senden" zum Starten.', 'info');
             
-            // PeerConnection schließen
+            // 🔧 SICHERER PEERCONNECTION CLEANUP
             if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-                dataChannel = null;
+                try {
+                    // Schließe alle DataChannels zuerst
+                    if (dataChannel) {
+                        dataChannel.close();
+                        dataChannel = null;
+                    }
+                    
+                    // Schließe die PeerConnection
+                    peerConnection.close();
+                } catch (e) {
+                    console.warn('Fehler beim Schließen der PeerConnection:', e);
+                } finally {
+                    peerConnection = null;
+                }
             }
             
-            // Optional: URL Hash löschen, wenn kein aktiver Flow läuft
+            // URL Hash löschen
             if (window.location.hash) {
-                // Nur löschen, wenn wir nicht aktiv auf eine Antwort warten
-                if (!isWaitingForAnswer) {
-                     window.history.replaceState(null, null, ' ');
-                }
+                window.history.replaceState(null, null, ' ');
             }
         }
         
@@ -659,7 +712,7 @@
                 handleHashChange();
             }
 
-            console.log('Mogul P2P-CHEF-Sync gestartet (Voll Funktionstüchtig).');
+            console.log('Mogul P2P-CHEF-Sync gestartet (State-Hardened).');
         }
     </script>
 </body>
