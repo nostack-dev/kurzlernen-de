@@ -466,13 +466,17 @@
             try {
                 currentPin = parsedAnswer.pin;
                 
-                if (!peerConnection) {
-                    // Falls Seite neu geladen wurde und der Offer-Zustand verloren ging
-                    setStatus('Lokale Offer-Session verloren. Bitte Offer neu generieren (Schritt 1) und Answer erneut einfügen/klicken.', 'error');
+                // --- KORREKTUR FÜR "Called in wrong state: stable" ---
+                // Wenn die peerConnection fehlt oder nicht im Zustand "have-local-offer" ist,
+                // wurde die ursprüngliche Offer-Session von Gerät A verloren (z.B. durch Neuladen).
+                if (!peerConnection || peerConnection.signalingState !== 'have-local-offer') {
+                    console.error("Signalungszustand: ", peerConnection ? peerConnection.signalingState : 'null');
+                    setStatus('🚨 Verbindungsfehler (Falscher Zustand). Ihre OFFER-Sitzung ist verloren. Bitte starten Sie den Offer-Prozess (Schritt 1) neu und verwenden Sie dann den Answer-Link (Schritt 3).', 'error');
                     UI.showStart();
                     window.location.hash = '';
                     return;
                 }
+                // --------------------------------------------------------
 
                 setStatus(`Entschlüssele Answer-Code (PIN: ${currentPin}) und schließe Verbindung ab (Schritt 3/3)...`, 'loading');
                 UI.hideAllSteps();
@@ -491,7 +495,10 @@
             } catch (e) {
                 console.error("Fehler beim Akzeptieren der Answer:", e);
                 setStatus(`🚨 Fehler beim Verbindungsaufbau: ${e.message}`, 'error');
-                UI.showStart();
+                // Falls ein Fehler auftritt, zurück zum Start und Hash löschen, falls es ein manueller Prozess war
+                if (!window.location.hash) {
+                    UI.showStart();
+                }
             }
         }
         
