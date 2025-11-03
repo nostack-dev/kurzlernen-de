@@ -88,12 +88,15 @@
                     <span class="connection-dot bg-green-500"></span>
                     Schritt 2: Auf Antwort warten
                 </h3>
-                <p class="text-sm text-green-700 mb-3">
+                <p id="wait-message" class="text-sm text-green-700 mb-3">
                     Warten Sie, bis die andere Person antwortet...
                 </p>
                 <div class="text-center py-2">
                     <div class="loading loading-spinner text-green-500"></div>
                 </div>
+                <button id="cancel-connection" class="btn btn-warning btn-sm w-full mt-3">
+                    ❌ Sitzung abbrechen / Neustarten
+                </button>
             </div>
 
             <div id="connected-section" class="bg-green-100 p-4 rounded-xl border border-green-300 hidden shadow-md">
@@ -167,6 +170,7 @@
         let nextSlice = 0;
         let receivedSlices = [];
         let receivingFileMeta = null;
+        let answerCheckInterval = null; // NEU: Globaler Handler für das Warte-Intervall
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -522,24 +526,26 @@
             document.getElementById('answer-section').classList.remove('hidden');
 
             return new Promise((resolve, reject) => {
-                const checkInterval = setInterval(async () => {
+                answerCheckInterval = setInterval(async () => { // NEU: Speichere Intervall-ID
                     try {
                         const answerCode = getAnswerCodeFromUrl();
                         
                         if (answerCode) {
-                            clearInterval(checkInterval);
+                            clearInterval(answerCheckInterval);
                             await processAnswer(answerCode);
                             resolve();
                         }
                     } catch (error) {
-                        clearInterval(checkInterval);
+                        clearInterval(answerCheckInterval);
                         reject(error);
                     }
                 }, 1000);
 
                 setTimeout(() => {
-                    clearInterval(checkInterval);
-                    reject(new Error('Timeout: Keine Antwort erhalten'));
+                    if (answerCheckInterval) {
+                        clearInterval(answerCheckInterval);
+                        reject(new Error('Timeout: Keine Antwort erhalten'));
+                    }
                 }, 120000);
             });
         }
@@ -564,10 +570,18 @@
             await establishConnection();
         }
 
-        function endConnection() {
+        // NEU: Allgemeine Reset-Funktion
+        function resetConnectionState() {
             if (peerConnection) {
                 peerConnection.close();
+                peerConnection = null;
             }
+            if (answerCheckInterval) {
+                clearInterval(answerCheckInterval);
+                answerCheckInterval = null;
+            }
+            localStorage.removeItem(STORAGE_KEY);
+            
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
             document.getElementById('link-section').classList.add('hidden');
@@ -575,7 +589,10 @@
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
             document.getElementById('file-progress-container').classList.add('hidden');
-            localStorage.removeItem(STORAGE_KEY);
+        }
+
+        function endConnection() {
+            resetConnectionState();
         }
 
 
@@ -656,21 +673,13 @@
             };
 
             channel.onclose = () => {
-                updateStatus('ready', 'Verbindung geschlossen');
-                document.getElementById('start-button-container').classList.remove('hidden'); 
-                document.getElementById('link-section').classList.add('hidden');
-                document.getElementById('connected-section').classList.add('hidden');
-                document.getElementById('data-section').classList.add('hidden');
-                document.getElementById('chat-section').classList.add('hidden');
-                document.getElementById('file-progress-container').classList.add('hidden');
-                localStorage.removeItem(STORAGE_KEY); 
+                resetConnectionState(); // Nutze die allgemeine Reset-Funktion
             };
 
             channel.onerror = (error) => {
                 console.error('DataChannel Fehler:', error);
+                resetConnectionState(); // Nutze die allgemeine Reset-Funktion
                 updateStatus('error', 'Verbindungsfehler im DataChannel');
-                document.getElementById('start-button-container').classList.remove('hidden'); 
-                localStorage.removeItem(STORAGE_KEY); 
             };
         }
 
@@ -807,15 +816,24 @@
             const endConnectionButton = document.getElementById('end-connection');
             const mediaTriggerButton = document.getElementById('media-trigger');
             const fileInput = document.getElementById('media-file-input');
-            
-            // --- P2P Start / End ---
+            const cancelButton = document.getElementById('cancel-connection'); // NEU: Cancel Button
+
+            // --- P2P Start / End / Cancel ---
             document.getElementById('start-connection').addEventListener('click', () => {
-                 // **BEREINIGUNG:** Lösche LocalStorage beim expliziten Start
                  localStorage.removeItem(STORAGE_KEY); 
                  startConnection();
             });
             if (endConnectionButton) {
                 endConnectionButton.addEventListener('click', endConnection);
+            }
+            if (cancelButton) {
+                cancelButton.addEventListener('click', () => {
+                    // NEU: Abbruch der Wartezeit und vollständiges Reset
+                    if (answerCheckInterval) {
+                        clearInterval(answerCheckInterval);
+                    }
+                    resetConnectionState();
+                });
             }
 
             // --- Datei Senden Trigger ---
@@ -861,18 +879,14 @@
             const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
             if (offerCode) {
-                // Responder Start
                 setTimeout(startConnection, 500);
             } else if (answerCode && storedSdp) {
-                // Initiator lädt neu MIT Answer-Code
                 localStorage.removeItem(STORAGE_KEY); 
                 setTimeout(() => startConnection(storedSdp), 500);
             } else if (storedSdp && !answerCode) {
-                // Initiator lädt neu im WAITING-Zustand (F5)
                 setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
                 document.getElementById('start-button-container').classList.add('hidden');
             } else if (answerCode && !storedSdp) {
-                // Fehler: Answer-Code ist da, aber der SDP wurde gelöscht
                 history.replaceState(null, '', window.location.pathname);
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
