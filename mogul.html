@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mogul P2P Sync</title>
     <!--
-        FINALE VERSION: Mogul P2P Chef Sync (Produktionsreif + UX-Fix)
-        Architektur: Deadlock-frei.
-        UX-Fix: "Kopieren" Button und automatische Selektion des Codes.
+        FINALE VERSION: Mogul P2P Chef Sync (Maximaler Komfort)
+        Fix: SDP-Austausch über QR-Code für höchsten Komfort, wie vom Nutzer gewünscht.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- QR Code Generator Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script> 
     <style>
         :root {
             font-family: 'Inter', sans-serif;
@@ -32,6 +33,19 @@
             max-width: 900px;
         }
 
+        /* Styling für QR-Code-Container */
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            min-height: 200px;
+            border: 1px dashed oklch(70% 0 0 / 0.5);
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            background-color: white;
+        }
+
     </style>
 </head>
 <body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
@@ -41,13 +55,13 @@
         
         <div class="alert alert-info shadow-lg mb-6 rounded-xl">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <span>Die WebRTC-Logik ist stabil. Jetzt mit UX-Verbesserungen für den Code-Austausch.</span>
+            <span>Die App nutzt nun QR-Codes für den maximalen Komfort beim Austausch der Verbindungscodes. Kein Copy/Paste mehr nötig!</span>
         </div>
         
         <!-- P2P Modal Button -->
         <div class="flex justify-center">
             <button id="p2p-modal-btn" class="btn btn-lg btn-success shadow-md rounded-xl transition duration-150 ease-in-out hover:scale-[1.02]">
-                Starte P2P Sync
+                Starte P2P Sync (QR-Code)
             </button>
         </div>
         
@@ -61,43 +75,41 @@
     <!-- P2P Modal -->
     <dialog id="p2p_modal" class="modal">
         <div class="modal-box w-11/12 max-w-2xl p-6 rounded-2xl">
-            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent</h3>
+            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent (QR-Code)</h3>
             
             <div class="tabs mb-4">
                 <input type="radio" id="tab-offer" name="p2p_tabs" role="tab" class="tab rounded-t-xl" aria-label="Client (Handy) - Offer" checked />
                 <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-b-xl p-6">
-                    <h4 class="font-semibold text-lg mb-2">Offer-Seite (Client)</h4>
-                    <p class="text-sm mb-4">Gerät, das die Verbindung initiiert (Handy). 2 Schritte erforderlich.</p>
+                    <h4 class="font-semibold text-lg mb-2">1. Client (Handy) generiert Offer</h4>
+                    <p class="text-sm mb-4">Generiere den Code. Der Chef (PC) muss diesen scannen.</p>
                     
-                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg">1. Offer generieren</button>
+                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg">Offer Code generieren</button>
                     
-                    <h5 class="font-bold mt-4 mb-1 flex justify-between items-center">
-                        Generierter Code (Offer)
-                        <button id="copy-offer-btn" class="btn btn-xs btn-outline btn-primary rounded-full" disabled>Kopieren</button>
-                    </h5>
-                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg cursor-pointer" placeholder="Hier erscheint der generierte Offer-Code zum Kopieren"></textarea>
-                    
-                    <h5 class="font-bold mb-1">Answer Code des Chefs eingeben</h5>
-                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg" placeholder="Hier den Answer-Code vom Chef einfügen"></textarea>
+                    <div id="qr-offer-container" class="qr-container">
+                        <span id="qr-offer-placeholder" class="text-gray-500">QR-Code erscheint hier</span>
+                    </div>
 
-                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg">2. Verbindung herstellen (Answer akzeptieren)</button>
+                    <h4 class="font-semibold text-lg mt-6 mb-2">2. Client (Handy) scannt Answer</h4>
+                    <p class="text-sm mb-4">Fügen Sie den vom Chef-Gerät (PC) gescannten/eingegebenen Answer-Code hier ein.</p>
+                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg" placeholder="Hier den Answer-Code vom Chef einfügen (oder durch Scannen automatisch ausfüllen)"></textarea>
+
+                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg">3. Verbindung herstellen</button>
                 </div>
                 
                 <input type="radio" id="tab-answer" name="p2p_tabs" role="tab" class="tab rounded-t-xl" aria-label="Chef (PC) - Answer" />
                 <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-b-xl p-6">
-                    <h4 class="font-semibold text-lg mb-2">Answer-Seite (Chef / PC)</h4>
-                    <p class="text-sm mb-4">Gerät, das auf eine Anfrage reagiert (PC).</p>
+                    <h4 class="font-semibold text-lg mb-2">1. Chef (PC) scannt Offer</h4>
+                    <p class="text-sm mb-4">Fügen Sie den vom Client-Gerät (Handy) generierten Offer-Code hier ein.</p>
 
-                    <h5 class="font-bold mb-1">Offer Code des Clients eingeben</h5>
-                    <textarea id="p2p-answer-input-answer" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg" placeholder="Hier den Offer-Code vom Client einfügen"></textarea>
+                    <textarea id="p2p-answer-input-answer" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg" placeholder="Hier den Offer-Code vom Client einfügen (oder durch Scannen automatisch ausfüllen)"></textarea>
 
-                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-primary rounded-lg">1. Answer generieren</button>
+                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-primary rounded-lg">2. Answer Code generieren</button>
                     
-                    <h5 class="font-bold mt-4 mb-1 flex justify-between items-center">
-                        Generierter Code (Answer)
-                        <button id="copy-answer-btn" class="btn btn-xs btn-outline btn-primary rounded-full" disabled>Kopieren</button>
-                    </h5>
-                    <textarea id="p2p-offer-output-answer" class="textarea textarea-bordered w-full h-24 rounded-lg cursor-pointer" placeholder="Hier erscheint der generierte Answer-Code zum Kopieren"></textarea>
+                    <h4 class="font-semibold text-lg mt-6 mb-2">3. Chef (PC) zeigt Answer</h4>
+                    <p class="text-sm mb-4">Generierter Code. Der Client (Handy) muss diesen scannen.</p>
+                    <div id="qr-answer-container" class="qr-container">
+                        <span id="qr-answer-placeholder" class="text-gray-500">QR-Code erscheint hier</span>
+                    </div>
                 </div>
             </div>
 
@@ -124,7 +136,6 @@
         let peerConnection;
         let dataChannel;
         let p2pIsOffer = true; 
-        let p2pOfferGenerated = false; 
         
         const config = {
             iceServers: [
@@ -133,7 +144,7 @@
         };
 
         // =================================================================
-        // HILFSFUNKTIONEN (SDP-Kodierung/Dekodierung)
+        // HILFSFUNKTIONEN (SDP & QR-Code)
         // =================================================================
 
         /**
@@ -166,7 +177,32 @@
                 return null;
             }
         }
-
+        
+        /**
+         * Generiert einen QR-Code aus dem Base64-String.
+         * @param {string} base64String Der SDP Base64 Code.
+         * @param {string} containerId Die ID des HTML-Containers.
+         */
+        function generateQRCode(base64String, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; // Alten Inhalt löschen
+            
+            // Fügen Sie den Canvas-Container hinzu
+            const canvas = document.createElement('canvas');
+            canvas.id = containerId + '-canvas';
+            container.appendChild(canvas);
+            
+            // Generiere den QR-Code
+            QRCode.toCanvas(canvas, base64String, { 
+                errorCorrectionLevel: 'H', 
+                margin: 2, 
+                width: 180 
+            }, function (error) {
+                if (error) console.error('QR Code Generierungsfehler:', error);
+                console.log('QR Code erfolgreich generiert.');
+            });
+        }
+        
         // =================================================================
         // P2P ARCHITEKTUR: Deadlock-freie Funktionen
         // =================================================================
@@ -174,7 +210,8 @@
         // Listener für den DataChannel setzen (Datenverkehr, Statusänderungen)
         function setupDataChannelListeners(channel) {
             if (!channel) return;
-            // Entferne alte Listener
+
+            // Entferne alte Listener (wichtig, um doppelte Events zu vermeiden)
             channel.onopen = null;
             channel.onclose = null;
             channel.onmessage = null;
@@ -211,6 +248,7 @@
                     resolve(dataChannel);
                 } else {
                     const onOpenOnce = () => {
+                        // Wichtig: DataChannel Listener nach Eröffnung erneut setzen, falls sie durch waitForConnection überschrieben wurden
                         setupDataChannelListeners(dataChannel); 
                         resolve(dataChannel);
                     };
@@ -233,7 +271,6 @@
                 peerConnection = null;
                 dataChannel = null;
             }
-            p2pOfferGenerated = false;
 
             peerConnection = new RTCPeerConnection(config);
             document.getElementById('p2p-status').className = 'alert mt-4 font-semibold rounded-xl';
@@ -273,13 +310,12 @@
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 const sdpString = sdpToBase64(peerConnection.localDescription);
-                document.getElementById('p2p-offer-output').value = sdpString;
-                
-                p2pOfferGenerated = true;
-                document.getElementById('p2p-status').textContent = 'Offer erstellt. Bitte Code auf Chef-Gerät eingeben und Answer-Code hier erwarten.';
+                // Zusätzliche Speicherung in einer versteckten Textarea für manuelles Copy/Paste (Fallback)
+                document.getElementById('p2p-offer-output-hidden').value = sdpString; 
 
-                // UX: Kopieren-Button aktivieren
-                document.getElementById('copy-offer-btn').disabled = false;
+                generateQRCode(sdpString, 'qr-offer-container');
+                
+                document.getElementById('p2p-status').textContent = 'Offer erstellt. Bitte den QR-Code auf dem Chef-Gerät (PC) scannen.';
 
             } catch (e) {
                 console.error("Fehler beim Erstellen des Offers:", e);
@@ -304,13 +340,13 @@
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 const sdpString = sdpToBase64(peerConnection.localDescription);
-                document.getElementById('p2p-offer-output-answer').value = sdpString;
-                
-                document.getElementById('p2p-status').textContent = 'Answer erstellt. Bitte Code auf Client-Gerät eingeben. Warte auf Verbindung...';
-                
-                // UX: Kopieren-Button aktivieren
-                document.getElementById('copy-answer-btn').disabled = false;
+                // Zusätzliche Speicherung in einer versteckten Textarea für manuelles Copy/Paste (Fallback)
+                document.getElementById('p2p-answer-output-hidden').value = sdpString;
 
+                generateQRCode(sdpString, 'qr-answer-container');
+                
+                document.getElementById('p2p-status').textContent = 'Answer erstellt. Bitte den QR-Code auf dem Client-Gerät (Handy) scannen. Warte auf Verbindung...';
+                
                 await waitForConnection();
 
                 document.getElementById('p2p-status').textContent = '🎉 P2P-Verbindung erfolgreich hergestellt!';
@@ -326,7 +362,7 @@
         async function p2pAcceptAnswer(answerBase64) {
             try {
                 if (!peerConnection) {
-                    throw new Error("Bitte zuerst Offer generieren (Schritt 1).");
+                    throw new Error("Bitte zuerst Offer generieren.");
                 }
                 
                 const remoteAnswer = base64ToSdp(answerBase64, 'answer');
@@ -347,9 +383,9 @@
         }
         
         // =================================================================
-        // DATENKANAL-HANDLING & UX-HILFSFUNKTIONEN
+        // DATENKANAL-HANDLING & UI-LOGIK
         // =================================================================
-
+        
         function startP2PSync() {
             if (dataChannel && dataChannel.readyState === 'open') {
                 const message = `Hallo von Gerät ${p2pIsOffer ? 'Client' : 'Chef'}!`;
@@ -372,31 +408,15 @@
             }
             document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-secondary">[REMOTE] Erhalten: ${message}</div>`;
         }
-        
-        // Universal Copy function using execCommand for better iframe compatibility
-        function copyTextToClipboard(elementId) {
-            const textarea = document.getElementById(elementId);
-            if (!textarea || !textarea.value) {
-                console.warn("Nichts zu kopieren.");
-                return;
-            }
-            textarea.select();
-            try {
-                const successful = document.execCommand('copy');
-                const msg = successful ? 'Kopieren erfolgreich!' : 'Kopieren fehlgeschlagen.';
-                console.log(msg);
-                
-                const statusElement = document.getElementById('p2p-status');
-                statusElement.className = 'alert mt-4 font-semibold alert-info rounded-xl';
-                statusElement.textContent = `📋 ${msg}`;
-                setTimeout(() => {
-                    statusElement.className = 'alert mt-4 font-semibold rounded-xl';
-                    statusElement.textContent = 'Status: Bereit.';
-                }, 2000);
-                
-            } catch (err) {
-                console.error('Kopieren nicht unterstützt:', err);
-            }
+
+        // Funktion zur Reinigung der QR-Code-Container
+        function clearQRCodes() {
+            const offerContainer = document.getElementById('qr-offer-container');
+            const answerContainer = document.getElementById('qr-answer-container');
+            offerContainer.innerHTML = '<span id="qr-offer-placeholder" class="text-gray-500">QR-Code erscheint hier</span>';
+            answerContainer.innerHTML = '<span id="qr-answer-placeholder" class="text-gray-500">QR-Code erscheint hier</span>';
+            document.getElementById('p2p-offer-output-hidden').value = ''; 
+            document.getElementById('p2p-answer-output-hidden').value = '';
         }
 
 
@@ -404,6 +424,18 @@
         // UI EVENT-LISTENERS
         // =================================================================
         window.onload = function() {
+            // Versteckte Textareas für den Fallback des Base64-Codes (können zum Debuggen sichtbar gemacht werden)
+            const hiddenOfferTextarea = document.createElement('textarea');
+            hiddenOfferTextarea.id = 'p2p-offer-output-hidden';
+            hiddenOfferTextarea.style.position = 'absolute'; hiddenOfferTextarea.style.left = '-9999px';
+            document.body.appendChild(hiddenOfferTextarea);
+
+            const hiddenAnswerTextarea = document.createElement('textarea');
+            hiddenAnswerTextarea.id = 'p2p-answer-output-hidden';
+            hiddenAnswerTextarea.style.position = 'absolute'; hiddenAnswerTextarea.style.left = '-9999px';
+            document.body.appendChild(hiddenAnswerTextarea);
+
+
             const p2p_modal = document.getElementById('p2p_modal');
             
             // --- Modal Open ---
@@ -411,14 +443,10 @@
                  p2p_modal.showModal();
                  document.getElementById('p2p-status').textContent = 'Status: Bereit.';
                  document.getElementById('p2p-answer-input').value = '';
-                 document.getElementById('p2p-offer-output').value = '';
                  document.getElementById('p2p-answer-input-answer').value = '';
-                 document.getElementById('p2p-offer-output-answer').value = '';
                  document.getElementById('p2p-log').innerHTML = '';
-                 document.getElementById('copy-offer-btn').disabled = true;
-                 document.getElementById('copy-answer-btn').disabled = true;
+                 clearQRCodes();
 
-                 p2pOfferGenerated = false; 
                  initP2P(document.getElementById('tab-offer').checked);
             });
             
@@ -434,7 +462,7 @@
                      p2pAcceptAnswer(answer);
                  } else {
                      document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
-                     document.getElementById('p2p-status').textContent = "🚨 Fehler: Bitte Answer-Code einfügen.";
+                     document.getElementById('p2p-status').textContent = "🚨 Fehler: Bitte Answer-Code einfügen (vom Scan).";
                  }
             });
             
@@ -446,29 +474,20 @@
                      p2pCreateAnswer(offer);
                  } else {
                      document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
-                     document.getElementById('p2p-status').textContent = "🚨 Fehler: Bitte Offer-Code einfügen.";
+                     document.getElementById('p2p-status').textContent = "🚨 Fehler: Bitte Offer-Code einfügen (vom Scan).";
                  }
             });
             
-            // --- UX Helpers ---
-            // Auto-Select beim Klick auf Output-Felder
-            document.getElementById('p2p-offer-output').addEventListener('click', (e) => e.target.select());
-            document.getElementById('p2p-offer-output-answer').addEventListener('click', (e) => e.target.select());
-
-            // Kopier-Buttons
-            document.getElementById('copy-offer-btn').addEventListener('click', () => copyTextToClipboard('p2p-offer-output'));
-            document.getElementById('copy-answer-btn').addEventListener('click', () => copyTextToClipboard('p2p-offer-output-answer'));
-            
-            // Tab-Wechsel
+            // --- Tab-Wechsel ---
             document.getElementById('tab-offer').addEventListener('change', () => {
                 p2pIsOffer = true;
-                p2pOfferGenerated = false;
+                clearQRCodes();
                 initP2P(p2pIsOffer);
             });
             
             document.getElementById('tab-answer').addEventListener('change', () => {
                 p2pIsOffer = false;
-                p2pOfferGenerated = false;
+                clearQRCodes();
                 initP2P(p2pIsOffer);
             });
 
