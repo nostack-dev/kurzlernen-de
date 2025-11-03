@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mogul P2P Sync</title>
     <!--
-        FINALE VERSION: Mogul P2P Chef Sync
+        FINALE VERSION: Mogul P2P Chef Sync (Deadlock-Fix implementiert)
         Entwickelt für Christian Heinrich Hohlfeld, Konstanz.
         Architektur: Zero-Trust, Serverless, Passkey (WebAuthn) & P2P (WebRTC)
+        Kein Theming, reiner Fokus auf Funktionalität und Sicherheit.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,701 +17,434 @@
         :root {
             font-family: 'Inter', sans-serif;
             /* Corporate Theme (Light) wird als Standard genutzt */
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
         }
-        /* Tailwind-Klassen für Inter-Font aktivieren */
-        body { font-family: 'Inter', sans-serif; }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        
+        /* Ensures the background of the modal content is readable */
+        .modal-box {
+            background-color: var(--theme-bg);
+            color: var(--theme-text);
+        }
+
+        /* Responsive Container */
+        .container {
+            max-width: 900px;
+        }
+
     </style>
-    <script>
-        // Setzt das Corporate Theme für DaisyUI
-        tailwind.config = {
-            daisyui: {
-                themes: ["corporate"],
-            },
-        }
-    </script>
 </head>
-<body data-theme="corporate" class="min-h-screen p-4 bg-base-200">
+<body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
 
-    <div class="max-w-4xl mx-auto py-8">
-        <h1 class="text-4xl font-extrabold text-center mb-10 text-primary">Mogul P2P CHEF-Sync</h1>
-
-        <!-- Haupt-Anwendung -->
-        <div class="card bg-base-100 shadow-xl p-6 rounded-2xl mb-8">
-            <h2 class="card-title text-2xl mb-4">Geräteübersicht</h2>
-
-            <!-- Aktueller Geräte-ID Status -->
-            <div class="alert shadow-lg bg-info/10 border-info text-info-content mb-4 rounded-xl">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <div class="flex flex-col sm:flex-row sm:items-center w-full justify-between">
-                    <span>Ihre Geräte-ID: <strong id="current-device-id" class="font-mono break-all">Lade...</strong></span>
-                    <button class="btn btn-sm btn-info mt-2 sm:mt-0" onclick="copyDeviceId()">Kopieren</button>
-                </div>
-            </div>
-
-            <!-- Liste der registrierten Geräte (als Platzhalter) -->
-            <div class="mb-6">
-                <h3 class="text-lg font-semibold mb-2">Registrierte P2P-Partner:</h3>
-                <ul id="device-list" class="space-y-2">
-                    <!-- Geräte werden hier eingefügt -->
-                    <li class="skeleton h-8 w-full rounded-lg"></li>
-                </ul>
-            </div>
-
-            <!-- Gerät hinzufügen (Platzhalter für zukünftiges Pairing) -->
-            <div class="flex flex-col sm:flex-row gap-2">
-                <input id="new-device-id-input" type="text" placeholder="Neue Geräte-ID eingeben" class="input input-bordered w-full rounded-xl" />
-                <button id="add-device-btn" class="btn btn-primary rounded-xl shrink-0">Gerät hinzufügen</button>
-            </div>
+    <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2">Mogul P2P Synchronisation</h1>
+        
+        <div class="alert alert-info shadow-lg mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Dies ist die Serverless P2P-Schnittstelle. Es wird kein Server für die Datenübertragung benötigt, nur für den einmaligen Code-Austausch (SDP).</span>
         </div>
         
-        <!-- P2P Sync Button -->
-        <div class="card bg-base-100 shadow-xl p-6 rounded-2xl">
-            <h2 class="card-title text-2xl mb-4">P2P Daten-Synchronisation</h2>
-            <p class="mb-4">Starten Sie einen P2P-Sync, um Daten direkt mit einem anderen Gerät auszutauschen.</p>
-            <button id="p2p-modal-btn" class="btn btn-success btn-lg rounded-xl">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                Sync starten
+        <!-- P2P Modal Button -->
+        <div class="flex justify-center">
+            <button id="p2p-modal-btn" class="btn btn-lg btn-success shadow-md transition duration-150 ease-in-out hover:scale-[1.02]">
+                Starte P2P Sync
             </button>
+        </div>
+        
+        <!-- Dummy-Geräteliste, um zu zeigen, dass die App lebt -->
+        <h2 class="text-xl font-bold mt-8 mb-4">Simulierte lokale Daten</h2>
+        <div id="device-list" class="space-y-2">
+            <div class="badge badge-outline">PC-CHEF-001 (Aktuell)</div>
         </div>
     </div>
 
-
-    <!-- P2P Modal (dialog) -->
-    <dialog id="p2p-modal" class="modal">
-        <div class="modal-box rounded-2xl max-w-xl">
-            <h3 class="font-bold text-xl mb-4 text-center">P2P-Sync-Initiierung</h3>
+    <!-- P2P Modal -->
+    <dialog id="p2p_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl p-6">
+            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent</h3>
             
-            <!-- Fehleranzeige (NEU) -->
-            <div id="p2p-modal-error" class="alert alert-error mt-4 hidden rounded-xl">
-                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span id="p2p-error-message"></span>
-            </div>
+            <div class="tabs mb-4">
+                <input type="radio" id="tab-offer" name="p2p_tabs" role="tab" class="tab" aria-label="Client (Handy) - Offer" checked />
+                <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
+                    <h4 class="font-semibold text-lg mb-2">Offer-Seite (Client)</h4>
+                    <p class="text-sm mb-4">Dies ist das Gerät, das die Verbindung initiiert (z.B. Handy zum PC). Der Prozess ist zweistufig.</p>
+                    
+                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary">1. Offer generieren</button>
+                    
+                    <h5 class="font-bold mt-4 mb-1">Generierter Code (Offer)</h5>
+                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 mb-4" placeholder="Hier erscheint der generierte Offer-Code zum Kopieren"></textarea>
+                    
+                    <h5 class="font-bold mb-1">Answer Code des Chefs eingeben</h5>
+                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 mb-4" placeholder="Hier den Answer-Code vom Chef einfügen"></textarea>
 
-            <!-- Statusanzeige -->
-            <div id="p2p-status-container" class="my-4 text-center">
-                <span id="p2p-status-icon" class="loading loading-spinner text-lg hidden"></span>
-                <p id="p2p-status-text" class="text-sm text-gray-500"></p>
-                <div id="qr-container" class="mt-4 hidden p-2 bg-gray-100 rounded-xl">
-                    <!-- QR Code wird hier eingefügt -->
+                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success">2. Verbindung herstellen (Answer akzeptieren)</button>
+                </div>
+                
+                <input type="radio" id="tab-answer" name="p2p_tabs" role="tab" class="tab" aria-label="Chef (PC) - Answer" />
+                <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
+                    <h4 class="font-semibold text-lg mb-2">Answer-Seite (Chef / PC)</h4>
+                    <p class="text-sm mb-4">Dies ist das Gerät, das auf eine Verbindungsanfrage reagiert (z.B. PC).</p>
+
+                    <h5 class="font-bold mb-1">Offer Code des Clients eingeben</h5>
+                    <!-- Die Answer-Seite nutzt das gleiche Feld zur Eingabe des Offers! -->
+                    <textarea id="p2p-answer-input-answer" class="textarea textarea-bordered w-full h-24 mb-4" placeholder="Hier den Offer-Code vom Client einfügen"></textarea>
+
+                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-primary">1. Answer generieren</button>
+                    
+                    <h5 class="font-bold mt-4 mb-1">Generierter Code (Answer)</h5>
+                    <!-- Die Answer-Seite nutzt das gleiche Feld zur Ausgabe der Answer! -->
+                    <textarea id="p2p-offer-output-answer" class="textarea textarea-bordered w-full h-24" placeholder="Hier erscheint der generierte Answer-Code zum Kopieren"></textarea>
                 </div>
             </div>
 
-            <!-- Tabs für Offer/Answer Modus -->
-            <div role="tablist" class="tabs tabs-boxed mb-4 rounded-xl">
-                <input type="radio" name="p2p_tabs" role="tab" class="tab" aria-label="Als Client (Offer-Erstellung)" checked id="tab-offer" />
-                <div role="tabpanel" class="tab-content p-4">
-                    <!-- Offer Modus: Link/SDP generieren -->
-                    <p class="mb-3 text-sm">Teilen Sie diesen Link mit dem Zielgerät (z.B. Ihrem PC) per Airdrop, Mail oder QR-Code, um die Verbindung zu initiieren.</p>
-                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full mb-3 h-24 font-mono rounded-xl" placeholder="Generiertes Offer SDP..." readonly></textarea>
-                    <button id="p2p-create-offer-btn" class="btn btn-primary w-full rounded-xl">1. Offer Link generieren</button>
-                    <button id="p2p-copy-offer-link" class="btn btn-secondary w-full rounded-xl mt-2 hidden">2. Offer Link kopieren</button>
-                    <div id="p2p-offerer-ui" class="mt-4">
-                        <!-- QR Code wird hier angezeigt -->
-                    </div>
-                </div>
-
-                <input type="radio" name="p2p_tabs" role="tab" class="tab" aria-label="Als Chef (Answer-Erstellung)" id="tab-answer" />
-                <div role="tabpanel" class="tab-content p-4">
-                    <!-- Answer Modus: Offer empfangen und Answer generieren -->
-                    <p class="mb-3 text-sm">Fügen Sie das Offer SDP/Link des Client-Geräts hier ein, um das Answer zu generieren und zu senden.</p>
-                    <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full mb-3 h-24 font-mono rounded-xl" placeholder="Offer SDP oder Offer Link einfügen..."></textarea>
-                    <button id="p2p-create-answer-btn" class="btn btn-warning w-full rounded-xl">1. Answer generieren & senden</button>
-                    <textarea id="p2p-answer-output" class="textarea textarea-bordered w-full mt-3 h-16 font-mono rounded-xl hidden" placeholder="Generiertes Answer SDP..." readonly></textarea>
-                    <button id="p2p-copy-answer" class="btn btn-secondary w-full rounded-xl mt-2 hidden">2. Answer kopieren</button>
-                    <div id="p2p-answerer-ui" class="mt-4">
-                        <p class="text-sm text-gray-500 mt-2">Fügen Sie das kopierte Answer dann in den Client (Handy) ein.</p>
-                        <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full mt-3 h-16 font-mono rounded-xl" placeholder="Answer SDP des Chef-Geräts hier einfügen..."></textarea>
-                        <button id="p2p-accept-answer-btn" class="btn btn-success w-full rounded-xl">2. Answer akzeptieren & verbinden</button>
-                    </div>
-                </div>
+            <!-- Global Status & Log -->
+            <div id="p2p-status" class="alert mt-4 font-semibold">Status: Bereit.</div>
+            
+            <h4 class="font-bold text-lg mt-6 mb-2">P2P Daten-Log</h4>
+            <div id="p2p-log" class="bg-base-200 p-3 rounded-lg h-32 overflow-y-auto text-sm space-y-1">
+                <!-- Log-Einträge erscheinen hier -->
             </div>
 
             <div class="modal-action">
                 <form method="dialog">
-                    <!-- Wenn es einen Fehler gab oder der Sync fertig ist, kann man schließen -->
-                    <button id="p2p-close-modal-btn" class="btn btn-ghost rounded-xl">Schließen</button>
+                    <button id="p2p-close-btn" class="btn">Schließen</button>
                 </form>
             </div>
         </div>
     </dialog>
     
     <script>
-        // --- Globale Variablen und Konstanten ---
-        const P2P_TIMEOUT_MS = 30000; // 30 Sekunden Timeout für Verbindungsaufbau
-        const ICE_GATHERING_TIMEOUT = 5000; // 5 Sekunden Timeout für ICE Gathering
-        const SID_PARAM = 'sid'; // Session ID Parameter
-        const OFFER_PARAM = 'offer'; // Offer SDP Parameter
-
-        let currentDeviceId = 'Lade...';
-        let p2pIsOffer = true; // Steuert den Modus im Modal (true=Offer-Ersteller/Client, false=Answer-Ersteller/Chef)
+        // =================================================================
+        // GLOBALE VARIABLEN & P2P-KONFIGURATION
+        // =================================================================
+        let peerConnection;
+        let dataChannel;
+        let p2pIsOffer = true; // Startet im Offer-Modus (Client/Handy)
+        let p2pOfferGenerated = false; // State-Variable für den 2-Stufen-Offer-Prozess
         
-        // WebRTC Objekte
-        let peerConnection = null;
-        let dataChannel = null;
+        const config = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" } // Google STUN-Server
+            ]
+        };
 
-        // --- Hilfsfunktionen für Base64URL-Konvertierung ---
-        
-        /**
-         * Konvertiert standard Base64 in Base64URL (URL-sicher)
-         * @param {string} base64
-         * @returns {string} Base64URL-String
-         */
-        function base64ToUrlSafe(base64) {
-            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        // =================================================================
+        // HILFSFUNKTIONEN (SDP-Kodierung/Dekodierung)
+        // =================================================================
+
+        // SDP-Objekt zu Base64-String (ersetzt arrayBufferToBase64Url)
+        function sdpToBase64(sdp) {
+            // WebRTC SDPs sind JSON-kompatibel. btoa() ist Standard.
+            return btoa(JSON.stringify(sdp));
         }
 
-        /**
-         * Konvertiert Base64URL (URL-sicher) zurück in standard Base64
-         * @param {string} base64Url
-         * @returns {string} Standard Base64-String (mit Padding)
-         */
-        function urlSafeToBase64(base64Url) {
-            let padded = base64Url;
-            const mod4 = base64Url.length % 4;
-            if (mod4 !== 0) {
-                padded += '='.repeat(4 - mod4);
-            }
-            return padded.replace(/-/g, '+').replace(/_/g, '/');
-        }
-
-        // --- P2P-UI-Hilfsfunktionen (NEUE FUNKTIONEN FÜR VERBESSERTE FEHLERBEHANDLUNG/UX) ---
-        
-        /**
-         * Zeigt eine Fehlermeldung im P2P-Modal an.
-         * @param {string} message Die anzuzeigende Fehlermeldung.
-         */
-        function showModalError(message) {
-            const errorElement = document.getElementById('p2p-modal-error');
-            const messageElement = document.getElementById('p2p-error-message');
-            if (errorElement && messageElement) {
-                messageElement.textContent = message;
-                errorElement.classList.remove('hidden');
-                updateP2PStatus('error', message); // Status-Text aktualisieren
+        // Base64-String zurück zu SDP-Objekt
+        function base64ToSdp(base64) {
+            try {
+                return JSON.parse(atob(base64));
+            } catch (e) {
+                console.error("Fehler beim Dekodieren oder Parsen des SDP-Strings:", e);
+                return null;
             }
         }
 
-        /**
-         * Aktualisiert den Status im P2P-Modal.
-         * @param {'connecting'|'connected'|'error'|'disconnected'|'gathering'} state
-         * @param {string} message
-         */
-        function updateP2PStatus(state, message) {
-            const statusText = document.getElementById('p2p-status-text');
-            const statusIcon = document.getElementById('p2p-status-icon');
-            const errorContainer = document.getElementById('p2p-modal-error');
-            
-            statusText.textContent = message;
-            statusIcon.classList.add('hidden');
-            errorContainer.classList.add('hidden'); // Fehler bei neuen Status ausblenden
+        // =================================================================
+        // P2P ARCHITEKTUR FIX: Deadlock-freie Funktionen
+        // =================================================================
 
-            if (state === 'gathering' || state === 'connecting') {
-                statusIcon.classList.remove('hidden');
-                statusIcon.classList.add('loading-spinner');
-                statusText.classList.remove('text-success');
-                statusText.classList.remove('text-error');
-                statusText.classList.add('text-gray-500');
-            } else if (state === 'connected') {
-                statusIcon.classList.add('hidden');
-                statusText.classList.add('text-success');
-                statusText.classList.remove('text-error');
-            } else if (state === 'error' || state === 'disconnected') {
-                 statusIcon.classList.add('hidden');
-                 statusText.classList.add('text-error');
-                 statusText.classList.remove('text-success');
-                 if (state === 'error') errorContainer.classList.remove('hidden'); // Fehler explizit anzeigen
-            }
-        }
+        // Listener für den DataChannel setzen (Datenverkehr, Statusänderungen)
+        function setupDataChannelListeners(channel) {
+            if (!channel) return;
+            // Entferne alte Listener, falls vorhanden
+            channel.onopen = null;
+            channel.onclose = null;
+            channel.onmessage = null;
+            channel.onerror = null;
 
-        /**
-         * Generiert und zeigt einen QR-Code für den Offer-Link an (NEU).
-         * @param {string} offerLink Der vollständige Offer-Link.
-         */
-        async function generateQRCode(offerLink) {
-            const qrContainer = document.getElementById('qr-container');
-            if (!qrContainer) return;
-
-            // Einfache Implementierung mit einer öffentlichen QR-Code Library API
-            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(offerLink)}`;
-            
-            qrContainer.innerHTML = `<img src="${qrCodeUrl}" alt="P2P Offer QR Code" class="mx-auto border-4 border-white shadow-lg rounded-xl">`;
-            qrContainer.classList.remove('hidden');
-
-            document.getElementById('p2p-offerer-ui').prepend(qrContainer);
-        }
-
-        // --- Core WebRTC Logik ---
-
-        /**
-         * Initialisiert die PeerConnection und den DataChannel (mit robustem Timeout-Management).
-         * @param {boolean} isOffer True, wenn Offer erstellt wird (Client-Modus).
-         * @returns {Promise<RTCDataChannel>} Der erfolgreiche DataChannel.
-         */
-        async function initP2P(isOffer) {
-            const config = {
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+            channel.onopen = () => {
+                console.log("DataChannel: OPEN");
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-success';
+                document.getElementById('p2p-status').textContent = '✅ Verbunden (DataChannel offen)! Sync kann starten.';
+                
+                // Nach erfolgreicher Verbindung einen Test senden
+                setTimeout(() => startP2PSync(), 500);
             };
+            channel.onmessage = handleDataChannelMessage;
+            channel.onclose = () => {
+                console.log("DataChannel: CLOSED");
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-warning';
+                document.getElementById('p2p-status').textContent = '❌ Verbindung getrennt';
+            };
+            channel.onerror = (error) => {
+                console.error("DataChannel Fehler:", error);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error';
+                document.getElementById('p2p-status').textContent = `⚠️ Fehler: ${error.message || 'Unbekannt'}`;
+            };
+        }
+
+        // Separate Funktion für "auf Verbindung warten" (Der Kern des Fixes)
+        async function waitForConnection() {
+            return new new Promise((resolve, reject) => {
+                if (!dataChannel) {
+                    return reject(new Error("DataChannel nicht initialisiert."));
+                }
+                
+                // Wenn bereits offen, sofort auflösen
+                if (dataChannel.readyState === 'open') {
+                    resolve(dataChannel);
+                } else {
+                    // Setzt temporäre Listener, um den OPEN-Zustand abzufangen
+                    const onOpenOnce = () => {
+                        // Nach dem Öffnen die permanenten Listener wieder setzen
+                        setupDataChannelListeners(dataChannel); 
+                        resolve(dataChannel);
+                    };
+                    const onErrorOnce = (e) => {
+                        // Cleanup
+                        dataChannel.onopen = null;
+                        dataChannel.onerror = null;
+                        reject(e);
+                    };
+
+                    dataChannel.onopen = onOpenOnce;
+                    dataChannel.onerror = onErrorOnce;
+                }
+            });
+        }
+        
+        // initP2P() setzt NUR die PeerConnection und DataChannel auf (Fix: Kein Warten!)
+        async function initP2P(isOffer) {
+            // Cleanup vor dem Start
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                dataChannel = null;
+            }
+            p2pOfferGenerated = false;
 
             peerConnection = new RTCPeerConnection(config);
-            updateP2PStatus('gathering', 'Starte ICE Gathering...');
+            document.getElementById('p2p-status').className = 'alert mt-4 font-semibold';
+            document.getElementById('p2p-status').textContent = '... Verbindungsaufbau gestartet (ICE sammeln)...';
 
+            // ICE-Kandidaten: Müssen in einer echten Anwendung ausgetauscht werden.
+            // Hier wird nur das SDP ausgetauscht und das Sammeln kurz abgewartet.
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    // ICE-Kandidaten müssten hier über den Signaling-Kanal (z.B. HTTP) versendet werden.
+                    console.log("Neuer ICE-Kandidat gefunden.");
+                } else {
+                    console.log("ICE-Kandidatenerfassung abgeschlossen.");
+                }
+            };
+            
+            // DataChannel-Erstellung / Annahme
             if (isOffer) {
-                // Offerer (Client) erstellt den Data Channel
+                // Offer-Seite (Client)
                 dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: false });
-                setupDataChannelListeners(dataChannel);
+                console.log("DataChannel als Offer erstellt.");
+                setupDataChannelListeners(dataChannel); // Listener sofort setzen
             } else {
-                // Answerer (Chef) empfängt den Data Channel
+                // Answer-Seite (Chef)
                 peerConnection.ondatachannel = (event) => {
                     dataChannel = event.channel;
-                    setupDataChannelListeners(dataChannel);
-                    // Der onopen-Handler wird nun über den DataChannel-Listener getriggert
+                    console.log("DataChannel als Answer erhalten.");
+                    setupDataChannelListeners(dataChannel); // Listener setzen, sobald Channel bekannt
                 };
             }
-
-            return new Promise((resolve, reject) => {
-                let connectionEstablished = false;
-
-                const timeout = setTimeout(() => {
-                    if (!connectionEstablished) {
-                        const errorMsg = 'P2P-Verbindungszeit überschritten (30s).';
-                        reject(new Error(errorMsg));
-                        cleanup();
-                        showModalError(errorMsg);
-                    }
-                }, P2P_TIMEOUT_MS);
-
-                const cleanup = () => {
-                    clearTimeout(timeout);
-                    // Bei Erfolg bleibt die Verbindung offen, bei Fehler oder Timeout wird aufgeräumt
-                    if (!connectionEstablished) {
-                        if (peerConnection) {
-                             // peerConnection.close(); // Nicht nötig, wenn reject und DataChannel-Status genutzt werden
-                        }
-                    }
-                };
-                
-                // Der onopen-Handler ist der entscheidende Erfolgspunkt
-                const handleOpen = () => {
-                    console.log('Data Channel ist offen!');
-                    connectionEstablished = true;
-                    updateP2PStatus('connected', `Verbunden! P2P-Sync kann starten.`);
-                    cleanup(); // ✅ Timeout clearen bei Erfolg
-                    resolve(dataChannel);
-                };
-
-                // Listener für DataChannel-Events
-                function setupDataChannelListeners(channel) {
-                    channel.onopen = handleOpen;
-                    channel.onclose = () => {
-                        console.log('Data Channel geschlossen.');
-                        updateP2PStatus('disconnected', `Verbindung geschlossen.`);
-                        if (!connectionEstablished) {
-                             // Wenn close vor open passiert, gab es einen Fehler
-                             cleanup();
-                             reject(new Error('Data Channel geschlossen, bevor Verbindung aufgebaut wurde.'));
-                        }
-                    };
-                    channel.onerror = (e) => {
-                         console.error('Data Channel Fehler:', e);
-                         cleanup();
-                         if (!connectionEstablished) {
-                            showModalError(`Data Channel Fehler: ${e.message || 'Unbekannt'}. Verbindung abgebrochen.`);
-                            reject(new Error('Data Channel Fehler.'));
-                         }
-                    };
-                    channel.onmessage = (event) => {
-                        console.log('Daten empfangen:', event.data);
-                        // Hier käme die Logik zur Verarbeitung der Sync-Daten
-                        updateP2PStatus('connected', `Daten empfangen! Letzte Nachricht: ${event.data.substring(0, 20)}...`);
-                    };
-                }
-
-                // Attach Listener für den Empfänger, falls DataChannel erst später existiert
-                if (dataChannel) {
-                    setupDataChannelListeners(dataChannel);
-                } else if (!isOffer) {
-                    // ondatachannel wurde oben gesetzt, muss nur warten
-                } else {
-                    reject(new Error('Interner Fehler: Data Channel konnte nicht erstellt werden.'));
-                    showModalError('Interner Fehler: Data Channel fehlgeschlagen.');
-                    cleanup();
-                }
-
-                // ICE Gathering-Zustand überwachen
-                // Wir warten, bis ICE Gathering 'complete' ist, bevor wir resolve/reject.
-                let iceTimeout = setTimeout(() => {
-                    console.warn('ICE Gathering Timeout (5s). Versuche trotzdem mit SDP fortzufahren.');
-                    // Hier wird der Promise nicht rejectet, da das Gathering oft auch nach dem SDP-Austausch noch Kandidaten findet.
-                }, ICE_GATHERING_TIMEOUT);
-
-                peerConnection.onicegatheringstatechange = () => {
-                    if (peerConnection.iceGatheringState === 'complete') {
-                        clearTimeout(iceTimeout);
-                        updateP2PStatus('gathering', 'ICE Gathering abgeschlossen.');
-                    }
-                };
-                
-                // ICE Candidate Handling (wird für das Offer/Answer nicht direkt im Promise benötigt, aber für die PC)
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        // Konsolen-Log für Debugging, da wir auf "complete" warten
-                        // console.log('Neuer ICE Candidate:', event.candidate);
-                    }
-                };
-
-            }); // End of Promise
+            
+            // PC sofort zurückgeben (KEIN WARTEN auf onopen!)
+            return peerConnection;
         }
 
+        // =================================================================
+        // P2P HANDSHAKE LOGIK
+        // =================================================================
 
-        /**
-         * Erstellt das Offer SDP und den URL-Link.
-         * @param {string} sid Session ID (nicht verwendet, aber für die Signalisierung vorgesehen).
-         * @returns {Promise<string>} Der vollständige Offer-Link.
-         */
+        // 1. Offer generieren (Offer-Seite / Client)
         async function p2pCreateOffer() {
             try {
-                // Schritt 1: Initialisierung
-                await initP2P(true); // isOffer = true
-
-                // Schritt 2: Offer erstellen
+                await initP2P(true); // PC setupen
+                
+                // Offer erstellen und Local Description setzen (jetzt möglich!)
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
                 
-                updateP2PStatus('gathering', 'Warte auf ICE-Kandidaten... (max. 5s)');
-
-                // Schritt 3: Warten auf ICE Gathering Complete
-                // Wir warten auf den "complete"-Zustand des ICE Gatherings.
-                await new Promise((resolve) => {
-                    if (peerConnection.iceGatheringState === 'complete') {
-                        resolve();
-                    } else {
-                        const checkState = () => {
-                            if (peerConnection.iceGatheringState === 'complete') {
-                                peerConnection.removeEventListener('icegatheringstatechange', checkState);
-                                resolve();
-                            }
-                        };
-                        peerConnection.addEventListener('icegatheringstatechange', checkState);
-
-                        // Zusätzlicher Timeout, falls 'complete' nie erreicht wird (fallback)
-                        setTimeout(() => {
-                             peerConnection.removeEventListener('icegatheringstatechange', checkState);
-                             resolve();
-                        }, ICE_GATHERING_TIMEOUT);
-                    }
-                });
-
-                updateP2PStatus('connecting', 'Offer generiert. Link wird erstellt.');
-
-                // Schritt 4: Base64URL-Encoding
-                const offerSdp = peerConnection.localDescription.sdp;
-                const offerSdpB64 = base64ToUrlSafe(btoa(offerSdp));
-
-                // Schritt 5: Link erstellen (NEU: URL-Encoding für komplexe SDPs)
-                const sid = currentDeviceId;
-                const encodedOffer = encodeURIComponent(offerSdpB64);
-                const offerLink = `${window.location.origin}${window.location.pathname}?${SID_PARAM}=${sid}&${OFFER_PARAM}=${encodedOffer}`;
-
-                document.getElementById('p2p-offer-output').value = offerLink;
-                document.getElementById('p2p-copy-offer-link').classList.remove('hidden');
+                // Kurz warten, um einige ICE-Kandidaten zu sammeln
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // NEU: QR Code generieren
-                await generateQRCode(offerLink);
+                // SDP im Output anzeigen
+                const sdpString = sdpToBase64(peerConnection.localDescription);
+                document.getElementById('p2p-offer-output').value = sdpString;
+                
+                // State-Wechsel für den 2. Klick
+                p2pOfferGenerated = true;
+                document.getElementById('p2p-status').textContent = 'Offer erstellt. Bitte Code auf Chef-Gerät eingeben und Answer-Code hier erwarten.';
 
-                updateP2PStatus('connecting', 'Offer Link erstellt. Warten Sie auf Answer...');
-
-                // Rückgabe des Links zur weiteren Verarbeitung (z.B. UI-Anzeige)
-                return offerLink;
-
-            } catch (error) {
-                console.error('Fehler beim Erstellen des Offers:', error);
-                showModalError(`Fehler beim Erstellen des Offers: ${error.message}`);
+            } catch (e) {
+                console.error("Fehler beim Erstellen des Offers:", e);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error';
+                document.getElementById('p2p-status').textContent = `🚨 Fehler beim Offer-Erstellung: ${e.message}`;
             }
         }
 
-        /**
-         * Erstellt das Answer SDP, basierend auf dem empfangenen Offer SDP.
-         * @param {string} offerSdpOrLink Das Offer SDP oder der vollständige Offer-Link.
-         * @returns {Promise<string>} Das Answer SDP in Base64URL-Format.
-         */
-        async function p2pCreateAnswer(offerSdpOrLink) {
+        // 2. Answer erstellen (Answer-Seite / Chef)
+        async function p2pCreateAnswer(offerBase64) {
             try {
-                updateP2PStatus('connecting', 'Verarbeite Offer und starte Verbindung...');
+                await initP2P(false); // PC setupen
                 
-                // 1. Offer SDP extrahieren
-                let offerSdpB64 = offerSdpOrLink;
-                try {
-                    // Versuche, Offer-Link zu parsen
-                    const url = new URL(offerSdpOrLink);
-                    const offerSdpB64Encoded = url.searchParams.get(OFFER_PARAM);
-                    if (offerSdpB64Encoded) {
-                         offerSdpB64 = decodeURIComponent(offerSdpB64Encoded); // NEU: Decoding
-                    }
-                } catch (e) {
-                    // Wenn kein valider Link, ist es wahrscheinlich das rohe SDP
-                    console.log('Eingabe ist kein URL, behandle als rohes SDP.');
-                }
+                // Offer setzen
+                const remoteOffer = base64ToSdp(offerBase64);
+                if (!remoteOffer) throw new Error("Ungültiges Offer-Format.");
                 
-                if (!offerSdpB64) {
-                    showModalError('Ungültiges Offer SDP oder Link.');
-                    return;
-                }
+                await peerConnection.setRemoteDescription(remoteOffer);
                 
-                // 2. Base64URL-Decoding
-                const offerSdp = atob(urlSafeToBase64(offerSdpB64));
-                const offerDescription = new RTCSessionDescription({ type: 'offer', sdp: offerSdp });
-
-                // 3. PeerConnection initialisieren und Offer setzen
-                await initP2P(false); // isOffer = false
-                await peerConnection.setRemoteDescription(offerDescription);
-
-                // 4. Answer erstellen
+                // Answer erstellen und Local Description setzen
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
 
-                updateP2PStatus('gathering', 'Warte auf ICE-Kandidaten für Answer... (max. 5s)');
-
-                // 5. Warten auf ICE Gathering Complete (siehe Offer-Logik)
-                await new Promise((resolve) => {
-                    if (peerConnection.iceGatheringState === 'complete') {
-                        resolve();
-                    } else {
-                        const checkState = () => {
-                            if (peerConnection.iceGatheringState === 'complete') {
-                                peerConnection.removeEventListener('icegatheringstatechange', checkState);
-                                resolve();
-                            }
-                        };
-                        peerConnection.addEventListener('icegatheringstatechange', checkState);
-                        setTimeout(() => {
-                            peerConnection.removeEventListener('icegatheringstatechange', checkState);
-                            resolve();
-                        }, ICE_GATHERING_TIMEOUT);
-                    }
-                });
-
-                // 6. Base64URL-Encoding und Anzeige
-                const answerSdp = peerConnection.localDescription.sdp;
-                const answerSdpB64 = base64ToUrlSafe(btoa(answerSdp));
-
-                document.getElementById('p2p-answer-output').value = answerSdpB64;
-                document.getElementById('p2p-answer-output').classList.remove('hidden');
-                document.getElementById('p2p-copy-answer').classList.remove('hidden');
+                // Kurz warten, um einige ICE-Kandidaten zu sammeln
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                updateP2PStatus('connecting', 'Answer generiert. Bitte Answer kopieren und an Client senden.');
+                // SDP im Output anzeigen
+                const sdpString = sdpToBase64(peerConnection.localDescription);
+                document.getElementById('p2p-offer-output-answer').value = sdpString;
+                
+                document.getElementById('p2p-status').textContent = 'Answer erstellt. Bitte Code auf Client-Gerät eingeben.';
+                
+                // Warte hier auf onopen, da RemoteDescription gesetzt wurde.
+                await waitForConnection();
+                document.getElementById('p2p-status').textContent = '🎉 P2P-Verbindung erfolgreich hergestellt!';
+                startP2PSync();
 
-                return answerSdpB64;
-
-            } catch (error) {
-                console.error('Fehler beim Erstellen des Answers:', error);
-                showModalError(`Fehler beim Erstellen/Setzen des Answers: ${error.message}`);
+            } catch (e) {
+                console.error("Fehler beim Erstellen der Answer:", e);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error';
+                document.getElementById('p2p-status').textContent = `🚨 Fehler beim Answer-Erstellung: ${e.message}`;
             }
         }
 
-        /**
-         * Akzeptiert das Answer SDP vom Answerer (Chef).
-         * @param {string} answerSdpB64 Das Answer SDP in Base64URL-Format.
-         */
-        async function p2pAcceptAnswer(answerSdpB64) {
-             try {
-                if (!peerConnection) {
-                    showModalError('PeerConnection wurde nicht initialisiert (Offer-Erstellung fehlgeschlagen?).');
-                    return;
-                }
-                updateP2PStatus('connecting', 'Akzeptiere Answer und baue Verbindung auf...');
-
-                const answerSdp = atob(urlSafeToBase64(answerSdpB64));
-                const answerDescription = new RTCSessionDescription({ type: 'answer', sdp: answerSdp });
-
-                await peerConnection.setRemoteDescription(answerDescription);
+        // 3. Answer akzeptieren (Offer-Seite / Client)
+        async function p2pAcceptAnswer(answerBase64) {
+            try {
+                const remoteAnswer = base64ToSdp(answerBase64);
+                if (!remoteAnswer) throw new Error("Ungültiges Answer-Format.");
                 
-                // Verbindung wird über den onopen-Listener im initP2P Promise aufgelöst
-                // Der Promise wird erst aufgelöst, wenn handleOpen() im initP2P getriggert wird.
-                await new Promise(resolve => setTimeout(resolve, 100)); // Kleiner Timeout, damit UI reagieren kann
+                // Answer setzen
+                await peerConnection.setRemoteDescription(remoteAnswer);
+                
+                // Jetzt beginnt die ICE-Verhandlung. Wir warten auf den 'open' Zustand.
+                await waitForConnection();
 
-             } catch (error) {
-                console.error('Fehler beim Akzeptieren des Answers:', error);
-                showModalError(`Fehler beim Akzeptieren des Answers: ${error.message}`);
-             }
-        }
+                // Verbindung erfolgreich!
+                document.getElementById('p2p-status').textContent = '🎉 P2P-Verbindung erfolgreich hergestellt!';
+                startP2PSync(); // Starte den Sync
 
-        /**
-         * Sendet eine einfache Testnachricht über den Data Channel.
-         */
-        function p2pTestSend() {
-            if (dataChannel && dataChannel.readyState === 'open') {
-                const message = `Testnachricht von ${currentDeviceId} um ${new Date().toLocaleTimeString()}`;
-                dataChannel.send(message);
-                console.log('Daten gesendet:', message);
-            } else {
-                showModalError('Data Channel ist nicht geöffnet. Verbindung fehlgeschlagen.');
+            } catch (e) {
+                console.error("Fehler beim Akzeptieren der Answer oder Wartezeit:", e);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error';
+                document.getElementById('p2p-status').textContent = `🚨 Fehler beim Verbindungsaufbau: ${e.message}`;
             }
-        }
-
-
-        // --- UI Hilfsfunktionen (Geräteliste & Kopieren) ---
-
-        /**
-         * Simuliert das Hinzufügen eines Geräts zur Liste.
-         * @param {string} id
-         */
-        function addDevice(id) {
-            const list = document.getElementById('device-list');
-            const newEntry = document.createElement('li');
-            newEntry.className = 'flex justify-between items-center p-3 bg-base-200 rounded-xl shadow-inner';
-            newEntry.innerHTML = `
-                <span class="font-mono text-sm break-all">${id}</span>
-                <button class="btn btn-xs btn-outline btn-success" onclick="p2pTestSend()">Sync senden (Test)</button>
-            `;
-            // Den Skeleton-Platzhalter entfernen, falls vorhanden
-            list.innerHTML = list.innerHTML.includes('skeleton') ? '' : list.innerHTML;
-            list.appendChild(newEntry);
-        }
-
-        /**
-         * Kopiert die Geräte-ID in die Zwischenablage.
-         */
-        function copyDeviceId() {
-            // navigator.clipboard.writeText funktioniert im iFrame oft nicht
-            const el = document.createElement('textarea');
-            el.value = currentDeviceId;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy'); // Fallback für iFrame
-            document.body.removeChild(el);
-            
-            const btn = document.querySelector('.btn-info');
-            btn.textContent = 'Kopiert!';
-            setTimeout(() => { btn.textContent = 'Kopieren'; }, 1500);
         }
         
-        /**
-         * Kopiert den Inhalt des übergebenen Elements in die Zwischenablage.
-         * @param {string} elementId ID des zu kopierenden Elements
-         * @param {string} btnId ID des Buttons zur Statusanzeige
-         */
-        function copyTextFromElement(elementId, btnId) {
-            const el = document.getElementById(elementId);
-            const btn = document.getElementById(btnId);
-
-            if (!el || !el.value) {
-                showModalError('Nichts zum Kopieren vorhanden.');
-                return;
+        // =================================================================
+        // DATENKANAL-HANDLING & UI-LOGIK
+        // =================================================================
+        
+        // Test-Funktion für den eigentlichen Sync-Start
+        function startP2PSync() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                console.log("P2P-Sync gestartet! Sende Testnachricht...");
+                dataChannel.send(JSON.stringify({ type: 'TEST', message: 'Hallo von Gerät ' + (p2pIsOffer ? 'Client' : 'Chef') + '!' }));
+                document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-primary">[LOCAL] Gesendet: Hallo!</div>`;
             }
-
-            const tempInput = document.createElement('textarea');
-            tempInput.value = el.value;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-
-            btn.textContent = 'Kopiert!';
-            setTimeout(() => {
-                if (elementId === 'p2p-offer-output') {
-                    btn.textContent = '2. Offer Link kopieren';
-                } else if (elementId === 'p2p-answer-output') {
-                    btn.textContent = '2. Answer kopieren';
-                }
-            }, 1500);
         }
 
-        // --- Initialisierung und Event-Listener ---
+        // Funktion zur Nachrichtenbehandlung
+        function handleDataChannelMessage(event) {
+            console.log("Nachricht erhalten:", event.data);
+            let message = event.data;
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'TEST') {
+                    message = `Testnachricht erhalten: ${data.message}`;
+                } else {
+                     message = "Datenpaket erhalten: " + JSON.stringify(data, null, 2);
+                }
+            } catch(e) {
+                // Nicht-JSON Nachricht
+            }
+            document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-secondary">[REMOTE] Erhalten: ${message}</div>`;
+        }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // 1. Geräte-ID initialisieren
-            currentDeviceId = crypto.randomUUID().substring(0, 8).toUpperCase();
-            document.getElementById('current-device-id').textContent = currentDeviceId;
+
+        // =================================================================
+        // UI EVENT-LISTENERS
+        // =================================================================
+        window.onload = function() {
+            const p2p_modal = document.getElementById('p2p_modal');
             
-            // Simuliere einige bereits registrierte Geräte
-            addDevice('ABCDEF01');
-            addDevice('23456789');
-
-            // 2. P2P Modal Buttons
+            // 1. P2P-Modal Listeners
             document.getElementById('p2p-modal-btn').addEventListener('click', () => {
-                 p2p-modal.showModal();
-                 // Zurücksetzen auf Offer-Modus beim Öffnen
-                 document.getElementById('tab-offer').checked = true;
-                 p2pIsOffer = true;
-                 updateP2PStatus('disconnected', 'Bereit zur Initiierung.');
-                 document.getElementById('qr-container').classList.add('hidden');
+                 p2p_modal.showModal();
+                 // Reset Status
+                 document.getElementById('p2p-status').textContent = 'Status: Bereit.';
+                 document.getElementById('p2p-answer-input').value = '';
                  document.getElementById('p2p-offer-output').value = '';
-                 document.getElementById('p2p-copy-offer-link').classList.add('hidden');
-            });
+                 document.getElementById('p2p-answer-input-answer').value = '';
+                 document.getElementById('p2p-offer-output-answer').value = '';
+                 document.getElementById('p2p-log').innerHTML = '';
 
-            // 3. P2P Offer/Answer Logik
+                 p2pOfferGenerated = false; // Zurücksetzen des Offer-States
+                 initP2P(p2pIsOffer); // Optional: Pre-Init die PC
+
+            });
             
-            // Offer-Erstellung (Client)
-            document.getElementById('p2p-create-offer-btn').addEventListener('click', () => {
+            // 2. Offer-Seite: Offer generieren
+            document.getElementById('p2p-generate-offer-btn').addEventListener('click', () => {
+                 p2pIsOffer = true;
                  p2pCreateOffer();
             });
-            document.getElementById('p2p-copy-offer-link').addEventListener('click', () => {
-                 copyTextFromElement('p2p-offer-output', 'p2p-copy-offer-link');
-            });
             
-            // Answer-Erstellung (Chef)
-            document.getElementById('p2p-create-answer-btn').addEventListener('click', () => {
-                 const offer = document.getElementById('p2p-offer-input').value.trim();
-                 if (offer) p2pCreateAnswer(offer);
-            });
-            document.getElementById('p2p-copy-answer').addEventListener('click', () => {
-                 copyTextFromElement('p2p-answer-output', 'p2p-copy-answer');
-            });
-            
-            // Answer-Akzeptanz (Client, nach Erhalt des Answers)
-            document.getElementById('p2p-accept-answer-btn').addEventListener('click', () => {
+            // 3. Offer-Seite: Answer akzeptieren
+            document.getElementById('p2p-start-pull-btn').addEventListener('click', () => {
                  const answer = document.getElementById('p2p-answer-input').value.trim();
-                 if (answer) p2pAcceptAnswer(answer);
-            });
-
-            // Tab-Wechsel im P2P-Modal steuert den Modus
-            document.getElementById('tab-offer').addEventListener('change', () => { p2pIsOffer = true; });
-            document.getElementById('tab-answer').addEventListener('change', () => { p2pIsOffer = false; });
-            
-            // 4. Geräte-Hinzufügen Listener
-            document.getElementById('add-device-btn').addEventListener('click', () => {
-                const newId = document.getElementById('new-device-id-input').value.trim();
-                if (newId) {
-                    addDevice(newId);
-                    document.getElementById('new-device-id-input').value = '';
-                }
-            });
-
-            // 5. URL-Parameter Prüfung (Auto-Answer Modus)
-            const url = new URL(window.location.href);
-            const offerSdpB64Encoded = url.searchParams.get(OFFER_PARAM);
-
-            if (offerSdpB64Encoded) {
-                 // Wir sind der Answerer (Chef), der den Offer Link geklickt hat.
-                 const offerSdpB64 = decodeURIComponent(offerSdpB64Encoded); // NEU: Decoding
-                 const sid = url.searchParams.get(SID_PARAM) || 'Unbekannt';
-                 
-                 console.log(`Auto-Answer Modus: Offer von ${sid} erkannt.`);
-                 
-                 // Modal öffnen und auf Answer-Tab wechseln
-                 const modal = document.getElementById('p2p-modal');
-                 if (modal) {
-                     modal.showModal();
-                     document.getElementById('tab-answer').checked = true;
-                     p2pIsOffer = false;
-
-                     // Offer direkt in das Eingabefeld einfügen
-                     const offerInput = document.getElementById('p2p-offer-input');
-                     offerInput.value = offerSdpB64Encoded; // Das rohe, encodierte Feld zur Visualisierung
-                     
-                     updateP2PStatus('connecting', `Offer von Gerät ${sid} erkannt. Bereite Answer vor...`);
-                     
-                     // Starte Answer-Erstellung sofort
-                     p2pCreateAnswer(offerSdpB64Encoded);
-                     
-                     // URL bereinigen (optional, aber gut für UX)
-                     url.searchParams.delete(OFFER_PARAM);
-                     url.searchParams.delete(SID_PARAM);
-                     window.history.replaceState({}, document.title, url.pathname);
+                 if (answer && p2pIsOffer) {
+                     p2pAcceptAnswer(answer);
+                 } else {
+                     alert("Bitte zuerst den Answer-Code in das Feld 'Answer Code des Chefs eingeben' einfügen.");
                  }
-            }
+            });
             
-            console.log('Mogul P2P-CHEF-Sync gestartet...');
-        });
+            // 4. Answer-Seite: Answer generieren
+            document.getElementById('p2p-create-answer-btn').addEventListener('click', () => {
+                 p2pIsOffer = false;
+                 const offer = document.getElementById('p2p-answer-input-answer').value.trim();
+                 if (offer) {
+                     p2pCreateAnswer(offer);
+                 } else {
+                     alert("Bitte zuerst den Offer-Code in das Feld 'Offer Code des Clients eingeben' einfügen.");
+                 }
+            });
+            
+            // 5. Tab-Wechsel steuert den Modus (Offer/Answer)
+            document.getElementById('tab-offer').addEventListener('change', () => {
+                p2pIsOffer = true;
+                p2pOfferGenerated = false;
+                initP2P(p2pIsOffer);
+            });
+            
+            document.getElementById('tab-answer').addEventListener('change', () => {
+                p2pIsOffer = false;
+                p2pOfferGenerated = false;
+                initP2P(p2pIsOffer);
+            });
+
+            console.log('Mogul P2P-CHEF-Sync gestartet (Deadlock-Fix aktiv).');
+        }
     </script>
 </body>
 </html>
