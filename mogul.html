@@ -3,34 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mogul P2P Sync - WhatsApp Media</title>
+    <title>Mogul P2P Sync - Final Design</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* BASE DESIGN UND TYPOGRAFIE */
         body { font-family: system-ui, -apple-system, sans-serif; }
         .connection-dot { 
             width: 12px; height: 12px; border-radius: 50%; 
             display: inline-block; margin-right: 8px; 
         }
-        #chat-box { max-height: 400px; overflow-y: auto; }
-        .embedded-media { max-width: 250px; max-height: 250px; border-radius: 8px; } 
+        
+        /* CHAT BEREICH */
+        #chat-box { max-height: 400px; overflow-y: auto; background-color: #f5f5f5; border: 1px solid #ddd; }
+        
+        /* MEDIEN DARSTELLUNG */
+        .embedded-media { max-width: 250px; max-height: 250px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); } 
         .video-container, .image-container { max-width: 250px; }
-        .audio-container { display: flex; align-items: center; background-color: #e5e7eb; padding: 6px; border-radius: 12px; }
+        .audio-container { display: flex; align-items: center; background-color: #f5f5f5; padding: 6px; border-radius: 12px; }
         .speed-button { font-size: 0.75rem; padding: 2px 6px; margin-left: 8px; }
+
+        /* ZUSTANDSKLASSEN */
         .hidden-button { display: none !important; } 
+
+        /* UX Anpassungen */
+        .btn-primary { 
+            background-color: #4f46e5; 
+            border-color: #4f46e5;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.3);
+        }
+        .btn-primary:hover {
+            background-color: #4338ca; 
+            border-color: #4338ca;
+        }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 mt-8">
+<body class="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-100 p-4">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-2xl p-6 mt-8 border border-gray-200">
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Mogul P2P Sync</h1>
-            <p class="text-gray-600">Einfach verbinden - Automatisch synchronisieren</p>
+            <h1 class="text-3xl font-extrabold text-gray-800 mb-2">Mogul P2P Sync</h1>
+            <p class="text-gray-500">Einfach verbinden - Automatisch synchronisieren</p>
         </div>
 
-        <div id="connection-status" class="mb-6 p-4 bg-gray-100 rounded-xl text-center">
+        <div id="connection-status" class="mb-6 p-4 bg-gray-100 rounded-xl text-center shadow-inner">
             <div class="flex items-center justify-center mb-2">
                 <div id="status-dot" class="connection-dot bg-gray-400"></div>
-                <span id="status-text" class="font-medium">Bereit für Verbindung</span>
+                <span id="status-text" class="font-bold">Bereit für Verbindung</span>
             </div>
             <p id="status-detail" class="text-sm text-gray-600 text-center">
                 Klicken Sie auf "Verbindung starten"
@@ -44,7 +63,7 @@
         </div>
 
         <div id="link-section" class="hidden space-y-4">
-            <div id="offer-section" class="bg-blue-50 p-4 rounded-xl border border-blue-200">
+            <div id="offer-section" class="bg-blue-50 p-4 rounded-xl border border-blue-200 shadow-md">
                 <h3 class="font-semibold text-blue-800 mb-2 flex items-center">
                     <span class="connection-dot bg-blue-500"></span>
                     Schritt 1: Link teilen
@@ -56,9 +75,6 @@
                     <div id="offer-link" class="text-xs break-all font-mono text-blue-800 mb-2"></div>
                     
                     <div id="share-buttons" class="flex space-x-2 mt-2">
-                        <button id="share-offer" class="btn btn-secondary w-1/2 hidden">
-                            📤 Teilen (Native)
-                        </button>
                         <button id="copy-offer" class="btn btn-outline btn-primary w-full">
                             📋 Link kopieren
                         </button>
@@ -67,7 +83,7 @@
                 </div>
             </div>
 
-            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 hidden">
+            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 hidden shadow-md">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500"></span>
                     Schritt 2: Auf Antwort warten
@@ -80,7 +96,7 @@
                 </div>
             </div>
 
-            <div id="connected-section" class="bg-green-100 p-4 rounded-xl border border-green-300 hidden">
+            <div id="connected-section" class="bg-green-100 p-4 rounded-xl border border-green-300 hidden shadow-md">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500 animate-pulse"></span>
                     ✅ Verbunden!
@@ -96,7 +112,7 @@
 
         <div id="data-section" class="mt-6 hidden">
             <h3 class="font-semibold text-gray-800 mb-3">Status (Verbindung)</h3>
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
                 <div id="sync-data" class="text-sm text-gray-700 text-center py-2">
                     Warte auf manuelle Aktivität...
                 </div>
@@ -106,10 +122,10 @@
         <div id="chat-section" class="mt-6 hidden">
             <h3 class="font-semibold text-gray-800 mb-3">Mini-Chat</h3>
             
-            <div id="chat-box" class="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-3 space-y-2">
+            <div id="chat-box" class="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-3 space-y-2 shadow-inner">
                 </div>
 
-            <div id="file-progress-container" class="bg-white p-2 rounded-xl border border-gray-200 mb-3 hidden">
+            <div id="file-progress-container" class="bg-white p-2 rounded-xl border border-gray-200 mb-3 hidden shadow-md">
                 <h4 class="font-semibold text-gray-800 text-xs flex justify-between items-center">
                     Datei-Übertragung
                     <span id="file-progress-text" class="text-xs text-gray-600"></span>
@@ -118,15 +134,17 @@
                 <div id="receive-status" class="text-sm text-center text-gray-600">Bereit zum Senden/Empfangen.</div>
             </div>
 
-            <div class="flex space-x-2">
+            <div class="flex space-x-2 items-center">
                 <input type="file" id="media-file-input" accept="video/*,audio/*,image/*" class="hidden" />
 
-                <button id="media-trigger" class="btn btn-ghost btn-circle text-gray-600">
+                <button id="media-trigger" class="btn btn-ghost btn-circle text-gray-600 hover:text-blue-500 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path></svg>
                 </button>
 
-                <input id="chat-input" type="text" placeholder="Nachricht eingeben..." class="input input-bordered w-full" onkeydown="if(event.keyCode===13) document.getElementById('send-message').click()">
-                <button id="send-message" class="btn btn-primary">Senden</button>
+                <input id="chat-input" type="text" placeholder="Nachricht eingeben..." class="input input-bordered w-full rounded-full" onkeydown="if(event.keyCode===13) document.getElementById('send-message').click()">
+                <button id="send-message" class="btn btn-primary btn-circle">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.599 60.599 0 0 0 18.442-8.625.75.75 0 0 0 0-1.25 60.599 60.599 0 0 0-18.442-8.625Z" /></svg>
+                </button>
             </div>
         </div>
     </div>
@@ -217,15 +235,9 @@
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
                 
+                // Native Share Button Logik entfernen (nur Copy-Button bleibt)
                 const copyBtn = document.getElementById('copy-offer');
-                const shareBtn = document.getElementById('share-offer');
-                if (navigator.share) {
-                    shareBtn.classList.remove('hidden');
-                    copyBtn.className = 'btn btn-outline btn-primary w-1/2';
-                } else {
-                    shareBtn.classList.add('hidden');
-                    copyBtn.className = 'btn btn-outline btn-primary w-full';
-                }
+                copyBtn.className = 'btn btn-outline btn-primary w-full';
 
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
@@ -316,24 +328,10 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        // Native Share Logik entfernt, Funktion bleibt nur als Platzhalter
         async function shareOfferLink() {
-            const link = document.getElementById('offer-link').textContent;
-            try {
-                if (navigator.share) {
-                    await navigator.share({
-                        title: 'Mogul P2P Sync',
-                        text: 'Möchtest du mit mir synchronisieren? Hier ist der Link:\n' + link, 
-                        url: link
-                    });
-                } else {
-                    await navigator.clipboard.writeText(link);
-                    const copyBtn = document.getElementById('copy-offer');
-                    copyBtn.textContent = '✅ Link kopiert!';
-                    setTimeout(() => { copyBtn.textContent = '📋 Link kopieren'; }, 2000);
-                }
-            } catch (error) {
-                console.error('Fehler beim Teilen:', error);
-            }
+            // Wird nicht mehr verwendet, aber die Funktion bleibt für sauberen Code
+            console.log('Native Share API wurde entfernt. Bitte Link kopieren.');
         }
 
         // =================================================================
@@ -440,7 +438,6 @@
             await waitForAnswer();
         }
 
-        // **KORRIGIERTE WIEDERHERSTELLUNG**
         async function continueInitiatorFlow(restoredSdp) {
             updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
             
@@ -448,12 +445,9 @@
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
             
-            // WICHTIG: Wiederherstellung der lokalen Beschreibung, ohne setLocalDescription aufzurufen, 
-            // um den WebRTC-Fehler zu vermeiden.
             peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
             
             // KEINE setRemoteDescription(offerAsRemote) HIER!
-
             await waitForAnswer(true); 
         }
 
@@ -637,15 +631,76 @@
             });
         }
 
+        function setupDataChannel(channel) {
+            channel.onopen = () => {
+                console.log('DataChannel geöffnet');
+            };
+
+            channel.onmessage = async (event) => {
+                if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'chat') {
+                            const sender = data.deviceName;
+                            displayChatMessage(sender, data.message, false);
+                        } else if (data.type === 'file-meta') {
+                            handleIncomingFileMeta(data);
+                        } else if (data.type === 'file-end') {
+                            handleFileTransferEnd();
+                        } else if (data.type === 'sync-data') {
+                            displaySyncData(data);
+                        }
+                    } catch (e) {
+                        console.log('Empfangene Nachricht (Nicht-JSON):', event.data);
+                    }
+                } else if (event.data instanceof ArrayBuffer) {
+                    handleIncomingFileChunk(event.data);
+                }
+            };
+
+            channel.onclose = () => {
+                updateStatus('ready', 'Verbindung geschlossen');
+                document.getElementById('start-button-container').classList.remove('hidden'); 
+                document.getElementById('link-section').classList.add('hidden');
+                document.getElementById('connected-section').classList.add('hidden');
+                document.getElementById('data-section').classList.add('hidden');
+                document.getElementById('chat-section').classList.add('hidden');
+                document.getElementById('file-progress-container').classList.add('hidden');
+                localStorage.removeItem(STORAGE_KEY); 
+            };
+
+            channel.onerror = (error) => {
+                console.error('DataChannel Fehler:', error);
+                updateStatus('error', 'Verbindungsfehler im DataChannel');
+                document.getElementById('start-button-container').classList.remove('hidden'); 
+                localStorage.removeItem(STORAGE_KEY); 
+            };
+        }
+
+        function sendMessage(message) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const chatData = {
+                    type: 'chat',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    message: message,
+                    timestamp: new Date().toISOString()
+                };
+                
+                dataChannel.send(JSON.stringify(chatData));
+                displayChatMessage('Ich', message, true);
+            } else {
+                alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
+            }
+        }
+
         // =================================================================
         // DATEI-SENDEN & EMPFANGEN LOGIK
         // =================================================================
 
         function sendFile(file) {
-            // Zeige Fortschritt an
             document.getElementById('file-progress-container').classList.remove('hidden');
 
-            // Metadaten senden
             const fileMeta = {
                 type: 'file-meta',
                 name: file.name,
@@ -684,11 +739,10 @@
                     dataChannel.send(JSON.stringify({ type: 'file-end' }));
                     document.getElementById('receive-status').textContent = `Datei "${file.name}" erfolgreich gesendet.`;
                     
-                    // Lokale Anzeige des gesendeten Mediums im Chat
                     const fileUrl = URL.createObjectURL(file);
                     displayMediaPreview(fileMeta.sender, fileUrl, fileMeta.name, fileMeta.mimeType, true);
                     
-                    document.getElementById('media-file-input').value = ''; // Input leeren
+                    document.getElementById('media-file-input').value = '';
                     document.getElementById('file-progress-container').classList.add('hidden');
                 }
             };
@@ -726,10 +780,8 @@
             
             statusEl.innerHTML = `Datei **${fileName}** empfangen.`;
 
-            // Anzeige des empfangenen Mediums direkt im Chat
             displayMediaPreview(sender, fileUrl, fileName, fileMimeType, false);
 
-            // Reset
             receivingFileMeta = null;
             receivedSlices = [];
             document.getElementById('file-progress-container').classList.add('hidden');
@@ -819,10 +871,11 @@
         // =================================================================
         document.addEventListener('DOMContentLoaded', function() {
             const copyOfferButton = document.getElementById('copy-offer');
-            const shareOfferButton = document.getElementById('share-offer');
             const endConnectionButton = document.getElementById('end-connection');
             const mediaTriggerButton = document.getElementById('media-trigger');
             const fileInput = document.getElementById('media-file-input');
+            
+            // NOTE: shareOfferButton wurde entfernt
 
             // --- P2P Start / End ---
             document.getElementById('start-connection').addEventListener('click', () => {
@@ -869,10 +922,6 @@
                     }, 2000);
                 });
             });
-
-            if (shareOfferButton) {
-                shareOfferButton.addEventListener('click', shareOfferLink);
-            }
             
             // --- Automatischer Start / Zustandswiederherstellung ---
             const offerCode = getOfferCodeFromUrl();
