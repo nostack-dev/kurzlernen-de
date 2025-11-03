@@ -83,7 +83,7 @@
                 </div>
             </div>
 
-            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 hidden shadow-md">
+            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 shadow-md">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500"></span>
                     Schritt 2: Auf Antwort warten
@@ -94,7 +94,7 @@
                 <div class="text-center py-2">
                     <div class="loading loading-spinner text-green-500"></div>
                 </div>
-                <button id="cancel-connection" class="btn btn-warning btn-sm w-full mt-3">
+                <button id="cancel-connection" class="btn btn-warning btn-sm w-full mt-3 hidden">
                     ❌ Sitzung abbrechen / Neustarten
                 </button>
             </div>
@@ -170,7 +170,7 @@
         let nextSlice = 0;
         let receivedSlices = [];
         let receivingFileMeta = null;
-        let answerCheckInterval = null; // NEU: Globaler Handler für das Warte-Intervall
+        let answerCheckInterval = null; // Handler für das Warte-Intervall
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -238,10 +238,13 @@
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
-                
-                const copyBtn = document.getElementById('copy-offer');
-                copyBtn.className = 'btn btn-outline btn-primary w-full';
+                document.getElementById('copy-offer').className = 'btn btn-outline btn-primary w-full';
 
+            } else if (sectionId === 'answer-section') {
+                document.getElementById('link-section').classList.remove('hidden');
+                document.getElementById('answer-section').classList.remove('hidden');
+                document.getElementById('cancel-connection').classList.remove('hidden'); // NEU: Mache Abbruch-Button sichtbar
+            
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
@@ -332,7 +335,7 @@
         }
 
         async function shareOfferLink() {
-            // Funktion ist entfernt, bleibt als Platzhalter
+            // Funktion ist entfernt
         }
 
         // =================================================================
@@ -500,9 +503,10 @@
                 
                 updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
                 document.getElementById('offer-link').textContent = finalAnswerUrl;
+                showSection('link-section'); // Zeigt Link-Sektion
+                
                 document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
                 document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
-                showSection('link-section');
                 
                 document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
                 
@@ -523,20 +527,24 @@
             }
 
             updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
-            document.getElementById('answer-section').classList.remove('hidden');
+            showSection('answer-section'); // NEU: Zeigt den Wartezustand UND den Cancel-Button
+            document.getElementById('wait-message').textContent = 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...';
+
 
             return new Promise((resolve, reject) => {
-                answerCheckInterval = setInterval(async () => { // NEU: Speichere Intervall-ID
+                answerCheckInterval = setInterval(async () => { 
                     try {
                         const answerCode = getAnswerCodeFromUrl();
                         
                         if (answerCode) {
                             clearInterval(answerCheckInterval);
+                            answerCheckInterval = null; // NEU: Setze Intervall zurück
                             await processAnswer(answerCode);
                             resolve();
                         }
                     } catch (error) {
                         clearInterval(answerCheckInterval);
+                        answerCheckInterval = null; // NEU: Setze Intervall zurück
                         reject(error);
                     }
                 }, 1000);
@@ -544,6 +552,7 @@
                 setTimeout(() => {
                     if (answerCheckInterval) {
                         clearInterval(answerCheckInterval);
+                        answerCheckInterval = null; // NEU: Setze Intervall zurück
                         reject(new Error('Timeout: Keine Antwort erhalten'));
                     }
                 }, 120000);
@@ -570,7 +579,6 @@
             await establishConnection();
         }
 
-        // NEU: Allgemeine Reset-Funktion
         function resetConnectionState() {
             if (peerConnection) {
                 peerConnection.close();
@@ -589,6 +597,9 @@
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
             document.getElementById('file-progress-container').classList.add('hidden');
+            
+            // NEU: Verstecke den Cancel-Button nach dem Reset
+            document.getElementById('cancel-connection').classList.add('hidden');
         }
 
         function endConnection() {
@@ -673,12 +684,12 @@
             };
 
             channel.onclose = () => {
-                resetConnectionState(); // Nutze die allgemeine Reset-Funktion
+                resetConnectionState(); 
             };
 
             channel.onerror = (error) => {
                 console.error('DataChannel Fehler:', error);
-                resetConnectionState(); // Nutze die allgemeine Reset-Funktion
+                resetConnectionState();
                 updateStatus('error', 'Verbindungsfehler im DataChannel');
             };
         }
@@ -816,7 +827,7 @@
             const endConnectionButton = document.getElementById('end-connection');
             const mediaTriggerButton = document.getElementById('media-trigger');
             const fileInput = document.getElementById('media-file-input');
-            const cancelButton = document.getElementById('cancel-connection'); // NEU: Cancel Button
+            const cancelButton = document.getElementById('cancel-connection'); 
 
             // --- P2P Start / End / Cancel ---
             document.getElementById('start-connection').addEventListener('click', () => {
@@ -827,13 +838,7 @@
                 endConnectionButton.addEventListener('click', endConnection);
             }
             if (cancelButton) {
-                cancelButton.addEventListener('click', () => {
-                    // NEU: Abbruch der Wartezeit und vollständiges Reset
-                    if (answerCheckInterval) {
-                        clearInterval(answerCheckInterval);
-                    }
-                    resetConnectionState();
-                });
+                cancelButton.addEventListener('click', resetConnectionState); // Ruft den Reset auf
             }
 
             // --- Datei Senden Trigger ---
