@@ -97,7 +97,7 @@
         // =================================================================
         let peerConnection = null;
         let dataChannel = null;
-        let currentRole = null; // 'initiator' oder 'responder'
+        let currentRole = null; 
         let connectionAttempts = 0;
         const MAX_ATTEMPTS = 3;
 
@@ -106,7 +106,7 @@
         };
 
         // =================================================================
-        // UI MANAGEMENT - SUPER SIMPLE
+        // UI MANAGEMENT 
         // =================================================================
         function updateStatus(status, detail = "") {
             const dot = document.getElementById('status-dot');
@@ -129,14 +129,12 @@
         }
 
         function showSection(sectionId) {
-            // Verstecke alle Sektionen
             document.getElementById('link-section').classList.add('hidden');
             document.getElementById('offer-section').classList.add('hidden');
             document.getElementById('answer-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             
-            // Zeige die gewünschte Sektion
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
@@ -187,31 +185,56 @@
             return offerCode;
         }
         
-        // **NEU: Funktion zur Abfrage des Answer-Codes**
         function getAnswerCodeFromUrl() {
             const urlHash = window.location.hash.substring(1);
             const hashParams = new URLSearchParams(urlHash);
             return hashParams.get('answer');
         }
 
+        // **NEU:** Robuste Decodierung
+        function decodeBase64Json(base64String) {
+            if (!base64String) {
+                throw new Error("Leerer String für Decodierung.");
+            }
+            try {
+                // 1. URL-Decodierung: Stellt sicher, dass Zeichen wie '+' (die als Leerzeichen interpretiert werden könnten) korrekt sind.
+                const decodedUri = decodeURIComponent(base64String.replace(/\s/g, ''));
+                
+                // 2. Base64 Decodierung: atob()
+                const jsonString = atob(decodedUri);
+                
+                // 3. JSON Parsen
+                return JSON.parse(jsonString);
+            } catch (e) {
+                console.error("Decodierungsfehler:", e);
+                // Gibt den ursprünglichen Fehler des atob/JSON.parse weiter
+                throw new Error(`Decodierungsfehler: Der übergebene Code ist ungültig oder beschädigt. (${e.message})`);
+            }
+        }
 
-        async function startConnection(initialAnswerCode = null) {
+
+        async function startConnection() {
             try {
                 document.getElementById('start-connection').disabled = true;
                 updateStatus('generating');
                 
                 const offerCode = getOfferCodeFromUrl();
+                const answerCode = getAnswerCodeFromUrl();
                 
                 if (offerCode) {
                     // Szenario 1: Responder-Modus (Link mit ?offer= oder #offer= geöffnet)
                     currentRole = 'responder';
+                    // Der Answer Code muss für das Responder-Gerät entfernt werden, damit es nicht in eine Schleife gerät.
                     history.replaceState(null, '', window.location.pathname);
                     await handleIncomingOffer(offerCode);
 
-                } else if (initialAnswerCode) {
-                    // Szenario 2: Initiator-Modus, der den Answer-Link von B öffnet
+                } else if (answerCode) {
+                    // Szenario 2: Initiator-Modus, der den Answer-Link im selben Tab öffnet (FEHLER-STATUS)
                     currentRole = 'initiator';
-                    await continueInitiatorFlow(initialAnswerCode);
+                    
+                    // **WICHTIG:** Dieser Pfad ist nur ein Fehler-Handler (siehe vorherige Antwort)
+                    // Da die Session weg ist, ist dieser Zustand nicht wiederherstellbar.
+                    throw new Error('Initiator-Sitzung beim Neuladen verloren. Bitte den Answer-Link in das WAITING-Gerät einfügen.');
                     
                 } else {
                     // Szenario 3: Normaler Initiator-Start (Button geklickt)
@@ -219,7 +242,7 @@
                     await createAndShareOffer();
                 }
             } catch (error) {
-                console.error('Verbindungsfehler:', error);
+                console.error('Verbindungsfehler im startConnection:', error);
                 updateStatus('error', `Fehler: ${error.message}`);
                 
                 if (connectionAttempts < MAX_ATTEMPTS) {
@@ -240,7 +263,6 @@
             }
 
             peerConnection = new RTCPeerConnection(config);
-            
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
 
@@ -266,7 +288,8 @@
                 timestamp: Date.now()
             };
             
-            const offerString = btoa(JSON.stringify(offerData));
+            // **VERWENDUNG DER ROBUSTEN DECODIERUNG FÜR DEN OFFER-STRING**
+            const offerString = btoa(JSON.stringify(offerData)); 
             const shareableUrl = `${window.location.origin}${window.location.pathname}?offer=${encodeURIComponent(offerString)}`;
             
             document.getElementById('offer-link').textContent = shareableUrl;
@@ -283,98 +306,67 @@
                 // Fallback
             }
 
-            // Beginne mit dem Warten auf Answer, das nach dem manuellen Klick durch den Responder abgeschlossen wird
             await waitForAnswer();
-        }
-        
-        /**
-         * **NEU:** Setzt den Initiator-Fluss fort, wenn der Answer-Code bereits in der URL ist (beim Neuladen).
-         */
-        async function continueInitiatorFlow(answerCode) {
-            updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
-            
-            // Simuliere die Antwortverarbeitung, ohne auf den Intervall zu warten
-            const answerData = JSON.parse(atob(answerCode));
-            if (answerData.type !== 'answer') {
-                throw new Error('Ungültiger Answer-Code');
-            }
-
-            const remoteAnswer = {
-                type: 'answer',
-                sdp: atob(answerData.sdp)
-            };
-            
-            // Erzeuge die PeerConnection neu, da sie beim Neuladen verloren geht!
-            peerConnection = new RTCPeerConnection(config);
-            dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
-            setupDataChannel(dataChannel);
-            
-            // Finde den ursprünglichen Offer-Code, falls er nicht gespeichert wurde
-            // Da der Initiator seine Session beim Neuladen verloren hat, ist dies die größte Lücke. 
-            // Hier wird angenommen, dass der Initiator seinen Offer-Code über ein externes Medium gespeichert hat.
-            // **IM MANUELLEN TESTFALL MUSS DER INITIATOR VORHER DEN OFFER-CODE GESPEICHERT HABEN.**
-            // Da das in einer Single-Page-App ohne Speicher schwierig ist,
-            // zeigen wir hier einen Fehler, der den Initiator zwingt, den Prozess neu zu starten.
-
-            throw new Error('Initiator-Session beim Neuladen verloren. Bitte neu starten und den Answer-Link in das WAITING-Gerät einfügen.');
-            
-            // Wenn der Code weiterlaufen würde, bräuchten wir den lokalen Offer-SDP:
-            // await peerConnection.setRemoteDescription(remoteAnswer);
-            // await establishConnection();
         }
 
         async function handleIncomingOffer(offerCode) {
             updateStatus('connecting', 'Verarbeite eingehende Verbindung...');
             
-            const offerData = JSON.parse(atob(offerCode));
-            if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code');
-            
-            const remoteOffer = {
-                type: 'offer',
-                sdp: atob(offerData.sdp)
-            };
+            try {
+                const offerData = decodeBase64Json(offerCode); // **ROBUSTER DECODIERUNGS-AUFRUF**
+                if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code Typ');
+                
+                const remoteOffer = {
+                    type: 'offer',
+                    sdp: atob(offerData.sdp)
+                };
 
-            peerConnection = new RTCPeerConnection(config);
-            
-            peerConnection.ondatachannel = (event) => {
-                dataChannel = event.channel;
-                setupDataChannel(dataChannel); 
-                establishConnection();
-            };
+                peerConnection = new RTCPeerConnection(config);
+                
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannel(dataChannel); 
+                    establishConnection();
+                };
 
-            await peerConnection.setRemoteDescription(remoteOffer);
-            
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
+                await peerConnection.setRemoteDescription(remoteOffer);
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
 
-            await new Promise(resolve => {
-                if (peerConnection.iceGatheringState === 'complete') {
-                    resolve();
-                } else {
-                    peerConnection.onicegatheringstatechange = () => {
-                        if (peerConnection.iceGatheringState === 'complete') {
-                            resolve();
-                        }
-                    };
-                    setTimeout(resolve, 2000);
-                }
-            });
+                await new Promise(resolve => {
+                    if (peerConnection.iceGatheringState === 'complete') {
+                        resolve();
+                    } else {
+                        peerConnection.onicegatheringstatechange = () => {
+                            if (peerConnection.iceGatheringState === 'complete') {
+                                resolve();
+                            }
+                        };
+                        setTimeout(resolve, 2000);
+                    }
+                });
 
-            const answerData = {
-                type: 'answer',
-                sdp: btoa(peerConnection.localDescription.sdp),
-                timestamp: Date.now()
-            };
-            const answerString = btoa(JSON.stringify(answerData));
-            
-            const finalAnswerUrl = `${window.location.origin}${window.location.pathname}#answer=${encodeURIComponent(answerString)}`;
-            
-            updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
-            document.getElementById('offer-link').textContent = finalAnswerUrl;
-            document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
-            document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
-            showSection('link-section');
-            document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
+                const answerData = {
+                    type: 'answer',
+                    sdp: btoa(peerConnection.localDescription.sdp),
+                    timestamp: Date.now()
+                };
+                const answerString = btoa(JSON.stringify(answerData));
+                
+                const finalAnswerUrl = `${window.location.origin}${window.location.pathname}#answer=${encodeURIComponent(answerString)}`;
+                
+                updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
+                document.getElementById('offer-link').textContent = finalAnswerUrl;
+                document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
+                document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
+                showSection('link-section');
+                document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
+
+            } catch (error) {
+                console.error('Fehler bei eingehender Verbindung:', error);
+                throw new Error(`Verbindungsfehler: ${error.message}`);
+            }
         }
 
         async function waitForAnswer() {
@@ -394,9 +386,9 @@
                             
                             updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
                             
-                            const answerData = JSON.parse(atob(answerCode));
+                            const answerData = decodeBase64Json(answerCode); // **ROBUSTER DECODIERUNGS-AUFRUF**
                             if (answerData.type !== 'answer') {
-                                reject(new Error('Ungültiger Answer-Code'));
+                                reject(new Error('Ungültiger Answer-Code Typ'));
                                 return;
                             }
 
@@ -547,18 +539,14 @@
             const answerCode = getAnswerCodeFromUrl();
 
             if (offerCode) {
-                // Automatischer Start als Responder (Gerät B)
                 setTimeout(startConnection, 500);
             } else if (answerCode) {
-                 // **WICHTIG:** Automatischer Start als Initiator, der den Answer-Link geöffnet hat
-                 // Hier muss die Session wiederhergestellt werden, was in einer SPA ohne Speicher nicht geht.
-                 // Wir zeigen einen Fehler, der auf die korrekte Prozedur hinweist.
+                // **HINWEIS:** Dies ist der Fehlerpfad des Initiators, wenn die Sitzung verloren ging.
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
                     updateStatus('error', 'Fehler: Initiator-Sitzung verloren.');
-                    document.getElementById('status-detail').textContent = 'Bitte den Answer-Link (mit #answer=...) in das Fenster des Initiators kopieren, das auf die Antwort wartet.';
+                    document.getElementById('status-detail').textContent = 'Bitte den Answer-Link (mit #answer=...) in das bereits **geöffnete Fenster** des Initiators kopieren, das auf die Antwort wartet.';
                 }, 500);
-
             }
 
             console.log('Mogul P2P Sync - Vollautomatische Version geladen');
