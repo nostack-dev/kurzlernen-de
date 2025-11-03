@@ -647,26 +647,32 @@
             
             // Automatischer Start bei URL-Parametern
             const offerCode = getOfferCodeFromUrl();
-            
-            if (offerCode) {
-                setTimeout(startConnection, 500);
-            } else {
-                const answerCode = getAnswerCodeFromUrl();
-                const storedSdp = localStorage.getItem(STORAGE_KEY); 
+            const answerCode = getAnswerCodeFromUrl();
+            const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
-                if (answerCode && storedSdp) {
-                    setTimeout(() => startConnection(storedSdp), 500);
-                } else if (answerCode && !storedSdp) {
-                    // **KORRIGIERT:** Entferne Hash-Teil bei Fehler, bevor der Benutzer den Button erneut klickt.
-                    history.replaceState(null, '', window.location.pathname);
-                    
-                    setTimeout(() => {
-                        document.getElementById('start-connection').disabled = true;
-                        updateStatus('error', 'Fehler: Sitzung abgelaufen.');
-                        document.getElementById('start-button-container').classList.remove('hidden');
-                        document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
-                    }, 500);
-                }
+            if (offerCode) {
+                // Szenario 1: Responder (Gerät B)
+                setTimeout(startConnection, 500);
+            } else if (answerCode && storedSdp) {
+                // Szenario 2: Initiator lädt neu MIT Answer-Code
+                localStorage.removeItem(STORAGE_KEY); 
+                setTimeout(() => startConnection(storedSdp), 500);
+            } else if (storedSdp && !answerCode) {
+                // Szenario 3: Initiator lädt neu im WAITING-Zustand (F5)
+                setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
+                document.getElementById('start-button-container').classList.add('hidden');
+            } else if (answerCode && !storedSdp) {
+                // Szenario 4: Fehler - Answer-Code ist da, aber der SDP wurde gelöscht
+                
+                // **KORREKTUR:** Entferne Hash-Teil bei Fehler, bevor der Benutzer den Button erneut klickt.
+                history.replaceState(null, '', window.location.pathname);
+                
+                setTimeout(() => {
+                    document.getElementById('start-connection').disabled = true;
+                    updateStatus('error', 'Fehler: Sitzung abgelaufen.');
+                    document.getElementById('start-button-container').classList.remove('hidden');
+                    document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
+                }, 500);
             }
 
             console.log('Mogul P2P Sync - Finaler Code geladen.');
