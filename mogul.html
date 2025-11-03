@@ -14,6 +14,8 @@
         }
         /* Fix für Chat-Box Scroll */
         #chat-box { max-height: 200px; overflow-y: auto; }
+        /* NEU: Klasse zum Ausblenden des Start-Buttons */
+        .hidden-button { display: none !important; } 
     </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -33,7 +35,7 @@
             </p>
         </div>
 
-        <div class="text-center mb-6">
+        <div id="start-button-container" class="text-center mb-6">
             <button id="start-connection" class="btn btn-primary btn-lg w-full rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 🔗 Verbindung starten
             </button>
@@ -88,7 +90,7 @@
         </div>
 
         <div id="data-section" class="mt-6 hidden">
-            <h3 class="font-semibold text-gray-800 mb-3">Status (Automatisches Sync-Signal)</h3>
+            <h3 class="font-semibold text-gray-800 mb-3">Status (Verbindung)</h3>
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <div id="sync-data" class="text-sm text-gray-700 text-center py-2">
                     Warte auf manuelle Aktivität...
@@ -186,7 +188,7 @@
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
-                // **NEU:** Passe die Button-Breite an, falls der Share-Button sichtbar ist
+                
                 const copyBtn = document.getElementById('copy-offer');
                 const shareBtn = document.getElementById('share-offer');
                 if (navigator.share) {
@@ -235,7 +237,6 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // **NEU:** Funktion für native Share API
         async function shareOfferLink() {
             const link = document.getElementById('offer-link').textContent;
             try {
@@ -246,7 +247,6 @@
                         url: link
                     });
                 } else {
-                    // Fallback: Kopiere Link, falls Share API nicht verfügbar
                     await navigator.clipboard.writeText(link);
                     const copyBtn = document.getElementById('copy-offer');
                     copyBtn.textContent = '✅ Link kopiert!';
@@ -282,6 +282,7 @@
         async function startConnection(restoredSdp = null) {
             try {
                 document.getElementById('start-connection').disabled = true;
+                document.getElementById('start-button-container').classList.add('hidden'); // NEU: Verstecke Button beim Start
                 updateStatus('generating');
                 
                 const offerCode = getOfferCodeFromUrl();
@@ -308,9 +309,11 @@
                     setTimeout(() => {
                         updateStatus('ready', `Automatischer Wiederholungsversuch (${connectionAttempts}/${MAX_ATTEMPTS})`);
                         document.getElementById('start-connection').disabled = false;
+                        document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei Retry
                     }, 3000);
                 } else {
                      document.getElementById('start-connection').disabled = false;
+                     document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button nach max. Versuchen
                 }
             }
         }
@@ -354,10 +357,6 @@
             document.getElementById('offer-link').textContent = shareableUrl;
             showSection('link-section');
             updateStatus('waiting', 'Teilen Sie diesen Link mit der anderen Person');
-            
-            // **NEU:** Initialisiere den Share-Button, wenn die Seite geladen wird, aber kopiere nicht automatisch
-            // Die Benutzer entscheiden jetzt, ob sie teilen oder kopieren.
-            // Automatisches Kopieren entfernt, um native Share-Erfahrung zu bevorzugen.
             
             await waitForAnswer();
         }
@@ -430,7 +429,6 @@
                 document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
                 showSection('link-section');
                 
-                // **NEU:** Aktualisiere den Copy-Button auf Gerät B
                 document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
                 
             } catch (error) {
@@ -529,8 +527,10 @@
 
             updateStatus('connected', 'P2P-Verbindung aktiv!');
             showSection('connected-section');
-            document.getElementById('start-connection').disabled = false;
             
+            // **NEU:** Blende den Start-Button aus, da die Verbindung aktiv ist
+            document.getElementById('start-button-container').classList.add('hidden'); 
+
             document.getElementById('sync-data').innerHTML = 'Die P2P-Verbindung ist aktiv und bereit für Datenübertragung.';
 
             document.getElementById('chat-box').innerHTML = '<div class="text-center text-xs text-gray-500">Verbindung hergestellt. Starte Chat!</div>';
@@ -566,6 +566,7 @@
             channel.onclose = () => {
                 updateStatus('error', 'Verbindung geschlossen');
                 document.getElementById('start-connection').disabled = false;
+                document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei Schließen
                 localStorage.removeItem(STORAGE_KEY); 
             };
 
@@ -573,6 +574,7 @@
                 console.error('DataChannel Fehler:', error);
                 updateStatus('error', 'Verbindungsfehler im DataChannel');
                 document.getElementById('start-connection').disabled = false;
+                document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei Fehler
             };
         }
 
@@ -635,12 +637,13 @@
                     setTimeout(() => {
                         document.getElementById('start-connection').disabled = true;
                         updateStatus('error', 'Fehler: Sitzung abgelaufen.');
+                        document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei abgelaufener Sitzung
                         document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                     }, 500);
                 }
             }
 
-            console.log('Mogul P2P Sync - Native Share-Funktion implementiert.');
+            console.log('Mogul P2P Sync - Flow optimiert.');
         });
     </script>
 </body>
