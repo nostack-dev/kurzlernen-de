@@ -440,6 +440,7 @@
             await waitForAnswer();
         }
 
+        // **KORRIGIERTE WIEDERHERSTELLUNG**
         async function continueInitiatorFlow(restoredSdp) {
             updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
             
@@ -447,10 +448,11 @@
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
             
+            // WICHTIG: Wiederherstellung der lokalen Beschreibung, ohne setLocalDescription aufzurufen, 
+            // um den WebRTC-Fehler zu vermeiden.
             peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
             
-            const offerAsRemote = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
-            await peerConnection.setRemoteDescription(offerAsRemote);
+            // KEINE setRemoteDescription(offerAsRemote) HIER!
 
             await waitForAnswer(true); 
         }
@@ -582,6 +584,7 @@
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('file-progress-container').classList.add('hidden');
             localStorage.removeItem(STORAGE_KEY);
         }
 
@@ -830,10 +833,10 @@
                 endConnectionButton.addEventListener('click', endConnection);
             }
 
-            // --- Datei Senden Trigger (NEU: Klick-Ereignis vom Icon) ---
+            // --- Datei Senden Trigger ---
             mediaTriggerButton.addEventListener('click', function() {
                 if (dataChannel && dataChannel.readyState === 'open') {
-                    fileInput.click(); // Öffnet den nativen Dateiauswahl-Dialog
+                    fileInput.click();
                 } else {
                     alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!", bevor Sie eine Datei senden.');
                 }
