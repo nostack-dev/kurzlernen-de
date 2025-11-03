@@ -9,7 +9,7 @@
         Intelligente Signalisierung: Ersetzt manuelles Kopieren/Tippen durch QR-Codes.
         Der QR-Code enthält: [Typ]|[PIN]|[Verschlüsselter SDP-Code]
         Der Benutzer muss nur noch scannen und den Text in das Feld "Gescannten Code einfügen" pasten.
-        UPDATE: Größe und Fehlerkorrektur für bessere Scanbarkeit angepasst.
+        UPDATE: UI auf zwei Hauptaktionen vereinfacht (Generate/Scan & Answer).
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -79,42 +79,45 @@
         <div class="modal-box w-11/12 max-w-4xl p-6 rounded-2xl">
             <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent (QR-Code)</h3>
             
-            <div id="p2p-steps">
+            <div id="p2p-steps" class="space-y-6">
                 
-                <!-- INPUT SECTION (Gemeinsam für Offer & Answer) -->
-                <div class="border-b pb-4 mb-4">
+                <!-- 1. OFFER DEVICE START -->
+                <div id="offer-start-step" class="border p-4 rounded-xl bg-base-100 shadow-lg">
+                    <h5 class="font-bold text-lg text-primary">Gerät A (Client/Handy): Offer erstellen</h5>
+                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg mt-2">1. Offer Code generieren</button>
+                </div>
+
+                <!-- QR CODE DISPLAY FOR OFFER -->
+                <div id="offer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                    <p class="text-sm mb-2 font-medium">**Schritt 1.1:** Auf **Gerät B** (PC) scannen und den resultierenden Text in das Feld unten einfügen.</p>
+                    <div id="offer-qrcode" class="qr-container bg-white shadow-inner"></div>
+                </div>
+
+                <!-- 2. INPUT SECTION (Gemeinsam für Offer & Answer) -->
+                <div class="border-b pb-4 mt-6">
                     <h4 class="font-bold text-xl mb-3 text-secondary">Gescannten Code einfügen (Input)</h4>
-                    <p class="text-sm mb-2 text-gray-500">Scannen Sie den QR-Code auf dem Partnergerät und fügen Sie den resultierenden Text hier ein. **(WICHTIG: Er muss mit 'O|' oder 'A|' beginnen)**</p>
-                    <textarea id="p2p-scanned-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="Gescannten Base64 Code hier einfügen (z.B. A|123456|...)" oninput="this.value = this.value.toUpperCase().replace(/\s/g, '');"></textarea>
+                    <p class="text-sm mb-2 text-gray-500">Fügen Sie den gescannten QR-Code-Text hier ein, um den Sync-Flow fortzusetzen.</p>
+                    <textarea id="p2p-scanned-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="Gescannten Base64 Code hier einfügen (z.B. A|123456|...)" oninput="handleInputScan(this.value)"></textarea>
                 </div>
 
-                <!-- CLIENT (OFFER) SECTION -->
-                <div id="offer-section" class="border-b pb-4 mb-4">
-                    <h4 class="font-bold text-xl mb-3 text-primary">1. Offer-Gerät (Client/Handy)</h4>
-
-                    <h5 class="font-bold mt-2 mb-1">A. Offer erstellen & QR generieren</h5>
-                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg mb-4">Offer & QR generieren</button>
-                    
-                    <div id="offer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
-                        <p class="text-sm mb-2 font-medium">1. **QR-Code:** Auf dem Answer-Gerät scannen.</p>
-                        <div id="offer-qrcode" class="qr-container bg-white shadow-inner"></div>
-                        <p class="text-sm mt-4 text-center">2. **Warten** Sie, bis das Answer-Gerät den Answer-QR-Code zurückgibt.</p>
-                        <button id="p2p-start-pull-btn" class="btn btn-sm btn-success w-full mt-2 rounded-lg" disabled>C. Verbindung herstellen (Answer entschlüsseln)</button>
-                    </div>
+                <!-- 3. ANSWER DEVICE FLOW (Enabled by Offer Input) -->
+                <div id="answer-flow-step" class="border p-4 rounded-xl bg-base-100 shadow-lg hidden">
+                    <h5 class="font-bold text-lg text-info">Gerät B (Chef/PC): Answer generieren</h5>
+                    <p id="answer-prompt" class="text-sm text-gray-600 mb-2">Offer Code erkannt. Generieren Sie nun den Answer Code und teilen Sie ihn mit Gerät A:</p>
+                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-info rounded-lg mt-2">2. Answer Code generieren</button>
                 </div>
                 
-                <!-- ANSWER (CHEF) SECTION -->
-                <div id="answer-section">
-                    <h4 class="font-bold text-xl mb-3 mt-6 text-info">2. Answer-Gerät (Chef/PC)</h4>
-                    
-                    <h5 class="font-bold mb-1">B. Answer generieren</h5>
-                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-info rounded-lg">Answer generieren (Offer Input wird genutzt)</button>
-
-                    <div id="answer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
-                        <p class="text-sm mb-2 font-medium">1. **QR-Code:** Auf dem Offer-Gerät scannen.</p>
-                        <div id="answer-qrcode" class="qr-container bg-white shadow-inner"></div>
-                        <p class="text-sm mt-4 text-center">2. **Warten** auf die Verbindung...</p>
-                    </div>
+                <!-- QR CODE DISPLAY FOR ANSWER -->
+                <div id="answer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                    <p class="text-sm mb-2 font-medium">**Schritt 2.1:** Auf **Gerät A** (Handy) scannen und den Text in das Input-Feld einfügen.</p>
+                    <div id="answer-qrcode" class="qr-container bg-white shadow-inner"></div>
+                </div>
+                
+                <!-- 4. FINALIZE CONNECTION (Offer Device Final Step) -->
+                <div id="finalize-flow-step" class="border p-4 rounded-xl bg-base-100 shadow-lg hidden">
+                    <h5 class="font-bold text-lg text-success">Gerät A (Verbindung abschließen)</h5>
+                    <p id="finalize-prompt" class="text-sm text-gray-600 mb-2">Answer Code erkannt. Schließen Sie die P2P-Verbindung ab:</p>
+                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg mt-2" disabled>3. Verbindung herstellen</button>
                 </div>
             </div>
 
@@ -416,14 +419,46 @@
             return null;
         }
 
+        // Steuert, welche Flow-Schritte sichtbar sind basierend auf dem gescannten Input
+        function handleInputScan(value) {
+            const parsed = parseScannedCode(value);
+            const answerFlow = document.getElementById('answer-flow-step');
+            const finalizeFlow = document.getElementById('finalize-flow-step');
+            const pullButton = document.getElementById('p2p-start-pull-btn');
+
+            answerFlow.classList.add('hidden');
+            finalizeFlow.classList.add('hidden');
+            pullButton.disabled = true;
+
+            if (parsed) {
+                if (parsed.type === 'O') {
+                    // Offer Code gescannt (Gerät B muss Answer generieren)
+                    answerFlow.classList.remove('hidden');
+                    document.getElementById('answer-prompt').textContent = `Offer Code von Gerät A (Typ ${parsed.type}, PIN ${parsed.pin}) wurde erkannt. Generieren Sie nun den Answer Code:`;
+                    
+                } else if (parsed.type === 'A') {
+                    // Answer Code gescannt (Gerät A muss Verbindung abschließen)
+                    // Dies ist nur relevant, wenn Offer-QR generiert wurde (localSDPType === 'offer')
+                    if (localSDPType === 'offer') {
+                         finalizeFlow.classList.remove('hidden');
+                         pullButton.disabled = false;
+                         document.getElementById('finalize-prompt').textContent = `Answer Code von Gerät B (Typ ${parsed.type}, PIN ${parsed.pin}) wurde erkannt. Schließen Sie die Verbindung ab:`;
+                    } else {
+                         setStatus('Bitte zuerst Offer Code generieren (Schritt 1).', 'warning');
+                    }
+                }
+            }
+        }
+
 
         // 1. Offer generieren (Offer-Seite / Client)
         async function p2pCreateOffer() {
             try {
                 // UI vorbereiten
-                document.getElementById('p2p-start-pull-btn').disabled = true;
+                handleInputScan(''); // Clear all flow steps
+                document.getElementById('p2p-scanned-input').value = '';
+                
                 const qrContainer = document.getElementById('offer-qr-container');
-                qrContainer.classList.add('hidden');
                 
                 const pin = cryptoUtils.generatePin();
                 await initP2P(true); 
@@ -446,7 +481,7 @@
                 generateQRCode('offer-qrcode', qrCodeString);
                 qrContainer.classList.remove('hidden');
 
-                setStatus('Offer generiert und verschlüsselt. Bitte QR-Code scannen und Code in das Partnergerät einfügen.', 'success');
+                setStatus('Offer generiert und verschlüsselt. Bitte QR-Code auf Gerät B scannen und Code in das Input-Feld einfügen.', 'success');
 
             } catch (e) {
                 console.error("Fehler beim Erstellen des Offers:", e);
@@ -459,11 +494,15 @@
             const scannedText = document.getElementById('p2p-scanned-input').value.trim();
             const parsedOffer = parseScannedCode(scannedText);
             
+            // Re-check for validity, though UI should prevent invalid click
             if (!parsedOffer || parsedOffer.type !== 'O') {
-                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Offer-QR-Code in das Input-Feld einfügen. (Muss mit 'O|' beginnen)", 'error');
+                return setStatus("🚨 Fehler: Das Input-Feld enthält keinen gültigen Offer-Code.", 'error');
             }
 
             try {
+                // UI vorbereiten
+                document.getElementById('answer-qr-container').classList.add('hidden');
+                
                 // A. Offer SDP entschlüsseln
                 setStatus('Entschlüssele Offer-Code...', 'loading');
                 const offerSdpString = await cryptoUtils.decryptSDP(parsedOffer.encryptedCode, parsedOffer.pin);
@@ -484,20 +523,19 @@
                 
                 const answerSdpString = peerConnection.localDescription.sdp;
                 
-                // C. Answer SDP verschlüsseln mit dem GLEICHEN PIN (Für den Chef-PC ist das der einfachste Weg)
-                // ACHTUNG: Der PIN muss bekannt sein. Hier generieren wir einen neuen, da der Offer-PIN nur zum Entschlüsseln des Offers bekannt war.
-                const answerPin = cryptoUtils.generatePin();
-                const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, answerPin);
+                // C. Answer SDP verschlüsseln mit dem GLEICHEN PIN (wird nur zum entschlüsseln genutzt, daher OK)
+                // HINWEIS: Es ist sicherer, den Offer PIN hier zu verwenden, da er die Schlüsselableitung für beide Seiten synchronisiert.
+                const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, parsedOffer.pin);
 
                 // QR-Code String erzeugen: A|PIN|EncryptedSDP
-                const qrCodeString = `A|${answerPin}|${encryptedAnswer}`;
+                const qrCodeString = `A|${parsedOffer.pin}|${encryptedAnswer}`;
 
                 // UI aktualisieren
                 const qrContainer = document.getElementById('answer-qr-container');
                 generateQRCode('answer-qrcode', qrCodeString);
                 qrContainer.classList.remove('hidden');
                 
-                setStatus('Answer erstellt und verschlüsselt. Bitte QR-Code scannen und Code in das Offer-Gerät einfügen. Warte auf Verbindung...', 'warning');
+                setStatus('Answer erstellt und verschlüsselt. Bitte QR-Code auf Gerät A scannen und Code in das Input-Feld einfügen. Warte auf Verbindung...', 'warning');
 
             } catch (e) {
                 console.error("Fehler im Answer-Flow:", e);
@@ -511,12 +549,12 @@
             const parsedAnswer = parseScannedCode(scannedText);
             
             if (!parsedAnswer || parsedAnswer.type !== 'A') {
-                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Answer-QR-Code in das Input-Feld einfügen. (Muss mit 'A|' beginnen)", 'error');
+                return setStatus("🚨 Fehler: Das Input-Feld enthält keinen gültigen Answer-Code.", 'error');
             }
 
             try {
-                if (!peerConnection) {
-                    throw new Error("Bitte zuerst Offer generieren (Schritt 1).");
+                if (!peerConnection || localSDPType !== 'offer') {
+                    throw new Error("Bitte zuerst Offer generieren (Schritt 1) auf diesem Gerät.");
                 }
                 
                 // A. Answer SDP entschlüsseln
@@ -548,7 +586,7 @@
         
         function startP2PSync() {
             if (dataChannel && dataChannel.readyState === 'open') {
-                const message = `Hallo von Gerät ${localSDPType === 'offer' ? 'Client' : 'Chef'}! Die Verbindung ist E2E-verschlüsselt.`;
+                const message = `Hallo von Gerät ${localSDPType === 'offer' ? 'A (Client)' : 'B (Chef)'}! Die Verbindung ist E2E-verschlüsselt.`;
                 dataChannel.send(JSON.stringify({ type: 'TEST', message: message }));
                 document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-primary">[LOCAL] Gesendet: ${message}</div>`;
             }
@@ -576,7 +614,8 @@
 
             document.getElementById('offer-qr-container').classList.add('hidden');
             document.getElementById('answer-qr-container').classList.add('hidden');
-            document.getElementById('p2p-start-pull-btn').disabled = true;
+            document.getElementById('answer-flow-step').classList.add('hidden');
+            document.getElementById('finalize-flow-step').classList.add('hidden');
             
             document.getElementById('p2p-log').innerHTML = '';
             setStatus('Status: Bereit.');
@@ -603,27 +642,12 @@
             
             // --- Offer (Client/Handy) Flow ---
             document.getElementById('p2p-generate-offer-btn').addEventListener('click', p2pCreateOffer);
-            document.getElementById('p2p-start-pull-btn').addEventListener('click', p2pAcceptAnswerFlow);
             
             // --- Answer (Chef/PC) Flow ---
             document.getElementById('p2p-create-answer-btn').addEventListener('click', p2pCreateAnswerFlow);
-            
-            // --- Input Change Listener for Offer Device ---
-            document.getElementById('p2p-scanned-input').addEventListener('input', (e) => {
-                // Wenn wir im Offer-Flow sind (Offer wurde bereits generiert), aktiviere den Button, sobald ein gültiger Answer-Code da ist
-                const isOfferFlowActive = localSDPType === 'offer' && document.getElementById('offer-qr-container').classList.contains('hidden') === false;
-                const parsed = parseScannedCode(e.target.value);
-                
-                if (isOfferFlowActive && parsed && parsed.type === 'A') {
-                    // Answer-Code gescannt
-                    document.getElementById('p2p-start-pull-btn').disabled = false;
-                    document.getElementById('p2p-start-pull-btn').textContent = "C. Verbindung herstellen (Answer entschlüsseln)";
-                } else if (localSDPType === 'offer') {
-                    // Kein gültiger Answer-Code
-                    document.getElementById('p2p-start-pull-btn').disabled = true;
-                    document.getElementById('p2p-start-pull-btn').textContent = "C. Bitte Answer-Code einfügen...";
-                }
-            });
+
+            // --- Finalize Connection ---
+            document.getElementById('p2p-start-pull-btn').addEventListener('click', p2pAcceptAnswerFlow);
 
             console.log('Mogul P2P-CHEF-Sync gestartet (QR-Code / Kein Server).');
         }
