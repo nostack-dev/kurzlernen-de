@@ -100,7 +100,8 @@
         let currentRole = null; 
         let connectionAttempts = 0;
         const MAX_ATTEMPTS = 3;
-        const SESSION_STORAGE_KEY = 'mogul-p2p-offer-sdp';
+        // **ÄNDERUNG:** Wechsel zu localStorage für Tab-Unabhängigkeit
+        const STORAGE_KEY = 'mogul-p2p-offer-sdp'; 
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -229,7 +230,7 @@
                 
                 if (offerCode) {
                     currentRole = 'responder';
-                    // **KORREKTUR:** Offer-Parameter entfernen, damit Gerät B beim Neuladen nicht in eine Schleife gerät
+                    // Offer-Parameter entfernen, damit Gerät B beim Neuladen nicht in eine Schleife gerät
                     history.replaceState(null, '', window.location.pathname); 
                     await handleIncomingOffer(offerCode);
 
@@ -269,8 +270,8 @@
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             
-            // SPEICHERN: Den lokalen Offer SDP im sessionStorage speichern
-            sessionStorage.setItem(SESSION_STORAGE_KEY, peerConnection.localDescription.sdp);
+            // **SPEICHERN:** Den lokalen Offer SDP in localStorage speichern (für Tab-Unabhängigkeit)
+            localStorage.setItem(STORAGE_KEY, peerConnection.localDescription.sdp);
 
             await new Promise(resolve => {
                 if (peerConnection.iceGatheringState === 'complete') {
@@ -432,6 +433,8 @@
             
             // Entferne den Answer-Hash, damit die URL sauber ist
             history.replaceState(null, '', window.location.pathname);
+            // **WICHTIG:** Lösche den Offer-SDP, da die Session jetzt aufgebaut wird
+            localStorage.removeItem(STORAGE_KEY); 
             
             const answerData = decodeBase64Json(answerCode);
             if (answerData.type !== 'answer') {
@@ -508,7 +511,7 @@
             channel.onclose = () => {
                 updateStatus('error', 'Verbindung geschlossen');
                 document.getElementById('start-connection').disabled = false;
-                sessionStorage.removeItem(SESSION_STORAGE_KEY); // Entferne SDP bei Schließen
+                localStorage.removeItem(STORAGE_KEY); // Entferne SDP bei Schließen
             };
 
             channel.onerror = (error) => {
@@ -555,11 +558,10 @@
 
         // =================================================================
         // EVENT LISTENER & INITIALISIERUNG
-        // **KORRIGIERTE TRENNUNG DER MODI**
         // =================================================================
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('start-connection').addEventListener('click', () => {
-                 sessionStorage.removeItem(SESSION_STORAGE_KEY); // Lösche alten Zustand
+                 localStorage.removeItem(STORAGE_KEY); // Lösche alten Zustand
                  startConnection();
             });
             
@@ -577,19 +579,19 @@
             const offerCode = getOfferCodeFromUrl();
             
             if (offerCode) {
-                // Szenario 1: Responder (Gerät B) - Offer vorhanden
+                // Szenario 1: Responder (Gerät B)
                 setTimeout(startConnection, 500);
             } else {
                 // Szenario 2 & 3: Initiator (Gerät A) oder neutraler Start.
                 const answerCode = getAnswerCodeFromUrl();
-                const storedSdp = sessionStorage.getItem(SESSION_STORAGE_KEY); 
+                const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
                 if (answerCode && storedSdp) {
-                    // Initiator lädt neu mit Answer-Code im Hash und gespeichertem SDP
-                    sessionStorage.removeItem(SESSION_STORAGE_KEY); 
+                    // Initiator lädt neu mit Answer-Code im Hash und gespeichertem SDP (funktioniert jetzt auch im neuen Tab!)
+                    // Wichtig: Der SDP wird erst in processAnswer gelöscht, wenn die Verbindung sicher steht.
                     setTimeout(() => startConnection(storedSdp), 500);
                 } else if (answerCode && !storedSdp) {
-                    // Fehler: Answer-Code ist da, aber der SDP wurde gelöscht (nur für Initiator relevant)
+                    // Fehler: Answer-Code ist da, aber der SDP wurde gelöscht (z.B. nach Schließen aller Tabs)
                     setTimeout(() => {
                         document.getElementById('start-connection').disabled = true;
                         updateStatus('error', 'Fehler: Sitzung abgelaufen.');
@@ -598,7 +600,7 @@
                 }
             }
 
-            console.log('Mogul P2P Sync - Sitzungsspeicher aktiviert');
+            console.log('Mogul P2P Sync - localStorage für Tab-Unabhängigkeit aktiviert');
         });
     </script>
 </body>
