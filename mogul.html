@@ -10,6 +10,7 @@
         Workflow: P2P Signaling erfolgt über einfache Copy-Paste-Links (Offer-Link -> Answer-Link)
         und BLEIBT STETS auf der aktuellen Domain.
         NEU: Fehlerbehandlung für den Fall, dass der Answer-Link direkt im Browser geöffnet wird.
+        NEU: Automatische stille Anmeldung auf bekanntem Gerät bei leerem Session Storage.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -305,7 +306,8 @@
         async function initializePasskeyFlow() {
             const urlParams = new URLSearchParams(window.location.search);
             const offerParam = urlParams.get('offer');
-
+            const answerParam = urlParams.get('answer'); // HIER VORANGEZOGEN
+            
             const sessionUK = sessionStorage.getItem(WRAPPED_UK_KEY);
             const sessionExpires = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY) || 0);
 
@@ -317,7 +319,17 @@
             
             const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
             
-            // Wenn Offer Link geöffnet wurde: Zuerst Auth erzwingen, dann P2P starten
+            // NEUE LOGIK FÜR CHEF/PC NEUER TAB:
+            // Wenn UK fehlt, aber Passkey ID da ist und KEIN P2P Link aktiv, versuche stille Wiederanmeldung.
+            if (passkeyId && !offerParam && !answerParam) {
+                log('Passkey-ID gefunden. Versuche stille Wiederherstellung der Sitzung (Neuer Tab/Chef)...');
+                await startPasskeyAssertion(false); 
+                
+                // Wenn UK jetzt da ist, waren wir erfolgreich und beenden den Flow hier.
+                if (currentUniversalKey) return; 
+            }
+            
+            // Wenn Offer Link geöffnet wurde (CLIENT/Handy): Zuerst Auth erzwingen, dann P2P starten
             if (offerParam) {
                 if (passkeyId) {
                      await startPasskeyAssertion(false);
