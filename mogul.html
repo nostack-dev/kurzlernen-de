@@ -16,13 +16,11 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
     <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 mt-8">
-        <!-- Header -->
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Mogul P2P Sync</h1>
             <p class="text-gray-600">Einfach verbinden - Automatisch synchronisieren</p>
         </div>
 
-        <!-- Connection Status -->
         <div id="connection-status" class="mb-6 p-4 bg-gray-100 rounded-xl text-center">
             <div class="flex items-center justify-center mb-2">
                 <div id="status-dot" class="connection-dot bg-gray-400"></div>
@@ -33,16 +31,13 @@
             </p>
         </div>
 
-        <!-- Main Action Button -->
         <div class="text-center mb-6">
             <button id="start-connection" class="btn btn-primary btn-lg w-full rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 🔗 Verbindung starten
             </button>
         </div>
 
-        <!-- Auto-generated Links -->
         <div id="link-section" class="hidden space-y-4">
-            <!-- Offer Link -->
             <div id="offer-section" class="bg-blue-50 p-4 rounded-xl border border-blue-200">
                 <h3 class="font-semibold text-blue-800 mb-2 flex items-center">
                     <span class="connection-dot bg-blue-500"></span>
@@ -59,7 +54,6 @@
                 </div>
             </div>
 
-            <!-- Answer Link -->
             <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 hidden">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500"></span>
@@ -73,7 +67,6 @@
                 </div>
             </div>
 
-            <!-- Connected Status -->
             <div id="connected-section" class="bg-green-100 p-4 rounded-xl border border-green-300 hidden">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500 animate-pulse"></span>
@@ -85,7 +78,6 @@
             </div>
         </div>
 
-        <!-- Data Display -->
         <div id="data-section" class="mt-6 hidden">
             <h3 class="font-semibold text-gray-800 mb-3">Synchronisierte Daten</h3>
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -131,7 +123,8 @@
             };
             
             const config = statusConfig[status] || statusConfig.ready;
-            dot.className = `connection-dot ${config.color}`;
+            // Entferne alte bg-* Klassen und setze die neue
+            dot.className = `connection-dot ${config.color}`; 
             text.textContent = config.text;
             detailEl.textContent = detail || config.detail;
         }
@@ -173,7 +166,7 @@
                     </div>
                     <div class="mt-3 p-2 bg-white rounded border">
                         <span class="font-medium">Daten:</span>
-                        <pre class="text-xs mt-1">${JSON.stringify(data.payload, null, 2)}</pre>
+                        <pre class="text-xs mt-1 overflow-x-auto">${JSON.stringify(data.payload, null, 2)}</pre>
                     </div>
                 </div>
             `;
@@ -184,6 +177,9 @@
         // =================================================================
         async function startConnection() {
             try {
+                // Deaktiviere den Start-Button, um Doppelklicks zu verhindern
+                document.getElementById('start-connection').disabled = true;
+
                 updateStatus('generating');
                 
                 // Prüfe ob bereits ein Link in der URL ist (Responder-Modus)
@@ -208,8 +204,11 @@
                     connectionAttempts++;
                     setTimeout(() => {
                         updateStatus('ready', `Automatischer Wiederholungsversuch (${connectionAttempts}/${MAX_ATTEMPTS})`);
-                        setTimeout(startConnection, 1000);
+                        document.getElementById('start-connection').disabled = false;
+                        // setTimeout(startConnection, 1000); // Erneut starten, falls Button manuell geklickt wird
                     }, 3000);
+                } else {
+                     document.getElementById('start-connection').disabled = false;
                 }
             }
         }
@@ -224,7 +223,7 @@
             
             // Data Channel erstellen
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
-            setupDataChannel(dataChannel);
+            setupDataChannel(dataChannel); // DataChannel Events für Initiator einrichten
 
             // Offer erstellen
             const offer = await peerConnection.createOffer();
@@ -240,7 +239,8 @@
                             resolve();
                         }
                     };
-                    setTimeout(resolve, 2000);
+                    // Timeout hinzufügen, falls ICE gathering nicht 'complete' wird
+                    setTimeout(resolve, 2000); 
                 }
             });
 
@@ -252,7 +252,8 @@
             };
             
             const offerString = btoa(JSON.stringify(offerData));
-            const shareableUrl = `${window.location.origin}${window.location.pathname}?offer=${encodeURIComponent(offerString)}`;
+            // Wir verwenden HASH anstelle von Query Params, um das automatische Update des Responders zu simulieren
+            const shareableUrl = `${window.location.origin}${window.location.pathname}#offer=${encodeURIComponent(offerString)}`;
             
             // UI aktualisieren
             document.getElementById('offer-link').textContent = shareableUrl;
@@ -271,71 +272,87 @@
             }
 
             // Warte auf Antwort
-            await waitForAnswer();
+            await waitForAnswer(offerString);
         }
 
         async function handleIncomingOffer(offerCode) {
-            try {
-                updateStatus('connecting', 'Verarbeite eingehende Verbindung...');
-                
-                // Offer Daten decodieren
-                const offerData = JSON.parse(atob(offerCode));
-                if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code');
-                
-                const remoteOffer = {
-                    type: 'offer',
-                    sdp: atob(offerData.sdp)
-                };
+            updateStatus('connecting', 'Verarbeite eingehende Verbindung...');
+            
+            // Offer Daten decodieren
+            const offerData = JSON.parse(atob(offerCode));
+            if (offerData.type !== 'offer') throw new new Error('Ungültiger Offer-Code');
+            
+            const remoteOffer = {
+                type: 'offer',
+                sdp: atob(offerData.sdp)
+            };
 
-                // PeerConnection erstellen
-                peerConnection = new RTCPeerConnection(config);
-                
-                // Data Channel Handler
-                peerConnection.ondatachannel = (event) => {
-                    dataChannel = event.channel;
-                    setupDataChannel(dataChannel);
-                };
+            // PeerConnection erstellen
+            peerConnection = new RTCPeerConnection(config);
+            
+            // Data Channel Handler: Setzt dataChannel asynchron, was das Problem verursachte.
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannel(dataChannel); 
+                // Im Responder rufen wir establishConnection auf, sobald der Channel empfangen wurde
+                // Dies stellt sicher, dass dataChannel NICHT null ist.
+                establishConnection();
+            };
 
-                // Remote Offer setzen
-                await peerConnection.setRemoteDescription(remoteOffer);
-                
-                // Answer erstellen
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
+            // Remote Offer setzen
+            await peerConnection.setRemoteDescription(remoteOffer);
+            
+            // Answer erstellen
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
 
-                // Warte auf ICE Candidates
-                await new Promise(resolve => {
-                    if (peerConnection.iceGatheringState === 'complete') {
-                        resolve();
-                    } else {
-                        peerConnection.onicegatheringstatechange = () => {
-                            if (peerConnection.iceGatheringState === 'complete') {
-                                resolve();
-                            }
-                        };
-                        setTimeout(resolve, 2000);
-                    }
-                });
+            // Warte auf ICE Candidates
+            await new Promise(resolve => {
+                if (peerConnection.iceGatheringState === 'complete') {
+                    resolve();
+                } else {
+                    peerConnection.onicegatheringstatechange = () => {
+                        if (peerConnection.iceGatheringState === 'complete') {
+                            resolve();
+                        }
+                    };
+                    setTimeout(resolve, 2000);
+                }
+            });
 
-                // Automatisch Verbindung herstellen
-                await establishConnection();
-                
-            } catch (error) {
-                console.error('Fehler bei eingehender Verbindung:', error);
-                updateStatus('error', `Verbindungsfehler: ${error.message}`);
-            }
+            // Generiere Answer Link (wird hier nicht direkt verwendet, nur für die Vollständigkeit)
+            const answerData = {
+                type: 'answer',
+                sdp: btoa(peerConnection.localDescription.sdp),
+                timestamp: Date.now()
+            };
+            const answerString = btoa(JSON.stringify(answerData));
+            
+            // Simuliere, dass der Responder den Answer-Code zurück an den Initiator sendet.
+            // Im realen Szenario würde dies über den gleichen Signaling-Kanal wie der Offer passieren.
+            // HIER FÜR DIE SIMULATION: Aktualisiere die URL des Initiators (Hash-Teil) mit der Antwort
+            console.log("Simuliere Answer-Rückgabe. Answer-Code:", answerString);
+            
+            // WICHTIG: KEIN establishConnection() HIER! Es wird im ondatachannel Handler aufgerufen.
         }
 
-        async function waitForAnswer() {
+        async function waitForAnswer(offerCode) {
             return new Promise((resolve, reject) => {
+                updateStatus('waiting', 'Warten auf die Gegenstelle (Responder) um den Answer-Code zu erzeugen...');
+                document.getElementById('answer-section').classList.remove('hidden');
+
                 const checkInterval = setInterval(async () => {
                     try {
-                        // Prüfe ob Answer in URL Parametern vorhanden
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const answerCode = urlParams.get('answer');
+                        // Prüfe, ob Answer im Hash-Teil der URL vorhanden ist (simuliert automatisches Update)
+                        // In diesem vereinfachten Beispiel muss der User des Initiator-Gerätes den Link manuell um den Answer-Code erweitern
+                        // oder der Responder muss den finalen Link mit #answer=... zurückgeben.
+                        const urlHash = window.location.hash.substring(1);
+                        const answerMatch = urlHash.match(/answer=([^&]+)/);
+                        const answerCode = answerMatch ? answerMatch[1] : null;
                         
                         if (answerCode) {
                             clearInterval(checkInterval);
+                            updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
                             
                             // Answer verarbeiten
                             const answerData = JSON.parse(atob(answerCode));
@@ -362,18 +379,33 @@
                 // Timeout nach 2 Minuten
                 setTimeout(() => {
                     clearInterval(checkInterval);
-                    reject(new Error('Timeout: Keine Antwort erhalten'));
+                    reject(new Error('Timeout: Keine Antwort erhalten (Der Responder hat den Answer-Code möglicherweise nicht zurückgegeben)'));
                 }, 120000);
             });
         }
 
         async function establishConnection() {
             updateStatus('connecting', 'Stelle finale Verbindung her...');
-            
+
+            // **WICHTIGE KORREKTUR:** Wenn wir der Responder sind, wird dataChannel erst asynchron
+            // durch `ondatachannel` gesetzt. Daher dürfen wir hier nicht auf `dataChannel.readyState`
+            // zugreifen, wenn es `null` ist. Im Responder wird `establishConnection` jetzt NACHDEM
+            // `dataChannel` in `ondatachannel` gesetzt wurde, getriggert.
+            if (!dataChannel) {
+                // Dies sollte nur im Responder-Modus passieren, wenn es nicht über ondatachannel getriggert wird.
+                // Da wir es jetzt im ondatachannel triggern, sollte dies nur ein Safety Net sein.
+                if (currentRole === 'responder') {
+                    // Der Responder wartet implizit auf onopen, das in setupDataChannel enthalten ist.
+                    updateStatus('connecting', 'Warte auf DataChannel-Empfang/Öffnung...');
+                    return; 
+                }
+                throw new Error("DataChannel konnte nicht initialisiert werden.");
+            }
+
             // Warte auf Data Channel Öffnung
             await new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
-                    reject(new Error('Verbindungstimeout'));
+                    reject(new Error('Verbindungstimeout: DataChannel öffnet nicht'));
                 }, 30000);
 
                 if (dataChannel.readyState === 'open') {
@@ -395,7 +427,8 @@
             updateStatus('connected', 'P2P-Verbindung aktiv!');
             showSection('connected-section');
             document.getElementById('data-section').classList.remove('hidden');
-            
+            document.getElementById('start-connection').disabled = false; // Button wieder aktivieren
+
             // Automatisch Testdaten senden
             sendTestData();
         }
@@ -403,10 +436,10 @@
         function setupDataChannel(channel) {
             channel.onopen = () => {
                 console.log('DataChannel geöffnet');
+                // Die UI-Updates für den Responder, die den erfolgreichen Connect anzeigen
                 if (currentRole === 'responder') {
-                    updateStatus('connected', 'P2P-Verbindung aktiv!');
-                    showSection('connected-section');
-                    document.getElementById('data-section').classList.remove('hidden');
+                    // Diese Zeilen sind redundant, da establishConnection() im ondatachannel 
+                    // jetzt die Hauptkontrolle übernimmt und die UI aktualisiert.
                 }
             };
 
@@ -426,11 +459,13 @@
 
             channel.onclose = () => {
                 updateStatus('error', 'Verbindung geschlossen');
+                document.getElementById('start-connection').disabled = false;
             };
 
             channel.onerror = (error) => {
                 console.error('DataChannel Fehler:', error);
-                updateStatus('error', 'Verbindungsfehler');
+                updateStatus('error', 'Verbindungsfehler im DataChannel');
+                document.getElementById('start-connection').disabled = false;
             };
         }
 
@@ -438,7 +473,7 @@
             if (dataChannel && dataChannel.readyState === 'open') {
                 const testData = {
                     type: 'sync-data',
-                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
                     timestamp: new Date().toISOString(),
                     payload: {
                         message: 'Automatische Synchronisation aktiv',
@@ -459,7 +494,7 @@
             if (dataChannel && dataChannel.readyState === 'open') {
                 const response = {
                     type: 'sync-response',
-                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
                     timestamp: new Date().toISOString(),
                     payload: {
                         status: 'acknowledged',
@@ -488,9 +523,13 @@
                 });
             });
 
-            // Automatischer Start wenn Offer in URL
+            // Automatischer Start wenn Offer in URL Query oder Hash
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('offer')) {
+            const urlHash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(urlHash);
+
+            if (urlParams.get('offer') || hashParams.get('offer')) {
+                // Das Offer ist im Query (für Responder) oder Hash (für Initiator, wenn Answer zurückkommt)
                 setTimeout(startConnection, 500);
             }
 
