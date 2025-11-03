@@ -314,7 +314,7 @@
 
 
         // =================================================================
-        // P2P VERBINDUNGS LOGIK
+        // P2P VERBINDUNGS LOGIK (V2.3 - WASSERDICHT)
         // =================================================================
         
         function getOfferCodeFromUrl() {
@@ -350,6 +350,12 @@
                     await handleIncomingOffer(offerCode);
 
                 } else if (restoredSdp) {
+                    // Dieser Fall (nur restoredSdp) wird nun durch die DOMContentLoaded-Logik 
+                    // in zwei Fälle aufgeteilt:
+                    // 1. continueInitiatorFlow (nur UI-Wiederherstellung + Polling)
+                    // 2. restoreAndProcessAnswer (volle Wiederherstellung + Verarbeitung)
+                    // Dieser Block hier sollte nicht mehr direkt getroffen werden, 
+                    // aber wir behalten ihn als Fallback.
                     currentRole = 'initiator';
                     await continueInitiatorFlow(restoredSdp);
                     
@@ -425,30 +431,54 @@
             document.getElementById('start-button-container').classList.remove('hidden'); 
         }
 
-        async function continueInitiatorFlow(restoredSdp) {
-            updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
-            
+        /**
+         * NEUE FUNKTION (V2.3)
+         * Stellt die PC-Verbindung wieder her UND verarbeitet das Answer.
+         * Dies ist der einzige Ort, an dem der Initiator ein Answer verarbeitet.
+         */
+        async function restoreAndProcessAnswer(restoredSdp, answerCode) {
+            currentRole = 'initiator';
+            updateStatus('connecting', 'Sitzung wiederhergestellt. Verarbeite Antwort...');
+
             // 1. Neue PeerConnection initialisieren
             peerConnection = new RTCPeerConnection(config);
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
-            
-            // *** KRITISCHE KORREKTUR V2.2 ***
-            // Wir MÜSSEN das lokale Offer setzen, um den Zustand von 'stable' 
-            // auf 'have-local-offer' zu ändern, bevor wir das 'answer' in processAnswer() empfangen.
+
+            // 2. Lokales Offer setzen (MUSS vor Remote Answer passieren)
             try {
-                // Da dies eine NEUE PeerConnection ist, ist sie 'stable'. 
-                // Das Setzen eines 'offer' sollte jetzt erfolgreich sein.
                 await peerConnection.setLocalDescription({ type: 'offer', sdp: restoredSdp });
+                // Zustand ist jetzt 'have-local-offer'
             } catch (e) {
-                // Wenn dies fehlschlägt, kann die Sitzung nicht fortgesetzt werden.
                 console.error("KRITISCHER FEHLER: setLocalDescription beim Wiederherstellen fehlgeschlagen.", e);
                 updateStatus('error', 'Fehler: Sitzungswiederherstellung fehlgeschlagen. Bitte neu starten.');
                 endConnection(); // Zurück zum Start
-                return; // Funktion abbrechen
+                return; 
             }
 
-            // 2. Den Offer-Link wiederherstellen (für UI)
+            // 3. Remote Answer setzen (jetzt im korrekten Zustand)
+            try {
+                // processAnswer setzt das Remote Answer und ruft establishConnection auf
+                await processAnswer(answerCode);
+            } catch (e) {
+                console.error("KRITISCHER FEHLER: processAnswer beim Wiederherstellen fehlgeschlagen.", e);
+                updateStatus('error', `Fehler beim Verarbeiten der Antwort: ${e.message}`);
+                endConnection();
+            }
+        }
+
+
+        /**
+         * ANGEPASSTE FUNKTION (V2.3)
+         * Stellt NUR die UI für den Wartezustand wieder her und startet das Polling.
+         * Erstellt KEINE PeerConnection.
+         */
+        async function continueInitiatorFlow(restoredSdp) {
+            updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
+            
+            currentRole = 'initiator'; // Rolle setzen
+
+            // 1. Den Offer-Link wiederherstellen (für UI)
             const offerData = {
                 type: 'offer',
                 sdp: b64EncodeUnicode(restoredSdp), 
@@ -461,13 +491,14 @@
             showSection('link-section');
             updateStatus('waiting', 'Wiederhergestellt. Warte auf Answer-Link...');
             
-            // 3. Warte-UI anzeigen (Abbruch-Möglichkeit)
+            // 2. Warte-UI anzeigen (Abbruch-Möglichkeit)
             document.getElementById('start-connection').textContent = '❌ Abbrechen & Neustart';
             document.getElementById('start-connection').disabled = false;
             document.getElementById('start-button-container').classList.remove('hidden'); 
 
-            // 4. Prüfen auf den Answer-Hash in der URL
-            await waitForAnswer(true);
+            // 3. Prüfen auf den Answer-Hash in der URL (Polling starten)
+            // false, da das Answer noch nicht geladen sein muss
+            await waitForAnswer(false); 
         }
 
         async function handleIncomingOffer(offerCode) {
@@ -531,22 +562,26 @@
             }
         }
 
+        /**
+         * ANGEPASSTE FUNKTION (V2.3)
+         * Startet das Polling, wenn answerPresentOnLoad=false.
+         * Ruft restoreAndProcessAnswer auf, wenn das Answer gefunden wird.
+         */
         async function waitForAnswer(answerPresentOnLoad = false) {
             
             document.getElementById('start-button-container').classList.remove('hidden'); 
             
             if (answerPresentOnLoad) {
-                 const answerCode = getAnswerCodeFromUrl();
-                 if (answerCode) {
-                    await processAnswer(answerCode);
-                    return;
-                 }
+                 // Dieser Fall (true) wird nur noch von der DOM-Logik aufgerufen, 
+                 // die bereits restoreAndProcessAnswer verwendet.
+                 // Wir lassen diesen Block leer, da der Aufruf von restoreAndProcessAnswer
+                 // bereits in DOMContentLoaded stattfindet.
+                 return;
             }
             
-            // Zeige die Warte-Sektion
+            // Zeige die Warte-Sektion (nur wenn answerPresentOnLoad = false)
             document.getElementById('answer-section').classList.remove('hidden');
             document.getElementById('offer-section').classList.remove('hidden');
-
             updateStatus('waiting', 'Wiederhergestellt. Warte auf Answer-Link...');
 
             return new Promise((resolve, reject) => {
@@ -556,8 +591,14 @@
                         
                         if (answerCode) {
                             clearInterval(checkInterval);
-                            await processAnswer(answerCode);
-                            resolve();
+                            const storedSdp = localStorage.getItem(STORAGE_KEY);
+                            if (storedSdp) {
+                                // Ruft die wasserdichte Funktion auf, wenn der Hash gefunden wird
+                                await restoreAndProcessAnswer(storedSdp, answerCode);
+                                resolve();
+                            } else {
+                                reject(new Error('Sitzung abgelaufen. SDP nicht gefunden.'));
+                            }
                         }
                     } catch (error) {
                         clearInterval(checkInterval);
@@ -572,6 +613,11 @@
             });
         }
         
+        /**
+         * ANGEPASSTE FUNKTION (V2.3)
+         * Nur noch ein Worker. Setzt das Remote Answer und stellt die Verbindung her.
+         * Wird NUR von restoreAndProcessAnswer aufgerufen.
+         */
         async function processAnswer(answerCode) {
             updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
             
@@ -588,7 +634,7 @@
                 sdp: b64DecodeUnicode(answerData.sdp)
             };
 
-            // Der Zustand MUSS jetzt 'have-local-offer' sein (gesetzt in continueInitiatorFlow).
+            // Der Zustand MUSS jetzt 'have-local-offer' sein.
             await peerConnection.setRemoteDescription(remoteAnswer);
             await establishConnection();
         }
@@ -659,7 +705,7 @@
         }
 
         // =================================================================
-        // DATEI-SENDEN & EMPFANGEN LOGIK
+        // DATEI-SENDEN & EMPFANGEN LOGIK (Unverändert)
         // =================================================================
 
         function sendFile(file) {
@@ -892,29 +938,32 @@
                 copyOfferButton.addEventListener('click', copyOfferLink);
             }
 
-            // --- Automatischer Start / Zustandswiederherstellung ---
+            // --- Automatischer Start / Zustandswiederherstellung (V2.3 LOGIK) ---
             const offerCode = getOfferCodeFromUrl();
             const answerCode = getAnswerCodeFromUrl();
             const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
             if (offerCode) {
-                // Responder (hat Offer-Link erhalten)
+                // 1. Responder (hat Offer-Link erhalten)
                 setTimeout(startConnection, 500); 
+            
             } else if (answerCode && storedSdp) {
-                // Initiator (hat Offer erstellt, lädt Seite mit Answer-Hash)
-                localStorage.removeItem(STORAGE_KEY); 
-                setTimeout(() => startConnection(storedSdp), 500);
+                // 2. Initiator (hat Offer erstellt, lädt Seite mit Answer-Hash)
+                // Rufe die neue, wasserdichte Funktion auf.
+                setTimeout(() => restoreAndProcessAnswer(storedSdp, answerCode), 500);
+
             } else if (storedSdp && !answerCode) {
-                // Initiator (hat Offer erstellt, aber noch keine Antwort eingefügt/geladen)
-                // Wiederherstellung des Wartezustands
+                // 3. Initiator (hat Offer erstellt, aber noch keine Antwort eingefügt/geladen)
+                // Wiederherstellung des Wartezustands (nur UI + Polling)
                 setTimeout(() => {
                     continueInitiatorFlow(storedSdp).catch(error => {
                         console.error("Wiederherstellungsfehler:", error);
                         endConnection(); 
                     }); 
                 }, 500);
+
             } else if (answerCode && !storedSdp) {
-                // Fehlerzustand: Answer-Hash vorhanden, aber Session abgelaufen/verloren
+                // 4. Fehlerzustand: Answer-Hash vorhanden, aber Session abgelaufen/verloren
                 history.replaceState(null, '', window.location.pathname);
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = false;
@@ -924,7 +973,7 @@
                 }, 500);
             }
 
-            console.log('Mogul P2P Sync - Finaler Code für Christian Heinrich Hohlfeld geladen.');
+            console.log('Mogul P2P Sync - Finaler Code (V2.3) für Christian Heinrich Hohlfeld geladen.');
         });
     </script>
 </body>
