@@ -75,25 +75,22 @@
                     ✅ Verbunden!
                 </h3>
                 <p class="text-sm text-green-700">
-                    Die P2P-Verbindung ist aktiv. Daten werden automatisch synchronisiert.
+                    Die P2P-Verbindung ist aktiv.
                 </p>
             </div>
         </div>
 
         <div id="data-section" class="mt-6 hidden">
-            <h3 class="font-semibold text-gray-800 mb-3">Synchronisierte Daten (Automatisch)</h3>
+            <h3 class="font-semibold text-gray-800 mb-3">Status (Automatisches Sync-Signal)</h3>
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <div id="sync-data" class="text-sm text-gray-700">
-                    <div class="text-center py-4">
-                        <div class="loading loading-spinner text-primary"></div>
-                        <p class="mt-2 text-gray-600">Warte auf Daten...</p>
-                    </div>
+                <div id="sync-data" class="text-sm text-gray-700 text-center py-2">
+                    Warte auf manuelle Aktivität...
                 </div>
             </div>
         </div>
 
         <div id="chat-section" class="mt-6 hidden">
-            <h3 class="font-semibold text-gray-800 mb-3">Mini-Chat (Manuelle Datenübertragung)</h3>
+            <h3 class="font-semibold text-gray-800 mb-3">Mini-Chat (Datenübertragung)</h3>
             
             <div id="chat-box" class="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-3 space-y-2">
                 </div>
@@ -196,23 +193,8 @@
             const timestamp = new Date().toLocaleTimeString();
             
             container.innerHTML = `
-                <div class="space-y-2">
-                    <div class="flex justify-between">
-                        <span class="font-medium">Gerät:</span>
-                        <span class="text-blue-600">${data.deviceName || 'Unbekannt'}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="font-medium">Zeit:</span>
-                        <span class="text-gray-600">${timestamp}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="font-medium">Status:</span>
-                        <span class="text-green-600">✅ Synchronisiert</span>
-                    </div>
-                    <div class="mt-3 p-2 bg-white rounded border">
-                        <span class="font-medium">Daten:</span>
-                        <pre class="text-xs mt-1 overflow-x-auto">${JSON.stringify(data.payload, null, 2)}</pre>
-                    </div>
+                <div class="text-sm text-gray-700 text-center py-2">
+                    ✅ Letzter Sync-Status empfangen um ${timestamp}
                 </div>
             `;
         }
@@ -270,7 +252,6 @@
                     await handleIncomingOffer(offerCode);
 
                 } else if (restoredSdp) {
-                    // **KORRIGIERTER PFAD FÜR NEUEN TAB:** Setze aktuelle Rolle und starte Wiederherstellung
                     currentRole = 'initiator';
                     await continueInitiatorFlow(restoredSdp);
                     
@@ -349,7 +330,8 @@
         }
 
         /**
-         * **KORRIGIERTE WIEDERHERSTELLUNG:** Stellt die PeerConnection wieder her und setzt NUR den Answer-SDP.
+         * **KORRIGIERT:** Stellt die PeerConnection wieder her und setzt den gespeicherten Offer-SDP 
+         * als lokale Beschreibung (ohne setLocalDescription) und als Remote Description (um den Zustand zu spiegeln).
          * @param {string} restoredSdp Der ursprüngliche lokale SDP-String des Offers.
          */
         async function continueInitiatorFlow(restoredSdp) {
@@ -360,18 +342,15 @@
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
             
-            // **ENTFERNT:** peerConnection.setLocalDescription(offer);
-            // Wir müssen den alten Offer-SDP speichern, damit der Answer-SDP ihn als "expected remote SDP" verarbeiten kann.
-            
-            // Setze den *lokal* gespeicherten Offer-SDP als **Remote Description** des Initiators.
-            // Dies ist ein Trick, da der Answer-SDP (den wir gleich erhalten) als *Remote Description* des Responders gesetzt werden muss.
-            // ABER: setLocalDescription auf einer neuen PC führt zum Fehler.
-            // WICHTIG: WebRTC erwartet, dass die SENDER-Seite (Initiator) ihren ursprünglichen Offer-SDP lokal kennt, um den Answer-SDP zu verarbeiten.
-            
-            // Erstellen Sie den Offer-SDP des Initiators neu und speichern Sie ihn lokal, OHNE setLocalDescription()
+            // 2. Setze den Offer-SDP als LocalDescription (nur im Objekt), um den Fehler zu umgehen.
             peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+            
+            // 3. Setze den Offer-SDP als RemoteDescription. Dies ist der WebRTC-Trick, um den Zustand
+            // kurz vor Empfang des Answers auf der neuen Verbindung abzubilden.
+            const offerAsRemote = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+            await peerConnection.setRemoteDescription(offerAsRemote);
 
-            // 3. Warte auf den Answer-Code, der jetzt in der URL ist
+            // 4. Warte auf den Answer-Code, der jetzt in der URL ist
             await waitForAnswer(true); 
         }
 
@@ -527,6 +506,8 @@
             showSection('connected-section');
             document.getElementById('start-connection').disabled = false;
             
+            document.getElementById('sync-data').innerHTML = 'Die P2P-Verbindung ist aktiv und bereit für Datenübertragung.';
+
             document.getElementById('chat-box').innerHTML = '<div class="text-center text-xs text-gray-500">Verbindung hergestellt. Starte Chat!</div>';
             document.getElementById('send-message').addEventListener('click', () => {
                 const input = document.getElementById('chat-input');
@@ -535,8 +516,6 @@
                     input.value = '';
                 }
             });
-
-            sendTestData();
         }
 
         function setupDataChannel(channel) {
@@ -548,14 +527,11 @@
                 try {
                     const data = JSON.parse(event.data);
                     
-                    if (data.type === 'sync-data') {
-                        displaySyncData(data);
-                        if (data.type === 'sync-request') {
-                            sendSyncResponse();
-                        }
-                    } else if (data.type === 'chat') {
+                    if (data.type === 'chat') {
                         const sender = data.deviceName;
                         displayChatMessage(sender, data.message, false);
+                    } else if (data.type === 'sync-data') {
+                        displaySyncData(data);
                     }
                 } catch (e) {
                     console.log('Empfangene Nachricht (Nicht-JSON):', event.data);
@@ -588,42 +564,6 @@
                 displayChatMessage('Ich', message, true);
             } else {
                 alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
-            }
-        }
-
-
-        function sendTestData() {
-             if (dataChannel && dataChannel.readyState === 'open') {
-                const testData = {
-                    type: 'sync-data',
-                    deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
-                    timestamp: new Date().toISOString(),
-                    payload: {
-                        message: 'Automatische Synchronisation aktiv',
-                        status: 'connected',
-                        data: ['Sync Item 1', 'Sync Item 2', 'Sync Item 3']
-                    }
-                };
-                
-                dataChannel.send(JSON.stringify(testData));
-                displaySyncData(testData);
-                
-                setTimeout(sendTestData, 10000);
-            }
-        }
-
-        function sendSyncResponse() {
-             if (dataChannel && dataChannel.readyState === 'open') {
-                const response = {
-                    type: 'sync-response',
-                    deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
-                    timestamp: new Date().toISOString(),
-                    payload: {
-                        status: 'acknowledged',
-                        received: true
-                    }
-                };
-                dataChannel.send(JSON.stringify(response));
             }
         }
 
@@ -666,7 +606,7 @@
                 }
             }
 
-            console.log('Mogul P2P Sync - Chat- und Tab-Wiederherstellung aktiv');
+            console.log('Mogul P2P Sync - Wiederherstellung des Initiators korrigiert');
         });
     </script>
 </body>
