@@ -8,9 +8,8 @@
         FINALE VERSION: Mogul P2P Chef Sync (Simplifizierter Link-Workflow)
         Architektur: Zero-Trust, Serverless, Passkey (WebAuthn) & P2P (WebRTC)
         Workflow: P2P Signaling erfolgt über einfache Copy-Paste-Links (Offer-Link -> Answer-Link)
-        und BLEIBT STETS auf der aktuellen Domain.
-        NEU: Fehlerbehandlung für den Fall, dass der Answer-Link direkt im Browser geöffnet wird.
         NEU: Automatische stille Anmeldung auf bekanntem Gerät bei leerem Session Storage.
+        NEU: Debug-Funktion zum Löschen des gesamten Zustands (localStorage & sessionStorage).
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -49,10 +48,16 @@
                 <h2 class="card-title">System-Status</h2>
                 <div id="sync-status" class="text-lg font-mono text-info">Initialisierung...</div>
 
-                <div class="mt-4 flex items-center gap-4" id="auth-actions-container">
+                <div class="mt-4 flex items-center justify-between gap-4" id="auth-actions-container">
                     <p id="auth-message" class="flex-grow">Warte auf Passkey-Authentifizierung...</p>
-                    <button id="register-btn" class="btn btn-sm btn-success hidden">Registrieren</button>
-                    <button id="login-btn" class="btn btn-sm btn-primary hidden">Anmelden</button>
+                    <div class="flex gap-2">
+                         <button id="register-btn" class="btn btn-sm btn-success hidden">Registrieren</button>
+                         <button id="login-btn" class="btn btn-sm btn-primary hidden">Anmelden</button>
+                    </div>
+                </div>
+                <!-- NEU: Debug-Button -->
+                <div class="mt-4 pt-4 border-t border-base-300">
+                    <button id="clear-state-btn" class="btn btn-xs btn-error btn-outline w-full">⚠️ Clear All State (Debug)</button>
                 </div>
             </div>
         </div>
@@ -252,11 +257,14 @@
             
             try {
                 log('Simuliere Passkey Registrierung...');
+                // Generiere eine zufällige, persistente Passkey-ID für das Gerät
                 const mockCredentialId = arrayBufferToBase64Url(crypto.getRandomValues(new Uint8Array(16)));
                 localStorage.setItem(PASSKEY_ID_KEY, mockCredentialId);
                 
+                // Leite den UK ab
                 const universalKey = await deriveUniversalKey(mockCredentialId);
                 
+                // Speichere UK in der Session (nicht dauerhaft)
                 currentUniversalKey = universalKey;
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
@@ -287,6 +295,7 @@
 
             try {
                 log('Simuliere Passkey Anmeldung...');
+                // Leite den UK aus der bekannten ID ab (simuliert die Passkey-Verifikation)
                 const universalKey = await deriveUniversalKey(credentialId);
 
                 currentUniversalKey = universalKey;
@@ -306,7 +315,7 @@
         async function initializePasskeyFlow() {
             const urlParams = new URLSearchParams(window.location.search);
             const offerParam = urlParams.get('offer');
-            const answerParam = urlParams.get('answer'); // HIER VORANGEZOGEN
+            const answerParam = urlParams.get('answer'); 
             
             const sessionUK = sessionStorage.getItem(WRAPPED_UK_KEY);
             const sessionExpires = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY) || 0);
@@ -319,17 +328,16 @@
             
             const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
             
-            // NEUE LOGIK FÜR CHEF/PC NEUER TAB:
-            // Wenn UK fehlt, aber Passkey ID da ist und KEIN P2P Link aktiv, versuche stille Wiederanmeldung.
+            // LOGIK FÜR CHEF/PC NEUER TAB: Versuche stille Wiederanmeldung, wenn UK fehlt, aber Passkey ID existiert und KEIN P2P Link aktiv ist.
             if (passkeyId && !offerParam && !answerParam) {
                 log('Passkey-ID gefunden. Versuche stille Wiederherstellung der Sitzung (Neuer Tab/Chef)...');
                 await startPasskeyAssertion(false); 
                 
-                // Wenn UK jetzt da ist, waren wir erfolgreich und beenden den Flow hier.
+                // Wenn UK jetzt da ist, waren wir erfolgreich.
                 if (currentUniversalKey) return; 
             }
             
-            // Wenn Offer Link geöffnet wurde (CLIENT/Handy): Zuerst Auth erzwingen, dann P2P starten
+            // Wenn Offer Link geöffnet wurde (CLIENT/Handy): Auth erzwingen, dann P2P starten
             if (offerParam) {
                 if (passkeyId) {
                      await startPasskeyAssertion(false);
@@ -375,7 +383,7 @@
             const offerParam = urlParams.get('offer');
             const answerParam = urlParams.get('answer'); 
 
-            // NEUE SICHERHEITSABFRAGE: Wenn Answer in URL, Stoppen und Anweisung geben.
+            // SICHERHEITSABFRAGE: Wenn Answer in URL, Stoppen und Anweisung geben.
             if (answerParam) {
                  log('ACHTUNG: Answer-Link in URL erkannt. Dieser Link sollte NICHT direkt geöffnet, sondern in das Feld auf dem Master-Gerät kopiert werden.', true);
                  updateSyncStatus('FEHLER: Link nicht direkt öffnen!', true);
@@ -631,6 +639,30 @@
                 closeP2PConnection();
             }
         }
+        
+        // --- DEBUG FUNCTION ---
+        function clearAllState() {
+            log('Lösche alle Zustände (localStorage & sessionStorage)...');
+            
+            // Clear Passkey ID (device identifier)
+            localStorage.removeItem(PASSKEY_ID_KEY);
+            
+            // Clear Universal Key (session)
+            sessionStorage.removeItem(WRAPPED_UK_KEY);
+            sessionStorage.removeItem(SESSION_EXPIRY_KEY);
+            
+            // Close any active P2P connection
+            closeP2PConnection(); 
+
+            log('Alle Zustände gelöscht. Seite wird in 2 Sekunden neu geladen, um den Flow neu zu starten.');
+            
+            // Reload to properly restart the initialization flow
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        }
+        // --- End DEBUG FUNCTION ---
+
 
         // --- Event Listeners ---
         window.onload = function() {
@@ -665,6 +697,10 @@
             // P2P Listeners (CHEF/PC)
             document.getElementById('p2p-generate-link-btn').addEventListener('click', p2pGenerateOfferLink);
             document.getElementById('p2p-accept-link-btn').addEventListener('click', p2pAcceptAnswerLink);
+
+            // NEU: Clear State Listener
+            document.getElementById('clear-state-btn').addEventListener('click', clearAllState);
+
 
             // Enable button when text is entered
             document.getElementById('p2p-answer-input').addEventListener('input', (e) => {
