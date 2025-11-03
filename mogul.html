@@ -13,12 +13,8 @@
             display: inline-block; margin-right: 8px; 
         }
         #chat-box { max-height: 400px; overflow-y: auto; }
-        
-        /* WhatsApp-ähnliche Größe für eingebettete Medien (max. 70% der Chat-Blase) */
         .embedded-media { max-width: 250px; max-height: 250px; border-radius: 8px; } 
         .video-container, .image-container { max-width: 250px; }
-
-        /* Audio-Container optimiert */
         .audio-container { display: flex; align-items: center; background-color: #e5e7eb; padding: 6px; border-radius: 12px; }
         .speed-button { font-size: 0.75rem; padding: 2px 6px; margin-left: 8px; }
         .hidden-button { display: none !important; } 
@@ -106,26 +102,29 @@
                 </div>
             </div>
         </div>
-
-        <div id="file-section" class="mt-6 hidden">
-            <h3 class="font-semibold text-gray-800 mb-3 flex justify-between items-center">
-                Mediendaten-Übertragung
-                <span id="file-progress-text" class="text-xs text-gray-600"></span>
-            </h3>
-            <div class="bg-white p-3 rounded-xl border border-gray-200">
-                <input type="file" id="media-file-input" accept="video/*,audio/*,image/*" class="file-input file-input-bordered file-input-sm w-full mb-3" />
-                <progress id="file-progress" class="progress progress-primary w-full h-2 mb-2" value="0" max="100"></progress>
-                <div id="receive-status" class="text-sm text-center text-gray-600">Bereit zum Senden/Empfangen.</div>
-            </div>
-        </div>
-
+        
         <div id="chat-section" class="mt-6 hidden">
             <h3 class="font-semibold text-gray-800 mb-3">Mini-Chat</h3>
             
             <div id="chat-box" class="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-3 space-y-2">
                 </div>
 
+            <div id="file-progress-container" class="bg-white p-2 rounded-xl border border-gray-200 mb-3 hidden">
+                <h4 class="font-semibold text-gray-800 text-xs flex justify-between items-center">
+                    Datei-Übertragung
+                    <span id="file-progress-text" class="text-xs text-gray-600"></span>
+                </h4>
+                <progress id="file-progress" class="progress progress-primary w-full h-2 mb-1" value="0" max="100"></progress>
+                <div id="receive-status" class="text-sm text-center text-gray-600">Bereit zum Senden/Empfangen.</div>
+            </div>
+
             <div class="flex space-x-2">
+                <input type="file" id="media-file-input" accept="video/*,audio/*,image/*" class="hidden" />
+
+                <button id="media-trigger" class="btn btn-ghost btn-circle text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path></svg>
+                </button>
+
                 <input id="chat-input" type="text" placeholder="Nachricht eingeben..." class="input input-bordered w-full" onkeydown="if(event.keyCode===13) document.getElementById('send-message').click()">
                 <button id="send-message" class="btn btn-primary">Senden</button>
             </div>
@@ -213,7 +212,6 @@
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
-            document.getElementById('file-section').classList.add('hidden');
             
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
@@ -233,7 +231,6 @@
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
                 document.getElementById('chat-section').classList.remove('hidden');
-                document.getElementById('file-section').classList.remove('hidden');
             } else if (sectionId) {
                 document.getElementById(sectionId).classList.remove('hidden');
             }
@@ -263,20 +260,16 @@
             let mediaContent;
             
             if (fileMimeType.startsWith('image/')) {
-                // Bild-Vorschau
                 mediaContent = `<div class="image-container"><img src="${fileUrl}" class="embedded-media" alt="${fileName}" /></div>`;
             } else if (fileMimeType.startsWith('video/')) {
-                // Video-Vorschau und Play
                 mediaContent = `<div class="video-container"><video src="${fileUrl}" controls class="embedded-media" preload="metadata"></video></div>`;
             } else if (fileMimeType.startsWith('audio/')) {
-                // Audio-Player und 2x Speed Button
                 mediaContent = `
                     <div class="audio-container">
                         <audio id="audio-${Date.now()}" src="${fileUrl}" controls preload="metadata" class="w-full"></audio>
                         <button class="btn btn-xs btn-outline btn-primary speed-button" onclick="toggleAudioSpeed(this)">1x</button>
                     </div>`;
             } else {
-                 // Fallback für unbekannte Dateien
                 mediaContent = `<div class="p-2 text-sm">Empfangen: ${fileName} (${fileMimeType}). <a href="${fileUrl}" download="${fileName}" class="text-blue-500 underline">Download</a></div>`;
             }
 
@@ -589,7 +582,6 @@
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
-            document.getElementById('file-section').classList.add('hidden');
             localStorage.removeItem(STORAGE_KEY);
         }
 
@@ -647,6 +639,9 @@
         // =================================================================
 
         function sendFile(file) {
+            // Zeige Fortschritt an
+            document.getElementById('file-progress-container').classList.remove('hidden');
+
             // Metadaten senden
             const fileMeta = {
                 type: 'file-meta',
@@ -691,6 +686,7 @@
                     displayMediaPreview(fileMeta.sender, fileUrl, fileMeta.name, fileMeta.mimeType, true);
                     
                     document.getElementById('media-file-input').value = ''; // Input leeren
+                    document.getElementById('file-progress-container').classList.add('hidden');
                 }
             };
             
@@ -700,6 +696,7 @@
         function handleIncomingFileMeta(meta) {
             receivingFileMeta = meta;
             receivedSlices = [];
+            document.getElementById('file-progress-container').classList.remove('hidden');
             document.getElementById('file-progress').value = 0;
             document.getElementById('receive-status').textContent = `Empfange Datei von ${meta.sender}: "${meta.name}" (${(meta.size / 1024 / 1024).toFixed(2)} MB)...`;
         }
@@ -732,6 +729,7 @@
             // Reset
             receivingFileMeta = null;
             receivedSlices = [];
+            document.getElementById('file-progress-container').classList.add('hidden');
         }
 
         function updateFileProgress(transferred, total) {
@@ -785,7 +783,7 @@
                 document.getElementById('connected-section').classList.add('hidden');
                 document.getElementById('data-section').classList.add('hidden');
                 document.getElementById('chat-section').classList.add('hidden');
-                document.getElementById('file-section').classList.add('hidden');
+                document.getElementById('file-progress-container').classList.add('hidden');
                 localStorage.removeItem(STORAGE_KEY); 
             };
 
@@ -820,6 +818,7 @@
             const copyOfferButton = document.getElementById('copy-offer');
             const shareOfferButton = document.getElementById('share-offer');
             const endConnectionButton = document.getElementById('end-connection');
+            const mediaTriggerButton = document.getElementById('media-trigger');
             const fileInput = document.getElementById('media-file-input');
 
             // --- P2P Start / End ---
@@ -831,9 +830,17 @@
                 endConnectionButton.addEventListener('click', endConnection);
             }
 
-            // --- Datei Senden Trigger ---
+            // --- Datei Senden Trigger (NEU: Klick-Ereignis vom Icon) ---
+            mediaTriggerButton.addEventListener('click', function() {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    fileInput.click(); // Öffnet den nativen Dateiauswahl-Dialog
+                } else {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!", bevor Sie eine Datei senden.');
+                }
+            });
+
             fileInput.addEventListener('change', function() {
-                if (this.files.length > 0 && dataChannel && dataChannel.readyState === 'open') {
+                if (this.files.length > 0) {
                     file = this.files[0];
                     if (file.size > 200 * 1024 * 1024) { // 200 MB Limit
                          alert('Die Datei ist zu groß (max. 200 MB).');
@@ -846,9 +853,6 @@
                     } else {
                         this.value = '';
                     }
-                } else if (this.files.length > 0) {
-                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!", bevor Sie eine Datei auswählen.');
-                    this.value = '';
                 }
             });
             
