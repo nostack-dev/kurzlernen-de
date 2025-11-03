@@ -12,9 +12,7 @@
             width: 12px; height: 12px; border-radius: 50%; 
             display: inline-block; margin-right: 8px; 
         }
-        /* Fix für Chat-Box Scroll */
         #chat-box { max-height: 200px; overflow-y: auto; }
-        /* Klasse zum Verbergen des Start-Buttons, wenn verbunden */
         .hidden-button { display: none !important; } 
     </style>
 </head>
@@ -101,6 +99,18 @@
             </div>
         </div>
 
+        <div id="file-section" class="mt-6 hidden">
+            <h3 class="font-semibold text-gray-800 mb-3 flex justify-between items-center">
+                Mediendaten (Video/Audio)
+                <span id="file-progress-text" class="text-xs text-gray-600"></span>
+            </h3>
+            <div class="bg-white p-3 rounded-xl border border-gray-200">
+                <input type="file" id="media-file-input" accept="video/*,audio/*" class="file-input file-input-bordered file-input-sm w-full mb-3" />
+                <progress id="file-progress" class="progress progress-primary w-full h-2" value="0" max="100"></progress>
+                <div id="receive-status" class="text-sm text-center mt-2 text-gray-600">Bereit zum Senden/Empfangen.</div>
+            </div>
+        </div>
+
         <div id="chat-section" class="mt-6 hidden">
             <h3 class="font-semibold text-gray-800 mb-3">Mini-Chat (Datenübertragung)</h3>
             
@@ -124,6 +134,14 @@
         let connectionAttempts = 0;
         const MAX_ATTEMPTS = 3;
         const STORAGE_KEY = 'mogul-p2p-offer-sdp'; 
+        
+        // **MEDIENDATEN GLOBALS**
+        const CHUNK_SIZE = 16384; // 16KB
+        let file = null;
+        let fileReader = null;
+        let nextSlice = 0;
+        let receivedSlices = [];
+        let receivingFileMeta = null;
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -187,6 +205,7 @@
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('file-section').classList.add('hidden'); // Verstecke Dateibereich
             
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
@@ -206,6 +225,7 @@
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
                 document.getElementById('chat-section').classList.remove('hidden');
+                document.getElementById('file-section').classList.remove('hidden'); // Zeige Dateibereich
             } else if (sectionId) {
                 document.getElementById(sectionId).classList.remove('hidden');
             }
@@ -240,6 +260,21 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        function updateFileProgress(transferred, total) {
+            const percent = Math.floor((transferred / total) * 100);
+            const progressEl = document.getElementById('file-progress');
+            const progressTextEl = document.getElementById('file-progress-text');
+            
+            progressEl.value = percent;
+            progressTextEl.textContent = `Fortschritt: ${percent}% (${Math.floor(transferred / 1024)} KB / ${Math.floor(total / 1024)} KB)`;
+
+            if (percent === 100) {
+                document.getElementById('receive-status').textContent = 'Übertragung abgeschlossen.';
+            } else if (percent > 0) {
+                 document.getElementById('receive-status').textContent = 'Übertrage Daten...';
+            }
+        }
+
         async function shareOfferLink() {
             const link = document.getElementById('offer-link').textContent;
             try {
@@ -264,6 +299,8 @@
         // P2P VERBINDUNGS LOGIK
         // =================================================================
         
+        // ... (getOfferCodeFromUrl, getAnswerCodeFromUrl, startConnection, etc. sind unverändert)
+
         function getOfferCodeFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             let offerCode = urlParams.get('offer');
@@ -506,6 +543,7 @@
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('file-section').classList.add('hidden'); // Verstecke Dateibereich
             localStorage.removeItem(STORAGE_KEY);
         }
 
@@ -558,23 +596,121 @@
             });
         }
 
+        // =================================================================
+        // DATEI-SENDEN & EMPFANGEN LOGIK
+        // =================================================================
+
+        function sendFile(file) {
+            // Metadaten senden
+            const fileMeta = {
+                type: 'file-meta',
+                name: file.name,
+                size: file.size,
+                mimeType: file.type
+            };
+            dataChannel.send(JSON.stringify(fileMeta));
+
+            fileReader = new FileReader();
+            let offset = 0;
+            
+            // Starte das Senden
+            function sendSlice() {
+                if (!dataChannel || dataChannel.readyState !== 'open') {
+                    console.error('DataChannel ist nicht bereit.');
+                    return;
+                }
+                
+                const slice = file.slice(offset, offset + CHUNK_SIZE);
+                fileReader.readAsArrayBuffer(slice);
+            }
+
+            fileReader.onload = (e) => {
+                dataChannel.send(e.target.result);
+                offset += e.target.result.byteLength;
+                
+                // Aktualisiere Sende-Fortschritt
+                updateFileProgress(offset, file.size);
+
+                if (offset < file.size) {
+                    // Warte, bis der DataChannel wieder Platz hat (optional, aber stabiler)
+                    if (dataChannel.bufferedAmount === 0) {
+                        sendSlice();
+                    } else {
+                        setTimeout(sendSlice, 100);
+                    }
+                } else {
+                    // Sende Ende-Signal
+                    dataChannel.send(JSON.stringify({ type: 'file-end' }));
+                    document.getElementById('receive-status').textContent = `Datei "${file.name}" erfolgreich gesendet.`;
+                }
+            };
+            
+            sendSlice(); // Beginne den Prozess
+        }
+
+        function handleIncomingFileMeta(meta) {
+            receivingFileMeta = meta;
+            receivedSlices = [];
+            document.getElementById('file-progress').value = 0;
+            document.getElementById('receive-status').textContent = `Empfange Datei: "${meta.name}" (${(meta.size / 1024 / 1024).toFixed(2)} MB)...`;
+        }
+
+        function handleIncomingFileChunk(data) {
+            if (!receivingFileMeta) return;
+
+            receivedSlices.push(data);
+            const totalReceived = receivedSlices.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+
+            // Fortschritt anzeigen
+            updateFileProgress(totalReceived, receivingFileMeta.size);
+        }
+
+        function handleFileTransferEnd() {
+            if (!receivingFileMeta) return;
+
+            const blob = new Blob(receivedSlices, { type: receivingFileMeta.mimeType });
+            
+            const fileUrl = URL.createObjectURL(blob);
+            const fileName = receivingFileMeta.name;
+            const statusEl = document.getElementById('receive-status');
+            
+            statusEl.innerHTML = `
+                Datei **${fileName}** (${(blob.size / 1024 / 1024).toFixed(2)} MB) empfangen. 
+                <a href="${fileUrl}" download="${fileName}" class="text-blue-500 underline font-semibold">Hier herunterladen</a>.
+            `;
+
+            // Reset
+            receivingFileMeta = null;
+            receivedSlices = [];
+        }
+
+
         function setupDataChannel(channel) {
             channel.onopen = () => {
                 console.log('DataChannel geöffnet');
             };
 
-            channel.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'chat') {
-                        const sender = data.deviceName;
-                        displayChatMessage(sender, data.message, false);
-                    } else if (data.type === 'sync-data') {
-                        displaySyncData(data);
+            channel.onmessage = async (event) => {
+                if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'chat') {
+                            const sender = data.deviceName;
+                            displayChatMessage(sender, data.message, false);
+                        } else if (data.type === 'file-meta') {
+                            handleIncomingFileMeta(data);
+                        } else if (data.type === 'file-end') {
+                            handleFileTransferEnd();
+                        } else if (data.type === 'sync-data') {
+                            displaySyncData(data);
+                        }
+                    } catch (e) {
+                        console.log('Empfangene Nachricht (Nicht-JSON):', event.data);
                     }
-                } catch (e) {
-                    console.log('Empfangene Nachricht (Nicht-JSON):', event.data);
+                } else if (event.data instanceof ArrayBuffer) {
+                    // Empfange Datei-Chunk (binäre Daten)
+                    handleIncomingFileChunk(event.data);
                 }
             };
 
@@ -585,6 +721,7 @@
                 document.getElementById('connected-section').classList.add('hidden');
                 document.getElementById('data-section').classList.add('hidden');
                 document.getElementById('chat-section').classList.add('hidden');
+                document.getElementById('file-section').classList.add('hidden'); // Verstecke Dateibereich
                 localStorage.removeItem(STORAGE_KEY); 
             };
 
@@ -619,17 +756,35 @@
             const copyOfferButton = document.getElementById('copy-offer');
             const shareOfferButton = document.getElementById('share-offer');
             const endConnectionButton = document.getElementById('end-connection');
+            const fileInput = document.getElementById('media-file-input');
 
+            // --- P2P Start / End ---
             document.getElementById('start-connection').addEventListener('click', () => {
                  localStorage.removeItem(STORAGE_KEY); 
                  startConnection();
             });
-            
             if (endConnectionButton) {
                 endConnectionButton.addEventListener('click', endConnection);
             }
+
+            // --- Datei Senden Trigger ---
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0 && dataChannel && dataChannel.readyState === 'open') {
+                    file = this.files[0];
+                    nextSlice = 0;
+                    document.getElementById('receive-status').textContent = `Datei "${file.name}" bereit zum Senden.`;
+                    
+                    // Starte den Sendevorgang
+                    if (confirm(`Möchten Sie die Datei "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) senden?`)) {
+                        sendFile(file);
+                    }
+                } else if (this.files.length > 0) {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!", bevor Sie eine Datei auswählen.');
+                    this.value = ''; // Input leeren
+                }
+            });
             
-            // Link kopieren Logik (Fall-Back/Alternative)
+            // --- UI/Share Logik ---
             copyOfferButton.addEventListener('click', function() {
                 const link = document.getElementById('offer-link').textContent;
                 navigator.clipboard.writeText(link).then(() => {
@@ -640,33 +795,25 @@
                 });
             });
 
-            // Native Share Logik
             if (shareOfferButton) {
                 shareOfferButton.addEventListener('click', shareOfferLink);
             }
             
-            // Automatischer Start bei URL-Parametern
+            // --- Automatischer Start / Zustandswiederherstellung ---
             const offerCode = getOfferCodeFromUrl();
             const answerCode = getAnswerCodeFromUrl();
             const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
             if (offerCode) {
-                // Szenario 1: Responder (Gerät B)
                 setTimeout(startConnection, 500);
             } else if (answerCode && storedSdp) {
-                // Szenario 2: Initiator lädt neu MIT Answer-Code
                 localStorage.removeItem(STORAGE_KEY); 
                 setTimeout(() => startConnection(storedSdp), 500);
             } else if (storedSdp && !answerCode) {
-                // Szenario 3: Initiator lädt neu im WAITING-Zustand (F5)
                 setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
                 document.getElementById('start-button-container').classList.add('hidden');
             } else if (answerCode && !storedSdp) {
-                // Szenario 4: Fehler - Answer-Code ist da, aber der SDP wurde gelöscht
-                
-                // **KORREKTUR:** Entferne Hash-Teil bei Fehler, bevor der Benutzer den Button erneut klickt.
                 history.replaceState(null, '', window.location.pathname);
-                
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
                     updateStatus('error', 'Fehler: Sitzung abgelaufen.');
@@ -675,7 +822,7 @@
                 }, 500);
             }
 
-            console.log('Mogul P2P Sync - Finaler Code geladen.');
+            console.log('Mogul P2P Sync - Mediendaten-Übertragung implementiert.');
         });
     </script>
 </body>
