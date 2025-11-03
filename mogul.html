@@ -175,43 +175,46 @@
         // AUTOMATISIERTE VERBINDUNGSLOGIK
         // =================================================================
         
-        /**
-         * Ruft den Offer-Code aus dem Query-String (`?offer=...`) oder 
-         * dem Hash-Teil (`#offer=...`) ab.
-         * @returns {string | null} Der decodierte Offer-Code oder null.
-         */
         function getOfferCodeFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             let offerCode = urlParams.get('offer');
 
             if (!offerCode) {
-                // Fallback: Prüfe den Hash-Teil, falls der Browser den Query nicht überträgt
                 const urlHash = window.location.hash.substring(1);
                 const hashParams = new URLSearchParams(urlHash);
                 offerCode = hashParams.get('offer');
             }
             return offerCode;
         }
+        
+        // **NEU: Funktion zur Abfrage des Answer-Codes**
+        function getAnswerCodeFromUrl() {
+            const urlHash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(urlHash);
+            return hashParams.get('answer');
+        }
 
 
-        async function startConnection() {
+        async function startConnection(initialAnswerCode = null) {
             try {
                 document.getElementById('start-connection').disabled = true;
                 updateStatus('generating');
                 
-                // **KORRIGIERT: Verwenden der zentralen Funktion zur Offer-Erkennung**
                 const offerCode = getOfferCodeFromUrl();
                 
                 if (offerCode) {
-                    // Wir sind der Responder - automatische Verarbeitung
+                    // Szenario 1: Responder-Modus (Link mit ?offer= oder #offer= geöffnet)
                     currentRole = 'responder';
-                    // **Wichtig:** Entferne den Offer-Code aus der URL, 
-                    // um zu verhindern, dass die Seite beim Neuladen wieder Responder wird.
-                    // Nur für die Simulation, in einer echten App würde der Server dies verwalten.
                     history.replaceState(null, '', window.location.pathname);
                     await handleIncomingOffer(offerCode);
+
+                } else if (initialAnswerCode) {
+                    // Szenario 2: Initiator-Modus, der den Answer-Link von B öffnet
+                    currentRole = 'initiator';
+                    await continueInitiatorFlow(initialAnswerCode);
+                    
                 } else {
-                    // Wir sind der Initiator - generiere Offer
+                    // Szenario 3: Normaler Initiator-Start (Button geklickt)
                     currentRole = 'initiator';
                     await createAndShareOffer();
                 }
@@ -264,7 +267,6 @@
             };
             
             const offerString = btoa(JSON.stringify(offerData));
-            // **KORRIGIERT: Bleiben bei Query-Params, aber nutzen window.location.origin für sauberen Link**
             const shareableUrl = `${window.location.origin}${window.location.pathname}?offer=${encodeURIComponent(offerString)}`;
             
             document.getElementById('offer-link').textContent = shareableUrl;
@@ -281,8 +283,44 @@
                 // Fallback
             }
 
-            // Warte auf Answer
+            // Beginne mit dem Warten auf Answer, das nach dem manuellen Klick durch den Responder abgeschlossen wird
             await waitForAnswer();
+        }
+        
+        /**
+         * **NEU:** Setzt den Initiator-Fluss fort, wenn der Answer-Code bereits in der URL ist (beim Neuladen).
+         */
+        async function continueInitiatorFlow(answerCode) {
+            updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
+            
+            // Simuliere die Antwortverarbeitung, ohne auf den Intervall zu warten
+            const answerData = JSON.parse(atob(answerCode));
+            if (answerData.type !== 'answer') {
+                throw new Error('Ungültiger Answer-Code');
+            }
+
+            const remoteAnswer = {
+                type: 'answer',
+                sdp: atob(answerData.sdp)
+            };
+            
+            // Erzeuge die PeerConnection neu, da sie beim Neuladen verloren geht!
+            peerConnection = new RTCPeerConnection(config);
+            dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
+            setupDataChannel(dataChannel);
+            
+            // Finde den ursprünglichen Offer-Code, falls er nicht gespeichert wurde
+            // Da der Initiator seine Session beim Neuladen verloren hat, ist dies die größte Lücke. 
+            // Hier wird angenommen, dass der Initiator seinen Offer-Code über ein externes Medium gespeichert hat.
+            // **IM MANUELLEN TESTFALL MUSS DER INITIATOR VORHER DEN OFFER-CODE GESPEICHERT HABEN.**
+            // Da das in einer Single-Page-App ohne Speicher schwierig ist,
+            // zeigen wir hier einen Fehler, der den Initiator zwingt, den Prozess neu zu starten.
+
+            throw new Error('Initiator-Session beim Neuladen verloren. Bitte neu starten und den Answer-Link in das WAITING-Gerät einfügen.');
+            
+            // Wenn der Code weiterlaufen würde, bräuchten wir den lokalen Offer-SDP:
+            // await peerConnection.setRemoteDescription(remoteAnswer);
+            // await establishConnection();
         }
 
         async function handleIncomingOffer(offerCode) {
@@ -298,12 +336,9 @@
 
             peerConnection = new RTCPeerConnection(config);
             
-            // Data Channel Handler: Setzt dataChannel asynchron
             peerConnection.ondatachannel = (event) => {
                 dataChannel = event.channel;
                 setupDataChannel(dataChannel); 
-                // **WICHTIG:** Im Responder wird establishConnection() aufgerufen, 
-                // sobald der DataChannel empfangen und eingerichtet ist.
                 establishConnection();
             };
 
@@ -325,7 +360,6 @@
                 }
             });
 
-            // Generiere Answer Link
             const answerData = {
                 type: 'answer',
                 sdp: btoa(peerConnection.localDescription.sdp),
@@ -333,30 +367,24 @@
             };
             const answerString = btoa(JSON.stringify(answerData));
             
-            // Simuliere, dass der Responder den Answer-Code in den Hash der URL des Initiators sendet.
-            // In einer echten Anwendung müsste dies an den Initiator gesendet werden (Signaling).
             const finalAnswerUrl = `${window.location.origin}${window.location.pathname}#answer=${encodeURIComponent(answerString)}`;
             
-            updateStatus('waiting', 'Generiere Antwort-Link. Bitte den Initiator diesen Link zu öffnen.');
-            // Anzeigen des Answer-Links für manuelle Simulation (wäre in echter App automatisch)
+            updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
             document.getElementById('offer-link').textContent = finalAnswerUrl;
-            document.getElementById('offer-section').querySelector('h3').textContent = 'Schritt 2: Antwort-Link teilen (manuell)';
-            document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), um die Verbindung abzuschließen:';
+            document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
+            document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
             showSection('link-section');
             document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
         }
 
         async function waitForAnswer() {
             return new Promise((resolve, reject) => {
-                updateStatus('waiting', 'Warte auf die Gegenstelle (Responder) um den Answer-Code zurückzusenden...');
+                updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
                 document.getElementById('answer-section').classList.remove('hidden');
 
                 const checkInterval = setInterval(async () => {
                     try {
-                        // **KORRIGIERT: Prüfe den Answer-Code nur im Hash, wie vom Responder simuliert**
-                        const urlHash = window.location.hash.substring(1);
-                        const hashParams = new URLSearchParams(urlHash);
-                        const answerCode = hashParams.get('answer');
+                        const answerCode = getAnswerCodeFromUrl();
                         
                         if (answerCode) {
                             clearInterval(checkInterval);
@@ -398,7 +426,6 @@
             updateStatus('connecting', 'Stelle finale Verbindung her...');
 
             if (!dataChannel) {
-                // Dies sollte nur im Responder-Modus passieren, wenn es vor ondatachannel aufgerufen wird.
                 if (currentRole === 'responder') {
                     updateStatus('connecting', 'Warte auf DataChannel-Empfang/Öffnung...');
                     return; 
@@ -406,7 +433,6 @@
                 throw new Error("DataChannel konnte nicht initialisiert werden.");
             }
 
-            // Warte auf Data Channel Öffnung
             await new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
                     reject(new Error('Verbindungstimeout: DataChannel öffnet nicht'));
@@ -427,7 +453,6 @@
                 }
             });
 
-            // Verbindung erfolgreich
             updateStatus('connected', 'P2P-Verbindung aktiv!');
             showSection('connected-section');
             document.getElementById('data-section').classList.remove('hidden');
@@ -439,7 +464,6 @@
         function setupDataChannel(channel) {
             channel.onopen = () => {
                 console.log('DataChannel geöffnet');
-                // Das UI-Update wird jetzt durch establishConnection am Ende durchgeführt
             };
 
             channel.onmessage = (event) => {
@@ -518,9 +542,23 @@
                 });
             });
 
-            // **KORRIGIERT: Nur auf den Offer-Code in der URL warten, um den automatischen Start zu triggern**
-            if (getOfferCodeFromUrl()) {
+            // Automatischer Start bei URL-Parametern
+            const offerCode = getOfferCodeFromUrl();
+            const answerCode = getAnswerCodeFromUrl();
+
+            if (offerCode) {
+                // Automatischer Start als Responder (Gerät B)
                 setTimeout(startConnection, 500);
+            } else if (answerCode) {
+                 // **WICHTIG:** Automatischer Start als Initiator, der den Answer-Link geöffnet hat
+                 // Hier muss die Session wiederhergestellt werden, was in einer SPA ohne Speicher nicht geht.
+                 // Wir zeigen einen Fehler, der auf die korrekte Prozedur hinweist.
+                setTimeout(() => {
+                    document.getElementById('start-connection').disabled = true;
+                    updateStatus('error', 'Fehler: Initiator-Sitzung verloren.');
+                    document.getElementById('status-detail').textContent = 'Bitte den Answer-Link (mit #answer=...) in das Fenster des Initiators kopieren, das auf die Antwort wartet.';
+                }, 500);
+
             }
 
             console.log('Mogul P2P Sync - Vollautomatische Version geladen');
