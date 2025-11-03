@@ -158,9 +158,14 @@
 
     <dialog id="gif_modal" class="modal">
         <div class="modal-box max-w-lg">
-            <h3 class="font-bold text-lg text-gray-800 mb-4">🔥 Sick GIF Auswahl (Uncut Stuff)</h3>
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🔥 Dynamische GIF Suche (Uncut Stuff)</h3>
+            <div class="flex mb-4">
+                <input type="text" id="gif-search-input" placeholder="Nach GIFs suchen..." class="input input-bordered w-full" />
+                <button id="gif-search-button" class="btn btn-primary ml-2">Suchen</button>
+            </div>
             <div id="gif-gallery" class="grid grid-cols-3 gap-3 overflow-y-auto max-h-96">
-                </div>
+                <p class="col-span-3 text-center text-gray-500">Lade GIFs...</p>
+            </div>
             <p class="text-xs text-gray-500 mt-4">Wählen Sie ein GIF zum Senden über den P2P DataChannel.</p>
             <div class="modal-action">
                 <form method="dialog">
@@ -182,7 +187,6 @@
         const MAX_ATTEMPTS = 3;
         const STORAGE_KEY = 'mogul-p2p-offer-sdp'; 
         
-        // **MEDIENDATEN GLOBALS**
         const CHUNK_SIZE = 16384; 
         let file = null;
         let fileReader = null;
@@ -190,15 +194,13 @@
         let receivedSlices = [];
         let receivingFileMeta = null;
         let answerCheckInterval = null;
-
-        const SICK_GIF_GALLERY = [
-            'https://i.imgur.com/uGzH32x.gif', 
-            'https://i.imgur.com/lM8mP2t.gif', 
-            'https://i.imgur.com/2Xy5E1P.gif', 
-            'https://i.imgur.com/g8vB4z0.gif', 
-            'https://i.imgur.com/QhS67Y9.gif', 
-            'https://i.imgur.com/yU4lG6C.gif', 
-        ];
+        
+        // **GIF API PLATZHALTER**
+        // HINWEIS: Da ich keine echten API-Schlüssel verwenden kann, muss der Benutzer einen eigenen
+        // GIPHY-API-Schlüssel für die dynamische Suche einfügen.
+        const GIPHY_API_KEY = 'YOUR_GIPHY_API_KEY_HERE'; // *** BITTE HIER EINFÜGEN ***
+        const GIPHY_BASE_URL = 'https://api.giphy.com/v1/gifs/search';
+        const GIPHY_TRENDING_URL = 'https://api.giphy.com/v1/gifs/trending';
 
 
         const config = {
@@ -267,19 +269,19 @@
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('offer-section').classList.remove('hidden');
-                document.getElementById('copy-offer').className = 'btn btn-outline btn-primary w-full';
+                
+                const copyBtn = document.getElementById('copy-offer');
+                copyBtn.className = 'btn btn-outline btn-primary w-full';
 
             } else if (sectionId === 'answer-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('answer-section').classList.remove('hidden');
-                // NEU: Nur den Cancel-Button sichtbar machen, wenn in der Warte-Sektion
-                document.getElementById('cancel-connection').classList.remove('hidden'); 
+                document.getElementById('cancel-connection').classList.remove('hidden');
             
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
                 document.getElementById('chat-section').classList.remove('hidden');
-                document.getElementById('cancel-connection').classList.add('hidden'); 
             } else if (sectionId) {
                 document.getElementById(sectionId).classList.remove('hidden');
             }
@@ -308,7 +310,7 @@
             
             let mediaContent;
             
-            if (fileMimeType.startsWith('image/')) {
+            if (fileMimeType.startsWith('image/') || fileMimeType === 'image/gif') {
                 mediaContent = `<div class="image-container"><img src="${fileUrl}" class="embedded-media" alt="${fileName}" /></div>`;
             } else if (fileMimeType.startsWith('video/')) {
                 mediaContent = `<div class="video-container"><video src="${fileUrl}" controls class="embedded-media" preload="metadata"></video></div>`;
@@ -554,9 +556,10 @@
             }
 
             updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
-            // NEU: Hier wird die Warte-Sektion MIT dem Abbruch-Button angezeigt
             showSection('answer-section'); 
             document.getElementById('wait-message').textContent = 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...';
+            document.getElementById('cancel-connection').classList.remove('hidden');
+
 
             return new Promise((resolve, reject) => {
                 answerCheckInterval = setInterval(async () => { 
@@ -608,7 +611,6 @@
 
         function resetConnectionState() {
             if (peerConnection) {
-                // Schließe die Verbindung nur, wenn sie nicht bereits geschlossen ist (um redundante Events zu vermeiden)
                 if (peerConnection.connectionState !== 'closed' && peerConnection.connectionState !== 'failed') {
                     peerConnection.close();
                 }
@@ -620,11 +622,9 @@
             }
             localStorage.removeItem(STORAGE_KEY);
             
-            // Setze UI auf READY Zustand zurück
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
             
-            // Verstecke alle spezifischen Sektionen
             document.getElementById('link-section').classList.add('hidden');
             document.getElementById('offer-section').classList.add('hidden');
             document.getElementById('answer-section').classList.add('hidden');
@@ -632,6 +632,7 @@
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
             document.getElementById('file-progress-container').classList.add('hidden');
+            
             document.getElementById('cancel-connection').classList.add('hidden');
         }
 
@@ -859,6 +860,7 @@
             const copyOfferButton = document.getElementById('copy-offer');
             const endConnectionButton = document.getElementById('end-connection');
             const mediaTriggerButton = document.getElementById('media-trigger');
+            const gifTriggerButton = document.getElementById('gif-trigger');
             const fileInput = document.getElementById('media-file-input');
             const cancelButton = document.getElementById('cancel-connection'); 
 
@@ -875,24 +877,64 @@
             }
 
             // --- GIF Trigger ---
-            document.getElementById('gif-trigger').addEventListener('click', function() {
+            gifTriggerButton.addEventListener('click', function() {
                 if (dataChannel && dataChannel.readyState === 'open') {
                     const modal = document.getElementById('gif_modal');
                     const gallery = document.getElementById('gif-gallery');
-                    gallery.innerHTML = '';
+                    const searchInput = document.getElementById('gif-search-input');
+                    const searchButton = document.getElementById('gif-search-button');
 
-                    SICK_GIF_GALLERY.forEach(url => {
-                        const imgWrapper = document.createElement('div');
-                        imgWrapper.className = 'cursor-pointer p-0.5 border-2 border-transparent hover:border-blue-500 transition-all duration-100';
-                        imgWrapper.innerHTML = `<img src="${url}" data-url="${url}" class="w-full h-auto rounded" />`;
-                        
-                        imgWrapper.addEventListener('click', () => {
-                            selectAndSendGif(url);
-                            modal.close();
-                        });
-                        gallery.appendChild(imgWrapper);
-                    });
+                    gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Lade trendende GIFs...</p>';
                     modal.showModal();
+
+                    const fetchGifs = async (query = '') => {
+                        gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Suche läuft...</p>';
+                        
+                        // **WICHTIG:** Simuliere hier den API-Aufruf
+                        if (GIPHY_API_KEY === 'YOUR_GIPHY_API_KEY_HERE') {
+                            // Verwende statische GIFs, da kein API-Schlüssel vorhanden ist
+                            gallery.innerHTML = '<p class="col-span-3 text-center text-red-500 font-bold">FEHLER: Bitte GIPHY_API_KEY einfügen. Nutze statische Platzhalter...</p>';
+                            
+                            const staticGifs = SICK_GIF_GALLERY.filter((_, i) => i < 6);
+                            displayGifGallery(staticGifs);
+                        } else {
+                            // Führe tatsächlichen API-Aufruf aus (wenn Schlüssel vorhanden)
+                            const url = query ? `${GIPHY_BASE_URL}?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=9&rating=r` : `${GIPHY_TRENDING_URL}?api_key=${GIPHY_API_KEY}&limit=9&rating=r`;
+                            
+                            try {
+                                const response = await fetch(url);
+                                const json = await response.json();
+                                const gifUrls = json.data.map(item => item.images.fixed_width.url);
+                                displayGifGallery(gifUrls);
+                            } catch (e) {
+                                gallery.innerHTML = '<p class="col-span-3 text-center text-red-500">Fehler beim Laden von GIPHY. Netzwerkproblem oder ungültiger Schlüssel.</p>';
+                            }
+                        }
+                    };
+
+                    const displayGifGallery = (urls) => {
+                        gallery.innerHTML = '';
+                        urls.forEach(url => {
+                            const imgWrapper = document.createElement('div');
+                            imgWrapper.className = 'cursor-pointer p-0.5 border-2 border-transparent hover:border-blue-500 transition-all duration-100';
+                            imgWrapper.innerHTML = `<img src="${url}" class="w-full h-auto rounded" />`;
+                            
+                            imgWrapper.addEventListener('click', () => {
+                                selectAndSendGif(url);
+                                modal.close();
+                            });
+                            gallery.appendChild(imgWrapper);
+                        });
+                        if (urls.length === 0) {
+                            gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Keine Ergebnisse gefunden.</p>';
+                        }
+                    };
+
+                    searchButton.onclick = () => fetchGifs(searchInput.value);
+                    searchInput.onkeydown = (e) => { if (e.key === 'Enter') fetchGifs(searchInput.value); };
+
+                    fetchGifs(); // Lade initiale GIFs
+                    
 
                 } else {
                     alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
