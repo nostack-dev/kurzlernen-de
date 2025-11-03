@@ -105,6 +105,22 @@
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         };
 
+        // **NEUE HILFSFUNKTIONEN FÜR ROBUSTE KODIERUNG/DEKODIERUNG VON UTF-8 SDP**
+        function b64EncodeUnicode(str) {
+            // Encode String to Base64 (supporting Unicode characters)
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+                function(match, p1) {
+                    return String.fromCharCode('0x' + p1);
+                }));
+        }
+
+        function b64DecodeUnicode(str) {
+            // Decode Base64 string (supporting Unicode characters)
+            return decodeURIComponent(atob(str).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+        }
+
         // =================================================================
         // UI MANAGEMENT 
         // =================================================================
@@ -191,23 +207,16 @@
             return hashParams.get('answer');
         }
 
-        // **NEU:** Robuste Decodierung
         function decodeBase64Json(base64String) {
             if (!base64String) {
                 throw new Error("Leerer String für Decodierung.");
             }
             try {
-                // 1. URL-Decodierung: Stellt sicher, dass Zeichen wie '+' (die als Leerzeichen interpretiert werden könnten) korrekt sind.
                 const decodedUri = decodeURIComponent(base64String.replace(/\s/g, ''));
-                
-                // 2. Base64 Decodierung: atob()
-                const jsonString = atob(decodedUri);
-                
-                // 3. JSON Parsen
+                const jsonString = atob(decodedUri); // <-- HIER wird atob aufgerufen (auf dem JSON-Payload)
                 return JSON.parse(jsonString);
             } catch (e) {
                 console.error("Decodierungsfehler:", e);
-                // Gibt den ursprünglichen Fehler des atob/JSON.parse weiter
                 throw new Error(`Decodierungsfehler: Der übergebene Code ist ungültig oder beschädigt. (${e.message})`);
             }
         }
@@ -219,25 +228,13 @@
                 updateStatus('generating');
                 
                 const offerCode = getOfferCodeFromUrl();
-                const answerCode = getAnswerCodeFromUrl();
                 
                 if (offerCode) {
-                    // Szenario 1: Responder-Modus (Link mit ?offer= oder #offer= geöffnet)
                     currentRole = 'responder';
-                    // Der Answer Code muss für das Responder-Gerät entfernt werden, damit es nicht in eine Schleife gerät.
                     history.replaceState(null, '', window.location.pathname);
                     await handleIncomingOffer(offerCode);
 
-                } else if (answerCode) {
-                    // Szenario 2: Initiator-Modus, der den Answer-Link im selben Tab öffnet (FEHLER-STATUS)
-                    currentRole = 'initiator';
-                    
-                    // **WICHTIG:** Dieser Pfad ist nur ein Fehler-Handler (siehe vorherige Antwort)
-                    // Da die Session weg ist, ist dieser Zustand nicht wiederherstellbar.
-                    throw new Error('Initiator-Sitzung beim Neuladen verloren. Bitte den Answer-Link in das WAITING-Gerät einfügen.');
-                    
                 } else {
-                    // Szenario 3: Normaler Initiator-Start (Button geklickt)
                     currentRole = 'initiator';
                     await createAndShareOffer();
                 }
@@ -284,12 +281,12 @@
 
             const offerData = {
                 type: 'offer',
-                sdp: btoa(peerConnection.localDescription.sdp),
+                // **KORREKTUR:** Verwendung der robusten Kodierung für den SDP
+                sdp: b64EncodeUnicode(peerConnection.localDescription.sdp), 
                 timestamp: Date.now()
             };
             
-            // **VERWENDUNG DER ROBUSTEN DECODIERUNG FÜR DEN OFFER-STRING**
-            const offerString = btoa(JSON.stringify(offerData)); 
+            const offerString = btoa(JSON.stringify(offerData)); // Hier wird das JSON weiterhin mit einfachem btoa kodiert, was ausreichend ist
             const shareableUrl = `${window.location.origin}${window.location.pathname}?offer=${encodeURIComponent(offerString)}`;
             
             document.getElementById('offer-link').textContent = shareableUrl;
@@ -313,12 +310,13 @@
             updateStatus('connecting', 'Verarbeite eingehende Verbindung...');
             
             try {
-                const offerData = decodeBase64Json(offerCode); // **ROBUSTER DECODIERUNGS-AUFRUF**
+                const offerData = decodeBase64Json(offerCode); 
                 if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code Typ');
                 
+                // **KORREKTUR:** Verwendung der robusten Dekodierung für den SDP
                 const remoteOffer = {
                     type: 'offer',
-                    sdp: atob(offerData.sdp)
+                    sdp: b64DecodeUnicode(offerData.sdp)
                 };
 
                 peerConnection = new RTCPeerConnection(config);
@@ -349,7 +347,8 @@
 
                 const answerData = {
                     type: 'answer',
-                    sdp: btoa(peerConnection.localDescription.sdp),
+                    // **KORREKTUR:** Verwendung der robusten Kodierung für den SDP
+                    sdp: b64EncodeUnicode(peerConnection.localDescription.sdp), 
                     timestamp: Date.now()
                 };
                 const answerString = btoa(JSON.stringify(answerData));
@@ -381,20 +380,20 @@
                         if (answerCode) {
                             clearInterval(checkInterval);
                             
-                            // Entferne den Answer-Hash, damit die URL sauber ist
                             history.replaceState(null, '', window.location.pathname);
                             
                             updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
                             
-                            const answerData = decodeBase64Json(answerCode); // **ROBUSTER DECODIERUNGS-AUFRUF**
+                            const answerData = decodeBase64Json(answerCode);
                             if (answerData.type !== 'answer') {
                                 reject(new Error('Ungültiger Answer-Code Typ'));
                                 return;
                             }
 
+                            // **KORREKTUR:** Verwendung der robusten Dekodierung für den SDP
                             const remoteAnswer = {
                                 type: 'answer',
-                                sdp: atob(answerData.sdp)
+                                sdp: b64DecodeUnicode(answerData.sdp)
                             };
 
                             await peerConnection.setRemoteDescription(remoteAnswer);
@@ -534,14 +533,12 @@
                 });
             });
 
-            // Automatischer Start bei URL-Parametern
             const offerCode = getOfferCodeFromUrl();
             const answerCode = getAnswerCodeFromUrl();
 
             if (offerCode) {
                 setTimeout(startConnection, 500);
             } else if (answerCode) {
-                // **HINWEIS:** Dies ist der Fehlerpfad des Initiators, wenn die Sitzung verloren ging.
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
                     updateStatus('error', 'Fehler: Initiator-Sitzung verloren.');
