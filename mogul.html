@@ -9,6 +9,7 @@
         Intelligente Signalisierung: Ersetzt manuelles Kopieren/Tippen durch QR-Codes.
         Der QR-Code enthält: [Typ]|[PIN]|[Verschlüsselter SDP-Code]
         Der Benutzer muss nur noch scannen und den Text in das Feld "Gescannten Code einfügen" pasten.
+        UPDATE: Größe und Fehlerkorrektur für bessere Scanbarkeit angepasst.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,14 +37,15 @@
         }
 
         .qr-container {
-            display: flex;
+            /* Erlaubt dem QR-Code, die volle 256x256 Größe der JS-Lib anzunehmen */
+            display: flex; 
             justify-content: center;
             align-items: center;
-            padding: 1rem;
+            padding: 1.5rem;
             margin-top: 1rem;
             background-color: white; /* QR-Codes brauchen hellen Hintergrund */
             border-radius: 0.75rem;
-            min-height: 256px;
+            min-height: 280px; /* Platz für 256px QR + Padding */
         }
 
     </style>
@@ -82,7 +84,7 @@
                 <!-- INPUT SECTION (Gemeinsam für Offer & Answer) -->
                 <div class="border-b pb-4 mb-4">
                     <h4 class="font-bold text-xl mb-3 text-secondary">Gescannten Code einfügen (Input)</h4>
-                    <p class="text-sm mb-2 text-gray-500">Scannen Sie den QR-Code auf dem Partnergerät und fügen Sie den resultierenden Text hier ein.</p>
+                    <p class="text-sm mb-2 text-gray-500">Scannen Sie den QR-Code auf dem Partnergerät und fügen Sie den resultierenden Text hier ein. **(WICHTIG: Er muss mit 'O|' oder 'A|' beginnen)**</p>
                     <textarea id="p2p-scanned-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="Gescannten Base64 Code hier einfügen (z.B. A|123456|...)" oninput="this.value = this.value.toUpperCase().replace(/\s/g, '');"></textarea>
                 </div>
 
@@ -156,16 +158,20 @@
              }
         }
         
+        /**
+         * Generiert den QR-Code mit optimierten Parametern für bessere Scanbarkeit.
+         */
         function generateQRCode(elementId, text) {
             const container = document.getElementById(elementId);
             container.innerHTML = ''; // Vorherigen QR-Code entfernen
             new QRCode(container, {
                 text: text,
-                width: 200,
-                height: 200,
+                width: 256, // Größer für bessere Scanbarkeit
+                height: 256, // Größer für bessere Scanbarkeit
                 colorDark : "#000000",
                 colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
+                // Wichtig: Reduzierte Fehlerkorrektur (L=Low) für einen weniger dichten und damit einfacher zu scannenden Code.
+                correctLevel : QRCode.CorrectLevel.L 
             });
         }
 
@@ -399,6 +405,7 @@
          */
         function parseScannedCode(scannedText) {
             const parts = scannedText.split('|');
+            // Check 1: Drei Teile, Check 2: Typ 'O' oder 'A', Check 3: PIN 6 Ziffern, Check 4: Encrypted Code ist lang genug
             if (parts.length === 3 && (parts[0] === 'O' || parts[0] === 'A') && /^\d{6}$/.test(parts[1]) && parts[2].length > 50) {
                 return {
                     type: parts[0],
@@ -453,7 +460,7 @@
             const parsedOffer = parseScannedCode(scannedText);
             
             if (!parsedOffer || parsedOffer.type !== 'O') {
-                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Offer-QR-Code in das Input-Feld einfügen.", 'error');
+                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Offer-QR-Code in das Input-Feld einfügen. (Muss mit 'O|' beginnen)", 'error');
             }
 
             try {
@@ -477,7 +484,8 @@
                 
                 const answerSdpString = peerConnection.localDescription.sdp;
                 
-                // C. Answer SDP verschlüsseln mit neuem PIN
+                // C. Answer SDP verschlüsseln mit dem GLEICHEN PIN (Für den Chef-PC ist das der einfachste Weg)
+                // ACHTUNG: Der PIN muss bekannt sein. Hier generieren wir einen neuen, da der Offer-PIN nur zum Entschlüsseln des Offers bekannt war.
                 const answerPin = cryptoUtils.generatePin();
                 const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, answerPin);
 
@@ -503,7 +511,7 @@
             const parsedAnswer = parseScannedCode(scannedText);
             
             if (!parsedAnswer || parsedAnswer.type !== 'A') {
-                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Answer-QR-Code in das Input-Feld einfügen.", 'error');
+                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Answer-QR-Code in das Input-Feld einfügen. (Muss mit 'A|' beginnen)", 'error');
             }
 
             try {
@@ -607,9 +615,13 @@
                 const parsed = parseScannedCode(e.target.value);
                 
                 if (isOfferFlowActive && parsed && parsed.type === 'A') {
+                    // Answer-Code gescannt
                     document.getElementById('p2p-start-pull-btn').disabled = false;
+                    document.getElementById('p2p-start-pull-btn').textContent = "C. Verbindung herstellen (Answer entschlüsseln)";
                 } else if (localSDPType === 'offer') {
+                    // Kein gültiger Answer-Code
                     document.getElementById('p2p-start-pull-btn').disabled = true;
+                    document.getElementById('p2p-start-pull-btn').textContent = "C. Bitte Answer-Code einfügen...";
                 }
             });
 
