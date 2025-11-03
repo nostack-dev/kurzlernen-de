@@ -100,14 +100,14 @@
         let currentRole = null; 
         let connectionAttempts = 0;
         const MAX_ATTEMPTS = 3;
+        const SESSION_STORAGE_KEY = 'mogul-p2p-offer-sdp';
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         };
 
-        // **NEUE HILFSFUNKTIONEN FÜR ROBUSTE KODIERUNG/DEKODIERUNG VON UTF-8 SDP**
+        // **HILFSFUNKTIONEN FÜR ROBUSTE KODIERUNG/DEKODIERUNG VON UTF-8 SDP**
         function b64EncodeUnicode(str) {
-            // Encode String to Base64 (supporting Unicode characters)
             return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
                 function(match, p1) {
                     return String.fromCharCode('0x' + p1);
@@ -115,10 +115,24 @@
         }
 
         function b64DecodeUnicode(str) {
-            // Decode Base64 string (supporting Unicode characters)
             return decodeURIComponent(atob(str).split('').map(function(c) {
                 return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
             }).join(''));
+        }
+
+        function decodeBase64Json(base64String) {
+            if (!base64String) {
+                throw new Error("Leerer String für Decodierung.");
+            }
+            try {
+                // Entfernt Leerzeichen und versucht URL-Dekodierung des Base64-Strings
+                const decodedUri = decodeURIComponent(base64String.replace(/\s/g, ''));
+                const jsonString = atob(decodedUri); 
+                return JSON.parse(jsonString);
+            } catch (e) {
+                console.error("Decodierungsfehler:", e);
+                throw new Error(`Decodierungsfehler: Der übergebene Code ist ungültig oder beschädigt. (${e.message})`);
+            }
         }
 
         // =================================================================
@@ -207,22 +221,7 @@
             return hashParams.get('answer');
         }
 
-        function decodeBase64Json(base64String) {
-            if (!base64String) {
-                throw new Error("Leerer String für Decodierung.");
-            }
-            try {
-                const decodedUri = decodeURIComponent(base64String.replace(/\s/g, ''));
-                const jsonString = atob(decodedUri); // <-- HIER wird atob aufgerufen (auf dem JSON-Payload)
-                return JSON.parse(jsonString);
-            } catch (e) {
-                console.error("Decodierungsfehler:", e);
-                throw new Error(`Decodierungsfehler: Der übergebene Code ist ungültig oder beschädigt. (${e.message})`);
-            }
-        }
-
-
-        async function startConnection() {
+        async function startConnection(restoredSdp = null) {
             try {
                 document.getElementById('start-connection').disabled = true;
                 updateStatus('generating');
@@ -234,7 +233,13 @@
                     history.replaceState(null, '', window.location.pathname);
                     await handleIncomingOffer(offerCode);
 
+                } else if (restoredSdp) {
+                    // Szenario 2: Initiator-Modus, nach Neuladen/Tab-Wechsel (Zustand wiederhergestellt)
+                    currentRole = 'initiator';
+                    await continueInitiatorFlow(restoredSdp);
+                    
                 } else {
+                    // Szenario 3: Normaler Initiator-Start (Button geklickt)
                     currentRole = 'initiator';
                     await createAndShareOffer();
                 }
@@ -265,6 +270,9 @@
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
+            
+            // **SPEICHERN:** Den lokalen Offer SDP im sessionStorage speichern
+            sessionStorage.setItem(SESSION_STORAGE_KEY, peerConnection.localDescription.sdp);
 
             await new Promise(resolve => {
                 if (peerConnection.iceGatheringState === 'complete') {
@@ -281,12 +289,11 @@
 
             const offerData = {
                 type: 'offer',
-                // **KORREKTUR:** Verwendung der robusten Kodierung für den SDP
                 sdp: b64EncodeUnicode(peerConnection.localDescription.sdp), 
                 timestamp: Date.now()
             };
             
-            const offerString = btoa(JSON.stringify(offerData)); // Hier wird das JSON weiterhin mit einfachem btoa kodiert, was ausreichend ist
+            const offerString = btoa(JSON.stringify(offerData)); 
             const shareableUrl = `${window.location.origin}${window.location.pathname}?offer=${encodeURIComponent(offerString)}`;
             
             document.getElementById('offer-link').textContent = shareableUrl;
@@ -306,6 +313,26 @@
             await waitForAnswer();
         }
 
+        /**
+         * Setzt den Initiator-Fluss nach Neuladen/Tab-Wechsel fort, indem die PeerConnection wiederhergestellt wird.
+         * @param {string} restoredSdp Der ursprüngliche lokale SDP-String des Offers.
+         */
+        async function continueInitiatorFlow(restoredSdp) {
+            updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
+            
+            // 1. PeerConnection neu erstellen und DataChannel vorbereiten
+            peerConnection = new RTCPeerConnection(config);
+            dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
+            setupDataChannel(dataChannel);
+            
+            // 2. Den ursprünglichen Offer SDP setzen (Wiederherstellung des lokalen Zustands)
+            const offer = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+            await peerConnection.setLocalDescription(offer);
+            
+            // 3. Warte auf den Answer-Code, der jetzt in der URL ist
+            await waitForAnswer(true); 
+        }
+
         async function handleIncomingOffer(offerCode) {
             updateStatus('connecting', 'Verarbeite eingehende Verbindung...');
             
@@ -313,7 +340,6 @@
                 const offerData = decodeBase64Json(offerCode); 
                 if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code Typ');
                 
-                // **KORREKTUR:** Verwendung der robusten Dekodierung für den SDP
                 const remoteOffer = {
                     type: 'offer',
                     sdp: b64DecodeUnicode(offerData.sdp)
@@ -347,7 +373,6 @@
 
                 const answerData = {
                     type: 'answer',
-                    // **KORREKTUR:** Verwendung der robusten Kodierung für den SDP
                     sdp: b64EncodeUnicode(peerConnection.localDescription.sdp), 
                     timestamp: Date.now()
                 };
@@ -368,36 +393,30 @@
             }
         }
 
-        async function waitForAnswer() {
-            return new Promise((resolve, reject) => {
-                updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
-                document.getElementById('answer-section').classList.remove('hidden');
+        async function waitForAnswer(answerPresentOnLoad = false) {
+            
+            // Wenn der Answer-Code bereits beim Laden vorhanden war (neuer Tab), 
+            // verarbeiten wir den Answer sofort.
+            if (answerPresentOnLoad) {
+                 const answerCode = getAnswerCodeFromUrl();
+                 if (answerCode) {
+                    await processAnswer(answerCode);
+                    return;
+                 }
+            }
 
+            // Normale Warteschleife (wenn der Initiator wartet)
+            updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
+            document.getElementById('answer-section').classList.remove('hidden');
+
+            return new Promise((resolve, reject) => {
                 const checkInterval = setInterval(async () => {
                     try {
                         const answerCode = getAnswerCodeFromUrl();
                         
                         if (answerCode) {
                             clearInterval(checkInterval);
-                            
-                            history.replaceState(null, '', window.location.pathname);
-                            
-                            updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
-                            
-                            const answerData = decodeBase64Json(answerCode);
-                            if (answerData.type !== 'answer') {
-                                reject(new Error('Ungültiger Answer-Code Typ'));
-                                return;
-                            }
-
-                            // **KORREKTUR:** Verwendung der robusten Dekodierung für den SDP
-                            const remoteAnswer = {
-                                type: 'answer',
-                                sdp: b64DecodeUnicode(answerData.sdp)
-                            };
-
-                            await peerConnection.setRemoteDescription(remoteAnswer);
-                            await establishConnection();
+                            await processAnswer(answerCode);
                             resolve();
                         }
                     } catch (error) {
@@ -412,6 +431,27 @@
                 }, 120000);
             });
         }
+        
+        async function processAnswer(answerCode) {
+            updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
+            
+            // Entferne den Answer-Hash, damit die URL sauber ist
+            history.replaceState(null, '', window.location.pathname);
+            
+            const answerData = decodeBase64Json(answerCode);
+            if (answerData.type !== 'answer') {
+                throw new Error('Ungültiger Answer-Code Typ');
+            }
+
+            const remoteAnswer = {
+                type: 'answer',
+                sdp: b64DecodeUnicode(answerData.sdp)
+            };
+
+            await peerConnection.setRemoteDescription(remoteAnswer);
+            await establishConnection();
+        }
+
 
         async function establishConnection() {
             updateStatus('connecting', 'Stelle finale Verbindung her...');
@@ -473,6 +513,7 @@
             channel.onclose = () => {
                 updateStatus('error', 'Verbindung geschlossen');
                 document.getElementById('start-connection').disabled = false;
+                sessionStorage.removeItem(SESSION_STORAGE_KEY); // Entferne SDP bei Schließen
             };
 
             channel.onerror = (error) => {
@@ -483,7 +524,7 @@
         }
 
         function sendTestData() {
-            if (dataChannel && dataChannel.readyState === 'open') {
+             if (dataChannel && dataChannel.readyState === 'open') {
                 const testData = {
                     type: 'sync-data',
                     deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
@@ -503,7 +544,7 @@
         }
 
         function sendSyncResponse() {
-            if (dataChannel && dataChannel.readyState === 'open') {
+             if (dataChannel && dataChannel.readyState === 'open') {
                 const response = {
                     type: 'sync-response',
                     deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
@@ -521,7 +562,10 @@
         // EVENT LISTENER & INITIALISIERUNG
         // =================================================================
         document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('start-connection').addEventListener('click', startConnection);
+            document.getElementById('start-connection').addEventListener('click', () => {
+                 sessionStorage.removeItem(SESSION_STORAGE_KEY); // Lösche alten Zustand
+                 startConnection();
+            });
             
             document.getElementById('copy-offer').addEventListener('click', function() {
                 const link = document.getElementById('offer-link').textContent;
@@ -533,20 +577,28 @@
                 });
             });
 
+            // Automatischer Start bei URL-Parametern
             const offerCode = getOfferCodeFromUrl();
             const answerCode = getAnswerCodeFromUrl();
+            const storedSdp = sessionStorage.getItem(SESSION_STORAGE_KEY); 
 
             if (offerCode) {
+                // Szenario 1: Responder (Gerät B)
                 setTimeout(startConnection, 500);
-            } else if (answerCode) {
+            } else if (answerCode && storedSdp) {
+                // Szenario 2: Initiator (Gerät A) lädt neu mit Answer-Code und gespeichertem SDP
+                sessionStorage.removeItem(SESSION_STORAGE_KEY); 
+                setTimeout(() => startConnection(storedSdp), 500);
+            } else if (answerCode && !storedSdp) {
+                // Fehler: Answer-Code ist da, aber der SDP wurde gelöscht (z.B. nach Schließen des Tabs)
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
-                    updateStatus('error', 'Fehler: Initiator-Sitzung verloren.');
-                    document.getElementById('status-detail').textContent = 'Bitte den Answer-Link (mit #answer=...) in das bereits **geöffnete Fenster** des Initiators kopieren, das auf die Antwort wartet.';
+                    updateStatus('error', 'Fehler: Sitzung abgelaufen.');
+                    document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                 }, 500);
             }
 
-            console.log('Mogul P2P Sync - Vollautomatische Version geladen');
+            console.log('Mogul P2P Sync - Sitzungsspeicher aktiviert');
         });
     </script>
 </body>
