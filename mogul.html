@@ -14,7 +14,7 @@
         }
         /* Fix für Chat-Box Scroll */
         #chat-box { max-height: 200px; overflow-y: auto; }
-        /* NEU: Klasse zum Ausblenden des Start-Buttons */
+        /* Klasse zum Verbergen des Start-Buttons, wenn verbunden */
         .hidden-button { display: none !important; } 
     </style>
 </head>
@@ -83,9 +83,12 @@
                     <span class="connection-dot bg-green-500 animate-pulse"></span>
                     ✅ Verbunden!
                 </h3>
-                <p class="text-sm text-green-700">
+                <p class="text-sm text-green-700 mb-4">
                     Die P2P-Verbindung ist aktiv.
                 </p>
+                <button id="end-connection" class="btn btn-error btn-sm w-full">
+                    ❌ Verbindung trennen
+                </button>
             </div>
         </div>
 
@@ -258,7 +261,7 @@
         }
 
         // =================================================================
-        // AUTOMATISIERTE VERBINDUNGSLOGIK
+        // P2P VERBINDUNGS LOGIK
         // =================================================================
         
         function getOfferCodeFromUrl() {
@@ -282,7 +285,7 @@
         async function startConnection(restoredSdp = null) {
             try {
                 document.getElementById('start-connection').disabled = true;
-                document.getElementById('start-button-container').classList.add('hidden'); // NEU: Verstecke Button beim Start
+                document.getElementById('start-button-container').classList.add('hidden'); 
                 updateStatus('generating');
                 
                 const offerCode = getOfferCodeFromUrl();
@@ -309,11 +312,11 @@
                     setTimeout(() => {
                         updateStatus('ready', `Automatischer Wiederholungsversuch (${connectionAttempts}/${MAX_ATTEMPTS})`);
                         document.getElementById('start-connection').disabled = false;
-                        document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei Retry
+                        document.getElementById('start-button-container').classList.remove('hidden'); 
                     }, 3000);
                 } else {
                      document.getElementById('start-connection').disabled = false;
-                     document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button nach max. Versuchen
+                     document.getElementById('start-button-container').classList.remove('hidden'); 
                 }
             }
         }
@@ -493,6 +496,21 @@
             await establishConnection();
         }
 
+        // **NEU:** Funktion zum Beenden der Verbindung
+        function endConnection() {
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            // Manuelle Rücksetzung in den Ready-Zustand, falls close() nicht alle Events fängt
+            updateStatus('ready');
+            document.getElementById('start-button-container').classList.remove('hidden');
+            document.getElementById('link-section').classList.add('hidden');
+            document.getElementById('connected-section').classList.add('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('chat-section').classList.add('hidden');
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
 
         async function establishConnection() {
             updateStatus('connecting', 'Stelle finale Verbindung her...');
@@ -528,7 +546,6 @@
             updateStatus('connected', 'P2P-Verbindung aktiv!');
             showSection('connected-section');
             
-            // **NEU:** Blende den Start-Button aus, da die Verbindung aktiv ist
             document.getElementById('start-button-container').classList.add('hidden'); 
 
             document.getElementById('sync-data').innerHTML = 'Die P2P-Verbindung ist aktiv und bereit für Datenübertragung.';
@@ -564,17 +581,20 @@
             };
 
             channel.onclose = () => {
-                updateStatus('error', 'Verbindung geschlossen');
-                document.getElementById('start-connection').disabled = false;
-                document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei Schließen
+                updateStatus('ready', 'Verbindung geschlossen');
+                document.getElementById('start-button-container').classList.remove('hidden'); 
+                document.getElementById('link-section').classList.add('hidden');
+                document.getElementById('connected-section').classList.add('hidden');
+                document.getElementById('data-section').classList.add('hidden');
+                document.getElementById('chat-section').classList.add('hidden');
                 localStorage.removeItem(STORAGE_KEY); 
             };
 
             channel.onerror = (error) => {
                 console.error('DataChannel Fehler:', error);
                 updateStatus('error', 'Verbindungsfehler im DataChannel');
-                document.getElementById('start-connection').disabled = false;
-                document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei Fehler
+                document.getElementById('start-button-container').classList.remove('hidden'); 
+                localStorage.removeItem(STORAGE_KEY); 
             };
         }
 
@@ -600,11 +620,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             const copyOfferButton = document.getElementById('copy-offer');
             const shareOfferButton = document.getElementById('share-offer');
+            const endConnectionButton = document.getElementById('end-connection');
 
             document.getElementById('start-connection').addEventListener('click', () => {
                  localStorage.removeItem(STORAGE_KEY); 
                  startConnection();
             });
+            
+            // NEU: Listener für den Trenn-Button
+            if (endConnectionButton) {
+                endConnectionButton.addEventListener('click', endConnection);
+            }
             
             // Link kopieren Logik (Fall-Back/Alternative)
             copyOfferButton.addEventListener('click', function() {
@@ -637,13 +663,13 @@
                     setTimeout(() => {
                         document.getElementById('start-connection').disabled = true;
                         updateStatus('error', 'Fehler: Sitzung abgelaufen.');
-                        document.getElementById('start-button-container').classList.remove('hidden'); // NEU: Zeige Button bei abgelaufener Sitzung
+                        document.getElementById('start-button-container').classList.remove('hidden');
                         document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                     }, 500);
                 }
             }
 
-            console.log('Mogul P2P Sync - Flow optimiert.');
+            console.log('Mogul P2P Sync - Verbindung trennen implementiert.');
         });
     </script>
 </body>
