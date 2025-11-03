@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="corporate">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mogul P2P Sync</title>
+    <title>Mogul P2P CHEF Sync</title>
     <!--
-        FINALE VERSION: Mogul P2P Chef Sync
+        FINALE VERSION: Mogul P2P CHEF Sync
         Architektur: Zero-Trust, Serverless, Passkey (WebAuthn) & P2P (WebRTC)
-        Session-Logik: Hybrid-Speicherung des UK im sessionStorage mit 30-Minuten Inaktivitäts-Timeout.
+        Ziel: "It just works" – so wenig Reibung wie technisch ohne Signaling-Server machbar.
+        Signal-Transport: Copy/Paste (Offer → Answer → Answer-Code zurück). QR kann später drauf.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,14 +28,18 @@
             color: var(--theme-text);
             min-height: 100vh;
         }
+        textarea[readonly] {
+            cursor: default;
+        }
     </style>
 </head>
-<body data-theme="corporate">
+<body>
 
     <div class="p-8 max-w-4xl mx-auto">
         <h1 class="text-3xl font-bold mb-4 flex items-center gap-2">
             Mogul P2P CHEF Sync 
             <span id="mogul-id-display" class="badge badge-lg badge-neutral text-sm">Lade...</span>
+            <span id="p2p-state-badge" class="badge badge-sm badge-warning">P2P: inaktiv</span>
         </h1>
         
         <!-- Status & Device Management -->
@@ -45,7 +50,7 @@
             <div class="mt-6">
                 <h3 class="text-lg font-medium mb-2">Geräte-IDs (Whitelist)</h3>
                 <div id="device-list" class="flex flex-wrap gap-2 mb-3 min-h-8">
-                    <!-- Geräte-Badges werden hier eingefügt -->
+                    <!-- Geräte-Badges -->
                 </div>
                 <div class="flex gap-2">
                     <input type="text" id="new-device-id-input" placeholder="Neue Geräte-ID hinzufügen (z.B. Handy-ID)" class="input input-bordered w-full max-w-xs" />
@@ -65,6 +70,14 @@
         <div class="bg-base-200 p-6 rounded-lg shadow-xl">
             <h2 class="text-xl font-semibold mb-3">Aktivitäts-Protokoll </h2>
             <textarea id="log-output" class="textarea textarea-bordered w-full h-48 font-mono text-xs" readonly>Warte auf Passkey-Authentifizierung...</textarea>
+
+            <!-- kleine Tool-Leiste: keine Popups, nur falls P2P steht -->
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+                <button id="btn-send-ping" class="btn btn-sm" disabled>Ping senden</button>
+                <button id="btn-send-db" class="btn btn-sm btn-primary" disabled>DB-Sync senden</button>
+                <input id="file-send" type="file" class="file-input file-input-bordered file-input-sm w-full max-w-xs" disabled />
+                <progress id="file-progress" class="progress w-56 hidden"></progress>
+            </div>
         </div>
     </div>
     
@@ -74,7 +87,7 @@
     <dialog id="auth_modal" class="modal">
         <div class="modal-box">
             <h3 id="auth-title" class="font-bold text-xl mb-4">Anmeldung erforderlich</h3>
-            <p id="auth-message" class="py-4">Bitte registrieren Sie sich oder melden Sie sich mit Ihrem Passkey an, um den Universal Key (UK) abzuleiten und die Synchronisation zu starten.</p>
+            <p id="auth-message" class="py-4">Bitte registrieren Sie sich oder melden Sie sich mit Ihrem Passkey an.</p>
             <div id="auth-view-register" class="flex flex-col gap-3">
                 <input type="text" id="passkey-name" placeholder="Passkey-Name (z.B. 'Christian PC')" class="input input-bordered w-full" />
                 <button id="register-btn" class="btn btn-success">Passkey registrieren</button>
@@ -88,11 +101,15 @@
         </form>
     </dialog>
 
-    <!-- 2. P2P-Sync Modal (Steve Jobs Style) -->
+    <!-- 2. P2P-Sync Modal -->
     <dialog id="p2p_modal" class="modal">
         <div class="modal-box w-11/12 max-w-2xl bg-white shadow-2xl rounded-xl">
-            <h3 class="font-extrabold text-3xl mb-4 text-primary">Mogul P2P Sync. Einfach. Sofort.</h3>
-            <p class="text-lg mb-6 text-gray-700">Wählen Sie, ob Sie Daten von diesem Gerät **senden** oder **empfangen** möchten.</p>
+            <h3 class="font-extrabold text-3xl mb-4 text-primary">Mogul P2P Sync. It just works.</h3>
+            <p class="text-lg mb-6 text-gray-700">
+                1. Auf Gerät A „Offer generieren“. <br>
+                2. Code auf Gerät B einfügen → „Answer generieren“. <br>
+                3. Antwort-Code zurück auf Gerät A einfügen → Verbindung steht.
+            </p>
 
             <div role="tablist" class="tabs tabs-boxed bg-gray-100 p-1 rounded-lg mb-4">
                 
@@ -100,23 +117,26 @@
                 <input type="radio" name="p2p_tabs" role="tab" class="tab font-semibold" aria-label="Daten senden (Offer)" id="tab-offer" checked />
                 <div role="tabpanel" class="tab-content bg-white border border-gray-200 rounded-box p-6 shadow-inner">
                     <h4 class="text-xl font-bold mb-3 text-secondary">Daten senden (Gerät A)</h4>
-                    <p class="text-sm mb-4 text-gray-600">Dieses Gerät generiert den Start-Code (`Offer`).</p>
+                    <p class="text-sm mb-4 text-gray-600">Dieses Gerät startet. Code kopieren → an anderes Gerät.</p>
                     
                     <div class="space-y-4">
                         <div>
                             <span class="badge badge-info text-md font-bold">SCHRITT 1: OFFER ERSTELLEN</span>
-                            <p class="text-xs mt-1 mb-2">Generieren Sie den geheimen Start-Code. Senden Sie ihn an Gerät B.</p>
+                            <p class="text-xs mt-1 mb-2">Klick → Code entsteht → kopieren.</p>
                             <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 font-mono text-sm" readonly placeholder="Offer Code wird hier generiert..."></textarea>
-                            <button id="p2p-create-offer-btn" class="btn btn-sm btn-info w-full mt-2">Offer Code generieren</button>
+                            <div class="flex gap-2 mt-2">
+                                <button id="p2p-create-offer-btn" class="btn btn-sm btn-info w-full">Offer Code generieren</button>
+                                <button id="p2p-copy-offer-btn" class="btn btn-sm">kopieren</button>
+                            </div>
                         </div>
                         
                         <div class="divider"></div>
                         
                         <div>
-                            <span class="badge badge-success text-md font-bold">SCHRITT 2: ANTWORT AKZEPTIEREN</span>
-                            <p class="text-xs mt-1 mb-2">Fügen Sie den Antwort-Code (`Answer`) von Gerät B hier ein, um den Sync zu starten.</p>
-                            <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Fügen Sie den Answer Code hier ein..."></textarea>
-                            <button id="p2p-accept-answer-btn" class="btn btn-sm btn-success w-full mt-2">Answer Code akzeptieren & SYNC STARTEN</button>
+                            <span class="badge badge-success text-md font-bold">SCHRITT 2: ANTWORT EINSETZEN</span>
+                            <p class="text-xs mt-1 mb-2">Answer von Gerät B hier einfügen.</p>
+                            <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Answer Code hier einfügen..."></textarea>
+                            <button id="p2p-accept-answer-btn" class="btn btn-sm btn-success w-full mt-2">Answer akzeptieren & verbinden</button>
                         </div>
                     </div>
                 </div>
@@ -125,13 +145,12 @@
                 <input type="radio" name="p2p_tabs" role="tab" class="tab font-semibold" aria-label="Daten empfangen (Answer)" id="tab-answer" />
                 <div role="tabpanel" class="tab-content bg-white border border-gray-200 rounded-box p-6 shadow-inner">
                     <h4 class="text-xl font-bold mb-3 text-secondary">Daten empfangen (Gerät B)</h4>
-                    <p class="text-sm mb-4 text-gray-600">Dieses Gerät empfängt den Start-Code und antwortet mit dem Rück-Code (`Answer`).</p>
+                    <p class="text-sm mb-4 text-gray-600">Hier den Offer von Gerät A einfügen → Answer entsteht → zurückschicken.</p>
 
                     <div class="space-y-4">
                         <div>
                             <span class="badge badge-warning text-md font-bold">SCHRITT 1: OFFER CODE EINFÜGEN</span>
-                            <p class="text-xs mt-1 mb-2">Fügen Sie den Start-Code (`Offer`) von Gerät A hier ein.</p>
-                            <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Fügen Sie den Offer Code hier ein..."></textarea>
+                            <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full h-24 font-mono text-sm" placeholder="Offer Code von Gerät A hier einfügen..."></textarea>
                             <button id="p2p-create-answer-btn" class="btn btn-sm btn-warning w-full mt-2">Answer Code generieren</button>
                         </div>
                         
@@ -139,12 +158,16 @@
                         
                         <div>
                             <span class="badge badge-info text-md font-bold">SCHRITT 2: ANSWER CODE SENDEN</span>
-                            <p class="text-xs mt-1 mb-2">Senden Sie den generierten Antwort-Code an Gerät A. Der Sync beginnt.</p>
                             <textarea id="p2p-answer-output" class="textarea textarea-bordered w-full h-24 font-mono text-sm" readonly placeholder="Answer Code wird hier generiert..."></textarea>
+                            <button id="p2p-copy-answer-btn" class="btn btn-sm w-full mt-2">kopieren</button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <p class="text-xs text-gray-400 mt-4">
+                Alle Nutzdaten laufen Ende-zu-Ende verschlüsselt mit deinem UK (AES-GCM). Kein Server sieht was.
+            </p>
 
             <div class="modal-action">
                 <form method="dialog">
@@ -156,36 +179,45 @@
 
     <script>
         // --- Globale Konstanten & Variablen ---
-        
-        const WRAPPED_UK_KEY = 'mogul_uk';           
-        const PASSKEY_ID_KEY = 'mogul_passkey_id';   
-        const DEVICE_LIST_KEY = 'mogul_device_list'; 
-        const DB_HASH_KEY = 'mogul_db_hash';         
-        
+        const WRAPPED_UK_KEY = 'mogul_uk';
+        const PASSKEY_ID_KEY = 'mogul_passkey_id';
+        const DEVICE_LIST_KEY = 'mogul_device_list';
+        const DB_HASH_KEY = 'mogul_db_hash';
         const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
         const SESSION_EXPIRY_KEY = 'mogul_session_expires';
 
-        let currentUniversalKey = null; 
-        let userId = 'MogulCHEF';      
-        let deviceList = [];           
+        let currentUniversalKey = null;
+        let userId = 'MogulCHEF';
+        let deviceList = [];
         let db = {
             data: 'Dies ist die initiale Datenbank. Alle vertraulichen Inhalte werden mit dem UK verschlüsselt.',
             version: 1
-        }; 
+        };
 
-        // DOM-Elemente
+        // WebRTC / P2P
+        const ICE_SERVERS = [{ urls: ['stun:stun.l.google.com:19302'] }];
+        let p2pConnection = null;
+        let p2pDataChannel = null;
+        let p2pIsOffer = true;
+        let encKeyPromise = null;
+
+        // DOM
         const auth_modal = document.getElementById('auth_modal');
         const p2p_modal = document.getElementById('p2p_modal');
         const log_output = document.getElementById('log-output');
         const mogul_id_display = document.getElementById('mogul-id-display');
         const auth_title = document.getElementById('auth-title');
         const auth_message = document.getElementById('auth-message');
-        
-        // P2P State
-        let p2pIsOffer = true; 
+        const p2pStateBadge = document.getElementById('p2p-state-badge');
 
-        // --- Hilfsfunktionen für Base64URL und ArrayBuffer ---
+        const HKDF_ALG = { 
+            name: "HKDF", 
+            hash: "SHA-256", 
+            salt: new Uint8Array([0,1,2,3,4,5,6,7]),
+            info: new TextEncoder().encode("mogul-universal-key-derivation")
+        };
 
+        // --- Helpers ---
         function base64UrlToUint8Array(base64Url) {
             const padding = '='.repeat((4 - base64Url.length % 4) % 4);
             const base64 = (base64Url + padding)
@@ -194,12 +226,10 @@
             const rawData = window.atob(base64);
             return Uint8Array.from(rawData.split('').map(char => char.charCodeAt(0)));
         }
-
         function arrayBufferToBase64Url(buffer) {
             const base64 = window.btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
             return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         }
-
         function log(message, isError = false) {
             const timestamp = new Date().toLocaleTimeString('de-DE');
             const prefix = isError ? '[FEHLER] ' : '[INFO] ';
@@ -207,7 +237,6 @@
             log_output.scrollTop = log_output.scrollHeight;
             if (isError) console.error(message);
         }
-
         function updateSyncStatus(message, isError = false) {
             const statusElement = document.getElementById('sync-status');
             statusElement.textContent = message;
@@ -215,40 +244,39 @@
                 ? 'text-lg font-mono text-error' 
                 : 'text-lg font-mono text-success';
         }
+        function setP2PState(state, tone='warning') {
+            p2pStateBadge.textContent = 'P2P: ' + state;
+            p2pStateBadge.className = 'badge badge-sm badge-' + tone;
+            const ping = document.getElementById('btn-send-ping');
+            const sendDb = document.getElementById('btn-send-db');
+            const fileSend = document.getElementById('file-send');
+            const enabled = (state === 'verbunden');
+            ping.disabled = !enabled;
+            sendDb.disabled = !enabled;
+            fileSend.disabled = !enabled;
+        }
 
-        // --- 1. Passkey / Zero-Trust Core Logik (WebAuthn) ---
-
-        const HKDF_ALG = { 
-            name: "HKDF", 
-            hash: "SHA-256", 
-            salt: new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]), 
-            info: new TextEncoder().encode("mogul-universal-key-derivation")
-        };
-        const UK_LENGTH = 32; 
-
+        // --- Passkey / UK ---
         async function deriveUniversalKey(credentialId) {
-            log('Leite Universal Key (UK) aus der Passkey-ID ab...');
+            log('Leite Universal Key (UK) ab...');
             const masterKey = await crypto.subtle.importKey(
                 "raw",
-                base64UrlToUint8Array(credentialId).buffer, 
+                base64UrlToUint8Array(credentialId).buffer,
                 HKDF_ALG.name,
                 false,
                 ["deriveKey"]
             );
-
             const derivedKey = await crypto.subtle.deriveKey(
                 HKDF_ALG,
                 masterKey,
-                { name: "AES-GCM", length: 256 }, 
-                true, 
+                { name: "AES-GCM", length: 256 },
+                true,
                 ["encrypt", "decrypt"]
             );
-            
             const keyBytes = await crypto.subtle.exportKey("raw", derivedKey);
-            log('UK-Ableitung erfolgreich. Länge: ' + keyBytes.byteLength + ' Bytes');
+            log('UK-Ableitung erfolgreich.');
             return keyBytes;
         }
-
 
         async function startPasskeyRegistration() {
             try {
@@ -257,21 +285,18 @@
                     auth_message.textContent = "Bitte geben Sie einen Namen für Ihren Passkey ein.";
                     return;
                 }
-                
                 log('Starte Passkey Registrierung...');
-
-                const challengeBytes = crypto.getRandomValues(new Uint8Array(32)); 
-                const userIdBytes = crypto.getRandomValues(new Uint8Array(16));    
-
+                const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
+                const userIdBytes = crypto.getRandomValues(new Uint8Array(16));
                 const publicKeyCredentialCreationOptions = {
                     rp: { id: window.location.hostname, name: "Mogul P2P Sync" },
                     user: {
-                        id: userIdBytes.buffer, 
+                        id: userIdBytes.buffer,
                         name: passkeyName,
                         displayName: passkeyName
                     },
-                    challenge: challengeBytes.buffer, 
-                    pubKeyCredParams: [{ alg: -7, type: "public-key" }], 
+                    challenge: challengeBytes.buffer,
+                    pubKeyCredParams: [{ alg: -7, type: "public-key" }],
                     timeout: 60000,
                     attestation: "direct",
                     authenticatorSelection: {
@@ -280,28 +305,20 @@
                         residentKey: "required"
                     }
                 };
-
                 const credential = await navigator.credentials.create({ publicKey: publicKeyCredentialCreationOptions });
-                
                 const credentialId = arrayBufferToBase64Url(credential.rawId);
                 localStorage.setItem(PASSKEY_ID_KEY, credentialId);
-                log(`Passkey erfolgreich registriert. ID gespeichert in localStorage.`);
-
+                log('Passkey registriert.');
                 const keyBytes = await deriveUniversalKey(credentialId);
                 const universalKey = arrayBufferToBase64Url(keyBytes);
-                
                 currentUniversalKey = universalKey;
-                
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
-                log('Universal Key in sessionStorage für die Sitzungsdauer gespeichert.');
-
                 auth_modal.close();
                 initializeSyncContinuation(false);
-
             } catch (e) {
                 log('Passkey Registrierung fehlgeschlagen: ' + e.message, true);
-                auth_message.textContent = `Registrierung fehlgeschlagen: ${e.message}. Versuchen Sie es erneut.`;
+                auth_message.textContent = `Registrierung fehlgeschlagen: ${e.message}`;
             }
         }
 
@@ -309,66 +326,44 @@
             try {
                 const credentialId = localStorage.getItem(PASSKEY_ID_KEY);
                 if (!credentialId) {
-                    log('Keine Passkey-ID gefunden. Bitte zuerst registrieren.', true);
+                    log('Keine Passkey-ID gefunden.', true);
                     return;
                 }
-
                 log('Starte Passkey Anmeldung...');
-                
-                const challengeBytes = crypto.getRandomValues(new Uint8Array(32)); 
-
+                const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
                 const publicKeyCredentialRequestOptions = {
-                    challenge: challengeBytes.buffer, 
+                    challenge: challengeBytes.buffer,
                     allowCredentials: [{
-                        id: base64UrlToUint8Array(credentialId).buffer, 
+                        id: base64UrlToUint8Array(credentialId).buffer,
                         type: 'public-key',
                         transports: ['usb', 'nfc', 'ble', 'internal']
                     }],
                     userVerification: "required",
                     timeout: 60000
                 };
-
                 const credential = await navigator.credentials.get({ publicKey: publicKeyCredentialRequestOptions });
-                
                 const assertedId = arrayBufferToBase64Url(credential.rawId);
-                if (assertedId !== credentialId) {
-                    throw new Error("Asserted ID stimmt nicht mit gespeicherter ID überein.");
-                }
-
-                log('Passkey erfolgreich verifiziert.');
-
+                if (assertedId !== credentialId) throw new Error("Asserted ID stimmt nicht.");
+                log('Passkey OK.');
                 const keyBytes = await deriveUniversalKey(credentialId);
                 const universalKey = arrayBufferToBase64Url(keyBytes);
-
                 currentUniversalKey = universalKey;
-                
                 sessionStorage.setItem(WRAPPED_UK_KEY, universalKey);
                 sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
-                log('Universal Key in sessionStorage für die Sitzungsdauer gespeichert.');
-
                 auth_modal.close();
                 initializeSyncContinuation(false);
-
             } catch (e) {
-                log('Passkey Anmeldung fehlgeschlagen: ' + e.message, true);
-                auth_message.textContent = `Anmeldung fehlgeschlagen: ${e.message}. Versuchen Sie es erneut.`;
+                log('Anmeldung fehlgeschlagen: ' + e.message, true);
+                auth_message.textContent = `Anmeldung fehlgeschlagen: ${e.message}`;
             }
         }
 
-        // --- 2. Initialisierungs- & Status-Logik ---
-
         function loadState() {
             const storedDevices = localStorage.getItem(DEVICE_LIST_KEY);
-            if (storedDevices) {
-                deviceList = JSON.parse(storedDevices);
-            }
+            if (storedDevices) deviceList = JSON.parse(storedDevices);
             renderDeviceList();
-
             const storedDbHash = localStorage.getItem(DB_HASH_KEY);
-            if (storedDbHash) {
-                log(`Datenbank-Hash aus localStorage: ${storedDbHash}`);
-            }
-            
+            if (storedDbHash) log('DB-Hash geladen: ' + storedDbHash);
             mogul_id_display.textContent = userId;
         }
 
@@ -378,79 +373,66 @@
                 if (sessionExpires > 0 && sessionExpires < Date.now()) {
                     sessionStorage.removeItem(WRAPPED_UK_KEY);
                     sessionStorage.removeItem(SESSION_EXPIRY_KEY);
-                    
                     currentUniversalKey = null;
                     auth_modal.showModal(); 
                     auth_title.textContent = "Sitzung abgelaufen";
-                    auth_message.textContent = "Ihre Sitzung ist aufgrund von Inaktivität abgelaufen. Bitte melden Sie sich erneut mit Ihrem Passkey an.";
+                    auth_message.textContent = "Bitte erneut anmelden.";
                     document.getElementById('auth-view-login').classList.remove('hidden');
                     document.getElementById('auth-view-register').classList.add('hidden');
-                    updateSyncStatus("Sitzung abgelaufen. Erneute Anmeldung erforderlich.", true);
-                    log("Sitzung aufgrund von Inaktivität abgelaufen.", true);
+                    updateSyncStatus("Sitzung abgelaufen.", true);
+                    log("Sitzung abgelaufen.", true);
                 }
-            }, 60000); 
-            log("Inaktivitäts-Monitor gestartet (30 Min Timeout).");
+            }, 60000);
+            log("Inaktivitäts-Monitor gestartet.");
         }
-
 
         async function initializePasskeyFlow() {
             const sessionUK = sessionStorage.getItem(WRAPPED_UK_KEY);
             const sessionExpires = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY) || 0);
-
             if (sessionUK && sessionExpires > Date.now()) {
                 currentUniversalKey = sessionUK;
-                log('UK aus Session Storage geladen. Fortfahren ohne erneute Passkey-Assertion.');
-                
-                auth_modal.close(); 
+                log('UK aus Session geladen.');
                 return initializeSyncContinuation(true);
-            } 
-            
+            }
             const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
             auth_modal.showModal();
-
             if (passkeyId) {
                 auth_title.textContent = "Mit Passkey anmelden";
-                auth_message.textContent = "Ihr Passkey ist bereits registriert. Bitte melden Sie sich an, um den Universal Key abzuleiten.";
+                auth_message.textContent = "Bitte melden Sie sich an.";
                 document.getElementById('auth-view-login').classList.remove('hidden');
                 document.getElementById('auth-view-register').classList.add('hidden');
             } else {
                 auth_title.textContent = "Passkey registrieren";
-                auth_message.textContent = "Dies ist Ihre Erstanmeldung. Bitte registrieren Sie einen Passkey.";
+                auth_message.textContent = "Bitte einmalig registrieren.";
                 document.getElementById('auth-view-login').classList.add('hidden');
                 document.getElementById('auth-view-register').classList.remove('hidden');
             }
         }
-        
+
         async function initializeSyncContinuation(fromSessionStorage = false) {
             try {
                 if (!currentUniversalKey) {
-                    log('Fehler: Universal Key fehlt.', true);
+                    log('Fehler: UK fehlt.', true);
                     return;
                 }
-
                 if (fromSessionStorage) {
                     sessionStorage.setItem(SESSION_EXPIRY_KEY, Date.now() + SESSION_TIMEOUT_MS);
-                    log('Sitzung verlängert bis: ' + new Date(Date.now() + SESSION_TIMEOUT_MS).toLocaleTimeString('de-DE'));
+                    log('Sitzung verlängert.');
                 }
-                
                 updateSyncStatus("Zero-Trust Authentifiziert. System bereit.");
-                log('System voll einsatzbereit. Verschlüsselungs-UK aktiv.');
-                
+                log('System bereit. UK aktiv.');
             } catch (e) {
-                log('Fehler bei der Initialisierung nach der Anmeldung: ' + e.message, true);
+                log('Init-Fehler: ' + e.message, true);
                 updateSyncStatus("Initialisierungsfehler", true);
             }
         }
-
-
-        // --- 3. Mock-Datenbank Logik (Speicherung/Löschung) ---
 
         function renderDeviceList() {
             const listEl = document.getElementById('device-list');
             listEl.innerHTML = '';
             if (deviceList.length === 0) {
-                 listEl.innerHTML = '<span class="text-sm italic text-gray-500">Noch keine vertrauenswürdigen Geräte gespeichert.</span>';
-                 return;
+                listEl.innerHTML = '<span class="text-sm italic text-gray-500">Noch keine vertrauenswürdigen Geräte gespeichert.</span>';
+                return;
             }
             deviceList.forEach(id => {
                 const badge = document.createElement('div');
@@ -464,241 +446,230 @@
                 listEl.appendChild(badge);
             });
         }
-        
         function addDevice(newId) {
             if (!deviceList.includes(newId)) {
                 deviceList.push(newId);
                 localStorage.setItem(DEVICE_LIST_KEY, JSON.stringify(deviceList));
                 renderDeviceList();
-                log(`Geräte-ID "${newId}" zur Whitelist hinzugefügt.`);
+                log(`Geräte-ID "${newId}" hinzugefügt.`);
             }
         }
-
         function removeDevice(idToRemove) {
             const newDeviceList = deviceList.filter(id => id !== idToRemove);
             if (newDeviceList.length !== deviceList.length) {
                 deviceList = newDeviceList;
                 localStorage.setItem(DEVICE_LIST_KEY, JSON.stringify(deviceList));
                 renderDeviceList();
-                log(`Geräte-ID "${idToRemove}" von der Whitelist entfernt.`);
+                log(`Geräte-ID "${idToRemove}" entfernt.`);
             }
         }
 
-        // --- 4. WebRTC (P2P) Logik (Vollständig implementiert) ---
-
-        const RTC_CONFIG = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-            ]
+        // --- WebRTC: Encryption Helpers ---
+        const jsonToB64u = (obj) => {
+            const s = JSON.stringify(obj);
+            const b = btoa(unescape(encodeURIComponent(s)));
+            return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
         };
-        const CHANNEL_NAME = 'mogul-sync-channel';
+        const b64uToJson = (b64u) => {
+            const b = (b64u + '==='.slice((b64u.length + 3) % 4)).replace(/-/g,'+').replace(/_/g,'/');
+            const s = decodeURIComponent(escape(atob(b)));
+            return JSON.parse(s);
+        };
+        async function getUkCryptoKey() {
+            if (encKeyPromise) return encKeyPromise;
+            if (!currentUniversalKey) throw new Error('UK nicht vorhanden');
+            const raw = base64UrlToUint8Array(currentUniversalKey);
+            encKeyPromise = crypto.subtle.importKey('raw', raw, { name:'AES-GCM' }, false, ['encrypt','decrypt']);
+            return encKeyPromise;
+        }
+        const randIV = () => crypto.getRandomValues(new Uint8Array(12));
+        const bufToB64u = (buf) => arrayBufferToBase64Url(buf);
+        const b64uToBuf = (s) => base64UrlToUint8Array(s).buffer;
 
-        let p2pConnection = null; 
-        let p2pDataChannel = null; 
-
-        function setupDataChannelListeners(channel) {
-            channel.onopen = () => {
-                log('P2P Verbindung erfolgreich hergestellt (Data Channel OPEN).');
-                updateSyncStatus('P2P verbunden. Bereit zum verschlüsselten Datentransfer.');
-                document.getElementById('p2p-offer-output').value = "P2P VERBUNDEN";
-                document.getElementById('p2p-answer-output').value = "P2P VERBUNDEN";
-                document.getElementById('p2p-answer-input').value = "P2P VERBUNDEN";
-                document.getElementById('p2p-offer-input').value = "P2P VERBUNDEN";
-
-                const mockEncryptedData = 'ENCRYPTED_DATA_WITH_UK_' + currentUniversalKey.substring(0, 10);
-                channel.send(mockEncryptedData);
-                log('Sende mock-verschlüsselte Daten: ' + mockEncryptedData.substring(0, 35) + '...');
-                p2p_modal.close();
-            };
-
-            channel.onmessage = (event) => {
-                const receivedData = event.data;
-                log('Empfange Daten: ' + receivedData.substring(0, 35) + '...');
-            };
-
-            channel.onclose = () => {
-                log('P2P Verbindung getrennt.', true);
-                updateSyncStatus('System bereit (P2P getrennt).', false);
-                p2pConnection = null;
-                p2pDataChannel = null;
-            };
-
-            channel.onerror = (error) => {
-                log('P2P Data Channel Fehler.', true);
-            };
+        async function encryptJson(obj) {
+            const key = await getUkCryptoKey();
+            const iv = randIV();
+            const pt = new TextEncoder().encode(JSON.stringify(obj));
+            const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, pt);
+            return { enc:true, v:1, iv: bufToB64u(iv), ct: bufToB64u(ct) };
+        }
+        async function decryptJson(wrapped) {
+            if (!wrapped?.enc) return wrapped;
+            const key = await getUkCryptoKey();
+            const iv = b64uToBuf(wrapped.iv);
+            const ct = b64uToBuf(wrapped.ct);
+            const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:new Uint8Array(iv)}, key, ct);
+            return JSON.parse(new TextDecoder().decode(pt));
         }
 
-        function combineSignalData(sdp, iceCandidates) {
-            return JSON.stringify({ sdp: sdp, ice: iceCandidates });
+        // --- WebRTC Core ---
+        function createPeerConnection() {
+            const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+            pc.oniceconnectionstatechange = () => log(`ICE: ${pc.iceConnectionState}`);
+            pc.onconnectionstatechange = () => {
+                log(`Peer: ${pc.connectionState}`);
+                if (pc.connectionState === 'connected') onP2PConnected();
+            };
+            pc.onicecandidateerror = (e) => log(`ICE-Fehler: ${e.errorCode} ${e.errorText}`, true);
+            return pc;
         }
-
-        function parseSignalData(signalString) {
-            try {
-                const data = JSON.parse(signalString);
-                if (data && data.sdp && Array.isArray(data.ice)) return data;
-                throw new Error("Ungültiges Signaling-Datenformat.");
-            } catch (e) {
-                log("Fehler beim Parsen der P2P-Signalisierung: Ungültiges JSON oder Format.", true);
-                return null;
-            }
-        }
-
-        function createPeerConnection(isOffer) {
-            if (p2pConnection) p2pConnection.close();
-            
-            p2pConnection = new RTCPeerConnection(RTC_CONFIG);
-            
-            const iceCandidates = [];
-            p2pConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    iceCandidates.push(event.candidate);
+        function attachDataChannelHandlers(dc) {
+            p2pDataChannel = dc;
+            dc.onopen = () => { 
+                log('DataChannel offen.');
+                setP2PState('verbunden', 'success');
+                sendHello();
+                sendDbSync();
+            };
+            dc.onclose = () => { 
+                log('DataChannel geschlossen.');
+                setP2PState('inaktiv', 'warning');
+            };
+            dc.onerror = (e) => log('DataChannel Fehler: ' + e.message, true);
+            dc.onmessage = async (ev) => {
+                try {
+                    const wrapped = JSON.parse(ev.data);
+                    const msg = await decryptJson(wrapped);
+                    handleIncoming(msg);
+                } catch (e) {
+                    log('Nachrichten-Decode fehlgeschlagen: ' + e.message, true);
                 }
             };
-            
-            p2pConnection.onconnectionstatechange = () => {
-                log(`Verbindungsstatus: ${p2pConnection.connectionState}`);
-                if (p2pConnection.connectionState === 'failed') {
-                    p2pConnection.close();
-                    log('P2P Verbindung fehlgeschlagen.', true);
-                    updateSyncStatus('P2P Fehler: Verbindung fehlgeschlagen.', true);
-                }
-            };
-
-            if (!isOffer) {
-                p2pConnection.ondatachannel = (event) => {
-                    p2pDataChannel = event.channel;
-                    log('Data Channel von Offer-Gerät empfangen.');
-                    setupDataChannelListeners(p2pDataChannel);
+        }
+        function onP2PConnected() {
+            updateSyncStatus("P2P verbunden. Ende-zu-Ende verschlüsselt.");
+            p2p_modal.close();
+        }
+        function waitForIceGatheringComplete(pc) {
+            return new Promise((resolve) => {
+                if (pc.iceGatheringState === 'complete') return resolve();
+                pc.onicegatheringstatechange = () => {
+                    if (pc.iceGatheringState === 'complete') resolve();
                 };
-            }
-            
-            return { connection: p2pConnection, iceCandidates: iceCandidates };
+            });
         }
 
+        // Offerer (Gerät A)
         async function p2pCreateOffer() {
-            if (!currentUniversalKey) {
-                log("Fehler: UK ist für P2P erforderlich. Bitte zuerst anmelden.", true);
+            if (!currentUniversalKey) { log("UK fehlt. Bitte anmelden.", true); return; }
+            if (p2pConnection) { try { p2pConnection.close(); } catch {} }
+            p2pConnection = createPeerConnection();
+            const dc = p2pConnection.createDataChannel('mogul');
+            attachDataChannelHandlers(dc);
+            const offer = await p2pConnection.createOffer();
+            await p2pConnection.setLocalDescription(offer);
+            await waitForIceGatheringComplete(p2pConnection);
+            const fullOffer = { type:'offer', sdp: p2pConnection.localDescription.sdp, v:1 };
+            document.getElementById('p2p-offer-output').value = jsonToB64u(fullOffer);
+            log('Offer erstellt. Code an Gerät B.');
+            setP2PState('wartet...', 'info');
+        }
+
+        async function p2pAcceptAnswer(answerCode) {
+            try {
+                const ans = b64uToJson(answerCode.trim());
+                if (ans?.type !== 'answer' || !ans?.sdp) throw new Error('Kein gültiger Answer-Code');
+                await p2pConnection.setRemoteDescription({ type:'answer', sdp: ans.sdp });
+                log('Answer akzeptiert. Warte auf Verbindungsaufbau…');
+            } catch (e) {
+                log('Ungültiger Answer Code: ' + e.message, true);
+            }
+        }
+
+        // Answerer (Gerät B)
+        async function p2pCreateAnswer(offerCode) {
+            if (!currentUniversalKey) { log("UK fehlt. Bitte anmelden.", true); return; }
+            if (p2pConnection) { try { p2pConnection.close(); } catch {} }
+            p2pConnection = createPeerConnection();
+            p2pConnection.ondatachannel = (ev) => attachDataChannelHandlers(ev.channel);
+            try {
+                const off = b64uToJson(offerCode.trim());
+                if (off?.type !== 'offer' || !off?.sdp) throw new Error('Kein gültiger Offer-Code');
+                await p2pConnection.setRemoteDescription({ type:'offer', sdp: off.sdp });
+                const answer = await p2pConnection.createAnswer();
+                await p2pConnection.setLocalDescription(answer);
+                await waitForIceGatheringComplete(p2pConnection);
+                const fullAnswer = { type:'answer', sdp: p2pConnection.localDescription.sdp, v:1 };
+                document.getElementById('p2p-answer-output').value = jsonToB64u(fullAnswer);
+                log('Answer erstellt. Code an Gerät A zurück.');
+                setP2PState('wartet...', 'info');
+            } catch (e) {
+                log('Ungültiger Offer-Code: ' + e.message, true);
+            }
+        }
+
+        // --- Messaging über DataChannel ---
+        async function sendMsg(obj) {
+            if (!p2pDataChannel || p2pDataChannel.readyState !== 'open') {
+                log('Kann nicht senden: DataChannel nicht offen.', true);
                 return;
             }
-            log("Erstelle P2P Offer...");
-            updateSyncStatus('Erstelle P2P Offer...');
-
-            try {
-                const { connection, iceCandidates } = createPeerConnection(true);
-                p2pDataChannel = connection.createDataChannel(CHANNEL_NAME);
-                setupDataChannelListeners(p2pDataChannel);
-
-                const offer = await connection.createOffer();
-                await connection.setLocalDescription(offer);
-
-                await new Promise(resolve => {
-                    setTimeout(() => {
-                        resolve();
-                    }, 1500); 
-                    connection.onicegatheringstatechange = () => {
-                        if (connection.iceGatheringState === 'complete') resolve();
-                    };
-                });
-                
-                const signalData = combineSignalData(connection.localDescription.sdp, iceCandidates);
-                document.getElementById('p2p-offer-output').value = signalData;
-                log('Offer Code generiert (SDP + ICE). Bereit für Gerät B.');
-                updateSyncStatus('Offer Code generiert. Warte auf Answer...');
-
-            } catch (e) {
-                log('Fehler beim Erstellen des Offers: ' + e.message, true);
-            }
+            const wrapped = await encryptJson(obj);
+            p2pDataChannel.send(JSON.stringify(wrapped));
         }
-
-        async function p2pAcceptAnswer(answerSignal) {
-            if (!p2pConnection) {
-                 log("Fehler: Zuerst Offer erstellen.", true);
-                 return;
-            }
-            log("Akzeptiere P2P Answer und starte Verbindung...");
-            updateSyncStatus('Verbinde mit Answer-Gerät...');
-
-            try {
-                const signalData = parseSignalData(answerSignal);
-                if (!signalData) return;
-
-                const remoteDesc = new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: signalData.sdp
-                });
-
-                await p2pConnection.setRemoteDescription(remoteDesc);
-                log('Remote Description (Answer) gesetzt.');
-                
-                for (const candidate of signalData.ice) {
-                    await p2pConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                }
-                log('ICE-Kandidaten vom Answer-Gerät hinzugefügt.');
-                
-                log('Verbindung wird nun automatisch hergestellt...');
-
-            } catch (e) {
-                log('Fehler beim Akzeptieren des Answers: ' + e.message, true);
-            }
-        }
-        
-        async function p2pCreateAnswer(offerSignal) {
-             if (!currentUniversalKey) {
-                log("Fehler: UK ist für P2P erforderlich. Bitte zuerst anmelden.", true);
+        function handleIncoming(msg) {
+            if (!msg || !msg.type) {
+                log('Empfangen (unbekannt): ' + JSON.stringify(msg));
                 return;
             }
-            log("Erstelle P2P Answer auf Offer...");
-            updateSyncStatus('Erstelle P2P Answer...');
-
-            try {
-                const signalData = parseSignalData(offerSignal);
-                if (!signalData) return;
-                
-                const { connection, iceCandidates } = createPeerConnection(false);
-
-                const remoteDesc = new RTCSessionDescription({
-                    type: 'offer',
-                    sdp: signalData.sdp
-                });
-
-                await connection.setRemoteDescription(remoteDesc);
-                log('Remote Description (Offer) gesetzt.');
-                
-                for (const candidate of signalData.ice) {
-                    await connection.addIceCandidate(new RTCIceCandidate(candidate));
-                }
-                log('ICE-Kandidaten vom Offer-Gerät hinzugefügt.');
-
-                const answer = await connection.createAnswer();
-                await connection.setLocalDescription(answer);
-
-                await new Promise(resolve => {
-                    setTimeout(() => {
-                        resolve();
-                    }, 1500); 
-                    connection.onicegatheringstatechange = () => {
-                        if (connection.iceGatheringState === 'complete') resolve();
-                    };
-                });
-
-                const signalDataAnswer = combineSignalData(connection.localDescription.sdp, iceCandidates);
-                document.getElementById('p2p-answer-output').value = signalDataAnswer;
-                log('Answer Code generiert (SDP + ICE). Senden Sie diesen an Gerät A.');
-                updateSyncStatus('Answer Code generiert. Bereit zum Senden.');
-
-            } catch (e) {
-                log('Fehler beim Erstellen des Answers: ' + e.message, true);
+            switch (msg.type) {
+                case 'hello':
+                    log(`HELLO von ${msg.from} (${msg.info})`);
+                    break;
+                case 'ping':
+                    log(`PING von ${msg.from}`);
+                    sendMsg({ type:'pong', ts:Date.now(), from:userId });
+                    break;
+                case 'pong':
+                    log('PONG erhalten.');
+                    break;
+                case 'db-sync':
+                    log(`DB-Sync erhalten. Version remote: ${msg.db.version}`);
+                    break;
+                case 'file-chunk':
+                    log(`File-Chunk erhalten (${msg.name}) – für echte Datei-Rekonstruktion noch ablegen.`);
+                    break;
+                default:
+                    log('Empfangen: ' + JSON.stringify(msg));
             }
         }
+        function sendHello() {
+            sendMsg({ type:'hello', from:userId, info:'Mogul P2P ready' });
+        }
+        function sendPing() {
+            sendMsg({ type:'ping', from:userId, ts:Date.now() });
+        }
+        function sendDbSync() {
+            sendMsg({ type:'db-sync', from:userId, db });
+        }
 
+        // --- File-Senden (einfach, chunked) ---
+        async function sendFile(file) {
+            if (!file) return;
+            const CHUNK_SIZE = 16 * 1024;
+            const reader = file.stream().getReader();
+            const progress = document.getElementById('file-progress');
+            progress.classList.remove('hidden');
+            progress.value = 0;
+            progress.max = file.size;
 
-        // --- 5. Event Listeners und Start ---
+            let sent = 0;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunkB64 = arrayBufferToBase64Url(value.buffer);
+                await sendMsg({ type:'file-chunk', name:file.name, size:file.size, chunk:chunkB64 });
+                sent += value.byteLength;
+                progress.value = sent;
+            }
+            progress.classList.add('hidden');
+            log(`Datei "${file.name}" gesendet (${file.size} Bytes, chunked).`);
+        }
 
+        // --- Events ---
         window.onload = function () {
             loadState();
-            
-            setupActivityMonitor(); 
-
+            setupActivityMonitor();
             initializePasskeyFlow();
 
             document.getElementById('register-btn').addEventListener('click', startPasskeyRegistration);
@@ -713,31 +684,53 @@
             });
 
             document.getElementById('p2p-modal-btn').addEventListener('click', () => {
-                 if (!currentUniversalKey) {
+                if (!currentUniversalKey) {
                     auth_title.textContent = "Fehlende Anmeldung";
-                    auth_message.textContent = "Bitte melden Sie sich zuerst mit Ihrem Passkey an, um P2P-Transfers zu starten.";
+                    auth_message.textContent = "Bitte zuerst mit Passkey anmelden.";
                     auth_modal.showModal();
                     return;
                 }
-                 p2p_modal.showModal();
+                p2p_modal.showModal();
             });
-            
+
             document.getElementById('p2p-create-offer-btn').addEventListener('click', p2pCreateOffer);
             document.getElementById('p2p-accept-answer-btn').addEventListener('click', () => {
                 const answer = document.getElementById('p2p-answer-input').value;
                 if (answer) p2pAcceptAnswer(answer);
             });
-            
             document.getElementById('p2p-create-answer-btn').addEventListener('click', () => {
                 const offer = document.getElementById('p2p-offer-input').value;
                 if (offer) p2pCreateAnswer(offer);
             });
-            
+
+            document.getElementById('p2p-copy-offer-btn').addEventListener('click', async () => {
+                const t = document.getElementById('p2p-offer-output').value;
+                if (!t) return;
+                await navigator.clipboard.writeText(t);
+                log('Offer in Zwischenablage.');
+            });
+            document.getElementById('p2p-copy-answer-btn').addEventListener('click', async () => {
+                const t = document.getElementById('p2p-answer-output').value;
+                if (!t) return;
+                await navigator.clipboard.writeText(t);
+                log('Answer in Zwischenablage.');
+            });
+
             document.getElementById('tab-offer').addEventListener('change', () => p2pIsOffer = true);
             document.getElementById('tab-answer').addEventListener('change', () => p2pIsOffer = false);
 
+            document.getElementById('btn-send-ping').addEventListener('click', sendPing);
+            document.getElementById('btn-send-db').addEventListener('click', sendDbSync);
+            document.getElementById('file-send').addEventListener('change', (ev) => {
+                const f = ev.target.files[0];
+                if (f) sendFile(f);
+            });
+
+            setP2PState('inaktiv', 'warning');
+
             console.log('Mogul P2P-CHEF-Sync gestartet...');
-        }
+        };
     </script>
 </body>
 </html>
+
