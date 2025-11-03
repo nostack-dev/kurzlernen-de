@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mogul P2P Sync</title>
+    <title>Mogul P2P Sync (QR)</title>
     <!--
-        FINALE VERSION: Mogul P2P Chef Sync (Verschlüsselt / Kein Server)
-        Fix: Entfernung der Gemini API als Signalling-Server.
-        SDP-Austausch erfolgt jetzt E2E-verschlüsselt mittels AES-GCM (Browser Crypto API)
-        und einem kurzen, manuell abgetippten PIN als Chiffrierschlüssel.
-        Dies stellt die maximale Sicherheit ohne Server dar.
+        FINALE VERSION: Mogul P2P Chef Sync (QR-Code / Kein Server / E2E-Verschlüsselt)
+        Intelligente Signalisierung: Ersetzt manuelles Kopieren/Tippen durch QR-Codes.
+        Der QR-Code enthält: [Typ]|[PIN]|[Verschlüsselter SDP-Code]
+        Der Benutzer muss nur noch scannen und den Text in das Feld "Gescannten Code einfügen" pasten.
     -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -34,16 +35,15 @@
             max-width: 900px;
         }
 
-        .pin-display {
-            font-size: 2.5rem;
-            letter-spacing: 0.5rem;
-            font-weight: 700;
-            padding: 0.5rem 1rem;
-            background-color: oklch(80% 0 0);
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            margin-top: 1rem;
+            background-color: white; /* QR-Codes brauchen hellen Hintergrund */
             border-radius: 0.75rem;
-            color: oklch(0% 0 0);
-            text-align: center;
-            user-select: all;
+            min-height: 256px;
         }
 
     </style>
@@ -51,17 +51,17 @@
 <body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
 
     <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
-        <h1 class="text-3xl font-bold mb-6 border-b pb-2">Mogul P2P Synchronisation (Verschlüsselt)</h1>
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2">Mogul P2P Synchronisation (QR & E2E)</h1>
         
-        <div class="alert alert-warning shadow-lg mb-6 rounded-xl">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <span>**Kein Server, E2E-Sicherheit:** Die SDP-Daten sind verschlüsselt, aber der lange Code muss in beiden Richtungen manuell übertragen werden. Der kurze PIN dient als Schlüssel.</span>
+        <div class="alert alert-success shadow-lg mb-6 rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>**Intelligent & E2E-Sicher:** Kein Abtippen/Kopieren langer Codes mehr. Der gesamte verschlüsselte Signalisierungscode wird per QR-Code übertragen.</span>
         </div>
         
         <!-- P2P Modal Button -->
         <div class="flex justify-center">
-            <button id="p2p-modal-btn" class="btn btn-lg btn-success shadow-md rounded-xl transition duration-150 ease-in-out hover:scale-[1.02]">
-                Starte P2P Sync (Verschlüsselt)
+            <button id="p2p-modal-btn" class="btn btn-lg btn-primary shadow-md rounded-xl transition duration-150 ease-in-out hover:scale-[1.02]">
+                Starte P2P Sync (QR-Code-Assistent)
             </button>
         </div>
         
@@ -75,52 +75,43 @@
     <!-- P2P Modal -->
     <dialog id="p2p_modal" class="modal">
         <div class="modal-box w-11/12 max-w-4xl p-6 rounded-2xl">
-            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent (Verschlüsselt)</h3>
+            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent (QR-Code)</h3>
             
             <div id="p2p-steps">
+                
+                <!-- INPUT SECTION (Gemeinsam für Offer & Answer) -->
+                <div class="border-b pb-4 mb-4">
+                    <h4 class="font-bold text-xl mb-3 text-secondary">Gescannten Code einfügen (Input)</h4>
+                    <p class="text-sm mb-2 text-gray-500">Scannen Sie den QR-Code auf dem Partnergerät und fügen Sie den resultierenden Text hier ein.</p>
+                    <textarea id="p2p-scanned-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="Gescannten Base64 Code hier einfügen (z.B. A|123456|...)" oninput="this.value = this.value.toUpperCase().replace(/\s/g, '');"></textarea>
+                </div>
+
                 <!-- CLIENT (OFFER) SECTION -->
                 <div id="offer-section" class="border-b pb-4 mb-4">
                     <h4 class="font-bold text-xl mb-3 text-primary">1. Offer-Gerät (Client/Handy)</h4>
 
-                    <h5 class="font-bold mt-2 mb-1">A. Offer erstellen & Schlüssel generieren</h5>
-                    <div class="flex space-x-2 mb-4">
-                        <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg">Offer & PIN generieren</button>
-                        <button id="p2p-copy-offer-btn" class="btn btn-sm btn-ghost rounded-lg hidden">Verschlüsselten Code kopieren</button>
-                    </div>
-
-                    <div id="offer-display-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
-                        <p class="text-sm mb-2 font-medium">1. **PIN (Schlüssel, abtippen):**</p>
-                        <div id="offer-pin-display" class="pin-display bg-primary text-primary-content mb-4"></div>
-                        <p class="text-sm mb-2 font-medium">2. **Verschlüsselter Code (Base64, kopieren):**</p>
-                        <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-32 text-xs" readonly placeholder="Verschlüsselter Base64 Offer-Code"></textarea>
-                    </div>
+                    <h5 class="font-bold mt-2 mb-1">A. Offer erstellen & QR generieren</h5>
+                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg mb-4">Offer & QR generieren</button>
                     
-                    <h5 class="font-bold mt-6 mb-1">B. Answer-Gerät antwortet (Daten eingeben)</h5>
-                    <p class="text-xs mb-2 text-gray-500">Geben Sie den PIN und den verschlüsselten Answer-Code vom Answer-Gerät ein.</p>
-                    <input type="text" id="p2p-answer-pin-input" class="input input-bordered w-full mb-2 rounded-lg input-sm" placeholder="1. PIN vom Answer-Gerät (6-stellig)"/>
-                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="2. Verschlüsselten Answer-Code hier einfügen"></textarea>
-
-                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg">C. Verbindung herstellen (Answer entschlüsseln)</button>
+                    <div id="offer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                        <p class="text-sm mb-2 font-medium">1. **QR-Code:** Auf dem Answer-Gerät scannen.</p>
+                        <div id="offer-qrcode" class="qr-container bg-white shadow-inner"></div>
+                        <p class="text-sm mt-4 text-center">2. **Warten** Sie, bis das Answer-Gerät den Answer-QR-Code zurückgibt.</p>
+                        <button id="p2p-start-pull-btn" class="btn btn-sm btn-success w-full mt-2 rounded-lg" disabled>C. Verbindung herstellen (Answer entschlüsseln)</button>
+                    </div>
                 </div>
                 
                 <!-- ANSWER (CHEF) SECTION -->
                 <div id="answer-section">
                     <h4 class="font-bold text-xl mb-3 mt-6 text-info">2. Answer-Gerät (Chef/PC)</h4>
-                    <h5 class="font-bold mb-1">A. Offer-Daten eingeben</h5>
-                    <p class="text-xs mb-2 text-gray-500">Geben Sie den PIN und den verschlüsselten Offer-Code vom Offer-Gerät ein.</p>
-                    <input type="text" id="p2p-offer-pin-input" class="input input-bordered w-full mb-2 rounded-lg input-sm" placeholder="1. PIN vom Offer-Gerät (6-stellig)"/>
-                    <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="2. Verschlüsselten Offer-Code hier einfügen"></textarea>
+                    
+                    <h5 class="font-bold mb-1">B. Answer generieren</h5>
+                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-info rounded-lg">Answer generieren (Offer Input wird genutzt)</button>
 
-                    <div class="flex space-x-2 mb-4">
-                        <button id="p2p-create-answer-btn" class="btn btn-sm btn-info rounded-lg">B. Answer generieren</button>
-                        <button id="p2p-copy-answer-btn" class="btn btn-sm btn-ghost rounded-lg hidden">Verschlüsselten Code kopieren</button>
-                    </div>
-
-                    <div id="answer-display-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
-                        <p class="text-sm mb-2 font-medium">1. **PIN (Schlüssel, abtippen):**</p>
-                        <div id="answer-pin-display" class="pin-display bg-info text-info-content mb-4"></div>
-                        <p class="text-sm mb-2 font-medium">2. **Verschlüsselter Code (Base64, kopieren):**</p>
-                        <textarea id="p2p-answer-output" class="textarea textarea-bordered w-full h-32 text-xs" readonly placeholder="Verschlüsselter Base64 Answer-Code"></textarea>
+                    <div id="answer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                        <p class="text-sm mb-2 font-medium">1. **QR-Code:** Auf dem Offer-Gerät scannen.</p>
+                        <div id="answer-qrcode" class="qr-container bg-white shadow-inner"></div>
+                        <p class="text-sm mt-4 text-center">2. **Warten** auf die Verbindung...</p>
                     </div>
                 </div>
             </div>
@@ -164,6 +155,19 @@
                  statusElement.innerHTML = `<span class="loading loading-spinner loading-sm mr-2"></span> ${text}`;
              }
         }
+        
+        function generateQRCode(elementId, text) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = ''; // Vorherigen QR-Code entfernen
+            new QRCode(container, {
+                text: text,
+                width: 200,
+                height: 200,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
 
         // =================================================================
         // CRYPTO-UTILITIES (E2E-Verschlüsselung)
@@ -185,7 +189,6 @@
                 );
                 
                 // Nutze einen statischen Salt, da der Key lokal generiert wird und nicht übertragen wird.
-                // Wir benötigen nur ein konsistentes Key-Derivation für die E2E-Kommunikation.
                 const salt = enc.encode("MOGUL_SYNC_SALT_12345"); 
 
                 return crypto.subtle.deriveKey(
@@ -206,11 +209,11 @@
              * Verschlüsselt einen Text mit einem PIN.
              * @param {string} plaintext - SDP-String.
              * @param {string} pin - Der Schlüssel (6-stelliger PIN).
-             * @returns {Promise<{encryptedData: string, iv: string}>} Base64-Strings von Daten und IV.
+             * @returns {Promise<string>} Base64-String des kombinierten Pakets (IV + Ciphertext).
              */
             async encryptSDP(plaintext, pin) {
                 const key = await this.getKeyFromPassphrase(pin);
-                const iv = crypto.getRandomValues(new Uint8Array(16)); // Initialization Vector (muss übertragen werden)
+                const iv = crypto.getRandomValues(new Uint8Array(16)); // Initialization Vector
                 const encoded = new TextEncoder().encode(plaintext);
 
                 const ciphertext = await crypto.subtle.encrypt(
@@ -224,7 +227,7 @@
                 combined.set(iv, 0);
                 combined.set(new Uint8Array(ciphertext), iv.byteLength);
 
-                // Gebe den Base64-String des kombinierten Pakets zurück
+                // Gebe den Base64-String zurück
                 return btoa(String.fromCharCode.apply(null, combined));
             },
 
@@ -244,6 +247,10 @@
                     combined[i] = binaryStr.charCodeAt(i);
                 }
 
+                if (combined.byteLength < 16) {
+                    throw new Error("Verschlüsseltes Paket ist zu kurz.");
+                }
+
                 const iv = combined.slice(0, 16); // Die ersten 16 Bytes sind der IV
                 const ciphertext = combined.slice(16);
 
@@ -257,7 +264,7 @@
             },
             
             /**
-             * Generiert einen leicht abtippbaren 6-stelligen PIN.
+             * Generiert einen 6-stelligen PIN.
              * @returns {string} 6-stellige Ziffernfolge.
              */
             generatePin() {
@@ -362,6 +369,8 @@
             peerConnection.onicecandidate = (event) => {
                 if (!event.candidate) {
                     console.log("ICE-Kandidatenerfassung abgeschlossen.");
+                    // In der QR-Code-Lösung warten wir nicht explizit auf ICE-Kandidaten,
+                    // aber diese Konsolenmeldung ist nützlich.
                 }
             };
             
@@ -379,19 +388,43 @@
         }
 
         // =================================================================
-        // P2P HANDSHAKE LOGIK (Verschlüsselung)
+        // P2P HANDSHAKE LOGIK (QR-Code Flow)
         // =================================================================
+
+        /**
+         * Parst den gescannten QR-Code-Text in seine Komponenten.
+         * Format: [Typ]|[PIN]|[Verschlüsselter Code]
+         * @param {string} scannedText Der gesamte Text aus dem QR-Code.
+         * @returns {{type: 'A'|'O', pin: string, encryptedCode: string} | null}
+         */
+        function parseScannedCode(scannedText) {
+            const parts = scannedText.split('|');
+            if (parts.length === 3 && (parts[0] === 'O' || parts[0] === 'A') && /^\d{6}$/.test(parts[1]) && parts[2].length > 50) {
+                return {
+                    type: parts[0],
+                    pin: parts[1],
+                    encryptedCode: parts[2]
+                };
+            }
+            return null;
+        }
+
 
         // 1. Offer generieren (Offer-Seite / Client)
         async function p2pCreateOffer() {
             try {
+                // UI vorbereiten
+                document.getElementById('p2p-start-pull-btn').disabled = true;
+                const qrContainer = document.getElementById('offer-qr-container');
+                qrContainer.classList.add('hidden');
+                
                 const pin = cryptoUtils.generatePin();
                 await initP2P(true); 
                 
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
                 
-                // Warte, bis ICE-Kandidaten gesammelt sind
+                // Warte, bis ICE-Kandidaten gesammelt sind (1 Sekunde)
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 const sdpString = peerConnection.localDescription.sdp;
@@ -399,13 +432,14 @@
                 // SDP verschlüsseln
                 const encryptedSdp = await cryptoUtils.encryptSDP(sdpString, pin);
                 
-                // UI aktualisieren
-                document.getElementById('offer-pin-display').textContent = pin;
-                document.getElementById('p2p-offer-output').value = encryptedSdp;
-                document.getElementById('offer-display-container').classList.remove('hidden');
-                document.getElementById('p2p-copy-offer-btn').classList.remove('hidden');
+                // QR-Code String erzeugen: O|PIN|EncryptedSDP
+                const qrCodeString = `O|${pin}|${encryptedSdp}`;
+                
+                // QR-Code generieren und anzeigen
+                generateQRCode('offer-qrcode', qrCodeString);
+                qrContainer.classList.remove('hidden');
 
-                setStatus('Offer generiert und verschlüsselt. Bitte PIN und Code übertragen.', 'success');
+                setStatus('Offer generiert und verschlüsselt. Bitte QR-Code scannen und Code in das Partnergerät einfügen.', 'success');
 
             } catch (e) {
                 console.error("Fehler beim Erstellen des Offers:", e);
@@ -415,17 +449,17 @@
 
         // 2. Answer erstellen (Answer-Seite / Chef)
         async function p2pCreateAnswerFlow() {
-            const offerPin = document.getElementById('p2p-offer-pin-input').value.trim();
-            const encryptedOffer = document.getElementById('p2p-offer-input').value.trim();
+            const scannedText = document.getElementById('p2p-scanned-input').value.trim();
+            const parsedOffer = parseScannedCode(scannedText);
             
-            if (!/^\d{6}$/.test(offerPin) || !encryptedOffer) {
-                return setStatus("🚨 Fehler: Bitte einen gültigen 6-stelligen PIN und den verschlüsselten Code eingeben.", 'error');
+            if (!parsedOffer || parsedOffer.type !== 'O') {
+                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Offer-QR-Code in das Input-Feld einfügen.", 'error');
             }
 
             try {
                 // A. Offer SDP entschlüsseln
                 setStatus('Entschlüssele Offer-Code...', 'loading');
-                const offerSdpString = await cryptoUtils.decryptSDP(encryptedOffer, offerPin);
+                const offerSdpString = await cryptoUtils.decryptSDP(parsedOffer.encryptedCode, parsedOffer.pin);
                 
                 // B. Peer Connection initialisieren und Answer generieren
                 await initP2P(false); 
@@ -438,6 +472,7 @@
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
 
+                // Warte, bis ICE-Kandidaten gesammelt sind (1 Sekunde)
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 const answerSdpString = peerConnection.localDescription.sdp;
@@ -446,13 +481,15 @@
                 const answerPin = cryptoUtils.generatePin();
                 const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, answerPin);
 
+                // QR-Code String erzeugen: A|PIN|EncryptedSDP
+                const qrCodeString = `A|${answerPin}|${encryptedAnswer}`;
+
                 // UI aktualisieren
-                document.getElementById('answer-pin-display').textContent = answerPin;
-                document.getElementById('p2p-answer-output').value = encryptedAnswer;
-                document.getElementById('answer-display-container').classList.remove('hidden');
-                document.getElementById('p2p-copy-answer-btn').classList.remove('hidden');
+                const qrContainer = document.getElementById('answer-qr-container');
+                generateQRCode('answer-qrcode', qrCodeString);
+                qrContainer.classList.remove('hidden');
                 
-                setStatus('Answer erstellt und verschlüsselt. Bitte PIN und Code übertragen. Warte auf Verbindung...', 'warning');
+                setStatus('Answer erstellt und verschlüsselt. Bitte QR-Code scannen und Code in das Offer-Gerät einfügen. Warte auf Verbindung...', 'warning');
 
             } catch (e) {
                 console.error("Fehler im Answer-Flow:", e);
@@ -462,11 +499,11 @@
 
         // 3. Answer akzeptieren (Offer-Seite / Client)
         async function p2pAcceptAnswerFlow() {
-            const answerPin = document.getElementById('p2p-answer-pin-input').value.trim();
-            const encryptedAnswer = document.getElementById('p2p-answer-input').value.trim();
+            const scannedText = document.getElementById('p2p-scanned-input').value.trim();
+            const parsedAnswer = parseScannedCode(scannedText);
             
-            if (!/^\d{6}$/.test(answerPin) || !encryptedAnswer) {
-                return setStatus("🚨 Fehler: Bitte PIN und verschlüsselten Answer-Code eingeben.", 'error');
+            if (!parsedAnswer || parsedAnswer.type !== 'A') {
+                return setStatus("🚨 Fehler: Bitte einen gültigen, gescannten Answer-QR-Code in das Input-Feld einfügen.", 'error');
             }
 
             try {
@@ -476,7 +513,7 @@
                 
                 // A. Answer SDP entschlüsseln
                 setStatus('Entschlüssele Answer-Code...', 'loading');
-                const answerSdpString = await cryptoUtils.decryptSDP(encryptedAnswer, answerPin);
+                const answerSdpString = await cryptoUtils.decryptSDP(parsedAnswer.encryptedCode, parsedAnswer.pin);
                 
                 // B. Answer akzeptieren und verbinden
                 const remoteAnswer = stringToSdp(answerSdpString, 'answer');
@@ -485,6 +522,8 @@
                 await peerConnection.setRemoteDescription(remoteAnswer);
                 
                 setStatus('Answer akzeptiert. Warte auf P2P-Verbindung...', 'loading');
+                document.getElementById('p2p-start-pull-btn').disabled = true; // Button wieder deaktivieren während Verbindung
+                
                 await waitForConnection();
 
                 setStatus('🎉 P2P-Verbindung E2E-verschlüsselt hergestellt!', 'success');
@@ -523,20 +562,13 @@
         }
 
         function resetUI() {
-            document.getElementById('p2p-answer-pin-input').value = '';
-            document.getElementById('p2p-offer-pin-input').value = '';
-            document.getElementById('p2p-answer-input').value = '';
-            document.getElementById('p2p-offer-input').value = '';
+            document.getElementById('p2p-scanned-input').value = '';
+            document.getElementById('offer-qrcode').innerHTML = '';
+            document.getElementById('answer-qrcode').innerHTML = '';
 
-            document.getElementById('offer-pin-display').textContent = '';
-            document.getElementById('p2p-offer-output').value = '';
-            document.getElementById('answer-pin-display').textContent = '';
-            document.getElementById('p2p-answer-output').value = '';
-
-            document.getElementById('offer-display-container').classList.add('hidden');
-            document.getElementById('answer-display-container').classList.add('hidden');
-            document.getElementById('p2p-copy-offer-btn').classList.add('hidden');
-            document.getElementById('p2p-copy-answer-btn').classList.add('hidden');
+            document.getElementById('offer-qr-container').classList.add('hidden');
+            document.getElementById('answer-qr-container').classList.add('hidden');
+            document.getElementById('p2p-start-pull-btn').disabled = true;
             
             document.getElementById('p2p-log').innerHTML = '';
             setStatus('Status: Bereit.');
@@ -549,14 +581,6 @@
             }
         }
         
-        function copyToClipboard(elementId) {
-            const element = document.getElementById(elementId);
-            element.select();
-            document.execCommand('copy');
-            setStatus(`Code aus ${elementId.includes('offer') ? 'Offer' : 'Answer'} erfolgreich in die Zwischenablage kopiert!`, 'info');
-        }
-
-
         // =================================================================
         // UI EVENT-LISTENERS
         // =================================================================
@@ -572,13 +596,24 @@
             // --- Offer (Client/Handy) Flow ---
             document.getElementById('p2p-generate-offer-btn').addEventListener('click', p2pCreateOffer);
             document.getElementById('p2p-start-pull-btn').addEventListener('click', p2pAcceptAnswerFlow);
-            document.getElementById('p2p-copy-offer-btn').addEventListener('click', () => copyToClipboard('p2p-offer-output'));
             
             // --- Answer (Chef/PC) Flow ---
             document.getElementById('p2p-create-answer-btn').addEventListener('click', p2pCreateAnswerFlow);
-            document.getElementById('p2p-copy-answer-btn').addEventListener('click', () => copyToClipboard('p2p-answer-output'));
+            
+            // --- Input Change Listener for Offer Device ---
+            document.getElementById('p2p-scanned-input').addEventListener('input', (e) => {
+                // Wenn wir im Offer-Flow sind (Offer wurde bereits generiert), aktiviere den Button, sobald ein gültiger Answer-Code da ist
+                const isOfferFlowActive = localSDPType === 'offer' && document.getElementById('offer-qr-container').classList.contains('hidden') === false;
+                const parsed = parseScannedCode(e.target.value);
+                
+                if (isOfferFlowActive && parsed && parsed.type === 'A') {
+                    document.getElementById('p2p-start-pull-btn').disabled = false;
+                } else if (localSDPType === 'offer') {
+                    document.getElementById('p2p-start-pull-btn').disabled = true;
+                }
+            });
 
-            console.log('Mogul P2P-CHEF-Sync gestartet (Verschlüsselt / Kein Server).');
+            console.log('Mogul P2P-CHEF-Sync gestartet (QR-Code / Kein Server).');
         }
     </script>
 </body>
