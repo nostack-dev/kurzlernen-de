@@ -13,7 +13,12 @@
             display: inline-block; margin-right: 8px; 
         }
         #chat-box { max-height: 400px; overflow-y: auto; }
-        .media-preview { max-width: 100%; border-radius: 8px; }
+        
+        /* WhatsApp-ähnliche Größe für eingebettete Medien (max. 70% der Chat-Blase) */
+        .embedded-media { max-width: 250px; max-height: 250px; border-radius: 8px; } 
+        .video-container, .image-container { max-width: 250px; }
+
+        /* Audio-Container optimiert */
         .audio-container { display: flex; align-items: center; background-color: #e5e7eb; padding: 6px; border-radius: 12px; }
         .speed-button { font-size: 0.75rem; padding: 2px 6px; margin-left: 8px; }
         .hidden-button { display: none !important; } 
@@ -246,7 +251,7 @@
         }
         
         // =================================================================
-        // NEU: CHAT & MEDIA RENDERING
+        // CHAT & MEDIA RENDERING
         // =================================================================
 
         function displayMediaPreview(sender, fileUrl, fileName, fileMimeType, isLocal = false) {
@@ -259,10 +264,10 @@
             
             if (fileMimeType.startsWith('image/')) {
                 // Bild-Vorschau
-                mediaContent = `<img src="${fileUrl}" class="media-preview" alt="${fileName}" />`;
+                mediaContent = `<div class="image-container"><img src="${fileUrl}" class="embedded-media" alt="${fileName}" /></div>`;
             } else if (fileMimeType.startsWith('video/')) {
                 // Video-Vorschau und Play
-                mediaContent = `<video src="${fileUrl}" controls class="media-preview" preload="metadata"></video>`;
+                mediaContent = `<div class="video-container"><video src="${fileUrl}" controls class="embedded-media" preload="metadata"></video></div>`;
             } else if (fileMimeType.startsWith('audio/')) {
                 // Audio-Player und 2x Speed Button
                 mediaContent = `
@@ -279,7 +284,7 @@
             messageElement.className = senderClass;
             messageElement.innerHTML = `
                 <div class="text-xs font-semibold ${isLocal ? 'text-blue-600' : 'text-gray-600'}">${senderName}</div>
-                <div class="inline-block p-2 rounded-lg ${bubbleClass} max-w-[90%] break-words">
+                <div class="inline-block p-1 rounded-lg ${bubbleClass} max-w-[90%] break-words">
                     ${mediaContent}
                 </div>
             `;
@@ -287,7 +292,6 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Globale Funktion (zugänglich über OnClick)
         window.toggleAudioSpeed = function(button) {
             const audio = button.previousElementSibling;
             if (audio.playbackRate === 1) {
@@ -340,7 +344,7 @@
         }
 
         // =================================================================
-        // P2P VERBINDUNGS LOGIK (Unverändert)
+        // P2P VERBINDUNGS LOGIK
         // =================================================================
         
         function getOfferCodeFromUrl() {
@@ -728,6 +732,21 @@
             // Reset
             receivingFileMeta = null;
             receivedSlices = [];
+        }
+
+        function updateFileProgress(transferred, total) {
+            const percent = Math.floor((transferred / total) * 100);
+            const progressEl = document.getElementById('file-progress');
+            const progressTextEl = document.getElementById('file-progress-text');
+            
+            progressEl.value = percent;
+            progressTextEl.textContent = `Fortschritt: ${percent}% (${(transferred / 1024 / 1024).toFixed(2)} MB / ${(total / 1024 / 1024).toFixed(2)} MB)`;
+
+            if (percent === 100) {
+                document.getElementById('receive-status').textContent = 'Übertragung abgeschlossen.';
+            } else if (percent > 0) {
+                 document.getElementById('receive-status').textContent = 'Übertrage Daten...';
+            }
         }
 
 
