@@ -177,7 +177,7 @@
             document.getElementById('answer-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
-            document.getElementById('chat-section').classList.add('hidden'); // Verstecke Chat
+            document.getElementById('chat-section').classList.add('hidden');
             
             if (sectionId === 'link-section') {
                 document.getElementById('link-section').classList.remove('hidden');
@@ -185,7 +185,7 @@
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
-                document.getElementById('chat-section').classList.remove('hidden'); // Zeige Chat bei Verbindung
+                document.getElementById('chat-section').classList.remove('hidden');
             } else if (sectionId) {
                 document.getElementById(sectionId).classList.remove('hidden');
             }
@@ -217,7 +217,6 @@
             `;
         }
         
-        // **NEU:** Funktion zum Anzeigen von Chat-Nachrichten
         function displayChatMessage(sender, message, isLocal = false) {
             const chatBox = document.getElementById('chat-box');
             const senderClass = isLocal ? 'text-right' : 'text-left';
@@ -233,11 +232,11 @@
                 </div>
             `;
             chatBox.appendChild(messageElement);
-            chatBox.scrollTop = chatBox.scrollHeight; // Scrolle nach unten
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         // =================================================================
-        // AUTOMATISIERTE VERBINDUNGSLOGIK (Unverändert)
+        // AUTOMATISIERTE VERBINDUNGSLOGIK
         // =================================================================
         
         function getOfferCodeFromUrl() {
@@ -271,6 +270,7 @@
                     await handleIncomingOffer(offerCode);
 
                 } else if (restoredSdp) {
+                    // **KORRIGIERTER PFAD FÜR NEUEN TAB:** Setze aktuelle Rolle und starte Wiederherstellung
                     currentRole = 'initiator';
                     await continueInitiatorFlow(restoredSdp);
                     
@@ -306,6 +306,7 @@
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             
+            // SPEICHERN: Den lokalen Offer SDP in localStorage speichern (für Tab-Unabhängigkeit)
             localStorage.setItem(STORAGE_KEY, peerConnection.localDescription.sdp);
 
             await new Promise(resolve => {
@@ -347,16 +348,30 @@
             await waitForAnswer();
         }
 
+        /**
+         * **KORRIGIERTE WIEDERHERSTELLUNG:** Stellt die PeerConnection wieder her und setzt NUR den Answer-SDP.
+         * @param {string} restoredSdp Der ursprüngliche lokale SDP-String des Offers.
+         */
         async function continueInitiatorFlow(restoredSdp) {
             updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
             
+            // 1. PeerConnection neu erstellen und DataChannel vorbereiten
             peerConnection = new RTCPeerConnection(config);
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
             
-            const offer = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
-            await peerConnection.setLocalDescription(offer);
+            // **ENTFERNT:** peerConnection.setLocalDescription(offer);
+            // Wir müssen den alten Offer-SDP speichern, damit der Answer-SDP ihn als "expected remote SDP" verarbeiten kann.
             
+            // Setze den *lokal* gespeicherten Offer-SDP als **Remote Description** des Initiators.
+            // Dies ist ein Trick, da der Answer-SDP (den wir gleich erhalten) als *Remote Description* des Responders gesetzt werden muss.
+            // ABER: setLocalDescription auf einer neuen PC führt zum Fehler.
+            // WICHTIG: WebRTC erwartet, dass die SENDER-Seite (Initiator) ihren ursprünglichen Offer-SDP lokal kennt, um den Answer-SDP zu verarbeiten.
+            
+            // Erstellen Sie den Offer-SDP des Initiators neu und speichern Sie ihn lokal, OHNE setLocalDescription()
+            peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+
+            // 3. Warte auf den Answer-Code, der jetzt in der URL ist
             await waitForAnswer(true); 
         }
 
@@ -512,7 +527,6 @@
             showSection('connected-section');
             document.getElementById('start-connection').disabled = false;
             
-            // **NEU:** Mini-Chat initialisieren
             document.getElementById('chat-box').innerHTML = '<div class="text-center text-xs text-gray-500">Verbindung hergestellt. Starte Chat!</div>';
             document.getElementById('send-message').addEventListener('click', () => {
                 const input = document.getElementById('chat-input');
@@ -536,12 +550,10 @@
                     
                     if (data.type === 'sync-data') {
                         displaySyncData(data);
-                        // Optional: Automatische Antwort bei eingehenden Synchronisierungsdaten
                         if (data.type === 'sync-request') {
                             sendSyncResponse();
                         }
                     } else if (data.type === 'chat') {
-                        // **NEU:** Zeige eingehende Chat-Nachricht an
                         const sender = data.deviceName;
                         displayChatMessage(sender, data.message, false);
                     }
@@ -563,7 +575,6 @@
             };
         }
 
-        // **NEU:** Funktion zum Senden von Chat-Nachrichten
         function sendMessage(message) {
             if (dataChannel && dataChannel.readyState === 'open') {
                 const chatData = {
@@ -655,7 +666,7 @@
                 }
             }
 
-            console.log('Mogul P2P Sync - Chat-Funktion hinzugefügt');
+            console.log('Mogul P2P Sync - Chat- und Tab-Wiederherstellung aktiv');
         });
     </script>
 </body>
