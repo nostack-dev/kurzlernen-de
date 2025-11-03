@@ -337,7 +337,8 @@
 
         async function startConnection(restoredSdp = null) {
             try {
-                document.getElementById('start-connection').disabled = true;
+                const startButton = document.getElementById('start-connection');
+                startButton.disabled = true;
                 document.getElementById('start-button-container').classList.add('hidden'); 
                 updateStatus('generating');
                 
@@ -364,10 +365,12 @@
                     connectionAttempts++;
                     setTimeout(() => {
                         updateStatus('ready', `Automatischer Wiederholungsversuch (${connectionAttempts}/${MAX_ATTEMPTS})`);
+                        document.getElementById('start-connection').textContent = '🔗 Verbindung starten';
                         document.getElementById('start-connection').disabled = false;
                         document.getElementById('start-button-container').classList.remove('hidden'); 
                     }, 3000);
                 } else {
+                     document.getElementById('start-connection').textContent = '🔗 Verbindung starten';
                      document.getElementById('start-connection').disabled = false;
                      document.getElementById('start-button-container').classList.remove('hidden'); 
                 }
@@ -415,6 +418,11 @@
             updateStatus('waiting', 'Teilen Sie diesen Link mit der anderen Person');
             
             document.getElementById('copy-offer').textContent = '📋 Link kopieren';
+
+            // Warte-UI für Initiator nach Link-Generierung anzeigen (Abbruch-Möglichkeit)
+            document.getElementById('start-connection').textContent = '❌ Abbrechen & Neustart';
+            document.getElementById('start-connection').disabled = false;
+            document.getElementById('start-button-container').classList.remove('hidden'); 
         }
 
         async function continueInitiatorFlow(restoredSdp) {
@@ -425,13 +433,20 @@
             dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
             setupDataChannel(dataChannel);
             
-            // 2. Setze die alte lokale Beschreibung (Offer) auf die neue PeerConnection, 
-            // damit die Verbindung weiß, was sie angeboten hat.
-            // Wichtig: Wir verwenden NICHT setLocalDescription() hier, um den SDP-Konflikt zu vermeiden,
-            // da die Beschreibung bereits im LocalStorage liegt und nur zur Wiederherstellung dient.
-            // Stattdessen bereiten wir die PeerConnection auf den Empfang des Answers vor.
-            
-            // Den Offer-Link wiederherstellen (um ihn erneut zu kopieren, falls nötig)
+            // *** KRITISCHE KORREKTUR: Setze das gespeicherte Offer als lokale Beschreibung. ***
+            // Dies ändert den Zustand von 'stable' zu 'have-local-offer', 
+            // sodass das eingehende Answer (RemoteDescription) akzeptiert wird.
+            try {
+                // Versuche, das Offer korrekt zu setzen
+                await peerConnection.setLocalDescription({ type: 'offer', sdp: restoredSdp });
+            } catch (e) {
+                // Wenn der Browser bereits einen 'stable' Zustand annimmt, 
+                // wird der Fehler abgefangen und der Zustand manuell simuliert.
+                console.warn("setLocalDescription beim Wiederherstellen fehlgeschlagen. Simuliere Zustand.", e);
+                peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+            }
+
+            // 2. Den Offer-Link wiederherstellen (um ihn dem User anzuzeigen)
             const offerData = {
                 type: 'offer',
                 sdp: b64EncodeUnicode(restoredSdp), 
@@ -444,7 +459,12 @@
             showSection('link-section');
             updateStatus('waiting', 'Wiederhergestellt. Warte auf Answer-Link...');
             
-            // 3. Starte den Warteprozess, der auf den Answer-Hash in der URL prüft
+            // 3. Warte-UI anzeigen (Abbruch-Möglichkeit)
+            document.getElementById('start-connection').textContent = '❌ Abbrechen & Neustart';
+            document.getElementById('start-connection').disabled = false;
+            document.getElementById('start-button-container').classList.remove('hidden'); 
+
+            // 4. Prüfen auf den Answer-Hash in der URL
             await waitForAnswer(true);
         }
 
@@ -511,7 +531,7 @@
 
         async function waitForAnswer(answerPresentOnLoad = false) {
             
-            document.getElementById('start-button-container').classList.add('hidden'); 
+            document.getElementById('start-button-container').classList.remove('hidden'); 
             
             if (answerPresentOnLoad) {
                  const answerCode = getAnswerCodeFromUrl();
@@ -566,6 +586,7 @@
                 sdp: b64DecodeUnicode(answerData.sdp)
             };
 
+            // Hier sollte der Zustand have-local-offer sein, sodass setRemoteDescription das Answer akzeptiert.
             await peerConnection.setRemoteDescription(remoteAnswer);
             await establishConnection();
         }
@@ -575,7 +596,12 @@
                 peerConnection.close();
             }
             updateStatus('ready');
+            
+            const startButton = document.getElementById('start-connection');
+            startButton.textContent = '🔗 Verbindung starten';
+            startButton.disabled = false;
             document.getElementById('start-button-container').classList.remove('hidden');
+            
             document.getElementById('link-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
@@ -761,6 +787,7 @@
 
             channel.onclose = () => {
                 updateStatus('ready', 'Verbindung geschlossen');
+                document.getElementById('start-connection').textContent = '🔗 Verbindung starten';
                 document.getElementById('start-button-container').classList.remove('hidden'); 
                 document.getElementById('link-section').classList.add('hidden');
                 document.getElementById('connected-section').classList.add('hidden');
@@ -773,6 +800,7 @@
             channel.onerror = (error) => {
                 console.error('DataChannel Fehler:', error);
                 updateStatus('error', 'Verbindungsfehler im DataChannel');
+                document.getElementById('start-connection').textContent = '🔗 Verbindung starten';
                 document.getElementById('start-button-container').classList.remove('hidden'); 
                 localStorage.removeItem(STORAGE_KEY); 
             };
@@ -817,9 +845,16 @@
             const fileInput = document.getElementById('media-file-input');
             const sendMessageButton = document.getElementById('send-message');
             const chatInput = document.getElementById('chat-input');
+            const startButton = document.getElementById('start-connection');
 
-            // --- P2P Start / End ---
-            document.getElementById('start-connection').addEventListener('click', () => {
+            // --- P2P Start / End / Cancel ---
+            startButton.addEventListener('click', () => {
+                // Wenn der Button "Abbrechen & Neustart" anzeigt, beende die Verbindung
+                if (startButton.textContent.includes('Abbrechen')) {
+                    endConnection();
+                    return;
+                }
+                
                  const currentUrl = new URL(window.location.href);
                  currentUrl.hash = ''; 
                  window.history.replaceState({}, document.title, currentUrl.toString()); 
