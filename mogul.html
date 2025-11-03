@@ -619,10 +619,7 @@
             await peerConnection.setRemoteDescription(remoteAnswer);
             await establishConnection();
         }
-        
-        /**
-         * LÖSCHT ALLE VERBINDUNGSDATEN UND LOKALEN SPEICHER
-         */
+
         function resetConnectionState() {
             // 1. **KRITISCH:** LocalStorage löschen, bevor UI/Connection manipuliert wird
             localStorage.removeItem(STORAGE_KEY); 
@@ -653,6 +650,7 @@
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
             document.getElementById('file-progress-container').classList.add('hidden');
+            
             document.getElementById('cancel-connection').classList.add('hidden');
         }
 
@@ -886,7 +884,6 @@
 
             // --- P2P Start / End / Cancel ---
             document.getElementById('start-connection').addEventListener('click', () => {
-                 // Beim expliziten Klick immer sauber starten
                  localStorage.removeItem(STORAGE_KEY); 
                  startConnection();
             });
@@ -894,7 +891,6 @@
                 endConnectionButton.addEventListener('click', endConnection);
             }
             if (cancelButton) {
-                // KRITISCH: Dies stellt sicher, dass resetConnectionState() aufgerufen wird
                 cancelButton.addEventListener('click', resetConnectionState); 
             }
 
@@ -1019,22 +1015,14 @@
             const storedSdp = localStorage.getItem(STORAGE_KEY); 
 
             if (offerCode) {
-                // 1. Responder Start
                 setTimeout(startConnection, 500);
             } else if (answerCode && storedSdp) {
-                // 2. Initiator lädt neu MIT Answer-Code
                 localStorage.removeItem(STORAGE_KEY); 
                 setTimeout(() => startConnection(storedSdp), 500);
             } else if (storedSdp && !answerCode) {
-                // 3. Initiator lädt neu im WAITING-Zustand (F5/Unfall)
-                if (storedSdp) {
-                    setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
-                    document.getElementById('start-button-container').classList.add('hidden');
-                } else {
-                    resetConnectionState();
-                }
+                setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
+                document.getElementById('start-button-container').classList.add('hidden');
             } else if (answerCode && !storedSdp) {
-                // 4. Fehler: Answer-Code ist da, aber der SDP wurde gelöscht
                 history.replaceState(null, '', window.location.pathname);
                 setTimeout(() => {
                     document.getElementById('start-connection').disabled = true;
@@ -1042,9 +1030,6 @@
                     document.getElementById('start-button-container').classList.remove('hidden');
                     document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                 }, 500);
-            } else {
-                // 5. Neutraler Start
-                resetConnectionState();
             }
 
             console.log('Mogul P2P Sync - Finaler Code geladen.');
