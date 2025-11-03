@@ -456,7 +456,7 @@
                 const remoteOffer = stringToSdp(offerSdpString, 'offer');
                 if (!remoteOffer) throw new Error("Ungültiges Offer-Format oder Dekodierung fehlgeschlagen.");
                 
-                // 🔧 STATE PRÜFUNG
+                // 🔧 STATE PRÜFUNG - Sollte "stable" sein
                 console.log(`SignalingState vor setRemoteDescription (Offer): ${peerConnection.signalingState}`);
                 
                 await peerConnection.setRemoteDescription(remoteOffer);
@@ -506,10 +506,11 @@
                     window.location.hash = '';
                     return;
                 }
-
-                // 🔧 KRITISCHE KORREKTUR: Prüfe den Verbindungszustand
-                if (peerConnection.signalingState !== 'have-local-offer') {
-                    console.warn(`Unerwarteter SignalingState: ${peerConnection.signalingState}. Erwartet: have-local-offer`);
+                
+                // 🔧 KRITISCHE KORREKTUR: Akzeptiere sowohl 'have-local-offer' als auch 'stable'.
+                // 'stable' tritt auf, wenn WebRTC den Remote-Answer von Gerät B im Hintergrund registriert hat.
+                if (peerConnection.signalingState !== 'have-local-offer' && peerConnection.signalingState !== 'stable') {
+                    console.warn(`Unerwarteter SignalingState: ${peerConnection.signalingState}. Erwartet: have-local-offer oder stable.`);
                     setStatus('Verbindungszustand ungültig. Die Offer-Sitzung wurde unterbrochen. Bitte Prozess neu starten.', 'error');
                     resetP2PSession();
                     return;
