@@ -229,16 +229,15 @@
                 
                 if (offerCode) {
                     currentRole = 'responder';
-                    history.replaceState(null, '', window.location.pathname);
+                    // **KORREKTUR:** Offer-Parameter entfernen, damit Gerät B beim Neuladen nicht in eine Schleife gerät
+                    history.replaceState(null, '', window.location.pathname); 
                     await handleIncomingOffer(offerCode);
 
                 } else if (restoredSdp) {
-                    // Szenario 2: Initiator-Modus, nach Neuladen/Tab-Wechsel (Zustand wiederhergestellt)
                     currentRole = 'initiator';
                     await continueInitiatorFlow(restoredSdp);
                     
                 } else {
-                    // Szenario 3: Normaler Initiator-Start (Button geklickt)
                     currentRole = 'initiator';
                     await createAndShareOffer();
                 }
@@ -394,8 +393,6 @@
 
         async function waitForAnswer(answerPresentOnLoad = false) {
             
-            // Wenn der Answer-Code bereits beim Laden vorhanden war (neuer Tab), 
-            // verarbeiten wir den Answer sofort.
             if (answerPresentOnLoad) {
                  const answerCode = getAnswerCodeFromUrl();
                  if (answerCode) {
@@ -404,7 +401,6 @@
                  }
             }
 
-            // Normale Warteschleife (wenn der Initiator wartet)
             updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
             document.getElementById('answer-section').classList.remove('hidden');
 
@@ -559,7 +555,7 @@
 
         // =================================================================
         // EVENT LISTENER & INITIALISIERUNG
-        // **WICHTIGE KORREKTUR: Trennung der Responder- und Initiator-Logik**
+        // **KORRIGIERTE TRENNUNG DER MODI**
         // =================================================================
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('start-connection').addEventListener('click', () => {
@@ -582,7 +578,6 @@
             
             if (offerCode) {
                 // Szenario 1: Responder (Gerät B) - Offer vorhanden
-                // Ignoriere jeglichen Answer-Code und gespeicherten SDP, starte direkt als Responder.
                 setTimeout(startConnection, 500);
             } else {
                 // Szenario 2 & 3: Initiator (Gerät A) oder neutraler Start.
@@ -601,7 +596,6 @@
                         document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
                     }, 500);
                 }
-                // Ansonsten: Neutraler Zustand, wartet auf Button-Klick.
             }
 
             console.log('Mogul P2P Sync - Sitzungsspeicher aktiviert');
