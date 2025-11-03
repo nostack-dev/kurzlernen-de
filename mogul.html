@@ -83,7 +83,7 @@
                 </div>
             </div>
 
-            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 shadow-md">
+            <div id="answer-section" class="hidden bg-green-50 p-4 rounded-xl border border-green-200 shadow-md">
                 <h3 class="font-semibold text-green-800 mb-2 flex items-center">
                     <span class="connection-dot bg-green-500"></span>
                     Schritt 2: Auf Antwort warten
@@ -94,7 +94,7 @@
                 <div class="text-center py-2">
                     <div class="loading loading-spinner text-green-500"></div>
                 </div>
-                <button id="cancel-connection" class="btn btn-warning btn-sm w-full mt-3 hidden">
+                <button id="cancel-connection" class="btn btn-link text-red-500 hover:text-red-700 btn-sm w-full mt-3">
                     ❌ Sitzung abbrechen / Neustarten
                 </button>
             </div>
@@ -140,6 +140,10 @@
             <div class="flex space-x-2 items-center">
                 <input type="file" id="media-file-input" accept="video/*,audio/*,image/*" class="hidden" />
 
+                <button id="gif-trigger" class="btn btn-ghost text-xs font-bold text-gray-600 hover:text-blue-500 transition-colors">
+                    GIF
+                </button>
+
                 <button id="media-trigger" class="btn btn-ghost btn-circle text-gray-600 hover:text-blue-500 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path></svg>
                 </button>
@@ -151,6 +155,21 @@
             </div>
         </div>
     </div>
+
+    <dialog id="gif_modal" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🔥 Sick GIF Auswahl (Uncut Stuff)</h3>
+            <div id="gif-gallery" class="grid grid-cols-3 gap-3 overflow-y-auto max-h-96">
+                </div>
+            <p class="text-xs text-gray-500 mt-4">Wählen Sie ein GIF zum Senden über den P2P DataChannel.</p>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-sm btn-ghost">Schließen</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+
 
     <script>
         // =================================================================
@@ -170,7 +189,17 @@
         let nextSlice = 0;
         let receivedSlices = [];
         let receivingFileMeta = null;
-        let answerCheckInterval = null; // Handler für das Warte-Intervall
+        let answerCheckInterval = null;
+
+        const SICK_GIF_GALLERY = [
+            'https://i.imgur.com/uGzH32x.gif', 
+            'https://i.imgur.com/lM8mP2t.gif', 
+            'https://i.imgur.com/2Xy5E1P.gif', 
+            'https://i.imgur.com/g8vB4z0.gif', 
+            'https://i.imgur.com/QhS67Y9.gif', 
+            'https://i.imgur.com/yU4lG6C.gif', 
+        ];
+
 
         const config = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -243,12 +272,14 @@
             } else if (sectionId === 'answer-section') {
                 document.getElementById('link-section').classList.remove('hidden');
                 document.getElementById('answer-section').classList.remove('hidden');
-                document.getElementById('cancel-connection').classList.remove('hidden'); // NEU: Mache Abbruch-Button sichtbar
+                // NEU: Nur den Cancel-Button sichtbar machen, wenn in der Warte-Sektion
+                document.getElementById('cancel-connection').classList.remove('hidden'); 
             
             } else if (sectionId === 'connected-section') {
                 document.getElementById('connected-section').classList.remove('hidden');
                 document.getElementById('data-section').classList.remove('hidden');
                 document.getElementById('chat-section').classList.remove('hidden');
+                document.getElementById('cancel-connection').classList.add('hidden'); 
             } else if (sectionId) {
                 document.getElementById(sectionId).classList.remove('hidden');
             }
@@ -332,10 +363,6 @@
             `;
             chatBox.appendChild(messageElement);
             chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        async function shareOfferLink() {
-            // Funktion ist entfernt
         }
 
         // =================================================================
@@ -503,7 +530,7 @@
                 
                 updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
                 document.getElementById('offer-link').textContent = finalAnswerUrl;
-                showSection('link-section'); // Zeigt Link-Sektion
+                showSection('link-section');
                 
                 document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
                 document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
@@ -527,9 +554,9 @@
             }
 
             updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
-            showSection('answer-section'); // NEU: Zeigt den Wartezustand UND den Cancel-Button
+            // NEU: Hier wird die Warte-Sektion MIT dem Abbruch-Button angezeigt
+            showSection('answer-section'); 
             document.getElementById('wait-message').textContent = 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...';
-
 
             return new Promise((resolve, reject) => {
                 answerCheckInterval = setInterval(async () => { 
@@ -538,13 +565,13 @@
                         
                         if (answerCode) {
                             clearInterval(answerCheckInterval);
-                            answerCheckInterval = null; // NEU: Setze Intervall zurück
+                            answerCheckInterval = null; 
                             await processAnswer(answerCode);
                             resolve();
                         }
                     } catch (error) {
                         clearInterval(answerCheckInterval);
-                        answerCheckInterval = null; // NEU: Setze Intervall zurück
+                        answerCheckInterval = null; 
                         reject(error);
                     }
                 }, 1000);
@@ -552,7 +579,7 @@
                 setTimeout(() => {
                     if (answerCheckInterval) {
                         clearInterval(answerCheckInterval);
-                        answerCheckInterval = null; // NEU: Setze Intervall zurück
+                        answerCheckInterval = null; 
                         reject(new Error('Timeout: Keine Antwort erhalten'));
                     }
                 }, 120000);
@@ -581,7 +608,10 @@
 
         function resetConnectionState() {
             if (peerConnection) {
-                peerConnection.close();
+                // Schließe die Verbindung nur, wenn sie nicht bereits geschlossen ist (um redundante Events zu vermeiden)
+                if (peerConnection.connectionState !== 'closed' && peerConnection.connectionState !== 'failed') {
+                    peerConnection.close();
+                }
                 peerConnection = null;
             }
             if (answerCheckInterval) {
@@ -590,15 +620,18 @@
             }
             localStorage.removeItem(STORAGE_KEY);
             
+            // Setze UI auf READY Zustand zurück
             updateStatus('ready');
             document.getElementById('start-button-container').classList.remove('hidden');
+            
+            // Verstecke alle spezifischen Sektionen
             document.getElementById('link-section').classList.add('hidden');
+            document.getElementById('offer-section').classList.add('hidden');
+            document.getElementById('answer-section').classList.add('hidden');
             document.getElementById('connected-section').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('chat-section').classList.add('hidden');
             document.getElementById('file-progress-container').classList.add('hidden');
-            
-            // NEU: Verstecke den Cancel-Button nach dem Reset
             document.getElementById('cancel-connection').classList.add('hidden');
         }
 
@@ -838,8 +871,49 @@
                 endConnectionButton.addEventListener('click', endConnection);
             }
             if (cancelButton) {
-                cancelButton.addEventListener('click', resetConnectionState); // Ruft den Reset auf
+                cancelButton.addEventListener('click', resetConnectionState); 
             }
+
+            // --- GIF Trigger ---
+            document.getElementById('gif-trigger').addEventListener('click', function() {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    const modal = document.getElementById('gif_modal');
+                    const gallery = document.getElementById('gif-gallery');
+                    gallery.innerHTML = '';
+
+                    SICK_GIF_GALLERY.forEach(url => {
+                        const imgWrapper = document.createElement('div');
+                        imgWrapper.className = 'cursor-pointer p-0.5 border-2 border-transparent hover:border-blue-500 transition-all duration-100';
+                        imgWrapper.innerHTML = `<img src="${url}" data-url="${url}" class="w-full h-auto rounded" />`;
+                        
+                        imgWrapper.addEventListener('click', () => {
+                            selectAndSendGif(url);
+                            modal.close();
+                        });
+                        gallery.appendChild(imgWrapper);
+                    });
+                    modal.showModal();
+
+                } else {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
+                }
+            });
+
+            function selectAndSendGif(gifUrl) {
+                const chatData = {
+                    type: 'chat',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    message: gifUrl, 
+                    mimeType: 'image/gif',
+                    isMedia: true,
+                    timestamp: new Date().toISOString()
+                };
+                
+                dataChannel.send(JSON.stringify(chatData));
+                
+                displayMediaPreview(chatData.deviceName, chatData.message, 'GIF', 'image/gif', true);
+            }
+
 
             // --- Datei Senden Trigger ---
             mediaTriggerButton.addEventListener('click', function() {
@@ -853,7 +927,7 @@
             fileInput.addEventListener('change', function() {
                 if (this.files.length > 0) {
                     file = this.files[0];
-                    if (file.size > 200 * 1024 * 1024) { // 200 MB Limit
+                    if (file.size > 200 * 1024 * 1024) { 
                          alert('Die Datei ist zu groß (max. 200 MB).');
                          this.value = '';
                          return;
