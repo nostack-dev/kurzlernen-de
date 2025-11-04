@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync</title>
+    <!--
+        FINALE VERSION: Mogul P2P Chef Sync
+        Entwickelt für Christian Heinrich Hohlfeld, Konstanz.
+        Architektur: Zero-Trust, Serverless, Passkey (WebAuthn) & P2P (WebRTC)
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+            /* Corporate Theme (Light) wird als Standard genutzt */
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        body {
+            background-color: var(--theme-bg);
+            color: var(--theme-text);
+            min-height: 100vh;
+        }
+        dialog {
+            background-color: var(--theme-bg);
+        }
+        .container {
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body data-theme="corporate" class="flex items-center justify-center p-4">
+    <div class="container mx-auto p-4 space-y-8">
+        <header class="text-center">
+            <h1 class="text-3xl font-extrabold text-primary">Mogul P2P Sync (Zero-Trust)</h1>
+            <p class="text-sm text-base-content/70 mt-1">Passkey-gestützte, serverlose Synchronisation.</p>
+        </header>
+
+        <!-- Passkey Section -->
+        <div id="passkey-card" class="card bg-base-100 shadow-xl border border-base-200">
+            <div class="card-body">
+                <h2 class="card-title">1. Passkey-Geräteregistrierung (UK-Ableitung)</h2>
+                <p>Generieren Sie einen UK (Unique Key) aus Ihrem Passkey, um dieses Gerät zu identifizieren.</p>
+                <div class="flex flex-col sm:flex-row gap-2 mt-4">
+                    <button id="register-passkey-btn" class="btn btn-primary flex-grow">Passkey Registrieren</button>
+                    <button id="login-passkey-btn" class="btn btn-secondary flex-grow">Passkey Anmelden</button>
+                </div>
+                <p id="passkey-status" class="mt-4 text-sm font-medium text-info"></p>
+                <div id="device-info" class="mt-4 p-3 bg-base-200 rounded-lg text-xs break-all hidden">
+                    <p class="font-bold">Geräte ID (Base64-UK):</p>
+                    <code id="current-device-id"></code>
+                </div>
+            </div>
+        </div>
+
+        <!-- P2P Section -->
+        <div id="p2p-card" class="card bg-base-100 shadow-xl border border-base-200 hidden">
+            <div class="card-body">
+                <h2 id="p2p-card-title" class="card-title">2. P2P Gerätesynchronisation (Chef/PC)</h2>
+                <div id="p2p-status-container" class="alert shadow-lg hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-info shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                        <h3 class="font-bold">Status:</h3>
+                        <div id="p2p-info" class="text-xs">Initialisiere WebRTC...</div>
+                    </div>
+                </div>
+
+                <!-- P2P Start Step 1 (Offer Generation) -->
+                <div id="p2p-step-1" class="mt-4">
+                    <p class="mb-2">Starten Sie die Synchronisation mit einem weiteren Gerät (Handy).</p>
+                    <button id="p2p-modal-btn" class="btn btn-success btn-block">P2P Link Erstellen & Starten</button>
+                </div>
+                
+                <!-- Received Data Display -->
+                <div id="received-data-section" class="mt-6 hidden">
+                    <h3 class="text-lg font-bold">Empfangene Daten (P2P):</h3>
+                    <p id="received-data-info" class="text-sm mb-2 text-warning"></p>
+                    <pre id="received-data-pre" class="p-3 bg-base-200 rounded-lg text-xs overflow-auto h-32"></pre>
+                    <button id="process-data-btn" class="btn btn-sm btn-info mt-2">Daten Verarbeiten (UK-Sync)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device List Section (Mock for UK-Sync) -->
+        <div id="device-list-card" class="card bg-base-100 shadow-xl border border-base-200 hidden">
+            <div class="card-body">
+                <h2 class="card-title">3. Synchronisierte Geräte (Mock)</h2>
+                <p class="text-sm text-base-content/70">Dies simuliert die Datenbank, in der synchronisierte UKs gespeichert werden.</p>
+                
+                <div class="flex gap-2 mt-4">
+                    <input type="text" id="new-device-id-input" placeholder="Geräte ID (UK Base64)" class="input input-bordered w-full" />
+                    <button id="add-device-btn" class="btn btn-primary">Hinzufügen</button>
+                </div>
+
+                <ul id="device-list" class="mt-4 space-y-2">
+                    <!-- Geräte-IDs werden hier eingefügt -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- P2P Modal Dialog -->
+    <dialog id="p2p-modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl">
+            <h3 class="font-bold text-lg">P2P Handover Workflow</h3>
+            <p class="py-4 text-sm">Wählen Sie, ob Sie das Start-Gerät (Offer) oder das Antwort-Gerät (Answer) sind.</p>
+            
+            <div class="tabs tabs-boxed mb-4">
+                <input type="radio" name="p2p_tab" id="tab-offer" class="tab" aria-label="Start-Gerät (Offer)" checked />
+                <input type="radio" name="p2p_tab" id="tab-answer" class="tab" aria-label="Antwort-Gerät (Answer)" />
+            </div>
+
+            <div id="p2p-offer-mode" class="space-y-4">
+                <p class="text-warning text-sm">Schritt 1: Erstellen Sie den Offer-Link auf dem Chef-Gerät (PC).</p>
+                <div class="relative">
+                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 text-xs" placeholder="Generierter P2P Offer Link..."></textarea>
+                    <button id="copy-offer-btn" class="btn btn-xs btn-outline btn-info absolute right-2 top-2">Kopieren</button>
+                </div>
+                <button id="generate-offer-btn" class="btn btn-success btn-block">Offer Link Generieren</button>
+
+                <div id="offer-wait-section" class="mt-4 hidden p-4 bg-base-200 rounded-lg">
+                    <p class="font-bold">Warten auf Answer (via localStorage)...</p>
+                    <p id="offer-wait-status" class="text-sm mt-1"></p>
+                    <div role="status" class="mt-2 flex justify-center">
+                        <span class="loading loading-spinner text-info"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="p2p-answer-mode" class="space-y-4 hidden">
+                <p class="text-warning text-sm">Schritt 2: Fügen Sie den Offer-Link (oder Answer-Code) ein und starten Sie die Verbindung.</p>
+                <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 text-xs" placeholder="P2P Offer Link oder Answer Code hier einfügen..."></textarea>
+                <button id="p2p-start-pull-btn" class="btn btn-primary btn-block">Verbindung Starten / Answer Senden</button>
+                
+                <div id="answer-output-section" class="mt-4 hidden p-4 bg-base-200 rounded-lg">
+                    <p class="font-bold">Generierter Answer Code:</p>
+                    <textarea id="answer-code-output" class="textarea textarea-bordered w-full h-16 text-xs mt-2"></textarea>
+                    <button id="copy-answer-btn" class="btn btn-xs btn-outline btn-info mt-2">Answer Kopieren</button>
+                    <p class="text-xs mt-2">Dieser Code wird automatisch via localStorage an den Offer-Ersteller (PC) übergeben.</p>
+                </div>
+            </div>
+            
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn">Schließen</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+
+    <script type="module">
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, query, where, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Globale Variablen aus Canvas-Umgebung (MANDATORY USE)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, currentUserId, currentDeviceUK;
+        let peerConnection, dataChannel;
+        const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+        const SID_PARAM = 'sid';
+        const OFFER_PARAM = 'offer';
+        const ANSWER_STORE_PREFIX = 'p2p_answer_';
+        
+        // P2P UI State
+        let p2pIsOffer = true; // Steuert den Modal-Tab (true: Offer-Modus, false: Answer-Modus)
+
+        // --- 1. Passkey / Crypto Helper Funktionen ---
+
+        /**
+         * @function generateSid
+         * Erzeugt eine konsistente, URL-sichere 16-stellige Session-ID. (Korrektur 3)
+         * @returns {string} Die generierte Session ID.
+         */
+        function generateSid() {
+            return crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+        }
+
+        /**
+         * @function arrayBufferToBase64Url
+         * Konvertiert ArrayBuffer/Uint8Array in Base64URL-Format.
+         * @param {ArrayBuffer} buffer - Der zu konvertierende Buffer.
+         * @returns {string} Die Base64URL-repräsentation.
+         */
+        function arrayBufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, ''); // Entferne Padding
+        }
+
+        /**
+         * @function base64UrlToUint8Array
+         * Konvertiert Base64URL zurück in Uint8Array und korrigiert Padding. (Korrektur 2)
+         * @param {string} base64Url - Die Base64URL-repräsentation.
+         * @returns {Uint8Array} Der konvertierte Array.
+         */
+        function base64UrlToUint8Array(base64Url) {
+            // Padding hinzufügen für korrekte Base64-Länge
+            const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+            const base64 = (base64Url + padding)
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+            
+            try {
+                const rawData = window.atob(base64);
+                const outputArray = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; ++i) {
+                    outputArray[i] = rawData.charCodeAt(i);
+                }
+                return outputArray;
+            } catch (e) {
+                console.error('Base64 decoding error:', e);
+                throw new Error('Base64 decoding error: Invalid format.');
+            }
+        }
+
+        /**
+         * @function deriveKeyFromPasskey
+         * Simuliert die Ableitung eines Unique Key (UK) aus einem Passkey (Passkey-Signatur).
+         * NOTE: In einer echten Implementierung würde der UK durch eine HMAC-Ableitung aus
+         * der Passkey-Signatur und einem Salt gewonnen. Hier wird die Signatur selbst als UK genutzt.
+         * @param {object} attestation - Die WebAuthn-Attestation oder Assertion.
+         * @returns {Promise<string>} Base64URL-codierter UK.
+         */
+        async function deriveKeyFromPasskey(assertion) {
+            // Hier nutzen wir die authenticatorData als Pseudo-UK, da dies eindeutig ist.
+            // Echte UK-Ableitung wäre komplexer.
+            const authenticatorData = assertion.response.authenticatorData;
+            return arrayBufferToBase64Url(authenticatorData);
+        }
+
+        // --- 2. Passkey/WebAuthn Funktionen ---
+
+        async function registerPasskey() {
+            try {
+                document.getElementById('passkey-status').textContent = 'Starte Passkey Registrierung...';
+                const challenge = new Uint8Array(32);
+                crypto.getRandomValues(challenge);
+                const challengeB64 = arrayBufferToBase64Url(challenge);
+                
+                const publicKeyCredentialCreationOptions = {
+                    challenge: challenge,
+                    rp: { name: "Mogul P2P Sync", id: window.location.hostname },
+                    user: {
+                        id: new Uint8Array(16), 
+                        name: "user@mogul.p2p",
+                        displayName: "Mogul User"
+                    },
+                    pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
+                    timeout: 60000,
+                    attestation: "direct"
+                };
+
+                const credential = await navigator.credentials.create({ publicKey: publicKeyCredentialCreationOptions });
+                
+                if (credential) {
+                    // UK aus Passkey ableiten
+                    const uk = await deriveKeyFromPasskey({ response: { authenticatorData: credential.response.getAuthenticatorData() } });
+                    currentDeviceUK = uk;
+                    document.getElementById('current-device-id').textContent = uk;
+                    document.getElementById('device-info').classList.remove('hidden');
+                    document.getElementById('passkey-status').textContent = '✅ Registrierung erfolgreich. UK abgeleitet.';
+                    document.getElementById('p2p-card').classList.remove('hidden');
+                    document.getElementById('device-list-card').classList.remove('hidden');
+                    console.log('Passkey Registrierung abgeschlossen. UK:', uk);
+                }
+            } catch (error) {
+                document.getElementById('passkey-status').textContent = '❌ Registrierung fehlgeschlagen: ' + error.name;
+                console.error('Passkey Registration failed:', error);
+            }
+        }
+
+        async function loginPasskey() {
+            try {
+                document.getElementById('passkey-status').textContent = 'Starte Passkey Anmeldung...';
+                const challenge = new Uint8Array(32);
+                crypto.getRandomValues(challenge);
+
+                const publicKeyCredentialRequestOptions = {
+                    challenge: challenge,
+                    rpId: window.location.hostname,
+                    timeout: 60000
+                };
+
+                const assertion = await navigator.credentials.get({ publicKey: publicKeyCredentialRequestOptions });
+
+                if (assertion) {
+                    // UK aus Passkey Signatur ableiten
+                    const uk = await deriveKeyFromPasskey(assertion);
+                    currentDeviceUK = uk;
+                    document.getElementById('current-device-id').textContent = uk;
+                    document.getElementById('device-info').classList.remove('hidden');
+                    document.getElementById('passkey-status').textContent = '✅ Anmeldung erfolgreich. UK abgeleitet.';
+                    document.getElementById('p2p-card').classList.remove('hidden');
+                    document.getElementById('device-list-card').classList.remove('hidden');
+                    console.log('Passkey Anmeldung abgeschlossen. UK:', uk);
+                    
+                    // Prüfen, ob eine P2P-Offer-URL vorliegt (Client-Modus)
+                    handleP2POfferLink();
+                }
+            } catch (error) {
+                document.getElementById('passkey-status').textContent = '❌ Anmeldung fehlgeschlagen: ' + error.name;
+                console.error('Passkey Login failed:', error);
+            }
+        }
+
+        // --- 3. P2P WebRTC Core Funktionen ---
+
+        function initP2P(isOffer, sid) {
+            return new Promise((resolve, reject) => {
+                try {
+                    console.log(`[P2P] Initialisiere WebRTC (Offer: ${isOffer})`);
+                    peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+                    
+                    document.getElementById('p2p-info').textContent = 'WebRTC initialisiert. Erwarte ICE-Kandidaten...';
+                    document.getElementById('p2p-status-container').classList.remove('hidden');
+
+                    if (isOffer) {
+                        // Chef (Offer-Ersteller) erstellt den DataChannel
+                        dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: true, id: 0 });
+                        dataChannel.onopen = () => {
+                            console.log('[P2P] DataChannel OPEN (Chef)');
+                            document.getElementById('p2p-info').textContent = '✅ P2P-Verbindung hergestellt. Bereit zum Senden.';
+                            resolve(dataChannel);
+                        };
+                    } else {
+                        // Client (Answer-Ersteller) empfängt den DataChannel (da negotiated: true, wird er hier nicht direkt gebraucht, 
+                        // aber für saubere Abstraktion könnten wir peerConnection.ondatachannel nutzen, falls negotiated: false wäre).
+                        // Da wir negotiated: true verwenden, ist der Channel auf beiden Seiten sofort verfügbar.
+                        // Wir warten auf das 'connected' Event der PeerConnection oder das 'open' Event des Channels, um fortzufahren.
+                        dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: true, id: 0 });
+                        dataChannel.onopen = () => {
+                            console.log('[P2P] DataChannel OPEN (Client)');
+                            document.getElementById('p2p-info').textContent = '✅ P2P-Verbindung hergestellt. Sende Daten...';
+                            // Da Client ist, senden wir sofort nach Verbindungserfolg
+                            sendDeviceUKs();
+                            resolve(dataChannel);
+                        };
+                    }
+                    
+                    dataChannel.onclose = () => {
+                        console.log('[P2P] DataChannel CLOSED. P2P-Prozess beendet.');
+                        document.getElementById('p2p-info').textContent = 'P2P-Verbindung geschlossen. Datenübertragung beendet.';
+                        // Aufräumen (nach 5 Sekunden)
+                        setTimeout(() => {
+                            peerConnection.close();
+                            document.getElementById('p2p-status-container').classList.add('hidden');
+                        }, 5000);
+                    };
+
+                    dataChannel.onerror = (e) => {
+                         console.error('[P2P] DataChannel ERROR:', e);
+                         document.getElementById('p2p-info').textContent = '❌ Fehler im DataChannel.';
+                    };
+
+                    peerConnection.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            // Kandidaten werden gesammelt, aber nicht sofort verschickt, da wir sie im SDP bündeln.
+                            console.log('[P2P] ICE Candidate gefunden:', event.candidate.candidate);
+                        } else {
+                            // Alle Kandidaten gesammelt, SDP ist fertig zum Senden
+                            console.log('[P2P] ICE Candidate Sammlung beendet.');
+                            resolve(dataChannel); 
+                        }
+                    };
+
+                    peerConnection.oniceconnectionstatechange = () => {
+                        console.log('[P2P] ICE Connection State:', peerConnection.iceConnectionState);
+                        document.getElementById('p2p-info').textContent = `P2P Status: ${peerConnection.iceConnectionState}`;
+                    };
+                    
+                } catch (error) {
+                    console.error('[P2P] WebRTC Initialisierung fehlgeschlagen:', error);
+                    document.getElementById('p2p-info').textContent = '❌ Initialisierung fehlgeschlagen: ' + error.message;
+                    reject(error);
+                }
+            });
+        }
+
+        async function createOffer(sid) {
+            await initP2P(true, sid);
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            // Warten, bis alle ICE-Kandidaten gesammelt sind (über onicecandidate's resolve)
+            await new Promise(resolve => peerConnection.onicecandidate = event => {
+                if (!event.candidate) resolve();
+            });
+            
+            const sdp = arrayBufferToBase64Url(new TextEncoder().encode(peerConnection.localDescription.sdp));
+            return sdp;
+        }
+
+        async function acceptOffer(offerSdpB64) {
+            await initP2P(false);
+            const offerSdp = new TextDecoder().decode(base64UrlToUint8Array(offerSdpB64));
+            await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSdp }));
+            
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            // Warten, bis alle ICE-Kandidaten gesammelt sind
+            await new Promise(resolve => peerConnection.onicecandidate = event => {
+                if (!event.candidate) resolve();
+            });
+
+            const answerSdp = arrayBufferToBase64Url(new TextEncoder().encode(peerConnection.localDescription.sdp));
+            return answerSdp;
+        }
+
+        async function acceptAnswer(answerSdpB64) {
+            const answerSdp = new TextDecoder().decode(base64UrlToUint8Array(answerSdpB64));
+            await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerSdp }));
+            console.log('[P2P] Answer akzeptiert. P2P-Verbindung wird aufgebaut...');
+            document.getElementById('p2p-info').textContent = 'Answer akzeptiert. Stelle Verbindung her...';
+            
+            // Warte auf dataChannel.onopen, um Datenaustausch zu starten
+            await new Promise(resolve => {
+                if (dataChannel.readyState === 'open') {
+                    resolve();
+                } else {
+                    dataChannel.onopen = resolve;
+                }
+            });
+            
+            // Verbindung ist offen, wir senden jetzt unsere Daten an den Client zurück (bidirektionaler Sync)
+            sendDeviceUKs();
+        }
+
+        /**
+         * @function sendDeviceUKs
+         * Sendet die lokalen, synchronisierten UKs über den DataChannel.
+         */
+        function sendDeviceUKs() {
+            if (!dataChannel || dataChannel.readyState !== 'open') {
+                console.error('[P2P] DataChannel nicht offen zum Senden.');
+                document.getElementById('p2p-info').textContent = '❌ Senden fehlgeschlagen: DataChannel nicht offen.';
+                return;
+            }
+
+            const deviceIds = Array.from(document.querySelectorAll('#device-list li'))
+                                .map(li => li.getAttribute('data-uk'));
+            
+            const payload = { 
+                type: 'UK_SYNC', 
+                sourceUK: currentDeviceUK,
+                deviceUKs: deviceIds,
+                timestamp: Date.now() 
+            };
+            
+            const message = JSON.stringify(payload);
+            dataChannel.send(message);
+            
+            console.log(`[P2P] ${deviceIds.length} UKs gesendet. Schließe Channel in 1 Sekunde.`);
+            document.getElementById('p2p-info').textContent = `Daten gesendet. Schließe Verbindung...`;
+            
+            // Schließe den Channel, um den Prozess zu beenden (Uni-Directionaler PULL/SYNC)
+            setTimeout(() => {
+                dataChannel.close();
+            }, 1000);
+        }
+
+        /**
+         * @function receiveData
+         * Registriert den Listener für eingehende Daten und verarbeitet sie.
+         */
+        function receiveData() {
+            if (dataChannel) {
+                dataChannel.onmessage = async (event) => {
+                    console.log('[P2P] Daten empfangen:', event.data);
+                    document.getElementById('p2p-info').textContent = 'Daten empfangen. Starte Verarbeitung...';
+                    
+                    try {
+                        const payload = JSON.parse(event.data);
+                        if (payload.type === 'UK_SYNC' && payload.deviceUKs) {
+                            document.getElementById('received-data-pre').textContent = JSON.stringify(payload, null, 2);
+                            document.getElementById('received-data-info').textContent = `Empfangen von UK: ${payload.sourceUK}`;
+                            document.getElementById('received-data-section').classList.remove('hidden');
+                            console.log('[P2P] UK_SYNC-Daten erhalten und zur Verarbeitung angezeigt.');
+                        }
+                    } catch (e) {
+                        console.error('Fehler beim Parsen der P2P-Daten:', e);
+                        document.getElementById('p2p-info').textContent = '❌ Empfangene Daten ungültig.';
+                    }
+                };
+            }
+        }
+
+        // --- 4. Handover (localStorage) Funktionen ---
+
+        const saveAnswerHandover = (sid, answerParam) => {
+            try {
+                localStorage.setItem(ANSWER_STORE_PREFIX + sid, answerParam);
+                console.log(`[LS] Answer für SID ${sid} in localStorage gespeichert.`);
+                // Kurze Verzögerung für zuverlässigen Storage-Event + Entfernung (Korrektur 5)
+                setTimeout(() => {
+                    localStorage.removeItem(ANSWER_STORE_PREFIX + sid);
+                    console.log(`[LS] Answer für SID ${sid} aus localStorage entfernt.`);
+                }, 1000);
+            } catch (e) {
+                console.warn('localStorage write failed:', e);
+                document.getElementById('p2p-info').textContent = 'Fehler beim Speichern der Antwort in localStorage. Bitte manuelle Übertragung nutzen.';
+            }
+        };
+        
+        const listenForAnswerHandover = (sid) => {
+            document.getElementById('offer-wait-section').classList.remove('hidden');
+            document.getElementById('offer-wait-status').textContent = `Warte auf localStorage Key: ${ANSWER_STORE_PREFIX}${sid}`;
+
+            const handler = (event) => {
+                if (event.key === ANSWER_STORE_PREFIX + sid && event.newValue) {
+                    window.removeEventListener('storage', handler);
+                    console.log('[LS] Answer via localStorage gefunden! Starte P2P-Verbindung.');
+                    document.getElementById('offer-wait-section').classList.add('hidden');
+                    
+                    p2pAcceptAnswer(event.newValue);
+                }
+            };
+
+            window.addEventListener('storage', handler);
+
+            // Fallback für den Fall, dass der Event nicht feuert (z.B. gleicher Tab)
+            const checkFallback = () => {
+                const answer = localStorage.getItem(ANSWER_STORE_PREFIX + sid);
+                if (answer) {
+                    window.removeEventListener('storage', handler);
+                    localStorage.removeItem(ANSWER_STORE_PREFIX + sid);
+                    console.log('[LS] Answer via Fallback-Check gefunden! Starte P2P-Verbindung.');
+                    document.getElementById('offer-wait-section').classList.add('hidden');
+                    p2pAcceptAnswer(answer);
+                } else {
+                    // Nach 60 Sekunden abbrechen
+                    if (Date.now() - startTime < 60000) {
+                        setTimeout(checkFallback, 500);
+                    } else {
+                        document.getElementById('offer-wait-status').textContent = 'Zeitüberschreitung. Keine Antwort empfangen.';
+                    }
+                }
+            };
+            const startTime = Date.now();
+            setTimeout(checkFallback, 500);
+        };
+
+        // --- 5. UI- und Workflow-Logik ---
+
+        function updateP2PModalMode(isOffer) {
+            p2pIsOffer = isOffer;
+            document.getElementById('p2p-offer-mode').classList.toggle('hidden', !isOffer);
+            document.getElementById('p2p-answer-mode').classList.toggle('hidden', isOffer);
+            
+            // Setze den korrekten Tab-Status
+            document.getElementById(isOffer ? 'tab-offer' : 'tab-answer').checked = true;
+        }
+
+        async function p2pGenerateOffer() {
+            const sid = generateSid(); // Generiere neue SID (Korrektur 3)
+            document.getElementById('p2p-info').textContent = `Erzeuge Offer (SID: ${sid})...`;
+            
+            // 1. Offer erstellen
+            const offerSdpB64 = await createOffer(sid);
+            receiveData(); // Aktiviere den Empfangs-Listener
+
+            // 2. Link erstellen
+            const offerLink = `${window.location.origin}${window.location.pathname}?${SID_PARAM}=${sid}&${OFFER_PARAM}=${offerSdpB64}`;
+            
+            // 3. UI aktualisieren
+            document.getElementById('p2p-offer-output').value = offerLink;
+            
+            // 4. Auf Answer warten (localStorage)
+            listenForAnswerHandover(sid);
+            document.getElementById('p2p-info').textContent = 'Offer-Link erstellt. Bitte auf Client-Gerät öffnen.';
+        }
+
+        async function p2pCreateAnswer(offerLinkOrSdp) {
+            let offerSdpB64, sid;
+
+            try {
+                const url = new URL(offerLinkOrSdp);
+                sid = url.searchParams.get(SID_PARAM);
+                offerSdpB64 = url.searchParams.get(OFFER_PARAM);
+            } catch {
+                // Wenn es kein gültiger Link ist, versuchen wir es als reines SDP
+                sid = generateSid(); // Fallback SID, sollte aber aus Link kommen
+                offerSdpB64 = offerLinkOrSdp;
+            }
+
+            if (!sid || !offerSdpB64) {
+                document.getElementById('p2p-info').textContent = '❌ Ungültiger Offer Link/SDP.';
+                return;
+            }
+
+            document.getElementById('p2p-info').textContent = `Erzeuge Answer für SID ${sid}...`;
+
+            // 1. Answer erstellen
+            const answerSdpB64 = await acceptOffer(offerSdpB64);
+            receiveData(); // Aktiviere den Empfangs-Listener (für bidirektionalen Sync)
+
+            // 2. UI aktualisieren
+            document.getElementById('answer-code-output').value = answerSdpB64;
+            document.getElementById('answer-output-section').classList.remove('hidden');
+
+            // 3. Handover via localStorage
+            saveAnswerHandover(sid, answerSdpB64);
+            
+            document.getElementById('p2p-info').textContent = '✅ Answer gesendet (via localStorage). Verbindung wird aufgebaut.';
+        }
+
+        async function p2pAcceptAnswer(answerSdpB64) {
+             document.getElementById('p2p-info').textContent = 'Answer empfangen. Baue Verbindung auf...';
+             await acceptAnswer(answerSdpB64);
+        }
+        
+        /**
+         * @function handleP2POfferLink
+         * Prüft, ob die Seite mit einem P2P Offer Link aufgerufen wurde (Client/Handy-Modus).
+         */
+        function handleP2POfferLink() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sid = urlParams.get(SID_PARAM);
+            const offerSdpB64 = urlParams.get(OFFER_PARAM);
+
+            if (sid && offerSdpB64 && currentDeviceUK) {
+                // Dies ist das Antwort-Gerät (Handy)
+                console.log('[Client] Offer-Link erkannt. Wechsle in den Answer-Modus.');
+                
+                // UI-Korrekturen für Client-Modus (Korrektur 4)
+                document.getElementById('p2p-card-title').textContent = 'Antwort-Gerät (Handy) - Warte auf Verbindung';
+                document.getElementById('p2p-step-1').style.display = 'none'; 
+                document.getElementById('p2p-card').classList.remove('hidden');
+
+                // Modal automatisch in den Answer-Modus setzen
+                updateP2PModalMode(false);
+                const p2p_modal = document.getElementById('p2p-modal');
+                p2p_modal.showModal();
+
+                // Offer in das Eingabefeld einfügen und Answer-Prozess starten
+                const offerLink = `${window.location.origin}${window.location.pathname}?${SID_PARAM}=${sid}&${OFFER_PARAM}=${offerSdpB64}`;
+                document.getElementById('p2p-answer-input').value = offerLink;
+                
+                // Automatisch versuchen, den Answer zu erstellen (ohne Klick)
+                p2pCreateAnswer(offerLink);
+            }
+        }
+
+        // --- 6. Mock UK-Liste & Firestore-Initialisierung ---
+
+        function addDevice(uk) {
+            const list = document.getElementById('device-list');
+            if (document.querySelector(`li[data-uk="${uk}"]`)) return; // Vermeide Duplikate
+
+            const li = document.createElement('li');
+            li.setAttribute('data-uk', uk);
+            li.className = 'flex justify-between items-center p-2 bg-base-200 rounded-lg';
+            li.innerHTML = `
+                <span class="text-xs break-all">${uk}</span>
+                <button class="btn btn-xs btn-error remove-device-btn">X</button>
+            `;
+            list.appendChild(li);
+
+            li.querySelector('.remove-device-btn').addEventListener('click', () => {
+                li.remove();
+            });
+            console.log(`[MockDB] UK ${uk} hinzugefügt.`);
+        }
+
+        function syncMockDatabase(payload) {
+             if (payload.deviceUKs) {
+                 const list = document.getElementById('device-list');
+                 list.innerHTML = ''; // Liste leeren
+                 payload.deviceUKs.forEach(uk => addDevice(uk));
+                 document.getElementById('p2p-info').textContent = `Sync abgeschlossen: ${payload.deviceUKs.length} UKs übernommen.`;
+                 document.getElementById('received-data-section').classList.add('hidden');
+             }
+        }
+        
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                console.error("Firebase Config ist nicht verfügbar.");
+                return;
+            }
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Authentifizierung
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        console.log("Firebase Auth erfolgreich. User ID:", currentUserId);
+                        // Starten Sie die Passkey-Logik erst nach der Auth
+                        // In diesem Mock-Beispiel kann die Passkey-UI nun genutzt werden.
+                    } else {
+                        console.log("Anonyme Anmeldung fehlgeschlagen oder ausgeloggt.");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Fehler bei Firebase Initialisierung/Authentifizierung:", error);
+            }
+        }
+        
+        // --- 7. Event Listener und Startup ---
+
+        window.onload = function () {
+            // Firestore/Firebase initialisieren
+            initializeFirebase();
+
+            // 1. Passkey Listeners
+            document.getElementById('register-passkey-btn').addEventListener('click', registerPasskey);
+            document.getElementById('login-passkey-btn').addEventListener('click', loginPasskey);
+
+            // 2. Mock Device List Listeners
+            document.getElementById('add-device-btn').addEventListener('click', () => {
+                const newId = document.getElementById('new-device-id-input').value.trim();
+                if (newId) {
+                    addDevice(newId);
+                    document.getElementById('new-device-id-input').value = '';
+                }
+            });
+
+            // 3. P2P-Modal/Workflow Listeners
+            const p2p_modal = document.getElementById('p2p-modal');
+
+            document.getElementById('p2p-modal-btn').addEventListener('click', () => {
+                 updateP2PModalMode(true); // Standardmäßig Offer-Modus
+                 p2p_modal.showModal();
+            });
+            
+            document.getElementById('generate-offer-btn').addEventListener('click', p2pGenerateOffer);
+            
+            document.getElementById('p2p-start-pull-btn').addEventListener('click', () => {
+                 const input = document.getElementById('p2p-answer-input').value.trim();
+                 if (input) p2pCreateAnswer(input);
+            });
+            
+            // Tab-Wechsel im P2P-Modal steuert, ob wir Offer (Chef) oder Answer (Client) sind
+            document.getElementById('tab-offer').addEventListener('change', () => updateP2PModalMode(true));
+            document.getElementById('tab-answer').addEventListener('change', () => updateP2PModalMode(false));
+            
+            // Copy Buttons
+            document.getElementById('copy-offer-btn').addEventListener('click', () => {
+                const link = document.getElementById('p2p-offer-output').value;
+                if (link) navigator.clipboard.writeText(link).then(() => alert('Offer Link kopiert!')).catch(e => console.error('Copy failed', e));
+            });
+            document.getElementById('copy-answer-btn').addEventListener('click', () => {
+                const answer = document.getElementById('answer-code-output').value;
+                if (answer) navigator.clipboard.writeText(answer).then(() => alert('Answer Code kopiert!')).catch(e => console.error('Copy failed', e));
+            });
+            
+            // Data Processing Listener
+            document.getElementById('process-data-btn').addEventListener('click', () => {
+                const dataText = document.getElementById('received-data-pre').textContent;
+                try {
+                    const payload = JSON.parse(dataText);
+                    syncMockDatabase(payload);
+                } catch (e) {
+                    document.getElementById('p2p-info').textContent = 'Fehler beim Verarbeiten der Daten.';
+                    console.error('Processing error:', e);
+                }
+            });
+
+            console.log('Mogul P2P-CHEF-Sync gestartet...');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync (Visual Handshake)</title>
+    <!--
+        FINALE VERSION: Mogul P2P Chef Sync (V5 - Visual Handshake)
+        Entwickelt für Christian Heinrich Hohlfeld, Konstanz.
+        Architektur: 100% Serverless, Zero-Trust, Passkey (WebAuthn)
+        Kopplung: 2-Wege-QR-Code-Handshake (Kein Server, Kein "manual laber")
+        Patches für KEK IDB, HMAC GSF, P2P Key Bootstrap und XSS angewendet.
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QR-Code Scanner & Generator (html5-qrcode & qrcode.min.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+            /* Corporate Theme (Light) wird als Standard genutzt */
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+
+        /* --- Minimales CSS für Drag & Drop und Cursor --- */
+        .task-card {
+            cursor: pointer;
+            user-select: none;
+            transition: box-shadow 0.15s, outline 0.15s, transform 0.15s; 
+            border: 2px solid transparent; 
+        }
+        .task-card[draggable="true"] { cursor: grab; }
+        .task-card:hover { box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.1); }
+        
+        .task-card.selected {
+            border-color: transparent; 
+            outline: 4px solid oklch(var(--p)); /* Primärfarbe */
+            outline-offset: 2px;
+            box-shadow: 0 10px 24px 0 rgba(0, 0, 0, 0.4);
+            transform: translateY(-5px);
+            animation: selected-pulse 2s infinite ease-in-out;
+        }
+        .task-card.selected:hover {
+            box-shadow: 0 15px 35px 0 rgba(0, 0, 0, 0.5);
+            transform: translateY(-7px);
+        }
+
+        @keyframes selected-pulse {
+            0% { box-shadow: 0 10px 24px 0 rgba(0, 0, 0, 0.4); outline-color: oklch(var(--p) / 0.8); }
+            50% { box-shadow: 0 12px 28px 0 rgba(0, 0, 0, 0.5); outline-color: oklch(var(--p)); }
+            100% { box-shadow: 0 10px 24px 0 rgba(0, 0, 0, 0.4); outline-color: oklch(var(--p) / 0.8); }
+        }
+
+        .dragging { opacity: 0.3; }
+        .drag-over-active { box-shadow: 0 0 0 3px oklch(var(--b3)) inset; } /* base-300 */
+        .task-card.drop-target-before { border-top: 4px solid oklch(var(--p)) !important; margin-top: 0px !important; }
+        
+        .completed .task-title,
+        .completed .task-details { text-decoration: line-through; opacity: 0.5; }
+        
+        @media (min-width: 1024px) { .kanban-column { min-height: 500px; } }
+        
+        .svg-icon { width: 1.25rem; height: 1.25rem; stroke: currentColor; stroke-width: 2; fill: none; }
+
+        /* QR-Scanner-Fenster */
+        #p2p-qr-scanner {
+            width: 100%;
+            max-width: 400px;
+            margin: 10px auto;
+            border: 2px solid oklch(var(--b3));
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #p2p-qr-code-display {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body class="bg-base-100 min-h-screen" data-theme="corporate">
+
+    <!-- NAVBAR: Enthält Status und Sync-Kontrollen -->
+    <div class="navbar bg-base-100 text-base-content border-b border-base-200 shadow-sm sticky top-0 z-50">
+        <div class="flex-1 px-2 mx-2">
+            <span class="text-2xl font-extrabold text-primary">Mogul</span>
+        </div>
+        <div class="flex-none flex items-center gap-4 text-xs">
+            
+            <!-- SYNC STATUS -->
+            <div id="sync-status-indicator" class="tooltip tooltip-bottom" data-tip="Initialisierung...">
+                <span id="sync-status-text" class="font-bold text-warning uppercase">INIT...</span>
+            </div>
+
+            <!-- SYNC KONTROLLEN -->
+            <button id="pair-device-btn" class="btn btn-sm btn-info rounded-lg" title="Neues Gerät koppeln (2-Wege-QR-Scan).">Gerät koppeln</button>
+            <button id="export-gsf-btn" class="btn btn-sm btn-success rounded-lg hidden" title="Aktuellen Chef-Status (GSF) als Backup exportieren.">Export GSF</button>
+            <button id="manage-devices-btn" class="btn btn-sm btn-ghost rounded-lg" title="Geräte verwalten (Max 4).">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
+            </button>
+            
+            <!-- STANDARD MOGUL KONTROLLEN -->
+            <button id="edit-selected-btn" class="btn btn-primary btn-md rounded-lg shadow-md hover:shadow-lg hidden" title="Ausgewählte Aufgabe bearbeiten (Doppelklick)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 17.21a4.5 4.5 0 0 1-1.897 1.13L6 18.24l.842-2.793a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 14.25H2.25" /></svg>
+            </button>
+            <button id="delete-selected-btn" class="btn btn-error btn-md rounded-lg shadow-md hover:shadow-lg hidden" title="Ausgewählte Aufgaben löschen (Entf)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <span id="delete-count-badge" class="font-bold"></span>
+            </button>
+            <button id="add-task-btn" class="btn btn-primary btn-md rounded-lg shadow-md hover:shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14m-7-7v14"/></svg>
+                Neue Aufgabe
+            </button>
+        </div>
+    </div>
+
+    <main class="kanban-board grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-4 sm:px-8 lg:px-10 py-8 lg:py-10" id="kanban-board">
+        <!-- Spalten (Buckets) -->
+        <div class="kanban-column bg-base-200 flex flex-col p-4 rounded-xl shadow-md" data-bucket="open">
+            <h2 class="text-lg font-bold mb-4 text-base-content flex justify-between items-center pb-2 border-b border-base-300">
+                Offen
+                <span id="count-open" class="badge badge-lg badge-primary badge-ghost font-normal">0</span>
+            </h2>
+            <div class="task-list flex flex-col gap-3 flex-grow pt-2" id="bucket-open"></div>
+        </div>
+        <div class="kanban-column bg-base-200 flex flex-col p-4 rounded-xl shadow-md" data-bucket="in_progress">
+            <h2 class="text-lg font-bold mb-4 text-base-content flex justify-between items-center pb-2 border-b border-base-300">
+                In Arbeit
+                <span id="count-in_progress" class="badge badge-lg badge-warning badge-ghost font-normal">0</span>
+            </h2>
+            <div class="task-list flex flex-col gap-3 flex-grow pt-2" id="bucket-in_progress"></div>
+        </div>
+        <div class="kanban-column bg-base-200 flex flex-col p-4 rounded-xl shadow-md" data-bucket="done">
+            <h2 class="text-lg font-bold mb-4 text-base-content flex justify-between items-center pb-2 border-b border-base-300">
+                Erledigt
+                <span id="count-done" class="badge badge-lg badge-success badge-ghost font-normal">0</span>
+            </h2>
+            <div class="task-list flex flex-col gap-3 flex-grow pt-2" id="bucket-done"></div>
+        </div>
+    </main>
+    
+    <!-- MODAL 1: Task-Details und Bearbeitung -->
+    <dialog id="task_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl bg-base-100 shadow-2xl rounded-xl">
+            <h3 class="font-bold text-xl mb-4 border-b pb-2" id="modal-title-text">Aufgabe bearbeiten</h3>
+            <form id="task-detail-form" method="dialog">
+                <input type="hidden" id="task-id-input">
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-semibold">Titel</span></label>
+                    <input type="text" id="task-title-input" required class="input input-bordered w-full rounded-md bg-base-200 text-base-content border-base-300">
+                </div>
+                <div class="flex flex-col md:flex-row gap-4 mb-6">
+                    <div class="form-control flex-1">
+                        <label class="label"><span class="label-text font-semibold">Startdatum</span></label>
+                        <input type="date" id="task-start-date-input" class="input input-bordered w-full rounded-md bg-base-200 text-base-content border-base-300">
+                    </div>
+                    <div class="form-control flex-1">
+                        <label class="label"><span class="label-text font-semibold">Fälligkeitsdatum (Optional)</span></label>
+                        <input type="date" id="task-due-date-input" class="input input-bordered w-full rounded-md bg-base-200 text-base-content border-base-300">
+                    </div>
+                </div>
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-semibold">Beschreibung/Details (Plain Text)</span></label>
+                    <textarea id="task-details-input" class="textarea textarea-bordered h-36 w-full rounded-md bg-base-200 text-base-content border-base-300"></textarea>
+                </div>
+                <div class="modal-action border-t pt-4 border-base-300">
+                    <button type="button" id="delete-task-btn" class="btn btn-error btn-outline mr-auto rounded-lg">Löschen</button>
+                    <button type="submit" class="btn btn-primary rounded-lg" id="save-task-btn">Speichern</button>
+                    <button type="button" class="btn rounded-lg" onclick="task_modal.close()">Schließen</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- MODAL 2: Löschen-Bestätigung (Einzel oder Batch) -->
+    <dialog id="confirm_delete_modal" class="modal">
+        <div class="modal-box bg-base-100 shadow-2xl rounded-xl">
+            <h3 class="font-bold text-lg text-error">⚠︎ Aufgabe(n) unwiderruflich löschen?</h3>
+            <p class="py-4">Sind Sie sicher, dass Sie <span id="tasks-to-delete-count" class="font-bold text-base-content">diese Aufgabe</span> löschen möchten? Dieser Vorgang kann nicht rückgängig gemacht werden.</p>
+            <div class="modal-action border-t pt-4 border-base-300">
+                <button type="button" class="btn rounded-lg" onclick="confirm_delete_modal.close()">Abbrechen</button>
+                <button type="button" class="btn btn-error rounded-lg" id="confirm-delete-btn">Ja, löschen</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- MODAL 3: Passkey/Auth Flow (Login / Registrierung) -->
+    <dialog id="auth_modal" class="modal modal-open"> <!-- Startet geöffnet -->
+        <div class="modal-box w-96 bg-base-100 shadow-2xl rounded-xl">
+            <h3 id="auth-title" class="font-bold text-lg">🔒 Mogul P2P-Authentifizierung</h3>
+            <div id="auth-loading" class="py-4 text-center hidden">
+                <span class="loading loading-dots loading-lg"></span>
+                <p>Initialisiere Sicherheit...</p>
+            </div>
+            
+            <!-- Registrierungs-Ansicht (Erstes Gerät) -->
+            <div id="auth-register-view" class="py-4 hidden">
+                <p class="mb-4">Willkommen! Dies scheint Ihr erstes Gerät zu sein. Bitte registrieren Sie einen Passkey (Face ID, Touch ID, PIN), um Ihren Account zu erstellen und die Verschlüsselung zu starten.</p>
+                <div class="modal-action">
+                    <button id="register-passkey-btn" class="btn btn-primary rounded-lg w-full">Account mit Passkey erstellen</button>
+                </div>
+            </div>
+            
+            <!-- Login-Ansicht (Folgegeräte) -->
+            <div id="auth-login-view" class="py-4 hidden">
+                <p class="mb-4">Bitte melden Sie sich mit Ihrem Passkey (Face ID, Touch ID, PIN) an, um die Sitzung zu entschlüsseln und zu starten.</p>
+                <div class="modal-action">
+                    <button id="login-passkey-btn" class="btn btn-primary rounded-lg w-full">Mit Passkey anmelden</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- MODAL 4: Geräteverwaltung (Device Registry) -->
+    <dialog id="manage_devices_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl bg-base-100 shadow-2xl rounded-xl">
+            <h3 class="font-bold text-lg">📱 Geräteverwaltung (Max 4)</h3>
+            <p class="py-2 text-sm">Dies ist die Liste der autorisierten Geräte. Nur Geräte auf dieser Liste können Daten synchronisieren.</p>
+            
+            <div class="form-control mb-4">
+                <label class="label"><span class="label-text">Eigene Geräte-ID (Für Aktivierung)</span></label>
+                <input type="text" id="current-device-id-display" class="input input-bordered w-full rounded-md bg-base-200" readonly title="Geben Sie diese ID auf einem Chef-Gerät ein, um dieses Gerät zu aktivieren.">
+            </div>
+
+            <div class="font-semibold mb-2">Autorisierte Geräte:</div>
+            <div id="device-list-container" class="flex flex-col gap-2 p-2 bg-base-200 rounded-lg min-h-24">
+                <!-- Geräteliste wird hier dynamisch eingefügt -->
+            </div>
+
+            <div id="device-activation-section" class="mt-4 pt-4 border-t border-base-300">
+                <h4 class="font-semibold text-primary">Neues Gerät aktivieren</h4>
+                <div class="form-control mt-2">
+                    <label class="label"><span class="label-text">Geräte-ID des neuen Geräts</span></label>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-device-id-input" class="input input-bordered w-full rounded-md bg-base-200" placeholder="ID von neuem Gerät hier einfügen">
+                        <!-- HTML-TYPO-FIX: (Patch 5) -->
+                        <button id="add-device-btn" class="btn btn-success rounded-lg">Aktivieren</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-action border-t pt-4 border-base-300 mt-6">
+                <button type="button" class="btn rounded-lg" onclick="manage_devices_modal.close()">Schließen</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- MODAL 5: P2P Visueller Handshake (WebRTC) -->
+    <dialog id="p2p_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl bg-base-100 shadow-2xl rounded-xl">
+            <h3 class="font-bold text-lg">🔄 P2P Geräte-Kopplung (100% Serverlos)</h3>
+            <p class="py-2 text-sm">Führen Sie den 2-Wege-Scan durch, um eine sichere P2P-Verbindung herzustellen.</p>
+
+            <div id="p2p-status" class="text-info font-semibold my-2">Status: Getrennt</div>
+
+            <!-- Schritt 1: PC (Chef) zeigt Offer-QR an / iPhone scannt Offer-QR -->
+            <div id="p2p-step-1-offer" class="p-4 bg-base-200 rounded-lg">
+                <h4 class="font-semibold">Schritt 1: Offer Scannen (Neues Gerät) / Anzeigen (Chef-Gerät)</h4>
+                <p id="p2p-step-1-instructions" class="text-xs mb-2">Wird initialisiert...</p>
+                
+                <!-- PC (Chef) zeigt diesen QR-Code (Offer) an -->
+                <div id="p2p-offer-qr-display" class="p2p-qr-code-display hidden">
+                    <canvas id="p2p-offer-qr-canvas" width="300" height="300"></canvas>
+                </div>
+                
+                <!-- iPhone (Neu) scannt den PC-Code mit diesem Scanner -->
+                <div id="p2p-offer-scanner" class="p2p-qr-scanner hidden">
+                    <div id="p2p-offer-scanner-view" class="w-full max-w-sm mx-auto border-2 border-base-300 rounded-lg overflow-hidden"></div>
+                </div>
+            </div>
+
+            <!-- Schritt 2: iPhone (Neu) zeigt Answer-QR an / PC (Chef) scannt Answer-QR -->
+            <div id="p2p-step-2-answer" class="p-4 bg-base-200 rounded-lg mt-4 hidden">
+                <h4 class="font-semibold">Schritt 2: Answer Scannen (Chef-Gerät) / Anzeigen (Neues Gerät)</h4>
+                <p id="p2p-step-2-instructions" class="text-xs mb-2">...</p>
+                
+                <!-- iPhone (Neu) zeigt diesen QR-Code (Answer) an -->
+                <div id="p2p-answer-qr-display" class="p2p-qr-code-display hidden">
+                    <canvas id="p2p-answer-qr-canvas" width="300" height="300"></canvas>
+                </div>
+                
+                <!-- PC (Chef) scannt den iPhone-Code mit diesem Scanner -->
+                <div id="p2p-answer-scanner" class="p2p-qr-scanner hidden">
+                     <div id="p2p-answer-scanner-view" class="w-full max-w-sm mx-auto border-2 border-base-300 rounded-lg overflow-hidden"></div>
+                </div>
+            </div>
+
+            <div class="modal-action border-t pt-4 border-base-300 mt-6">
+                <button type="button" class="btn rounded-lg" onclick="p2p_modal.close(); p2pCleanup();">Abbrechen</button>
+            </div>
+        </div>
+    </dialog>
+
+
+    <!-- ### START: SCRIPT BLOCK (VOLLSTÄNDIG & GEPATCHT) ### -->
+    <script>
+    // === 0. GLOBALE VARIABLEN & HILFSFUNKTIONEN ===
+    // -----------------------------------------------------------------
+
+    // --- 0.1 Globale UI-Variablen ---
+    const STORAGE_KEY = 'mogul_tasks_local_cache'; 
+    const BUCKETS = ['open', 'in_progress', 'done'];
+    let tasks = []; // Lokaler In-Memory-Zustand (Cache)
+    
+    let selectedTaskIds = new Set();
+    let lastSelectedId = null;
+    let isDragging = false;
+    let draggedTaskId = null;
+    let currentDropTargetCard = null; 
+
+    // --- 0.2 Globale P2P- & Sicherheitsvariablen ---
+    const DB_NAME_PREFIX = 'MogulChefDB_';
+    const KEK_DB_NAME = 'MogulKEKStore'; // PATCH 4
+    const KEK_STORE_NAME = 'keys';        // PATCH 4
+    const DB_VERSION = 1;
+    const COMMIT_STORE = 'commits';
+    const KEK_STORE_KEY = 'mogul_device_kek'; 
+    const WRAPPED_UK_KEY = 'mogul_wrapped_uk'; 
+    const DEVICE_ID_KEY = 'mogul_device_id';
+    const PASSKEY_ID_KEY = 'mogul_passkey_cred_id';
+    const AUTH_ID = 'ChristianHeinrichHohlfeld'; 
+    const GSF_APP_ID = 'MogulP2P_v1';
+    const MAX_DEVICES = 4;
+    
+    let db; // IndexedDB-Instanz (ChefDB)
+    let currentDeviceId = null;
+    let currentUniversalKey = null; // Universal Key (Base64URL), NUR IM RAM!
+    let currentCommitHash = 'initial';
+    let isChefDevice = false;
+    let p2pDataStore = null; // { appData: { tasks, deviceRegistry }, prevHash, timestamp }
+    
+    // PATCH 0: Globale Deklaration
+    let chefDBInstance = null;
+    let p2pQRScannerOffer = null;
+    let p2pQRScannerAnswer = null;
+
+    // WebRTC-Objekte
+    let peerConnection;
+    let dataChannel;
+    let p2pIsOffer = false; // Ist dieses Gerät der Offer-Ersteller (Neues Gerät)?
+
+    // PATCH 0: XSS-Schutz
+    const SAFE_TEXT = (s) => String(s).replace(/[&<>"'`=\/]/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;','=':'&#61;','/':'&#47;'}[c]));
+
+
+    // === 1. MOGUL KERN-LOGIK (BASIS-APP) ===
+    // (UI-Logik, Zustand, CRUD, Drag&Drop)
+    // -----------------------------------------------------------------
+
+    // --- 1.1 Undo/Redo Logik ---
+    let history = [];
+    let historyIndex = -1;
+    const MAX_HISTORY = 50;
+
+    const takeSnapshot = () => {
+        history = history.slice(0, historyIndex + 1);
+        const currentTasksJSON = JSON.stringify(tasks);
+        if (historyIndex >= 0 && history[historyIndex] === currentTasksJSON) {
+            return;
+        }
+        history.push(currentTasksJSON);
+        historyIndex = history.length - 1;
+        if (history.length > MAX_HISTORY) {
+            history.shift();
+            historyIndex--;
+        }
+    };
+
+    const undo = () => {
+        if (historyIndex > 0) {
+            historyIndex--;
+            tasks = JSON.parse(history[historyIndex]);
+            p2pSaveState(); // P2P-Save (erzeugt neuen Commit für den Undo-Stand)
+            renderTasks();
+        }
+    };
+
+    const redo = () => {
+        if (historyIndex < history.length - 1) {
+            historyIndex++;
+            tasks = JSON.parse(history[historyIndex]);
+            p2pSaveState(); // P2P-Save (erzeugt neuen Commit für den Redo-Stand)
+            renderTasks();
+        }
+    };
+
+    // --- 1.2 State Management (Laden/Speichern) ---
+    // (Diese laden/speichern nur den LOKALEN CACHE für Offline-Start)
+    // (Die P2P-Logik überschreibt dies nach dem Sync)
+
+    const loadState = () => {
+        try {
+            const json = localStorage.getItem(STORAGE_KEY);
+            if (json) {
+                const loadedData = JSON.parse(json);
+                // Validiere, ob es das neue Datenformat ist
+                if (loadedData.appData && Array.isArray(loadedData.appData.tasks)) {
+                    tasks = loadedData.appData.tasks.map(ensureTaskFormat);
+                    p2pDataStore = loadedData; // Lade gesamten P2P-Store aus Cache
+                } 
+                // Fallback für altes Format (nur Task-Array)
+                else if (Array.isArray(loadedData)) {
+                    tasks = loadedData.map(ensureTaskFormat);
+                    // Erzeuge p2pDataStore aus altem Format (ohne Registry)
+                    p2pDataStore = { appData: { tasks: tasks, deviceRegistry: { ids: [], names: {} } } };
+                }
+                else {
+                    tasks = getDefaultTasks();
+                    p2pDataStore = { appData: { tasks: tasks, deviceRegistry: { ids: [], names: {} } } };
+                }
+            } else {
+                tasks = getDefaultTasks();
+                p2pDataStore = { appData: { tasks: tasks, deviceRegistry: { ids: [], names: {} } } };
+            }
+        } catch (e) {
+            console.error('Fehler beim Laden des Zustands:', e);
+            tasks = getDefaultTasks();
+            p2pDataStore = { appData: { tasks: tasks, deviceRegistry: { ids: [], names: {} } } };
+        }
+        takeSnapshot(); // Ersten Snapshot nach dem Laden erstellen
+    };
+    
+    // Speichert den *gesamten* P2P-Store in den lokalen Cache
+    const saveStateToLocalStorage = (dataToSave) => {
+         try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+        } catch (e) {
+            // Quota-Fehler o.ä.
+            console.warn('Speichern in localStorage fehlgeschlagen (Cache):', e.message);
+        }
+    };
+
+    // --- 1.3 Hilfsfunktionen (Formatierung, Defaults) ---
+    
+    // Stellt sicher, dass alle Felder (auch aus alten Versionen) vorhanden sind
+    const ensureTaskFormat = (t) => ({
+        id: t.id || Date.now() + Math.random(), // crypto.randomUUID() wäre besser
+        title: t.title || "Unbenannte Aufgabe",
+        details: t.details || "",
+        bucket: t.bucket || "open",
+        createdDate: t.createdDate || getCurrentDateString(),
+        createdTimeMs: t.createdTimeMs || t.id,
+        startDate: t.startDate || getCurrentDateString(),
+        dueDate: t.dueDate || "",
+        completed: t.completed || false,
+        lastDoneTime: t.lastDoneTime || null,
+        currentBucketStartTime: t.currentBucketStartTime || Date.now(),
+        timeInBucketsMs: t.timeInBucketsMs || { open: 0, in_progress: 0, done: 0 },
+        isDeleted: t.isDeleted || false, 
+        lastModified: t.lastModified || Date.now()
+    });
+
+    const getDefaultTasks = () => {
+        const createdTimeMs = Date.now();
+        return [
+            ensureTaskFormat({
+                id: createdTimeMs,
+                title: 'Mogul P2P-Sync einrichten',
+                details: 'Passkey registrieren und erstes Gerät als Chef festlegen.',
+                bucket: 'open',
+            })
+        ];
+    };
+
+    const getCurrentDateString = () => new Date().toISOString().split('T')[0];
+
+    // --- 1.4 Task Status & Zeitmessung (PATCH D) ---
+    
+    // Implementiert den Stub zur Zeitmessung
+    function updateTaskStatusAndTiming(task, targetBucket) {
+        const now = Date.now();
+        const prevBucket = task.bucket;
+
+        if (!task.timeInBucketsMs) task.timeInBucketsMs = { open: 0, in_progress: 0, done: 0 };
+        if (!task.currentBucketStartTime) task.currentBucketStartTime = task.createdTimeMs || now;
+        
+        // Zeit im aktuellen Bucket akkumulieren
+        const elapsed = now - task.currentBucketStartTime;
+        task.timeInBucketsMs[prevBucket] = (task.timeInBucketsMs[prevBucket] || 0) + elapsed;
+
+        // Statuswechsel
+        task.bucket = targetBucket;
+        task.currentBucketStartTime = now;
+        task.lastModified = now; // Wichtig für Sync
+
+        if (targetBucket === 'done') {
+            task.completed = true;
+            task.lastDoneTime = now;
+        } else {
+            task.completed = false;
+            // lastDoneTime bleibt erhalten, falls man es zurückzieht
+        }
+        return task; // Gibt das modifizierte Objekt zurück
+    }
+
+    const performTaskAction = (taskId, targetBucket) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task || task.bucket === targetBucket) return;
+        
+        const updatedTask = updateTaskStatusAndTiming(task, targetBucket);
+        const index = tasks.findIndex(t => t.id === updatedTask.id);
+        if (index > -1) tasks[index] = updatedTask;
+
+        p2pSaveState(); // P2P-Speichern auslösen
+        renderTasks();
+    };
+
+    // --- 1.5 Drag & Drop Logik (Vollständig) ---
+    
+    const getDragAfterElement = (container, y) => {
+        const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    };
+
+    const clearDropIndicator = () => {
+        document.querySelectorAll('.task-card.drop-target-before')
+            .forEach(c => c.classList.remove('drop-target-before'));
+        currentDropTargetCard = null;
+    }
+
+    const moveAndSortTask = (draggedTaskId, targetBucket, dropIndex) => {
+        const taskIndex = tasks.findIndex(t => t.id === draggedTaskId);
+        const draggedTask = tasks[taskIndex];
+        if (!draggedTask) return;
+        
+        tasks.splice(taskIndex, 1); // 1. Entfernen
+
+        // 2. Status/Zeit anpassen, falls Bucket gewechselt
+        const bucketChanged = draggedTask.bucket !== targetBucket;
+        if (bucketChanged) {
+            updateTaskStatusAndTiming(draggedTask, targetBucket);
+        } else {
+            draggedTask.lastModified = Date.now();
+        }
+
+        // 3. Array neu zusammensetzen (korrekte Sortierung)
+        const newTasks = [];
+        const tasksByBucket = {};
+        BUCKETS.forEach(b => tasksByBucket[b] = tasks.filter(t => t.bucket === b));
+        
+        tasksByBucket[targetBucket].splice(dropIndex, 0, draggedTask); // An Drop-Stelle einfügen
+
+        BUCKETS.forEach(bucket => newTasks.push(...tasksByBucket[bucket]));
+        tasks = newTasks; // Globalen State aktualisieren
+
+        // 4. Speichern und Rendern
+        p2pSaveState(); // P2P-Speichern auslösen
+        renderTasks();
+    };
+
+    const addDragListeners = () => {
+        document.querySelectorAll('.task-card').forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                const cardEl = e.currentTarget; 
+                draggedTaskId = Number(cardEl.dataset.taskId);
+                isDragging = true; 
+                cardEl.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', String(draggedTaskId));
+                e.dataTransfer.effectAllowed = 'move';
+                clearSelection(); // Auswahl aufheben beim Ziehen
+            });
+
+            card.addEventListener('dragend', (e) => {
+                e.target.classList.remove('dragging');
+                setTimeout(() => { isDragging = false; }, 50); 
+                draggedTaskId = null;
+                clearDropIndicator();
+                document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over-active'));
+            });
+        });
+
+        document.querySelectorAll('.kanban-column').forEach(column => {
+            const taskList = column.querySelector('.task-list');
+
+            column.addEventListener('dragover', (e) => {
+                e.preventDefault(); 
+                e.dataTransfer.dropEffect = 'move';
+                column.classList.add('drag-over-active');
+
+                const afterElement = getDragAfterElement(taskList, e.clientY);
+                if (afterElement !== currentDropTargetCard) {
+                    clearDropIndicator();
+                    if (afterElement) {
+                        afterElement.classList.add('drop-target-before');
+                        currentDropTargetCard = afterElement;
+                    } else {
+                        currentDropTargetCard = null;
+                    }
+                }
+            });
+
+            column.addEventListener('dragleave', (e) => {
+                if (!e.relatedTarget || !column.contains(e.relatedTarget)) {
+                    column.classList.remove('drag-over-active');
+                    clearDropIndicator();
+                }
+            });
+
+            column.addEventListener('drop', (e) => {
+                e.preventDefault();
+                column.classList.remove('drag-over-active');
+                clearDropIndicator();
+                if (draggedTaskId === null) return;
+                
+                const targetBucket = column.dataset.bucket;
+                let dropIndex = 0;
+                const allCardsInBucket = Array.from(taskList.children).filter(el => !el.classList.contains('dragging') && el.classList.contains('task-card'));
+                const dropTarget = getDragAfterElement(taskList, e.clientY);
+
+                if (dropTarget) {
+                    dropIndex = allCardsInBucket.indexOf(dropTarget);
+                } else {
+                    dropIndex = allCardsInBucket.length; // Drop am Ende
+                }
+                
+                moveAndSortTask(draggedTaskId, targetBucket, dropIndex);
+                draggedTaskId = null;
+            });
+        });
+    };
+
+    // --- 1.6 CRUD Operationen (mit Soft-Delete) ---
+    
+    // Verwendet nun Soft-Delete
+    const deleteTasks = (taskIds) => {
+        let deletedCount = 0;
+        tasks = tasks.map(t => {
+            if (taskIds.includes(t.id) && !t.isDeleted) {
+                t.isDeleted = true;
+                t.lastModified = Date.now();
+                deletedCount++;
+                return t;
+            }
+            return t;
+        });
+        
+        if (deletedCount > 0) {
+            p2pSaveState(); // P2P-Speichern auslösen
+            renderTasks();
+            // playSound('delete');
+        }
+        selectedTaskIds.clear();
+        updateDeleteSelectedButton();
+    };
+
+    const createNewTask = (title) => {
+        const newTask = ensureTaskFormat({
+            id: Date.now() + Math.random(), // crypto.randomUUID() wäre besser
+            title: title,
+            bucket: 'open',
+        });
+        tasks.push(newTask);
+        return newTask;
+    };
+    
+    const openTaskModalForNewTask = () => {
+         const newTask = createNewTask('Neue Aufgabe');
+        p2pSaveState(); // P2P-Speichern auslösen
+        renderTasks();
+        openTaskModal(newTask.id); // Modal zum Bearbeiten öffnen
+    };
+
+    const openDeleteConfirmModal = (taskId = null, title = null) => {
+        const count = selectedTaskIds.size;
+        const isBatch = taskId === null && count > 0;
+        const idsToDelete = isBatch ? Array.from(selectedTaskIds) : (taskId !== null ? [taskId] : []);
+
+        if (idsToDelete.length === 0) return;
+
+        const deleteCountSpan = document.getElementById('tasks-to-delete-count');
+        if (isBatch) {
+            deleteCountSpan.textContent = `${count} ausgewählte Aufgaben`;
+        } else if (title) {
+             deleteCountSpan.textContent = `die Aufgabe "${SAFE_TEXT(title)}"`;
+        } else {
+             deleteCountSpan.textContent = `diese Aufgabe`;
+        }
+        
+        document.getElementById('confirm-delete-btn').onclick = () => {
+            deleteTasks(idsToDelete);
+            confirm_delete_modal.close();
+        };
+        
+        task_modal.close(); 
+        confirm_delete_modal.showModal();
+    };
+
+    const openTaskModal = (taskId) => {
+        clearSelection();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        document.getElementById('modal-title-text').textContent = task.title; // Titel wird später escaped
+        document.getElementById('task-id-input').value = task.id;
+        document.getElementById('task-title-input').value = task.title;
+        document.getElementById('task-details-input').value = task.details;
+        document.getElementById('task-start-date-input').value = task.startDate;
+        document.getElementById('task-due-date-input').value = task.dueDate;
+        
+        document.getElementById('delete-task-btn').onclick = () => {
+            openDeleteConfirmModal(task.id, task.title);
+        };
+
+        task_modal.showModal();
+        document.getElementById('task-title-input').focus();
+    };
+
+    // --- 1.7 Multi-Select Logik ---
+    
+    const handleTaskSelection = (taskId, isCtrlCmd, isShift) => {
+        const card = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+        const isCurrentlySelected = selectedTaskIds.has(taskId);
+        if (!card) return;
+
+        if (isShift && lastSelectedId !== null) {
+            const taskIdsInOrder = Array.from(document.querySelectorAll('.task-card:not(.dragging)'))
+                .map(el => Number(el.dataset.taskId));
+            const startIndex = taskIdsInOrder.indexOf(lastSelectedId);
+            const endIndex = taskIdsInOrder.indexOf(taskId);
+            if (startIndex === -1 || endIndex === -1) return;
+
+            clearSelection(false); // Visuell bereinigen, aber Button noch nicht updaten
+
+            const [start, end] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+            for (let i = start; i <= end; i++) {
+                const currentId = taskIdsInOrder[i];
+                selectedTaskIds.add(currentId);
+                document.querySelector(`.task-card[data-task-id="${currentId}"]`)?.classList.add('selected');
+            }
+        } else if (isCtrlCmd) {
+            if (isCurrentlySelected) {
+                selectedTaskIds.delete(taskId);
+                card.classList.remove('selected');
+            } else {
+                selectedTaskIds.add(taskId);
+                card.classList.add('selected');
+            }
+            lastSelectedId = taskId; 
+        } else {
+            // Normaler Klick
+            if (selectedTaskIds.size > 1 || !isCurrentlySelected) {
+                clearSelection(false); // Visuell bereinigen
+                selectedTaskIds.add(taskId);
+                card.classList.add('selected');
+            }
+            lastSelectedId = taskId;
+        }
+        
+        updateDeleteSelectedButton();
+    };
+
+    const updateDeleteSelectedButton = () => {
+        const deleteBtn = document.getElementById('delete-selected-btn');
+        const editBtn = document.getElementById('edit-selected-btn');
+        const countBadge = document.getElementById('delete-count-badge');
+        const count = selectedTaskIds.size;
+
+        if (count > 0) {
+            deleteBtn.classList.remove('hidden');
+            countBadge.textContent = count;
+            deleteBtn.title = `Ausgewählte (${count}) Aufgaben löschen (Entf)`;
+        } else {
+            deleteBtn.classList.add('hidden');
+        }
+        
+        if (count === 1) {
+            editBtn.classList.remove('hidden');
+        } else {
+            editBtn.classList.add('hidden');
+        }
+    };
+
+    const clearSelection = (updateButton = true) => {
+        if (selectedTaskIds.size > 0) {
+            document.querySelectorAll('.task-card.selected').forEach(c => c.classList.remove('selected'));
+            selectedTaskIds.clear();
+            lastSelectedId = null;
+            if (updateButton) updateDeleteSelectedButton();
+        }
+    };
+
+    // --- 1.8 Render-Funktion (Haupt-Renderer) ---
+    
+    // PATCH 1: XSS-sichere Render-Funktion
+    const createTaskCard = (task) => {
+        const card = document.createElement('div');
+        const statusColor = task.bucket === 'open' ? 'border-l-primary' : (task.bucket === 'in_progress' ? 'border-l-warning' : 'border-l-success');
+        const completedClass = task.completed && task.bucket === 'done' ? 'completed opacity-90' : '';
+        const selectedClass = selectedTaskIds.has(task.id) ? 'selected' : '';
+
+        card.className = `task-card card bg-base-100 shadow-md ${statusColor} ${completedClass} ${selectedClass} p-4 border-l-4 rounded-lg transition-all duration-150`;
+        card.setAttribute('draggable', true);
+        card.setAttribute('data-task-id', task.id);
+
+        const dueDateBadge = task.dueDate
+            ? `<div class="badge badge-sm badge-error badge-outline font-medium text-xs rounded-full">Fällig: ${SAFE_TEXT(task.dueDate)}</div>`
+            : '';
+
+        const actions = getCardActions(task);
+        let actionButtonsHTML = '<div class="flex gap-1">';
+        actions.forEach(action => {
+            actionButtonsHTML += `<button class="btn btn-xs btn-ghost task-advance-btn ${action.colorClass}" data-id="${task.id}" data-target="${action.targetBucket}" title="${SAFE_TEXT(action.text)}">${action.icon}</button>`;
+        });
+        actionButtonsHTML += '</div>';
+
+        const title = SAFE_TEXT(task.title || '');
+        const details = SAFE_TEXT(task.details || '');
+
+        let topIconHtml = '';
+        if (task.completed && task.bucket === 'done') {
+            topIconHtml = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success absolute top-2 right-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
+        } else {
+            topIconHtml = `<button class="btn btn-xs btn-ghost text-base-content/50 absolute top-2 right-2 z-10 edit-btn" title="Details bearbeiten"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 17.21a4.5 4.5 0 0 1-1.897 1.13L6 18.24l.842-2.793a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 14.25H2.25" /></svg></button>`;
+        }
+
+        card.innerHTML = `
+            <div class="flex justify-between items-start relative pb-1">
+                <h4 class="task-title font-semibold text-base text-base-content line-clamp-2">${title}</h4>
+                ${topIconHtml}
+            </div>
+            <p class="task-details text-sm text-base-content/70 line-clamp-2 mt-1">${details || 'Details hinzufügen...'}</p>
+            <div class="flex justify-between items-center text-xs pt-3 border-t border-base-300 mt-2">
+                <div class="flex flex-col items-start gap-1">${dueDateBadge}</div>
+                ${actionButtonsHTML}
+            </div>
+        `;
+
+        card.addEventListener('click', (e) => {
+            const isCtrlCmd = e.ctrlKey || e.metaKey;
+            const isShift = e.shiftKey;
+            if (e.target.closest('.task-advance-btn') || e.target.closest('.edit-btn') || isDragging) return;
+            handleTaskSelection(task.id, isCtrlCmd, isShift);
+        });
+
+        card.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.task-advance-btn') || e.target.closest('.edit-btn') || isDragging) return;
+            openTaskModal(task.id);
+        });
+
+        card.querySelector('.edit-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openTaskModal(task.id);
+        });
+
+        card.querySelectorAll('.task-advance-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const targetBucket = e.currentTarget.dataset.target;
+                performTaskAction(task.id, targetBucket);
+            });
+        });
+
+        return card;
+    };
+    
+    const getCardActions = (task) => {
+        const BASE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">`;
+        if (task.bucket === 'open') {
+            return [{ text: 'Arbeit starten', targetBucket: 'in_progress', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`, colorClass: 'text-primary hover:text-primary' }];
+        } else if (task.bucket === 'in_progress') {
+            return [
+                { text: 'Zurück zu Offen', targetBucket: 'open', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>`, colorClass: 'text-base-content/50 hover:text-base-content' },
+                { text: 'Abschließen', targetBucket: 'done', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`, colorClass: 'text-success hover:text-success' }
+            ];
+        } else { // done
+            return [{ text: 'Wiedereröffnen', targetBucket: 'in_progress', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M16.03 7.85L15.3 8.58m-6.4 6.4L8.69 16.03m-1.74-5.18h-15m0 0 6.75 6.75M4.5 12l6.75-6.75" /></svg>`, colorClass: 'text-warning hover:text-warning' }];
+        }
+    };
+
+    const renderTasks = () => {
+        const counts = { open: 0, in_progress: 0, done: 0 };
+        // Nur nicht gelöschte anzeigen
+        const activeTasks = tasks.filter(t => !t.isDeleted); 
+
+        BUCKETS.forEach(bucket => {
+            const container = document.getElementById(`bucket-${bucket}`);
+            container.innerHTML = '';
+            const bucketTasks = activeTasks.filter(t => t.bucket === bucket); 
+            
+            bucketTasks.forEach(task => {
+                container.appendChild(createTaskCard(task));
+            });
+
+            counts[bucket] = bucketTasks.length;
+            document.getElementById(`count-${bucket}`).textContent = counts[bucket];
+        });
+        
+        addDragListeners();
+        updateDeleteSelectedButton();
+        
+        // Geräte-Registry im Modal aktualisieren (falls Mogul-Daten geladen)
+        if (p2pDataStore && p2pDataStore.appData) {
+            renderDeviceRegistry();
+        }
+    };
+    
+    // --- 1.9 Event Handler (Tastatur, Klicks) ---
+    
+    const addGlobalEventListeners = () => {
+        document.addEventListener('keydown', (e) => {
+            const isControl = e.ctrlKey || e.metaKey;
+            const isModalOpen = document.querySelector('dialog.modal[open]');
+            const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
+            if (isControl && !isInputFocused) {
+                switch (e.key.toLowerCase()) {
+                    case 'z': e.preventDefault(); (e.shiftKey ? redo() : undo()); break;
+                    case 'y': e.preventDefault(); redo(); break;
+                    // STRG+S / O sind jetzt durch GSF-Sync ersetzt
+                }
+            }
+            
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTaskIds.size > 0 && !isInputFocused && !isModalOpen) {
+                e.preventDefault();
+                openDeleteConfirmModal(); // Batch delete
+            }
+
+            if (e.key === 'Escape' && !isModalOpen) {
+                clearSelection();
+            }
+        });
+
+        document.body.addEventListener('click', (e) => {
+            if (
+                !e.target.closest('.task-card') && 
+                !e.target.closest('dialog.modal') &&
+                !e.target.closest('.navbar')
+            ) {
+                 clearSelection();
+            }
+        });
+        
+        // Navbar Button Listeners
+        document.getElementById('edit-selected-btn').addEventListener('click', () => {
+             if (selectedTaskIds.size === 1) {
+                const taskId = selectedTaskIds.values().next().value; 
+                openTaskModal(taskId);
+            }
+        });
+        document.getElementById('delete-selected-btn').addEventListener('click', () => openDeleteConfirmModal());
+        document.getElementById('add-task-btn').addEventListener('click', openTaskModalForNewTask);
+        
+        // Modal Listeners
+        document.getElementById('task-detail-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const taskId = Number(document.getElementById('task-id-input').value);
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.title = document.getElementById('task-title-input').value.trim();
+                task.details = document.getElementById('task-details-input').value.trim();
+                task.startDate = document.getElementById('task-start-date-input').value;
+                task.dueDate = document.getElementById('task-due-date-input').value;
+                task.lastModified = Date.now();
+                p2pSaveState(); // P2P-Speichern auslösen
+                renderTasks();
+            }
+            task_modal.close();
+        });
+    };
+
+
+    // === 2. P2P-CHEF-SYNC LOGIK (KERN) ===
+    // (Passkey, Crypto, IndexedDB, Device-Registry, P2P-Logik)
+    // -----------------------------------------------------------------
+
+    // --- 2.1 Crypto- & Hilfsfunktionen (WebCrypto) ---
+
+    // Konvertiert ArrayBuffer zu Base64URL (für Passkeys/JSON)
+    function arrayBufferToBase64Url(buffer) {
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    // Konvertiert Base64URL zu ArrayBuffer
+    function base64UrlToArrayBuffer(base64Url) {
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const padLength = (4 - (base64.length % 4)) % 4;
+        const padded = base64 + '='.repeat(padLength);
+        const binary = atob(padded);
+        const buffer = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            buffer[i] = binary.charCodeAt(i);
+        }
+        return buffer.buffer;
+    }
+
+    // Erzeugt einen SHA-256 Hash von einem Objekt
+    async function hashData(data) {
+        const json = JSON.stringify(data);
+        const buffer = new TextEncoder().encode(json);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        return arrayBufferToBase64Url(hashBuffer);
+    }
+
+    // Erzeugt einen HMAC (für GSF-Integrität) (PATCH C)
+    async function hmac(dataBytes, keyBytes) {
+      const k = await crypto.subtle.importKey('raw', keyBytes, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+      const sig = await crypto.subtle.sign('HMAC', k, dataBytes);
+      return arrayBufferToBase64Url(sig);
+    }
+
+    // Verifiziert einen HMAC (PATCH C)
+    async function verifyHmac(dataString, signatureBase64Url, keyBytes) {
+      if (!keyBytes || keyBytes.byteLength === 0) return false;
+      try {
+            const calculatedSig = await hmac(new TextEncoder().encode(dataString), keyBytes);
+            // Sichere Prüfung (obwohl Timing-Attacken hier unwahrscheinlich sind)
+            if (calculatedSig.length !== signatureBase64Url.length) return false;
+            let result = 0;
+            for (let i = 0; i < calculatedSig.length; i++) {
+                result |= calculatedSig.charCodeAt(i) ^ signatureBase64Url.charCodeAt(i);
+            }
+            return result === 0;
+      } catch (e) {
+            console.error("HMAC Verifikation fehlgeschlagen", e);
+            return false;
+      }
+    }
+
+    // --- 2.2 Geräte-ID Management ---
+    
+    function getDeviceId() {
+        let id = localStorage.getItem(DEVICE_ID_KEY);
+        if (!id) {
+            id = `dev_${arrayBufferToBase64Url(crypto.getRandomValues(new Uint8Array(16)))}`;
+            localStorage.setItem(DEVICE_ID_KEY, id);
+        }
+        return id;
+    }
+
+    // --- 2.3 Universal Key (UK) & Key Encryption Key (KEK) Management (PATCH 4) ---
+    
+    // (A) Erzeugt den KEK (Device Key, nicht extrahierbar) in IndexedDB
+    // KORRIGIERTE VERSION (PATCH 4)
+    async function getOrCreateKEK() {
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open(KEK_DB_NAME, 1);
+            req.onupgradeneeded = (e) => {
+                if (!e.target.result.objectStoreNames.contains(KEK_STORE_NAME)) {
+                    e.target.result.createObjectStore(KEK_STORE_NAME);
+                }
+            };
+            req.onsuccess = (e) => resolve(e.target.result);
+            req.onerror = (e) => reject(e.target.error);
+        });
+
+        // helper: idb get (Promise-basiert)
+        const idbGet = (store, key) => new Promise((resolve, reject) => {
+            const tx = db.transaction(store, 'readonly');
+            const os = tx.objectStore(store);
+            const req = os.get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+
+        // helper: idb put (Promise-basiert)
+        const idbPut = (store, key, value) => new Promise((resolve, reject) => {
+            const tx = db.transaction(store, 'readwrite');
+            const os = tx.objectStore(store);
+            const req = os.put(value, key);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+
+        let kek = await idbGet(KEK_STORE_NAME, KEK_STORE_KEY);
+        if (!kek) {
+            kek = await crypto.subtle.generateKey(
+                { name: "AES-GCM", length: 256 },
+                false, // non-extractable
+                ["wrapKey", "unwrapKey"]
+            );
+            await idbPut(KEK_STORE_NAME, KEK_STORE_KEY, kek);
+        }
+        
+        // db.close(); // Wichtig: IDB-Verbindung schließen
+        return kek;
+    }
+
+    // (B) Erzeugt den Universal Key (UK) (nur bei Erstregistrierung)
+    async function generateUniversalKey() {
+        const key = await crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            true, // Extrahierbar, damit wir ihn per P2P senden können
+            ["encrypt", "decrypt"]
+        );
+        // Gibt Base64URL-String des RAW-Keys zurück
+        const keyBytes = await crypto.subtle.exportKey('raw', key);
+        return arrayBufferToBase64Url(keyBytes); 
+    }
+
+    // (C) Speichert den UK (wrapped by KEK) im localStorage
+    async function persistUniversalKey(ukBase64Url) {
+        try {
+            const kek = await getOrCreateKEK();
+            const ukRaw = base64UrlToArrayBuffer(ukBase64Url);
+            const ukImported = await crypto.subtle.importKey('raw', ukRaw, "AES-GCM", true, ["encrypt","decrypt"]);
+            
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const wrappedKey = await crypto.subtle.wrapKey(
+                "jwk", 
+                ukImported, 
+                kek, 
+                { name: "AES-GCM", iv: iv }
+            );
+            
+            const wrappedPayload = {
+                iv: arrayBufferToBase64Url(iv),
+                key: arrayBufferToBase64Url(wrappedKey)
+            };
+            
+            localStorage.setItem(WRAPPED_UK_KEY, JSON.stringify(wrappedPayload));
+            console.log("Universal Key sicher (wrapped) gespeichert.");
+        } catch (e) {
+            console.error("Fehler beim Speichern des Universal Key:", e);
+        }
+    }
+
+    // (D) Lädt den UK (unwrapped by KEK) in den RAM
+    async function loadUniversalKeyFromStorage() {
+        const wrappedPayloadJSON = localStorage.getItem(WRAPPED_UK_KEY);
+        if (!wrappedPayloadJSON) {
+            console.log("Kein wrapped Universal Key gefunden.");
+            return false;
+        }
+        
+        try {
+            const wrappedPayload = JSON.parse(wrappedPayloadJSON);
+            const kek = await getOrCreateKEK();
+            const iv = base64UrlToArrayBuffer(wrappedPayload.iv);
+            const wrappedKey = base64UrlToArrayBuffer(wrappedPayload.key);
+            
+            const ukImported = await crypto.subtle.unwrapKey(
+                "jwk",
+                wrappedKey,
+                kek,
+                { name: "AES-GCM", iv: iv },
+                { name: "AES-GCM", length: 256 },
+                true, // extractable
+                ["encrypt", "decrypt"]
+            );
+            
+            const ukRaw = await crypto.subtle.exportKey('raw', ukImported);
+            currentUniversalKey = arrayBufferToBase64Url(ukRaw);
+            console.log("Universal Key sicher (unwrapped) in RAM geladen.");
+            return true;
+            
+        } catch (e) {
+            console.error("Entpacken des Universal Key fehlgeschlagen:", e);
+            // Key ist korrupt oder KEK ist weg
+            localStorage.removeItem(WRAPPED_UK_KEY);
+            return false;
+        }
+    }
+
+    // --- 2.5 IndexedDB (ChefDB) ---
+    
+    class ChefDB {
+        constructor(deviceId) {
+            this.dbName = `${DB_NAME_PREFIX}${deviceId}`;
+            this.db = null;
+        }
+
+        async init() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(this.dbName, DB_VERSION);
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(COMMIT_STORE)) {
+                        db.createObjectStore(COMMIT_STORE, { keyPath: 'hash' });
+                    }
+                };
+                request.onsuccess = (event) => {
+                    this.db = event.target.result;
+                    console.log("ChefDB initialisiert:", this.dbName);
+                    resolve(this.db);
+                };
+                request.onerror = (event) => reject(event.target.error);
+            });
+        }
+
+        // (A) AES-GCM Verschlüsselung (Nutzt UK im RAM)
+        async encrypt(data) {
+            if (!currentUniversalKey) throw new Error("Verschlüsselungsfehler: Universal Key fehlt.");
+            
+            const key = await crypto.subtle.importKey('raw', base64UrlToArrayBuffer(currentUniversalKey), "AES-GCM", false, ["encrypt"]);
+            const iv = crypto.getRandomValues(new Uint8Array(12)); // 96 bits
+            const encoded = new TextEncoder().encode(JSON.stringify(data));
+            
+            const encrypted = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv }, key, encoded
+            );
+            
+            // Gibt IV + Ciphertext (als Base64URL) zurück
+            return {
+                iv: arrayBufferToBase64Url(iv),
+                data: arrayBufferToBase64Url(encrypted)
+            };
+        }
+
+        // (B) AES-GCM Entschlüsselung
+        async decrypt(encryptedPayload) {
+            if (!currentUniversalKey) throw new Error("Entschlüsselungsfehler: Universal Key fehlt.");
+            
+            const key = await crypto.subtle.importKey('raw', base64UrlToArrayBuffer(currentUniversalKey), "AES-GCM", false, ["decrypt"]);
+            const iv = base64UrlToArrayBuffer(encryptedPayload.iv);
+            const dataBuffer = base64UrlToArrayBuffer(encryptedPayload.data);
+            
+            const decrypted = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv }, key, dataBuffer
+            );
+            
+            const json = new TextDecoder().decode(decrypted);
+            return JSON.parse(json);
+        }
+
+        // (C) Erzeugt einen neuen Commit in der DB
+        async commitData(dataStore, prevHash) {
+            // PATCH: prevHash in den verschlüsselten Payload legen
+            const payload = {
+                appData: dataStore, // Enthält tasks + deviceRegistry
+                prevHash: prevHash,
+                timestamp: Date.now()
+            };
+            
+            const encryptedPayload = await this.encrypt(payload);
+            // Hash über den Ciphertext
+            const currentHash = await hashData(encryptedPayload); 
+
+            const commitBlock = {
+                hash: currentHash,
+                payload: encryptedPayload
+            };
+            
+            const tx = this.db.transaction(COMMIT_STORE, 'readwrite');
+            const store = tx.objectStore(COMMIT_STORE);
+            
+            return new Promise((resolve, reject) => {
+                const req = store.put(commitBlock);
+                req.onsuccess = () => resolve(currentHash);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        // (D) Lädt einen Commit aus der DB und entschlüsselt ihn
+        async checkoutCommit(hash) {
+            return new Promise((resolve, reject) => {
+                const tx = this.db.transaction(COMMIT_STORE, 'readonly');
+                const request = tx.objectStore(COMMIT_STORE).get(hash);
+
+                request.onsuccess = async (event) => {
+                    const commitBlock = event.target.result;
+                    if (!commitBlock) {
+                        return reject(new Error(`Commit ${hash} nicht gefunden.`));
+                    }
+                    try {
+                        const decryptedPayload = await this.decrypt(commitBlock.payload);
+                        resolve(decryptedPayload); // { appData, prevHash, timestamp }
+                    } catch (e) {
+                        reject(new Error(`Entschlüsselung fehlgeschlagen: ${e.message}`));
+                    }
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
+        
+        // (E) Lädt einen rohen Commit-Block (für P2P-Transfer)
+        async getRawCommitBlock(hash) {
+             return new Promise((resolve, reject) => {
+                const tx = this.db.transaction(COMMIT_STORE, 'readonly');
+                const request = tx.objectStore(COMMIT_STORE).get(hash);
+                request.onsuccess = (event) => {
+                    if (!event.target.result) return reject(new Error("Commit nicht gefunden."));
+                    resolve(event.target.result); // Gibt { hash, payload } zurück
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
+        
+        // (F) Speichert einen rohen Commit-Block (von P2P-Transfer)
+        async putRawCommitBlock(commitBlock) {
+             return new Promise((resolve, reject) => {
+                const tx = this.db.transaction(COMMIT_STORE, 'readwrite');
+                const req = tx.objectStore(COMMIT_STORE).put(commitBlock);
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+    }
+
+    // --- 2.6 WebAuthn (Passkey) Logik (PATCH A) ---
+    
+    // (A) Startet den gesamten Auth-Fluss
+    function initializePasskeyFlow() {
+        const authModal = document.getElementById('auth_modal');
+        const loadingView = document.getElementById('auth-loading');
+        const registerView = document.getElementById('auth-register-view');
+        const loginView = document.getElementById('auth-login-view');
+
+        loadingView.classList.remove('hidden');
+        registerView.classList.add('hidden');
+        loginView.classList.add('hidden');
+        
+        if (!window.PublicKeyCredential || location.protocol === 'file:') {
+            updateSyncStatus("WebAuthn nicht unterstützt (nur HTTPS/localhost)", true);
+            loadingView.innerHTML = "<p class='text-error'>Dieser Browser unterstützt keine Passkeys oder die Seite wird nicht über HTTPS/localhost geladen.</p>";
+            return;
+        }
+
+        const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
+
+        if (passkeyId) {
+            loadingView.classList.add('hidden');
+            loginView.classList.remove('hidden');
+            document.getElementById('login-passkey-btn').onclick = startPasskeyAssertion;
+        } else {
+            loadingView.classList.add('hidden');
+            registerView.classList.remove('hidden');
+            document.getElementById('register-passkey-btn').onclick = startPasskeyRegistration;
+        }
+    }
+    
+    // (B) Registrierung (Erstes Gerät)
+    async function startPasskeyRegistration() {
+        try {
+            const challenge = crypto.getRandomValues(new Uint8Array(32));
+            
+            // PATCH A: Gehartete Optionen
+            const publicKeyCredentialCreationOptions = {
+                challenge,
+                rp: { name: "Mogul P2P App", id: location.hostname },
+                user: { id: new TextEncoder().encode(AUTH_ID), name: AUTH_ID, displayName: "Christian Heinrich Hohlfeld" },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256
+                timeout: 60000,
+                attestation: "none", // Wichtig für Kompatibilität
+                authenticatorSelection: { 
+                    userVerification: "required" // Erzwingt Face ID/Touch ID/PIN
+                }
+            };
+
+            const credential = await navigator.credentials.create({
+                publicKey: publicKeyCredentialCreationOptions
+            });
+
+            // Speichere die Credential ID (wichtig für den Login)
+            const credentialIdBase64Url = arrayBufferToBase64Url(credential.rawId);
+            localStorage.setItem(PASSKEY_ID_KEY, credentialIdBase64Url);
+            
+            // === WICHTIG: Erster Universal Key & Commit ===
+            // 1. Erzeuge den UK
+            currentUniversalKey = await generateUniversalKey();
+            // 2. Persistiere den UK (wrapped) für Reloads
+            await persistUniversalKey(currentUniversalKey);
+            
+            // 3. Initialisiere die ChefDB
+            currentDeviceId = getDeviceId();
+            chefDBInstance = new ChefDB(currentDeviceId);
+            await chefDBInstance.init();
+            
+            // 4. Erzeuge die Device Registry (mit diesem Gerät als erstem Chef)
+            p2pDataStore = {
+                appData: {
+                    tasks: getDefaultTasks(),
+                    deviceRegistry: {
+                        ids: [currentDeviceId], // Dieses Gerät ist das erste
+                        names: { [currentDeviceId]: "Chef-Gerät (PC/Mac)" }
+                    }
+                }
+                // prevHash, timestamp werden vom Commit-System gesetzt
+            };
+            tasks = p2pDataStore.appData.tasks; // Lokalen Cache setzen
+
+            // 5. Erzeuge den allerersten Commit
+            currentCommitHash = await chefDBInstance.commitData(p2pDataStore.appData, 'initial');
+            localStorage.setItem(`mogul_last_hash_${currentDeviceId}`, currentCommitHash);
+
+            // 6. Erzwinge GSF-Export (Bootstrap)
+            isChefDevice = true;
+            await generateGSF(currentCommitHash);
+
+            updateSyncStatus(`Registriert. Sie sind Chef!`, false);
+            auth_modal.close();
+            renderTasks();
+
+        } catch (e) {
+            console.error("Passkey-Registrierung fehlgeschlagen:", e);
+            updateSyncStatus("Registrierung fehlgeschlagen", true);
+        }
+    }
+    
+    // (C) Login (Assertion)
+    async function startPasskeyAssertion() {
+        try {
+            const passkeyId = localStorage.getItem(PASSKEY_ID_KEY);
+            if (!passkeyId) throw new Error("Keine Passkey-ID gefunden.");
+
+            const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+            // PATCH A: Gehartete Optionen
+            const publicKeyCredentialRequestOptions = {
+                challenge,
+                allowCredentials: [{
+                    type: "public-key",
+                    id: base64UrlToArrayBuffer(passkeyId)
+                }],
+                timeout: 60000,
+                userVerification: "required"
+            };
+
+            const assertion = await navigator.credentials.get({
+                publicKey: publicKeyCredentialRequestOptions
+            });
+
+            // (HINWEIS: Echte Signatur-Prüfung fehlt, UX-Gate ist aktiv)
+            console.log("Passkey-Assertion erfolgreich (UX-Gate passiert).");
+
+            // === WICHTIG: Fortsetzung nach Login ===
+            await initializeSyncContinuation();
+
+
+        } catch (e) {
+            console.error("Passkey-Login fehlgeschlagen:", e);
+            updateSyncStatus("Login fehlgeschlagen", true);
+        }
+    }
+    
+    // (D) Wird nach erfolgreichem Login aufgerufen (PATCH 2)
+    // FIXT DATA SHAPE & KEY-LADE-LOGIK
+    async function initializeSyncContinuation() {
+        currentDeviceId = getDeviceId();
+        chefDBInstance = new ChefDB(currentDeviceId);
+        await chefDBInstance.init();
+
+        // Lade KEK-gewrappten UK aus dem Storage
+        const ukLoaded = await loadUniversalKeyFromStorage(); 
+        const lastHash = localStorage.getItem(`mogul_last_hash_${currentDeviceId}`);
+
+        if (ukLoaded && lastHash) {
+            try {
+                // Lade den letzten bekannten Commit
+                const payload = await chefDBInstance.checkoutCommit(lastHash); // { appData, prevHash, timestamp }
+                
+                // KORREKTE DATENFORM (PATCH 2)
+                p2pDataStore = {
+                    appData: payload.appData, // appData ist das Objekt { tasks, deviceRegistry }
+                    prevHash: payload.prevHash,
+                    timestamp: payload.timestamp,
+                    lastModified: Date.now()
+                };
+                tasks = p2pDataStore.appData.tasks;
+                isChefDevice = true; // Annahme: Wir waren der letzte Chef
+                updateSyncStatus(`Angemeldet. Lokale Daten geladen (Chef).`, false);
+            } catch (e) {
+                // Lokaler Commit weg/korrupt, obwohl UK da ist
+                updateSyncStatus("Lokale Daten korrupt? PULL erforderlich.", true);
+                isChefDevice = false;
+            }
+        } else if (ukLoaded && !lastHash) {
+            // UK ist da (z.B. von PULL), aber kein Commit
+            updateSyncStatus("UK geladen, aber Daten fehlen. PULL erforderlich.", true);
+            isChefDevice = false;
+        } else {
+            // KEK/UK fehlt (Neues Gerät oder Cache gelöscht)
+            updateSyncStatus("Neues Gerät/Sitzung. Bitte GSF importieren.", true);
+            isChefDevice = false;
+        }
+
+        auth_modal.close();
+        if (!p2pDataStore) {
+            loadState(); // Fallback auf unsicheren Cache (falls vorhanden)
+        }
+        renderTasks();
+    }
+
+
+    // --- 2.7 GSF (Global Status File) Logik (PATCH C) ---
+    
+    // (A) GSF Exportieren (Der "PUSH")
+    async function generateGSF(hash) {
+        if (!isChefDevice) {
+            updateSyncStatus("Nur Chef kann GSF exportieren", true);
+            return;
+        }
+        if (!currentUniversalKey) {
+            updateSyncStatus("Fehler: UK fehlt. PULL erforderlich.", true);
+            return;
+        }
+
+        const payload = {
+            app: GSF_APP_ID,
+            hash: hash || currentCommitHash || 'initial',
+            timestamp: Date.now(),
+            deviceId: currentDeviceId
+        };
+        const payloadString = JSON.stringify(payload);
+        
+        // Signieren mit HMAC (PATCH C)
+        const keyBytes = base64UrlToArrayBuffer(currentUniversalKey);
+        const sig = await hmac(new TextEncoder().encode(payloadString), keyBytes);
+        
+        const gsf = { ...payload, sig };
+        
+        // Download auslösen
+        const jsonString = JSON.stringify(gsf);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const date = new Date().toISOString().split('T')[0];
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mogul_sync_state_${date}.json`; 
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        updateSyncStatus(`GSF Exportiert (Chef: ${currentDeviceId.substring(0, 7)})`, false);
+    }
+
+    // (B) GSF Importieren (Startet den PULL / Chef-Check)
+    async function handleGSFImport(file) {
+        if (!chefDBInstance || !currentDeviceId) {
+            updateSyncStatus("Fehler: Auth nicht abgeschlossen", true);
+            return;
+        }
+        // WICHTIG: GSF-Import funktioniert nur, wenn UK bereits im RAM ist!
+        if (!currentUniversalKey) {
+            updateSyncStatus("Fehler: UK fehlt. PULL per 'Gerät koppeln' starten.", true);
+            openPairing(true); // Öffne den QR-Flow
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            let gsf;
+            try {
+                gsf = JSON.parse(event.target.result);
+                if (gsf.app !== GSF_APP_ID || !gsf.hash || !gsf.timestamp || !gsf.deviceId || !gsf.sig) {
+                    throw new Error("Ungültiges GSF-Format.");
+                }
+            } catch (e) {
+                updateSyncStatus(`GSF-Fehler: ${e.message}`, true);
+                return;
+            }
+
+            // HMAC-Prüfung (PATCH C)
+            const keyBytes = base64UrlToArrayBuffer(currentUniversalKey);
+            const payloadString = JSON.stringify({app:gsf.app,hash:gsf.hash,timestamp:gsf.timestamp,deviceId:gsf.deviceId});
+            const ok = await verifyHmac(payloadString, gsf.sig, keyBytes);
+
+            if (!ok) {
+                updateSyncStatus("GSF Signatur ungültig! Import abgelehnt.", true);
+                return;
+            }
+
+            // === Chef-Status-Prüfung ===
+            const localHash = localStorage.getItem(`mogul_last_hash_${currentDeviceId}`) || 'initial';
+
+            if (gsf.hash === localHash) {
+                updateSyncStatus("Bereits synchron.", false);
+                isChefDevice = (gsf.deviceId === currentDeviceId);
+                return;
+            }
+
+            // GSF ist neuer
+            updateSyncStatus(`GSF importiert. Globaler Chef: ${gsf.deviceId.substring(0, 7)}`, false);
+            isChefDevice = false;
+
+            // P2P-Modal öffnen, um PULL zu starten
+            openPairing(true); // Öffnet QR-Scanner
+        };
+        reader.readAsText(file);
+    }
+    
+    // --- 2.8 P2P (WebRTC) Logik (Visueller Handshake) ---
+
+    function p2pCleanup() {
+        if (dataChannel) dataChannel.close();
+        if (peerConnection) peerConnection.close();
+        dataChannel = null;
+        peerConnection = null;
+        p2pIsOffer = false;
+
+        // Scanner stoppen
+        if (p2pQRScannerOffer && p2pQRScannerOffer.getState() === Html5QrcodeScannerState.SCANNING) {
+            p2pQRScannerOffer.stop();
+        }
+        if (p2pQRScannerAnswer && p2pQRScannerAnswer.getState() === Html5QrcodeScannerState.SCANNING) {
+            p2pQRScannerAnswer.stop();
+        }
+        
+        document.getElementById('p2p-status').textContent = "Getrennt";
+        p2p_modal.close();
+    }
+
+    // (A) Initialisiert die PC-Instanz
+    async function p2pInitConnection() {
+        p2pCleanup(); // Alte Verbindungen trennen
+        peerConnection = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Öffentlicher STUN
+        });
+
+        peerConnection.onicecandidate = (e) => {
+            if (!e.candidate) {
+                // Alle Kandidaten gesammelt. Aktualisiere Offer/Answer.
+                if (p2pIsOffer) {
+                    // Neues Gerät: Zeige Offer-QR
+                    const offerSdp = JSON.stringify(peerConnection.localDescription);
+                    document.getElementById('p2p-step-1-instructions').textContent = "Schritt 1: Scannen Sie diesen QR-Code mit dem Chef-Gerät (PC).";
+                    document.getElementById('p2p-offer-qr-display').classList.remove('hidden');
+                    QRCode.toCanvas(document.getElementById('p2p-offer-qr-canvas'), offerSdp, { width: 300 });
+                    
+                    // Starte Scanner für Answer
+                    document.getElementById('p2p-step-2-answer').classList.remove('hidden');
+                    document.getElementById('p2p-step-2-instructions').textContent = "Schritt 2: Warten auf Answer-QR vom Chef-Gerät...";
+                    document.getElementById('p2p-answer-scanner').classList.remove('hidden');
+                    p2pStartScanner('p2p-answer-scanner-view', p2pAcceptAnswer);
+
+                } else {
+                    // Chef-Gerät: Zeige Answer-QR
+                    const answerSdp = JSON.stringify(peerConnection.localDescription);
+                    document.getElementById('p2p-step-1-instructions').textContent = "Schritt 1: Offer gescannt.";
+                    document.getElementById('p2p-step-2-answer').classList.remove('hidden');
+                    document.getElementById('p2p-step-2-instructions').textContent = "Schritt 2: Zeigen Sie diesen QR-Code dem neuen Gerät.";
+                    document.getElementById('p2p-answer-qr-display').classList.remove('hidden');
+                    QRCode.toCanvas(document.getElementById('p2p-answer-qr-canvas'), answerSdp, { width: 300 });
+                }
+            }
+        };
+        
+        peerConnection.onconnectionstatechange = () => {
+             document.getElementById('p2p-status').textContent = `Status: ${peerConnection.connectionState}`;
+             if (peerConnection.connectionState === 'connected') {
+                 p2p_modal.close();
+             }
+        };
+
+        // Wenn wir der Empfänger sind (Chef-Gerät, das PULL bedient)
+        peerConnection.ondatachannel = (event) => {
+            dataChannel = event.channel;
+            p2pSetupDataChannel();
+        };
+    }
+
+    // (B) Client (Handy) startet PULL (scannt Offer)
+    // (Diese Funktion wird jetzt von p2pStartScanner aufgerufen)
+    // async function p2pCreateOffer() { ... }
+
+    // (C) Chef (PC) akzeptiert PULL (scannt Offer, erzeugt Answer)
+    async function p2pCreateAnswer(offerString) {
+        if (isChefDevice) {
+            await p2pInitConnection();
+            p2pIsOffer = false;
+            
+            const offer = JSON.parse(offerString);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            // (onicecandidate füllt jetzt den Answer-QR-Code)
+        }
+    }
+
+    // (D) Client (Handy) finalisiert PULL (scannt Answer)
+    async function p2pAcceptAnswer(answerString) {
+        if (p2pIsOffer) {
+            const answer = JSON.parse(answerString);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+    }
+
+    // (E) QR-Scanner-Logik
+    function p2pStartScanner(elementId, onScanSuccess) {
+        // Stoppe den anderen Scanner, falls er läuft
+        const otherScanner = (elementId === 'p2p-offer-scanner-view') ? p2pQRScannerAnswer : p2pQRScannerOffer;
+        if (otherScanner && otherScanner.getState() === Html5QrcodeScannerState.SCANNING) {
+            otherScanner.stop();
+        }
+
+        const scanner = new Html5QrcodeScanner(
+            elementId,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            false // verbose
+        );
+        
+        const successCallback = (decodedText, decodedResult) => {
+            scanner.stop();
+            onScanSuccess(decodedText);
+        };
+        
+        scanner.render(successCallback, (error) => { /* console.warn(error) */ });
+        
+        if (elementId === 'p2p-offer-scanner-view') {
+            p2pQRScannerOffer = scanner;
+        } else {
+            p2pQRScannerAnswer = scanner;
+        }
+    }
+
+    // (F) Data Channel Callbacks (Beide Seiten) (PATCH 3)
+    // FIXT P2P-HELLO-GATE & DATA-SHAPE
+    function p2pSetupDataChannel() {
+        dataChannel.onopen = () => {
+            document.getElementById('p2p-status').textContent = "Verbunden! Sende Hello...";
+            // Client (der den PULL startet) sendet 'hello'
+            if (p2pIsOffer) {
+                dataChannel.send(JSON.stringify({ type: 'hello', deviceId: currentDeviceId }));
+            }
+        };
+
+        dataChannel.onmessage = async (ev) => {
+            const msg = JSON.parse(ev.data);
+
+            if (msg.type === 'hello') {
+                // Chef-Seite (PC) empfängt 'hello'
+                if (!isChefDevice || !p2pDataStore) {
+                    dataChannel.send(JSON.stringify({ type: 'deny', reason: 'Empfänger ist nicht Chef.' }));
+                    return;
+                }
+                
+                // 1. Geräte-Registry prüfen
+                const reg = p2pDataStore.appData.deviceRegistry;
+                if (!reg.ids.includes(msg.deviceId)) {
+                    dataChannel.send(JSON.stringify({ type: 'deny', reason: 'Gerät nicht autorisiert.' }));
+                    p2pCleanup();
+                    return;
+                }
+                
+                // 2. Gerät ist autorisiert. Sende Key + Hash (P2P Key Bootstrap)
+                dataChannel.send(JSON.stringify({
+                    type: 'key',
+                    key: currentUniversalKey,
+                    latestHash: currentCommitHash
+                }));
+                
+                // 3. Sende den Commit-Block
+                try {
+                    const commitBlock = await chefDBInstance.getRawCommitBlock(currentCommitHash);
+                    // TODO: Chunking für große Payloads
+                    dataChannel.send(JSON.stringify({ type: 'commit', block: commitBlock }));
+                } catch (e) {
+                     dataChannel.send(JSON.stringify({ type: 'deny', reason: `Commit ${currentCommitHash} nicht gefunden.` }));
+                }
+
+            } 
+            else if (msg.type === 'key') {
+                // Client-Seite (Handy) empfängt den UK
+                currentUniversalKey = msg.key;
+                currentCommitHash = msg.latestHash;
+                localStorage.setItem(`mogul_last_hash_${currentDeviceId}`, currentCommitHash);
+                // Persistiere den UK (gewrappt) für zukünftige Logins
+                await persistUniversalKey(currentUniversalKey); 
+                updateSyncStatus("Schlüssel empfangen...", false);
+            }
+            else if (msg.type === 'commit') {
+                // Client-Seite (Handy) empfängt den Commit
+                const commitBlock = msg.block;
+                
+                await chefDBInstance.putRawCommitBlock(commitBlock);
+                // Entschlüssele und lade
+                const payload = await chefDBInstance.checkoutCommit(commitBlock.hash); // { appData, prevHash, timestamp }
+
+                // KORREKTE DATENFORM (PATCH 3)
+                p2pDataStore = {
+                    appData: payload.appData, // appData = { tasks, deviceRegistry }
+                    prevHash: payload.prevHash,
+                    timestamp: payload.timestamp,
+                    lastModified: Date.now()
+                };
+                tasks = p2pDataStore.appData.tasks;
+                
+                // 4. Chef werden und GSF exportieren (als Backup)
+                isChefDevice = true;
+                await generateGSF(commitBlock.hash);
+                
+                updateSyncStatus(`SYNC ERFOLG. Sie sind Chef!`, false);
+                renderTasks();
+                p2pCleanup();
+            }
+            else if (msg.type === 'deny') {
+                updateSyncStatus(`PULL abgelehnt: ${msg.reason}`, true);
+                p2pCleanup();
+            }
+        };
+
+        dataChannel.onclose = () => { p2pCleanup(); };
+        dataChannel.onerror = (err) => { console.error("Data Channel Fehler:", err); p2pCleanup(); };
+    }
+    
+    // (G) Startet den gesamten Kopplungs-Flow
+    function openPairing(autoStart = true) {
+        p2p_modal.showModal();
+        
+        // Client (neues Gerät) erstellt Offer; Chef wartet auf Offer
+        p2pIsOffer = !isChefDevice;
+        
+        document.getElementById('p2p-step-1-offer').classList.remove('hidden');
+        document.getElementById('p2p-step-2-answer').classList.add('hidden'); // Schritt 2 ausblenden
+
+        if (p2pIsOffer) {
+            // Neues Gerät: Muss Offer scannen
+            document.getElementById('p2p-step-1-instructions').textContent = "Schritt 1: Scannen Sie den QR-Code (Offer) des Chef-Geräts.";
+            document.getElementById('p2p-offer-qr-display').classList.add('hidden');
+            document.getElementById('p2p-offer-scanner').classList.remove('hidden');
+            // Chef (PC) muss 'p2pCreateAnswer' aufrufen, nachdem er den Scan erhält
+            p2pStartScanner('p2p-offer-scanner-view', p2pCreateAnswer); 
+        } else {
+            // Chef-Gerät: Muss Offer anzeigen
+            document.getElementById('p2p-step-1-instructions').textContent = "Schritt 1: Warten, bis neues Gerät diesen QR-Code (Offer) scannt...";
+            document.getElementById('p2p-offer-qr-display').classList.remove('hidden');
+            document.getElementById('p2p-offer-scanner').classList.add('hidden');
+            // Erzeuge Offer und zeige QR
+            p2pInitConnection(); // Init
+            dataChannel = peerConnection.createDataChannel("mogul-sync-channel");
+            p2pSetupDataChannel();
+            peerConnection.createOffer()
+                .then(offer => peerConnection.setLocalDescription(offer))
+                .catch(e => console.error("Offer-Erstellung fehlgeschlagen", e));
+            // (onicecandidate zeigt dann den QR-Code an)
+        }
+    }
+
+    // --- 2.9 Device Registry (Geräteverwaltung) ---
+    
+    function renderDeviceRegistry() {
+        const container = document.getElementById('device-list-container');
+        if (!p2pDataStore || !p2pDataStore.appData.deviceRegistry) {
+            container.innerHTML = "<p class='text-xs text-base-content/50'>Geräteliste nicht geladen.</p>";
+            return;
+        }
+        
+        const registry = p2pDataStore.appData.deviceRegistry;
+        container.innerHTML = '';
+
+        registry.ids.forEach(id => {
+            const name = registry.names[id] || "Unbenanntes Gerät";
+            const isSelf = (id === currentDeviceId);
+            
+            const item = document.createElement('div');
+            item.className = `flex justify-between items-center p-2 rounded ${isSelf ? 'bg-primary text-primary-content' : 'bg-base-100'}`;
+            
+            // XSS-Schutz für Gerätenamen (obwohl unwahrscheinlich)
+            const safeName = SAFE_TEXT(name);
+            const safeId = SAFE_TEXT(id.substring(0, 12));
+
+            item.innerHTML = `
+                <div>
+                    <span class="font-semibold">${safeName} ${isSelf ? '(Dieses Gerät)' : ''}</span>
+                    <span class="block text-xs font-mono opacity-70">${safeId}...</span>
+                </div>
+                ${(isChefDevice && !isSelf) ? 
+                    `<button class="btn btn-xs btn-error" data-id="${SAFE_TEXT(id)}">Entfernen</button>` : 
+                    ''}
+            `;
+            
+            item.querySelector('button')?.addEventListener('click', () => {
+                removeDevice(id);
+            });
+            container.appendChild(item);
+        });
+        
+        // Aktivierungs-UI nur für Chef
+        document.getElementById('device-activation-section').classList.toggle('hidden', !isChefDevice);
+    }
+    
+    function addDevice(newDeviceId) {
+        if (!isChefDevice || !p2pDataStore) return;
+        
+        const registry = p2pDataStore.appData.deviceRegistry;
+        if (registry.ids.length >= MAX_DEVICES) {
+            updateSyncStatus("Max. 4 Geräte erreicht", true);
+            return;
+        }
+        if (registry.ids.includes(newDeviceId)) {
+            updateSyncStatus("Gerät bereits registriert", true);
+            return;
+        }
+        
+        registry.ids.push(newDeviceId);
+        registry.names[newDeviceId] = `Gerät ${registry.ids.length}`;
+        p2pDataStore.lastModified = Date.now();
+        
+        p2pSaveState(); // Commit der neuen Registry
+        renderDeviceRegistry();
+        updateSyncStatus(`Gerät ${newDeviceId.substring(0, 7)} aktiviert.`, false);
+    }
+
+    function removeDevice(deviceIdToRemove) {
+        if (!isChefDevice || !p2pDataStore) return;
+        
+        const registry = p2pDataStore.appData.deviceRegistry;
+        registry.ids = registry.ids.filter(id => id !== deviceIdToRemove);
+        delete registry.names[deviceIdToRemove];
+        p2pDataStore.lastModified = Date.now();
+        
+        p2pSaveState(); // Commit der neuen Registry
+        renderDeviceRegistry();
+        updateSyncStatus(`Gerät ${deviceIdToRemove.substring(0, 7)} entfernt.`, false);
+    }
+    
+    // --- 2.10 Globales P2P Save State (Der "Commit/Push") ---
+    
+    // Diese Funktion ersetzt das Standard-saveState()
+    async function p2pSaveState() {
+        if (!isChefDevice) {
+            updateSyncStatus("Kein Chef. Speichern blockiert.", true);
+            // Lade alten Zustand neu, um Änderungen rückgängig zu machen
+            loadState(); 
+            renderTasks();
+            return;
+        }
+        
+        if (!chefDBInstance || !currentUniversalKey) {
+            updateSyncStatus("Fehler: Sicherheit nicht initialisiert.", true);
+            return;
+        }
+
+        // 1. Daten bündeln (Tasks + Registry)
+        // Stelle sicher, dass p2pDataStore existiert
+        if (!p2pDataStore) {
+             p2pDataStore = { appData: { tasks: tasks, deviceRegistry: { ids: [currentDeviceId], names: { [currentDeviceId]: "Chef" } } } };
+        }
+        p2pDataStore.appData.tasks = tasks; // Aktualisiere Tasks
+        p2pDataStore.lastModified = Date.now();
+        
+        // 2. Commit in lokale IndexedDB
+        try {
+            const newHash = await chefDBInstance.commitData(p2pDataStore.appData, currentCommitHash);
+            currentCommitHash = newHash;
+            localStorage.setItem(`mogul_last_hash_${currentDeviceId}`, currentCommitHash);
+            
+            // 3. Lokalen Cache speichern
+            saveStateToLocalStorage(p2pDataStore);
+            
+            // 4. Snapshot für Undo/Redo (nur Mogul-Tasks)
+            takeSnapshot(); 
+            
+            updateSyncStatus(`Lokal gespeichert (Chef)`, false);
+            
+            // 5. GSF-Export (nur manuell über Button)
+            // await generateGSF(currentCommitHash); // NICHT MEHR AUTOMATISCH
+
+        } catch (e) {
+            updateSyncStatus(`Commit-Fehler: ${e.message}`, true);
+        }
+    }
+    
+    // --- 2.11 UI-Status Helfer (PATCH 5) ---
+    
+    function updateSyncStatus(message, isError = false) {
+        const textEl = document.getElementById('sync-status-text');
+        const indicatorEl = document.getElementById('sync-status-indicator');
+
+        textEl.textContent = message;
+        indicatorEl.setAttribute('data-tip', message);
+
+        textEl.classList.remove('text-warning','text-success','text-error');
+        textEl.classList.add(isError ? 'text-error' : 'text-success');
+
+        document.getElementById('export-gsf-btn').classList.toggle('hidden', !isChefDevice);
+    }
+
+    // === 3. INITIALISIERUNG & Event Handling (Haupt-Startpunkt) ===
+    
+    window.onload = () => {
+        // 1. Basis-UI (Mogul) initialisieren
+        loadState(); // Lade lokalen Cache (wird ggf. überschrieben)
+        renderTasks();
+        addGlobalEventListeners();
+        
+        // 2. P2P/Auth-Flow starten
+        initializePasskeyFlow(); // Öffnet Auth-Modal
+
+        // 3. P2P/Sync Button Listeners
+        // KORREKTUR: Veralteter Listener für 'import-gsf-btn' entfernt, da dieser Button
+        // durch 'pair-device-btn' (den QR-Flow) ersetzt wurde.
+        // Der 'handleGSFImport' wird jetzt nur noch als Backup-Flow 
+        // über den "Export GSF"-Button (und manuellen Transfer) angestoßen,
+        // oder wenn der User explizit eine GSF-Datei importiert (optional).
+        
+        document.getElementById('export-gsf-btn').addEventListener('click', () => {
+            generateGSF(currentCommitHash);
+        });
+
+        // 4. Geräte-Modal Listeners
+        document.getElementById('manage-devices-btn').addEventListener('click', () => {
+            document.getElementById('current-device-id-display').value = currentDeviceId || "Nicht angemeldet";
+            renderDeviceRegistry();
+            manage_devices_modal.showModal();
+        });
+        
+        document.getElementById('add-device-btn').addEventListener('click', () => {
+            const newId = document.getElementById('new-device-id-input').value.trim();
+            if (newId) {
+                addDevice(newId);
+                document.getElementById('new-device-id-input').value = '';
+            }
+        });
+
+        // 5. P2P-Modal Listeners (NEU: QR-Flow)
+        document.getElementById('pair-device-btn').addEventListener('click', () => {
+            openPairing(true);
+        });
+
+        // (Der alte p2p-start-pull-btn ist weg, da der Flow jetzt automatisch ist)
+        
+        console.log('Mogul P2P-CHEF-Sync gestartet. Bereit für Ihre Prioritäten, Christian Heinrich Hohlfeld.');
+    };
+
+    </script>
+    <!-- ### ENDE: SCRIPT BLOCK (VOLLSTÄNDIG) ### -->
+</body>
+</html>
+

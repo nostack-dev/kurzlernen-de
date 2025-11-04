@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync (QR)</title>
+    <!--
+        FINALE VERSION: Mogul P2P Chef Sync (QR-Code / Kein Server / E2E-Verschlüsselt)
+        Intelligente Signalisierung: Ersetzt manuelles Kopieren/Tippen durch QR-Codes.
+        Der QR-Code enthält: [Typ]|[PIN]|[Verschlüsselter SDP-Code]
+        Der Benutzer muss nur noch scannen und den Text in das Feld "Gescannten Code einfügen" pasten.
+        UPDATE: UI auf zwei Hauptaktionen vereinfacht (Generate/Scan & Answer).
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        
+        .modal-box {
+            background-color: var(--theme-bg);
+            color: var(--theme-text);
+        }
+
+        .container {
+            max-width: 900px;
+        }
+
+        .qr-container {
+            /* Erlaubt dem QR-Code, die volle 256x256 Größe der JS-Lib anzunehmen */
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            background-color: white; /* QR-Codes brauchen hellen Hintergrund */
+            border-radius: 0.75rem;
+            min-height: 280px; /* Platz für 256px QR + Padding */
+        }
+
+    </style>
+</head>
+<body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
+
+    <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2">Mogul P2P Synchronisation (QR & E2E)</h1>
+        
+        <div class="alert alert-success shadow-lg mb-6 rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>**Intelligent & E2E-Sicher:** Kein Abtippen/Kopieren langer Codes mehr. Der gesamte verschlüsselte Signalisierungscode wird per QR-Code übertragen.</span>
+        </div>
+        
+        <!-- P2P Modal Button -->
+        <div class="flex justify-center">
+            <button id="p2p-modal-btn" class="btn btn-lg btn-primary shadow-md rounded-xl transition duration-150 ease-in-out hover:scale-[1.02]">
+                Starte P2P Sync (QR-Code-Assistent)
+            </button>
+        </div>
+        
+        <!-- Dummy-Geräteliste -->
+        <h2 class="text-xl font-bold mt-8 mb-4">Simulierte lokale Daten</h2>
+        <div id="device-list" class="space-y-2">
+            <div class="badge badge-outline">PC-CHEF-001 (Aktuell)</div>
+        </div>
+    </div>
+
+    <!-- P2P Modal -->
+    <dialog id="p2p_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-4xl p-6 rounded-2xl">
+            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent (QR-Code)</h3>
+            
+            <div id="p2p-steps" class="space-y-6">
+                
+                <!-- 1. OFFER DEVICE START -->
+                <div id="offer-start-step" class="border p-4 rounded-xl bg-base-100 shadow-lg">
+                    <h5 class="font-bold text-lg text-primary">Gerät A (Client/Handy): Offer erstellen</h5>
+                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg mt-2">1. Offer Code generieren</button>
+                </div>
+
+                <!-- QR CODE DISPLAY FOR OFFER -->
+                <div id="offer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                    <p class="text-sm mb-2 font-medium">**Schritt 1.1:** Auf **Gerät B** (PC) scannen und den resultierenden Text in das Feld unten einfügen.</p>
+                    <div id="offer-qrcode" class="qr-container bg-white shadow-inner"></div>
+                </div>
+
+                <!-- 2. INPUT SECTION (Gemeinsam für Offer & Answer) -->
+                <div class="border-b pb-4 mt-6">
+                    <h4 class="font-bold text-xl mb-3 text-secondary">Gescannten Code einfügen (Input)</h4>
+                    <p class="text-sm mb-2 text-gray-500">Fügen Sie den gescannten QR-Code-Text hier ein, um den Sync-Flow fortzusetzen.</p>
+                    <textarea id="p2p-scanned-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="Gescannten Base64 Code hier einfügen (z.B. A|123456|...)" oninput="handleInputScan(this.value)"></textarea>
+                </div>
+
+                <!-- 3. ANSWER DEVICE FLOW (Enabled by Offer Input) -->
+                <div id="answer-flow-step" class="border p-4 rounded-xl bg-base-100 shadow-lg hidden">
+                    <h5 class="font-bold text-lg text-info">Gerät B (Chef/PC): Answer generieren</h5>
+                    <p id="answer-prompt" class="text-sm text-gray-600 mb-2">Offer Code erkannt. Generieren Sie nun den Answer Code und teilen Sie ihn mit Gerät A:</p>
+                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-info rounded-lg mt-2">2. Answer Code generieren</button>
+                </div>
+                
+                <!-- QR CODE DISPLAY FOR ANSWER -->
+                <div id="answer-qr-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                    <p class="text-sm mb-2 font-medium">**Schritt 2.1:** Auf **Gerät A** (Handy) scannen und den Text in das Input-Feld einfügen.</p>
+                    <div id="answer-qrcode" class="qr-container bg-white shadow-inner"></div>
+                </div>
+                
+                <!-- 4. FINALIZE CONNECTION (Offer Device Final Step) -->
+                <div id="finalize-flow-step" class="border p-4 rounded-xl bg-base-100 shadow-lg hidden">
+                    <h5 class="font-bold text-lg text-success">Gerät A (Verbindung abschließen)</h5>
+                    <p id="finalize-prompt" class="text-sm text-gray-600 mb-2">Answer Code erkannt. Schließen Sie die P2P-Verbindung ab:</p>
+                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg mt-2" disabled>3. Verbindung herstellen</button>
+                </div>
+            </div>
+
+            <!-- Global Status & Log -->
+            <div id="p2p-status" class="alert mt-6 font-semibold rounded-xl">Status: Bereit.</div>
+            
+            <h4 class="font-bold text-lg mt-6 mb-2">P2P Daten-Log</h4>
+            <div id="p2p-log" class="bg-base-200 p-3 rounded-lg h-32 overflow-y-auto text-sm space-y-1">
+                <!-- Log-Einträge erscheinen hier -->
+            </div>
+
+            <div class="modal-action">
+                <form method="dialog">
+                    <button id="p2p-close-btn" class="btn btn-ghost rounded-lg">Schließen</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+    
+    <script>
+        // =================================================================
+        // GLOBALE VARIABLEN & P2P-KONFIGURATION
+        // =================================================================
+        let peerConnection;
+        let dataChannel;
+        let localSDPType = null; // 'offer' or 'answer'
+        
+        const config = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" } // Google STUN-Server
+            ]
+        };
+        
+        function setStatus(text, type = 'info') {
+             const statusElement = document.getElementById('p2p-status');
+             statusElement.textContent = text;
+             statusElement.className = `alert mt-6 font-semibold rounded-xl alert-${type}`;
+             if (type === 'loading') {
+                 // Setze den loading spinner
+                 statusElement.innerHTML = `<span class="loading loading-spinner loading-sm mr-2"></span> ${text}`;
+             }
+        }
+        
+        /**
+         * Generiert den QR-Code mit optimierten Parametern für bessere Scanbarkeit.
+         */
+        function generateQRCode(elementId, text) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = ''; // Vorherigen QR-Code entfernen
+            new QRCode(container, {
+                text: text,
+                width: 256, // Größer für bessere Scanbarkeit
+                height: 256, // Größer für bessere Scanbarkeit
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                // Wichtig: Reduzierte Fehlerkorrektur (L=Low) für einen weniger dichten und damit einfacher zu scannenden Code.
+                correctLevel : QRCode.CorrectLevel.L 
+            });
+        }
+
+        // =================================================================
+        // CRYPTO-UTILITIES (E2E-Verschlüsselung)
+        // =================================================================
+        const cryptoUtils = {
+            /**
+             * Erzeugt einen kryptografischen Schlüssel aus einer Passphrase (PIN).
+             * @param {string} passphrase - Der PIN (z.B. 6 Ziffern).
+             * @returns {Promise<CryptoKey>}
+             */
+            async getKeyFromPassphrase(passphrase) {
+                const enc = new TextEncoder();
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw",
+                    enc.encode(passphrase),
+                    { name: "PBKDF2" },
+                    false,
+                    ["deriveKey"]
+                );
+                
+                // Nutze einen statischen Salt, da der Key lokal generiert wird und nicht übertragen wird.
+                const salt = enc.encode("MOGUL_SYNC_SALT_12345"); 
+
+                return crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: 100000,
+                        hash: "SHA-256",
+                    },
+                    keyMaterial,
+                    { name: "AES-GCM", length: 256 },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+            },
+            
+            /**
+             * Verschlüsselt einen Text mit einem PIN.
+             * @param {string} plaintext - SDP-String.
+             * @param {string} pin - Der Schlüssel (6-stelliger PIN).
+             * @returns {Promise<string>} Base64-String des kombinierten Pakets (IV + Ciphertext).
+             */
+            async encryptSDP(plaintext, pin) {
+                const key = await this.getKeyFromPassphrase(pin);
+                const iv = crypto.getRandomValues(new Uint8Array(16)); // Initialization Vector
+                const encoded = new TextEncoder().encode(plaintext);
+
+                const ciphertext = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key,
+                    encoded
+                );
+
+                // Kombiniere IV und verschlüsselte Daten für die Übertragung
+                const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+                combined.set(iv, 0);
+                combined.set(new Uint8Array(ciphertext), iv.byteLength);
+
+                // Gebe den Base64-String zurück
+                return btoa(String.fromCharCode.apply(null, combined));
+            },
+
+            /**
+             * Entschlüsselt einen Base64-String mit einem PIN.
+             * @param {string} encryptedBase64 - Base64-String (IV + Ciphertext).
+             * @param {string} pin - Der Schlüssel (6-stelliger PIN).
+             * @returns {Promise<string>} Der entschlüsselte SDP-String.
+             */
+            async decryptSDP(encryptedBase64, pin) {
+                const key = await this.getKeyFromPassphrase(pin);
+                
+                // Dekodiere Base64 zurück in Uint8Array
+                const binaryStr = atob(encryptedBase64);
+                const combined = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    combined[i] = binaryStr.charCodeAt(i);
+                }
+
+                if (combined.byteLength < 16) {
+                    throw new Error("Verschlüsseltes Paket ist zu kurz.");
+                }
+
+                const iv = combined.slice(0, 16); // Die ersten 16 Bytes sind der IV
+                const ciphertext = combined.slice(16);
+
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key,
+                    ciphertext
+                );
+
+                return new TextDecoder().decode(decrypted);
+            },
+            
+            /**
+             * Generiert einen 6-stelligen PIN.
+             * @returns {string} 6-stellige Ziffernfolge.
+             */
+            generatePin() {
+                return String(Math.floor(100000 + Math.random() * 900000));
+            }
+        };
+
+        // =================================================================
+        // HILFSFUNKTIONEN (SDP-Objekt Erstellung)
+        // =================================================================
+
+        /**
+         * Erstellt ein RTCSessionDescription-Objekt aus dem reinen SDP-String.
+         * @param {string} sdpString Der reine SDP-String.
+         * @param {'offer'|'answer'} type Der Typ des SDP.
+         * @returns {RTCSessionDescription | null}
+         */
+        function stringToSdp(sdpString, type) {
+            try {
+                return new RTCSessionDescription({
+                    type: type, 
+                    sdp: sdpString
+                });
+            } catch (e) {
+                console.error("Fehler beim Erstellen des SDP-Objekts:", e);
+                return null;
+            }
+        }
+        
+        // =================================================================
+        // P2P ARCHITEKTUR: Deadlock-freie Funktionen
+        // =================================================================
+
+        function setupDataChannelListeners(channel) {
+            if (!channel) return;
+
+            // Entferne alte Listener (wichtig, um doppelte Events zu vermeiden)
+            channel.onopen = null;
+            channel.onclose = null;
+            channel.onmessage = null;
+            channel.onerror = null;
+
+            channel.onopen = () => {
+                console.log("DataChannel: OPEN");
+                setStatus('✅ Verbunden (DataChannel offen)! Sync kann starten.', 'success');
+                setTimeout(() => startP2PSync(), 500);
+            };
+            channel.onmessage = handleDataChannelMessage;
+            channel.onclose = () => {
+                console.log("DataChannel: CLOSED");
+                setStatus('❌ Verbindung getrennt', 'warning');
+            };
+            channel.onerror = (error) => {
+                console.error("DataChannel Fehler:", error);
+                setStatus(`⚠️ DataChannel Fehler: ${error.message || 'Unbekannt'}`, 'error');
+            };
+        }
+
+        async function waitForConnection() {
+            return new Promise((resolve, reject) => {
+                if (!dataChannel) {
+                    return reject(new Error("DataChannel nicht initialisiert."));
+                }
+                
+                if (dataChannel.readyState === 'open') {
+                    resolve(dataChannel);
+                } else {
+                    const timeout = setTimeout(() => {
+                        reject(new Error("Verbindungs-Timeout. Überprüfen Sie die Codes."));
+                    }, 20000); // 20 Sekunden Timeout
+
+                    // Einmalige Listener für den Handshake
+                    const onOpenOnce = () => {
+                        clearTimeout(timeout);
+                        setupDataChannelListeners(dataChannel); 
+                        resolve(dataChannel);
+                    };
+                    const onErrorOnce = (e) => {
+                        clearTimeout(timeout);
+                        dataChannel.onopen = null;
+                        dataChannel.onerror = null;
+                        reject(new Error(`Verbindungsfehler im Handshake: ${e.message}`));
+                    };
+
+                    dataChannel.onopen = onOpenOnce;
+                    dataChannel.onerror = onErrorOnce;
+                }
+            });
+        }
+        
+        async function initP2P(isOffer) {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                dataChannel = null;
+            }
+
+            localSDPType = isOffer ? 'offer' : 'answer';
+            peerConnection = new RTCPeerConnection(config);
+            setStatus('... Verbindungsaufbau gestartet (ICE sammeln)...');
+
+            peerConnection.onicecandidate = (event) => {
+                if (!event.candidate) {
+                    console.log("ICE-Kandidatenerfassung abgeschlossen.");
+                    // In der QR-Code-Lösung warten wir nicht explizit auf ICE-Kandidaten,
+                    // aber diese Konsolenmeldung ist nützlich.
+                }
+            };
+            
+            if (isOffer) {
+                dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: false });
+                setupDataChannelListeners(dataChannel);
+            } else {
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannelListeners(dataChannel);
+                };
+            }
+            
+            return peerConnection;
+        }
+
+        // =================================================================
+        // P2P HANDSHAKE LOGIK (QR-Code Flow)
+        // =================================================================
+
+        /**
+         * Parst den gescannten QR-Code-Text in seine Komponenten.
+         * Format: [Typ]|[PIN]|[Verschlüsselter Code]
+         * @param {string} scannedText Der gesamte Text aus dem QR-Code.
+         * @returns {{type: 'A'|'O', pin: string, encryptedCode: string} | null}
+         */
+        function parseScannedCode(scannedText) {
+            const parts = scannedText.split('|');
+            // Check 1: Drei Teile, Check 2: Typ 'O' oder 'A', Check 3: PIN 6 Ziffern, Check 4: Encrypted Code ist lang genug
+            if (parts.length === 3 && (parts[0] === 'O' || parts[0] === 'A') && /^\d{6}$/.test(parts[1]) && parts[2].length > 50) {
+                return {
+                    type: parts[0],
+                    pin: parts[1],
+                    encryptedCode: parts[2]
+                };
+            }
+            return null;
+        }
+
+        // Steuert, welche Flow-Schritte sichtbar sind basierend auf dem gescannten Input
+        function handleInputScan(value) {
+            const parsed = parseScannedCode(value);
+            const answerFlow = document.getElementById('answer-flow-step');
+            const finalizeFlow = document.getElementById('finalize-flow-step');
+            const pullButton = document.getElementById('p2p-start-pull-btn');
+
+            answerFlow.classList.add('hidden');
+            finalizeFlow.classList.add('hidden');
+            pullButton.disabled = true;
+
+            if (parsed) {
+                if (parsed.type === 'O') {
+                    // Offer Code gescannt (Gerät B muss Answer generieren)
+                    answerFlow.classList.remove('hidden');
+                    document.getElementById('answer-prompt').textContent = `Offer Code von Gerät A (Typ ${parsed.type}, PIN ${parsed.pin}) wurde erkannt. Generieren Sie nun den Answer Code:`;
+                    
+                } else if (parsed.type === 'A') {
+                    // Answer Code gescannt (Gerät A muss Verbindung abschließen)
+                    // Dies ist nur relevant, wenn Offer-QR generiert wurde (localSDPType === 'offer')
+                    if (localSDPType === 'offer') {
+                         finalizeFlow.classList.remove('hidden');
+                         pullButton.disabled = false;
+                         document.getElementById('finalize-prompt').textContent = `Answer Code von Gerät B (Typ ${parsed.type}, PIN ${parsed.pin}) wurde erkannt. Schließen Sie die Verbindung ab:`;
+                    } else {
+                         setStatus('Bitte zuerst Offer Code generieren (Schritt 1).', 'warning');
+                    }
+                }
+            }
+        }
+
+
+        // 1. Offer generieren (Offer-Seite / Client)
+        async function p2pCreateOffer() {
+            try {
+                // UI vorbereiten
+                handleInputScan(''); // Clear all flow steps
+                document.getElementById('p2p-scanned-input').value = '';
+                
+                const qrContainer = document.getElementById('offer-qr-container');
+                
+                const pin = cryptoUtils.generatePin();
+                await initP2P(true); 
+                
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                // Warte, bis ICE-Kandidaten gesammelt sind (1 Sekunde)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const sdpString = peerConnection.localDescription.sdp;
+                
+                // SDP verschlüsseln
+                const encryptedSdp = await cryptoUtils.encryptSDP(sdpString, pin);
+                
+                // QR-Code String erzeugen: O|PIN|EncryptedSDP
+                const qrCodeString = `O|${pin}|${encryptedSdp}`;
+                
+                // QR-Code generieren und anzeigen
+                generateQRCode('offer-qrcode', qrCodeString);
+                qrContainer.classList.remove('hidden');
+
+                setStatus('Offer generiert und verschlüsselt. Bitte QR-Code auf Gerät B scannen und Code in das Input-Feld einfügen.', 'success');
+
+            } catch (e) {
+                console.error("Fehler beim Erstellen des Offers:", e);
+                setStatus(`🚨 Fehler beim Offer-Erstellung: ${e.message}`, 'error');
+            }
+        }
+
+        // 2. Answer erstellen (Answer-Seite / Chef)
+        async function p2pCreateAnswerFlow() {
+            const scannedText = document.getElementById('p2p-scanned-input').value.trim();
+            const parsedOffer = parseScannedCode(scannedText);
+            
+            // Re-check for validity, though UI should prevent invalid click
+            if (!parsedOffer || parsedOffer.type !== 'O') {
+                return setStatus("🚨 Fehler: Das Input-Feld enthält keinen gültigen Offer-Code.", 'error');
+            }
+
+            try {
+                // UI vorbereiten
+                document.getElementById('answer-qr-container').classList.add('hidden');
+                
+                // A. Offer SDP entschlüsseln
+                setStatus('Entschlüssele Offer-Code...', 'loading');
+                const offerSdpString = await cryptoUtils.decryptSDP(parsedOffer.encryptedCode, parsedOffer.pin);
+                
+                // B. Peer Connection initialisieren und Answer generieren
+                await initP2P(false); 
+                
+                const remoteOffer = stringToSdp(offerSdpString, 'offer');
+                if (!remoteOffer) throw new Error("Ungültiges Offer-Format oder Dekodierung fehlgeschlagen.");
+                
+                await peerConnection.setRemoteDescription(remoteOffer);
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                // Warte, bis ICE-Kandidaten gesammelt sind (1 Sekunde)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const answerSdpString = peerConnection.localDescription.sdp;
+                
+                // C. Answer SDP verschlüsseln mit dem GLEICHEN PIN (wird nur zum entschlüsseln genutzt, daher OK)
+                // HINWEIS: Es ist sicherer, den Offer PIN hier zu verwenden, da er die Schlüsselableitung für beide Seiten synchronisiert.
+                const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, parsedOffer.pin);
+
+                // QR-Code String erzeugen: A|PIN|EncryptedSDP
+                const qrCodeString = `A|${parsedOffer.pin}|${encryptedAnswer}`;
+
+                // UI aktualisieren
+                const qrContainer = document.getElementById('answer-qr-container');
+                generateQRCode('answer-qrcode', qrCodeString);
+                qrContainer.classList.remove('hidden');
+                
+                setStatus('Answer erstellt und verschlüsselt. Bitte QR-Code auf Gerät A scannen und Code in das Input-Feld einfügen. Warte auf Verbindung...', 'warning');
+
+            } catch (e) {
+                console.error("Fehler im Answer-Flow:", e);
+                setStatus(`🚨 Fehler im Answer-Flow: ${e.message}`, 'error');
+            }
+        }
+
+        // 3. Answer akzeptieren (Offer-Seite / Client)
+        async function p2pAcceptAnswerFlow() {
+            const scannedText = document.getElementById('p2p-scanned-input').value.trim();
+            const parsedAnswer = parseScannedCode(scannedText);
+            
+            if (!parsedAnswer || parsedAnswer.type !== 'A') {
+                return setStatus("🚨 Fehler: Das Input-Feld enthält keinen gültigen Answer-Code.", 'error');
+            }
+
+            try {
+                if (!peerConnection || localSDPType !== 'offer') {
+                    throw new Error("Bitte zuerst Offer generieren (Schritt 1) auf diesem Gerät.");
+                }
+                
+                // A. Answer SDP entschlüsseln
+                setStatus('Entschlüssele Answer-Code...', 'loading');
+                const answerSdpString = await cryptoUtils.decryptSDP(parsedAnswer.encryptedCode, parsedAnswer.pin);
+                
+                // B. Answer akzeptieren und verbinden
+                const remoteAnswer = stringToSdp(answerSdpString, 'answer');
+                if (!remoteAnswer) throw new Error("Ungültiges Answer-Format oder Dekodierung fehlgeschlagen.");
+                
+                await peerConnection.setRemoteDescription(remoteAnswer);
+                
+                setStatus('Answer akzeptiert. Warte auf P2P-Verbindung...', 'loading');
+                document.getElementById('p2p-start-pull-btn').disabled = true; // Button wieder deaktivieren während Verbindung
+                
+                await waitForConnection();
+
+                setStatus('🎉 P2P-Verbindung E2E-verschlüsselt hergestellt!', 'success');
+
+            } catch (e) {
+                console.error("Fehler beim Akzeptieren der Answer:", e);
+                setStatus(`🚨 Fehler beim Verbindungsaufbau: ${e.message}`, 'error');
+            }
+        }
+        
+        // =================================================================
+        // DATENKANAL-HANDLING & UI-LOGIK
+        // =================================================================
+        
+        function startP2PSync() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const message = `Hallo von Gerät ${localSDPType === 'offer' ? 'A (Client)' : 'B (Chef)'}! Die Verbindung ist E2E-verschlüsselt.`;
+                dataChannel.send(JSON.stringify({ type: 'TEST', message: message }));
+                document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-primary">[LOCAL] Gesendet: ${message}</div>`;
+            }
+        }
+
+        function handleDataChannelMessage(event) {
+            let message = event.data;
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'TEST') {
+                    message = `Testnachricht erhalten: ${data.message}`;
+                } else {
+                     message = "Datenpaket erhalten.";
+                }
+            } catch(e) {
+                // Nicht-JSON Nachricht
+            }
+            document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-secondary">[REMOTE] Erhalten: ${message}</div>`;
+        }
+
+        function resetUI() {
+            document.getElementById('p2p-scanned-input').value = '';
+            document.getElementById('offer-qrcode').innerHTML = '';
+            document.getElementById('answer-qrcode').innerHTML = '';
+
+            document.getElementById('offer-qr-container').classList.add('hidden');
+            document.getElementById('answer-qr-container').classList.add('hidden');
+            document.getElementById('answer-flow-step').classList.add('hidden');
+            document.getElementById('finalize-flow-step').classList.add('hidden');
+            
+            document.getElementById('p2p-log').innerHTML = '';
+            setStatus('Status: Bereit.');
+            localSDPType = null;
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                dataChannel = null;
+            }
+        }
+        
+        // =================================================================
+        // UI EVENT-LISTENERS
+        // =================================================================
+        window.onload = function() {
+            const p2p_modal = document.getElementById('p2p_modal');
+            
+            // --- Modal Open ---
+            document.getElementById('p2p-modal-btn').addEventListener('click', () => {
+                 p2p_modal.showModal();
+                 resetUI();
+            });
+            
+            // --- Offer (Client/Handy) Flow ---
+            document.getElementById('p2p-generate-offer-btn').addEventListener('click', p2pCreateOffer);
+            
+            // --- Answer (Chef/PC) Flow ---
+            document.getElementById('p2p-create-answer-btn').addEventListener('click', p2pCreateAnswerFlow);
+
+            // --- Finalize Connection ---
+            document.getElementById('p2p-start-pull-btn').addEventListener('click', p2pAcceptAnswerFlow);
+
+            console.log('Mogul P2P-CHEF-Sync gestartet (QR-Code / Kein Server).');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul</title>
+    <!--
+        FINALE VERSION: Mogul localStorage MVP
+        Entwickelt für Christian Heinrich Hohlfeld, Konstanz.
+        Architektur: Robustes LocalStorage, Undo/Redo, Drag & Drop, JSON Import/Export.
+        Kein P2P-Sync, keine externe Abhängigkeiten (außer DaisyUI/Tailwind).
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+        }
+        html[data-theme="corporate"] {
+             --theme-bg: oklch(100% 0 0);
+             --theme-text: oklch(0% 0 0);
+        }
+
+        /* --- Minimales CSS für Drag & Drop und Cursor --- */
+        .task-card {
+            cursor: pointer;
+            user-select: none;
+            transition: box-shadow 0.15s, outline 0.15s, transform 0.15s; 
+            border: 2px solid transparent; 
+        }
+        .task-card[draggable="true"] { cursor: grab; }
+        .task-card:hover { box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.1); }
+        
+        .task-card.selected {
+            border-color: transparent; 
+            outline: 4px solid oklch(var(--p)); /* Primärfarbe */
+            outline-offset: 2px;
+            box-shadow: 0 10px 24px 0 rgba(0, 0, 0, 0.4);
+            transform: translateY(-5px);
+            animation: selected-pulse 2s infinite ease-in-out;
+        }
+        .task-card.selected:hover {
+            box-shadow: 0 15px 35px 0 rgba(0, 0, 0, 0.5);
+            transform: translateY(-7px);
+        }
+
+        @keyframes selected-pulse {
+            0% { box-shadow: 0 10px 24px 0 rgba(0, 0, 0, 0.4); outline-color: oklch(var(--p) / 0.8); }
+            50% { box-shadow: 0 12px 28px 0 rgba(0, 0, 0, 0.5); outline-color: oklch(var(--p)); }
+            100% { box-shadow: 0 10px 24px 0 rgba(0, 0, 0, 0.4); outline-color: oklch(var(--p) / 0.8); }
+        }
+
+        .dragging { opacity: 0.3; }
+        .drag-over-active { box-shadow: 0 0 0 3px oklch(var(--b3)) inset; } /* base-300 */
+        .task-card.drop-target-before { border-top: 4px solid oklch(var(--p)) !important; margin-top: 0px !important; }
+        
+        .completed .task-title,
+        .completed .task-details { text-decoration: line-through; opacity: 0.5; }
+        
+        @media (min-width: 1024px) { .kanban-column { min-height: 500px; } }
+        
+        .svg-icon { width: 1.25rem; height: 1.25rem; stroke: currentColor; stroke-width: 2; fill: none; }
+    </style>
+</head>
+<body class="bg-base-100 min-h-screen" data-theme="corporate">
+
+    <!-- NAVBAR: Enthält Status und Sync-Kontrollen -->
+    <div class="navbar bg-base-100 text-base-content border-b border-base-200 shadow-sm sticky top-0 z-50">
+        <div class="flex-1 px-2 mx-2">
+            <span class="text-2xl font-extrabold text-primary">Mogul</span>
+        </div>
+        <div class="flex-none flex items-center gap-4 text-xs text-base-content/50">
+            
+            <!-- Sound Toggle Button -->
+            <button id="sound-toggle-btn" class="btn btn-ghost btn-sm rounded-lg text-base-content/50" title="Sound Ein/Aus">
+                <svg id="sound-icon-on" xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5v14l-5-5H3V9h3l5-5zM15.5 17.5l-1.41-1.41C15.82 15.11 17 13.62 17 12s-1.18-3.11-2.91-4.09l1.41-1.41C17.9 7.79 19 9.8 19 12s-1.1 4.21-2.49 5.5z"/></svg>
+                <svg id="sound-icon-off" xmlns="http://www.w3.org/2000/svg" class="svg-icon hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.74 2.5-2.26 2.5-4.02zM15 3.24l-1.41 1.41C15.93 5.48 17 8.52 17 12s-1.07 6.52-2.91 7.35l1.41 1.41C17.9 19.21 19 16.8 19 12s-1.1-7.21-2.49-8.76z"/></svg>
+            </button>
+
+            <span class="hidden md:inline">STRG+Z/Y: Undo/Redo</span>
+            <span class="hidden md:inline">STRG+S/O: Export/Import</span>
+            
+            <!-- STANDARD MOGUL KONTROLLEN -->
+            <button id="edit-selected-btn" class="btn btn-primary btn-md rounded-lg shadow-md hover:shadow-lg hidden" title="Ausgewählte Aufgabe bearbeiten (Doppelklick)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 17.21a4.5 4.5 0 0 1-1.897 1.13L6 18.24l.842-2.793a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 14.25H2.25" /></svg>
+            </button>
+            <button id="delete-selected-btn" class="btn btn-error btn-md rounded-lg shadow-md hover:shadow-lg hidden" title="Ausgewählte Aufgaben löschen (Entf)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <span id="delete-count-badge" class="font-bold"></span>
+            </button>
+            <button id="add-task-btn" class="btn btn-primary btn-md rounded-lg shadow-md hover:shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14m-7-7v14"/></svg>
+                Neue Aufgabe
+            </button>
+        </div>
+    </div>
+
+    <main class="kanban-board grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-4 sm:px-8 lg:px-10 py-8 lg:py-10" id="kanban-board">
+        <!-- Spalten (Buckets) -->
+        <div class="kanban-column bg-base-200 flex flex-col p-4 rounded-xl shadow-md" data-bucket="open">
+            <h2 class="text-lg font-bold mb-4 text-base-content flex justify-between items-center pb-2 border-b border-base-300">
+                Offen
+                <span id="count-open" class="badge badge-lg badge-primary badge-ghost font-normal">0</span>
+            </h2>
+            <div class="task-list flex flex-col gap-3 flex-grow pt-2" id="bucket-open"></div>
+        </div>
+        <div class="kanban-column bg-base-200 flex flex-col p-4 rounded-xl shadow-md" data-bucket="in_progress">
+            <h2 class="text-lg font-bold mb-4 text-base-content flex justify-between items-center pb-2 border-b border-base-300">
+                In Arbeit
+                <span id="count-in_progress" class="badge badge-lg badge-warning badge-ghost font-normal">0</span>
+            </h2>
+            <div class="task-list flex flex-col gap-3 flex-grow pt-2" id="bucket-in_progress"></div>
+        </div>
+        <div class="kanban-column bg-base-200 flex flex-col p-4 rounded-xl shadow-md" data-bucket="done">
+            <h2 class="text-lg font-bold mb-4 text-base-content flex justify-between items-center pb-2 border-b border-base-300">
+                Erledigt
+                <span id="count-done" class="badge badge-lg badge-success badge-ghost font-normal">0</span>
+            </h2>
+            <div class="task-list flex flex-col gap-3 flex-grow pt-2" id="bucket-done"></div>
+        </div>
+    </main>
+    
+    <!-- MODAL 1: Task-Details und Bearbeitung -->
+    <dialog id="task_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl bg-base-100 shadow-2xl rounded-xl">
+            <h3 class="font-bold text-xl mb-4 border-b pb-2" id="modal-title-text">Aufgabe bearbeiten</h3>
+            <form id="task-detail-form" method="dialog">
+                <input type="hidden" id="task-id-input">
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-semibold">Titel</span></label>
+                    <input type="text" id="task-title-input" required class="input input-bordered w-full rounded-md bg-base-200 text-base-content border-base-300">
+                </div>
+                <div class="flex flex-col md:flex-row gap-4 mb-6">
+                    <div class="form-control flex-1">
+                        <label class="label"><span class="label-text font-semibold">Startdatum</span></label>
+                        <input type="date" id="task-start-date-input" class="input input-bordered w-full rounded-md bg-base-200 text-base-content border-base-300">
+                    </div>
+                    <div class="form-control flex-1">
+                        <label class="label"><span class="label-text font-semibold">Fälligkeitsdatum (Optional)</span></label>
+                        <input type="date" id="task-due-date-input" class="input input-bordered w-full rounded-md bg-base-200 text-base-content border-base-300">
+                    </div>
+                </div>
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text font-semibold">Beschreibung/Details (Plain Text)</span></label>
+                    <textarea id="task-details-input" class="textarea textarea-bordered h-36 w-full rounded-md bg-base-200 text-base-content border-base-300"></textarea>
+                </div>
+                <div class="modal-action border-t pt-4 border-base-300">
+                    <button type="button" id="delete-task-btn" class="btn btn-error btn-outline mr-auto rounded-lg">Löschen</button>
+                    <button type="submit" class="btn btn-primary rounded-lg" id="save-task-btn">Speichern</button>
+                    <button type="button" class="btn rounded-lg" onclick="task_modal.close()">Schließen</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- MODAL 2: Löschen-Bestätigung (Einzel oder Batch) -->
+    <dialog id="confirm_delete_modal" class="modal">
+        <div class="modal-box bg-base-100 shadow-2xl rounded-xl">
+            <h3 class="font-bold text-lg text-error">⚠︎ Aufgabe(n) unwiderruflich löschen?</h3>
+            <p class="py-4">Sind Sie sicher, dass Sie <span id="tasks-to-delete-count" class="font-bold text-base-content">diese Aufgabe</span> löschen möchten? Dieser Vorgang kann nicht rückgängig gemacht werden.</p>
+            <div class="modal-action border-t pt-4 border-base-300">
+                <button type="button" class="btn rounded-lg" onclick="confirm_delete_modal.close()">Abbrechen</button>
+                <button type="button" class="btn btn-error rounded-lg" id="confirm-delete-btn">Ja, löschen</button>
+            </div>
+        </div>
+    </dialog>
+    
+    <!-- KEINE WEITEREN MODALS (Auth, P2P, Devices entfernt) -->
+
+    <!-- ### START: SCRIPT BLOCK (VOLLSTÄNDIG) ### -->
+    <script>
+    // === 1. KERN-LOGIK (BASIS-APP) ===
+    // -----------------------------------------------------------------
+
+    // --- 1.1 Globale Variablen ---
+    const STORAGE_KEY = 'christian_hohlfeld_kanban_tasks';
+    const SOUND_STATE_KEY = 'chh_planner_sound_enabled';
+    const BUCKETS = ['open', 'in_progress', 'done'];
+    
+    let tasks = []; // Lokaler In-Memory-Zustand
+    let selectedTaskIds = new Set();
+    let lastSelectedId = null;
+    let isDragging = false;
+    let draggedTaskId = null;
+    let currentDropTargetCard = null;
+    let isSoundEnabled = true;
+
+    // --- 1.2 Undo/Redo Logik ---
+    let history = [];
+    let historyIndex = -1;
+    const MAX_HISTORY = 50;
+
+    /**
+     * Nimmt einen Snapshot des aktuellen Task-Zustands für Undo/Redo.
+     * Wird von saveState() aufgerufen.
+     */
+    const takeSnapshot = () => {
+        history = history.slice(0, historyIndex + 1); // Schneidet "vorwärts" liegende Historie ab
+        const currentTasksJSON = JSON.stringify(tasks);
+        
+        // Dedupe: Fügt keinen Snapshot hinzu, wenn er identisch zum letzten ist
+        if (historyIndex >= 0 && history[historyIndex] === currentTasksJSON) {
+            return;
+        }
+        
+        history.push(currentTasksJSON);
+        historyIndex = history.length - 1;
+        
+        // Verhindert, dass die Historie zu groß wird
+        if (history.length > MAX_HISTORY) {
+            history.shift();
+            historyIndex--;
+        }
+    };
+
+    /**
+     * Macht die letzte Aktion rückgängig.
+     */
+    const undo = () => {
+        if (historyIndex > 0) { // Kann nicht den initialen (leeren) Snapshot rückgängig machen
+            historyIndex--;
+            tasks = JSON.parse(history[historyIndex]);
+            // Ruft saveState OHNE Snapshot auf, um nur localStorage zu aktualisieren
+            saveStateToLocalStorage(tasks); 
+            renderTasks();
+        }
+    };
+
+    /**
+     * Wiederholt die letzte rückgängig gemachte Aktion.
+     */
+    const redo = () => {
+        if (historyIndex < history.length - 1) {
+            historyIndex++;
+            tasks = JSON.parse(history[historyIndex]);
+            // Ruft saveState OHNE Snapshot auf, um nur localStorage zu aktualisieren
+            saveStateToLocalStorage(tasks);
+            renderTasks();
+        }
+    };
+
+    // --- 1.3 State Management (Laden/Speichern) ---
+
+    /**
+     * Lädt den Zustand aus localStorage beim Start.
+     * Führt Schema-Guards (ensureTaskFormat) aus und setzt Standard-Tasks.
+     */
+    const loadState = () => {
+        let loadedTasks = [];
+        try {
+            const json = localStorage.getItem(STORAGE_KEY);
+            if (json) {
+                const parsed = JSON.parse(json);
+                // Schema-Guard: Validiert Import (erwartet Array)
+                if (Array.isArray(parsed)) {
+                    loadedTasks = parsed.map(ensureTaskFormat); // Schema-Guard für jedes Task-Objekt
+                } else {
+                    console.warn("Ungültige Daten im localStorage, lade Standard.");
+                    loadedTasks = getDefaultTasks();
+                }
+            } else {
+                // Seed: Erzeugt erste Demo-Aufgabe
+                loadedTasks = getDefaultTasks();
+            }
+        } catch (e) {
+            console.error('Fehler beim Laden des Zustands:', e);
+            loadedTasks = getDefaultTasks();
+        }
+        
+        tasks = loadedTasks;
+        takeSnapshot(); // WICHTIG: Erster Snapshot nach dem Laden
+    };
+    
+    /**
+     * Speichert den aktuellen Task-Zustand in localStorage.
+     * Dies ist die Hauptfunktion, die bei Aktionen aufgerufen wird.
+     * @param {boolean} [shouldTakeSnapshot=true] - Ob ein Undo-Snapshot erstellt werden soll.
+     */
+    const saveState = (shouldTakeSnapshot = true) => {
+        if (shouldTakeSnapshot) {
+            takeSnapshot(); 
+        }
+        saveStateToLocalStorage(tasks);
+    };
+
+    /**
+     * Interne Speicherfunktion. Fängt Quota-Fehler ab.
+     */
+    const saveStateToLocalStorage = (dataToSave) => {
+         try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+        } catch (e) {
+            console.error('Fehler beim Speichern des Zustands (Quota überschritten?):', e);
+            // Nicht-blockierende Warnung (MVP-Anforderung)
+        }
+    };
+
+
+    // --- 1.4 Hilfsfunktionen (Formatierung, Defaults) ---
+    
+    /**
+     * Schema-Guard: Stellt sicher, dass ein Task-Objekt alle erforderlichen Felder hat.
+     */
+    const ensureTaskFormat = (t) => {
+        const now = Date.now();
+        const tId = t.id || now;
+        return {
+            id: tId,
+            title: t.title || "Unbenannte Aufgabe",
+            details: t.details || "",
+            bucket: t.bucket || "open",
+            createdDate: t.createdDate || getCurrentDateString(),
+            createdTimeMs: t.createdTimeMs || tId,
+            startDate: t.startDate || getCurrentDateString(),
+            dueDate: t.dueDate || "",
+            completed: t.completed || false,
+            lastDoneTime: t.lastDoneTime || null,
+            currentBucketStartTime: t.currentBucketStartTime || now,
+            timeInBucketsMs: t.timeInBucketsMs || { open: 0, in_progress: 0, done: 0 },
+            isDeleted: t.isDeleted || false, // Für Soft-Delete (obwohl MVP Hard-Delete verwendet)
+            lastModified: t.lastModified || now
+        };
+    };
+
+    /**
+     * Erzeugt die Standard-Demo-Aufgabe.
+     */
+    const getDefaultTasks = () => {
+        const createdTimeMs = Date.now();
+        return [
+            ensureTaskFormat({
+                id: createdTimeMs,
+                title: 'Mogul MVP abschließen',
+                details: 'Alle MVP-Must-Haves implementieren und testen.',
+                bucket: 'open',
+                createdTimeMs: createdTimeMs,
+            })
+        ];
+    };
+
+    const getCurrentDateString = () => new Date().toISOString().split('T')[0];
+
+    // --- 1.5 Sound Management ---
+    
+    const playSound = (type) => {
+        if (!isSoundEnabled) return;
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = audioCtx.currentTime;
+            let tones = [];
+            // (Definitionen für 'completion', 'start_work', 'reset', 'add', 'edit', 'delete')
+            // ... (Sound-Definitionen wie in der Basis-App) ...
+             if (type === 'completion') {
+                tones = [
+                    { freq: 660, duration: 0.05, delay: 0.00, volume: 0.3 }, 
+                    { freq: 990, duration: 0.15, delay: 0.05, volume: 0.3 }  
+                ];
+            } else if (type === 'start_work') {
+                tones = [
+                    { freq: 392, duration: 0.03, delay: 0.00, volume: 0.2 }, 
+                    { freq: 330, duration: 0.05, delay: 0.03, volume: 0.2 }  
+                ];
+            } else if (type === 'reset') {
+                 tones = [
+                    { freq: 440, duration: 0.02, delay: 0.00, volume: 0.15 }, 
+                    { freq: 220, duration: 0.05, delay: 0.02, volume: 0.15 }  
+                ];
+            } else if (type === 'add') {
+                 tones = [
+                    { freq: 880, duration: 0.05, delay: 0.00, volume: 0.2 }, 
+                    { freq: 1320, duration: 0.1, delay: 0.05, volume: 0.2 }  
+                ];
+            } else if (type === 'edit') {
+                 tones = [
+                    { freq: 110, duration: 0.08, delay: 0.00, volume: 0.1, type: 'triangle' }
+                ];
+            } else if (type === 'delete') {
+                 tones = [
+                    { freq: 330, duration: 0.05, delay: 0.00, volume: 0.2 }, 
+                    { freq: 165, duration: 0.1, delay: 0.05, volume: 0.2 } 
+                ];
+            } else {
+                return;
+            }
+            // ...
+            tones.forEach(tone => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode).connect(audioCtx.destination);
+                oscillator.type = tone.type || 'sine';
+                oscillator.frequency.setValueAtTime(tone.freq, now + tone.delay);
+                gainNode.gain.setValueAtTime(tone.volume, now + tone.delay);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + tone.delay + tone.duration);
+                oscillator.start(now + tone.delay);
+                oscillator.stop(now + tone.delay + tone.duration);
+            });
+        } catch (e) {
+            console.warn('AudioContext nicht verfügbar oder Start fehlgeschlagen:', e);
+            isSoundEnabled = false; // Deaktiviert Sound, wenn Kontext fehlschlägt
+            updateSoundToggleButton();
+        }
+    };
+
+    const loadSoundState = () => {
+        const savedState = localStorage.getItem(SOUND_STATE_KEY);
+        isSoundEnabled = savedState === 'true'; // Standard ist true, wenn nichts gespeichert ist (falsch, muss 'false' sein, wenn null)
+        // Korrektur: Standard ist true (wie oben initialisiert), außer es wurde explizit 'false' gespeichert.
+        if (savedState !== null) {
+            isSoundEnabled = savedState === 'true';
+        }
+        updateSoundToggleButton();
+    };
+
+    const saveSoundState = () => {
+        localStorage.setItem(SOUND_STATE_KEY, isSoundEnabled);
+    };
+
+    const updateSoundToggleButton = () => {
+        const btn = document.getElementById('sound-toggle-btn');
+        const iconOn = document.getElementById('sound-icon-on');
+        const iconOff = document.getElementById('sound-icon-off');
+        if (!btn || !iconOn || !iconOff) return; 
+
+        if (isSoundEnabled) {
+            iconOn.classList.remove('hidden');
+            iconOff.classList.add('hidden');
+            btn.classList.remove('text-content/50');
+            btn.classList.add('text-primary');
+        } else {
+            iconOn.classList.add('hidden');
+            iconOff.classList.remove('hidden');
+            btn.classList.remove('text-primary');
+            btn.classList.add('text-base-content/50'); 
+        }
+    };
+
+    const toggleSound = () => {
+        isSoundEnabled = !isSoundEnabled;
+        saveSoundState();
+        updateSoundToggleButton();
+    };
+
+    // --- 1.6 Task Status & Zeitmessung (IMPLEMENTIERT) ---
+    
+    /**
+     * Implementierung von Patch (D): Berechnet Zeitakkumulation und Statuswechsel.
+     */
+    function updateTaskStatusAndTiming(task, targetBucket) {
+        const now = Date.now();
+        const prevBucket = task.bucket;
+        let soundType = null;
+
+        if (!task.timeInBucketsMs) task.timeInBucketsMs = { open: 0, in_progress: 0, done: 0 };
+        if (!task.currentBucketStartTime) task.currentBucketStartTime = task.createdTimeMs || now;
+        
+        // Zeit im aktuellen Bucket akkumulieren
+        const elapsed = now - task.currentBucketStartTime;
+        task.timeInBucketsMs[prevBucket] = (task.timeInBucketsMs[prevBucket] || 0) + elapsed;
+
+        // Statuswechsel
+        task.bucket = targetBucket;
+        task.currentBucketStartTime = now;
+        task.lastModified = now;
+
+        if (targetBucket === 'done') {
+            if (prevBucket !== 'done') { // Nur beim Wechsel *in* done
+                task.completed = true;
+                task.lastDoneTime = now;
+                soundType = 'completion';
+            }
+        } else {
+            task.completed = false;
+            if (targetBucket === 'in_progress' && prevBucket !== 'in_progress') {
+                soundType = 'start_work';
+            } else if (targetBucket === 'open' && prevBucket === 'in_progress') {
+                soundType = 'reset';
+            }
+        }
+        
+        if (soundType) playSound(soundType);
+        return task;
+    }
+
+    /**
+     * Wrapper für Button-Klicks, ruft Status-Update, saveState und render auf.
+     */
+    const performTaskAction = (taskId, targetBucket) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task || task.bucket === targetBucket) return;
+        
+        const updatedTask = updateTaskStatusAndTiming(task, targetBucket);
+        const index = tasks.findIndex(t => t.id === updatedTask.id);
+        if (index > -1) tasks[index] = updatedTask;
+
+        saveState(); // Löst Snapshot + Speichern aus
+        renderTasks();
+    };
+
+    // --- 1.7 Drag & Drop Logik (Vollständig) ---
+    
+    const getDragAfterElement = (container, y) => {
+        const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    };
+
+    const clearDropIndicator = () => {
+        document.querySelectorAll('.task-card.drop-target-before')
+            .forEach(c => c.classList.remove('drop-target-before'));
+        currentDropTargetCard = null;
+    }
+
+    const moveAndSortTask = (draggedTaskId, targetBucket, dropIndex) => {
+        const taskIndex = tasks.findIndex(t => t.id === draggedTaskId);
+        const draggedTask = tasks[taskIndex];
+        if (!draggedTask) return;
+        
+        tasks.splice(taskIndex, 1); // 1. Entfernen
+
+        // 2. Status/Zeit anpassen, falls Bucket gewechselt
+        const bucketChanged = draggedTask.bucket !== targetBucket;
+        if (bucketChanged) {
+            updateTaskStatusAndTiming(draggedTask, targetBucket);
+        } else {
+            draggedTask.lastModified = Date.now();
+        }
+
+        // 3. Array neu zusammensetzen (korrekte Sortierung)
+        const newTasks = [];
+        const tasksByBucket = {};
+        BUCKETS.forEach(b => tasksByBucket[b] = tasks.filter(t => t.bucket === b));
+        
+        tasksByBucket[targetBucket].splice(dropIndex, 0, draggedTask); // An Drop-Stelle einfügen
+
+        BUCKETS.forEach(bucket => newTasks.push(...tasksByBucket[bucket]));
+        tasks = newTasks; // Globalen State aktualisieren
+
+        // 4. Speichern und Rendern
+        saveState(); // Löst Snapshot + Speichern aus
+        renderTasks();
+    };
+
+    const addDragListeners = () => {
+        document.querySelectorAll('.task-card').forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                const cardEl = e.currentTarget; 
+                draggedTaskId = Number(cardEl.dataset.taskId);
+                isDragging = true; 
+                cardEl.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', String(draggedTaskId));
+                e.dataTransfer.effectAllowed = 'move';
+                clearSelection(); // Auswahl aufheben beim Ziehen
+            });
+
+            card.addEventListener('dragend', (e) => {
+                e.target.classList.remove('dragging');
+                setTimeout(() => { isDragging = false; }, 50); 
+                draggedTaskId = null;
+                clearDropIndicator();
+                document.querySelectorAll('.kanban-column').forEach(col => col.classList.remove('drag-over-active'));
+            });
+        });
+
+        document.querySelectorAll('.kanban-column').forEach(column => {
+            const taskList = column.querySelector('.task-list');
+
+            column.addEventListener('dragover', (e) => {
+                e.preventDefault(); 
+                e.dataTransfer.dropEffect = 'move';
+                column.classList.add('drag-over-active');
+
+                const afterElement = getDragAfterElement(taskList, e.clientY);
+                if (afterElement !== currentDropTargetCard) {
+                    clearDropIndicator();
+                    if (afterElement) {
+                        afterElement.classList.add('drop-target-before');
+                        currentDropTargetCard = afterElement;
+                    } else {
+                        currentDropTargetCard = null;
+                    }
+                }
+            });
+
+            column.addEventListener('dragleave', (e) => {
+                if (!e.relatedTarget || !column.contains(e.relatedTarget)) {
+                    column.classList.remove('drag-over-active');
+                    clearDropIndicator();
+                }
+            });
+
+            column.addEventListener('drop', (e) => {
+                e.preventDefault();
+                column.classList.remove('drag-over-active');
+                clearDropIndicator();
+                if (draggedTaskId === null) return;
+                
+                const targetBucket = column.dataset.bucket;
+                let dropIndex = 0;
+                const allCardsInBucket = Array.from(taskList.children).filter(el => !el.classList.contains('dragging') && el.classList.contains('task-card'));
+                const dropTarget = getDragAfterElement(taskList, e.clientY);
+
+                if (dropTarget) {
+                    dropIndex = allCardsInBucket.indexOf(dropTarget);
+                } else {
+                    dropIndex = allCardsInBucket.length; // Drop am Ende
+                }
+                
+                moveAndSortTask(draggedTaskId, targetBucket, dropIndex);
+                draggedTaskId = null;
+            });
+        });
+    };
+
+    // --- 1.8 CRUD Operationen ---
+    
+    /**
+     * Löscht Tasks (Hard-Delete für MVP).
+     */
+    const deleteTasks = (taskIds) => {
+        let deletedCount = 0;
+        tasks = tasks.filter(t => {
+            if (taskIds.includes(t.id)) {
+                deletedCount++;
+                return false;
+            }
+            return true;
+        });
+        
+        if (deletedCount > 0) {
+            saveState(); // Löst Snapshot + Speichern aus
+            renderTasks();
+            playSound('delete');
+        }
+        selectedTaskIds.clear();
+        updateDeleteSelectedButton();
+    };
+
+    /**
+     * Erzeugt eine neue Task-Struktur.
+     */
+    const createNewTask = (title) => {
+        const newTask = ensureTaskFormat({
+            id: Date.now(),
+            title: title,
+            bucket: 'open',
+            startDate: getCurrentDateString(),
+        });
+        tasks.push(newTask); // Fügt am Ende der Liste hinzu
+        return newTask;
+    };
+    
+    /**
+     * Handler für "Neue Aufgabe" Button.
+     * Erstellt Task, speichert, rendert und öffnet Modal (MVP-Anforderung).
+     */
+    const openTaskModalForNewTask = () => {
+        const newTask = createNewTask('Neue Aufgabe');
+        saveState(); // Löst Snapshot + Speichern aus
+        renderTasks();
+        openTaskModal(newTask.id); // Modal zum Bearbeiten öffnen
+        playSound('add');
+    };
+
+    /**
+     * Öffnet das Bestätigungsmodal für Löschungen.
+     */
+    const openDeleteConfirmModal = (taskId = null, title = null) => {
+        const count = selectedTaskIds.size;
+        const isBatch = taskId === null && count > 0;
+        const idsToDelete = isBatch ? Array.from(selectedTaskIds) : (taskId !== null ? [taskId] : []);
+
+        if (idsToDelete.length === 0) return;
+
+        const deleteCountSpan = document.getElementById('tasks-to-delete-count');
+        if (isBatch) {
+            deleteCountSpan.textContent = `${count} ausgewählte Aufgaben`;
+        } else if (title) {
+            deleteCountSpan.textContent = `die Aufgabe "${title}"`;
+        } else {
+            // Fallback, wenn Titel nicht übergeben wurde
+            const taskTitle = tasks.find(t => t.id === taskId)?.title || "diese Aufgabe";
+            deleteCountSpan.textContent = `die Aufgabe "${taskTitle}"`;
+        }
+        
+        // Definiert, was der "Ja, löschen" Button tut
+        document.getElementById('confirm-delete-btn').onclick = () => {
+            deleteTasks(idsToDelete);
+            confirm_delete_modal.close();
+        };
+        
+        task_modal.close(); // Schließt Edit-Modal, falls offen
+        confirm_delete_modal.showModal();
+    };
+
+    /**
+     * Öffnet das Edit-Modal und befüllt es.
+     */
+    const openTaskModal = (taskId) => {
+        clearSelection();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        // Felder befüllen
+        document.getElementById('modal-title-text').textContent = task.title;
+        document.getElementById('task-id-input').value = task.id;
+        document.getElementById('task-title-input').value = task.title;
+        document.getElementById('task-details-input').value = task.details;
+        document.getElementById('task-start-date-input').value = task.startDate;
+        document.getElementById('task-due-date-input').value = task.dueDate;
+        
+        // Lösch-Button im Modal verknüpfen
+        document.getElementById('delete-task-btn').onclick = () => {
+            openDeleteConfirmModal(task.id, task.title);
+        };
+
+        task_modal.showModal();
+        
+        // Fokus auf Titel-Input setzen
+        setTimeout(() => document.getElementById('task-title-input').focus(), 100);
+    };
+
+    // --- 1.9 Multi-Select Logik ---
+    
+    const handleTaskSelection = (taskId, isCtrlCmd, isShift) => {
+        const card = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+        const isCurrentlySelected = selectedTaskIds.has(taskId);
+        if (!card) return;
+
+        if (isShift && lastSelectedId !== null) {
+            // Range-Selektion
+            const taskIdsInOrder = Array.from(document.querySelectorAll('.task-card')).map(el => Number(el.dataset.taskId));
+            const startIndex = taskIdsInOrder.indexOf(lastSelectedId);
+            const endIndex = taskIdsInOrder.indexOf(taskId);
+            if (startIndex === -1 || endIndex === -1) return; // Sollte nicht passieren
+
+            clearSelection(false); // Visuell bereinigen, aber Button noch nicht updaten
+
+            const [start, end] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+            for (let i = start; i <= end; i++) {
+                const currentId = taskIdsInOrder[i];
+                selectedTaskIds.add(currentId);
+                document.querySelector(`.task-card[data-task-id="${currentId}"]`)?.classList.add('selected');
+            }
+        } else if (isCtrlCmd) {
+            // Toggle-Selektion
+            if (isCurrentlySelected) {
+                selectedTaskIds.delete(taskId);
+                card.classList.remove('selected');
+            } else {
+                selectedTaskIds.add(taskId);
+                card.classList.add('selected');
+            }
+            lastSelectedId = taskId; 
+        } else {
+            // Single-Selektion
+            if (selectedTaskIds.size > 1 || !isCurrentlySelected) {
+                clearSelection(false); // Visuell bereinigen
+                selectedTaskIds.add(taskId);
+                card.classList.add('selected');
+            }
+            // Wenn 1 ausgewählt ist und man darauf klickt, bleibt es ausgewählt
+            lastSelectedId = taskId;
+        }
+        
+        updateDeleteSelectedButton();
+    };
+
+    const updateDeleteSelectedButton = () => {
+        const deleteBtn = document.getElementById('delete-selected-btn');
+        const editBtn = document.getElementById('edit-selected-btn');
+        const countBadge = document.getElementById('delete-count-badge');
+        const count = selectedTaskIds.size;
+
+        if (count > 0) {
+            deleteBtn.classList.remove('hidden');
+            countBadge.textContent = count;
+            deleteBtn.title = `Ausgewählte (${count}) Aufgaben löschen (Entf)`;
+        } else {
+            deleteBtn.classList.add('hidden');
+        }
+        
+        // Edit-Button nur bei GENAU 1 Auswahl
+        if (count === 1) {
+            editBtn.classList.remove('hidden');
+        } else {
+            editBtn.classList.add('hidden');
+        }
+    };
+
+    const clearSelection = (updateButton = true) => {
+        if (selectedTaskIds.size > 0) {
+            document.querySelectorAll('.task-card.selected').forEach(c => c.classList.remove('selected'));
+            selectedTaskIds.clear();
+            lastSelectedId = null;
+            if (updateButton) updateDeleteSelectedButton();
+        }
+    };
+
+    // --- 1.10 Render-Funktion (Haupt-Renderer) ---
+    
+    const renderTasks = () => {
+        const counts = { open: 0, in_progress: 0, done: 0 };
+        // MVP verwendet Hard-Delete, daher kein .filter(t => !t.isDeleted) nötig
+        const activeTasks = tasks; 
+
+        BUCKETS.forEach(bucket => {
+            const container = document.getElementById(`bucket-${bucket}`);
+            container.innerHTML = ''; // Liste leeren
+            const bucketTasks = activeTasks.filter(t => t.bucket === bucket); 
+            
+            bucketTasks.forEach(task => {
+                container.appendChild(createTaskCard(task));
+            });
+
+            counts[bucket] = bucketTasks.length;
+            document.getElementById(`count-${bucket}`).textContent = counts[bucket];
+        });
+        
+        addDragListeners(); // Drag-Listener nach jedem Render neu binden
+        updateDeleteSelectedButton(); // Toolbar-Buttons aktualisieren
+    };
+    
+    const getCardActions = (task) => {
+        const BASE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">`;
+        if (task.bucket === 'open') {
+            return [{ text: 'Arbeit starten', targetBucket: 'in_progress', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`, colorClass: 'text-primary hover:text-primary' }];
+        } else if (task.bucket === 'in_progress') {
+            return [
+                { text: 'Zurück zu Offen', targetBucket: 'open', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>`, colorClass: 'text-base-content/50 hover:text-base-content' },
+                { text: 'Abschließen', targetBucket: 'done', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>`, colorClass: 'text-success hover:text-success' }
+            ];
+        } else { // done
+            return [{ text: 'Wiedereröffnen', targetBucket: 'in_progress', icon: `${BASE_SVG}<path stroke-linecap="round" stroke-linejoin="round" d="M16.03 7.85L15.3 8.58m-6.4 6.4L8.69 16.03m-1.74-5.18h-15m0 0 6.75 6.75M4.5 12l6.75-6.75" /></svg>`, colorClass: 'text-warning hover:text-warning' }];
+        }
+    };
+
+    /**
+     * Erzeugt das DOM-Element für eine einzelne Task-Karte.
+     */
+    const createTaskCard = (task) => {
+        const card = document.createElement('div');
+        const statusColor = task.bucket === 'open' ? 'border-l-primary' : (task.bucket === 'in_progress' ? 'border-l-warning' : 'border-l-success');
+        // Completed-Styling (durchgestrichen) nur im 'done'-Bucket (MVP-Anforderung)
+        const completedClass = task.completed && task.bucket === 'done' ? 'completed opacity-90' : '';
+        const selectedClass = selectedTaskIds.has(task.id) ? 'selected' : '';
+
+        card.className = `task-card card bg-base-100 shadow-md ${statusColor} ${completedClass} ${selectedClass} p-4 border-l-4 rounded-lg transition-all duration-150`;
+        card.setAttribute('draggable', true);
+        card.setAttribute('data-task-id', task.id);
+
+        const dueDateBadge = task.dueDate ? `<div class="badge badge-sm badge-error badge-outline font-medium text-xs rounded-full">Fällig: ${task.dueDate}</div>` : '';
+        const actions = getCardActions(task);
+        
+        let actionButtonsHTML = '<div class="flex gap-1">';
+        actions.forEach(action => {
+            actionButtonsHTML += `<button class="btn btn-xs btn-ghost task-advance-btn ${action.colorClass}" data-id="${task.id}" data-target="${action.targetBucket}" title="${action.text}">${action.icon}</button>`;
+        });
+        actionButtonsHTML += '</div>';
+
+        let topIconHtml = '';
+        // Checkmark (MVP-Anforderung)
+        if (task.completed && task.bucket === 'done') {
+            topIconHtml = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success absolute top-2 right-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
+        } else {
+            // Edit Button (Stift)
+            topIconHtml = `<button class="btn btn-xs btn-ghost text-base-content/50 absolute top-2 right-2 z-10 edit-btn" title="Details bearbeiten"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 17.21a4.5 4.5 0 0 1-1.897 1.13L6 18.24l.842-2.793a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 14.25H2.25" /></svg></button>`;
+        }
+
+        card.innerHTML = `
+            <div class="flex justify-between items-start relative pb-1">
+                <h4 class="task-title font-semibold text-base text-base-content line-clamp-2">${task.title}</h4>
+                ${topIconHtml}
+            </div>
+            <p class="task-details text-sm text-base-content/70 line-clamp-2 mt-1">${task.details || 'Details hinzufügen...'}</p>
+            <div class="flex justify-between items-center text-xs pt-3 border-t border-base-300 mt-2">
+                <div class="flex flex-col items-start gap-1">${dueDateBadge}</div>
+                ${actionButtonsHTML}
+            </div>
+        `;
+        
+        // --- Event Listener für die Karte ---
+        
+        // Klick (Selektion)
+        card.addEventListener('click', (e) => {
+            const isCtrlCmd = e.ctrlKey || e.metaKey;
+            const isShift = e.shiftKey;
+            // Verhindert Selektion, wenn auf einen Button geklickt wird oder gezogen wird
+            if (e.target.closest('.task-advance-btn') || e.target.closest('.edit-btn') || isDragging) return;
+            handleTaskSelection(task.id, isCtrlCmd, isShift);
+        });
+        
+        // Doppelklick (Edit)
+        card.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.task-advance-btn') || e.target.closest('.edit-btn') || isDragging) return;
+            openTaskModal(task.id);
+        });
+
+        // Edit-Button (Stift)
+        card.querySelector('.edit-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation(); // Verhindert, dass Klick-Handler der Karte ausgelöst wird
+            openTaskModal(task.id);
+        });
+
+        // Status-Pfeile
+        card.querySelectorAll('.task-advance-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const targetBucket = e.currentTarget.dataset.target;
+                performTaskAction(task.id, targetBucket);
+            });
+        });
+
+        return card;
+    };
+    
+    // --- 1.11 JSON Export / Import ---
+
+    /**
+     * Löst den Download des aktuellen Zustands als JSON aus (Ctrl+S).
+     */
+    const downloadTasks = () => {
+        const jsonString = JSON.stringify(tasks); // Holt den aktuellen In-Memory-Zustand
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const date = new Date().toISOString().split('T')[0];
+        a.href = url;
+        a.download = `mogul_export_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('Zustand als Datei exportiert.');
+    };
+
+    /**
+     * Öffnet den Datei-Dialog für den JSON-Import (Ctrl+O).
+     */
+    const triggerUpload = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'application/json, .json';
+        
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const loadedTasks = JSON.parse(event.target.result);
+                    
+                    // MVP-Import-Validierung
+                    if (Array.isArray(loadedTasks) && loadedTasks.every(t => typeof t.id === 'number' && typeof t.title === 'string')) {
+                        
+                        tasks = loadedTasks.map(ensureTaskFormat); // Stellt sicher, dass auch importierte Tasks alle Felder haben
+                        
+                        // MVP-Anforderung: Historie zurücksetzen
+                        history = []; 
+                        historyIndex = -1;
+                        saveState(); // Speichert den neuen Zustand UND erstellt ersten Snapshot
+                        
+                        renderTasks();
+                        console.log(`Import erfolgreich: ${tasks.length} Aufgaben geladen. Historie zurückgesetzt.`);
+                    } else {
+                        console.error('Import-Fehler: Ungültiges Dateiformat. Erwartet ein Array von Task-Objekten mit id (number) und title (string).');
+                    }
+                } catch (error) {
+                    console.error('Import-Fehler: Fehler beim Parsen der JSON-Datei:', error);
+                }
+            };
+            reader.readAsText(file);
+        };
+        
+        fileInput.click();
+    };
+    
+    // --- 1.12 Globale Event Handler (Tastatur, Klicks) ---
+    
+    const addGlobalEventListeners = () => {
+        document.addEventListener('keydown', (e) => {
+            const isControl = e.ctrlKey || e.metaKey;
+            // Verhindert Shortcuts, wenn ein Modal offen ist oder in einem Input getippt wird
+            const isModalOpen = document.querySelector('dialog.modal[open]');
+            const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
+            if (isControl && !isInputFocused && !isModalOpen) {
+                switch (e.key.toLowerCase()) {
+                    case 'z': 
+                        e.preventDefault(); 
+                        (e.shiftKey ? redo() : undo()); 
+                        break;
+                    case 'y': 
+                        e.preventDefault(); 
+                        redo(); 
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        downloadTasks();
+                        break;
+                    case 'o':
+                        e.preventDefault();
+                        triggerUpload();
+                        break;
+                }
+            }
+            
+            // Delete-Shortcut
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTaskIds.size > 0 && !isInputFocused && !isModalOpen) {
+                e.preventDefault();
+                openDeleteConfirmModal(); // Öffnet Batch-Delete-Modal
+            }
+
+            // Escape-Shortcut (nur wenn kein Modal offen ist)
+            if (e.key === 'Escape' && !isModalOpen) {
+                clearSelection();
+            }
+        });
+
+        // Klick auf den Hintergrund (Canvas) löscht Selektion
+        document.body.addEventListener('click', (e) => {
+            if (
+                !e.target.closest('.task-card') && 
+                !e.target.closest('dialog.modal') &&
+                !e.target.closest('.navbar') // Klick auf Navbar löscht auch nicht
+            ) {
+                 clearSelection();
+            }
+        });
+        
+        // --- Navbar Button Listeners ---
+        document.getElementById('sound-toggle-btn').addEventListener('click', toggleSound);
+
+        document.getElementById('edit-selected-btn').addEventListener('click', () => {
+             if (selectedTaskIds.size === 1) {
+                const taskId = selectedTaskIds.values().next().value; 
+                openTaskModal(taskId);
+            }
+        });
+        document.getElementById('delete-selected-btn').addEventListener('click', () => openDeleteConfirmModal());
+        document.getElementById('add-task-btn').addEventListener('click', openTaskModalForNewTask);
+        
+        // --- Modal Listeners ---
+        
+        // Speichern im Edit-Modal
+        document.getElementById('task-detail-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const taskId = Number(document.getElementById('task-id-input').value);
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.title = document.getElementById('task-title-input').value.trim() || "Unbenannte Aufgabe";
+                task.details = document.getElementById('task-details-input').value.trim();
+                task.startDate = document.getElementById('task-start-date-input').value;
+                task.dueDate = document.getElementById('task-due-date-input').value;
+                task.lastModified = Date.now();
+                
+                saveState(); // Löst Snapshot + Speichern aus
+                renderTasks();
+                playSound('edit');
+            }
+            task_modal.close();
+        });
+    };
+
+    // === 2. INITIALISIERUNG (Haupt-Startpunkt) ===
+    
+    window.onload = () => {
+        // 1. MVP-App initialisieren
+        loadState();      // Lädt, validiert und seeded Tasks aus localStorage
+        loadSoundState(); // Lädt Sound-Präferenz
+        renderTasks();    // Zeigt alles an
+        
+        // 2. Globale Event-Listener binden
+        addGlobalEventListeners();
+
+        console.log('Mogul MVP gestartet. Bereit für Ihre Prioritäten, Christian Heinrich Hohlfeld.');
+    };
+
+    </script>
+    <!-- ### ENDE: SCRIPT BLOCK (VOLLSTÄNDIG) ### -->
+</body>
+</html>
+

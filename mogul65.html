@@ -1,0 +1,194 @@
+// ... (innerhalb des Script-Tags)
+
+        // =================================================================
+        // EVENT LISTENER & INITIALISIERUNG
+        // **KORREKTUR: Aggressive LocalStorage-Bereinigung beim Start ohne Offer-Code**
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const copyOfferButton = document.getElementById('copy-offer');
+            const endConnectionButton = document.getElementById('end-connection');
+            const mediaTriggerButton = document.getElementById('media-trigger');
+            const gifTriggerButton = document.getElementById('gif-trigger');
+            const fileInput = document.getElementById('media-file-input');
+            const cancelButton = document.getElementById('cancel-connection'); 
+
+            // --- P2P Start / End / Cancel ---
+            document.getElementById('start-connection').addEventListener('click', () => {
+                 // Beim expliziten Klick immer sauber starten
+                 localStorage.removeItem(STORAGE_KEY); 
+                 startConnection();
+            });
+            if (endConnectionButton) {
+                endConnectionButton.addEventListener('click', endConnection);
+            }
+            if (cancelButton) {
+                cancelButton.addEventListener('click', resetConnectionState); 
+            }
+
+            // --- GIF Trigger ---
+            gifTriggerButton.addEventListener('click', function() {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    const modal = document.getElementById('gif_modal');
+                    const gallery = document.getElementById('gif-gallery');
+                    const searchInput = document.getElementById('gif-search-input');
+                    const searchButton = document.getElementById('gif-search-button');
+
+                    gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Lade trendende GIFs...</p>';
+                    modal.showModal();
+
+                    const fetchGifs = async (query = '') => {
+                        gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Suche läuft...</p>';
+                        
+                        if (GIPHY_API_KEY === 'YOUR_GIPHY_API_KEY_HERE') {
+                            gallery.innerHTML = '<p class="col-span-3 text-center text-red-500 font-bold">FEHLER: Bitte GIPHY_API_KEY einfügen. Nutze statische Platzhalter...</p>';
+                            
+                            const staticGifs = SICK_GIF_GALLERY.filter((_, i) => i < 9);
+                            displayGifGallery(staticGifs);
+                        } else {
+                            const url = query ? `${GIPHY_BASE_URL}?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=9&rating=r` : `${GIPHY_TRENDING_URL}?api_key=${GIPHY_API_KEY}&limit=9&rating=r`;
+                            
+                            try {
+                                const response = await fetch(url);
+                                const json = await response.json();
+                                const gifUrls = json.data.map(item => item.images.fixed_width.url);
+                                displayGifGallery(gifUrls);
+                            } catch (e) {
+                                gallery.innerHTML = '<p class="col-span-3 text-center text-red-500">Fehler beim Laden von GIPHY. Netzwerkproblem oder ungültiger Schlüssel.</p>';
+                            }
+                        }
+                    };
+
+                    const displayGifGallery = (urls) => {
+                        gallery.innerHTML = '';
+                        urls.forEach(url => {
+                            const imgWrapper = document.createElement('div');
+                            imgWrapper.className = 'cursor-pointer p-0.5 border-2 border-transparent hover:border-blue-500 transition-all duration-100';
+                            imgWrapper.innerHTML = `<img src="${url}" class="w-full h-auto rounded" />`;
+                            
+                            imgWrapper.addEventListener('click', () => {
+                                selectAndSendGif(url);
+                                modal.close();
+                            });
+                            gallery.appendChild(imgWrapper);
+                        });
+                        if (urls.length === 0) {
+                            gallery.innerHTML = '<p class="col-span-3 text-center text-gray-500">Keine Ergebnisse gefunden.</p>';
+                        }
+                    };
+
+                    searchButton.onclick = () => fetchGifs(searchInput.value);
+                    searchInput.onkeydown = (e) => { if (e.key === 'Enter') fetchGifs(searchInput.value); };
+
+                    fetchGifs();
+                    
+
+                } else {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
+                }
+            });
+
+            function selectAndSendGif(gifUrl) {
+                const chatData = {
+                    type: 'chat',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    message: gifUrl, 
+                    mimeType: 'image/gif',
+                    isMedia: true,
+                    timestamp: new Date().toISOString()
+                };
+                
+                dataChannel.send(JSON.stringify(chatData));
+                
+                displayMediaPreview(chatData.deviceName, chatData.message, 'GIF', 'image/gif', true);
+            }
+
+
+            // --- Datei Senden Trigger ---
+            mediaTriggerButton.addEventListener('click', function() {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    fileInput.click();
+                } else {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!", bevor Sie eine Datei senden.');
+                }
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    file = this.files[0];
+                    if (file.size > 200 * 1024 * 1024) { 
+                         alert('Die Datei ist zu groß (max. 200 MB).');
+                         this.value = '';
+                         return;
+                    }
+
+                    if (confirm(`Möchten Sie die Datei "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) senden?`)) {
+                        sendFile(file);
+                    } else {
+                        this.value = '';
+                    }
+                }
+            });
+            
+            // --- UI/Share Logik ---
+            copyOfferButton.addEventListener('click', function() {
+                const link = document.getElementById('offer-link').textContent;
+                navigator.clipboard.writeText(link).then(() => {
+                    this.textContent = '✅ Kopiert!';
+                    setTimeout(() => {
+                        this.textContent = (currentRole === 'responder' ? '📋 Antwort-Link kopieren' : '📋 Link kopieren');
+                    }, 2000);
+                });
+            });
+            
+            // --- Automatischer Start / Zustandswiederherstellung ---
+            const offerCode = getOfferCodeFromUrl();
+            const answerCode = getAnswerCodeFromUrl();
+            let storedSdp = localStorage.getItem(STORAGE_KEY); 
+
+            if (offerCode) {
+                // 1. Responder Start (immer sauber)
+                setTimeout(startConnection, 500);
+            } else if (answerCode && storedSdp) {
+                // 2. Initiator lädt neu MIT Answer-Code
+                localStorage.removeItem(STORAGE_KEY); 
+                setTimeout(() => startConnection(storedSdp), 500);
+            } else if (storedSdp && !answerCode) {
+                // 3. Initiator lädt neu im WAITING-Zustand (F5/Unfall)
+                
+                // **WICHTIG:** Wenn der Benutzer auf "Abbrechen" klickt und dann die Seite neu lädt, 
+                // wird diese Bedingung wieder wahr, ABER der SDP sollte ungültig sein.
+                // Wir erzwingen hier den WAITING-Zustand.
+                
+                // Wenn die Session älter als 10 Minuten ist, löschen (optional, aber sicher)
+                // const savedTime = localStorage.getItem(STORAGE_KEY + '_time');
+                // if (savedTime && (Date.now() - savedTime > 600000)) { // 10 Minuten
+                //     localStorage.removeItem(STORAGE_KEY);
+                //     storedSdp = null; 
+                // }
+
+                if (storedSdp) {
+                    // Startet den Waiting-Flow erneut
+                    setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
+                    document.getElementById('start-button-container').classList.add('hidden');
+                } else {
+                    // Wenn der Zustand trotzdem da ist, aber der SDP fehlt, gehe auf Ready.
+                    resetConnectionState();
+                }
+
+            } else if (answerCode && !storedSdp) {
+                // 4. Fehler: Answer-Code ist da, aber der SDP wurde gelöscht
+                history.replaceState(null, '', window.location.pathname);
+                setTimeout(() => {
+                    document.getElementById('start-connection').disabled = true;
+                    updateStatus('error', 'Fehler: Sitzung abgelaufen.');
+                    document.getElementById('start-button-container').classList.remove('hidden');
+                    document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
+                }, 500);
+            } else {
+                // 5. Neutraler Start
+                resetConnectionState();
+            }
+
+
+            console.log('Mogul P2P Sync - Finaler Code geladen.');
+        });
