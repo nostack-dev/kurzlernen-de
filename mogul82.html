@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync - Einfach Verbinden</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font family for better aesthetics -->
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .connection-dot { 
+            width: 12px; height: 12px; border-radius: 50%; 
+            display: inline-block; margin-right: 8px; 
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 mt-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Mogul P2P Sync</h1>
+            <p class="text-gray-600">Einfach verbinden - Automatisch synchronisieren</p>
+        </div>
+
+        <div id="connection-status" class="mb-6 p-4 bg-gray-100 rounded-xl text-center">
+            <div class="flex items-center justify-center mb-2">
+                <div id="status-dot" class="connection-dot bg-gray-400"></div>
+                <span id="status-text" class="font-medium">Bereit für Verbindung</span>
+            </div>
+            <p id="status-detail" class="text-sm text-gray-600 text-center">
+                Klicken Sie auf "Verbindung starten"
+            </p>
+        </div>
+
+        <div class="text-center mb-6">
+            <button id="start-connection" class="btn btn-primary btn-lg w-full rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
+                🔗 Verbindung starten
+            </button>
+        </div>
+
+        <!-- SIGNALING SECTIONS -->
+        <div id="link-section" class="hidden space-y-4">
+            
+            <!-- 1. INITIATOR: Offer Link Generation -->
+            <div id="offer-section" class="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                <h3 class="font-semibold text-blue-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-blue-500"></span>
+                    Initiator: Schritt 1 (Link teilen)
+                </h3>
+                <p class="text-sm text-blue-700 mb-3">
+                    Teilen Sie diesen **Offer-Link** mit der anderen Person:
+                </p>
+                <div class="bg-white p-3 rounded-lg border border-blue-300">
+                    <div id="offer-link" class="text-xs break-all font-mono text-blue-800 mb-2"></div>
+                    <button id="copy-offer" class="btn btn-sm btn-outline btn-primary w-full">
+                        📋 Link kopieren
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. INITIATOR: Waiting for Answer (Only visible for Initiator after step 1) -->
+            <div id="initiator-wait-section" class="bg-yellow-50 p-4 rounded-xl border border-yellow-200 hidden">
+                <h3 class="font-semibold text-yellow-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-yellow-500"></span>
+                    Initiator: Schritt 2 (Warten auf Antwort)
+                </h3>
+                <p id="wait-instructions" class="text-sm text-yellow-700 mb-3">
+                    Bitten Sie die andere Person, den **Antwort-Link** (mit `#answer=...`) in die Adresszeile Ihres Browsers zu kopieren. Warten auf Hash-Update...
+                </p>
+                <div class="text-center py-2">
+                    <div class="loading loading-spinner text-yellow-500"></div>
+                </div>
+            </div>
+
+            <!-- 3. RESPONDER: Answer Link Generation (Only visible for Responder after receiving offer) -->
+            <div id="responder-answer-section" class="bg-purple-50 p-4 rounded-xl border border-purple-200 hidden">
+                <h3 class="font-semibold text-purple-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-purple-500"></span>
+                    Responder: Schritt 2 (Antwort zurücksenden)
+                </h3>
+                <p class="text-sm text-purple-700 mb-3">
+                    **Kopieren Sie diesen Answer-Link** und senden Sie ihn an die Person zurück, die Ihnen den ursprünglichen Link geschickt hat.
+                </p>
+                <div class="bg-white p-3 rounded-lg border border-purple-300">
+                    <div id="answer-link" class="text-xs break-all font-mono text-purple-800 mb-2"></div>
+                    <button id="copy-answer" class="btn btn-sm btn-outline btn-secondary w-full">
+                        📋 Antwort-Link kopieren
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. CONNECTED -->
+            <div id="connected-section" class="bg-green-100 p-4 rounded-xl border border-green-300 hidden">
+                <h3 class="font-semibold text-green-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-green-500 animate-pulse"></span>
+                    ✅ Verbunden!
+                </h3>
+                <p class="text-sm text-green-700">
+                    Die P2P-Verbindung ist aktiv. Daten werden automatisch synchronisiert.
+                </p>
+            </div>
+        </div>
+
+        <!-- SYNCHRONIZED DATA DISPLAY -->
+        <div id="data-section" class="mt-6 hidden">
+            <h3 class="font-semibold text-gray-800 mb-3">Synchronisierte Daten (zuletzt empfangen/gesendet)</h3>
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div id="sync-data" class="text-sm text-gray-700">
+                    <div class="text-center py-4">
+                        <div class="loading loading-spinner text-primary"></div>
+                        <p class="mt-2 text-gray-600">Warte auf Daten...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // GLOBALE VARIABLEN & KONFIGURATION
+        // =================================================================
+        let peerConnection = null;
+        let dataChannel = null;
+        let currentRole = null; // 'initiator' oder 'responder'
+        let checkAnswerInterval = null; // Für den Initiator, um auf die Antwort zu warten
+        
+        const config = {
+            // Google's public STUN server is used for NAT traversal
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        };
+
+        // =================================================================
+        // UI MANAGEMENT
+        // =================================================================
+        function updateStatus(status, detail = "") {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            const detailEl = document.getElementById('status-detail');
+            
+            const statusConfig = {
+                'ready': { color: 'bg-gray-400', text: 'Bereit für Verbindung', detail: 'Klicken Sie auf "Verbindung starten"' },
+                'generating': { color: 'bg-blue-500', text: 'Generiere Link...', detail: 'Erstelle sichere Verbindung (SDP Offer)' },
+                'waiting': { color: 'bg-yellow-500', text: 'Warte auf Antwort...', detail: 'Teilen Sie den Link mit der anderen Person' },
+                'connecting': { color: 'bg-orange-500', text: 'Verbinde...', detail: 'Stelle P2P-Verbindung her (ICE Gathering)' },
+                'connected': { color: 'bg-green-500', text: 'Verbunden!', detail: 'P2P-Verbindung aktiv' },
+                'error': { color: 'bg-red-500', text: 'Fehler', detail: 'Verbindung fehlgeschlagen' }
+            };
+            
+            const conf = statusConfig[status] || statusConfig.ready;
+            // Entferne alte bg-* Klassen und setze die neue
+            dot.className = `connection-dot ${conf.color}`; 
+            text.textContent = conf.text;
+            detailEl.textContent = detail || conf.detail;
+        }
+
+        function showUIForRole(role, step = null) {
+            // Verstecke alle Signaling-Sektionen
+            document.getElementById('link-section').classList.add('hidden');
+            document.getElementById('offer-section').classList.add('hidden');
+            document.getElementById('initiator-wait-section').classList.add('hidden');
+            document.getElementById('responder-answer-section').classList.add('hidden');
+            document.getElementById('connected-section').classList.add('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            
+            document.getElementById('link-section').classList.remove('hidden');
+            
+            if (role === 'initiator') {
+                if (step === 'offer-generated') {
+                    document.getElementById('offer-section').classList.remove('hidden');
+                    document.getElementById('initiator-wait-section').classList.remove('hidden');
+                } else if (step === 'connected') {
+                    document.getElementById('connected-section').classList.remove('hidden');
+                    document.getElementById('data-section').classList.remove('hidden');
+                }
+            } else if (role === 'responder') {
+                if (step === 'answer-generated') {
+                    // Der Responder zeigt den Answer-Link und wartet dann auf onopen
+                    document.getElementById('responder-answer-section').classList.remove('hidden');
+                } else if (step === 'connecting') {
+                    // Zeige einen Warten-Status, aber verstecke die Link-Sektionen
+                    document.getElementById('link-section').classList.add('hidden');
+                } else if (step === 'connected') {
+                    document.getElementById('connected-section').classList.remove('hidden');
+                    document.getElementById('data-section').classList.remove('hidden');
+                }
+            } else if (role === 'connected') {
+                document.getElementById('connected-section').classList.remove('hidden');
+                document.getElementById('data-section').classList.remove('hidden');
+            }
+        }
+
+        function displaySyncData(data) {
+            const container = document.getElementById('sync-data');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            container.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Gerät:</span>
+                        <span class="text-blue-600">${data.deviceName || 'Unbekannt'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Zeit:</span>
+                        <span class="text-gray-600">${timestamp}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Status:</span>
+                        <span class="text-green-600">✅ Synchronisiert</span>
+                    </div>
+                    <div class="mt-3 p-2 bg-white rounded border">
+                        <span class="font-medium">Daten:</span>
+                        <!-- Nutze JSON.stringify mit 2 Leerzeichen Einrückung für Lesbarkeit -->
+                        <pre class="text-xs mt-1 overflow-x-auto">${JSON.stringify(data.payload, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+
+        // =================================================================
+        // WEBRTC LOGIC
+        // =================================================================
+        
+        // Helferfunktion, um auf ICE Gathering Completion zu warten (oder Timeout)
+        function waitForIceGathering(pc) {
+            return new Promise(resolve => {
+                if (pc.iceGatheringState === 'complete') {
+                    resolve();
+                } else {
+                    const timeout = setTimeout(() => {
+                        console.warn("ICE gathering Timeout erreicht, fortfahren.");
+                        resolve();
+                    }, 2000); // 2 Sekunden Timeout
+                    
+                    pc.onicegatheringstatechange = () => {
+                        if (pc.iceGatheringState === 'complete') {
+                            clearTimeout(timeout);
+                            resolve();
+                        }
+                    };
+                }
+            });
+        }
+        
+        async function startConnection() {
+            try {
+                // Deaktiviere den Start-Button, um Doppelklicks zu verhindern
+                document.getElementById('start-connection').disabled = true;
+                
+                // Setze den Timer zurück, falls er lief
+                if (checkAnswerInterval) clearInterval(checkAnswerInterval);
+                
+                updateStatus('generating');
+                
+                const urlHash = window.location.hash.substring(1);
+                const hashParams = new URLSearchParams(urlHash);
+                const offerCode = hashParams.get('offer');
+                const answerCode = hashParams.get('answer');
+
+                if (offerCode && !answerCode) {
+                    // Wir sind der Responder: Link enthält Offer, aber noch keine Answer
+                    currentRole = 'responder';
+                    await handleIncomingOffer(offerCode);
+                } else if (offerCode && answerCode) {
+                    // Wir sind der Initiator, der Link enthält Offer und die zurückgegebene Answer
+                    currentRole = 'initiator';
+                    await handleIncomingAnswer(offerCode, answerCode);
+                } else {
+                    // Wir sind der Initiator: Starte den Prozess
+                    currentRole = 'initiator';
+                    await createAndShareOffer();
+                }
+            } catch (error) {
+                console.error('Verbindungsfehler:', error);
+                updateStatus('error', `Fehler: ${error.message}`);
+                // Aktiviere Button wieder
+                document.getElementById('start-connection').disabled = false;
+            }
+        }
+        
+        async function createAndShareOffer() {
+            console.log('Initiator: Erstelle Offer...');
+            if (peerConnection) peerConnection.close();
+            
+            peerConnection = new RTCPeerConnection(config);
+            
+            // Data Channel erstellen
+            dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
+            setupDataChannel(dataChannel); // DataChannel Events für Initiator einrichten
+            
+            // Offer erstellen
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            // Warte auf ICE Candidates
+            await waitForIceGathering(peerConnection);
+            
+            // Generiere Shareable Link
+            const offerData = {
+                type: 'offer',
+                sdp: btoa(peerConnection.localDescription.sdp),
+            };
+            
+            const offerString = btoa(JSON.stringify(offerData));
+            // Der Initiator erstellt einen Link mit dem Offer.
+            const shareableUrl = `${window.location.origin}${window.location.pathname}#offer=${encodeURIComponent(offerString)}`;
+            
+            // UI aktualisieren: Zeige Offer Link und starte Warte-Modus
+            document.getElementById('offer-link').textContent = shareableUrl;
+            showUIForRole('initiator', 'offer-generated');
+            updateStatus('waiting', 'Offer-Link geteilt. Warten auf den Answer-Link...');
+            
+            // Warte auf Antwort (über manuelles Hash-Update)
+            waitForAnswer(shareableUrl);
+        }
+
+        async function handleIncomingOffer(offerCode) {
+            console.log('Responder: Verarbeite eingehendes Offer...');
+            updateStatus('connecting', 'Verarbeite eingehendes Offer. Erstelle Answer...');
+            
+            // Offer Daten decodieren
+            const offerData = JSON.parse(atob(offerCode));
+            if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code');
+            
+            const remoteOffer = {
+                type: 'offer',
+                sdp: atob(offerData.sdp)
+            };
+
+            // PeerConnection erstellen
+            peerConnection = new RTCPeerConnection(config);
+            
+            // Data Channel Handler: Setzt dataChannel asynchron (wird vom Initiator erstellt)
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannel(dataChannel); 
+                // Der Responder triggert establishConnection() hier, sobald der Channel empfangen wurde.
+                establishConnection();
+            };
+
+            // Remote Offer setzen
+            await peerConnection.setRemoteDescription(remoteOffer);
+            
+            // Answer erstellen
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            // Warte auf ICE Candidates
+            await waitForIceGathering(peerConnection);
+
+            // Generiere Answer Link
+            const answerData = {
+                type: 'answer',
+                sdp: btoa(peerConnection.localDescription.sdp),
+            };
+            const answerString = btoa(JSON.stringify(answerData));
+            
+            // Der Responder muss den Offer-Link beibehalten und den Answer-Code hinzufügen.
+            // Der ursprüngliche Link war: ...#offer=...
+            // Der neue Link ist: ...#offer=...&answer=...
+            const currentUrl = `${window.location.origin}${window.location.pathname}${window.location.hash}`;
+            const shareableAnswerUrl = `${currentUrl}&answer=${encodeURIComponent(answerString)}`;
+            
+            console.log("Responder: Answer-Link generiert. Muss an Initiator zurückgesendet werden.", shareableAnswerUrl);
+
+            // UI aktualisieren: Zeige den Answer-Link zum Kopieren
+            document.getElementById('answer-link').textContent = shareableAnswerUrl;
+            showUIForRole('responder', 'answer-generated');
+            updateStatus('waiting', 'Answer-Link generiert. Senden Sie ihn manuell zurück.');
+            
+            // Beim Responder wird auf ondatachannel/onopen gewartet.
+        }
+        
+        async function handleIncomingAnswer(offerCode, answerCode) {
+             console.log('Initiator: Verarbeite eingehenden Answer...');
+             if (checkAnswerInterval) clearInterval(checkAnswerInterval);
+             
+             updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
+             
+             // Answer verarbeiten
+             const answerData = JSON.parse(atob(answerCode));
+             if (answerData.type !== 'answer') {
+                 throw new Error('Ungültiger Answer-Code');
+             }
+
+             const remoteAnswer = {
+                 type: 'answer',
+                 sdp: atob(answerData.sdp)
+             };
+
+             // Stellen Sie sicher, dass peerConnection existiert und die Offer-SDP bereits gesetzt wurde.
+             // Im Idealfall wird handleIncomingAnswer nur aufgerufen, wenn zuvor createAndShareOffer() ausgeführt wurde.
+             if (!peerConnection || !peerConnection.localDescription) {
+                 // Dies ist ein Edge Case (z.B. Initiator lädt die Seite mit Offer+Answer neu)
+                 // Hier müssten wir neu initialisieren (optional für dieses Beispiel)
+                 console.error('PeerConnection nicht initialisiert, starte als Initiator neu...');
+                 await createAndShareOffer(); // Startet den Prozess neu und wartet
+                 return;
+             }
+
+             await peerConnection.setRemoteDescription(remoteAnswer);
+             await establishConnection(); // Starte den finalen Verbindungsaufbau
+        }
+
+
+        function waitForAnswer(offerUrl) {
+            // Initiator wartet auf das manuelle Update des URL-Hashes durch den Benutzer
+            
+            checkAnswerInterval = setInterval(async () => {
+                const urlHash = window.location.hash.substring(1);
+                const hashParams = new URLSearchParams(urlHash);
+                const answerCode = hashParams.get('answer');
+                const offerCode = hashParams.get('offer');
+
+                if (answerCode) {
+                    clearInterval(checkAnswerInterval);
+                    // Starte die Verarbeitung des Answers
+                    await handleIncomingAnswer(offerCode, answerCode);
+                }
+            }, 1000);
+
+            // Timeout nach 2 Minuten (nicht kritisch, da der Benutzer den Link aktualisieren muss)
+            setTimeout(() => {
+                if (checkAnswerInterval) {
+                    clearInterval(checkAnswerInterval);
+                    updateStatus('error', 'Timeout: Keine Antwort-Signalisierung erkannt. Bitte Link manuell aktualisieren.');
+                    document.getElementById('start-connection').disabled = false;
+                }
+            }, 120000); 
+        }
+
+        async function establishConnection() {
+            updateStatus('connecting', 'Warte auf Data Channel Öffnung...');
+
+            // Warte auf Data Channel Öffnung
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Verbindungstimeout: DataChannel öffnet nicht'));
+                }, 30000);
+
+                const checkReadyState = () => {
+                    if (dataChannel && dataChannel.readyState === 'open') {
+                        clearTimeout(timeout);
+                        
+                        // Verbindung erfolgreich
+                        updateStatus('connected', 'P2P-Verbindung aktiv!');
+                        showUIForRole('connected');
+                        document.getElementById('start-connection').disabled = false; 
+
+                        // Sende Testdaten
+                        sendTestData();
+                        resolve();
+                    }
+                };
+
+                if (dataChannel) {
+                    dataChannel.onopen = checkReadyState;
+                    dataChannel.onerror = (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    };
+                    // Sofort prüfen, falls es bereits offen ist (z.B. Initiator nach Answer)
+                    checkReadyState(); 
+                } else {
+                     // Sollte nicht passieren, wenn ondatachannel im Responder korrekt läuft
+                     reject(new Error("DataChannel nicht vorhanden."));
+                }
+            });
+        }
+
+        function setupDataChannel(channel) {
+            channel.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    displaySyncData(data);
+                    
+                    // Automatische Antwort bei eingehenden Nachrichten
+                    if (data.type === 'sync-request') {
+                        sendSyncResponse();
+                    }
+                } catch (e) {
+                    console.log('Empfangene Roh-Nachricht:', event.data);
+                }
+            };
+
+            channel.onclose = () => {
+                updateStatus('error', 'Verbindung geschlossen');
+                document.getElementById('start-connection').disabled = false;
+            };
+
+            channel.onerror = (error) => {
+                console.error('DataChannel Fehler:', error);
+                updateStatus('error', 'Verbindungsfehler im DataChannel');
+                document.getElementById('start-connection').disabled = false;
+            };
+        }
+
+        function sendTestData() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const testData = {
+                    type: 'sync-data',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
+                    timestamp: new Date().toISOString(),
+                    payload: {
+                        message: 'Automatische Synchronisation aktiv',
+                        status: 'connected',
+                        data: ['Sync Item 1', 'Sync Item 2', 'Sync Item 3']
+                    }
+                };
+                
+                // Sende die Daten
+                dataChannel.send(JSON.stringify(testData));
+                
+                // Zeige die gesendeten Daten lokal an (optional)
+                // displaySyncData(testData);
+                
+                // Automatische Wiederholung alle 10 Sekunden
+                setTimeout(sendTestData, 10000);
+            }
+        }
+
+        function sendSyncResponse() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const response = {
+                    type: 'sync-response',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A (Initiator)' : 'Gerät B (Responder)',
+                    timestamp: new Date().toISOString(),
+                    payload: {
+                        status: 'acknowledged',
+                        received: true
+                    }
+                };
+                dataChannel.send(JSON.stringify(response));
+            }
+        }
+
+        // =================================================================
+        // EVENT LISTENER & INITIALISIERUNG
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Haupt-Button
+            document.getElementById('start-connection').addEventListener('click', startConnection);
+            
+            // Copy-Button für Offer
+            document.getElementById('copy-offer').addEventListener('click', function() {
+                const link = document.getElementById('offer-link').textContent;
+                document.execCommand('copy'); // Fallback für Clipboard API
+                navigator.clipboard.writeText(link).then(() => {
+                    this.textContent = '✅ Kopiert!';
+                    setTimeout(() => {
+                        this.textContent = '📋 Link kopieren';
+                    }, 2000);
+                });
+            });
+
+            // Copy-Button für Answer (NEU)
+            document.getElementById('copy-answer').addEventListener('click', function() {
+                const link = document.getElementById('answer-link').textContent;
+                document.execCommand('copy'); // Fallback für Clipboard API
+                navigator.clipboard.writeText(link).then(() => {
+                    this.textContent = '✅ Kopiert!';
+                    setTimeout(() => {
+                        this.textContent = '📋 Antwort-Link kopieren';
+                    }, 2000);
+                });
+            });
+
+            // Automatischer Start, wenn Offer-Code im Hash vorhanden ist
+            const urlHash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(urlHash);
+
+            if (hashParams.get('offer')) {
+                // Wenn Offer vorhanden, starte automatisch als Responder (wenn Answer fehlt)
+                // oder als Initiator (wenn Answer vorhanden ist)
+                setTimeout(startConnection, 500); 
+            }
+
+            console.log('Mogul P2P Sync - Vollautomatische Version geladen');
+        });
+    </script>
+</body>
+</html>

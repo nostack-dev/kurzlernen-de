@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>P2P Sync</title>
+    <style>
+        body { font-family: system-ui; max-width: 600px; margin: 40px auto; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        button { background: #007AFF; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; width: 100%; margin: 5px 0; }
+        button:disabled { background: #ccc; }
+        textarea { width: 100%; height: 80px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin: 10px 0; }
+        .status { padding: 10px; border-radius: 8px; margin: 10px 0; }
+        .ready { background: #f0f0f0; }
+        .connected { background: #d4edda; }
+        .error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>P2P Sync</h2>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button onclick="showTab('offer')" id="tab-offer-btn">Senden</button>
+            <button onclick="showTab('answer')" id="tab-answer-btn">Empfangen</button>
+        </div>
+
+        <!-- Offer Tab -->
+        <div id="offer-tab">
+            <button onclick="createOffer()" id="offer-btn">1. Code erstellen</button>
+            <textarea id="offer-code" placeholder="Code erscheint hier..." readonly></textarea>
+            <textarea id="answer-input" placeholder="Antwort-Code hier einfügen..."></textarea>
+            <button onclick="acceptAnswer()" id="connect-btn" disabled>2. Verbinden</button>
+        </div>
+
+        <!-- Answer Tab -->
+        <div id="answer-tab" style="display: none;">
+            <textarea id="offer-input" placeholder="Empfangenen Code hier einfügen..."></textarea>
+            <button onclick="createAnswer()" id="answer-btn">Antwort erstellen</button>
+            <textarea id="answer-code" placeholder="Antwort-Code erscheint hier..." readonly></textarea>
+        </div>
+
+        <div id="status" class="status ready">Bereit</div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px;">
+            <strong>Log:</strong>
+            <div id="log" style="margin-top: 10px; font-size: 14px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let pc, dc, isOffer = true;
+
+        function log(msg) {
+            document.getElementById('log').innerHTML += msg + '<br>';
+        }
+
+        function updateStatus(msg, type = 'ready') {
+            const status = document.getElementById('status');
+            status.textContent = msg;
+            status.className = 'status ' + type;
+        }
+
+        function showTab(tab) {
+            isOffer = tab === 'offer';
+            document.getElementById('offer-tab').style.display = isOffer ? 'block' : 'none';
+            document.getElementById('answer-tab').style.display = isOffer ? 'none' : 'block';
+            document.getElementById('tab-offer-btn').style.background = isOffer ? '#007AFF' : '#f0f0f0';
+            document.getElementById('tab-answer-btn').style.background = isOffer ? '#f0f0f0' : '#007AFF';
+            document.getElementById('tab-offer-btn').style.color = isOffer ? 'white' : 'black';
+            document.getElementById('tab-answer-btn').style.color = isOffer ? 'black' : 'white';
+            updateStatus('Bereit');
+        }
+
+        async function createOffer() {
+            try {
+                if (pc) pc.close();
+                
+                pc = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+                dc = pc.createDataChannel('data');
+                
+                dc.onopen = () => {
+                    updateStatus('✅ Verbunden!', 'connected');
+                    dc.send('Hallo vom Sender!');
+                    log('📤 Nachricht gesendet');
+                };
+                
+                dc.onmessage = e => log('📥 Empfangen: ' + e.data);
+                
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                
+                await new Promise(r => setTimeout(r, 1000));
+                
+                document.getElementById('offer-code').value = btoa(JSON.stringify(pc.localDescription));
+                document.getElementById('connect-btn').disabled = false;
+                updateStatus('Code erstellt - Antwort erwarten');
+                
+            } catch(e) {
+                updateStatus('Fehler: ' + e.message, 'error');
+            }
+        }
+
+        async function createAnswer() {
+            try {
+                const offerInput = document.getElementById('offer-input').value;
+                if (!offerInput) return updateStatus('Bitte Code einfügen', 'error');
+                
+                if (pc) pc.close();
+                
+                pc = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+                
+                pc.ondatachannel = e => {
+                    dc = e.channel;
+                    dc.onopen = () => {
+                        updateStatus('✅ Verbunden!', 'connected');
+                        dc.send('Hallo vom Empfänger!');
+                        log('📤 Nachricht gesendet');
+                    };
+                    dc.onmessage = e => log('📥 Empfangen: ' + e.data);
+                };
+                
+                const offer = JSON.parse(atob(offerInput));
+                await pc.setRemoteDescription(offer);
+                
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                
+                await new Promise(r => setTimeout(r, 1000));
+                
+                document.getElementById('answer-code').value = btoa(JSON.stringify(pc.localDescription));
+                updateStatus('Antwort erstellt - Verbindung wird aufgebaut');
+                
+            } catch(e) {
+                updateStatus('Fehler: ' + e.message, 'error');
+            }
+        }
+
+        async function acceptAnswer() {
+            try {
+                const answerInput = document.getElementById('answer-input').value;
+                if (!answerInput) return updateStatus('Bitte Antwort-Code einfügen', 'error');
+                
+                const answer = JSON.parse(atob(answerInput));
+                await pc.setRemoteDescription(answer);
+                updateStatus('Verbinde...');
+                
+            } catch(e) {
+                updateStatus('Fehler: ' + e.message, 'error');
+            }
+        }
+
+        updateStatus('Bereit');
+    </script>
+</body>
+</html>

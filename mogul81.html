@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync - WhatsApp Media</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .connection-dot { 
+            width: 12px; height: 12px; border-radius: 50%; 
+            display: inline-block; margin-right: 8px; 
+        }
+        #chat-box { max-height: 400px; overflow-y: auto; }
+        .embedded-media { max-width: 250px; max-height: 250px; border-radius: 8px; } 
+        .video-container, .image-container { max-width: 250px; }
+        .audio-container { display: flex; align-items: center; background-color: #e5e7eb; padding: 6px; border-radius: 12px; }
+        .speed-button { font-size: 0.75rem; padding: 2px 6px; margin-left: 8px; }
+        .hidden-button { display: none !important; } 
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 mt-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Mogul P2P Sync</h1>
+            <p class="text-gray-600">Einfach verbinden - Automatisch synchronisieren</p>
+        </div>
+
+        <div id="connection-status" class="mb-6 p-4 bg-gray-100 rounded-xl text-center">
+            <div class="flex items-center justify-center mb-2">
+                <div id="status-dot" class="connection-dot bg-gray-400"></div>
+                <span id="status-text" class="font-medium">Bereit für Verbindung</span>
+            </div>
+            <p id="status-detail" class="text-sm text-gray-600 text-center">
+                Klicken Sie auf "Verbindung starten"
+            </p>
+        </div>
+
+        <div id="start-button-container" class="text-center mb-6">
+            <button id="start-connection" class="btn btn-primary btn-lg w-full rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
+                🔗 Verbindung starten
+            </button>
+        </div>
+
+        <div id="link-section" class="hidden space-y-4">
+            <div id="offer-section" class="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                <h3 class="font-semibold text-blue-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-blue-500"></span>
+                    Schritt 1: Link teilen
+                </h3>
+                <p class="text-sm text-blue-700 mb-3">
+                    Teilen Sie diesen Link mit der anderen Person:
+                </p>
+                <div class="bg-white p-3 rounded-lg border border-blue-300">
+                    <div id="offer-link" class="text-xs break-all font-mono text-blue-800 mb-2"></div>
+                    
+                    <div id="share-buttons" class="flex space-x-2 mt-2">
+                        <button id="share-offer" class="btn btn-secondary w-1/2 hidden">
+                            📤 Teilen (Native)
+                        </button>
+                        <button id="copy-offer" class="btn btn-outline btn-primary w-full">
+                            📋 Link kopieren
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="answer-section" class="bg-green-50 p-4 rounded-xl border border-green-200 hidden">
+                <h3 class="font-semibold text-green-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-green-500"></span>
+                    Schritt 2: Auf Antwort warten
+                </h3>
+                <p class="text-sm text-green-700 mb-3">
+                    Warten Sie, bis die andere Person antwortet...
+                </p>
+                <div class="text-center py-2">
+                    <div class="loading loading-spinner text-green-500"></div>
+                </div>
+            </div>
+
+            <div id="connected-section" class="bg-green-100 p-4 rounded-xl border border-green-300 hidden">
+                <h3 class="font-semibold text-green-800 mb-2 flex items-center">
+                    <span class="connection-dot bg-green-500 animate-pulse"></span>
+                    ✅ Verbunden!
+                </h3>
+                <p class="text-sm text-green-700 mb-4">
+                    Die P2P-Verbindung ist aktiv.
+                </p>
+                <button id="end-connection" class="btn btn-error btn-sm w-full">
+                    ❌ Verbindung trennen
+                </button>
+            </div>
+        </div>
+
+        <div id="data-section" class="mt-6 hidden">
+            <h3 class="font-semibold text-gray-800 mb-3">Status (Verbindung)</h3>
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div id="sync-data" class="text-sm text-gray-700 text-center py-2">
+                    Warte auf manuelle Aktivität...
+                </div>
+            </div>
+        </div>
+        
+        <div id="chat-section" class="mt-6 hidden">
+            <h3 class="font-semibold text-gray-800 mb-3">Mini-Chat</h3>
+            
+            <div id="chat-box" class="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-3 space-y-2">
+                </div>
+
+            <div id="file-progress-container" class="bg-white p-2 rounded-xl border border-gray-200 mb-3 hidden">
+                <h4 class="font-semibold text-gray-800 text-xs flex justify-between items-center">
+                    Datei-Übertragung
+                    <span id="file-progress-text" class="text-xs text-gray-600"></span>
+                </h4>
+                <progress id="file-progress" class="progress progress-primary w-full h-2 mb-1" value="0" max="100"></progress>
+                <div id="receive-status" class="text-sm text-center text-gray-600">Bereit zum Senden/Empfangen.</div>
+            </div>
+
+            <div class="flex space-x-2">
+                <input type="file" id="media-file-input" accept="video/*,audio/*,image/*" class="hidden" />
+
+                <button id="media-trigger" class="btn btn-ghost btn-circle text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path></svg>
+                </button>
+
+                <input id="chat-input" type="text" placeholder="Nachricht eingeben..." class="input input-bordered w-full" onkeydown="if(event.keyCode===13) document.getElementById('send-message').click()">
+                <button id="send-message" class="btn btn-primary">Senden</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // GLOBALE VARIABLEN & KONFIGURATION
+        // =================================================================
+        let peerConnection = null;
+        let dataChannel = null;
+        let currentRole = null; 
+        let connectionAttempts = 0;
+        const MAX_ATTEMPTS = 3;
+        const STORAGE_KEY = 'mogul-p2p-offer-sdp'; 
+        
+        // **MEDIENDATEN GLOBALS**
+        const CHUNK_SIZE = 16384; 
+        let file = null;
+        let fileReader = null;
+        let nextSlice = 0;
+        let receivedSlices = [];
+        let receivingFileMeta = null;
+
+        const config = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        };
+
+        // **HILFSFUNKTIONEN FÜR ROBUSTE KODIERUNG/DEKODIERUNG VON UTF-8 SDP**
+        function b64EncodeUnicode(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+                function(match, p1) {
+                    return String.fromCharCode('0x' + p1);
+                }));
+        }
+
+        function b64DecodeUnicode(str) {
+            return decodeURIComponent(atob(str).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+        }
+
+        function decodeBase64Json(base64String) {
+            if (!base64String) {
+                throw new Error("Leerer String für Decodierung.");
+            }
+            try {
+                const decodedUri = decodeURIComponent(base64String.replace(/\s/g, ''));
+                const jsonString = atob(decodedUri); 
+                return JSON.parse(jsonString);
+            } catch (e) {
+                console.error("Decodierungsfehler:", e);
+                throw new Error(`Decodierungsfehler: Der übergebene Code ist ungültig oder beschädigt. (${e.message})`);
+            }
+        }
+
+        // =================================================================
+        // UI MANAGEMENT 
+        // =================================================================
+        function updateStatus(status, detail = "") {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            const detailEl = document.getElementById('status-detail');
+            
+            const statusConfig = {
+                'ready': { color: 'bg-gray-400', text: 'Bereit für Verbindung', detail: 'Klicken Sie auf "Verbindung starten"' },
+                'generating': { color: 'bg-blue-500', text: 'Generiere Link...', detail: 'Erstelle sichere Verbindung' },
+                'waiting': { color: 'bg-yellow-500', text: 'Warte auf Antwort...', detail: 'Teilen Sie den Link mit der anderen Person' },
+                'connecting': { color: 'bg-orange-500', text: 'Verbinde...', detail: 'Stelle P2P-Verbindung her' },
+                'connected': { color: 'bg-green-500', text: 'Verbunden!', detail: 'P2P-Verbindung aktiv' },
+                'error': { color: 'bg-red-500', text: 'Fehler', detail: 'Verbindung fehlgeschlagen' }
+            };
+            
+            const config = statusConfig[status] || statusConfig.ready;
+            dot.className = `connection-dot ${config.color}`; 
+            text.textContent = config.text;
+            detailEl.textContent = detail || config.detail;
+        }
+
+        function showSection(sectionId) {
+            document.getElementById('link-section').classList.add('hidden');
+            document.getElementById('offer-section').classList.add('hidden');
+            document.getElementById('answer-section').classList.add('hidden');
+            document.getElementById('connected-section').classList.add('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('chat-section').classList.add('hidden');
+            
+            if (sectionId === 'link-section') {
+                document.getElementById('link-section').classList.remove('hidden');
+                document.getElementById('offer-section').classList.remove('hidden');
+                
+                const copyBtn = document.getElementById('copy-offer');
+                const shareBtn = document.getElementById('share-offer');
+                if (navigator.share) {
+                    shareBtn.classList.remove('hidden');
+                    copyBtn.className = 'btn btn-outline btn-primary w-1/2';
+                } else {
+                    shareBtn.classList.add('hidden');
+                    copyBtn.className = 'btn btn-outline btn-primary w-full';
+                }
+
+            } else if (sectionId === 'connected-section') {
+                document.getElementById('connected-section').classList.remove('hidden');
+                document.getElementById('data-section').classList.remove('hidden');
+                document.getElementById('chat-section').classList.remove('hidden');
+            } else if (sectionId) {
+                document.getElementById(sectionId).classList.remove('hidden');
+            }
+        }
+
+        function displaySyncData(data) {
+            const container = document.getElementById('sync-data');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            container.innerHTML = `
+                <div class="text-sm text-gray-700 text-center py-2">
+                    ✅ Letzter Sync-Status empfangen um ${timestamp}
+                </div>
+            `;
+        }
+        
+        // =================================================================
+        // CHAT & MEDIA RENDERING
+        // =================================================================
+
+        function displayMediaPreview(sender, fileUrl, fileName, fileMimeType, isLocal = false) {
+            const chatBox = document.getElementById('chat-box');
+            const senderClass = isLocal ? 'text-right' : 'text-left';
+            const bubbleClass = isLocal ? 'bg-blue-500 text-white ml-auto' : 'bg-gray-200 text-gray-800 mr-auto';
+            const senderName = isLocal ? 'Ich' : sender;
+            
+            let mediaContent;
+            
+            if (fileMimeType.startsWith('image/')) {
+                mediaContent = `<div class="image-container"><img src="${fileUrl}" class="embedded-media" alt="${fileName}" /></div>`;
+            } else if (fileMimeType.startsWith('video/')) {
+                mediaContent = `<div class="video-container"><video src="${fileUrl}" controls class="embedded-media" preload="metadata"></video></div>`;
+            } else if (fileMimeType.startsWith('audio/')) {
+                mediaContent = `
+                    <div class="audio-container">
+                        <audio id="audio-${Date.now()}" src="${fileUrl}" controls preload="metadata" class="w-full"></audio>
+                        <button class="btn btn-xs btn-outline btn-primary speed-button" onclick="toggleAudioSpeed(this)">1x</button>
+                    </div>`;
+            } else {
+                mediaContent = `<div class="p-2 text-sm">Empfangen: ${fileName} (${fileMimeType}). <a href="${fileUrl}" download="${fileName}" class="text-blue-500 underline">Download</a></div>`;
+            }
+
+            const messageElement = document.createElement('div');
+            messageElement.className = senderClass;
+            messageElement.innerHTML = `
+                <div class="text-xs font-semibold ${isLocal ? 'text-blue-600' : 'text-gray-600'}">${senderName}</div>
+                <div class="inline-block p-1 rounded-lg ${bubbleClass} max-w-[90%] break-words">
+                    ${mediaContent}
+                </div>
+            `;
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        window.toggleAudioSpeed = function(button) {
+            const audio = button.previousElementSibling;
+            if (audio.playbackRate === 1) {
+                audio.playbackRate = 2;
+                button.textContent = '2x';
+                button.classList.replace('btn-outline', 'btn-active');
+            } else {
+                audio.playbackRate = 1;
+                button.textContent = '1x';
+                button.classList.replace('btn-active', 'btn-outline');
+            }
+        };
+
+        function displayChatMessage(sender, message, isLocal = false) {
+            const chatBox = document.getElementById('chat-box');
+            const senderClass = isLocal ? 'text-right' : 'text-left';
+            const bubbleClass = isLocal ? 'bg-blue-500 text-white ml-auto' : 'bg-gray-200 text-gray-800 mr-auto';
+            const senderName = isLocal ? 'Ich' : sender;
+            
+            const messageElement = document.createElement('div');
+            messageElement.className = senderClass;
+            messageElement.innerHTML = `
+                <div class="text-xs font-semibold ${isLocal ? 'text-blue-600' : 'text-gray-600'}">${senderName}</div>
+                <div class="inline-block p-2 rounded-lg ${bubbleClass} max-w-[80%] break-words">
+                    ${message}
+                </div>
+            `;
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function shareOfferLink() {
+            const link = document.getElementById('offer-link').textContent;
+            try {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: 'Mogul P2P Sync',
+                        text: 'Möchtest du mit mir synchronisieren? Hier ist der Link:\n' + link, 
+                        url: link
+                    });
+                } else {
+                    await navigator.clipboard.writeText(link);
+                    const copyBtn = document.getElementById('copy-offer');
+                    copyBtn.textContent = '✅ Link kopiert!';
+                    setTimeout(() => { copyBtn.textContent = '📋 Link kopieren'; }, 2000);
+                }
+            } catch (error) {
+                console.error('Fehler beim Teilen:', error);
+            }
+        }
+
+        // =================================================================
+        // P2P VERBINDUNGS LOGIK
+        // =================================================================
+        
+        function getOfferCodeFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let offerCode = urlParams.get('offer');
+
+            if (!offerCode) {
+                const urlHash = window.location.hash.substring(1);
+                const hashParams = new URLSearchParams(urlHash);
+                offerCode = hashParams.get('offer');
+            }
+            return offerCode;
+        }
+        
+        function getAnswerCodeFromUrl() {
+            const urlHash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(urlHash);
+            return hashParams.get('answer');
+        }
+
+        async function startConnection(restoredSdp = null) {
+            try {
+                document.getElementById('start-connection').disabled = true;
+                document.getElementById('start-button-container').classList.add('hidden'); 
+                updateStatus('generating');
+                
+                const offerCode = getOfferCodeFromUrl();
+                
+                if (offerCode) {
+                    currentRole = 'responder';
+                    history.replaceState(null, '', window.location.pathname); 
+                    await handleIncomingOffer(offerCode);
+
+                } else if (restoredSdp) {
+                    currentRole = 'initiator';
+                    await continueInitiatorFlow(restoredSdp);
+                    
+                } else {
+                    currentRole = 'initiator';
+                    await createAndShareOffer();
+                }
+            } catch (error) {
+                console.error('Verbindungsfehler im startConnection:', error);
+                updateStatus('error', `Fehler: ${error.message}`);
+                
+                if (connectionAttempts < MAX_ATTEMPTS) {
+                    connectionAttempts++;
+                    setTimeout(() => {
+                        updateStatus('ready', `Automatischer Wiederholungsversuch (${connectionAttempts}/${MAX_ATTEMPTS})`);
+                        document.getElementById('start-connection').disabled = false;
+                        document.getElementById('start-button-container').classList.remove('hidden'); 
+                    }, 3000);
+                } else {
+                     document.getElementById('start-connection').disabled = false;
+                     document.getElementById('start-button-container').classList.remove('hidden'); 
+                }
+            }
+        }
+
+        async function createAndShareOffer() {
+            if (peerConnection) {
+                peerConnection.close();
+            }
+
+            peerConnection = new RTCPeerConnection(config);
+            dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
+            setupDataChannel(dataChannel);
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            localStorage.setItem(STORAGE_KEY, peerConnection.localDescription.sdp);
+
+            await new Promise(resolve => {
+                if (peerConnection.iceGatheringState === 'complete') {
+                    resolve();
+                } else {
+                    peerConnection.onicegatheringstatechange = () => {
+                        if (peerConnection.iceGatheringState === 'complete') {
+                            resolve();
+                        }
+                    };
+                    setTimeout(resolve, 2000); 
+                }
+            });
+
+            const offerData = {
+                type: 'offer',
+                sdp: b64EncodeUnicode(peerConnection.localDescription.sdp), 
+                timestamp: Date.now()
+            };
+            
+            const offerString = btoa(JSON.stringify(offerData)); 
+            const shareableUrl = `${window.location.origin}${window.location.pathname}?offer=${encodeURIComponent(offerString)}`;
+            
+            document.getElementById('offer-link').textContent = shareableUrl;
+            showSection('link-section');
+            updateStatus('waiting', 'Teilen Sie diesen Link mit der anderen Person');
+            
+            await waitForAnswer();
+        }
+
+        async function continueInitiatorFlow(restoredSdp) {
+            updateStatus('connecting', 'Sitzung wiederhergestellt. Warte auf Antwort.');
+            
+            peerConnection = new RTCPeerConnection(config);
+            dataChannel = peerConnection.createDataChannel("mogul-sync", { negotiated: false });
+            setupDataChannel(dataChannel);
+            
+            peerConnection.localDescription = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+            
+            const offerAsRemote = new RTCSessionDescription({ type: 'offer', sdp: restoredSdp });
+            await peerConnection.setRemoteDescription(offerAsRemote);
+
+            await waitForAnswer(true); 
+        }
+
+        async function handleIncomingOffer(offerCode) {
+            updateStatus('connecting', 'Verarbeite eingehende Verbindung...');
+            
+            try {
+                const offerData = decodeBase64Json(offerCode); 
+                if (offerData.type !== 'offer') throw new Error('Ungültiger Offer-Code Typ');
+                
+                const remoteOffer = {
+                    type: 'offer',
+                    sdp: b64DecodeUnicode(offerData.sdp)
+                };
+
+                peerConnection = new RTCPeerConnection(config);
+                
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannel(dataChannel); 
+                    establishConnection();
+                };
+
+                await peerConnection.setRemoteDescription(remoteOffer);
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                await new Promise(resolve => {
+                    if (peerConnection.iceGatheringState === 'complete') {
+                        resolve();
+                    } else {
+                        peerConnection.onicegatheringstatechange = () => {
+                            if (peerConnection.iceGatheringState === 'complete') {
+                                resolve();
+                            }
+                        };
+                        setTimeout(resolve, 2000);
+                    }
+                });
+
+                const answerData = {
+                    type: 'answer',
+                    sdp: b64EncodeUnicode(peerConnection.localDescription.sdp), 
+                    timestamp: Date.now()
+                };
+                const answerString = btoa(JSON.stringify(answerData));
+                
+                const finalAnswerUrl = `${window.location.origin}${window.location.pathname}#answer=${encodeURIComponent(answerString)}`;
+                
+                updateStatus('waiting', 'Antwort-Link erzeugt. Bitte diesen Link dem Initiator geben.');
+                document.getElementById('offer-link').textContent = finalAnswerUrl;
+                document.getElementById('offer-section').querySelector('h3').innerHTML = '<span class="connection-dot bg-green-500"></span>Schritt 2: Antwort-Link teilen';
+                document.getElementById('offer-section').querySelector('p').textContent = 'Teilen Sie diesen Link mit der anderen Person (Initiator), damit dieser die Verbindung abschließen kann:';
+                showSection('link-section');
+                
+                document.getElementById('copy-offer').textContent = '📋 Antwort-Link kopieren';
+                
+            } catch (error) {
+                console.error('Fehler bei eingehender Verbindung:', error);
+                throw new Error(`Verbindungsfehler: ${error.message}`);
+            }
+        }
+
+        async function waitForAnswer(answerPresentOnLoad = false) {
+            
+            if (answerPresentOnLoad) {
+                 const answerCode = getAnswerCodeFromUrl();
+                 if (answerCode) {
+                    await processAnswer(answerCode);
+                    return;
+                 }
+            }
+
+            updateStatus('waiting', 'Warte auf die Gegenstelle, um den Answer-Code zurückzusenden...');
+            document.getElementById('answer-section').classList.remove('hidden');
+
+            return new Promise((resolve, reject) => {
+                const checkInterval = setInterval(async () => {
+                    try {
+                        const answerCode = getAnswerCodeFromUrl();
+                        
+                        if (answerCode) {
+                            clearInterval(checkInterval);
+                            await processAnswer(answerCode);
+                            resolve();
+                        }
+                    } catch (error) {
+                        clearInterval(checkInterval);
+                        reject(error);
+                    }
+                }, 1000);
+
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    reject(new Error('Timeout: Keine Antwort erhalten'));
+                }, 120000);
+            });
+        }
+        
+        async function processAnswer(answerCode) {
+            updateStatus('connecting', 'Empfange Antwort. Stelle Verbindung her...');
+            
+            history.replaceState(null, '', window.location.pathname);
+            localStorage.removeItem(STORAGE_KEY); 
+            
+            const answerData = decodeBase64Json(answerCode);
+            if (answerData.type !== 'answer') {
+                throw new Error('Ungültiger Answer-Code Typ');
+            }
+
+            const remoteAnswer = {
+                type: 'answer',
+                sdp: b64DecodeUnicode(answerData.sdp)
+            };
+
+            await peerConnection.setRemoteDescription(remoteAnswer);
+            await establishConnection();
+        }
+
+        function endConnection() {
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            updateStatus('ready');
+            document.getElementById('start-button-container').classList.remove('hidden');
+            document.getElementById('link-section').classList.add('hidden');
+            document.getElementById('connected-section').classList.add('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('chat-section').classList.add('hidden');
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
+
+        async function establishConnection() {
+            updateStatus('connecting', 'Stelle finale Verbindung her...');
+
+            if (!dataChannel) {
+                if (currentRole === 'responder') {
+                    updateStatus('connecting', 'Warte auf DataChannel-Empfang/Öffnung...');
+                    return; 
+                }
+                throw new Error("DataChannel konnte nicht initialisiert werden.");
+            }
+
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Verbindungstimeout: DataChannel öffnet nicht'));
+                }, 30000);
+
+                if (dataChannel.readyState === 'open') {
+                    clearTimeout(timeout);
+                    resolve();
+                } else {
+                    dataChannel.onopen = () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    };
+                    dataChannel.onerror = (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    };
+                }
+            });
+
+            updateStatus('connected', 'P2P-Verbindung aktiv!');
+            showSection('connected-section');
+            
+            document.getElementById('start-button-container').classList.add('hidden'); 
+
+            document.getElementById('sync-data').innerHTML = 'Die P2P-Verbindung ist aktiv und bereit für Datenübertragung.';
+
+            document.getElementById('chat-box').innerHTML = '<div class="text-center text-xs text-gray-500">Verbindung hergestellt. Starte Chat!</div>';
+            document.getElementById('send-message').addEventListener('click', () => {
+                const input = document.getElementById('chat-input');
+                if (input.value.trim() !== '') {
+                    sendMessage(input.value);
+                    input.value = '';
+                }
+            });
+        }
+
+        // =================================================================
+        // DATEI-SENDEN & EMPFANGEN LOGIK
+        // =================================================================
+
+        function sendFile(file) {
+            // Zeige Fortschritt an
+            document.getElementById('file-progress-container').classList.remove('hidden');
+
+            // Metadaten senden
+            const fileMeta = {
+                type: 'file-meta',
+                name: file.name,
+                size: file.size,
+                mimeType: file.type,
+                sender: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B'
+            };
+            dataChannel.send(JSON.stringify(fileMeta));
+
+            fileReader = new FileReader();
+            let offset = 0;
+            
+            function sendSlice() {
+                if (!dataChannel || dataChannel.readyState !== 'open') {
+                    console.error('DataChannel ist nicht bereit.');
+                    return;
+                }
+                
+                const slice = file.slice(offset, offset + CHUNK_SIZE);
+                fileReader.readAsArrayBuffer(slice);
+            }
+
+            fileReader.onload = (e) => {
+                dataChannel.send(e.target.result);
+                offset += e.target.result.byteLength;
+                
+                updateFileProgress(offset, file.size);
+
+                if (offset < file.size) {
+                    if (dataChannel.bufferedAmount === 0) {
+                        sendSlice();
+                    } else {
+                        setTimeout(sendSlice, 100);
+                    }
+                } else {
+                    dataChannel.send(JSON.stringify({ type: 'file-end' }));
+                    document.getElementById('receive-status').textContent = `Datei "${file.name}" erfolgreich gesendet.`;
+                    
+                    // Lokale Anzeige des gesendeten Mediums im Chat
+                    const fileUrl = URL.createObjectURL(file);
+                    displayMediaPreview(fileMeta.sender, fileUrl, fileMeta.name, fileMeta.mimeType, true);
+                    
+                    document.getElementById('media-file-input').value = ''; // Input leeren
+                    document.getElementById('file-progress-container').classList.add('hidden');
+                }
+            };
+            
+            sendSlice();
+        }
+
+        function handleIncomingFileMeta(meta) {
+            receivingFileMeta = meta;
+            receivedSlices = [];
+            document.getElementById('file-progress-container').classList.remove('hidden');
+            document.getElementById('file-progress').value = 0;
+            document.getElementById('receive-status').textContent = `Empfange Datei von ${meta.sender}: "${meta.name}" (${(meta.size / 1024 / 1024).toFixed(2)} MB)...`;
+        }
+
+        function handleIncomingFileChunk(data) {
+            if (!receivingFileMeta) return;
+
+            receivedSlices.push(data);
+            const totalReceived = receivedSlices.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+
+            updateFileProgress(totalReceived, receivingFileMeta.size);
+        }
+
+        function handleFileTransferEnd() {
+            if (!receivingFileMeta) return;
+
+            const blob = new Blob(receivedSlices, { type: receivingFileMeta.mimeType });
+            
+            const fileUrl = URL.createObjectURL(blob);
+            const fileName = receivingFileMeta.name;
+            const fileMimeType = receivingFileMeta.mimeType;
+            const sender = receivingFileMeta.sender;
+            const statusEl = document.getElementById('receive-status');
+            
+            statusEl.innerHTML = `Datei **${fileName}** empfangen.`;
+
+            // Anzeige des empfangenen Mediums direkt im Chat
+            displayMediaPreview(sender, fileUrl, fileName, fileMimeType, false);
+
+            // Reset
+            receivingFileMeta = null;
+            receivedSlices = [];
+            document.getElementById('file-progress-container').classList.add('hidden');
+        }
+
+        function updateFileProgress(transferred, total) {
+            const percent = Math.floor((transferred / total) * 100);
+            const progressEl = document.getElementById('file-progress');
+            const progressTextEl = document.getElementById('file-progress-text');
+            
+            progressEl.value = percent;
+            progressTextEl.textContent = `Fortschritt: ${percent}% (${(transferred / 1024 / 1024).toFixed(2)} MB / ${(total / 1024 / 1024).toFixed(2)} MB)`;
+
+            if (percent === 100) {
+                document.getElementById('receive-status').textContent = 'Übertragung abgeschlossen.';
+            } else if (percent > 0) {
+                 document.getElementById('receive-status').textContent = 'Übertrage Daten...';
+            }
+        }
+
+
+        function setupDataChannel(channel) {
+            channel.onopen = () => {
+                console.log('DataChannel geöffnet');
+            };
+
+            channel.onmessage = async (event) => {
+                if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'chat') {
+                            const sender = data.deviceName;
+                            displayChatMessage(sender, data.message, false);
+                        } else if (data.type === 'file-meta') {
+                            handleIncomingFileMeta(data);
+                        } else if (data.type === 'file-end') {
+                            handleFileTransferEnd();
+                        } else if (data.type === 'sync-data') {
+                            displaySyncData(data);
+                        }
+                    } catch (e) {
+                        console.log('Empfangene Nachricht (Nicht-JSON):', event.data);
+                    }
+                } else if (event.data instanceof ArrayBuffer) {
+                    handleIncomingFileChunk(event.data);
+                }
+            };
+
+            channel.onclose = () => {
+                updateStatus('ready', 'Verbindung geschlossen');
+                document.getElementById('start-button-container').classList.remove('hidden'); 
+                document.getElementById('link-section').classList.add('hidden');
+                document.getElementById('connected-section').classList.add('hidden');
+                document.getElementById('data-section').classList.add('hidden');
+                document.getElementById('chat-section').classList.add('hidden');
+                document.getElementById('file-progress-container').classList.add('hidden');
+                localStorage.removeItem(STORAGE_KEY); 
+            };
+
+            channel.onerror = (error) => {
+                console.error('DataChannel Fehler:', error);
+                updateStatus('error', 'Verbindungsfehler im DataChannel');
+                document.getElementById('start-button-container').classList.remove('hidden'); 
+                localStorage.removeItem(STORAGE_KEY); 
+            };
+        }
+
+        function sendMessage(message) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const chatData = {
+                    type: 'chat',
+                    deviceName: currentRole === 'initiator' ? 'Gerät A' : 'Gerät B',
+                    message: message,
+                    timestamp: new Date().toISOString()
+                };
+                
+                dataChannel.send(JSON.stringify(chatData));
+                displayChatMessage('Ich', message, true);
+            } else {
+                alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!"');
+            }
+        }
+
+        // =================================================================
+        // EVENT LISTENER & INITIALISIERUNG
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const copyOfferButton = document.getElementById('copy-offer');
+            const shareOfferButton = document.getElementById('share-offer');
+            const endConnectionButton = document.getElementById('end-connection');
+            const mediaTriggerButton = document.getElementById('media-trigger');
+            const fileInput = document.getElementById('media-file-input');
+
+            // --- P2P Start / End ---
+            document.getElementById('start-connection').addEventListener('click', () => {
+                 localStorage.removeItem(STORAGE_KEY); 
+                 startConnection();
+            });
+            if (endConnectionButton) {
+                endConnectionButton.addEventListener('click', endConnection);
+            }
+
+            // --- Datei Senden Trigger (NEU: Klick-Ereignis vom Icon) ---
+            mediaTriggerButton.addEventListener('click', function() {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    fileInput.click(); // Öffnet den nativen Dateiauswahl-Dialog
+                } else {
+                    alert('Verbindung ist nicht aktiv. Bitte warten Sie auf "Verbunden!", bevor Sie eine Datei senden.');
+                }
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    file = this.files[0];
+                    if (file.size > 200 * 1024 * 1024) { // 200 MB Limit
+                         alert('Die Datei ist zu groß (max. 200 MB).');
+                         this.value = '';
+                         return;
+                    }
+
+                    if (confirm(`Möchten Sie die Datei "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) senden?`)) {
+                        sendFile(file);
+                    } else {
+                        this.value = '';
+                    }
+                }
+            });
+            
+            // --- UI/Share Logik ---
+            copyOfferButton.addEventListener('click', function() {
+                const link = document.getElementById('offer-link').textContent;
+                navigator.clipboard.writeText(link).then(() => {
+                    this.textContent = '✅ Kopiert!';
+                    setTimeout(() => {
+                        this.textContent = (currentRole === 'responder' ? '📋 Antwort-Link kopieren' : '📋 Link kopieren');
+                    }, 2000);
+                });
+            });
+
+            if (shareOfferButton) {
+                shareOfferButton.addEventListener('click', shareOfferLink);
+            }
+            
+            // --- Automatischer Start / Zustandswiederherstellung ---
+            const offerCode = getOfferCodeFromUrl();
+            const answerCode = getAnswerCodeFromUrl();
+            const storedSdp = localStorage.getItem(STORAGE_KEY); 
+
+            if (offerCode) {
+                setTimeout(startConnection, 500);
+            } else if (answerCode && storedSdp) {
+                localStorage.removeItem(STORAGE_KEY); 
+                setTimeout(() => startConnection(storedSdp), 500);
+            } else if (storedSdp && !answerCode) {
+                setTimeout(() => continueInitiatorFlow(storedSdp), 500); 
+                document.getElementById('start-button-container').classList.add('hidden');
+            } else if (answerCode && !storedSdp) {
+                history.replaceState(null, '', window.location.pathname);
+                setTimeout(() => {
+                    document.getElementById('start-connection').disabled = true;
+                    updateStatus('error', 'Fehler: Sitzung abgelaufen.');
+                    document.getElementById('start-button-container').classList.remove('hidden');
+                    document.getElementById('status-detail').textContent = 'Der Answer-Code ist abgelaufen. Bitte klicken Sie auf "Verbindung starten", um einen neuen Link zu generieren.';
+                }, 500);
+            }
+
+            console.log('Mogul P2P Sync - Finaler Code geladen.');
+        });
+    </script>
+</body>
+</html>

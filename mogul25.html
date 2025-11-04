@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync</title>
+    <!--
+        FINALE VERSION: Mogul P2P Chef Sync (Verschlüsselt / Kein Server)
+        Fix: Entfernung der Gemini API als Signalling-Server.
+        SDP-Austausch erfolgt jetzt E2E-verschlüsselt mittels AES-GCM (Browser Crypto API)
+        und einem kurzen, manuell abgetippten PIN als Chiffrierschlüssel.
+        Dies stellt die maximale Sicherheit ohne Server dar.
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        
+        .modal-box {
+            background-color: var(--theme-bg);
+            color: var(--theme-text);
+        }
+
+        .container {
+            max-width: 900px;
+        }
+
+        .pin-display {
+            font-size: 2.5rem;
+            letter-spacing: 0.5rem;
+            font-weight: 700;
+            padding: 0.5rem 1rem;
+            background-color: oklch(80% 0 0);
+            border-radius: 0.75rem;
+            color: oklch(0% 0 0);
+            text-align: center;
+            user-select: all;
+        }
+
+    </style>
+</head>
+<body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
+
+    <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2">Mogul P2P Synchronisation (Verschlüsselt)</h1>
+        
+        <div class="alert alert-warning shadow-lg mb-6 rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>**Kein Server, E2E-Sicherheit:** Die SDP-Daten sind verschlüsselt, aber der lange Code muss in beiden Richtungen manuell übertragen werden. Der kurze PIN dient als Schlüssel.</span>
+        </div>
+        
+        <!-- P2P Modal Button -->
+        <div class="flex justify-center">
+            <button id="p2p-modal-btn" class="btn btn-lg btn-success shadow-md rounded-xl transition duration-150 ease-in-out hover:scale-[1.02]">
+                Starte P2P Sync (Verschlüsselt)
+            </button>
+        </div>
+        
+        <!-- Dummy-Geräteliste -->
+        <h2 class="text-xl font-bold mt-8 mb-4">Simulierte lokale Daten</h2>
+        <div id="device-list" class="space-y-2">
+            <div class="badge badge-outline">PC-CHEF-001 (Aktuell)</div>
+        </div>
+    </div>
+
+    <!-- P2P Modal -->
+    <dialog id="p2p_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-4xl p-6 rounded-2xl">
+            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent (Verschlüsselt)</h3>
+            
+            <div id="p2p-steps">
+                <!-- CLIENT (OFFER) SECTION -->
+                <div id="offer-section" class="border-b pb-4 mb-4">
+                    <h4 class="font-bold text-xl mb-3 text-primary">1. Offer-Gerät (Client/Handy)</h4>
+
+                    <h5 class="font-bold mt-2 mb-1">A. Offer erstellen & Schlüssel generieren</h5>
+                    <div class="flex space-x-2 mb-4">
+                        <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg">Offer & PIN generieren</button>
+                        <button id="p2p-copy-offer-btn" class="btn btn-sm btn-ghost rounded-lg hidden">Verschlüsselten Code kopieren</button>
+                    </div>
+
+                    <div id="offer-display-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                        <p class="text-sm mb-2 font-medium">1. **PIN (Schlüssel, abtippen):**</p>
+                        <div id="offer-pin-display" class="pin-display bg-primary text-primary-content mb-4"></div>
+                        <p class="text-sm mb-2 font-medium">2. **Verschlüsselter Code (Base64, kopieren):**</p>
+                        <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-32 text-xs" readonly placeholder="Verschlüsselter Base64 Offer-Code"></textarea>
+                    </div>
+                    
+                    <h5 class="font-bold mt-6 mb-1">B. Answer-Gerät antwortet (Daten eingeben)</h5>
+                    <p class="text-xs mb-2 text-gray-500">Geben Sie den PIN und den verschlüsselten Answer-Code vom Answer-Gerät ein.</p>
+                    <input type="text" id="p2p-answer-pin-input" class="input input-bordered w-full mb-2 rounded-lg input-sm" placeholder="1. PIN vom Answer-Gerät (6-stellig)"/>
+                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="2. Verschlüsselten Answer-Code hier einfügen"></textarea>
+
+                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg">C. Verbindung herstellen (Answer entschlüsseln)</button>
+                </div>
+                
+                <!-- ANSWER (CHEF) SECTION -->
+                <div id="answer-section">
+                    <h4 class="font-bold text-xl mb-3 mt-6 text-info">2. Answer-Gerät (Chef/PC)</h4>
+                    <h5 class="font-bold mb-1">A. Offer-Daten eingeben</h5>
+                    <p class="text-xs mb-2 text-gray-500">Geben Sie den PIN und den verschlüsselten Offer-Code vom Offer-Gerät ein.</p>
+                    <input type="text" id="p2p-offer-pin-input" class="input input-bordered w-full mb-2 rounded-lg input-sm" placeholder="1. PIN vom Offer-Gerät (6-stellig)"/>
+                    <textarea id="p2p-offer-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="2. Verschlüsselten Offer-Code hier einfügen"></textarea>
+
+                    <div class="flex space-x-2 mb-4">
+                        <button id="p2p-create-answer-btn" class="btn btn-sm btn-info rounded-lg">B. Answer generieren</button>
+                        <button id="p2p-copy-answer-btn" class="btn btn-sm btn-ghost rounded-lg hidden">Verschlüsselten Code kopieren</button>
+                    </div>
+
+                    <div id="answer-display-container" class="mt-4 hidden p-3 bg-base-200 rounded-lg">
+                        <p class="text-sm mb-2 font-medium">1. **PIN (Schlüssel, abtippen):**</p>
+                        <div id="answer-pin-display" class="pin-display bg-info text-info-content mb-4"></div>
+                        <p class="text-sm mb-2 font-medium">2. **Verschlüsselter Code (Base64, kopieren):**</p>
+                        <textarea id="p2p-answer-output" class="textarea textarea-bordered w-full h-32 text-xs" readonly placeholder="Verschlüsselter Base64 Answer-Code"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Status & Log -->
+            <div id="p2p-status" class="alert mt-6 font-semibold rounded-xl">Status: Bereit.</div>
+            
+            <h4 class="font-bold text-lg mt-6 mb-2">P2P Daten-Log</h4>
+            <div id="p2p-log" class="bg-base-200 p-3 rounded-lg h-32 overflow-y-auto text-sm space-y-1">
+                <!-- Log-Einträge erscheinen hier -->
+            </div>
+
+            <div class="modal-action">
+                <form method="dialog">
+                    <button id="p2p-close-btn" class="btn btn-ghost rounded-lg">Schließen</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+    
+    <script>
+        // =================================================================
+        // GLOBALE VARIABLEN & P2P-KONFIGURATION
+        // =================================================================
+        let peerConnection;
+        let dataChannel;
+        let localSDPType = null; // 'offer' or 'answer'
+        
+        const config = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" } // Google STUN-Server
+            ]
+        };
+        
+        function setStatus(text, type = 'info') {
+             const statusElement = document.getElementById('p2p-status');
+             statusElement.textContent = text;
+             statusElement.className = `alert mt-6 font-semibold rounded-xl alert-${type}`;
+             if (type === 'loading') {
+                 // Setze den loading spinner
+                 statusElement.innerHTML = `<span class="loading loading-spinner loading-sm mr-2"></span> ${text}`;
+             }
+        }
+
+        // =================================================================
+        // CRYPTO-UTILITIES (E2E-Verschlüsselung)
+        // =================================================================
+        const cryptoUtils = {
+            /**
+             * Erzeugt einen kryptografischen Schlüssel aus einer Passphrase (PIN).
+             * @param {string} passphrase - Der PIN (z.B. 6 Ziffern).
+             * @returns {Promise<CryptoKey>}
+             */
+            async getKeyFromPassphrase(passphrase) {
+                const enc = new TextEncoder();
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw",
+                    enc.encode(passphrase),
+                    { name: "PBKDF2" },
+                    false,
+                    ["deriveKey"]
+                );
+                
+                // Nutze einen statischen Salt, da der Key lokal generiert wird und nicht übertragen wird.
+                // Wir benötigen nur ein konsistentes Key-Derivation für die E2E-Kommunikation.
+                const salt = enc.encode("MOGUL_SYNC_SALT_12345"); 
+
+                return crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: 100000,
+                        hash: "SHA-256",
+                    },
+                    keyMaterial,
+                    { name: "AES-GCM", length: 256 },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+            },
+            
+            /**
+             * Verschlüsselt einen Text mit einem PIN.
+             * @param {string} plaintext - SDP-String.
+             * @param {string} pin - Der Schlüssel (6-stelliger PIN).
+             * @returns {Promise<{encryptedData: string, iv: string}>} Base64-Strings von Daten und IV.
+             */
+            async encryptSDP(plaintext, pin) {
+                const key = await this.getKeyFromPassphrase(pin);
+                const iv = crypto.getRandomValues(new Uint8Array(16)); // Initialization Vector (muss übertragen werden)
+                const encoded = new TextEncoder().encode(plaintext);
+
+                const ciphertext = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key,
+                    encoded
+                );
+
+                // Kombiniere IV und verschlüsselte Daten für die Übertragung
+                const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+                combined.set(iv, 0);
+                combined.set(new Uint8Array(ciphertext), iv.byteLength);
+
+                // Gebe den Base64-String des kombinierten Pakets zurück
+                return btoa(String.fromCharCode.apply(null, combined));
+            },
+
+            /**
+             * Entschlüsselt einen Base64-String mit einem PIN.
+             * @param {string} encryptedBase64 - Base64-String (IV + Ciphertext).
+             * @param {string} pin - Der Schlüssel (6-stelliger PIN).
+             * @returns {Promise<string>} Der entschlüsselte SDP-String.
+             */
+            async decryptSDP(encryptedBase64, pin) {
+                const key = await this.getKeyFromPassphrase(pin);
+                
+                // Dekodiere Base64 zurück in Uint8Array
+                const binaryStr = atob(encryptedBase64);
+                const combined = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    combined[i] = binaryStr.charCodeAt(i);
+                }
+
+                const iv = combined.slice(0, 16); // Die ersten 16 Bytes sind der IV
+                const ciphertext = combined.slice(16);
+
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key,
+                    ciphertext
+                );
+
+                return new TextDecoder().decode(decrypted);
+            },
+            
+            /**
+             * Generiert einen leicht abtippbaren 6-stelligen PIN.
+             * @returns {string} 6-stellige Ziffernfolge.
+             */
+            generatePin() {
+                return String(Math.floor(100000 + Math.random() * 900000));
+            }
+        };
+
+        // =================================================================
+        // HILFSFUNKTIONEN (SDP-Objekt Erstellung)
+        // =================================================================
+
+        /**
+         * Erstellt ein RTCSessionDescription-Objekt aus dem reinen SDP-String.
+         * @param {string} sdpString Der reine SDP-String.
+         * @param {'offer'|'answer'} type Der Typ des SDP.
+         * @returns {RTCSessionDescription | null}
+         */
+        function stringToSdp(sdpString, type) {
+            try {
+                return new RTCSessionDescription({
+                    type: type, 
+                    sdp: sdpString
+                });
+            } catch (e) {
+                console.error("Fehler beim Erstellen des SDP-Objekts:", e);
+                return null;
+            }
+        }
+        
+        // =================================================================
+        // P2P ARCHITEKTUR: Deadlock-freie Funktionen
+        // =================================================================
+
+        function setupDataChannelListeners(channel) {
+            if (!channel) return;
+
+            // Entferne alte Listener (wichtig, um doppelte Events zu vermeiden)
+            channel.onopen = null;
+            channel.onclose = null;
+            channel.onmessage = null;
+            channel.onerror = null;
+
+            channel.onopen = () => {
+                console.log("DataChannel: OPEN");
+                setStatus('✅ Verbunden (DataChannel offen)! Sync kann starten.', 'success');
+                setTimeout(() => startP2PSync(), 500);
+            };
+            channel.onmessage = handleDataChannelMessage;
+            channel.onclose = () => {
+                console.log("DataChannel: CLOSED");
+                setStatus('❌ Verbindung getrennt', 'warning');
+            };
+            channel.onerror = (error) => {
+                console.error("DataChannel Fehler:", error);
+                setStatus(`⚠️ DataChannel Fehler: ${error.message || 'Unbekannt'}`, 'error');
+            };
+        }
+
+        async function waitForConnection() {
+            return new Promise((resolve, reject) => {
+                if (!dataChannel) {
+                    return reject(new Error("DataChannel nicht initialisiert."));
+                }
+                
+                if (dataChannel.readyState === 'open') {
+                    resolve(dataChannel);
+                } else {
+                    const timeout = setTimeout(() => {
+                        reject(new Error("Verbindungs-Timeout. Überprüfen Sie die Codes."));
+                    }, 20000); // 20 Sekunden Timeout
+
+                    // Einmalige Listener für den Handshake
+                    const onOpenOnce = () => {
+                        clearTimeout(timeout);
+                        setupDataChannelListeners(dataChannel); 
+                        resolve(dataChannel);
+                    };
+                    const onErrorOnce = (e) => {
+                        clearTimeout(timeout);
+                        dataChannel.onopen = null;
+                        dataChannel.onerror = null;
+                        reject(new Error(`Verbindungsfehler im Handshake: ${e.message}`));
+                    };
+
+                    dataChannel.onopen = onOpenOnce;
+                    dataChannel.onerror = onErrorOnce;
+                }
+            });
+        }
+        
+        async function initP2P(isOffer) {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                dataChannel = null;
+            }
+
+            localSDPType = isOffer ? 'offer' : 'answer';
+            peerConnection = new RTCPeerConnection(config);
+            setStatus('... Verbindungsaufbau gestartet (ICE sammeln)...');
+
+            peerConnection.onicecandidate = (event) => {
+                if (!event.candidate) {
+                    console.log("ICE-Kandidatenerfassung abgeschlossen.");
+                }
+            };
+            
+            if (isOffer) {
+                dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: false });
+                setupDataChannelListeners(dataChannel);
+            } else {
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannelListeners(dataChannel);
+                };
+            }
+            
+            return peerConnection;
+        }
+
+        // =================================================================
+        // P2P HANDSHAKE LOGIK (Verschlüsselung)
+        // =================================================================
+
+        // 1. Offer generieren (Offer-Seite / Client)
+        async function p2pCreateOffer() {
+            try {
+                const pin = cryptoUtils.generatePin();
+                await initP2P(true); 
+                
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                // Warte, bis ICE-Kandidaten gesammelt sind
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const sdpString = peerConnection.localDescription.sdp;
+                
+                // SDP verschlüsseln
+                const encryptedSdp = await cryptoUtils.encryptSDP(sdpString, pin);
+                
+                // UI aktualisieren
+                document.getElementById('offer-pin-display').textContent = pin;
+                document.getElementById('p2p-offer-output').value = encryptedSdp;
+                document.getElementById('offer-display-container').classList.remove('hidden');
+                document.getElementById('p2p-copy-offer-btn').classList.remove('hidden');
+
+                setStatus('Offer generiert und verschlüsselt. Bitte PIN und Code übertragen.', 'success');
+
+            } catch (e) {
+                console.error("Fehler beim Erstellen des Offers:", e);
+                setStatus(`🚨 Fehler beim Offer-Erstellung: ${e.message}`, 'error');
+            }
+        }
+
+        // 2. Answer erstellen (Answer-Seite / Chef)
+        async function p2pCreateAnswerFlow() {
+            const offerPin = document.getElementById('p2p-offer-pin-input').value.trim();
+            const encryptedOffer = document.getElementById('p2p-offer-input').value.trim();
+            
+            if (!/^\d{6}$/.test(offerPin) || !encryptedOffer) {
+                return setStatus("🚨 Fehler: Bitte einen gültigen 6-stelligen PIN und den verschlüsselten Code eingeben.", 'error');
+            }
+
+            try {
+                // A. Offer SDP entschlüsseln
+                setStatus('Entschlüssele Offer-Code...', 'loading');
+                const offerSdpString = await cryptoUtils.decryptSDP(encryptedOffer, offerPin);
+                
+                // B. Peer Connection initialisieren und Answer generieren
+                await initP2P(false); 
+                
+                const remoteOffer = stringToSdp(offerSdpString, 'offer');
+                if (!remoteOffer) throw new Error("Ungültiges Offer-Format oder Dekodierung fehlgeschlagen.");
+                
+                await peerConnection.setRemoteDescription(remoteOffer);
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const answerSdpString = peerConnection.localDescription.sdp;
+                
+                // C. Answer SDP verschlüsseln mit neuem PIN
+                const answerPin = cryptoUtils.generatePin();
+                const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, answerPin);
+
+                // UI aktualisieren
+                document.getElementById('answer-pin-display').textContent = answerPin;
+                document.getElementById('p2p-answer-output').value = encryptedAnswer;
+                document.getElementById('answer-display-container').classList.remove('hidden');
+                document.getElementById('p2p-copy-answer-btn').classList.remove('hidden');
+                
+                setStatus('Answer erstellt und verschlüsselt. Bitte PIN und Code übertragen. Warte auf Verbindung...', 'warning');
+
+            } catch (e) {
+                console.error("Fehler im Answer-Flow:", e);
+                setStatus(`🚨 Fehler im Answer-Flow: ${e.message}`, 'error');
+            }
+        }
+
+        // 3. Answer akzeptieren (Offer-Seite / Client)
+        async function p2pAcceptAnswerFlow() {
+            const answerPin = document.getElementById('p2p-answer-pin-input').value.trim();
+            const encryptedAnswer = document.getElementById('p2p-answer-input').value.trim();
+            
+            if (!/^\d{6}$/.test(answerPin) || !encryptedAnswer) {
+                return setStatus("🚨 Fehler: Bitte PIN und verschlüsselten Answer-Code eingeben.", 'error');
+            }
+
+            try {
+                if (!peerConnection) {
+                    throw new Error("Bitte zuerst Offer generieren (Schritt 1).");
+                }
+                
+                // A. Answer SDP entschlüsseln
+                setStatus('Entschlüssele Answer-Code...', 'loading');
+                const answerSdpString = await cryptoUtils.decryptSDP(encryptedAnswer, answerPin);
+                
+                // B. Answer akzeptieren und verbinden
+                const remoteAnswer = stringToSdp(answerSdpString, 'answer');
+                if (!remoteAnswer) throw new Error("Ungültiges Answer-Format oder Dekodierung fehlgeschlagen.");
+                
+                await peerConnection.setRemoteDescription(remoteAnswer);
+                
+                setStatus('Answer akzeptiert. Warte auf P2P-Verbindung...', 'loading');
+                await waitForConnection();
+
+                setStatus('🎉 P2P-Verbindung E2E-verschlüsselt hergestellt!', 'success');
+
+            } catch (e) {
+                console.error("Fehler beim Akzeptieren der Answer:", e);
+                setStatus(`🚨 Fehler beim Verbindungsaufbau: ${e.message}`, 'error');
+            }
+        }
+        
+        // =================================================================
+        // DATENKANAL-HANDLING & UI-LOGIK
+        // =================================================================
+        
+        function startP2PSync() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const message = `Hallo von Gerät ${localSDPType === 'offer' ? 'Client' : 'Chef'}! Die Verbindung ist E2E-verschlüsselt.`;
+                dataChannel.send(JSON.stringify({ type: 'TEST', message: message }));
+                document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-primary">[LOCAL] Gesendet: ${message}</div>`;
+            }
+        }
+
+        function handleDataChannelMessage(event) {
+            let message = event.data;
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'TEST') {
+                    message = `Testnachricht erhalten: ${data.message}`;
+                } else {
+                     message = "Datenpaket erhalten.";
+                }
+            } catch(e) {
+                // Nicht-JSON Nachricht
+            }
+            document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-secondary">[REMOTE] Erhalten: ${message}</div>`;
+        }
+
+        function resetUI() {
+            document.getElementById('p2p-answer-pin-input').value = '';
+            document.getElementById('p2p-offer-pin-input').value = '';
+            document.getElementById('p2p-answer-input').value = '';
+            document.getElementById('p2p-offer-input').value = '';
+
+            document.getElementById('offer-pin-display').textContent = '';
+            document.getElementById('p2p-offer-output').value = '';
+            document.getElementById('answer-pin-display').textContent = '';
+            document.getElementById('p2p-answer-output').value = '';
+
+            document.getElementById('offer-display-container').classList.add('hidden');
+            document.getElementById('answer-display-container').classList.add('hidden');
+            document.getElementById('p2p-copy-offer-btn').classList.add('hidden');
+            document.getElementById('p2p-copy-answer-btn').classList.add('hidden');
+            
+            document.getElementById('p2p-log').innerHTML = '';
+            setStatus('Status: Bereit.');
+            localSDPType = null;
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                dataChannel = null;
+            }
+        }
+        
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            element.select();
+            document.execCommand('copy');
+            setStatus(`Code aus ${elementId.includes('offer') ? 'Offer' : 'Answer'} erfolgreich in die Zwischenablage kopiert!`, 'info');
+        }
+
+
+        // =================================================================
+        // UI EVENT-LISTENERS
+        // =================================================================
+        window.onload = function() {
+            const p2p_modal = document.getElementById('p2p_modal');
+            
+            // --- Modal Open ---
+            document.getElementById('p2p-modal-btn').addEventListener('click', () => {
+                 p2p_modal.showModal();
+                 resetUI();
+            });
+            
+            // --- Offer (Client/Handy) Flow ---
+            document.getElementById('p2p-generate-offer-btn').addEventListener('click', p2pCreateOffer);
+            document.getElementById('p2p-start-pull-btn').addEventListener('click', p2pAcceptAnswerFlow);
+            document.getElementById('p2p-copy-offer-btn').addEventListener('click', () => copyToClipboard('p2p-offer-output'));
+            
+            // --- Answer (Chef/PC) Flow ---
+            document.getElementById('p2p-create-answer-btn').addEventListener('click', p2pCreateAnswerFlow);
+            document.getElementById('p2p-copy-answer-btn').addEventListener('click', () => copyToClipboard('p2p-answer-output'));
+
+            console.log('Mogul P2P-CHEF-Sync gestartet (Verschlüsselt / Kein Server).');
+        }
+    </script>
+</body>
+</html>

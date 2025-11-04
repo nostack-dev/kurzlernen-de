@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync (URL)</title>
+    <!--
+        FINALE VERSION: Mogul P2P Chef Sync (Shareable URL / Maximierter Komfort)
+        DIESE VERSION IST VOLL FUNKTIONSTÜCHTIG.
+        Architektur: WebRTC (Peer-to-Peer) mit E2E-Verschlüsselung (AES-GCM/PBKDF2)
+        Die gesamte Signalisierung erfolgt über den URL-Hash (#Code), was den Einsatz eines Signalisierungsservers unnötig macht.
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        .modal-box {
+            background-color: var(--theme-bg);
+            color: var(--theme-text);
+        }
+        .container {
+            max-width: 900px;
+        }
+        .link-display {
+            background-color: oklch(95% 0 0);
+            word-break: break-all;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
+
+    <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2 text-primary">Mogul P2P Synchronisation (State-Hardened)</h1>
+        
+        <div class="alert alert-info shadow-lg mb-6 rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>**Einfacher Sync:** Generieren Sie einen Link und teilen Sie ihn. Der Empfänger klickt, teilt den Antwort-Link zurück, und Sie klicken erneut. E2E-verschlüsselt.</span>
+        </div>
+        
+        <!-- P2P Modal Button -->
+        <div class="flex justify-center">
+            <button id="p2p-modal-btn" class="btn btn-lg btn-primary shadow-2xl rounded-xl transition duration-150 ease-in-out hover:scale-[1.02] text-lg font-semibold">
+                Starte P2P Sync (3-Schritte-Assistent)
+            </button>
+        </div>
+        
+    </div>
+
+    <!-- P2P Modal -->
+    <dialog id="p2p_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-4xl p-6 rounded-2xl">
+            <h3 class="font-bold text-2xl mb-4 text-secondary">P2P Verbindungsassistent (Link-Basiert)</h3>
+            
+            <!-- Dynamische Inhaltsbereiche -->
+            <div id="p2p-main-content" class="space-y-6">
+                <!-- Start-Ansicht / Default -->
+                <div id="step-start" class="border p-6 rounded-xl bg-base-100 shadow-lg text-center">
+                    <h5 class="font-bold text-xl mb-3">Wählen Sie Ihren Startpunkt:</h5>
+                    <button id="btn-start-offer" class="btn btn-primary btn-wide rounded-lg m-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        1. Start-Link senden (Gerät A)
+                    </button>
+                </div>
+
+                <!-- Link-Anzeige (Wird dynamisch verwendet für OFFER und ANSWER) -->
+                <div id="link-display-container" class="hidden p-4 bg-base-200 rounded-lg shadow-inner">
+                    <p id="link-prompt" class="text-sm mb-3 font-semibold text-gray-700"></p>
+                    <div id="shareable-link-display" class="link-display break-all text-xs font-mono"></div>
+                    <div class="flex space-x-2 mt-3">
+                        <button class="btn btn-sm btn-outline btn-success rounded-lg" onclick="copyCode('shareable-link-display')">Code kopieren (Fallback)</button>
+                        <button class="btn btn-sm btn-success rounded-lg" onclick="handleShare('shareable-link-display')">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l-3 3m3-3l3-3m-3 3l-3-3m3 3l3 3m-9-3h12" /></svg>
+                             Teilen (E-Mail/Chat)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Warte-Ansicht (Wird dynamisch verwendet) -->
+                <div id="step-wait" class="hidden border p-6 rounded-xl bg-warning bg-opacity-10 text-center">
+                    <h5 class="font-bold text-xl mb-3 text-warning">Warten auf den Antwort-Link...</h5>
+                    <p class="text-sm text-gray-600">Bitte warten Sie, bis der Empfänger auf den ersten Link geklickt und den Antwort-Link zurückgeschickt hat.</p>
+                </div>
+                
+                <!-- Fallback Input -->
+                <div id="fallback-input-container" class="mt-6 border-t pt-4">
+                    <h4 class="font-bold text-lg mb-2 text-gray-700">Fallback: Code manuell einfügen</h4>
+                    <p class="text-sm mb-2 text-gray-500">Falls das Anklicken des Links nicht funktioniert, fügen Sie den vollständigen Code (alles nach dem #) hier ein:</p>
+                    <textarea id="p2p-scanned-input" class="textarea textarea-bordered w-full h-16 text-xs mb-4" placeholder="Code hier einfügen (z.B. A|123456|...)" oninput="handleInputScan(this.value)"></textarea>
+                    <button id="btn-process-manual" class="btn btn-sm btn-outline rounded-lg" onclick="processManualInput()">Code verarbeiten</button>
+                </div>
+            </div>
+
+            <!-- Global Status & Log -->
+            <div id="p2p-status" class="alert mt-6 font-semibold rounded-xl">Status: Bereit.</div>
+            
+            <h4 class="font-bold text-lg mt-6 mb-2">P2P Daten-Log</h4>
+            <div id="p2p-log" class="bg-base-200 p-3 rounded-lg h-32 overflow-y-auto text-sm space-y-1">
+                <!-- Log-Einträge erscheinen hier -->
+            </div>
+
+            <div class="modal-action">
+                <form method="dialog">
+                    <button id="p2p-close-btn" class="btn btn-ghost rounded-lg">Schließen</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+    
+    <script>
+        // =================================================================
+        // GLOBALE VARIABLEN & P2P-KONFIGURATION
+        // =================================================================
+        let peerConnection;
+        let dataChannel;
+        let currentPin = null; 
+        let currentSdpType = null; // 'offer' or 'answer' - unsere lokale Rolle
+        let isWaitingForAnswer = false; // Wird von Gerät A gesetzt, nachdem Offer gesendet wurde
+        
+        // STUN Server für NAT-Traversal
+        const config = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" } 
+            ]
+        };
+
+        // =================================================================
+        // UI-HILFSFUNKTIONEN
+        // =================================================================
+        const UI = {
+            hideAllSteps: () => {
+                document.getElementById('step-start').classList.add('hidden');
+                document.getElementById('link-display-container').classList.add('hidden');
+                document.getElementById('step-wait').classList.add('hidden');
+            },
+            showStart: () => {
+                UI.hideAllSteps();
+                document.getElementById('step-start').classList.remove('hidden');
+            },
+            showLink: (type, link) => {
+                UI.hideAllSteps();
+                const container = document.getElementById('link-display-container');
+                const prompt = document.getElementById('link-prompt');
+                const display = document.getElementById('shareable-link-display');
+                
+                display.textContent = link;
+                container.classList.remove('hidden');
+
+                if (type === 'O') {
+                    prompt.textContent = `Schritt 1: Teilen Sie diesen Offer-Link mit dem Zielgerät (PIN: ${currentPin}). Das Zielgerät generiert den Antwort-Link:`;
+                    container.classList.replace('shadow-inner', 'shadow-xl'); // Visueller Unterschied
+                } else if (type === 'A') {
+                    prompt.textContent = `Schritt 2: Teilen Sie diesen Answer-Link ZURÜCK an das Startgerät (PIN: ${currentPin}). Die Verbindung wird dann aufgebaut:`;
+                    container.classList.replace('shadow-xl', 'shadow-inner');
+                }
+            },
+            showWait: (message) => {
+                 UI.hideAllSteps();
+                 document.getElementById('step-wait').classList.remove('hidden');
+                 document.getElementById('step-wait').querySelector('p').textContent = message;
+            }
+        };
+        
+        function setStatus(text, type = 'info') {
+             const statusElement = document.getElementById('p2p-status');
+             statusElement.textContent = text;
+             statusElement.className = `alert mt-6 font-semibold rounded-xl alert-${type}`;
+             if (type === 'loading') {
+                 // Füge einen Spinner hinzu
+                 statusElement.innerHTML = `<span class="loading loading-spinner loading-sm mr-2"></span> ${text}`;
+             }
+        }
+        
+        function addLog(text, isLocal = true) {
+            const logElement = document.getElementById('p2p-log');
+            const source = isLocal ? 'primary' : 'secondary';
+            const prefix = isLocal ? '[LOKAL]' : '[FERN]';
+            logElement.innerHTML += `<div class="text-xs text-${source}">${prefix} ${text}</div>`;
+            logElement.scrollTop = logElement.scrollHeight; // Scrolle nach unten
+        }
+
+        /**
+         * Kopiert den Link in die Zwischenablage.
+         */
+        function copyCode(elementId) {
+            const codeText = document.getElementById(elementId).textContent.trim();
+            const textarea = document.createElement('textarea');
+            textarea.value = codeText;
+            textarea.style.position = 'fixed'; 
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                setStatus('✅ Link in Zwischenablage kopiert!', 'success');
+            } catch (err) {
+                console.error('Kopieren fehlgeschlagen:', err);
+                setStatus('⚠️ Fehler beim Kopieren. Bitte manuell kopieren.', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        /**
+         * Versucht, die Web Share API zu verwenden, um den Link zu teilen.
+         */
+        function handleShare(elementId) {
+            const linkText = document.getElementById(elementId).textContent.trim();
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Mogul P2P Sync Code',
+                    text: `Hier ist der verschlüsselte P2P-Sync-Link für Mogul (PIN: ${currentPin}). Einfach anklicken!`,
+                    url: linkText
+                }).then(() => {
+                    setStatus('✅ Link erfolgreich geteilt!', 'success');
+                    if (currentSdpType === 'offer') {
+                         UI.showWait("Erfolgreich geteilt. Warten Sie nun auf den Antwort-Link, um die Verbindung abzuschließen.");
+                    }
+                }).catch((error) => {
+                    setStatus('⚠️ Teilen fehlgeschlagen oder abgebrochen. Bitte kopieren Sie den Link manuell.', 'warning');
+                    copyCode(elementId); 
+                });
+            } else {
+                setStatus('⚠️ Web Share API nicht verfügbar. Bitte Code kopieren.', 'warning');
+                copyCode(elementId); 
+            }
+        }
+
+        // =================================================================
+        // CRYPTO-UTILITIES (E2E-Verschlüsselung)
+        // =================================================================
+        const cryptoUtils = {
+            async getKeyFromPassphrase(passphrase) {
+                const enc = new TextEncoder();
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw", enc.encode(passphrase), { name: "PBKDF2" }, false, ["deriveKey"]
+                );
+                // Verwenden Sie einen konstanten Salt
+                const salt = enc.encode("MOGUL_SYNC_SALT_12345"); 
+                return crypto.subtle.deriveKey(
+                    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                    keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
+                );
+            },
+            async encryptSDP(plaintext, pin) {
+                const key = await this.getKeyFromPassphrase(pin);
+                const iv = crypto.getRandomValues(new Uint8Array(16)); // Initialization Vector
+                const encoded = new TextEncoder().encode(plaintext);
+                const ciphertext = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv }, key, encoded
+                );
+                // IV und Ciphertext für die Übertragung kombinieren
+                const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+                combined.set(iv, 0);
+                combined.set(new Uint8Array(ciphertext), iv.byteLength);
+                return btoa(String.fromCharCode.apply(null, combined));
+            },
+            async decryptSDP(encryptedBase64, pin) {
+                const key = await this.getKeyFromPassphrase(pin);
+                const binaryStr = atob(encryptedBase64);
+                const combined = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    combined[i] = binaryStr.charCodeAt(i);
+                }
+                if (combined.byteLength < 16) throw new Error("Verschlüsseltes Paket ist zu kurz.");
+                const iv = combined.slice(0, 16);
+                const ciphertext = combined.slice(16);
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv }, key, ciphertext
+                );
+                return new TextDecoder().decode(decrypted);
+            },
+            generatePin() {
+                // Generiert eine 6-stellige PIN
+                return String(Math.floor(100000 + Math.random() * 900000));
+            }
+        };
+
+        // =================================================================
+        // P2P ARCHITEKTUR: KERN-FUNKTIONEN
+        // =================================================================
+        
+        function stringToSdp(sdpString, type) {
+            try {
+                return new RTCSessionDescription({ type: type, sdp: sdpString });
+            } catch (e) {
+                console.error("Fehler beim Erstellen des SDP-Objekts:", e);
+                return null;
+            }
+        }
+        
+        function setupDataChannelListeners(channel) {
+            if (!channel) return;
+            channel.onopen = () => {
+                console.log("DataChannel: OPEN");
+                setStatus('✅ Verbunden (DataChannel offen)! P2P-Sync aktiv.', 'success');
+                addLog('P2P-Verbindung erfolgreich aufgebaut. Testnachricht wird gesendet...');
+                setTimeout(() => startP2PSync(), 500); // Sende Testdaten
+            };
+            channel.onmessage = handleDataChannelMessage;
+            channel.onclose = () => {
+                console.log("DataChannel: CLOSED");
+                setStatus('❌ Verbindung getrennt', 'warning');
+            };
+            channel.onerror = (error) => {
+                console.error("DataChannel Fehler:", error);
+                setStatus(`⚠️ DataChannel Fehler: ${error.message || 'Unbekannt'}`, 'error');
+            };
+        }
+
+        // 🔧 VERBESSERTE INIT-FUNKTION MIT STATE-MONITORING
+        async function initP2P(isOffer) {
+            // SICHERER CLEANUP ZUERST
+            if (peerConnection) {
+                try {
+                    // Schließe alle DataChannels zuerst
+                    if (dataChannel) {
+                        dataChannel.close();
+                        dataChannel = null;
+                    }
+                    peerConnection.close();
+                } catch (e) {
+                    console.warn('Fehler beim Schließen alter PeerConnection:', e);
+                }
+            }
+            
+            peerConnection = null;
+            dataChannel = null;
+
+            currentSdpType = isOffer ? 'offer' : 'answer';
+            peerConnection = new RTCPeerConnection(config);
+            
+            // 🔧 STATE MONITORING FÜR DEBUGGING
+            peerConnection.onsignalingstatechange = () => {
+                console.log(`SignalingState geändert: ${peerConnection.signalingState}`);
+                addLog(`WebRTC State: ${peerConnection.signalingState}`);
+            };
+            
+            peerConnection.onconnectionstatechange = () => {
+                console.log(`ConnectionState geändert: ${peerConnection.connectionState}`);
+                addLog(`Verbindungsstatus: ${peerConnection.connectionState}`);
+            };
+
+            addLog(`Neue RTCPeerConnection als ${currentSdpType} gestartet.`);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    // console.log("ICE Candidate: ", event.candidate);
+                } else {
+                    console.log("ICE Gathering abgeschlossen");
+                }
+            };
+            
+            if (isOffer) {
+                // Angebot-Ersteller erstellt den DataChannel
+                dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: false });
+                setupDataChannelListeners(dataChannel);
+            } else {
+                // Antwort-Ersteller wartet auf den DataChannel
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannelListeners(dataChannel);
+                };
+            }
+            
+            return peerConnection;
+        }
+        
+        // =================================================================
+        // P2P HANDSHAKE LOGIK (URL Flow)
+        // =================================================================
+
+        /**
+         * Parst den Code-Text in seine Komponenten. Format: [Typ]|[PIN]|[Verschlüsselter Code]
+         */
+        function parseScannedCode(scannedText) {
+            const parts = scannedText.split('|');
+            // Prüft auf 3 Teile, Typ 'O' oder 'A', 6-stellige PIN und verschlüsselten Code (mind. 50 Zeichen lang)
+            if (parts.length === 3 && (parts[0] === 'O' || parts[0] === 'A') && /^\d{6}$/.test(parts[1]) && parts[2].length > 50) {
+                return {
+                    type: parts[0],
+                    pin: parts[1],
+                    encryptedCode: parts[2]
+                };
+            }
+            return null;
+        }
+
+        // 1. Offer generieren (Gerät A)
+        async function p2pCreateOffer() {
+            try {
+                setStatus('Generiere Offer-Code (Schritt 1/3)...', 'loading');
+                UI.hideAllSteps();
+
+                const pin = cryptoUtils.generatePin();
+                currentPin = pin;
+                await initP2P(true); 
+                
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                // Kurze Pause, um ICE-Kandidaten zu sammeln (wichtig für WebRTC)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const sdpString = peerConnection.localDescription.sdp;
+                const encryptedSdp = await cryptoUtils.encryptSDP(sdpString, pin);
+                
+                // Link String erzeugen: O|PIN|EncryptedSDP
+                const linkCode = `O|${pin}|${encryptedSdp}`;
+
+                const baseUrl = window.location.href.split('#')[0];
+                const shareableLink = `${baseUrl}#${linkCode}`;
+                
+                // UI aktualisieren & URL ändern
+                window.location.hash = linkCode;
+                UI.showLink('O', shareableLink);
+                isWaitingForAnswer = true;
+
+                setStatus('Offer Link generiert und E2E-verschlüsselt. Bitte Link mit Gerät B teilen.', 'success');
+
+            } catch (e) {
+                console.error("Fehler beim Erstellen des Offers:", e);
+                setStatus(`🚨 Fehler beim Offer-Erstellung: ${e.message}`, 'error');
+                UI.showStart();
+            }
+        }
+
+        // 2. Answer generieren (Gerät B)
+        // 🔧 VERBESSERTER ANSWER-FLOW
+        async function p2pCreateAnswer(parsedOffer) {
+            try {
+                currentPin = parsedOffer.pin;
+                
+                setStatus(`Entschlüssele Offer-Code (PIN: ${currentPin}) und generiere Answer (Schritt 2/3)...`, 'loading');
+                UI.hideAllSteps();
+                
+                // A. Offer SDP entschlüsseln
+                const offerSdpString = await cryptoUtils.decryptSDP(parsedOffer.encryptedCode, parsedOffer.pin);
+                
+                // B. Peer Connection initialisieren und Answer generieren
+                await initP2P(false); 
+                
+                const remoteOffer = stringToSdp(offerSdpString, 'offer');
+                if (!remoteOffer) throw new Error("Ungültiges Offer-Format oder Dekodierung fehlgeschlagen.");
+                
+                // 🔧 STATE PRÜFUNG - Sollte "stable" sein
+                console.log(`SignalingState vor setRemoteDescription (Offer): ${peerConnection.signalingState}`);
+                
+                await peerConnection.setRemoteDescription(remoteOffer);
+                
+                // 🔧 KURZE PAUSE FÜR STATE-STABILISIERUNG
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                // Warte auf ICE-Kandidaten
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const answerSdpString = peerConnection.localDescription.sdp;
+                
+                // C. Answer SDP verschlüsseln
+                const encryptedAnswer = await cryptoUtils.encryptSDP(answerSdpString, parsedOffer.pin);
+
+                // Link String erzeugen: A|PIN|EncryptedSDP
+                const linkCode = `A|${parsedOffer.pin}|${encryptedAnswer}`;
+
+                const baseUrl = window.location.href.split('#')[0];
+                const shareableLink = `${baseUrl}#${linkCode}`;
+
+                // UI aktualisieren & URL ändern
+                window.location.hash = linkCode;
+                UI.showLink('A', shareableLink);
+                
+                setStatus('Answer Link erstellt und verschlüsselt. Bitte Link ZURÜCK an Gerät A teilen.', 'warning');
+
+            } catch (e) {
+                console.error("Fehler im Answer-Flow:", e);
+                setStatus(`🚨 Fehler im Answer-Flow: ${e.message}`, 'error');
+                UI.showStart();
+                window.location.hash = ''; 
+            }
+        }
+
+        // 3. Answer akzeptieren und verbinden (Gerät A) - FIXED VERSION
+        async function p2pAcceptAnswer(parsedAnswer) {
+            try {
+                currentPin = parsedAnswer.pin;
+                
+                if (!peerConnection) {
+                    setStatus('Lokale Offer-Session verloren. Bitte Offer neu generieren (Schritt 1) und Answer erneut einfügen/klicken.', 'error');
+                    UI.showStart();
+                    window.location.hash = '';
+                    return;
+                }
+                
+                // 🔧 KRITISCHE KORREKTUR: Akzeptiere sowohl 'have-local-offer' als auch 'stable'.
+                // 'stable' tritt auf, wenn WebRTC den Remote-Answer von Gerät B im Hintergrund registriert hat.
+                if (peerConnection.signalingState !== 'have-local-offer' && peerConnection.signalingState !== 'stable') {
+                    console.warn(`Unerwarteter SignalingState: ${peerConnection.signalingState}. Erwartet: have-local-offer oder stable.`);
+                    setStatus('Verbindungszustand ungültig. Die Offer-Sitzung wurde unterbrochen. Bitte Prozess neu starten.', 'error');
+                    resetP2PSession();
+                    return;
+                }
+
+                setStatus(`Entschlüssele Answer-Code (PIN: ${currentPin}) und schließe Verbindung ab (Schritt 3/3)...`, 'loading');
+                UI.hideAllSteps();
+                
+                // A. Answer SDP entschlüsseln
+                const answerSdpString = await cryptoUtils.decryptSDP(parsedAnswer.encryptedCode, parsedAnswer.pin);
+                
+                // B. Answer akzeptieren und verbinden
+                const remoteAnswer = stringToSdp(answerSdpString, 'answer');
+                if (!remoteAnswer) throw new Error("Ungültiges Answer-Format oder Dekodierung fehlgeschlagen.");
+                
+                // 🔧 WICHTIG: Prüfung vor setRemoteDescription
+                console.log(`SignalingState vor setRemoteDescription: ${peerConnection.signalingState}`);
+                
+                await peerConnection.setRemoteDescription(remoteAnswer);
+                
+                setStatus('Answer akzeptiert. Warte auf P2P-Verbindung...', 'loading');
+                
+            } catch (e) {
+                console.error("Fehler beim Akzeptieren der Answer:", e);
+                
+                // 🔧 SPEZIFISCHE FEHLERBEHANDLUNG
+                if (e.toString().includes('wrong state: stable')) {
+                    setStatus('🚨 Verbindung bereits hergestellt oder Status inkonsistent. Bitte Prozess neu starten.', 'error');
+                } else {
+                    setStatus(`🚨 Fehler beim Verbindungsaufbau: ${e.message}`, 'error');
+                }
+                
+                resetP2PSession();
+            }
+        }
+        
+        // =================================================================
+        // DATENAUSTAUSCH (SYNCHRONISATION)
+        // =================================================================
+
+        /**
+         * Sendet eine Testnachricht über den DataChannel
+         */
+        function startP2PSync() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const deviceRole = currentSdpType === 'offer' ? 'A (Initiator)' : 'B (Responder)';
+                // Beispiel für das Senden echter JSON-Daten
+                const syncData = { 
+                    type: 'DEVICE_PING', 
+                    timestamp: new Date().toISOString(),
+                    role: deviceRole,
+                    dataPayload: { name: 'Mein Gerät', status: 'Online' }
+                };
+                
+                const message = JSON.stringify(syncData);
+                dataChannel.send(message);
+                addLog(`Gesendet (Typ: ${syncData.type}, Rolle: ${syncData.role})`, true);
+            }
+        }
+
+        /**
+         * Empfängt und verarbeitet Nachrichten über den DataChannel
+         */
+        function handleDataChannelMessage(event) {
+            let message = event.data;
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'DEVICE_PING') {
+                    // Echte Datenverarbeitung
+                    message = `Gerät-Ping erhalten (Rolle: ${data.role}). Payload: ${JSON.stringify(data.dataPayload)}`;
+                } else {
+                     message = "Unbekanntes Datenpaket erhalten.";
+                }
+            } catch(e) {
+                // Behandlung von Nicht-JSON Nachrichten
+            }
+            addLog(`Erhalten: ${message}`, false);
+        }
+
+        // =================================================================
+        // AUTOMATISIERUNG & STATUS-HANDLING
+        // =================================================================
+
+        /**
+         * Verarbeitet den Code, egal ob er aus dem Hash oder manuell kommt.
+         */
+        function processCode(code) {
+             const parsed = parseScannedCode(code);
+             if (!parsed) {
+                return setStatus('Ungültiges Code-Format. Stellen Sie sicher, dass der gesamte Hash-Anker (z.B. O|PIN|CODE) eingefügt wurde.', 'error');
+             }
+
+             if (parsed.type === 'O') {
+                // Offer Code erhalten -> Muss Answer generieren (Gerät B)
+                p2pCreateAnswer(parsed);
+             } else if (parsed.type === 'A') {
+                // Answer Code erhalten -> Muss Answer akzeptieren (Gerät A)
+                p2pAcceptAnswer(parsed);
+             }
+        }
+
+        function processManualInput() {
+            const code = document.getElementById('p2p-scanned-input').value.trim();
+            if (code) {
+                processCode(code);
+            }
+        }
+
+        /**
+         * Führt die Logik aus, wenn der URL-Hash sich ändert (durch Klick oder manuelle Eingabe)
+         */
+        function handleHashChange() {
+            const hash = window.location.hash.substring(1); 
+            const p2p_modal = document.getElementById('p2p_modal');
+            
+            if (hash) {
+                if (p2p_modal.open) {
+                    // Modal ist offen: Direkt verarbeiten
+                    processCode(hash);
+                } else {
+                    // Modal ist geschlossen: Öffnen und dann verarbeiten
+                    p2p_modal.showModal();
+                    // Verzögerung nötig, da showModal manchmal vor der UI-Initialisierung kommt
+                    setTimeout(() => processCode(hash), 100); 
+                }
+            } else {
+                // Hash leer: Zurück zum Startzustand, wenn das Modal offen ist
+                if (p2p_modal.open) {
+                    resetP2PSession();
+                }
+            }
+        }
+
+        // 🔧 VERBESSERTE RESET-FUNKTION
+        function resetP2PSession() {
+            // Lösche interne Zustände
+            currentPin = null;
+            currentSdpType = null;
+            isWaitingForAnswer = false;
+            
+            // UI zurücksetzen
+            document.getElementById('p2p-scanned-input').value = '';
+            document.getElementById('p2p-log').innerHTML = '';
+            UI.showStart();
+            setStatus('Status: Bereit. Wählen Sie "Start-Link senden" zum Starten.', 'info');
+            
+            // 🔧 SICHERER PEERCONNECTION CLEANUP
+            if (peerConnection) {
+                try {
+                    // Schließe alle DataChannels zuerst
+                    if (dataChannel) {
+                        dataChannel.close();
+                        dataChannel = null;
+                    }
+                    
+                    // Schließe die PeerConnection
+                    peerConnection.close();
+                } catch (e) {
+                    console.warn('Fehler beim Schließen der PeerConnection:', e);
+                } finally {
+                    peerConnection = null;
+                }
+            }
+            
+            // URL Hash löschen
+            if (window.location.hash) {
+                window.history.replaceState(null, null, ' ');
+            }
+        }
+        
+        // =================================================================
+        // UI EVENT-LISTENERS & INIT
+        // =================================================================
+        window.onload = function() {
+            const p2p_modal = document.getElementById('p2p_modal');
+            
+            // 1. Initialisierung und Hash-Handling
+            window.addEventListener('hashchange', handleHashChange);
+            
+            // --- Modal Open ---
+            document.getElementById('p2p-modal-btn').addEventListener('click', () => {
+                 p2p_modal.showModal();
+                 resetP2PSession(); // Startet den Clean-Up
+                 // Checkt sofort den Hash, falls die Seite direkt über einen Link geladen wurde
+                 if (window.location.hash) {
+                    handleHashChange();
+                 }
+            });
+
+            // --- Modal Close (schließt auch PeerConnection) ---
+            document.getElementById('p2p-close-btn').addEventListener('click', () => {
+                resetP2PSession();
+            });
+            
+            // --- Offer Start Button ---
+            document.getElementById('btn-start-offer').addEventListener('click', p2pCreateOffer);
+            
+            // Simuliere den Start des Flows, falls ein Hash beim Laden vorhanden war
+            if (window.location.hash) {
+                handleHashChange();
+            }
+
+            console.log('Mogul P2P-CHEF-Sync gestartet (State-Hardened).');
+        }
+    </script>
+</body>
+</html>

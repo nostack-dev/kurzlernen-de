@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul P2P Sync</title>
+    <!--
+        FINALE VERSION: Mogul P2P Chef Sync (Produktionsreif + UX-Fix)
+        Architektur: Deadlock-frei.
+        UX-Fix: "Kopieren" Button und automatische Selektion des Codes.
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        html[data-theme="corporate"] {
+            --theme-bg: oklch(100% 0 0);
+            --theme-text: oklch(0% 0 0);
+        }
+        
+        .modal-box {
+            background-color: var(--theme-bg);
+            color: var(--theme-text);
+        }
+
+        .container {
+            max-width: 900px;
+        }
+
+    </style>
+</head>
+<body data-theme="corporate" class="min-h-screen bg-base-200 p-4">
+
+    <div class="container mx-auto bg-base-100 shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 border-b pb-2">Mogul P2P Synchronisation</h1>
+        
+        <div class="alert alert-info shadow-lg mb-6 rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Die WebRTC-Logik ist stabil. Jetzt mit UX-Verbesserungen für den Code-Austausch.</span>
+        </div>
+        
+        <!-- P2P Modal Button -->
+        <div class="flex justify-center">
+            <button id="p2p-modal-btn" class="btn btn-lg btn-success shadow-md rounded-xl transition duration-150 ease-in-out hover:scale-[1.02]">
+                Starte P2P Sync
+            </button>
+        </div>
+        
+        <!-- Dummy-Geräteliste -->
+        <h2 class="text-xl font-bold mt-8 mb-4">Simulierte lokale Daten</h2>
+        <div id="device-list" class="space-y-2">
+            <div class="badge badge-outline">PC-CHEF-001 (Aktuell)</div>
+        </div>
+    </div>
+
+    <!-- P2P Modal -->
+    <dialog id="p2p_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl p-6 rounded-2xl">
+            <h3 class="font-bold text-2xl mb-4">P2P Verbindungsassistent</h3>
+            
+            <div class="tabs mb-4">
+                <input type="radio" id="tab-offer" name="p2p_tabs" role="tab" class="tab rounded-t-xl" aria-label="Client (Handy) - Offer" checked />
+                <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-b-xl p-6">
+                    <h4 class="font-semibold text-lg mb-2">Offer-Seite (Client)</h4>
+                    <p class="text-sm mb-4">Gerät, das die Verbindung initiiert (Handy). 2 Schritte erforderlich.</p>
+                    
+                    <button id="p2p-generate-offer-btn" class="btn btn-sm btn-primary rounded-lg">1. Offer generieren</button>
+                    
+                    <h5 class="font-bold mt-4 mb-1 flex justify-between items-center">
+                        Generierter Code (Offer)
+                        <button id="copy-offer-btn" class="btn btn-xs btn-outline btn-primary rounded-full" disabled>Kopieren</button>
+                    </h5>
+                    <textarea id="p2p-offer-output" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg cursor-pointer" placeholder="Hier erscheint der generierte Offer-Code zum Kopieren"></textarea>
+                    
+                    <h5 class="font-bold mb-1">Answer Code des Chefs eingeben</h5>
+                    <textarea id="p2p-answer-input" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg" placeholder="Hier den Answer-Code vom Chef einfügen"></textarea>
+
+                    <button id="p2p-start-pull-btn" class="btn btn-sm btn-success rounded-lg">2. Verbindung herstellen (Answer akzeptieren)</button>
+                </div>
+                
+                <input type="radio" id="tab-answer" name="p2p_tabs" role="tab" class="tab rounded-t-xl" aria-label="Chef (PC) - Answer" />
+                <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-b-xl p-6">
+                    <h4 class="font-semibold text-lg mb-2">Answer-Seite (Chef / PC)</h4>
+                    <p class="text-sm mb-4">Gerät, das auf eine Anfrage reagiert (PC).</p>
+
+                    <h5 class="font-bold mb-1">Offer Code des Clients eingeben</h5>
+                    <textarea id="p2p-answer-input-answer" class="textarea textarea-bordered w-full h-24 mb-4 rounded-lg" placeholder="Hier den Offer-Code vom Client einfügen"></textarea>
+
+                    <button id="p2p-create-answer-btn" class="btn btn-sm btn-primary rounded-lg">1. Answer generieren</button>
+                    
+                    <h5 class="font-bold mt-4 mb-1 flex justify-between items-center">
+                        Generierter Code (Answer)
+                        <button id="copy-answer-btn" class="btn btn-xs btn-outline btn-primary rounded-full" disabled>Kopieren</button>
+                    </h5>
+                    <textarea id="p2p-offer-output-answer" class="textarea textarea-bordered w-full h-24 rounded-lg cursor-pointer" placeholder="Hier erscheint der generierte Answer-Code zum Kopieren"></textarea>
+                </div>
+            </div>
+
+            <!-- Global Status & Log -->
+            <div id="p2p-status" class="alert mt-4 font-semibold rounded-xl">Status: Bereit.</div>
+            
+            <h4 class="font-bold text-lg mt-6 mb-2">P2P Daten-Log</h4>
+            <div id="p2p-log" class="bg-base-200 p-3 rounded-lg h-32 overflow-y-auto text-sm space-y-1">
+                <!-- Log-Einträge erscheinen hier -->
+            </div>
+
+            <div class="modal-action">
+                <form method="dialog">
+                    <button id="p2p-close-btn" class="btn btn-ghost rounded-lg">Schließen</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+    
+    <script>
+        // =================================================================
+        // GLOBALE VARIABLEN & P2P-KONFIGURATION
+        // =================================================================
+        let peerConnection;
+        let dataChannel;
+        let p2pIsOffer = true; 
+        let p2pOfferGenerated = false; 
+        
+        const config = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" } // Google STUN-Server
+            ]
+        };
+
+        // =================================================================
+        // HILFSFUNKTIONEN (SDP-Kodierung/Dekodierung)
+        // =================================================================
+
+        /**
+         * Kodiert den reinen SDP-String in Base64.
+         * @param {RTCSessionDescription} sdpObject
+         * @returns {string} Base64-String des SDP-Inhalts.
+         */
+        function sdpToBase64(sdpObject) {
+            return btoa(sdpObject.sdp);
+        }
+
+        /**
+         * Dekodiert den Base64-String zurück in ein RTCSessionDescription-Objekt.
+         * @param {string} base64 Base64-String des SDP-Inhalts.
+         * @param {'offer'|'answer'} type Der Typ des SDP ('offer' oder 'answer').
+         * @returns {RTCSessionDescription | null}
+         */
+        function base64ToSdp(base64, type) {
+            if (!type) {
+                console.error("Fehler: Typ ('offer' oder 'answer') fehlt für SDP-Dekodierung.");
+                return null;
+            }
+            try {
+                return new RTCSessionDescription({
+                    type: type, 
+                    sdp: atob(base64)
+                });
+            } catch (e) {
+                console.error("Fehler beim Dekodieren des SDP-Strings:", e);
+                return null;
+            }
+        }
+
+        // =================================================================
+        // P2P ARCHITEKTUR: Deadlock-freie Funktionen
+        // =================================================================
+
+        // Listener für den DataChannel setzen (Datenverkehr, Statusänderungen)
+        function setupDataChannelListeners(channel) {
+            if (!channel) return;
+            // Entferne alte Listener
+            channel.onopen = null;
+            channel.onclose = null;
+            channel.onmessage = null;
+            channel.onerror = null;
+
+            channel.onopen = () => {
+                console.log("DataChannel: OPEN");
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-success rounded-xl';
+                document.getElementById('p2p-status').textContent = '✅ Verbunden (DataChannel offen)! Sync kann starten.';
+                
+                // Nach erfolgreicher Verbindung einen Test senden
+                setTimeout(() => startP2PSync(), 500);
+            };
+            channel.onmessage = handleDataChannelMessage;
+            channel.onclose = () => {
+                console.log("DataChannel: CLOSED");
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-warning rounded-xl';
+                document.getElementById('p2p-status').textContent = '❌ Verbindung getrennt';
+            };
+            channel.onerror = (error) => {
+                console.error("DataChannel Fehler:", error);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
+                document.getElementById('p2p-status').textContent = `⚠️ Fehler: ${error.message || 'Unbekannt'}`;
+            };
+        }
+
+        async function waitForConnection() {
+            return new Promise((resolve, reject) => {
+                if (!dataChannel) {
+                    return reject(new Error("DataChannel nicht initialisiert."));
+                }
+                
+                if (dataChannel.readyState === 'open') {
+                    resolve(dataChannel);
+                } else {
+                    const onOpenOnce = () => {
+                        setupDataChannelListeners(dataChannel); 
+                        resolve(dataChannel);
+                    };
+                    const onErrorOnce = (e) => {
+                        dataChannel.onopen = null;
+                        dataChannel.onerror = null;
+                        reject(new Error(`Verbindungsfehler im Handshake: ${e.message}`));
+                    };
+
+                    dataChannel.onopen = onOpenOnce;
+                    dataChannel.onerror = onErrorOnce;
+                }
+            });
+        }
+        
+        async function initP2P(isOffer) {
+            // Cleanup vor dem Start
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                dataChannel = null;
+            }
+            p2pOfferGenerated = false;
+
+            peerConnection = new RTCPeerConnection(config);
+            document.getElementById('p2p-status').className = 'alert mt-4 font-semibold rounded-xl';
+            document.getElementById('p2p-status').textContent = '... Verbindungsaufbau gestartet (ICE sammeln)...';
+
+            peerConnection.onicecandidate = (event) => {
+                if (!event.candidate) {
+                    console.log("ICE-Kandidatenerfassung abgeschlossen.");
+                }
+            };
+            
+            if (isOffer) {
+                dataChannel = peerConnection.createDataChannel("mogul-sync-channel", { negotiated: false });
+                setupDataChannelListeners(dataChannel);
+            } else {
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannelListeners(dataChannel);
+                };
+            }
+            
+            return peerConnection;
+        }
+
+        // =================================================================
+        // P2P HANDSHAKE LOGIK
+        // =================================================================
+
+        // 1. Offer generieren (Offer-Seite / Client)
+        async function p2pCreateOffer() {
+            try {
+                await initP2P(true); 
+                
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const sdpString = sdpToBase64(peerConnection.localDescription);
+                document.getElementById('p2p-offer-output').value = sdpString;
+                
+                p2pOfferGenerated = true;
+                document.getElementById('p2p-status').textContent = 'Offer erstellt. Bitte Code auf Chef-Gerät eingeben und Answer-Code hier erwarten.';
+
+                // UX: Kopieren-Button aktivieren
+                document.getElementById('copy-offer-btn').disabled = false;
+
+            } catch (e) {
+                console.error("Fehler beim Erstellen des Offers:", e);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
+                document.getElementById('p2p-status').textContent = `🚨 Fehler beim Offer-Erstellung: ${e.message}`;
+            }
+        }
+
+        // 2. Answer erstellen (Answer-Seite / Chef)
+        async function p2pCreateAnswer(offerBase64) {
+            try {
+                await initP2P(false); 
+                
+                const remoteOffer = base64ToSdp(offerBase64, 'offer');
+                if (!remoteOffer) throw new Error("Ungültiges Offer-Format oder Dekodierung fehlgeschlagen.");
+                
+                await peerConnection.setRemoteDescription(remoteOffer);
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const sdpString = sdpToBase64(peerConnection.localDescription);
+                document.getElementById('p2p-offer-output-answer').value = sdpString;
+                
+                document.getElementById('p2p-status').textContent = 'Answer erstellt. Bitte Code auf Client-Gerät eingeben. Warte auf Verbindung...';
+                
+                // UX: Kopieren-Button aktivieren
+                document.getElementById('copy-answer-btn').disabled = false;
+
+                await waitForConnection();
+
+                document.getElementById('p2p-status').textContent = '🎉 P2P-Verbindung erfolgreich hergestellt!';
+
+            } catch (e) {
+                console.error("Fehler beim Erstellen der Answer:", e);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
+                document.getElementById('p2p-status').textContent = `🚨 Fehler beim Answer-Erstellung: ${e.message}`;
+            }
+        }
+
+        // 3. Answer akzeptieren (Offer-Seite / Client)
+        async function p2pAcceptAnswer(answerBase64) {
+            try {
+                if (!peerConnection) {
+                    throw new Error("Bitte zuerst Offer generieren (Schritt 1).");
+                }
+                
+                const remoteAnswer = base64ToSdp(answerBase64, 'answer');
+                if (!remoteAnswer) throw new Error("Ungültiges Answer-Format oder Dekodierung fehlgeschlagen.");
+                
+                await peerConnection.setRemoteDescription(remoteAnswer);
+                
+                document.getElementById('p2p-status').textContent = 'Answer akzeptiert. Warte auf P2P-Verbindung...';
+                await waitForConnection();
+
+                document.getElementById('p2p-status').textContent = '🎉 P2P-Verbindung erfolgreich hergestellt!';
+
+            } catch (e) {
+                console.error("Fehler beim Akzeptieren der Answer oder Wartezeit:", e);
+                document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
+                document.getElementById('p2p-status').textContent = `🚨 Fehler beim Verbindungsaufbau: ${e.message}`;
+            }
+        }
+        
+        // =================================================================
+        // DATENKANAL-HANDLING & UX-HILFSFUNKTIONEN
+        // =================================================================
+
+        function startP2PSync() {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                const message = `Hallo von Gerät ${p2pIsOffer ? 'Client' : 'Chef'}!`;
+                dataChannel.send(JSON.stringify({ type: 'TEST', message: message }));
+                document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-primary">[LOCAL] Gesendet: ${message}</div>`;
+            }
+        }
+
+        function handleDataChannelMessage(event) {
+            let message = event.data;
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'TEST') {
+                    message = `Testnachricht erhalten: ${data.message}`;
+                } else {
+                     message = "Datenpaket erhalten.";
+                }
+            } catch(e) {
+                // Nicht-JSON Nachricht
+            }
+            document.getElementById('p2p-log').innerHTML += `<div class="text-xs text-secondary">[REMOTE] Erhalten: ${message}</div>`;
+        }
+        
+        // Universal Copy function using execCommand for better iframe compatibility
+        function copyTextToClipboard(elementId) {
+            const textarea = document.getElementById(elementId);
+            if (!textarea || !textarea.value) {
+                console.warn("Nichts zu kopieren.");
+                return;
+            }
+            textarea.select();
+            try {
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'Kopieren erfolgreich!' : 'Kopieren fehlgeschlagen.';
+                console.log(msg);
+                
+                const statusElement = document.getElementById('p2p-status');
+                statusElement.className = 'alert mt-4 font-semibold alert-info rounded-xl';
+                statusElement.textContent = `📋 ${msg}`;
+                setTimeout(() => {
+                    statusElement.className = 'alert mt-4 font-semibold rounded-xl';
+                    statusElement.textContent = 'Status: Bereit.';
+                }, 2000);
+                
+            } catch (err) {
+                console.error('Kopieren nicht unterstützt:', err);
+            }
+        }
+
+
+        // =================================================================
+        // UI EVENT-LISTENERS
+        // =================================================================
+        window.onload = function() {
+            const p2p_modal = document.getElementById('p2p_modal');
+            
+            // --- Modal Open ---
+            document.getElementById('p2p-modal-btn').addEventListener('click', () => {
+                 p2p_modal.showModal();
+                 document.getElementById('p2p-status').textContent = 'Status: Bereit.';
+                 document.getElementById('p2p-answer-input').value = '';
+                 document.getElementById('p2p-offer-output').value = '';
+                 document.getElementById('p2p-answer-input-answer').value = '';
+                 document.getElementById('p2p-offer-output-answer').value = '';
+                 document.getElementById('p2p-log').innerHTML = '';
+                 document.getElementById('copy-offer-btn').disabled = true;
+                 document.getElementById('copy-answer-btn').disabled = true;
+
+                 p2pOfferGenerated = false; 
+                 initP2P(document.getElementById('tab-offer').checked);
+            });
+            
+            // --- Offer Tab (Client) ---
+            document.getElementById('p2p-generate-offer-btn').addEventListener('click', () => {
+                 p2pIsOffer = true;
+                 p2pCreateOffer();
+            });
+            
+            document.getElementById('p2p-start-pull-btn').addEventListener('click', () => {
+                 const answer = document.getElementById('p2p-answer-input').value.trim();
+                 if (answer) {
+                     p2pAcceptAnswer(answer);
+                 } else {
+                     document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
+                     document.getElementById('p2p-status').textContent = "🚨 Fehler: Bitte Answer-Code einfügen.";
+                 }
+            });
+            
+            // --- Answer Tab (Chef) ---
+            document.getElementById('p2p-create-answer-btn').addEventListener('click', () => {
+                 p2pIsOffer = false;
+                 const offer = document.getElementById('p2p-answer-input-answer').value.trim();
+                 if (offer) {
+                     p2pCreateAnswer(offer);
+                 } else {
+                     document.getElementById('p2p-status').className = 'alert mt-4 font-semibold alert-error rounded-xl';
+                     document.getElementById('p2p-status').textContent = "🚨 Fehler: Bitte Offer-Code einfügen.";
+                 }
+            });
+            
+            // --- UX Helpers ---
+            // Auto-Select beim Klick auf Output-Felder
+            document.getElementById('p2p-offer-output').addEventListener('click', (e) => e.target.select());
+            document.getElementById('p2p-offer-output-answer').addEventListener('click', (e) => e.target.select());
+
+            // Kopier-Buttons
+            document.getElementById('copy-offer-btn').addEventListener('click', () => copyTextToClipboard('p2p-offer-output'));
+            document.getElementById('copy-answer-btn').addEventListener('click', () => copyTextToClipboard('p2p-offer-output-answer'));
+            
+            // Tab-Wechsel
+            document.getElementById('tab-offer').addEventListener('change', () => {
+                p2pIsOffer = true;
+                p2pOfferGenerated = false;
+                initP2P(p2pIsOffer);
+            });
+            
+            document.getElementById('tab-answer').addEventListener('change', () => {
+                p2pIsOffer = false;
+                p2pOfferGenerated = false;
+                initP2P(p2pIsOffer);
+            });
+
+            console.log('Mogul P2P-CHEF-Sync gestartet (Produktionsreif).');
+        }
+    </script>
+</body>
+</html>
