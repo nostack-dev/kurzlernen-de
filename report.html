@@ -1,0 +1,2239 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>labels and text (C. H. Hohlfeld)</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.6.0/dist/svg2pdf.umd.min.js"></script>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // PDF.js Worker setzen
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        .canvas-container {
+            flex: 1;
+            background: #e5e7eb;
+            padding: 1rem;
+            overflow: auto;
+            height: 100%;
+            position: relative; 
+        }
+        
+        #pdf-render-target {
+            width: 210mm;
+            height: 297mm;
+            background: white;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+            cursor: default;
+        }
+        
+        /* Loading Overlay entfernt, da es den Flow störte */
+        /* #loading-overlay { display: none; } */ 
+
+        #ghost-box {
+            position: absolute; 
+            z-index: 2000;
+            pointer-events: none;
+            display: none;
+            border: 2px dashed #0078d4;
+            box-sizing: border-box;
+        }
+        
+        .ghost-box-multi {
+             position: absolute;
+             z-index: 1999; 
+             pointer-events: none;
+             border: 1px dashed #4a90e2;
+             box-sizing: border-box;
+             background: rgba(74, 144, 226, 0.05);
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #0078d4;
+            border: 1px solid white;
+            border-radius: 50%;
+            z-index: 2001;
+            pointer-events: all; 
+        }
+        .handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+        .handle-n  { top: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+        .handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+        .handle-w  { top: 50%; left: -6px; transform: translateY(-50%); cursor: ew-resize; }
+        .handle-e  { top: 50%; right: -6px; transform: translateY(-50%); cursor: ew-resize; }
+        .handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+        .handle-s  { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+        .handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+        
+        .hidden-by-type {
+            display: none;
+        }
+        
+        /* Lock Icon Style */
+        .locked-icon {
+            margin-left: 8px;
+            color: #d97706; /* Amber-600 */
+        }
+    </style>
+</head>
+<body class="bg-base-200">
+    <!-- Modal für Löschbestätigung -->
+    <dialog id="delete_modal" class="modal">
+      <div class="modal-box">
+        <h3 class="font-bold text-lg">Datenreihe löschen?</h3>
+        <p class="py-4">Sind Sie sicher, dass Sie die **aktuelle Datenreihe (<span id="delete-modal-page"></span>)** unwiderruflich löschen möchten? Dies kann nicht rückgängig gemacht werden, außer Sie verwenden die Undo-Funktion.</p>
+        <div class="modal-action">
+          <form method="dialog">
+            <button class="btn btn-sm btn-ghost">Abbrechen</button>
+            <button id="confirm-delete-row-btn" class="btn btn-sm btn-error ml-2">Löschen</button>
+          </form>
+        </div>
+      </div>
+    </dialog>
+    <!-- ENDE Modal -->
+
+    <div class="navbar bg-base-100 shadow-lg">
+        <div class="flex-1">
+            <a class="btn btn-ghost text-xl">Report Designer (C. H. Hohlfeld)</a>
+        </div>
+        <div class="flex-none">
+             <!-- Seiten-Navigationssteuerung -->
+            <div id="page-nav-controls" class="flex items-center space-x-2 mr-4 text-sm">
+                <button id="prev-page-btn" class="btn btn-xs btn-outline" disabled>&lt;</button>
+                <span id="page-info">
+                    Seite <input type="number" id="current-page-input" value="1" min="1" class="input input-xs w-10 text-center" />
+                    von <span id="total-page-count">1</span>
+                </span>
+                <button id="next-page-btn" class="btn btn-xs btn-outline" disabled>&gt;</button>
+            </div>
+            <!-- Ende Seiten-Navigationssteuerung -->
+
+            <button id="export-pdf-btn" class="btn btn-accent mr-4">Export als PDF</button>
+        </div>
+    </div>
+
+    <div class="flex w-full p-4 gap-4" style="height: calc(100vh - 80px);">
+
+        <!-- LINKER BEREICH: WERKZEUGE & DATEN -->
+        <div class="card bg-base-100 shadow-xl w-64 h-full overflow-auto">
+            <div class="card-body space-y-3 p-4">
+                <h2 class="card-title text-lg">Werkzeuge</h2>
+                
+                <div class="divider">Elemente hinzufügen</div>
+                <button id="add-text-btn" class="btn btn-primary btn-sm">Daten-Text ({{key}})</button>
+                <button id="add-svg-btn" class="btn btn-secondary btn-sm">Daten-SVG</button>
+                <button id="add-master-text-btn" class="btn btn-warning btn-sm">Master-Text (Kopf/Fuß)</button>
+
+                <!-- DATENMODELL (Accordion) -->
+                <div class="collapse collapse-arrow bg-base-200">
+                    <input type="checkbox" checked /> 
+                    <div class="collapse-title text-sm font-medium">Datenmodell (Ground Truth)</div>
+                    <div class="collapse-content space-y-2">
+                        <textarea id="data-model-input" class="textarea textarea-bordered textarea-sm font-mono w-full" rows="8"></textarea>
+                        <p class="text-xs text-gray-500">Verwenden Sie `{{key}}` oder `{{PAGE_NUMBER}}`.</p>
+                        <button id="update-data-btn" class="btn btn-info btn-xs w-full">Daten anwenden & Rendern</button>
+                        <p id="data-status-message" class="text-xs mt-1 text-info"></p>
+                    </div>
+                </div>
+
+                <!-- DATENREIHEN-AKTIONEN (Accordion) -->
+                <div class="collapse collapse-arrow bg-base-200">
+                    <input type="checkbox" checked /> 
+                    <div class="collapse-title text-sm font-medium">Seiten / Datenreihen</div>
+                    <div class="collapse-content space-y-2">
+                        <div class="form-control">
+                            <label class="label cursor-pointer">
+                                <span class="label-text text-xs">Daten-Iteration (Serienbrief)</span>
+                                <input type="checkbox" id="data-iteration-toggle" class="toggle toggle-sm" checked />
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="add-new-row-btn" class="btn btn-success btn-xs" title="Neue, leere Reihe am Ende hinzufügen">Neu (Letzte)</button>
+                            <button id="duplicate-row-btn" class="btn btn-warning btn-xs" title="Aktuelle Datenreihe duplizieren">Duplizieren</button>
+                        </div>
+                        <button id="remove-current-row-btn" class="btn btn-error btn-xs w-full" disabled title="Aktuelle Datenreihe löschen">Aktuelle löschen</button>
+                    </div>
+                </div>
+
+                <!-- ANSICHT & AUSRICHTEN (Accordion) -->
+                <div class="collapse collapse-arrow bg-base-200">
+                    <input type="checkbox" /> 
+                    <div class="collapse-title text-sm font-medium">Ansicht & Ausrichten</div>
+                    <div class="collapse-content space-y-2">
+                         <div class="form-control">
+                            <label class="label cursor-pointer">
+                                <span class="label-text text-xs">Raster fangen (0.1mm)</span> 
+                                <input type="checkbox" id="snap-toggle" class="toggle toggle-xs" checked />
+                            </label>
+                        </div>
+                        <div class="form-control">
+                            <label class="label cursor-pointer">
+                                <span class="label-text text-xs">Raster anzeigen (10mm)</span> 
+                                <input type="checkbox" id="grid-toggle" class="toggle toggle-xs" checked />
+                            </label>
+                        </div>
+                        <div class="form-control">
+                            <label class="label cursor-pointer">
+                                <span class="label-text text-xs">Hilfslinien anzeigen</span> 
+                                <input type="checkbox" id="helper-lines-toggle" class="toggle toggle-xs" checked />
+                            </label>
+                        </div>
+                        <div class="divider text-xs">Ausrichten</div>
+                        <div id="align-tools" class="grid grid-cols-3 gap-1">
+                            <button id="align-left" class="btn btn-xs btn-outline" title="Linksbündig" disabled>L</button>
+                            <button id="align-center" class="btn btn-xs btn-outline" title="Horizontal zentrieren" disabled>C</button>
+                            <button id="align-right" class="btn btn-xs btn-outline" title="Rechtsbündig" disabled>R</button>
+                            <button id="align-top" class="btn btn-xs btn-outline" title="Oben ausrichten" disabled>T</button>
+                            <button id="align-middle" class="btn btn-xs btn-outline" title="Vertikal zentrieren" disabled>M</button>
+                            <button id="align-bottom" class="btn btn-xs btn-outline" title="Unten ausrichten" disabled>B</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider">Projekt</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="save-btn" class="btn btn-sm btn-outline">Speichern (Ctrl+S)</button>
+                    <button id="open-btn" class="btn btn-sm btn-outline">Öffnen (Ctrl+O)</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="undo-btn" class="btn btn-sm btn-outline" disabled>Rückgängig (Ctrl+Z)</button>
+                    <button id="redo-btn" class="btn btn-sm btn-outline" disabled>Wiederh. (Ctrl+Y)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MITTLERER BEREICH: CANVAS -->
+        <div id="canvas-container" class="canvas-container">
+            <canvas id="pdf-render-target" width="2100" height="2970"></canvas>
+            
+            <!-- Loading Overlay wurde entfernt, um Flackern zu vermeiden -->
+        </div>
+        
+        <div id="ghost-box">
+            <div class="resize-handle handle-nw" data-handle="nw"></div>
+            <div class="resize-handle handle-n"  data-handle="n"></div>
+            <div class="resize-handle handle-ne" data-handle="ne"></div>
+            <div class="resize-handle handle-w"  data-handle="w"></div>
+            <div class="resize-handle handle-e"  data-handle="e"></div>
+            <div class="resize-handle handle-sw" data-handle="sw"></div>
+            <div class="resize-handle handle-s"  data-handle="s"></div>
+            <div class="resize-handle handle-se" data-handle="se"></div>
+        </div>
+        
+        <div id="multi-select-container"></div>
+
+        <!-- RECHTER BEREICH: INSPECTOR -->
+        <div class="card bg-base-100 shadow-xl w-80 h-full overflow-auto">
+            <div class="card-body">
+                <h2 class="card-title">Eigenschaften</h2>
+                <p id="inspector-hint" class="text-sm text-gray-500">Bitte ein Element auswählen.</p>
+                <p id="inspector-multi" class="text-sm text-gray-500 hidden">Mehrere Elemente ausgewählt.</p>
+                <form id="inspector-form" class="hidden space-y-2">
+                    <div class="form-control"><label class="label"><span class="label-text text-xs">ID</span></label><input id="prop-id" type="text" class="input input-bordered input-sm" disabled /></div>
+                    <div class="form-control"><label class="label"><span class="label-text text-xs">Typ</span></label><input id="prop-type" type="text" class="input input-bordered input-sm" disabled /></div>
+                    
+                    <div id="shared-toggle-group" class="form-control">
+                        <label class="label cursor-pointer">
+                            <span class="label-text text-xs font-bold">Element auf allen Seiten teilen</span> 
+                            <input type="checkbox" id="prop-is-shared" class="checkbox checkbox-sm checkbox-secondary" />
+                        </label>
+                    </div>
+
+                    <div id="lock-toggle-group" class="form-control">
+                        <label class="label cursor-pointer">
+                            <span class="label-text text-xs font-bold flex items-center">Position fixieren (Lock) 
+                                <span id="lock-icon" class="hidden locked-icon">🔒</span>
+                            </span> 
+                            <input type="checkbox" id="prop-is-locked" class="checkbox checkbox-sm checkbox-warning" />
+                        </label>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="form-control"><label class="label"><span class="label-text text-xs">X (mm)</span></label><input id="prop-x" type="text" class="input input-bordered input-sm" /></div>
+                        <div class="form-control"><label class="label"><span class="label-text text-xs">Y (mm)</span></label><input id="prop-y" type="text" class="input input-bordered input-sm" /></div>
+                        <div class="form-control"><label class="label"><span class="label-text text-xs">Breite (mm)</span></label><input id="prop-w" type="text" class="input input-bordered input-sm" /></div>
+                        <div class="form-control"><label class="label"><span class="label-text text-xs">Höhe (mm)</span></label><input id="prop-h" type="text" class="input input-bordered input-sm" /></div>
+                    </div>
+                    
+                    <div class="divider">Darstellung</div>
+                    
+                    <!-- NEUES TEXT ALIGNMENT FELD -->
+                    <div class="form-control" id="text-align-group">
+                        <label class="label"><span class="label-text text-xs">Text Ausrichtung</span></label>
+                        <select id="prop-textAlign" class="select select-bordered select-sm">
+                            <option value="left">Horizontal Links</option>
+                            <option value="center">Horizontal Zentriert</option>
+                            <option value="right">Horizontal Rechts</option>
+                        </select>
+                    </div>
+                     <!-- NEUES VERTICAL ALIGNMENT FELD -->
+                    <div class="form-control" id="vertical-align-group">
+                        <label class="label"><span class="label-text text-xs">Vertikale Ausrichtung</span></label>
+                        <select id="prop-verticalAlign" class="select select-bordered select-sm">
+                            <option value="top">Oben</option>
+                            <option value="middle">Mitte</option>
+                            <option value="bottom">Unten</option>
+                        </select>
+                    </div>
+                    
+                    <div id="content-group" class="form-control">
+                        <label class="label"><span class="label-text text-xs" id="content-label">Inhalt</span></label>
+                        <textarea id="prop-content" class="textarea textarea-bordered textarea-sm" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2" id="text-style-group">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Schriftgröße (pt)</label>
+                            <input id="prop-fontSize-pt" type="text" class="input input-bordered input-sm" />
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Textfarbe</span></label>
+                            <input id="prop-color" type="color" class="input input-bordered input-sm p-1" />
+                        </div>
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label cursor-pointer">
+                            <span class="label-text text-xs">Rahmen (0.1mm)</span> 
+                            <input type="checkbox" id="prop-border" class="checkbox checkbox-sm" />
+                        </label>
+                    </div>
+                    
+                    <div class="pt-4"><button type="button" id="delete-btn" class="btn btn-error btn-sm w-full">Elemente löschen</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 0. KONSTANTEN & GLOBALE VARIABLEN ---
+        
+        const { jsPDF } = window.jspdf || {};
+        if (!jsPDF) {
+            console.error("CRITICAL ERROR: jsPDF library failed to load.");
+        }
+        const pdfjsLib = window.pdfjsLib;
+        
+        const FONT_NAME_FOR_PDF = "helvetica"; 
+        const BORDER_WIDTH_MM = 0.1; 
+        
+        // --- DATEN-GROUND-TRUTH (C. H. Hohlfeld) ---
+        const DEFAULT_DATA_JSON = JSON.stringify([
+            { id: 1, name: "Christian H. Hohlfeld", product: "Determinismus-Engine", amount: 15.00, city: "Konstanz" },
+            { id: 2, name: "Kunde Zwei GmbH", product: "Serienbrief-Service", amount: 49.99, city: "Berlin" },
+            { id: 3, name: "Test User AG", product: "SVG-Rendering", amount: 5.50, city: "München" }
+        ], null, 2);
+        
+        let dataElements = [];      // Transiente Arbeitskopie (Elemente der aktuellen Seite)
+        let sharedElements = [];    // Geteilte Elemente (wird in masterElements/sharedElements in History/Save integriert)
+        let masterElements = [];    // Globale Elemente (Kopf/Fußzeile)
+        
+        let history = []; 
+        let redoStack = []; 
+        let selectedElementIds = []; 
+        let isDragging = false;
+        let isResizing = false;
+        let dragContext = {}; 
+        let ghostContext = {};
+        let isRendering = false; 
+        let isSnapEnabled = true;
+        let isGridVisible = true;
+        let isHelperLinesVisible = true; 
+        let clipboard = [];
+        
+        let dataModel = JSON.parse(DEFAULT_DATA_JSON); 
+        let rawDataJson = DEFAULT_DATA_JSON; 
+        let currentPageIndex = 0; 
+        let totalPages = 1; 
+        
+        const canvas = document.getElementById('pdf-render-target');
+        const canvasContainer = document.getElementById('canvas-container');
+        const ctx = canvas.getContext('2d');
+        const inspectorForm = document.getElementById('inspector-form');
+        const inspectorHint = document.getElementById('inspector-hint');
+        const inspectorMulti = document.getElementById('inspector-multi');
+        const addTextBtn = document.getElementById('add-text-btn');
+        const addSvgBtn = document.getElementById('add-svg-btn');
+        const addMasterTextBtn = document.getElementById('add-master-text-btn'); 
+        const exportPdfBtn = document.getElementById('export-pdf-btn');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        // const loadingText = document.getElementById('loading-text'); // Nicht mehr benötigt
+        const ghostBox = document.getElementById('ghost-box');
+        const multiSelectContainer = document.getElementById('multi-select-container');
+        const alignTools = document.getElementById('align-tools');
+        const undoBtn = document.getElementById('undo-btn');
+        const redoBtn = document.getElementById('redo-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const openBtn = document.getElementById('open-btn');
+        const dataModelInput = document.getElementById('data-model-input');
+        const dataStatusMessage = document.getElementById('data-status-message'); 
+        
+        // SEITEN-ELEMENTE
+        const totalPageCountSpan = document.getElementById('total-page-count');
+        const currentPageInput = document.getElementById('current-page-input');
+        const prevPageBtn = document.getElementById('prev-page-btn');
+        const nextPageBtn = document.getElementById('next-page-btn');
+
+        // DATENREIHEN-AKTIONEN
+        const addNewRowBtn = document.getElementById('add-new-row-btn');
+        const duplicateRowBtn = document.getElementById('duplicate-row-btn');
+        const removeCurrentRowBtn = document.getElementById('remove-current-row-btn');
+        const deleteModal = document.getElementById('delete_modal');
+        const deleteModalPageSpan = document.getElementById('delete-modal-page');
+        const confirmDeleteRowBtn = document.getElementById('confirm-delete-row-btn');
+        
+        const propInputs = {
+            id: document.getElementById('prop-id'),
+            type: document.getElementById('prop-type'),
+            x: document.getElementById('prop-x'), 
+            y: document.getElementById('prop-y'), 
+            w: document.getElementById('prop-w'), 
+            h: document.getElementById('prop-h'), 
+            content: document.getElementById('prop-content'), 
+            contentLabel: document.getElementById('content-label'),
+            textStyleGroup: document.getElementById('text-style-group'),
+            fontSize_pt: document.getElementById('prop-fontSize-pt'), 
+            color: document.getElementById('prop-color'),
+            border: document.getElementById('prop-border'),
+            isShared: document.getElementById('prop-is-shared'), 
+            isLocked: document.getElementById('prop-is-locked'), 
+            lockIcon: document.getElementById('lock-icon'),
+            textAlign: document.getElementById('prop-textAlign'),
+            verticalAlign: document.getElementById('prop-verticalAlign') // NEU
+        };
+        
+        // --- 1. CORE RATIO ENGINE (C. H. Hohlfeld) ---
+        const PLANCK_FACTOR = 1000;
+        const GRID_INV = 10n;
+        function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a; }
+        function createRatio(num, den) { num = Math.round(num); den = Math.round(den); if (den === 0) throw new Error("Denominator cannot be zero."); let sign = 1; if (den < 0) { num = -num; den = -den; } if (num < 0) { sign = -1; num = -num; } const divisor = gcd(num, den); return { num: sign * (num / divisor), den: den / divisor }; }
+        function addRatios(r1, r2) { if (!r1 || !r2) { console.error("addRatios: Ungültiges Ratio", r1, r2); return createRatio(0, 1); } const num = r1.num * r2.den + r2.num * r1.den; const den = r1.den * r2.den; return createRatio(num, den); }
+        function subtractRatios(r1, r2) { if (!r1 || !r2) { console.error("subtractRatios: Ungültiges Ratio", r1, r2); return createRatio(0, 1); } const num = r1.num * r2.den - r2.num * r1.den; const den = r1.den * r2.den; return createRatio(num, den); }
+        function stringInputToRatio(inputString) { 
+            if (!inputString || typeof inputString !== 'string') return createRatio(0, 1); 
+            const normalizedString = inputString.replace(',', '.').trim(); 
+            const parts = normalizedString.split('.'); 
+            let integerPart = parts[0] || '0'; 
+            let fractionalPart = parts.length > 1 ? parts[1] : ''; 
+            const den = Math.pow(10, fractionalPart.length); 
+            const rawNumString = integerPart.replace(/[-]/g, '') + fractionalPart; 
+            let num = parseInt(rawNumString, 10); 
+            if (normalizedString.startsWith('-') && normalizedString.trim().startsWith('-') && num > 0) { num = -num; } 
+            if (isNaN(num)) return createRatio(0, 1); 
+            return createRatio(num, den); 
+        }
+        function snapRatio01mm(r) { const n = BigInt(Math.trunc(r.num)); const d = BigInt(Math.trunc(r.den)); const two = 2n; const adj = n * GRID_INV >= 0n ? d : -d; const scaled = (n * GRID_INV * two + adj) / (two * d); return createRatio(Number(scaled), Number(GRID_INV)); }
+        function ratioToQuantizedFloat(ratio) { if (ratio.den === 0) return 0; const scaledNum = ratio.num * PLANCK_FACTOR; let roundedQNum; if (scaledNum >= 0) { roundedQNum = Math.floor(scaledNum / ratio.den + 0.5); } else { roundedQNum = Math.ceil(scaledNum / ratio.den - 0.5); } return roundedQNum / PLANCK_FACTOR; }
+        
+        function applySnap(r) { 
+            return isSnapEnabled ? snapRatio01mm(r) : r;
+        }
+        // --- ENDE RATIO ENGINE ---
+
+
+        // --- 2. DETERMINISTISCHE BRÜCKEN ---
+        const PIXELS_PER_MM = 10; 
+        const FONT_PT_TO_MM = 0.352777778; 
+        const MIN_SIZE_MM = 1.0; 
+        const GRID_MAJOR_MM = 10.0;
+        
+        function mmToPixels_INT(mm) { return Math.round(mm * PIXELS_PER_MM); }
+        function pixelsToMM_FLOAT(px) { return px / PIXELS_PER_MM; }
+        function ptToMM_FLOAT(pt) { return pt * FONT_PT_TO_MM; }
+        function ratioToMMString(r) { return ratioToQuantizedFloat(r).toFixed(3); }
+        function mmStringToRatio(mmStr) { return stringInputToRatio(mmStr); }
+        
+        /**
+         * Konvertiert ein Ratio-Objekt in gerundete Pixel-Int-Werte.
+         */
+        function ratioToPixels_INT(r) { 
+            const mmValue = ratioToQuantizedFloat(r); 
+            return mmToPixels_INT(mmValue); 
+        }
+        
+        const MIN_SIZE_RATIO = mmStringToRatio(MIN_SIZE_MM.toString());
+        const BORDER_WIDTH_RATIO = mmStringToRatio(BORDER_WIDTH_MM.toString());
+        const NO_BORDER_RATIO = mmStringToRatio('0.0');
+
+        // --- HILFSFUNKTIONEN FÜR SERIALISIERUNG DER RATIOS ---
+        function serializeRatios(obj) {
+            if (typeof obj !== 'object' || obj === null) return obj;
+            if (obj.num !== undefined && obj.den !== undefined) {
+                return { R: [obj.num, obj.den] };
+            }
+            if (Array.isArray(obj)) {
+                return obj.map(serializeRatios);
+            }
+            const newObj = {};
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    newObj[key] = serializeRatios(obj[key]);
+                }
+            }
+            return newObj;
+        }
+
+        function deserializeRatios(obj) {
+            if (typeof obj !== 'object' || obj === null) return obj;
+            if (Array.isArray(obj.R) && obj.R.length === 2) {
+                return createRatio(obj.R[0], obj.R[1]);
+            }
+            if (Array.isArray(obj)) {
+                return obj.map(deserializeRatios);
+            }
+            const newObj = {};
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    newObj[key] = deserializeRatios(obj[key]);
+                }
+            }
+            return newObj;
+        }
+
+        // --- KORREKTUR: selectElement MUSS FRÜH DEFINIERT WERDEN ---
+        function selectElement(id, isShiftPressed = false) {
+            if (isShiftPressed) {
+                const index = selectedElementIds.indexOf(id);
+                if (index > -1) {
+                    if (selectedElementIds.length > 1) {
+                        selectedElementIds.splice(index, 1);
+                    }
+                } else {
+                    selectedElementIds.push(id);
+                }
+            } else {
+                if (id) {
+                    selectedElementIds = [id];
+                } else {
+                    selectedElementIds = [];
+                }
+            }
+            updateInspector();
+            updateSelectionGhost(); 
+        }
+        // --- ENDE KORREKTUR ---
+
+
+        // --- ELEMENT-SPEICHERUNG UND -LADEN ---
+
+        /**
+         * Speichert die Elemente der aktuellen Seite zurück in das dataModel.
+         * WICHTIG: Erzeugt eine TIEFE KOPIE, um Pointer-Fehler zu vermeiden.
+         */
+        function saveCurrentPageElements() {
+             if (Array.isArray(dataModel) && dataModel.length > currentPageIndex) {
+                 // 1. Serialisiere die Ratio-Objekte (die sind in dataElements)
+                 const serializableElements = serializeRatios(dataElements);
+                 
+                 // 2. Erzeuge eine TIEFE KOPIE der serialisierten Elemente
+                 // Dies ist notwendig, um die Pointer-Referenz zwischen der Arbeitskopie und der Ground-Truth zu brechen.
+                 const deepCopy = JSON.parse(JSON.stringify(serializableElements));
+                 
+                 // 3. Speichere die tiefe Kopie in die Ground Truth
+                 dataModel[currentPageIndex].elements = deepCopy;
+             }
+        }
+        
+        /**
+         * Lädt die Elemente der angegebenen Seite in die Arbeitsvariable dataElements.
+         * WICHTIG: Erzeugt eine TIEFE KOPIE der geladenen Elemente.
+         */
+        function loadPageElements(pageIndex) {
+            if (Array.isArray(dataModel) && dataModel.length > pageIndex && dataModel[pageIndex].elements) {
+                // 1. Serialisierte Elemente der Ground Truth holen
+                const serializableElements = dataModel[pageIndex].elements;
+                
+                // 2. TIEFE KOPIE erstellen (Pointer-Unabhängigkeit)
+                const deepCopy = JSON.parse(JSON.stringify(serializableElements));
+                
+                // 3. Deserialisieren der Ratios in die Arbeitskopie
+                dataElements = deserializeRatios(deepCopy);
+            } else {
+                dataElements = [];
+            }
+        }
+
+
+        // --- 3. KERNFUNKTIONEN ---
+
+        /**
+         * Wendet die Datenbindung und statische Tags auf den Inhalt eines Elements an.
+         */
+        function processContent(content, dataRow, pageNumber, totalPages) {
+            if (!content || typeof content !== 'string') return '';
+
+            let boundContent = content;
+            const now = new Date();
+
+            // 1. Statische Template-Tags (Master-Elemente)
+            boundContent = boundContent.replace(/\{\{PAGE_NUMBER\}\}/g, pageNumber.toString());
+            boundContent = boundContent.replace(/\{\{TOTAL_PAGES\}\}/g, totalPages.toString());
+            boundContent = boundContent.replace(/\{\{CURRENT_DATE\}\}/g, now.toLocaleDateString('de-DE'));
+            boundContent = boundContent.replace(/\{\{CURRENT_TIME\}\}/g, now.toLocaleTimeString('de-DE'));
+            
+            // 2. Datenbindung (Data-Elemente)
+            for (const key in dataRow) {
+                if (dataRow.hasOwnProperty(key)) {
+                    let value = dataRow[key];
+
+                    if (typeof value === 'object' && value !== null) {
+                        value = JSON.stringify(value, null, 2);
+                    } else if (value === undefined || value === null) {
+                        value = '';
+                    }
+
+                    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+                    boundContent = boundContent.replace(regex, value);
+                }
+            }
+            return boundContent;
+        }
+        
+        /**
+         * Generiert eine einzelne PDF-Seite für eine gegebene Datenzeile.
+         */
+       async function generateSinglePdfPage(doc, elementsToRender, dataRow, pageIndex, totalPages) {
+  doc.setFont(FONT_NAME_FOR_PDF, 'normal');
+
+  const pageNumber = pageIndex + 1;
+  const sortedElements = [...elementsToRender]; // Kopie
+
+  for (const el of sortedElements) {
+    const x_mm  = ratioToQuantizedFloat(el.x_ratio);
+    const y_mm  = ratioToQuantizedFloat(el.y_ratio);
+    const w_mm  = ratioToQuantizedFloat(el.w_ratio);
+    const h_mm  = ratioToQuantizedFloat(el.h_ratio);
+    const bw_mm = ratioToQuantizedFloat(el.borderWidth_mm_ratio);
+
+    const boundContent = processContent(el.content, dataRow, pageNumber, totalPages);
+
+    // Sicheren Startzustand pro Element
+    doc.saveGraphicsState();
+
+    // Rahmen (optional)
+    if (bw_mm > 0) {
+      doc.setLineWidth(bw_mm);
+      doc.setDrawColor(0, 0, 0); // Rahmen immer schwarz
+      doc.rect(x_mm + bw_mm / 2, y_mm + bw_mm / 2, w_mm - bw_mm, h_mm - bw_mm, 'S');
+    }
+
+    // Innenbereich (ohne Rahmen) clippen
+    const clip_x = x_mm + bw_mm;
+    const clip_y = y_mm + bw_mm;
+    const clip_w = w_mm - 2 * bw_mm;
+    const clip_h = h_mm - 2 * bw_mm;
+
+    if (clip_w > 0 && clip_h > 0) {
+      doc.path([
+        { op: 'm', c: [clip_x,            clip_y] },
+        { op: 'l', c: [clip_x + clip_w,   clip_y] },
+        { op: 'l', c: [clip_x + clip_w,   clip_y + clip_h] },
+        { op: 'l', c: [clip_x,            clip_y + clip_h] },
+        { op: 'h' }
+      ]);
+      doc.clip();
+
+      if (el.type === 'text' && boundContent) {
+        const fontSize_pt = el.fontSize_pt || 12;
+        const fontSize_mm = ptToMM_FLOAT(fontSize_pt);
+
+        doc.setFontSize(fontSize_pt);
+        doc.setTextColor(el.color || '#000000');
+
+        // Horizontale Ausrichtung
+        const align = el.textAlign || 'left';
+        let alignX = clip_x;
+        if (align === 'center') alignX = clip_x + clip_w / 2;
+        if (align === 'right')  alignX = clip_x + clip_w;
+
+        // Vertikale Ausrichtung (jsPDF positioniert Text an der Baseline)
+        const vAlign = el.verticalAlign || 'top';
+        let baseline_y_mm = clip_y + fontSize_mm; // top
+        if (vAlign === 'middle') baseline_y_mm = clip_y + clip_h / 2 + fontSize_mm / 3;
+        if (vAlign === 'bottom') baseline_y_mm = clip_y + clip_h;
+
+        doc.text(boundContent, alignX, baseline_y_mm, {
+          maxWidth: clip_w,
+          align: align
+        });
+
+      } else if (el.type === 'svg' && boundContent) {
+        try {
+          // SVG-String -> DOM-SVG
+          const parsed = new DOMParser().parseFromString(boundContent, 'image/svg+xml');
+          const svgEl = parsed && parsed.documentElement && parsed.documentElement.tagName.toLowerCase() === 'svg'
+            ? parsed.documentElement
+            : null;
+          if (!svgEl) throw new Error('Ungültiges SVG-Markup nach Datenbindung.');
+
+          // Bevorzugt die UMD-Erweiterung von svg2pdf.js → doc.svg(...)
+          if (typeof doc.svg === 'function') {
+            await doc.svg(svgEl, {
+              x: clip_x,
+              y: clip_y,
+              width: clip_w,
+              height: clip_h
+              // preserveAspectRatio: 'xMidYMid meet' // optional
+            });
+          } else {
+            // Dezent sichtbarer Fallback (kein "roter Rahmen"-Effekt)
+            doc.setDrawColor(180, 180, 180);
+            doc.setLineWidth(0.2);
+            doc.line(clip_x, clip_y, clip_x + clip_w, clip_y + clip_h);
+            doc.line(clip_x, clip_y + clip_h, clip_x + clip_w, clip_y);
+          }
+        } catch (err) {
+          console.error(`[SVG] Rendering-Fehler (Seite ${pageNumber}):`, err);
+          // Fallback bei Parse-/Render-Fehler
+          doc.setDrawColor(180, 180, 180);
+          doc.setLineWidth(0.2);
+          doc.line(clip_x, clip_y, clip_x + clip_w, clip_y + clip_h);
+          doc.line(clip_x, clip_y + clip_h, clip_x + clip_w, clip_y);
+        }
+      }
+    }
+
+    // Ursprungszustand für das nächste Element wiederherstellen
+    doc.restoreGraphicsState();
+  }
+}
+
+
+        /**
+         * Generiert das vollständige PDF als ArrayBuffer, inkl. Multi-Page-Logic.
+         */
+        async function generatePdfArrayBuffer() {
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const isDataIterationEnabled = document.getElementById('data-iteration-toggle').checked;
+            const dataToRender = [];
+            
+            // 1. WICHTIG: Speichere die Elemente der aktuellen Seite, bevor wir den Buffer generieren
+            saveCurrentPageElements();
+
+            // 2. Bestimme das zu rendernde Daten-Array
+            if (isDataIterationEnabled && Array.isArray(dataModel) && dataModel.length > 0) {
+                dataToRender.push(...dataModel);
+            } else if (isDataIterationEnabled && typeof dataModel === 'object' && dataModel !== null && !Array.isArray(dataModel)) {
+                dataToRender.push(dataModel);
+            } else {
+                dataToRender.push(Array.isArray(dataModel) && dataModel.length > 0 ? dataModel[0] : {}); 
+            }
+            
+            totalPages = dataToRender.length;
+            totalPageCountSpan.textContent = totalPages;
+
+            // 3. Seiten-Loop
+            for (let i = 0; i < dataToRender.length; i++) {
+                const dataRow = dataToRender[i];
+                if (i > 0) {
+                    doc.addPage();
+                }
+                
+                // --- 3a. Lade elements für diese Seite ---
+                const dataPageElements = dataRow.elements ? deserializeRatios(dataRow.elements) : [];
+
+                // 4. Render Shared Elements (Hintergrund-Content, geteilt über Datenseiten)
+                await generateSinglePdfPage(doc, sharedElements, dataRow, i, totalPages);
+                
+                // 5. Render Data Elements (Seiten-individueller Inhalt)
+                await generateSinglePdfPage(doc, dataPageElements, dataRow, i, totalPages);
+                
+                // 6. Render Master Elements (Foreground/Overlay - Kopf/Fußzeile)
+                await generateSinglePdfPage(doc, masterElements, dataRow, i, totalPages);
+            }
+            
+            // 7. Nach dem Rendering laden wir die Elemente der aktuellen Seite wieder in die Arbeitskopie
+            loadPageElements(currentPageIndex);
+            
+            return doc.output('arraybuffer');
+        }
+
+        // Hilfsfunktion, um alle bearbeitbaren Elemente zu bekommen
+        function getEditableElements() {
+             // WICHTIG: Nur die Elemente der aktuellen Seite + Shared + Master sind bearbeitbar
+             return [...dataElements, ...sharedElements, ...masterElements];
+        }
+
+        async function render() {
+            // Loading Overlay wurde entfernt, um den Flow nicht zu stören
+            if (isRendering) return;
+            isRendering = true;
+            
+            // 1. Speichere Elemente der alten Seite (falls nötig)
+            saveCurrentPageElements();
+
+            // Der eigentliche Render-Prozess
+            try {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (isGridVisible) {
+                    drawGrid();
+                }
+                
+                const pdfData = await generatePdfArrayBuffer(); 
+                
+                const pdfDataUint8 = new Uint8Array(pdfData);
+                const loadingTask = pdfjsLib.getDocument({ data: pdfDataUint8 }); 
+                const pdf = await loadingTask.promise;
+                
+                const totalPages = pdf.numPages;
+                
+                let pageNum = currentPageIndex + 1;
+                if (pageNum < 1) pageNum = 1;
+                if (pageNum > totalPages) pageNum = totalPages;
+                
+                currentPageIndex = pageNum - 1; 
+
+                const page = await pdf.getPage(pageNum); 
+                
+                const scale = canvas.width / page.getViewport({ scale: 1 }).width;
+                const viewport = page.getViewport({ scale: scale });
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport,
+                };
+                
+                await page.render(renderContext).promise;
+                
+                drawHelperLines();
+
+            } catch (err) {
+                console.error("Fehler beim PDF-Rendern:", err);
+            } finally {
+                 // 2. Lade Elemente der neuen/aktuellen Seite in die Arbeitskopie
+                loadPageElements(currentPageIndex);
+                
+                updateSelectionGhost();
+                updateInspector();
+                updatePageControls(); 
+                isRendering = false;
+            }
+        }
+        
+        // NEU: Funktionen zur Seitensteuerung
+        function updatePageControls() {
+            const totalCount = parseInt(totalPageCountSpan.textContent, 10) || 1;
+            const current = currentPageIndex + 1;
+            
+            currentPageInput.value = current;
+            currentPageInput.max = totalCount;
+            
+            prevPageBtn.disabled = current <= 1;
+            nextPageBtn.disabled = current >= totalCount;
+            
+            removeCurrentRowBtn.disabled = totalCount <= 1 || !Array.isArray(dataModel);
+        }
+function deselectAll() {
+  if (selectedElementIds.length === 0) return;
+  selectedElementIds = [];
+  ghostBox.style.display = 'none';
+  multiSelectContainer.innerHTML = '';
+  updateInspector();
+}
+
+async function goToPage(newIndex) {
+  const totalCount = parseInt(totalPageCountSpan.textContent, 10) || 1;
+
+  if (newIndex < 0) newIndex = 0;
+  else if (newIndex >= totalCount) newIndex = totalCount - 1;
+
+  if (newIndex !== currentPageIndex) {
+    // 1) Save current page
+    saveCurrentPageElements();
+
+    // 2) NEW: drop any selection on page change
+    deselectAll();
+
+    // 3) Switch page
+    currentPageIndex = newIndex;
+
+    // 4) Load & render
+    loadPageElements(currentPageIndex);
+    await render();
+  }
+}
+
+        // --- DATENREIHEN-MANIPULATION ---
+        
+        /**
+         * Führt die Aktualisierung des Datenmodells, das Rendern und die History-Speicherung durch.
+         */
+        async function commitDataChange(newRawData, newPageIndex = currentPageIndex) {
+            try {
+                // 1. Speichere alte Elemente, bevor das dataModel zerstört wird
+                saveCurrentPageElements(); 
+                
+                const parsedModel = JSON.parse(newRawData);
+                
+                let rowCount = 0;
+                if (Array.isArray(parsedModel)) {
+                    rowCount = parsedModel.length;
+                    
+                    // 2. Übertrage Elemente aus dem alten dataModel in das neue
+                    for(let i = 0; i < parsedModel.length; i++) {
+                         if (Array.isArray(dataModel) && dataModel[i] && dataModel[i].elements) {
+                             // KORREKTUR: TIEFE KOPIE der serialisierten Elemente erzwingen
+                             // Dies garantiert, dass die Elemente auf Seite i (im neuen Model) unabhängig sind.
+                             parsedModel[i].elements = JSON.parse(JSON.stringify(dataModel[i].elements)); 
+                         } else {
+                             // Neue Seite bekommt leeres Element-Array
+                             parsedModel[i].elements = []; 
+                         }
+                    }
+                    
+                } else if (typeof parsedModel === 'object' && parsedModel !== null && !Array.isArray(parsedModel)) {
+                    rowCount = 1;
+                    // Bei Einzelobjekt sicherstellen, dass Elements-Array existiert
+                    parsedModel.elements = parsedModel.elements || []; 
+                } else {
+                    throw new Error("JSON muss ein Top-Level-Objekt {} oder ein Array [] von Objekten sein.");
+                }
+                
+                saveStateToHistory(); 
+                rawDataJson = newRawData;
+                dataModel = parsedModel;
+                currentPageIndex = newPageIndex; 
+
+                // Aktualisiere History-Eintrag manuell
+                const currentStateIndex = history.length - 1;
+                if (currentStateIndex >= 0) {
+                    const currentState = JSON.parse(history[currentStateIndex]);
+                    currentState.rawDataJson = rawDataJson;
+                    currentState.currentPageIndex = currentPageIndex;
+                    history[currentStateIndex] = JSON.stringify(currentState);
+                }
+                
+                dataModelInput.value = rawDataJson; 
+                await render();
+                dataStatusMessage.className = 'text-xs mt-1 text-success';
+                dataStatusMessage.textContent = `Erfolgreich: ${rowCount} Datenreihen geladen.`;
+                return true;
+
+            } catch (error) {
+                dataStatusMessage.className = 'text-xs mt-1 text-error';
+                dataStatusMessage.textContent = `FEHLER: Ungültiges JSON. (${error.message.substring(0, 80)}...)`;
+                console.error("JSON Parse Fehler:", error);
+                return false;
+            }
+        }
+        
+        // Hinzufügen einer leeren Datenreihe am Ende
+        addNewRowBtn.addEventListener('click', async () => {
+            if (!Array.isArray(dataModel)) return;
+            
+            const lastRow = dataModel[dataModel.length - 1] || {};
+            const newRow = {};
+            for (const key in lastRow) {
+                newRow[key] = (key === 'id') ? (dataModel.length + 1) : '';
+            }
+            newRow.elements = []; // Explizit leeres Element-Array hinzufügen
+            
+            const newModel = [...dataModel, newRow];
+            const newRawData = JSON.stringify(newModel, null, 2);
+            
+            await commitDataChange(newRawData, newModel.length - 1);
+        });
+
+        // Duplizieren der aktuellen Datenreihe
+        duplicateRowBtn.addEventListener('click', async () => {
+             if (!Array.isArray(dataModel) || dataModel.length === 0) return;
+             
+             saveCurrentPageElements(); // Aktuelle Elemente speichern
+             
+             const currentRow = dataModel[currentPageIndex];
+             // JSON.parse(JSON.stringify(currentRow)) erstellt eine TIEFE KOPIE, inkl. des elements-Buckets. Korrekt.
+             const duplicatedRow = JSON.parse(JSON.stringify(currentRow)); 
+             
+             duplicatedRow.id = (dataModel.length + 1) * 1000 + Math.floor(Math.random() * 999);
+             
+             const newModel = [...dataModel];
+             newModel.splice(currentPageIndex + 1, 0, duplicatedRow);
+             
+             const newRawData = JSON.stringify(newModel, null, 2);
+             
+             await commitDataChange(newRawData, currentPageIndex + 1);
+        });
+
+        // Aktuelle Datenreihe entfernen (mit Modal)
+        removeCurrentRowBtn.addEventListener('click', () => {
+            if (!Array.isArray(dataModel) || dataModel.length <= 1) return;
+            
+            deleteModalPageSpan.textContent = `${currentPageIndex + 1}`;
+            deleteModal.showModal();
+        });
+
+        // Bestätigung des Löschvorgangs
+        confirmDeleteRowBtn.addEventListener('click', async () => {
+            if (!Array.isArray(dataModel) || dataModel.length <= 1) return;
+
+            const newModel = [...dataModel];
+            newModel.splice(currentPageIndex, 1);
+            
+            const newRawData = JSON.stringify(newModel, null, 2);
+            
+            let newPageIndex = currentPageIndex;
+            if (newPageIndex >= newModel.length) {
+                newPageIndex = newModel.length - 1;
+            }
+            
+            await commitDataChange(newRawData, newPageIndex);
+            deleteModal.close();
+        });
+        
+        // --- ENDE DATENREIHEN-MANIPULATION ---
+
+        function drawGrid() {
+            const gridSpacingPx = mmToPixels_INT(GRID_MAJOR_MM);
+            ctx.beginPath();
+            ctx.strokeStyle = '#EEEEEE'; 
+            ctx.lineWidth = 1;
+            for (let x = gridSpacingPx; x < canvas.width; x += gridSpacingPx) {
+                ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+            }
+            for (let y = gridSpacingPx; y < canvas.height; y += gridSpacingPx) {
+                ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+        }
+        
+        function drawHelperLines() {
+            if (!isHelperLinesVisible) return;
+            
+            ctx.save();
+            ctx.strokeStyle = '#CCCCCC'; 
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]); 
+
+            getEditableElements().forEach(el => {
+                if (selectedElementIds.includes(el.id)) return; 
+
+                const px_x = ratioToPixels_INT(el.x_ratio);
+                const px_y = ratioToPixels_INT(el.y_ratio);
+                const px_w = ratioToPixels_INT(el.w_ratio);
+                const px_h = ratioToPixels_INT(el.h_ratio);
+                
+                ctx.strokeRect(px_x + 0.5, px_y + 0.5, px_w, px_h); 
+            });
+            
+            ctx.restore();
+        }
+
+        function updateSelectionGhost() {
+            multiSelectContainer.innerHTML = '';
+            
+            if (selectedElementIds.length === 0) {
+                ghostBox.style.display = 'none';
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect(); 
+            const scaleX = rect.width / canvas.width;
+            const scaleY = rect.height / canvas.height;
+
+            const primaryId = selectedElementIds[selectedElementIds.length - 1];
+            
+            getEditableElements().filter(el => selectedElementIds.includes(el.id)).forEach((element) => {
+                const px_x = ratioToPixels_INT(element.x_ratio);
+                const px_y = ratioToPixels_INT(element.y_ratio);
+                const px_w = ratioToPixels_INT(element.w_ratio);
+                const px_h = ratioToPixels_INT(element.h_ratio);
+
+                const css_left = rect.left + (px_x * scaleX);
+                const css_top = rect.top + (px_y * scaleY);
+                const css_width = (px_w * scaleX);
+                const css_height = (px_h * scaleY);
+
+                if (element.id === primaryId) {
+                    ghostBox.style.left = css_left + 'px';
+                    ghostBox.style.top = css_top + 'px';
+                    ghostBox.style.width = css_width + 'px';
+                    ghostBox.style.height = css_height + 'px';
+                    ghostBox.style.display = 'block';
+                    
+                    // Zeige/Verstecke Resize-Handles basierend auf Lock-Status
+                    const handles = ghostBox.querySelectorAll('.resize-handle');
+                    const display = element.isLocked ? 'none' : 'block';
+                    handles.forEach(h => h.style.display = display);
+                } else {
+                    const multiBox = document.createElement('div');
+                    multiBox.className = 'ghost-box-multi';
+                    multiBox.style.position = 'absolute'; 
+                    multiBox.style.left = css_left + 'px';
+                    multiBox.style.top = css_top + 'px';
+                    multiBox.style.width = css_width + 'px';
+                    multiBox.style.height = css_height + 'px';
+                    multiSelectContainer.appendChild(multiBox);
+                }
+            });
+        }
+
+        function updateInspector() {
+            const allElements = getEditableElements();
+            if (selectedElementIds.length === 1) {
+                const selectedElement = allElements.find(el => el.id === selectedElementIds[0]);
+                if (!selectedElement) return;
+
+                inspectorHint.classList.add('hidden');
+                inspectorMulti.classList.add('hidden');
+                inspectorForm.classList.remove('hidden');
+
+                const isShared = sharedElements.some(el => el.id === selectedElement.id);
+                
+                propInputs.id.value = selectedElement.id;
+                
+                // NEU: Zeige den Typ an
+                let elementType = selectedElement.isMaster ? `MASTER (${selectedElement.type})` : `DATA (${selectedElement.type})`;
+                if (!selectedElement.isMaster) {
+                    elementType = isShared ? `SHARED (${selectedElement.type})` : `DATA (${selectedElement.type})`;
+                }
+                propInputs.type.value = elementType;
+
+                // Steuerung der Shared/Master-Eigenschaften
+                const isMasterOrShared = selectedElement.isMaster || isShared;
+
+                document.getElementById('shared-toggle-group').classList.toggle('hidden-by-type', selectedElement.isMaster);
+                propInputs.isShared.checked = isShared;
+                
+                // Lock Toggle (für alle editierbaren Elemente)
+                propInputs.isLocked.checked = !!selectedElement.isLocked;
+                propInputs.lockIcon.classList.toggle('hidden', !selectedElement.isLocked);
+
+                // Sperrt die Eingabefelder, wenn gesperrt
+                const isDisabled = !!selectedElement.isLocked;
+                propInputs.x.disabled = isDisabled;
+                propInputs.y.disabled = isDisabled;
+                propInputs.w.disabled = isDisabled;
+                propInputs.h.disabled = isDisabled;
+                propInputs.content.disabled = isDisabled;
+                propInputs.fontSize_pt.disabled = isDisabled;
+                propInputs.color.disabled = isDisabled;
+                propInputs.border.disabled = isDisabled;
+                propInputs.textAlign.disabled = isDisabled;
+                propInputs.verticalAlign.disabled = isDisabled; // NEU
+
+                // Positionswerte
+                propInputs.x.value = ratioToMMString(selectedElement.x_ratio);
+                propInputs.y.value = ratioToMMString(selectedElement.y_ratio);
+                propInputs.w.value = ratioToMMString(selectedElement.w_ratio);
+                propInputs.h.value = ratioToMMString(selectedElement.h_ratio); 
+                
+                // Andere Eigenschaften
+                propInputs.contentLabel.textContent = selectedElement.isMaster 
+                    ? 'Inhalt (mit {{PAGE_NUMBER}})' 
+                    : 'Inhalt (mit {{key}})';
+
+                if (selectedElement.type === 'text') {
+                    propInputs.textStyleGroup.classList.remove('hidden-by-type');
+                    document.getElementById('text-align-group').classList.remove('hidden-by-type');
+                    document.getElementById('vertical-align-group').classList.remove('hidden-by-type'); // NEU
+                    propInputs.content.value = selectedElement.content;
+                    propInputs.fontSize_pt.value = selectedElement.fontSize_pt;
+                    propInputs.color.value = selectedElement.color;
+                    propInputs.textAlign.value = selectedElement.textAlign || 'left';
+                    propInputs.verticalAlign.value = selectedElement.verticalAlign || 'top'; // NEU
+                } else if (selectedElement.type === 'svg') {
+                    propInputs.textStyleGroup.classList.add('hidden-by-type');
+                    document.getElementById('text-align-group').classList.add('hidden-by-type');
+                    document.getElementById('vertical-align-group').classList.add('hidden-by-type'); // NEU
+                    propInputs.content.value = selectedElement.content;
+                }
+                propInputs.border.checked = ratioToQuantizedFloat(selectedElement.borderWidth_mm_ratio) > 0;
+
+
+            } else if (selectedElementIds.length > 1) {
+                inspectorHint.classList.add('hidden');
+                inspectorMulti.classList.add('hidden');
+                inspectorForm.classList.add('hidden');
+                inspectorMulti.textContent = `${selectedElementIds.length} Elemente ausgewählt.`;
+            } else {
+                inspectorHint.classList.remove('hidden');
+                inspectorMulti.classList.add('hidden');
+                inspectorForm.classList.add('hidden');
+            }
+            
+            const alignButtons = alignTools.querySelectorAll('button');
+            alignButtons.forEach(btn => btn.disabled = selectedElementIds.length < 2);
+        }
+        
+        // --- Shared Element Toggle Handler ---
+        propInputs.isShared.addEventListener('change', async (e) => {
+            const isSharedNew = e.target.checked;
+            if (selectedElementIds.length !== 1) return;
+            
+            const selectedId = selectedElementIds[0];
+            const selectedElement = getEditableElements().find(el => el.id === selectedId);
+            if (!selectedElement || selectedElement.isMaster) return;
+
+            saveStateToHistory(); 
+
+            if (isSharedNew) {
+                // Von Data zu Shared verschieben
+                const index = dataElements.findIndex(el => el.id === selectedId);
+                if (index !== -1) {
+                    const elToMove = dataElements.splice(index, 1)[0];
+                    sharedElements.push(elToMove);
+                }
+            } else {
+                // Von Shared zu Data (nur aktuelle Seite) verschieben
+                const index = sharedElements.findIndex(el => el.id === selectedId);
+                if (index !== -1) {
+                    const elToMove = sharedElements.splice(index, 1)[0];
+                    dataElements.push(elToMove);
+                }
+            }
+
+            // Neu rendern, um die Änderung in den Arbeitsspeicher zu schreiben
+            await render();
+        });
+        
+        // --- Lock Toggle Handler (NEU) ---
+        propInputs.isLocked.addEventListener('change', async (e) => {
+            const isLockedNew = e.target.checked;
+            if (selectedElementIds.length !== 1) return;
+            
+            const selectedId = selectedElementIds[0];
+            const allElements = getEditableElements();
+            const selectedElement = allElements.find(el => el.id === selectedId);
+            if (!selectedElement) return;
+
+            saveStateToHistory(); 
+
+            selectedElement.isLocked = isLockedNew;
+
+            // WICHTIG: Wenn es ein Shared Element ist, muss der Master-Zustand synchronisiert werden
+            const sharedIndex = sharedElements.findIndex(el => el.id === selectedId);
+            if (sharedIndex !== -1) {
+                sharedElements[sharedIndex].isLocked = isLockedNew;
+            }
+             const masterIndex = masterElements.findIndex(el => el.id === selectedId);
+            if (masterIndex !== -1) {
+                masterElements[masterIndex].isLocked = isLockedNew;
+            }
+
+            await render(); 
+        });
+
+        // --- Text Alignment Change Handler (NEU) ---
+        propInputs.textAlign.addEventListener('change', async () => {
+             if (selectedElementIds.length !== 1) return;
+            
+            const selectedElement = getEditableElements().find(el => el.id === selectedElementIds[0]);
+            if (!selectedElement || selectedElement.isLocked) return;
+
+            saveStateToHistory();
+
+            const newAlign = propInputs.textAlign.value;
+            
+            // Update selected Element
+            selectedElement.textAlign = newAlign;
+
+            // Sync Shared/Master elements if necessary
+            if (selectedElement.isMaster) {
+                masterElements.forEach(m => { if(m.id === selectedElement.id) m.textAlign = newAlign; });
+            } else if (sharedElements.some(s => s.id === selectedElement.id)) {
+                sharedElements.forEach(s => { if(s.id === selectedElement.id) s.textAlign = newAlign; });
+            }
+
+            await render();
+        });
+
+        // --- Vertical Alignment Change Handler (NEU) ---
+        propInputs.verticalAlign.addEventListener('change', async () => {
+             if (selectedElementIds.length !== 1) return;
+            
+            const selectedElement = getEditableElements().find(el => el.id === selectedElementIds[0]);
+            if (!selectedElement || selectedElement.isLocked) return;
+
+            saveStateToHistory();
+
+            const newVerticalAlign = propInputs.verticalAlign.value;
+            
+            // Update selected Element
+            selectedElement.verticalAlign = newVerticalAlign;
+
+            // Sync Shared/Master elements if necessary
+            if (selectedElement.isMaster) {
+                masterElements.forEach(m => { if(m.id === selectedElement.id) m.verticalAlign = newVerticalAlign; });
+            } else if (sharedElements.some(s => s.id === selectedElement.id)) {
+                sharedElements.forEach(s => { if(s.id === selectedElement.id) s.verticalAlign = newVerticalAlign; });
+            }
+
+            await render();
+        });
+
+
+        async function createElement(type, isMaster = false) {
+            saveStateToHistory(); 
+
+            const default_fontSize_pt = isMaster ? 8 : 12;
+            const default_content = isMaster 
+                ? 'Seite {{PAGE_NUMBER}} von {{TOTAL_PAGES}} - {{CURRENT_DATE}}' 
+                : (type === 'text' ? 'Hallo, {{name}} (ID: {{id}})' : `<svg width="80" height="10" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 10"><rect width="80" height="10" fill="#f0f0f0" stroke="#ccc" stroke-width="0.5"/><text x="10" y="6" font-family="sans-serif" font-size="4" fill="#333">Betrag: {{amount}}</text></svg>`);
+
+            const default_y = isMaster ? (type === 'text' ? '280.0' : '5.0') : '10.0';
+            
+            const newElement = {
+                id: `el-${Date.now()}`,
+                type: type, 
+                isMaster: isMaster, 
+                isLocked: false, 
+                textAlign: 'left', 
+                verticalAlign: 'top', // NEU
+                x_ratio: applySnap(mmStringToRatio('10.0')),
+                y_ratio: applySnap(mmStringToRatio(default_y)),
+                w_ratio: applySnap(mmStringToRatio('80.0')),
+                h_ratio: applySnap(mmStringToRatio('10.0')), 
+                content: default_content,
+                fontSize_pt: default_fontSize_pt,
+                color: isMaster ? '#555555' : '#000000',
+                borderWidth_mm_ratio: NO_BORDER_RATIO
+            };
+            
+            if (isMaster) {
+                 masterElements.push(newElement);
+            } else {
+                 dataElements.push(newElement); 
+            }
+
+            selectElement(newElement.id); 
+            await render(); 
+        }
+
+        function hitTest(canvas_x_px, canvas_y_px) {
+            let hitElement = null;
+            let cursor = 'default';
+            
+            // Suche in umgekehrter Rendering-Reihenfolge (Master -> Data -> Shared)
+            const searchElements = [...masterElements, ...dataElements, ...sharedElements].reverse();
+            
+            for (const el of searchElements) {
+                const px_x = ratioToPixels_INT(el.x_ratio);
+                const px_y = ratioToPixels_INT(el.y_ratio);
+                const px_w = ratioToPixels_INT(el.w_ratio);
+                const px_h = ratioToPixels_INT(el.h_ratio);
+
+                if (canvas_x_px >= px_x && canvas_x_px <= px_x + px_w && 
+                    canvas_y_px >= px_y && canvas_y_px <= px_y + px_h)
+                {
+                    hitElement = el;
+                    cursor = el.isLocked ? 'default' : 'move'; // Cursor ändert sich bei Lock
+                    break;
+                }
+            }
+            
+            canvas.style.cursor = cursor;
+            return hitElement;
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            return { x: Math.round(x), y: Math.round(y) };
+        }
+
+
+        // --- 4. Event Listener ---
+        
+        addTextBtn.addEventListener('click', () => { createElement('text', false); });
+        addSvgBtn.addEventListener('click', () => { createElement('svg', false); });
+        addMasterTextBtn.addEventListener('click', () => { createElement('text', true); });
+        
+        inspectorForm.addEventListener('change', async (e) => {
+            
+            // Alignment Changes werden durch eigene Listener behandelt
+            if (e.target.id === 'prop-textAlign' || e.target.id === 'prop-verticalAlign') return;
+
+            if (selectedElementIds.length !== 1) return;
+            
+            const selectedElement = getEditableElements().find(el => el.id === selectedElementIds[0]);
+            if (!selectedElement || selectedElement.isLocked) return; // Blockiert Eingabe bei Lock
+
+            saveStateToHistory(); 
+            
+            const updateElement = (targetElement) => {
+                targetElement.x_ratio = applySnap(mmStringToRatio(propInputs.x.value));
+                targetElement.y_ratio = applySnap(mmStringToRatio(propInputs.y.value));
+                targetElement.w_ratio = applySnap(mmStringToRatio(propInputs.w.value));
+                targetElement.h_ratio = applySnap(mmStringToRatio(propInputs.h.value));
+                targetElement.borderWidth_mm_ratio = propInputs.border.checked ? BORDER_WIDTH_RATIO : NO_BORDER_RATIO;
+                targetElement.content = propInputs.content.value;
+                
+                if (targetElement.type === 'text') {
+                    targetElement.fontSize_pt = parseFloat(propInputs.fontSize_pt.value) || 12;
+                    targetElement.color = propInputs.color.value;
+                }
+            };
+            
+            if (selectedElement.isMaster) {
+                const index = masterElements.findIndex(el => el.id === selectedElement.id);
+                if (index !== -1) updateElement(masterElements[index]);
+            } else {
+                // Muss Shared oder Data sein
+                let index = dataElements.findIndex(el => el.id === selectedElement.id);
+                if (index !== -1) { updateElement(dataElements[index]); }
+                
+                index = sharedElements.findIndex(el => el.id === selectedElement.id);
+                if (index !== -1) { 
+                    updateElement(sharedElements[index]); 
+                    // Synchrone Aktualisierung des Shared Elements
+                    sharedElements.forEach(el => {
+                        if (el.id === selectedElement.id) {
+                            el.x_ratio = sharedElements[index].x_ratio;
+                            el.y_ratio = sharedElements[index].y_ratio;
+                            el.w_ratio = sharedElements[index].w_ratio;
+                            el.h_ratio = sharedElements[index].h_ratio;
+                            el.content = sharedElements[index].content;
+                            el.fontSize_pt = sharedElements[index].fontSize_pt;
+                            el.color = sharedElements[index].color;
+                            el.borderWidth_mm_ratio = sharedElements[index].borderWidth_mm_ratio;
+                        }
+                    });
+                }
+            }
+
+            await render(); 
+        });
+
+        // Data Model Update Button (Verbesserte Robustheit)
+        document.getElementById('update-data-btn').addEventListener('click', async () => {
+            dataStatusMessage.className = 'text-xs mt-1 text-info';
+            dataStatusMessage.textContent = 'Verarbeite Daten...';
+
+            try {
+                const newRawData = dataModelInput.value;
+                const parsedModel = JSON.parse(newRawData);
+                
+                let rowCount = 0;
+                if (Array.isArray(parsedModel)) {
+                    rowCount = parsedModel.length;
+                } else if (typeof parsedModel === 'object' && parsedModel !== null) {
+                    rowCount = 1;
+                } else {
+                    throw new Error("JSON muss ein Top-Level-Objekt {} oder ein Array [] von Objekten sein.");
+                }
+
+                await commitDataChange(newRawData, 0); // Starte immer auf Seite 1
+                dataStatusMessage.className = 'text-xs mt-1 text-success';
+                dataStatusMessage.textContent = `Erfolgreich: ${rowCount} Datenreihen geladen.`;
+
+            } catch (error) {
+                dataStatusMessage.className = 'text-xs mt-1 text-error';
+                dataStatusMessage.textContent = `FEHLER: Ungültiges JSON. (${error.message.substring(0, 80)}...)`;
+                console.error("JSON Parse Fehler:", error);
+                return false;
+            }
+        });
+
+
+        document.getElementById('delete-btn').addEventListener('click', async () => {
+            await handleDelete();
+        });
+        
+        // Seitensteuerung
+        prevPageBtn.addEventListener('click', async () => { await goToPage(currentPageIndex - 1); });
+        nextPageBtn.addEventListener('click', async () => { await goToPage(currentPageIndex + 1); });
+        
+        currentPageInput.addEventListener('change', async (e) => {
+            const pageNum = parseInt(e.target.value, 10);
+            const totalCount = parseInt(totalPageCountSpan.textContent, 10) || 1;
+
+            if (isNaN(pageNum) || pageNum < 1) {
+                e.target.value = currentPageIndex + 1;
+            } else {
+                let newIndex = pageNum - 1;
+                if (newIndex >= totalCount) newIndex = totalCount - 1;
+                await goToPage(newIndex);
+            }
+        });
+
+        // Toggles
+        document.getElementById('snap-toggle').addEventListener('change', (e) => {
+            isSnapEnabled = e.target.checked;
+        });
+        document.getElementById('grid-toggle').addEventListener('change', async (e) => {
+            isGridVisible = e.target.checked;
+            await render(); 
+        });
+         document.getElementById('helper-lines-toggle').addEventListener('change', async (e) => {
+            isHelperLinesVisible = e.target.checked;
+            await render(); 
+        });
+         document.getElementById('data-iteration-toggle').addEventListener('change', async (e) => {
+            saveStateToHistory(); 
+            const currentStateIndex = history.length - 1;
+             if (currentStateIndex >= 0) {
+                 const currentState = JSON.parse(history[currentStateIndex]);
+                 currentState.isDataIterationEnabled = e.target.checked;
+                 history[currentStateIndex] = JSON.stringify(currentState);
+             }
+            await render(); 
+        });
+
+        // Alignment-Tools
+        alignTools.addEventListener('click', async (e) => {
+            const button = e.target.closest('button');
+            if (!button || selectedElementIds.length < 2) return;
+
+            // Prüfe auf Lock
+            const allElements = getEditableElements();
+            if (selectedElementIds.some(id => allElements.find(el => el.id === id)?.isLocked)) {
+                console.warn("Ausrichtung blockiert: Mindestens ein ausgewähltes Element ist gesperrt.");
+                return;
+            }
+
+            saveStateToHistory(); 
+
+            const anchorElement = allElements.find(el => el.id === selectedElementIds[0]); 
+            if (!anchorElement) return;
+            
+            const anchor_x = anchorElement.x_ratio;
+            const anchor_y = anchorElement.y_ratio;
+            const anchor_w = anchorElement.w_ratio;
+            const anchor_h = anchorElement.h_ratio;
+            
+            const anchor_right = addRatios(anchor_x, anchor_w);
+            const anchor_bottom = addRatios(anchor_y, anchor_h);
+            const anchor_h_center = addRatios(anchor_x, { num: anchor_w.num, den: anchor_w.den * 2 });
+            const anchor_v_center = addRatios(anchor_y, { num: anchor_h.num, den: anchor_h.den * 2 });
+
+            // Iteriere über alle Elemente, die verschoben werden sollen (außer Anker)
+            for(let i = 1; i < selectedElementIds.length; i++) {
+                const el = allElements.find(item => item.id === selectedElementIds[i]);
+                if (!el || el.isLocked) continue; // Lock-Check
+
+                const targetId = button.id;
+                
+                switch (targetId) {
+                    case 'align-left':
+                        el.x_ratio = applySnap(anchor_x);
+                        break;
+                    case 'align-center':
+                        const el_h_center_offset = { num: el.w_ratio.num, den: el.w_ratio.den * 2 };
+                        el.x_ratio = applySnap(subtractRatios(anchor_h_center, el_h_center_offset));
+                        break;
+                    case 'align-right':
+                        el.x_ratio = applySnap(subtractRatios(anchor_right, el.w_ratio));
+                        break;
+                    case 'align-top':
+                        el.y_ratio = applySnap(anchor_y);
+                        break;
+                    case 'align-middle':
+                        const el_v_center_offset = { num: el.h_ratio.num, den: el.h_ratio.den * 2 };
+                        el.y_ratio = applySnap(subtractRatios(anchor_v_center, el_v_center_offset));
+                        break;
+                    case 'align-bottom':
+                        el.y_ratio = applySnap(subtractRatios(anchor_bottom, el.h_ratio));
+                        break;
+                }
+                
+                 // NEU: Shared Elements synchronisieren, wenn sie verschoben wurden
+                if (sharedElements.some(s => s.id === el.id)) {
+                    sharedElements.forEach(s => {
+                         if (s.id === el.id) {
+                            s.x_ratio = el.x_ratio;
+                            s.y_ratio = el.y_ratio;
+                        }
+                    });
+                }
+            }
+            
+            await render(); 
+        });
+
+        // --- 5. HISTORY & SAVE/LOAD FUNKTIONEN ---
+
+        function updateHistoryButtons() {
+            undoBtn.disabled = history.length === 0;
+            redoBtn.disabled = redoStack.length === 0;
+        }
+
+        function saveStateToHistory() {
+            // WICHTIG: Speichere Elemente der aktuellen Seite VOR dem History-Snapshot
+            saveCurrentPageElements();
+
+            const state = {
+                masterElements: masterElements, 
+                sharedElements: sharedElements, // NEU: Shared Elements speichern
+                selectedElementIds: selectedElementIds,
+                rawDataJson: rawDataJson, 
+                isDataIterationEnabled: document.getElementById('data-iteration-toggle').checked,
+                currentPageIndex: currentPageIndex 
+            };
+            history.push(JSON.stringify(state));
+            redoStack = []; 
+            updateHistoryButtons();
+        }
+
+        async function restoreState(state) {
+            masterElements = state.masterElements; 
+            sharedElements = state.sharedElements || []; // NEU: Shared Elements wiederherstellen
+            selectedElementIds = state.selectedElementIds; 
+            
+            rawDataJson = state.rawDataJson; 
+            dataModel = JSON.parse(rawDataJson); 
+            
+            document.getElementById('data-iteration-toggle').checked = state.isDataIterationEnabled; 
+            dataModelInput.value = rawDataJson;
+            currentPageIndex = state.currentPageIndex || 0; 
+            dataStatusMessage.textContent = ''; 
+            
+            loadPageElements(currentPageIndex);
+            
+            await render();
+            updateHistoryButtons();
+        }
+
+        async function handleUndo() {
+            if (history.length === 0) return;
+            saveCurrentPageElements();
+            
+            const currentState = { 
+                masterElements: masterElements,
+                sharedElements: sharedElements,
+                selectedElementIds: selectedElementIds,
+                rawDataJson: rawDataJson,
+                isDataIterationEnabled: document.getElementById('data-iteration-toggle').checked,
+                currentPageIndex: currentPageIndex
+            };
+            redoStack.push(JSON.stringify(currentState)); 
+            
+            const prevState = JSON.parse(history.pop()); 
+            await restoreState(prevState);
+        }
+
+        async function handleRedo() {
+            if (redoStack.length === 0) return;
+            saveCurrentPageElements();
+
+            const currentState = { 
+                masterElements: masterElements,
+                sharedElements: sharedElements,
+                selectedElementIds: selectedElementIds,
+                rawDataJson: rawDataJson,
+                isDataIterationEnabled: document.getElementById('data-iteration-toggle').checked,
+                currentPageIndex: currentPageIndex
+            };
+            history.push(JSON.stringify(currentState)); 
+            
+            const nextState = JSON.parse(redoStack.pop()); 
+            await restoreState(nextState);
+        }
+
+        async function handleDelete() {
+            if (selectedElementIds.length === 0) return;
+            
+            // Prüfe auf Lock VOR History
+            const allElements = getEditableElements();
+            if (selectedElementIds.some(id => allElements.find(el => el.id === id)?.isLocked)) {
+                console.warn("Löschen blockiert: Mindestens ein ausgewähltes Element ist gesperrt.");
+                return;
+            }
+            
+            saveStateToHistory(); 
+            
+            selectedElementIds.forEach(id => {
+                // Löschen aus Data
+                dataElements = dataElements.filter(el => el.id !== id);
+                // Löschen aus Shared
+                sharedElements = sharedElements.filter(el => el.id !== id);
+                // Löschen aus Master
+                masterElements = masterElements.filter(el => el.id !== id);
+            });
+            
+            selectElement(null); 
+            await render();
+        }
+
+        function handleSave() {
+            try {
+                saveCurrentPageElements();
+
+                const state = {
+                    masterElements: masterElements, 
+                    sharedElements: sharedElements,
+                    selectedElementIds: selectedElementIds,
+                    rawDataJson: JSON.stringify(dataModel, null, 2), 
+                    isDataIterationEnabled: document.getElementById('data-iteration-toggle').checked,
+                    currentPageIndex: currentPageIndex 
+                };
+                const projectData = JSON.stringify(state, null, 2);
+                const blob = new Blob([projectData], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'labels_and_text_project.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                dataModelInput.value = JSON.stringify(dataModel, null, 2); 
+                rawDataJson = dataModelInput.value;
+            } catch (err) {
+                console.error("Fehler beim Speichern:", err);
+            }
+        }
+
+        function handleOpen() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json, application/json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const state = JSON.parse(event.target.result);
+                        
+                        if (state.rawDataJson && Array.isArray(JSON.parse(state.rawDataJson))) {
+                            saveStateToHistory(); 
+                            
+                            state.masterElements = state.masterElements || [];
+                            state.sharedElements = state.sharedElements || []; // Sicherstellen, dass Shared geladen wird
+
+                            await restoreState(state);
+                        } else {
+                            throw new Error("Invalides JSON-Format im Projekt-State.");
+                        }
+                    } catch (err) {
+                        console.error("Fehler beim Laden der Datei:", err);
+                        alert("Fehler: Die Datei konnte nicht gelesen werden.");
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+        
+        // History-Buttons
+        undoBtn.addEventListener('click', handleUndo);
+        redoBtn.addEventListener('click', handleRedo);
+        saveBtn.addEventListener('click', handleSave);
+        openBtn.addEventListener('click', handleOpen);
+// PDF Export
+exportPdfBtn.addEventListener('click', async () => {
+  try {
+    exportPdfBtn.disabled = true;
+    const buf  = await generatePdfArrayBuffer();
+    const blob = new Blob([buf], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('PDF-Export fehlgeschlagen:', err);
+    alert('PDF-Export fehlgeschlagen. Details in der Konsole.');
+  } finally {
+    exportPdfBtn.disabled = false;
+  }
+});
+
+        // --- 6. COPY/PASTE FUNKTIONEN ---
+        function handleCopy() {
+            if (selectedElementIds.length === 0) return;
+            const allElements = getEditableElements();
+            clipboard = allElements
+                .filter(el => selectedElementIds.includes(el.id))
+                .map(el => JSON.parse(JSON.stringify(el))); 
+            console.log(`${clipboard.length} Elemente in Zwischenablage kopiert.`);
+        }
+
+        async function handlePaste() {
+            if (clipboard.length === 0) return;
+            saveStateToHistory();
+            
+            const newIds = [];
+            const offsetRatio = mmStringToRatio('5'); 
+
+            clipboard.forEach(el => {
+                const newEl = JSON.parse(JSON.stringify(el)); 
+                newEl.id = `el-${Date.now()}-${Math.random()}`; 
+                newEl.x_ratio = applySnap(addRatios(el.x_ratio, offsetRatio));
+                newEl.y_ratio = applySnap(addRatios(el.y_ratio, offsetRatio));
+                
+                // Neue Elemente sind standardmäßig Data-Elemente, auch wenn die Vorlage Shared war.
+                if (newEl.isMaster) {
+                    masterElements.push(newEl);
+                } else {
+                    dataElements.push(newEl);
+                }
+                newIds.push(newEl.id);
+            });
+
+            selectedElementIds = newIds;
+            
+            await render();
+            console.log(`${newIds.length} Elemente eingefügt.`);
+        }
+
+
+        // --- 7. Initialisierung & Mouse Events ---
+        
+        document.addEventListener('mousedown', (e) => {
+            
+            // 0. Voreinstellungen
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                document.activeElement.blur(); 
+            }
+            isDragging = false;
+            isResizing = false;
+            dragContext = {};
+            
+            const handle = e.target.closest('.resize-handle');
+            const targetIsCanvas = e.target === canvas;
+            
+            const pos = targetIsCanvas ? getMousePos(e) : null; 
+            const hitElement = pos ? hitTest(pos.x, pos.y) : null;
+
+            // --- LOCK CHECK für Drag/Resize START ---
+            let isAnyLocked = false;
+            if (hitElement) {
+                isAnyLocked = selectedElementIds.some(id => getEditableElements().find(el => el.id === id)?.isLocked);
+            }
+            if (isAnyLocked && (handle || hitElement)) {
+                 // Blockiere jegliche Drag- oder Resize-Aktion, wenn ein Element gesperrt ist
+                 return;
+            }
+
+
+            // --- 1. RESIZE ACTION (Handle click) ---
+            if (handle && selectedElementIds.length === 1) {
+                e.preventDefault();
+                e.stopPropagation(); 
+                isResizing = true;
+                
+                const selectedElement = getEditableElements().find(el => el.id === selectedElementIds[0]);
+                if (!selectedElement) return; 
+
+                dragContext = {
+                    handle: handle.dataset.handle,
+                    originalState: JSON.parse(JSON.stringify(selectedElement)),
+                };
+            } 
+            
+            // --- 2. SELECT & DRAG ACTION (Canvas/Element click) ---
+            else if (targetIsCanvas) {
+                e.preventDefault();
+
+                if (hitElement) {
+                    const isAlreadySelected = selectedElementIds.includes(hitElement.id);
+                    
+                    // 2a. Selection Logic
+                    if (!e.shiftKey) {
+                        selectElement(hitElement.id, false); 
+                    } else {
+                        selectElement(hitElement.id, true); 
+                    }
+
+                    // 2b. Drag Initiation
+                    if (selectedElementIds.includes(hitElement.id) && !hitElement.isLocked) {
+                        isDragging = true;
+                        dragContext = {
+                            handle: 'move',
+                            // KORRIGIERT: TIEFE KOPIE aller ausgewählten Elemente beim Drag-Start
+                            originalStates: getEditableElements().filter(el => selectedElementIds.includes(el.id))
+                                                .map(el => JSON.parse(JSON.stringify(el))), 
+                        };
+                    }
+                    
+                } else {
+                    // Clicked on background
+                    if (!e.shiftKey) {
+                        selectElement(null);
+                    }
+                }
+            } 
+            
+            // --- 3. GHOST & CONTEXT SETUP (Common) ---
+            if ((isDragging || isResizing) && selectedElementIds.length > 0) {
+                
+                if (!dragContext.stateSaved) {
+                    saveStateToHistory(); 
+                    dragContext.stateSaved = true; 
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = rect.width / canvas.width;
+                const scaleY = rect.height / canvas.height; 
+
+                ghostContext = {
+                    scaleX: scaleX,
+                    scaleY: scaleY,
+                    start_mouse_css_x: e.clientX, 
+                    start_mouse_css_y: e.clientY,
+                    boxes: [] 
+                };
+
+                const allElements = getEditableElements();
+                selectedElementIds.forEach(id => {
+                    const el = allElements.find(e => e.id === id);
+                    if (!el) return;
+                    
+                    const elRect = {
+                        left: rect.left + (ratioToPixels_INT(el.x_ratio) * scaleX),
+                        top: rect.top + (ratioToPixels_INT(el.y_ratio) * scaleY), 
+                        width: (ratioToPixels_INT(el.w_ratio) * scaleX),
+                        height: (ratioToPixels_INT(el.h_ratio) * scaleY),
+                    };
+
+                    let boxElement;
+                    if (id === selectedElementIds[selectedElementIds.length - 1] && isResizing) {
+                        boxElement = ghostBox;
+                    } else {
+                        boxElement = document.createElement('div');
+                        boxElement.className = 'ghost-box-multi';
+                        boxElement.style.position = 'absolute';
+                        multiSelectContainer.appendChild(boxElement);
+                    }
+                    
+                    boxElement.style.left = elRect.left + 'px';
+                    boxElement.style.top = elRect.top + 'px';
+                    boxElement.style.width = elRect.width + 'px';
+                    boxElement.style.height = elRect.height + 'px';
+                    boxElement.style.display = 'block';
+                    
+                    ghostContext.boxes.push({
+                        el: boxElement,
+                        startLeft: elRect.left,
+                        startTop: elRect.top,
+                        startWidth: elRect.width,
+                        startHeight: elRect.height
+                    });
+                });
+                
+                if (isResizing) {
+                    ghostBox.style.border = '1px dashed #0078d4';
+                    ghostBox.style.background = 'rgba(0, 120, 212, 0.1)';
+                }
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging && !isResizing) {
+                if (e.target === canvas) {
+                    const pos = getMousePos(e);
+                    hitTest(pos.x, pos.y);
+                }
+                return;
+            }
+            e.preventDefault();
+            
+            const delta_css_x = e.clientX - ghostContext.start_mouse_css_x;
+            const delta_css_y = e.clientY - ghostContext.start_mouse_css_y;
+            const handle = dragContext.handle;
+
+            if (isDragging && handle === 'move') {
+                ghostContext.boxes.forEach(box => {
+                    let new_css_left = box.startLeft + delta_css_x;
+                    let new_css_top = box.startTop + delta_css_y;
+                    
+                    if (isSnapEnabled) {
+                        const rect = canvas.getBoundingClientRect();
+                        const new_buf_x = (new_css_left - rect.left) / ghostContext.scaleX;
+                        const new_buf_y = (new_css_top - rect.top) / ghostContext.scaleY;
+                        const new_ratio_x = stringInputToRatio(pixelsToMM_FLOAT(new_buf_x).toFixed(5));
+                        const new_ratio_y = stringInputToRatio(pixelsToMM_FLOAT(new_buf_y).toFixed(5));
+                        const snapped_ratio_x = snapRatio01mm(new_ratio_x);
+                        const snapped_ratio_y = snapRatio01mm(new_ratio_y);
+                        const snapped_buf_x = ratioToPixels_INT(snapped_ratio_x);
+                        const snapped_buf_y = ratioToPixels_INT(snapped_ratio_y);
+                        new_css_left = rect.left + (snapped_buf_x * ghostContext.scaleX);
+                        new_css_top = rect.top + (snapped_buf_y * ghostContext.scaleY);
+                    }
+                    
+                    box.el.style.left = new_css_left + 'px';
+                    box.el.style.top = new_css_top + 'px';
+                });
+
+            } else if (isResizing) {
+                const primaryBox = ghostContext.boxes[0];
+                let new_css_left = primaryBox.startLeft;
+                let new_css_top = primaryBox.startTop;
+                let new_css_width = primaryBox.startWidth;
+                let new_css_height = primaryBox.startHeight;
+
+                if (handle.includes('n')) {
+                    new_css_top += delta_css_y;
+                    new_css_height -= delta_css_y;
+                }
+                if (handle.includes('s')) {
+                    new_css_height += delta_css_y;
+                }
+                if (handle.includes('w')) {
+                    new_css_left += delta_css_x;
+                    new_css_width -= delta_css_x;
+                }
+                if (handle.includes('e')) {
+                    new_css_width += delta_css_x;
+                }
+
+                if (isSnapEnabled) {
+                    const rect = canvas.getBoundingClientRect();
+                    const new_buf_x = (new_css_left - rect.left) / ghostContext.scaleX;
+                    const new_buf_y = (new_css_top - rect.top) / ghostContext.scaleY;
+                    const new_buf_w = new_css_width / ghostContext.scaleX;
+                    const new_buf_h = new_css_height / ghostContext.scaleY;
+                    
+                    const new_ratio_x = stringInputToRatio(pixelsToMM_FLOAT(new_buf_x).toFixed(5));
+                    const new_ratio_y = stringInputToRatio(pixelsToMM_FLOAT(new_buf_y).toFixed(5));
+                    const new_ratio_w = stringInputToRatio(pixelsToMM_FLOAT(new_buf_w).toFixed(5));
+                    const new_ratio_h = stringInputToRatio(pixelsToMM_FLOAT(new_buf_h).toFixed(5));
+
+                    const snapped_ratio_x = snapRatio01mm(new_ratio_x);
+                    const snapped_ratio_y = snapRatio01mm(new_ratio_y);
+                    const snapped_ratio_w = snapRatio01mm(new_ratio_w);
+                    const snapped_ratio_h = snapRatio01mm(new_ratio_h);
+
+                    const snapped_buf_x = ratioToPixels_INT(snapped_ratio_x);
+                    const snapped_buf_y = ratioToPixels_INT(snapped_ratio_y);
+                    const snapped_buf_w = ratioToPixels_INT(snapped_ratio_w);
+                    const snapped_buf_h = ratioToPixels_INT(snapped_ratio_h);
+
+                    new_css_left = rect.left + (snapped_buf_x * ghostContext.scaleX);
+                    new_css_top = rect.top + (snapped_buf_y * ghostContext.scaleY);
+                    new_css_width = snapped_buf_w * ghostContext.scaleX;
+                    new_css_height = snapped_buf_h * ghostContext.scaleY;
+                }
+            
+                primaryBox.el.style.left = new_css_left + 'px';
+                primaryBox.el.style.top = new_css_top + 'px';
+                primaryBox.el.style.width = (new_css_width > 5 ? new_css_width : 5) + 'px';
+                primaryBox.el.style.height = (new_css_height > 5 ? new_css_height : 5) + 'px';
+            }
+        });
+        
+        document.addEventListener('mouseup', async (e) => {
+            if (!isDragging && !isResizing) return;
+            
+            e.preventDefault();
+            ghostBox.style.display = 'none'; 
+            multiSelectContainer.innerHTML = ''; 
+
+            const handle = dragContext.handle;
+            const allElements = getEditableElements();
+
+            if (isDragging && handle === 'move') {
+                const mainGhostBox = ghostContext.boxes[0].el;
+                const final_css_left = parseFloat(mainGhostBox.style.left);
+                const final_css_top = parseFloat(mainGhostBox.style.top);
+                const rect = canvas.getBoundingClientRect();
+
+                const final_buf_x = (final_css_left - rect.left) / ghostContext.scaleX;
+                const final_buf_y = (final_css_top - rect.top) / ghostContext.scaleY;
+                const final_ratio_x = stringInputToRatio(pixelsToMM_FLOAT(final_buf_x).toFixed(5));
+                const final_ratio_y = stringInputToRatio(pixelsToMM_FLOAT(final_buf_y).toFixed(5));
+
+                const original = dragContext.originalStates[0];
+                const deltaX_ratio = subtractRatios(final_ratio_x, original.x_ratio);
+                const deltaY_ratio = subtractRatios(final_ratio_y, original.y_ratio);
+
+                // Elemente im aktuellen Arbeits-Array aktualisieren
+                dragContext.originalStates.forEach(originalState => {
+                    const el = allElements.find(e => e.id === originalState.id);
+                    if (el) {
+                        el.x_ratio = applySnap(addRatios(originalState.x_ratio, deltaX_ratio));
+                        el.y_ratio = applySnap(addRatios(originalState.y_ratio, deltaY_ratio));
+                        
+                         // NEU: Synchrone Aktualisierung von Shared/Master, wenn verschoben
+                         if (el.isMaster) {
+                             masterElements.forEach(m => { if(m.id === el.id) { m.x_ratio = el.x_ratio; m.y_ratio = el.y_ratio; } });
+                         } else if (sharedElements.some(s => s.id === el.id)) {
+                             sharedElements.forEach(s => { if(s.id === el.id) { s.x_ratio = el.x_ratio; s.y_ratio = el.y_ratio; } });
+                         }
+                    }
+                });
+
+            } else if (isResizing) {
+                const selectedElement = allElements.find(el => el.id === selectedElementIds[0]);
+                const final_css_left = parseFloat(ghostBox.style.left);
+                const final_css_top = parseFloat(ghostBox.style.top);
+                const final_css_width = parseFloat(ghostBox.style.width);
+                const final_css_height = parseFloat(ghostBox.style.height);
+
+                const rect = canvas.getBoundingClientRect();
+                const final_buf_x = (final_css_left - rect.left) / ghostContext.scaleX;
+                const final_buf_y = (final_css_top - rect.top) / ghostContext.scaleY;
+                const final_buf_w = final_css_width / ghostContext.scaleX;
+                const final_buf_h = final_css_height / ghostContext.scaleY;
+
+                const final_ratio_x = stringInputToRatio(pixelsToMM_FLOAT(final_buf_x).toFixed(5));
+                const final_ratio_y = stringInputToRatio(pixelsToMM_FLOAT(final_buf_y).toFixed(5));
+                const final_ratio_w = stringInputToRatio(pixelsToMM_FLOAT(final_buf_w).toFixed(5));
+                const final_ratio_h = stringInputToRatio(pixelsToMM_FLOAT(final_buf_h).toFixed(5));
+                
+                selectedElement.x_ratio = applySnap(final_ratio_x);
+                selectedElement.y_ratio = applySnap(final_ratio_y);
+                selectedElement.w_ratio = ratioToQuantizedFloat(applySnap(final_ratio_w)) > MIN_SIZE_MM ? applySnap(final_ratio_w) : MIN_SIZE_RATIO;
+                selectedElement.h_ratio = ratioToQuantizedFloat(applySnap(final_ratio_h)) > MIN_SIZE_MM ? applySnap(final_ratio_h) : MIN_SIZE_RATIO;
+                
+                 // NEU: Synchrone Aktualisierung von Shared/Master, wenn Größe geändert
+                 if (selectedElement.isMaster) {
+                     masterElements.forEach(m => { if(m.id === selectedElement.id) { m.w_ratio = selectedElement.w_ratio; m.h_ratio = selectedElement.h_ratio; } });
+                 } else if (sharedElements.some(s => s.id === selectedElement.id)) {
+                     sharedElements.forEach(s => { if(s.id === selectedElement.id) { s.w_ratio = selectedElement.w_ratio; s.h_ratio = selectedElement.h_ratio; } });
+                 }
+            }
+
+            isDragging = false;
+            isResizing = false;
+            dragContext = {};
+            ghostContext = {};
+            
+            await render();
+        });
+
+
+        // --- 7. Initialisierung ---
+        async function initializeApp() {
+            console.log("Deterministischer Designer (C. H. Hohlfeld) startet...");
+            dataModelInput.value = rawDataJson;
+            
+            canvasContainer.addEventListener('scroll', updateSelectionGhost);
+            window.addEventListener('resize', updateSelectionGhost);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+
+                if (e.ctrlKey || e.metaKey) {
+                    switch (e.key.toLowerCase()) {
+                        case 's': e.preventDefault(); handleSave(); break;
+                        case 'o': e.preventDefault(); handleOpen(); break;
+                        case 'z': e.preventDefault(); e.shiftKey ? handleRedo() : handleUndo(); break;
+                        case 'y': e.preventDefault(); handleRedo(); break;
+                        case 'c': e.preventDefault(); handleCopy(); break;
+                        case 'v': e.preventDefault(); handlePaste(); break;
+                    }
+                } else {
+                     switch (e.key) {
+                        case 'Delete':
+                        case 'Backspace':
+                            e.preventDefault();
+                            handleDelete();
+                            break;
+                        case 'Escape':
+                            e.preventDefault();
+                            selectElement(null);
+                            break;
+                     }
+                }
+            });
+
+            const now = Date.now();
+            
+            // Definiere die Standard-Elemente als Template
+            const initialDataElementsTemplate = [
+                {
+                    id: `el-${now}-1`,
+                    type: 'text', 
+                    isMaster: false,
+                    isLocked: false,
+                    textAlign: 'left', 
+                    verticalAlign: 'top', // NEU
+                    x_ratio: applySnap(mmStringToRatio('10.0')),
+                    y_ratio: applySnap(mmStringToRatio('10.0')),
+                    w_ratio: applySnap(mmStringToRatio('80.0')),
+                    h_ratio: applySnap(mmStringToRatio('10.0')), 
+                    content: 'Hallo, {{name}} (ID: {{id}})',
+                    fontSize_pt: 12,
+                    color: '#000000',
+                    borderWidth_mm_ratio: NO_BORDER_RATIO
+                },
+                {
+                    id: `el-${now}-2`,
+                    type: 'text', 
+                    isMaster: false,
+                    isLocked: false,
+                    textAlign: 'left', 
+                    verticalAlign: 'top', // NEU
+                    x_ratio: applySnap(mmStringToRatio('10.0')),
+                    y_ratio: applySnap(mmStringToRatio('25.0')),
+                    w_ratio: applySnap(mmStringToRatio('80.0')),
+                    h_ratio: applySnap(mmStringToRatio('10.0')), 
+                    content: 'Produkt: {{product}} | Preis: {{amount}} €',
+                    fontSize_pt: 10,
+                    color: '#888888',
+                    borderWidth_mm_ratio: NO_BORDER_RATIO
+                }
+            ];
+
+            // Master Element (Fußzeile)
+            masterElements.push({
+                id: `el-${now}-master`,
+                type: 'text',
+                isMaster: true,
+                isLocked: false,
+                textAlign: 'right', 
+                verticalAlign: 'middle', // NEU: Mittig im Master-Element
+                x_ratio: applySnap(mmStringToRatio('150.0')),
+                y_ratio: applySnap(mmStringToRatio('285.0')),
+                w_ratio: applySnap(mmStringToRatio('50.0')),
+                h_ratio: applySnap(mmStringToRatio('5.0')),
+                content: 'Seite {{PAGE_NUMBER}} von {{TOTAL_PAGES}}',
+                fontSize_pt: 8,
+                color: '#555555',
+                borderWidth_mm_ratio: NO_BORDER_RATIO
+            });
+            
+            // WICHTIG: Füge die serialisierten Elemente zu JEDER Datenreihe hinzu
+            const serializedTemplate = serializeRatios(initialDataElementsTemplate);
+
+            if (Array.isArray(dataModel)) {
+                dataModel.forEach(row => {
+                    // Verwenden der TIEFEN KOPIE der serialisierten Daten
+                    row.elements = JSON.parse(JSON.stringify(serializedTemplate)); 
+                });
+            } else if (dataModel) {
+                 dataModel.elements = serializedTemplate;
+            }
+            rawDataJson = JSON.stringify(dataModel, null, 2);
+            dataModelInput.value = rawDataJson;
+
+            // Lade die Elemente der ersten Seite in die Arbeitskopie (dataElements)
+            loadPageElements(0);
+            
+            // Wähle das erste Element der Arbeitskopie aus
+            if (dataElements.length > 0) {
+                selectElement(dataElements[0].id);
+            }
+
+            history = []; 
+            updateHistoryButtons();
+            
+            await render(); 
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
