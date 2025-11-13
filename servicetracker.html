@@ -1,373 +1,494 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 3 - Hardcoded URL)
-  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit Hardcode der Ziel-App-URL.
-  Layout: Mobile First Design für optimale Lesbarkeit und Bedienung.
+  Servicetracker App (Version 4 - ID-Lookup)
+  Ziel: Nachweis und Qualitätssicherung von Reinigungs- oder Wartungsarbeiten mittels QR-Code ID, Standort und Fotobeweis.
+  Layout: Mobile First Design für optimale Nutzung auf Smartphones.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="cmyk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V3</title>
-    <!-- Tailwind CSS und DaisyUI -->
+    <title>Servicetracker V4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
-    <!-- Google Font Inter -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body { font-family: 'Inter', sans-serif; }
-        /* Stil für den druckbaren Bereich */
-        @media print {
-            body > :not(#printable-area) {
-                display: none !important;
-            }
-            #printable-area {
-                display: block;
-                width: 100%;
-                margin: 0;
-                padding: 20px;
-                box-shadow: none;
-                page-break-after: always; /* Für mehrere Codes auf separaten Seiten */
-            }
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8);
+            display: none; justify-content: center; align-items: center; z-index: 1000;
         }
+        .loading .loading-overlay { display: flex; }
+        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
     </style>
-    <!-- QR Code Bibliothek -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start p-2 sm:p-4">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
 
-<!-- Generator Container -->
-<div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
+<!-- Hauptanwendung Container -->
+<div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V3</h1>
-        <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker</h1>
+        <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display">Unbekannte Kraft</span></p>
     </header>
 
-    <!-- Projektverwaltung -->
-    <div class="card bg-gray-50 shadow-inner p-3 sm:p-4 mb-6">
-        <div class="flex flex-col md:flex-row gap-3 items-center">
-            <!-- Auf Mobile: Selector nimmt volle Breite ein (w-full). -->
-            <label class="form-control w-full md:w-3/5">
-                <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Aktiver Standort-Bereich</span></div>
-                <select id="project-selector" class="select select-bordered select-sm sm:select-md w-full" onchange="switchProject(this.value)">
-                    <!-- Optionen werden via JavaScript befüllt -->
-                </select>
+    <!-- UI-Zustände -->
+    <div id="login-screen" class="app-state">
+        <h2 class="text-xl font-semibold mb-4 text-center">Login</h2>
+        <div class="card bg-base-100 shadow-md p-4 sm:p-6">
+            <label class="form-control w-full mb-4">
+                <div class="label"><span class="label-text">Benutzername (Optional)</span></div>
+                <input type="text" id="username-input" placeholder="Name der Kraft" class="input input-bordered w-full" />
             </label>
-            <!-- Auf Mobile: Buttons nehmen volle Breite ein (w-full) und sind nebeneinander. -->
-            <div class="flex gap-2 w-full md:w-2/5 md:justify-end">
-                <button onclick="newProject()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
-                    Neu
-                </button>
-                <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap w-1/2">
-                    Export
-                </button>
-            </div>
-        </div>
-        
-        <!-- Import-Feld unter dem Selector -->
-        <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
-            <label class="form-control w-full">
-                <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Import (JSON)</span></div>
-                <input type="file" accept=".json" class="file-input file-input-bordered file-input-sm w-full" onchange="importProjects(event)" />
-            </label>
+            <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-lg">Einloggen & Starten</button>
+            <p class="text-xs text-center mt-4 text-gray-400">Anonyme Anmeldung für persistente Daten.</p>
         </div>
     </div>
 
-    <!-- Daten Eingabe -->
-    <div class="card bg-base-100 shadow-md p-4 sm:p-6">
-        <h2 class="text-xl font-semibold mb-4">Daten eingeben</h2>
-        
-        <label class="form-control w-full mb-4">
-            <div class="label"><span class="label-text text-sm">Gebäudename / Objekt</span></div>
-            <input type="text" id="building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
-        </label>
-
-        <label class="form-control w-full mb-6">
-            <div class="label"><span class="label-text text-sm">Bereich / Area (z.B. Küche EG, Toiletten 1. OG)</span></div>
-            <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
-        </label>
-        
-        <div class="alert alert-info shadow-lg p-3 text-sm">
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <div class="text-xs">
-                Die Ziel-URL ist Hardcoded in der Datei:
-                <span class="font-mono font-semibold block mt-1">https://kurzlernen.de/servicetracker.html</span>
-            </div>
-        </div>
-
-
-        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg mt-6">QR Code Generieren & Anzeigen</button>
+    <div id="scan-screen" class="app-state hidden">
+        <h2 class="text-xl font-semibold mb-4 text-center">1. QR-Code Scannen</h2>
+        <p class="text-center text-gray-600 mb-4 text-sm">Bitte scannen Sie den QR-Code des zu reinigenden Bereichs.</p>
+        <div id="reader" class="w-full aspect-square max-h-[400px] mx-auto rounded-lg overflow-hidden border-2 border-primary shadow-inner mb-4"></div>
+        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg">Scanner Starten</button>
+        <p class="text-center text-xs text-error mt-2">Kamera-Zugriff ist zwingend erforderlich.</p>
     </div>
 
-    <!-- QR Code Anzeige und Druckbereich -->
-    <div class="mt-8 p-4 sm:p-6 border-t border-gray-200">
-        <h2 class="text-xl font-semibold mb-4 text-center">Generierter QR Code</h2>
-        
-        <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-lg shadow-inner text-center hidden flex flex-col items-center">
-            <div id="qrcode-container" class="mb-4">
-                <!-- QR Code wird hier generiert -->
-            </div>
-            <p id="qr-building-display" class="text-lg sm:text-xl font-bold mb-1"></p>
-            <p id="qr-area-display" class="text-md sm:text-lg text-primary mb-4"></p>
-            <p class="text-xs sm:text-sm text-gray-500">Scannen für Arbeitsnachweis</p>
+    <div id="location-check-screen" class="app-state hidden text-center">
+        <h2 class="text-xl font-semibold mb-4">2. Standortprüfung</h2>
+        <div class="alert alert-info shadow-lg mb-4 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Wir benötigen Ihren aktuellen Standort zur Validierung.</span>
+        </div>
+        <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-lg">Standort Abfragen</button>
+        <p class="text-sm mt-2 text-error">Standortfreigabe ist zwingend erforderlich.</p>
+    </div>
+
+    <div id="capture-photos-screen" class="app-state hidden">
+        <h2 class="text-xl font-semibold mb-4 text-center">3. Fotobeweise</h2>
+        <div id="job-info" class="mb-4 p-3 rounded-lg bg-base-200 text-sm">
+            <p class="font-bold">Auftrag:</p>
+            <p id="info-text"></p>
         </div>
 
-        <div id="qr-url-display" class="mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg hidden w-full">
-            <p class="text-xs font-semibold mb-1 text-gray-700">Codierte URL:</p>
-            <p id="full-url-text" class="text-xs text-gray-600 font-mono break-all"></p>
+        <div id="photo-grid" class="grid grid-cols-2 gap-3">
+            <!-- Platzhalter für 4 Fotos -->
         </div>
 
-        <button id="print-btn" onclick="window.print()" class="btn btn-success w-full mt-6 text-lg hidden">
-            Drucken (mit Standortdaten)
+        <p id="photo-status" class="text-center text-sm mt-4"></p>
+        <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-lg" id="submit-btn" disabled>
+            Abschließen & Senden
         </button>
+    </div>
+    
+    <div id="success-screen" class="app-state hidden text-center">
+        <div class="card bg-green-100 border-green-500 border p-6 shadow-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-green-500 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            <h2 class="text-2xl font-bold text-green-700 mb-2">Arbeit Abgeschlossen!</h2>
+            <p class="text-gray-700">Der Nachweis wurde erfolgreich übermittelt.</p>
+            <p class="text-xs mt-4 text-gray-500">Transaktion ID: <span id="transaction-id"></span></p>
+        </div>
+        <button onclick="resetApp()" class="btn btn-ghost mt-6">Neue Aufgabe starten</button>
+    </div>
+
+    <!-- Modaler Dialog für Fehlermeldungen -->
+    <dialog id="error_modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg text-error">Fehler!</h3>
+            <p id="error-message" class="py-4 text-gray-700"></p>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn">Schließen</button></form>
+            </div>
+        </div>
+    </dialog>
+    
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
     </div>
 
 </div>
 
+<!-- GESAMTE LOGIK STARTET HIER -->
 <script>
-    // Globale Zustandsvariablen
-    const STORAGE_KEY = 'ch_hohlfeld_qr_projects';
-    // Hardcoded Base URL für die Haupt-App (Servicetracker)
-    const BASE_URL_HARDCODED = 'https://kurzlernen.de/servicetracker.html'; 
-
-    let projects = [];
-    let currentProjectId = null;
-    let qrcode = null;
-
-    // --- Lokale Speicher- und Zustandsverwaltung ---
-
-    // Generiert eine einfache UUID (für die Eindeutigkeit des Standorts)
-    function generateUUID() {
-        return 'id-' + Date.now().toString(36) + Math.random().toString(36).substring(2);
-    }
-
-    // Lädt alle Projekte aus dem LocalStorage
-    function loadProjects() {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        try {
-            // Nur building, area und id werden aus dem Speicher geladen
-            projects = stored ? JSON.parse(stored) : [];
-        } catch (e) {
-            console.error("Fehler beim Parsen der Projekte aus LocalStorage:", e);
-            projects = [];
-        }
-        
-        // Initiales Projekt erstellen, wenn keine gefunden
-        if (projects.length === 0) {
-            newProject(true); 
-        } else if (!currentProjectId) {
-            currentProjectId = projects[0].id;
-        }
-    }
-
-    // Speichert nur die relevanten Daten (building, area, id)
-    function saveProjects() {
-        try {
-            // Speichere nur die reinen Projektdaten (ohne BaseURL)
-            const dataToSave = projects.map(p => ({
-                id: p.id,
-                building: p.building,
-                area: p.area
-            }));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-            renderProjectSelector();
-        } catch (e) {
-            console.error("Fehler beim Speichern der Projekte in LocalStorage:", e);
-        }
-    }
-
-    // Erstellt ein neues Projekt und wechselt dazu
-    window.newProject = function(isInitial = false) {
-        const newId = generateUUID();
-        
-        const newProject = {
-            id: newId,
-            building: 'Neues Gebäude',
-            area: 'Neuer Bereich'
-        };
-        projects.push(newProject);
-        currentProjectId = newId;
-        
-        // Nur speichern und wechseln, wenn es nicht die initiale (leere) Erstellung beim Laden ist
-        if (!isInitial) { 
-            saveProjects();
-            switchProject(newId);
-        }
-    }
-
-    // Wechselt zum ausgewählten Projekt
-    window.switchProject = function(projectId) {
-        currentProjectId = projectId;
-        const project = projects.find(p => p.id === projectId);
-        if (project) {
-            document.getElementById('building-input').value = project.building;
-            document.getElementById('area-input').value = project.area;
-            
-            // QR Code muss neu generiert werden, um die Ansicht zu aktualisieren
-            generateQRCode(); 
-        }
-    }
-
-    // Rendert die Dropdown-Auswahl
-    function renderProjectSelector() {
-        const selector = document.getElementById('project-selector');
-        selector.innerHTML = ''; // Vorherige Optionen löschen
-        
-        projects.forEach(project => {
-            const option = document.createElement('option');
-            option.value = project.id;
-            option.textContent = `${project.building} / ${project.area}`;
-            if (project.id === currentProjectId) {
-                option.selected = true;
-            }
-            selector.appendChild(option);
-        });
-    }
-
-    // Autosave-Logik beim Tippen in den Input-Feldern
-    window.handleInputUpdate = function() {
-        const project = projects.find(p => p.id === currentProjectId);
-        if (project) {
-            project.building = document.getElementById('building-input').value.trim();
-            project.area = document.getElementById('area-input').value.trim();
-            // Die URL wird NICHT mehr gespeichert/aktualisiert
-            saveProjects(); // Speichert automatisch nach jeder Änderung
-        }
-        // Aktualisiert den QR-Code nur beim expliziten Klick auf "Generieren & Anzeigen"
-    }
-
-    // --- Export Funktion ---
-
-    window.exportProjects = function() {
-        // Exportiert nur building, area, id
-        const dataToExport = projects.map(p => ({
-            id: p.id,
-            building: p.building,
-            area: p.area
-        }));
-        
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        // Personalisierter Dateiname
-        const filename = `QR_Projekte_Christian_Hohlfeld_${new Date().toISOString().slice(0, 10)}.json`; 
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", filename);
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-        
-        document.getElementById('error_modal_generator').showModal();
-        document.getElementById('error-message-generator').innerHTML = `Alle <b>${projects.length} Projekte</b> wurden erfolgreich als <b>${filename}</b> exportiert.`;
-    }
+    // Globale Hilfsfunktionen und Zustand
+    let html5QrCode = null;
+    let isScannerRunning = false;
     
-    // --- Import Funktion ---
+    window.showError = function(message) {
+        const modal = document.getElementById('error_modal');
+        document.getElementById('error-message').innerText = message;
+        modal.showModal();
+    }
+
+    window.changeState = function(newStateId) {
+        document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
+        document.getElementById(newStateId).classList.remove('hidden');
+        document.getElementById('app-container').classList.remove('loading');
+    }
+</script>
+
+<!-- Firebase SDKs (Modul-Skript) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, getDoc, addDoc, Timestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = 'servicetracker-app'; 
+    const FIREBASE_CONFIG_PLACEHOLDER = {};
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? 
+        (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : 
+        FIREBASE_CONFIG_PLACEHOLDER;
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
     
-    window.importProjects = function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+    let app, db, auth;
+    let userId = null;
+    let isAuthReady = false;
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const importedData = JSON.parse(e.target.result);
+    window.appState = {
+        building: null, area: null, scanTime: null, latitude: null, longitude: null, 
+        photos: [], username: 'Unbekannte Kraft', isLoggedIn: false, jobId: null
+    };
+    
+    window.initFirebase = async function() {
+        
+        if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
+            console.warn("Firebase-Konfiguration fehlt. App kann keine Daten speichern.");
+            userId = 'anonymous-local';
+            window.appState.isLoggedIn = true;
+            isAuthReady = true;
+            window.changeState('scan-screen');
+            return;
+        }
 
-                // Validierung der Struktur (ohne BaseURL)
-                if (!Array.isArray(importedData) || importedData.some(p => !p.id || !p.building || !p.area)) {
-                    throw new Error("Die importierte Datei ist kein gültiges QR-Projekt-Array.");
+        try {
+            setLogLevel('debug');
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    window.appState.isLoggedIn = true;
+                    console.log("Benutzer angemeldet. UID:", userId);
+                    isAuthReady = true;
+                    
+                    document.getElementById('worker-display').textContent = window.appState.username;
+
+                    if (document.getElementById('app-container').classList.contains('loading')) {
+                        window.changeState('scan-screen');
+                    }
+                } else {
+                    userId = null;
+                    window.appState.isLoggedIn = false;
+                    isAuthReady = true;
+                    console.log("Kein Benutzer angemeldet. Versuche anonyme Anmeldung.");
                 }
+            });
 
-                // Vorhandene Projekte überschreiben
-                projects = importedData;
-                currentProjectId = projects[0].id;
-                saveProjects(); // Speichert die importierten Daten (ohne BaseURL)
-                switchProject(currentProjectId);
-
-                document.getElementById('error-message-generator').innerHTML = `Erfolgreich <b>${projects.length} Projekte</b> importiert. Die Daten wurden im lokalen Speicher gesichert.`;
-                document.getElementById('error_modal_generator').showModal();
-
-            } catch (error) {
-                console.error("Importfehler:", error);
-                document.getElementById('error-message-generator').innerHTML = `Fehler beim Importieren der Datei: ${error.message}`;
-                document.getElementById('error_modal_generator').showModal();
-            } finally {
-                // Input-Feld zurücksetzen, damit die Datei erneut ausgewählt werden kann
-                event.target.value = null; 
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+            } else {
+                await signInAnonymously(auth);
             }
-        };
-        reader.readAsText(file);
+
+        } catch (error) {
+            console.error("Firebase Initialisierungsfehler:", error);
+            window.showError(`Initialisierungsfehler: ${error.message}. (Prüfen Sie Ihre Firebase-Konfiguration)`);
+            document.getElementById('app-container').classList.remove('loading');
+        }
     }
 
-    // --- QR Code Generierung ---
+    window.simulateLoginAndInit = function() {
+        const usernameInput = document.getElementById('username-input').value.trim();
+        if (usernameInput) {
+            window.appState.username = usernameInput;
+        }
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app-container').classList.add('loading');
+        document.getElementById('worker-display').textContent = window.appState.username;
+        window.initFirebase();
+    }
+    
+    window.authReady = function() {
+        return isAuthReady && userId;
+    }
+    
+    // Job-Konfiguration aus Firestore abrufen
+    window.lookupJobConfig = async function(jobId) {
+        if (!db) {
+            window.showError("Datenbank nicht initialisiert. Konfiguration kann nicht abgerufen werden.");
+            return null;
+        }
+        try {
+            const docRef = doc(db, `artifacts/${appId}/public/data/job_configs`, jobId);
+            const docSnap = await getDoc(docRef);
 
-    window.generateQRCode = function() {
-        const project = projects.find(p => p.id === currentProjectId);
+            if (docSnap.exists()) {
+                console.log("Job-Konfiguration gefunden:", docSnap.data());
+                return docSnap.data();
+            } else {
+                window.showError(`Fehler: Keine Standortkonfiguration für Job ID "${jobId}" gefunden. Wurde der QR-Code im Generator synchronisiert?`);
+                return null;
+            }
+        } catch (e) {
+            window.showError(`Fehler beim Abrufen der Konfiguration: ${e.message}`);
+            console.error("Fehler beim Abrufen der Konfiguration:", e);
+            return null;
+        }
+    }
+
+    // Submit Job ist unverändert, da es die globalen appState-Variablen verwendet
+    window.submitJob = async function() {
+        if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined) || !window.authReady()) {
+            window.showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
+            return;
+        }
+
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Wird übermittelt...';
         
-        if (!project || !project.building || !project.area) {
-            document.getElementById('error-message-generator').innerText = 'Bitte wählen oder erstellen Sie zuerst einen Standort und füllen Sie alle Felder aus.';
-            document.getElementById('error_modal_generator').showModal();
+        try {
+            const jobData = {
+                userId: userId,
+                workerName: window.appState.username,
+                jobId: window.appState.jobId, // Job ID hinzufügen
+                building: window.appState.building,
+                area: window.appState.area,
+                scanTime: Timestamp.fromDate(window.appState.scanTime),
+                submissionTime: Timestamp.now(),
+                location: {
+                    latitude: window.appState.latitude,
+                    longitude: window.appState.longitude,
+                },
+                photos: window.appState.photos
+            };
+
+            const jobsCollectionRef = collection(db, `artifacts/${appId}/public/data/jobs`);
+            const docRef = await addDoc(jobsCollectionRef, jobData);
+
+            document.getElementById('transaction-id').innerText = docRef.id;
+            window.changeState('success-screen');
+
+        } catch (e) {
+            console.error("Fehler beim Hinzufügen des Dokuments: ", e);
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Abschließen & Senden';
+            window.showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
+        }
+    }
+</script>
+
+<!-- Kern-Logik (Scanner, Geolocation) -->
+<script>
+    
+    async function tryGetCameraPermissionAndStartScanner() {
+        const scanBtn = document.getElementById('scan-btn');
+        scanBtn.disabled = true;
+        scanBtn.innerText = 'Kamera wird initialisiert...';
+        
+        // **FIX**: Der manuelle typeof-Check wurde entfernt, um Konflikte beim Laden zu vermeiden.
+        // Die Fehlerbehandlung erfolgt im Try/Catch-Block.
+
+        try {
+            // 1. Versuche, native Kamera-Berechtigung zu erhalten (erzwingt das Pop-up)
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            stream.getTracks().forEach(track => track.stop()); 
+            
+            const readerDiv = document.getElementById("reader");
+            readerDiv.innerHTML = ''; 
+
+            if (!html5QrCode) {
+                // Wenn HTML5Qrcode hier undefined ist, fangen wir den ReferenceError im catch-Block ab.
+                html5QrCode = new HTML5Qrcode("reader");
+            }
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            await html5QrCode.start(
+                { facingMode: "environment" }, 
+                config,
+                (decodedText, decodedResult) => { onScanSuccess(decodedText); },
+                (errorMessage) => { /* Fehler während des Scannens ignorieren */ }
+            );
+
+            isScannerRunning = true;
+            scanBtn.innerText = 'Scanner Läuft...';
+            scanBtn.disabled = false;
+
+        } catch (err) {
+            isScannerRunning = false;
+            scanBtn.innerText = 'Scanner Starten';
+            scanBtn.disabled = false;
+            
+            if (String(err).includes("HTML5Qrcode is not defined") || String(err).includes("ReferenceError: HTML5Qrcode is not defined")) {
+                window.showError("Schwerwiegender Fehler: Die QR-Code-Bibliothek konnte nicht geladen werden. Bitte Cache leeren oder Internetverbindung prüfen.");
+            } else if (err.name === 'NotAllowedError' || String(err).includes("Permission denied")) {
+                window.showError("Kamerafehler: Kamerazugriff wurde verweigert. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben und die Seite über HTTPS läuft.");
+            } else {
+                window.showError(`Kamerafehler: ${err.message}. Ein unerwarteter Fehler ist aufgetreten.`);
+            }
+            console.error("Kamera Startfehler (final):", err);
+        }
+    }
+
+    window.startScanner = async function() {
+        if (!window.authReady()) {
+             window.showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
+             return;
+        }
+        
+        if (isScannerRunning) {
             return;
         }
         
-        let baseUrl = BASE_URL_HARDCODED; // Verwende die hardgecodete URL
-
-        // Sicherstellen, dass die Basis-URL keine bestehenden Query-Parameter stört
-        if (baseUrl.includes('?')) {
-             baseUrl = baseUrl.split('?')[0]; // Entferne alles nach dem ersten ?
-        }
-        
-        // URL mit Query-Parametern für die Haupt-App erstellen
-        const encodedBuilding = encodeURIComponent(project.building);
-        const encodedArea = encodeURIComponent(project.area);
-        const targetUrl = `${baseUrl}?building=${encodedBuilding}&area=${encodedArea}`;
-
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = ''; // Vorherigen Code löschen
-
-        // QR Code generieren: Bei jedem Klick NEU instanziieren.
-        qrcode = new QRCode(container, {
-            text: targetUrl,
-            width: 256,
-            height: 256,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-
-        // Druckbereich anzeigen und Daten aktualisieren
-        document.getElementById('qr-building-display').innerText = project.building;
-        document.getElementById('qr-area-display').innerText = project.area;
-        document.getElementById('printable-area').classList.remove('hidden');
-        document.getElementById('print-btn').classList.remove('hidden');
-        
-        // URL im UI anzeigen
-        document.getElementById('full-url-text').innerText = targetUrl;
-        document.getElementById('qr-url-display').classList.remove('hidden');
-
-        console.log("Generierte URL:", targetUrl);
+        window.changeState('scan-screen');
+        await tryGetCameraPermissionAndStartScanner();
     }
-    
-    // Initialisierung beim Laden der Seite
-    window.onload = function() {
-        loadProjects();
-        renderProjectSelector();
-        // Das erste Projekt in die Eingabefelder laden und den ersten QR-Code generieren
-        if (currentProjectId) {
-            switchProject(currentProjectId); 
+
+    async function onScanSuccess(decodedText) {
+        if (html5QrCode && isScannerRunning) {
+            await html5QrCode.stop().catch(e => console.warn("Fehler beim Stoppen des Scanners ignoriert:", e));
+            isScannerRunning = false;
         }
+        document.getElementById('scan-btn').innerText = 'Scanner Starten';
+        document.getElementById('scan-btn').disabled = false;
+        
+        try {
+            window.appState.scanTime = new Date();
+            const url = new URL(decodedText);
+            const jobId = url.searchParams.get('jobId'); // Nur noch jobId auslesen
+
+            if (!jobId) {
+                window.showError("Ungültiger QR-Code-Inhalt. Es fehlt die eindeutige 'jobId' in der URL.");
+                window.changeState('scan-screen');
+                return;
+            }
+
+            // Lookup der Gebäude- und Bereichsdaten aus Firestore
+            const config = await window.lookupJobConfig(jobId);
+            
+            if (config) {
+                window.appState.jobId = jobId;
+                window.appState.building = config.building;
+                window.appState.area = config.area;
+                window.changeState('location-check-screen');
+            } else {
+                // Fehler wurde bereits in lookupJobConfig gezeigt
+                window.changeState('scan-screen');
+            }
+
+        } catch (error) {
+            console.error("Fehler nach Scan-Stopp oder URL-Parsing:", error);
+            window.showError(`Fehler: Der gescannte Code ist keine gültige App-URL. (${error.message})`);
+            window.changeState('scan-screen');
+        }
+    }
+
+    // --- 2. Standortprüfung und Fotos (unverändert) ---
+
+    window.checkLocation = function() {
+        if (!navigator.geolocation) {
+            window.showError("Geolocation wird von Ihrem Gerät/Browser nicht unterstützt.");
+            return;
+        }
+
+        document.getElementById('location-btn').disabled = true;
+        document.getElementById('location-btn').innerText = 'Standort wird abgerufen...';
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                window.appState.latitude = position.coords.latitude;
+                window.appState.longitude = position.coords.longitude;
+                setupPhotoCapture();
+                setTimeout(() => {
+                    window.changeState('capture-photos-screen');
+                }, 50);
+
+            },
+            (error) => {
+                document.getElementById('location-btn').disabled = false;
+                document.getElementById('location-btn').innerText = 'Standort Abfragen';
+                let errorMessage = "Standortabfrage fehlgeschlagen. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben.";
+                if (error.code === error.PERMISSION_DENIED) {
+                    errorMessage = "Standortzugriff verweigert. Sie müssen den Standort freigeben, um fortzufahren.";
+                }
+                window.showError(errorMessage);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    }
+
+    function setupPhotoCapture() {
+        const infoText = document.getElementById('info-text');
+        infoText.innerHTML = `Gebäude: <span class="font-semibold">${window.appState.building}</span><br>Bereich: <span class="font-semibold text-primary">${window.appState.area}</span>`;
+        
+        const photoGrid = document.getElementById('photo-grid');
+        photoGrid.innerHTML = '';
+        window.appState.photos = [];
+
+        for (let i = 0; i < 4; i++) {
+            const photoSlot = document.createElement('div');
+            photoSlot.className = 'flex flex-col items-center p-2 border rounded-lg bg-base-100 shadow-sm';
+            photoSlot.innerHTML = `
+                <img id="preview-${i}" class="w-full h-20 object-cover rounded-md mb-2 bg-gray-200" src="https://placehold.co/100x80/cccccc/333333?text=Foto+${i+1}" onerror="this.onerror=null;this.src='https://placehold.co/100x80/cccccc/333333?text=Foto+${i+1}';" alt="Foto ${i+1} Vorschau">
+                <input type="file" accept="image/*" capture="environment" id="file-input-${i}" class="file-input file-input-xs file-input-bordered w-full" onchange="handlePhotoCapture(event, ${i})">
+            `;
+            photoGrid.appendChild(photoSlot);
+        }
+        updatePhotoStatus();
+    }
+
+    window.handlePhotoCapture = function(event, index) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById(`preview-${index}`).src = e.target.result;
+                window.appState.photos[index] = e.target.result; 
+                updatePhotoStatus();
+            };
+            reader.readAsDataURL(file);
+        } else {
+            window.appState.photos[index] = null;
+            document.getElementById(`preview-${index}`).src = `https://placehold.co/100x80/cccccc/333333?text=Foto+${index+1}`;
+            updatePhotoStatus();
+        }
+    }
+
+    function updatePhotoStatus() {
+        const takenPhotos = window.appState.photos.filter(p => p !== null && p !== undefined).length;
+        document.getElementById('photo-status').innerText = `Fotos aufgenommen: ${takenPhotos} von 4`;
+        
+        const submitBtn = document.getElementById('submit-btn');
+        if (takenPhotos === 4) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-disabled');
+        } else {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('btn-disabled');
+        }
+    }
+
+    window.resetApp = function() {
+        window.appState.building = null; window.appState.area = null; window.appState.scanTime = null;
+        window.appState.latitude = null; window.appState.longitude = null; window.appState.photos = [];
+        window.appState.jobId = null; 
+        
+        document.getElementById('transaction-id').innerText = '';
+        document.getElementById('submit-btn').classList.add('btn-disabled');
+        document.getElementById('submit-btn').disabled = true;
+        document.getElementById('submit-btn').innerText = 'Abschließen & Senden';
+        window.changeState('scan-screen');
+    }
+
+    window.onload = function() {
+        document.getElementById('app-container').classList.remove('loading');
+        window.changeState('login-screen');
     };
 </script>
-
-<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen (Hinzugefügt, da alert() nicht erlaubt ist) -->
-<dialog id="error_modal_generator" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg text-primary">Info / Status</h3>
-        <p id="error-message-generator" class="py-4 text-gray-700"></p>
-        <div class="modal-action">
-            <form method="dialog"><button class="btn">Schließen</button></form>
-        </div>
-    </div>
-</dialog>
 
 </body>
 </html>
