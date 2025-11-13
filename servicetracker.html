@@ -32,6 +32,12 @@
         .loading .loading-overlay {
             display: flex;
         }
+        /* Sicherstellen, dass der Scannerbereich auf mobilen Geräten den Platz für den Stream bietet */
+        #reader video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
@@ -63,7 +69,7 @@
         <!-- Scanner-Bereich: Optimized for mobile vertical view -->
         <div id="reader" class="w-full aspect-square max-h-[400px] mx-auto rounded-lg overflow-hidden border-2 border-primary shadow-inner mb-4"></div>
         <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg">Scanner Starten</button>
-        <p class="text-center text-xs text-error mt-2">ACHTUNG: Kamera startet nur auf HTTPS-Webseiten oder localhost.</p>
+        <p class="text-center text-xs text-error mt-2">Kamera-Zugriff ist zwingend erforderlich.</p>
     </div>
 
     <div id="location-check-screen" class="app-state hidden text-center">
@@ -257,6 +263,60 @@
 
     // --- 1. QR Code Scan ---
 
+    // NEU: Erzwingt die native Berechtigungsanfrage und startet dann den Scanner
+    async function tryGetCameraPermissionAndStartScanner() {
+        const scanBtn = document.getElementById('scan-btn');
+        scanBtn.disabled = true;
+        scanBtn.innerText = 'Kamera wird initialisiert...';
+
+        try {
+            // 1. Versuche, native Kamera-Berechtigung zu erhalten (erzwingt das Pop-up)
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            
+            // Wenn erfolgreich, Stream sofort stoppen, da der QR-Scanner ihn selbst starten wird
+            stream.getTracks().forEach(track => track.stop()); 
+            
+            console.log("Kamera-Berechtigung erfolgreich erhalten.");
+
+            // 2. Jetzt starte den Html5Qrcode Scanner, der jetzt die Berechtigung hat.
+            const readerDiv = document.getElementById("reader");
+            readerDiv.innerHTML = ''; // Vorherigen Inhalt bereinigen
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            await html5QrCode.start(
+                { facingMode: "environment" }, 
+                config,
+                (decodedText, decodedResult) => { onScanSuccess(decodedText); },
+                (errorMessage) => { /* Fehler während des Scannens ignorieren */ }
+            );
+
+            isScannerRunning = true;
+            scanBtn.innerText = 'Scanner Läuft...';
+            scanBtn.disabled = false; // Re-aktiviere, falls Stopp notwendig
+            console.log("Scanner erfolgreich gestartet.");
+
+        } catch (err) {
+            isScannerRunning = false;
+            scanBtn.innerText = 'Scanner Starten';
+            scanBtn.disabled = false;
+            
+            // Detaillierte Fehlerbehandlung
+            if (err.name === 'NotAllowedError' || String(err).includes("Permission denied")) {
+                showError("Kamerafehler: Kamerazugriff wurde VERWEIGERT oder BLOCKIERT. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben und die Seite über HTTPS läuft.");
+            } else if (err.name === 'NotReadableError') {
+                 showError("Kamerafehler: Die Kamera ist zurzeit von einer anderen App belegt oder nicht verfügbar.");
+            } else {
+                showError(`Kamerafehler: ${err.message}. Ein unerwarteter Fehler ist aufgetreten.`);
+            }
+            console.error("Kamera Startfehler (native oder html5-qrcode):", err);
+        }
+    }
+
     window.startScanner = async function() {
         if (!window.authReady()) {
              showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
@@ -269,49 +329,7 @@
         }
         
         changeState('scan-screen');
-        const scanBtn = document.getElementById('scan-btn');
-        scanBtn.disabled = true;
-        scanBtn.innerText = 'Kamera wird gestartet...';
-        
-        const readerDiv = document.getElementById("reader");
-        readerDiv.innerHTML = ''; // Vorherigen Inhalt bereinigen
-
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("reader");
-        }
-        
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        
-        try {
-            // Dies löst die Berechtigungsabfrage aus
-            await html5QrCode.start(
-                { facingMode: "environment" }, // Standard-Konfiguration, die Berechtigung erfordert
-                config,
-                (decodedText, decodedResult) => {
-                    // QR-Code erfolgreich gescannt
-                    onScanSuccess(decodedText);
-                },
-                (errorMessage) => {
-                    // Fehler während des Scannens, wird oft ignoriert
-                }
-            );
-            isScannerRunning = true;
-            scanBtn.innerText = 'Scanner Läuft...';
-            console.log("Scanner erfolgreich gestartet.");
-        } catch (err) {
-            isScannerRunning = false;
-            scanBtn.innerText = 'Scanner Starten';
-            scanBtn.disabled = false;
-            
-            // Detailliertere Fehlerbehandlung für Kamerazugriff
-            if (String(err).includes("Permission denied") || String(err).includes("NotAllowedError")) {
-                showError("Kamerafehler: Kamerazugriff wurde verweigert oder blockiert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen.");
-            } else if (String(err).includes("NotReadableError")) {
-                showError("Kamerafehler: Die Kamera wird gerade von einer anderen App verwendet oder ist nicht verfügbar.");
-            } else {
-                showError(`Kamerafehler: ${err.message}. Stellen Sie sicher, dass die Seite über HTTPS ausgeliefert wird.`);
-            }
-        }
+        await tryGetCameraPermissionAndStartScanner();
     }
 
     async function onScanSuccess(decodedText) {
@@ -367,7 +385,12 @@
                 
                 // Fortsetzen zur Fotoaufnahme
                 setupPhotoCapture();
-                changeState('capture-photos-screen');
+                
+                // **FIX:** Leichte Verzögerung einbauen, um Rendering-Konflikte zu vermeiden
+                setTimeout(() => {
+                    changeState('capture-photos-screen');
+                }, 50);
+
             },
             (error) => {
                 // Fehler bei Standortabfrage (z.B. Benutzer verweigert)
@@ -454,11 +477,6 @@
             showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
             return;
         }
-        
-        if (!window.db) {
-            showError("Fehler: Firebase/Firestore ist nicht initialisiert. Der Nachweis kann nicht gespeichert werden.");
-            return;
-        }
 
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = true;
@@ -471,8 +489,8 @@
                 workerName: window.appState.username,
                 building: window.appState.building,
                 area: window.appState.area,
-                scanTime: new Date(), 
-                submissionTime: new Date(),
+                scanTime: Timestamp.fromDate(window.appState.scanTime),
+                submissionTime: Timestamp.now(),
                 location: {
                     latitude: window.appState.latitude,
                     longitude: window.appState.longitude,
@@ -491,7 +509,7 @@
             console.error("Fehler beim Hinzufügen des Dokuments: ", e);
             submitBtn.disabled = false;
             submitBtn.innerText = 'Abschließen & Senden';
-            showError(`Fehler beim Speichern des Nachweises: ${e.message}. (Prüfen Sie Ihre Firestore-Regeln/Konfig)`);
+            showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
         }
     }
 
