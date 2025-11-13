@@ -1,3 +1,8 @@
+<!-- 
+  Servicetracker App (Final)
+  Ziel: Nachweis und Qualitätssicherung von Reinigungs- oder Wartungsarbeiten mittels QR-Code, Standort und Fotobeweis.
+  Layout: Mobile First Design für optimale Nutzung auf Smartphones.
+-->
 <!DOCTYPE html>
 <html lang="de" data-theme="cmyk">
 <head>
@@ -58,6 +63,7 @@
         <!-- Scanner-Bereich: Optimized for mobile vertical view -->
         <div id="reader" class="w-full aspect-square max-h-[400px] mx-auto rounded-lg overflow-hidden border-2 border-primary shadow-inner mb-4"></div>
         <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg">Scanner Starten</button>
+        <p class="text-center text-xs text-error mt-2">ACHTUNG: Kamera startet nur auf HTTPS-Webseiten oder localhost.</p>
     </div>
 
     <div id="location-check-screen" class="app-state hidden text-center">
@@ -122,22 +128,10 @@
     import { getFirestore, doc, collection, addDoc, Timestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // Globale Variablen (MANDATORISCH)
-    // Wenn die Variablen der Canvas-Umgebung nicht existieren, werden Fallback-Werte verwendet.
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'servicetracker-app'; 
     
-    // WICHTIG: Die Firebase-Konfiguration MUSS bei der Bereitstellung auf der eigenen Domain
-    // entweder hier eingefügt oder durch die Host-Seite injiziert werden.
-    // Hier verwenden wir einen Platzhalter und prüfen auf die Existenz.
-    const FIREBASE_CONFIG_PLACEHOLDER = {
-        // HINWEIS: Hier müssten Sie Ihre tatsächliche Firebase-Konfiguration einfügen, wenn Sie 
-        // Firestore zur Datenspeicherung nutzen möchten, z.B.:
-        // apiKey: "...",
-        // authDomain: "...",
-        // projectId: "...",
-        // storageBucket: "...",
-        // messagingSenderId: "...",
-        // appId: "...",
-    };
+    // WICHTIG: Firebase Config wird nur benötigt, wenn Sie Daten speichern wollen.
+    const FIREBASE_CONFIG_PLACEHOLDER = {};
 
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? 
         (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : 
@@ -172,7 +166,7 @@
     async function initFirebase() {
         
         // **ROBUSTHEIT-CHECK:** Prüfen, ob eine gültige Konfiguration existiert.
-        if (firebaseConfig === FIREBASE_CONFIG_PLACEHOLDER && !firebaseConfig.apiKey) {
+        if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
             console.warn("Firebase-Konfiguration fehlt. Die App kann keine Daten speichern, fährt aber mit QR-Scan/Geolocation fort.");
             
             // Da wir keine DB haben, simulieren wir den sofortigen Login-Erfolg
@@ -279,25 +273,26 @@
         scanBtn.disabled = true;
         scanBtn.innerText = 'Kamera wird gestartet...';
         
+        const readerDiv = document.getElementById("reader");
+        readerDiv.innerHTML = ''; // Vorherigen Inhalt bereinigen
+
         if (!html5QrCode) {
             html5QrCode = new Html5Qrcode("reader");
         }
         
-        // Reset the QR reader container's innerHTML to ensure clean restart
-        document.getElementById("reader").innerHTML = "";
-
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         
         try {
+            // Dies löst die Berechtigungsabfrage aus
             await html5QrCode.start(
-                { facingMode: "environment" }, // Kamera-Modus: Rückkamera
+                { facingMode: "environment" }, // Standard-Konfiguration, die Berechtigung erfordert
                 config,
                 (decodedText, decodedResult) => {
                     // QR-Code erfolgreich gescannt
                     onScanSuccess(decodedText);
                 },
                 (errorMessage) => {
-                    // console.log("QR Scan Error: " + errorMessage); // Debugging
+                    // Fehler während des Scannens, wird oft ignoriert
                 }
             );
             isScannerRunning = true;
@@ -309,12 +304,12 @@
             scanBtn.disabled = false;
             
             // Detailliertere Fehlerbehandlung für Kamerazugriff
-            if (String(err).includes("Permission denied")) {
-                showError("Kamerafehler: Kamerazugriff wurde verweigert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen (insbesondere, wenn Sie nicht HTTPS verwenden).");
-            } else if (String(err).includes("NotAllowedError")) {
-                 showError("Kamerafehler: Der Zugriff wurde blockiert. Bitte stellen Sie sicher, dass die Seite über HTTPS ausgeliefert wird und der Kamerazugriff erlaubt ist.");
+            if (String(err).includes("Permission denied") || String(err).includes("NotAllowedError")) {
+                showError("Kamerafehler: Kamerazugriff wurde verweigert oder blockiert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen.");
+            } else if (String(err).includes("NotReadableError")) {
+                showError("Kamerafehler: Die Kamera wird gerade von einer anderen App verwendet oder ist nicht verfügbar.");
             } else {
-                showError(`Kamerafehler: ${err.message}. Bitte versuchen Sie es erneut.`);
+                showError(`Kamerafehler: ${err.message}. Stellen Sie sicher, dass die Seite über HTTPS ausgeliefert wird.`);
             }
         }
     }
@@ -322,7 +317,8 @@
     async function onScanSuccess(decodedText) {
         try {
             if (html5QrCode && isScannerRunning) {
-                 await html5QrCode.stop();
+                 // Vor dem Stoppen überprüfen, ob der Scanner läuft, um Fehler zu vermeiden
+                 await html5QrCode.stop().catch(e => console.warn("Fehler beim Stoppen des Scanners ignoriert:", e));
                  isScannerRunning = false;
             }
             document.getElementById('scan-btn').innerText = 'Scanner Starten';
