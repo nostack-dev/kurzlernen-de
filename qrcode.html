@@ -1,0 +1,319 @@
+<!-- 
+  QR Code Generator für Standorte und Bereiche (Version 2 - Projektverwaltung)
+  Projekt von Christian Heinrich Hohlfeld (Konstanz, 05.04.1983)
+  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit lokaler Speicherung (localStorage), Auto-Save und Exportfunktion.
+  Layout: Mobile First Design für optimale Lesbarkeit und Bedienung.
+-->
+<!DOCTYPE html>
+<html lang="de" data-theme="cmyk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator V2</title>
+    <!-- Tailwind CSS und DaisyUI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
+    <!-- Google Font Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        /* Stil für den druckbaren Bereich */
+        @media print {
+            body > :not(#printable-area) {
+                display: none !important;
+            }
+            #printable-area {
+                display: block;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                box-shadow: none;
+                page-break-after: always; /* Für mehrere Codes auf separaten Seiten */
+            }
+        }
+    </style>
+    <!-- QR Code Bibliothek -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start p-2 sm:p-4">
+
+<!-- Generator Container -->
+<div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
+
+    <header class="text-center mb-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V2</h1>
+        <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
+    </header>
+
+    <!-- Projektverwaltung -->
+    <div class="card bg-gray-50 shadow-inner p-3 sm:p-4 mb-6">
+        <div class="flex flex-col md:flex-row gap-3 items-center">
+            <!-- Auf Mobile: Selector nimmt volle Breite ein (w-full). -->
+            <label class="form-control w-full md:w-3/5">
+                <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Aktiver Standort-Bereich</span></div>
+                <select id="project-selector" class="select select-bordered select-sm sm:select-md w-full" onchange="switchProject(this.value)">
+                    <!-- Optionen werden via JavaScript befüllt -->
+                </select>
+            </label>
+            <!-- Auf Mobile: Buttons nehmen volle Breite ein (w-full) und sind nebeneinander. -->
+            <div class="flex gap-2 w-full md:w-2/5 md:justify-end">
+                <button onclick="newProject()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
+                    Neue
+                </button>
+                <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap w-1/2">
+                    Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daten Eingabe -->
+    <div class="card bg-base-100 shadow-md p-4 sm:p-6">
+        <h2 class="text-xl font-semibold mb-4">Daten eingeben</h2>
+        
+        <label class="form-control w-full mb-4">
+            <div class="label"><span class="label-text text-sm">Gebäudename / Objekt</span></div>
+            <input type="text" id="building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
+        </label>
+
+        <label class="form-control w-full mb-6">
+            <div class="label"><span class="label-text text-sm">Bereich / Area (z.B. Küche EG, Toiletten 1. OG)</span></div>
+            <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
+        </label>
+        
+        <label class="form-control w-full mb-6">
+            <div class="label"><span class="label-text text-error font-bold text-xs sm:text-sm">Ziel-URL der Haupt-App (MUSS vor dem Upload angepasst werden!)</span></div>
+            <!-- WICHTIG: Hier muss der Platzhalter-Wert im Code auf die tatsächliche URL geändert werden! -->
+            <input type="text" id="base-url-input" placeholder="https://ihreapp.com/index.html" class="input input-bordered w-full input-error text-xs sm:text-sm" oninput="handleInputUpdate()" value="http://localhost:8080/index.html" />
+            <div class="label"><span class="label-text-alt text-error font-semibold text-xs">Bitte auf Ihre Domain ändern (z.B. https://ihredomain.de/index.html).</span></div>
+        </label>
+
+        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg">QR Code Generieren & Anzeigen</button>
+    </div>
+
+    <!-- QR Code Anzeige und Druckbereich -->
+    <div class="mt-8 p-4 sm:p-6 border-t border-gray-200">
+        <h2 class="text-xl font-semibold mb-4 text-center">Generierter QR Code</h2>
+        
+        <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-lg shadow-inner text-center hidden flex flex-col items-center">
+            <div id="qrcode-container" class="mb-4">
+                <!-- QR Code wird hier generiert -->
+            </div>
+            <p id="qr-building-display" class="text-lg sm:text-xl font-bold mb-1"></p>
+            <p id="qr-area-display" class="text-md sm:text-lg text-primary mb-4"></p>
+            <p class="text-xs sm:text-sm text-gray-500">Scannen für Arbeitsnachweis</p>
+        </div>
+
+        <div id="qr-url-display" class="mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg hidden w-full">
+            <p class="text-xs font-semibold mb-1 text-gray-700">Codierte URL:</p>
+            <p id="full-url-text" class="text-xs text-gray-600 font-mono break-all"></p>
+        </div>
+
+        <button id="print-btn" onclick="window.print()" class="btn btn-success w-full mt-6 text-lg hidden">
+            Drucken (mit Standortdaten)
+        </button>
+    </div>
+
+</div>
+
+<script>
+    // Globale Zustandsvariablen
+    const STORAGE_KEY = 'ch_hohlfeld_qr_projects';
+    let projects = [];
+    let currentProjectId = null;
+    let qrcode = null;
+
+    // --- Lokale Speicher- und Zustandsverwaltung ---
+
+    // Generiert eine einfache UUID (für die Eindeutigkeit des Standorts)
+    function generateUUID() {
+        return 'id-' + Date.now().toString(36) + Math.random().toString(36).substring(2);
+    }
+
+    // Lädt alle Projekte aus dem LocalStorage
+    function loadProjects() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        try {
+            projects = stored ? JSON.parse(stored) : [];
+        } catch (e) {
+            console.error("Fehler beim Parsen der Projekte aus LocalStorage:", e);
+            projects = [];
+        }
+        
+        if (projects.length === 0) {
+            // Initiales Projekt erstellen, BASE_URL auf den Standardwert setzen
+            const defaultBaseUrl = document.getElementById('base-url-input').value;
+            newProject(true, defaultBaseUrl); 
+        } else if (!currentProjectId) {
+            currentProjectId = projects[0].id;
+        }
+    }
+
+    // Speichert alle Projekte im LocalStorage (Autosave-Funktion)
+    function saveProjects() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+            renderProjectSelector();
+        } catch (e) {
+            console.error("Fehler beim Speichern der Projekte in LocalStorage:", e);
+        }
+    }
+
+    // Erstellt ein neues Projekt und wechselt dazu
+    window.newProject = function(isInitial = false, defaultBaseUrl = null) {
+        const newId = generateUUID();
+        const baseUrlToUse = defaultBaseUrl || document.getElementById('base-url-input').value;
+        
+        const newProject = {
+            id: newId,
+            building: 'Neues Gebäude',
+            area: 'Neuer Bereich',
+            baseUrl: baseUrlToUse
+        };
+        projects.push(newProject);
+        currentProjectId = newId;
+        
+        if (!isInitial) {
+             saveProjects();
+             switchProject(newId);
+             document.getElementById('error_modal_generator').showModal();
+             document.getElementById('error-message-generator').innerText = `Neuer Standort-Bereich "${newProject.building} / ${newProject.area}" wurde erstellt und ausgewählt.`;
+        }
+    }
+
+    // Wechselt zum ausgewählten Projekt
+    window.switchProject = function(projectId) {
+        currentProjectId = projectId;
+        const project = projects.find(p => p.id === projectId);
+        if (project) {
+            document.getElementById('building-input').value = project.building;
+            document.getElementById('area-input').value = project.area;
+            
+            // Wichtig: Wenn BaseURL im gespeicherten Projekt leer ist (was nicht passieren sollte, aber zur Sicherheit), 
+            // den aktuellen Standardwert aus dem Input-Feld verwenden.
+            const baseUrlInput = document.getElementById('base-url-input');
+            baseUrlInput.value = project.baseUrl || baseUrlInput.value;
+            
+            // QR Code muss neu generiert werden, um die Ansicht zu aktualisieren
+            generateQRCode(); 
+        }
+    }
+
+    // Rendert die Dropdown-Auswahl
+    function renderProjectSelector() {
+        const selector = document.getElementById('project-selector');
+        selector.innerHTML = ''; // Vorherige Optionen löschen
+        
+        projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = `${project.building} / ${project.area}`;
+            if (project.id === currentProjectId) {
+                option.selected = true;
+            }
+            selector.appendChild(option);
+        });
+    }
+
+    // Autosave-Logik beim Tippen in den Input-Feldern
+    window.handleInputUpdate = function() {
+        const project = projects.find(p => p.id === currentProjectId);
+        if (project) {
+            project.building = document.getElementById('building-input').value.trim();
+            project.area = document.getElementById('area-input').value.trim();
+            project.baseUrl = document.getElementById('base-url-input').value.trim();
+            saveProjects(); // Speichert automatisch nach jeder Änderung
+        }
+        // Aktualisiert den QR-Code nur beim expliziten Klick auf "Generieren & Anzeigen"
+    }
+
+    // --- Export Funktion ---
+
+    window.exportProjects = function() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projects, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        // Personalisierter Dateiname
+        const filename = `QR_Projekte_Christian_Hohlfeld_${new Date().toISOString().slice(0, 10)}.json`; 
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", filename);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        
+        document.getElementById('error_modal_generator').showModal();
+        document.getElementById('error-message-generator').innerText = `Alle ${projects.length} Projekte wurden erfolgreich als ${filename} exportiert.`;
+    }
+
+    // --- QR Code Generierung ---
+
+    window.generateQRCode = function() {
+        const project = projects.find(p => p.id === currentProjectId);
+        
+        if (!project || !project.building || !project.area || !project.baseUrl) {
+            document.getElementById('error-message-generator').innerText = 'Bitte wählen oder erstellen Sie zuerst einen Standort und füllen Sie alle Felder aus.';
+            document.getElementById('error_modal_generator').showModal();
+            return;
+        }
+        
+        let baseUrl = project.baseUrl;
+
+        // Sicherstellen, dass die Basis-URL keine bestehenden Query-Parameter stört
+        if (baseUrl.includes('?')) {
+             baseUrl = baseUrl.split('?')[0]; // Entferne alles nach dem ersten ?
+        }
+        
+        // URL mit Query-Parametern für die Haupt-App erstellen
+        const encodedBuilding = encodeURIComponent(project.building);
+        const encodedArea = encodeURIComponent(project.area);
+        const targetUrl = `${baseUrl}?building=${encodedBuilding}&area=${encodedArea}`;
+
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = ''; // Vorherigen Code löschen
+
+        // QR Code generieren: Bei jedem Klick NEU instanziieren.
+        qrcode = new QRCode(container, {
+            text: targetUrl,
+            width: 256,
+            height: 256,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+
+        // Druckbereich anzeigen und Daten aktualisieren
+        document.getElementById('qr-building-display').innerText = project.building;
+        document.getElementById('qr-area-display').innerText = project.area;
+        document.getElementById('printable-area').classList.remove('hidden');
+        document.getElementById('print-btn').classList.remove('hidden');
+        
+        // URL im UI anzeigen
+        document.getElementById('full-url-text').innerText = targetUrl;
+        document.getElementById('qr-url-display').classList.remove('hidden');
+
+        console.log("Generierte URL:", targetUrl);
+    }
+    
+    // Initialisierung beim Laden der Seite
+    window.onload = function() {
+        loadProjects();
+        renderProjectSelector();
+        // Das erste Projekt in die Eingabefelder laden und den ersten QR-Code generieren
+        if (currentProjectId) {
+            switchProject(currentProjectId); 
+        }
+    };
+</script>
+
+<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen (Hinzugefügt, da alert() nicht erlaubt ist) -->
+<dialog id="error_modal_generator" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg text-primary">Info / Status</h3>
+        <p id="error-message-generator" class="py-4 text-gray-700"></p>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn">Schließen</button></form>
+        </div>
+    </div>
+</dialog>
+
+</body>
+</html>
