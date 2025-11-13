@@ -190,11 +190,10 @@
         projects.push(newProject);
         currentProjectId = newId;
         
-        if (!isInitial) {
-             saveProjects();
-             switchProject(newId);
-             document.getElementById('error_modal_generator').showModal();
-             document.getElementById('error-message-generator').innerText = `Neuer Standort-Bereich "${newProject.building} / ${newProject.area}" wurde erstellt und ausgewählt.`;
+        // Nur speichern und wechseln, wenn es nicht die initiale (leere) Erstellung beim Laden ist
+        if (!isInitial) { 
+            saveProjects();
+            switchProject(newId);
         }
     }
 
