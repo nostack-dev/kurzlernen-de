@@ -1,5 +1,6 @@
 <!-- 
-  Servicetracker App
+  Reinigungsprotokoll- und Arbeitsnachweis-App
+  Projekt von Christian Heinrich Hohlfeld (Konstanz, 05.04.1983)
   Ziel: Nachweis und Qualitätssicherung von Reinigungs- oder Wartungsarbeiten mittels QR-Code, Standort und Fotobeweis.
   Layout: Mobile First Design für optimale Nutzung auf Smartphones.
 -->
@@ -8,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker</title>
+    <title>Reinigungsnachweis-App</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -40,7 +41,7 @@
 <div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Arbeitsnachweis-Tool</h1>
         <p class="text-sm text-gray-500">Für <span id="worker-display">Ihre Putz- und Reinigungskraft</span></p>
     </header>
 
@@ -50,7 +51,7 @@
         <div class="card bg-base-100 shadow-md p-4 sm:p-6">
             <label class="form-control w-full mb-4">
                 <div class="label"><span class="label-text">Benutzername (Optional)</span></div>
-                <input type="text" id="username-input" placeholder="Name der Kraft" class="input input-bordered w-full" />
+                <input type="text" id="username-input" placeholder="Christian Mustermann" class="input input-bordered w-full" />
             </label>
             <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-lg">Einloggen & Starten</button>
             <p class="text-xs text-center mt-4 text-gray-400">Anonyme Anmeldung für persistente Daten.</p>
@@ -127,27 +128,9 @@
     import { getFirestore, doc, collection, addDoc, Timestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // Globale Variablen (MANDATORISCH)
-    // Wenn die Variablen der Canvas-Umgebung nicht existieren, werden Fallback-Werte verwendet.
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'servicetracker-app'; 
-    
-    // WICHTIG: Die Firebase-Konfiguration MUSS bei der Bereitstellung auf der eigenen Domain
-    // entweder hier eingefügt oder durch die Host-Seite injiziert werden.
-    // Hier verwenden wir einen Platzhalter und prüfen auf die Existenz.
-    const FIREBASE_CONFIG_PLACEHOLDER = {
-        // HINWEIS: Hier müssten Sie Ihre tatsächliche Firebase-Konfiguration einfügen, wenn Sie 
-        // Firestore zur Datenspeicherung nutzen möchten, z.B.:
-        // apiKey: "...",
-        // authDomain: "...",
-        // projectId: "...",
-        // storageBucket: "...",
-        // messagingSenderId: "...",
-        // appId: "...",
-    };
-
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? 
-        (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : 
-        FIREBASE_CONFIG_PLACEHOLDER;
-    
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    // IMPORTANT: Check if config is provided, otherwise set to null
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : null;
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
     
     // Globale Variablen für Firebase und Zustand
@@ -167,28 +150,15 @@
         isLoggedIn: false
     };
 
-    function showError(message) {
-        const modal = document.getElementById('error_modal');
-        document.getElementById('error-message').innerText = message;
-        modal.showModal();
-    }
-
     // Firebase Initialisierung und Authentifizierung
     async function initFirebase() {
-        
-        // **ROBUSTHEIT-CHECK:** Prüfen, ob eine gültige Konfiguration existiert.
-        // Wenn nur der Platzhalter ohne Schlüssel vorhanden ist, kann Firestore nicht initialisiert werden.
-        if (firebaseConfig === FIREBASE_CONFIG_PLACEHOLDER && !firebaseConfig.apiKey) {
-            console.warn("Firebase-Konfiguration fehlt. Die App kann keine Daten speichern, fährt aber mit QR-Scan/Geolocation fort.");
-            
-            // Da wir keine DB haben, simulieren wir den sofortigen Login-Erfolg
-            userId = 'anonymous-local';
-            window.appState.isLoggedIn = true;
-            isAuthReady = true;
-            changeState('scan-screen');
+        if (!firebaseConfig) {
+            console.error("Firebase Konfiguration nicht gefunden.");
+            showError("Fehler beim Laden der Firebase-Konfiguration. Kann nicht fortfahren.");
+            document.getElementById('app-container').classList.remove('loading');
             return;
         }
-
+        
         try {
             setLogLevel('debug'); // Wichtig für Logs
 
@@ -207,6 +177,7 @@
                     document.getElementById('worker-display').textContent = window.appState.username;
 
                     // Korrigierte Logik: Zustand auf QR-Scan wechseln, falls Login erfolgreich war
+                    // und der Lade-Indikator noch aktiv ist.
                     if (document.getElementById('app-container').classList.contains('loading')) {
                         changeState('scan-screen');
                     }
@@ -229,7 +200,7 @@
 
         } catch (error) {
             console.error("Firebase Initialisierungsfehler:", error);
-            showError(`Initialisierungsfehler: ${error.message}. (Prüfen Sie Ihre Firebase-Konfiguration)`);
+            showError(`Initialisierungsfehler: ${error.message}`);
             document.getElementById('app-container').classList.remove('loading');
         }
     }
@@ -246,7 +217,6 @@
     }
     
     window.authReady = function() {
-        // Ist die Authentifizierung bereit ODER haben wir den Local-Modus gewählt?
         return isAuthReady && userId;
     }
 
@@ -260,6 +230,12 @@
     // Globale Hilfsfunktionen und Zustand
     let html5QrCode = null;
 
+    function showError(message) {
+        const modal = document.getElementById('error_modal');
+        document.getElementById('error-message').innerText = message;
+        modal.showModal();
+    }
+
     function changeState(newStateId) {
         document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
         document.getElementById(newStateId).classList.remove('hidden');
@@ -270,7 +246,6 @@
 
     window.startScanner = async function() {
         if (!window.authReady()) {
-             // Wenn initFirebase in den "Local-Modus" gewechselt ist, wird authReady true sein.
              showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
              return;
         }
@@ -452,11 +427,6 @@
             showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
             return;
         }
-        
-        if (!window.db) {
-            showError("Fehler: Firebase/Firestore ist nicht initialisiert. Der Nachweis kann nicht gespeichert werden.");
-            return;
-        }
 
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = true;
@@ -469,19 +439,14 @@
                 workerName: window.appState.username,
                 building: window.appState.building,
                 area: window.appState.area,
-                scanTime: new Date(), // Verwende natives JS Date, da Timestamp nur mit Firebase-Objekt funktioniert
-                submissionTime: new Date(),
+                scanTime: Timestamp.fromDate(window.appState.scanTime),
+                submissionTime: Timestamp.now(),
                 location: {
                     latitude: window.appState.latitude,
                     longitude: window.appState.longitude,
                 },
                 photos: window.appState.photos // Base64-Strings der 4 Fotos
             };
-
-            // HINWEIS: Hier wird absichtlich die Firestore-Zeitstempel-Funktion entfernt,
-            // da die App auf einer externen Domain ohne Konfig aufgerufen werden könnte.
-            // Wir verwenden stattdessen native JS-Date-Objekte, die Firebase dann konvertiert.
-            // (Die Zeilen, die Timestamp verwenden, wurden im Modul-Block korrigiert.)
 
             const jobsCollectionRef = collection(db, `artifacts/${appId}/public/data/jobs`);
             const docRef = await addDoc(jobsCollectionRef, jobData);
@@ -494,7 +459,7 @@
             console.error("Fehler beim Hinzufügen des Dokuments: ", e);
             submitBtn.disabled = false;
             submitBtn.innerText = 'Abschließen & Senden';
-            showError(`Fehler beim Speichern des Nachweises: ${e.message}. (Prüfen Sie Ihre Firestore-Regeln/Konfig)`);
+            showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
         }
     }
 
