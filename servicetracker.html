@@ -1,15 +1,14 @@
 <!-- 
-  Servicetracker App (Version 5 - KEIN BACKEND - JSON EXPORT)
+  Servicetracker App (Version 6 - jsQR STABIL)
   Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe erfolgt via JSON Download.
-  Projektidee von Christian Heinrich Hohlfeld.
-  Layout: Mobile First Design für optimale Nutzung auf Smartphones.
+  Verwendet jsQR und native Kamera-API für höchste Stabilität.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="cmyk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V5 (JSON Export)</title>
+    <title>Servicetracker V6 (jsQR Stabil)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -20,9 +19,27 @@
             display: none; justify-content: center; align-items: center; z-index: 1000;
         }
         .loading .loading-overlay { display: flex; }
-        #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+        
+        /* Layout für Video und Canvas (jsQR) */
+        #qr-video, #qr-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        #reader-container {
+            position: relative;
+            width: 100%; 
+            aspect-ratio: 1 / 1;
+            max-height: 400px;
+            margin: auto;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 2px solid var(--p); /* Verwende Primary-Farbe */
+        }
     </style>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+    <!-- Neue, stabile QR-Code Bibliothek: jsQR -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.0.4/dist/jsQR.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
 
@@ -30,7 +47,7 @@
 <div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V5</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V6</h1>
         <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display">Unbekannte Kraft</span></p>
     </header>
 
@@ -50,8 +67,17 @@
     <div id="scan-screen" class="app-state hidden">
         <h2 class="text-xl font-semibold mb-4 text-center">1. QR-Code Scannen</h2>
         <p class="text-center text-gray-600 mb-4 text-sm">Bitte scannen Sie den QR-Code des zu reinigenden Bereichs.</p>
-        <div id="reader" class="w-full aspect-square max-h-[400px] mx-auto rounded-lg overflow-hidden border-2 border-primary shadow-inner mb-4"></div>
-        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg">Scanner Starten</button>
+        
+        <!-- NEUER SCANNER BEREICH: Video und Canvas für jsQR -->
+        <div id="reader-container" class="shadow-inner">
+            <video id="qr-video" playsinline></video>
+            <canvas id="qr-canvas" style="display: none;"></canvas>
+            <div id="loading-message" class="absolute inset-0 flex justify-center items-center bg-gray-900 bg-opacity-75 text-white text-sm">
+                Starte Kamera...
+            </div>
+        </div>
+
+        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg mt-4">Scanner Starten</button>
         <p class="text-center text-xs text-error mt-2">Kamera-Zugriff ist zwingend erforderlich.</p>
     </div>
 
@@ -114,7 +140,12 @@
 <!-- GESAMTE LOGIK STARTET HIER -->
 <script>
     // Globale Hilfsfunktionen und Zustand
-    let html5QrCode = null;
+    let videoStream = null;
+    let video = document.getElementById('qr-video');
+    let canvas = document.getElementById('qr-canvas');
+    let canvasCtx = canvas.getContext("2d");
+    let animationFrameId = null; 
+
     let isScannerRunning = false;
     
     window.appState = {
@@ -148,7 +179,6 @@
              window.appState.username = storedName;
         }
         
-        // Da es keinen echten Login gibt, wird die Authentifizierung sofort als "bereit" markiert
         window.appState.isLoggedIn = true; 
         
         document.getElementById('login-screen').classList.add('hidden');
@@ -156,55 +186,52 @@
         window.changeState('scan-screen');
     }
 
-    // --- 1. QR Code Scan ---
-    
-    async function tryGetCameraPermissionAndStartScanner() {
-        const scanBtn = document.getElementById('scan-btn');
-        scanBtn.disabled = true;
-        scanBtn.innerText = 'Kamera wird initialisiert...';
-        
-        try {
-            // 1. Versuche, native Kamera-Berechtigung zu erhalten (erzwingt das Pop-up)
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            stream.getTracks().forEach(track => track.stop()); 
-            
-            const readerDiv = document.getElementById("reader");
-            readerDiv.innerHTML = ''; 
+    // --- 1. QR Code Scan (jsQR Implementierung) ---
 
-            if (!html5QrCode) {
-                // FIX: Korrekte Schreibweise der globalen Klasse
-                html5QrCode = new HTML5Qrcode("reader");
-            }
-            
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            
-            await html5QrCode.start(
-                { facingMode: "environment" }, 
-                config,
-                (decodedText, decodedResult) => { onScanSuccess(decodedText); },
-                (errorMessage) => { /* Fehler während des Scannens ignorieren */ }
-            );
-
-            isScannerRunning = true;
-            scanBtn.innerText = 'Scanner Läuft...';
-            scanBtn.disabled = false;
-
-        } catch (err) {
-            isScannerRunning = false;
-            scanBtn.innerText = 'Scanner Starten';
-            scanBtn.disabled = false;
-            
-            if (String(err).includes("HTML5Qrcode is not defined") || String(err).includes("ReferenceError: HTML5Qrcode is not defined")) {
-                window.showError("Schwerwiegender Fehler: Die QR-Code-Bibliothek konnte nicht geladen werden. Bitte Cache leeren oder Internetverbindung prüfen.");
-            } else if (err.name === 'NotAllowedError' || String(err).includes("Permission denied")) {
-                window.showError("Kamerafehler: Kamerazugriff wurde verweigert. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben und die Seite über HTTPS läuft.");
-            } else {
-                window.showError(`Kamerafehler: ${err.message}. Ein unerwarteter Fehler ist aufgetreten.`);
-            }
-            console.error("Kamera Startfehler (final):", err);
+    function stopScanner() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
         }
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+            video.srcObject = null;
+        }
+        isScannerRunning = false;
+        document.getElementById('loading-message').style.display = 'flex';
+        document.getElementById('scan-btn').innerText = 'Scanner Starten';
+        document.getElementById('scan-btn').disabled = false;
     }
 
+    function tick() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            document.getElementById('loading-message').style.display = 'none';
+
+            // Setzt Canvas-Größe basierend auf Video-Größe
+            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth;
+            canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Bilddaten aus dem Canvas extrahieren
+            const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // jsQR ausführen
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
+            });
+
+            if (code) {
+                // QR-Code erfolgreich erkannt
+                stopScanner();
+                onScanSuccess(code.data);
+                return; // Beendet tick
+            }
+        }
+        // Nächsten Frame anfordern
+        animationFrameId = requestAnimationFrame(tick);
+    }
+    
     window.startScanner = async function() {
         if (!window.appState.isLoggedIn) {
              window.showError("Bitte zuerst einloggen.");
@@ -215,15 +242,44 @@
             return;
         }
         
+        const scanBtn = document.getElementById('scan-btn');
+        scanBtn.disabled = true;
+        scanBtn.innerText = 'Kamera wird initialisiert...';
+        document.getElementById('loading-message').style.display = 'flex';
         window.changeState('scan-screen');
-        await tryGetCameraPermissionAndStartScanner();
+
+        try {
+            // Native Kamera-Berechtigung erhalten (Rückkamera bevorzugt)
+            videoStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            });
+            
+            video.srcObject = videoStream;
+            video.setAttribute("playsinline", true); // Wichtig für iOS
+            await video.play(); 
+
+            isScannerRunning = true;
+            scanBtn.innerText = 'Scanner Läuft...';
+            scanBtn.disabled = false;
+            
+            // Startet den Scan-Loop
+            animationFrameId = requestAnimationFrame(tick);
+
+        } catch (err) {
+            stopScanner();
+            
+            if (String(err).includes("jsQR is not defined")) {
+                 window.showError("Schwerwiegender Fehler: Die jsQR-Bibliothek konnte nicht geladen werden.");
+            } else if (err.name === 'NotAllowedError' || String(err).includes("Permission denied")) {
+                window.showError("Kamerafehler: Kamerazugriff wurde verweigert. Die Seite MUSS über HTTPS laufen.");
+            } else {
+                window.showError(`Kamerafehler: ${err.message}.`);
+            }
+            console.error("Kamera Startfehler (jsQR):", err);
+        }
     }
 
-    async function onScanSuccess(decodedText) {
-        if (html5QrCode && isScannerRunning) {
-            await html5QrCode.stop().catch(e => console.warn("Fehler beim Stoppen des Scanners ignoriert:", e));
-            isScannerRunning = false;
-        }
+    function onScanSuccess(decodedText) {
         document.getElementById('scan-btn').innerText = 'Scanner Starten';
         document.getElementById('scan-btn').disabled = false;
         
@@ -231,7 +287,6 @@
             window.appState.scanTime = new Date();
             const url = new URL(decodedText);
             
-            // NEU: Building und Area werden direkt aus der URL gezogen (KEIN LOOKUP)
             const building = url.searchParams.get('building');
             const area = url.searchParams.get('area');
 
@@ -349,7 +404,6 @@
         submitBtn.innerText = 'Erstelle JSON...';
         
         try {
-            // JSON Payload erstellen
             const jobData = {
                 transactionId: `TX-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
                 workerName: window.appState.username,
@@ -361,14 +415,12 @@
                     latitude: window.appState.latitude,
                     longitude: window.appState.longitude,
                 },
-                // Fotos als Base64 sind hier enthalten
                 photosBase64: window.appState.photos
             };
 
             const filename = `Protokoll_${jobData.building.replace(/[^a-zA-Z0-9]/g, '_')}_${jobData.submissionTime.substring(0, 10)}.json`;
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jobData, null, 2));
             
-            // Download auslösen
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
             downloadAnchorNode.setAttribute("download", filename);
@@ -388,6 +440,8 @@
     }
 
     window.resetApp = function() {
+        stopScanner(); // Stellt sicher, dass der Video-Stream gestoppt wird
+        
         window.appState.building = null; window.appState.area = null; window.appState.scanTime = null;
         window.appState.latitude = null; window.appState.longitude = null; window.appState.photos = [];
         
