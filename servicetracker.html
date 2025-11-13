@@ -161,12 +161,17 @@
         username: 'Unbekannte Kraft',
         isLoggedIn: false
     };
-
-    function showError(message) {
-        const modal = document.getElementById('error_modal');
-        document.getElementById('error-message').innerText = message;
-        modal.showModal();
+    
+    // **********************************************
+    // FIX 1: changeState Funktion wird global (window.) definiert,
+    // damit sie aus dem Modul-Skript (initFirebase) aufgerufen werden kann.
+    // **********************************************
+    window.changeState = function(newStateId) {
+        document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
+        document.getElementById(newStateId).classList.remove('hidden');
+        document.getElementById('app-container').classList.remove('loading'); // Lade-Indikator entfernen
     }
+
 
     // Firebase Initialisierung und Authentifizierung
     async function initFirebase() {
@@ -179,7 +184,7 @@
             userId = 'anonymous-local';
             window.appState.isLoggedIn = true;
             isAuthReady = true;
-            changeState('scan-screen');
+            window.changeState('scan-screen');
             return;
         }
 
@@ -202,7 +207,7 @@
 
                     // Korrigierte Logik: Zustand auf QR-Scan wechseln, falls Login erfolgreich war
                     if (document.getElementById('app-container').classList.contains('loading')) {
-                        changeState('scan-screen');
+                        window.changeState('scan-screen');
                     }
                 } else {
                     userId = null;
@@ -223,7 +228,7 @@
 
         } catch (error) {
             console.error("Firebase Initialisierungsfehler:", error);
-            showError(`Initialisierungsfehler: ${error.message}. (Prüfen Sie Ihre Firebase-Konfiguration)`);
+            window.showError(`Initialisierungsfehler: ${error.message}. (Prüfen Sie Ihre Firebase-Konfiguration)`);
             document.getElementById('app-container').classList.remove('loading');
         }
     }
@@ -255,10 +260,14 @@
     let html5QrCode = null;
     let isScannerRunning = false; // Neuer Status-Flag
 
-    function changeState(newStateId) {
-        document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
-        document.getElementById(newStateId).classList.remove('hidden');
-        document.getElementById('app-container').classList.remove('loading'); // Lade-Indikator entfernen
+    // **********************************************
+    // FIX 2: showError Funktion wird global (window.) definiert. 
+    // ACHTUNG: changeState wurde in den Modul-Script-Block verschoben!
+    // **********************************************
+    window.showError = function(message) {
+        const modal = document.getElementById('error_modal');
+        document.getElementById('error-message').innerText = message;
+        modal.showModal();
     }
 
     // --- 1. QR Code Scan ---
@@ -307,11 +316,11 @@
             
             // Detaillierte Fehlerbehandlung
             if (err.name === 'NotAllowedError' || String(err).includes("Permission denied")) {
-                showError("Kamerafehler: Kamerazugriff wurde VERWEIGERT oder BLOCKIERT. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben und die Seite über HTTPS läuft.");
+                window.showError("Kamerafehler: Kamerazugriff wurde VERWEIGERT oder BLOCKIERT. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben und die Seite über HTTPS läuft.");
             } else if (err.name === 'NotReadableError') {
-                 showError("Kamerafehler: Die Kamera ist zurzeit von einer anderen App belegt oder nicht verfügbar.");
+                 window.showError("Kamerafehler: Die Kamera ist zurzeit von einer anderen App belegt oder nicht verfügbar.");
             } else {
-                showError(`Kamerafehler: ${err.message}. Ein unerwarteter Fehler ist aufgetreten.`);
+                window.showError(`Kamerafehler: ${err.message}. Ein unerwarteter Fehler ist aufgetreten.`);
             }
             console.error("Kamera Startfehler (native oder html5-qrcode):", err);
         }
@@ -319,7 +328,7 @@
 
     window.startScanner = async function() {
         if (!window.authReady()) {
-             showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
+             window.showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
              return;
         }
         
@@ -328,7 +337,7 @@
             return;
         }
         
-        changeState('scan-screen');
+        window.changeState('scan-screen');
         await tryGetCameraPermissionAndStartScanner();
     }
 
@@ -352,16 +361,16 @@
             if (building && area) {
                 window.appState.building = decodeURIComponent(building);
                 window.appState.area = decodeURIComponent(area);
-                changeState('location-check-screen');
+                window.changeState('location-check-screen');
             } else {
-                showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building' oder 'area' Parameter in der URL.");
-                changeState('scan-screen'); // Zurück zum Scannen
+                window.showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building' oder 'area' Parameter in der URL.");
+                window.changeState('scan-screen'); // Zurück zum Scannen
             }
 
         } catch (error) {
             console.error("Fehler nach Scan-Stopp oder URL-Parsing:", error);
-            showError(`Fehler: Der gescannte Code ist keine gültige URL für diese App. (${error.message})`);
-            changeState('scan-screen'); // Zurück zum Scannen
+            window.showError(`Fehler: Der gescannte Code ist keine gültige URL für diese App. (${error.message})`);
+            window.changeState('scan-screen'); // Zurück zum Scannen
         }
     }
 
@@ -369,7 +378,7 @@
 
     window.checkLocation = function() {
         if (!navigator.geolocation) {
-            showError("Geolocation wird von Ihrem Gerät/Browser nicht unterstützt.");
+            window.showError("Geolocation wird von Ihrem Gerät/Browser nicht unterstützt.");
             return;
         }
 
@@ -386,9 +395,9 @@
                 // Fortsetzen zur Fotoaufnahme
                 setupPhotoCapture();
                 
-                // **FIX:** Leichte Verzögerung einbauen, um Rendering-Konflikte zu vermeiden
+                // FIX: Leichte Verzögerung einbauen, um Rendering-Konflikte zu vermeiden
                 setTimeout(() => {
-                    changeState('capture-photos-screen');
+                    window.changeState('capture-photos-screen');
                 }, 50);
 
             },
@@ -402,7 +411,7 @@
                     errorMessage = "Standortzugriff verweigert. Sie müssen den Standort freigeben, um fortzufahren.";
                 }
 
-                showError(errorMessage);
+                window.showError(errorMessage);
                 console.error("Geolocation Fehler:", error);
             },
             {
@@ -474,7 +483,7 @@
     window.submitJob = async function() {
         // Prüfen, ob genau 4 Fotos vorhanden sind (da Filter nicht ausreicht, muss die Länge 4 sein und kein null enthalten)
         if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined) || !window.authReady()) {
-            showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
+            window.showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
             return;
         }
 
@@ -503,13 +512,13 @@
 
             console.log("Dokument erfolgreich mit ID geschrieben:", docRef.id);
             document.getElementById('transaction-id').innerText = docRef.id;
-            changeState('success-screen');
+            window.changeState('success-screen');
 
         } catch (e) {
             console.error("Fehler beim Hinzufügen des Dokuments: ", e);
             submitBtn.disabled = false;
             submitBtn.innerText = 'Abschließen & Senden';
-            showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
+            window.showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
         }
     }
 
@@ -526,7 +535,7 @@
         document.getElementById('submit-btn').classList.add('btn-disabled');
         document.getElementById('submit-btn').disabled = true;
         document.getElementById('submit-btn').innerText = 'Abschließen & Senden';
-        changeState('scan-screen');
+        window.changeState('scan-screen');
         // Stellt sicher, dass der Scanner neu gestartet wird, wenn er in den Scan-Screen wechselt
         // startScanner() wird nicht automatisch aufgerufen, Benutzer muss klicken.
     }
@@ -534,7 +543,7 @@
     // Initialen Zustand setzen (Zeigt zuerst den Login)
     window.onload = function() {
         document.getElementById('app-container').classList.remove('loading');
-        changeState('login-screen');
+        window.changeState('login-screen');
     };
 </script>
 
