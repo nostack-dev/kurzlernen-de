@@ -172,7 +172,8 @@
             readerDiv.innerHTML = ''; 
 
             if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
+                // FIX: Korrekte Schreibweise der globalen Klasse
+                html5QrCode = new HTML5Qrcode("reader");
             }
             
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
