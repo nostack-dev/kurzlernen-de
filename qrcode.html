@@ -1,6 +1,6 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 3 - Hardcoded URL)
-  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit Hardcode der Ziel-App-URL.
+  QR Code Generator für Standorte und Bereiche (Version 4 - Cloud Sync via Job ID)
+  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit eindeutiger ID.
   Layout: Mobile First Design für optimale Lesbarkeit und Bedienung.
 -->
 <!DOCTYPE html>
@@ -8,30 +8,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V3</title>
-    <!-- Tailwind CSS und DaisyUI -->
+    <title>QR Code Generator V4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
-    <!-- Google Font Inter -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body { font-family: 'Inter', sans-serif; }
-        /* Stil für den druckbaren Bereich */
         @media print {
-            body > :not(#printable-area) {
-                display: none !important;
-            }
+            body > :not(#printable-area) { display: none !important; }
             #printable-area {
-                display: block;
-                width: 100%;
-                margin: 0;
-                padding: 20px;
-                box-shadow: none;
-                page-break-after: always; /* Für mehrere Codes auf separaten Seiten */
+                display: block; width: 100%; margin: 0; padding: 20px; box-shadow: none; page-break-after: always;
             }
         }
     </style>
-    <!-- QR Code Bibliothek -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start p-2 sm:p-4">
@@ -40,21 +29,19 @@
 <div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V3</h1>
-        <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V4</h1>
+        <p class="text-sm text-gray-500">Projektverwaltung und Cloud-Synchronisierung</p>
     </header>
 
     <!-- Projektverwaltung -->
     <div class="card bg-gray-50 shadow-inner p-3 sm:p-4 mb-6">
         <div class="flex flex-col md:flex-row gap-3 items-center">
-            <!-- Auf Mobile: Selector nimmt volle Breite ein (w-full). -->
             <label class="form-control w-full md:w-3/5">
                 <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Aktiver Standort-Bereich</span></div>
                 <select id="project-selector" class="select select-bordered select-sm sm:select-md w-full" onchange="switchProject(this.value)">
                     <!-- Optionen werden via JavaScript befüllt -->
                 </select>
             </label>
-            <!-- Auf Mobile: Buttons nehmen volle Breite ein (w-full) und sind nebeneinander. -->
             <div class="flex gap-2 w-full md:w-2/5 md:justify-end">
                 <button onclick="newProject()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
                     Neu
@@ -65,7 +52,6 @@
             </div>
         </div>
         
-        <!-- Import-Feld unter dem Selector -->
         <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
             <label class="form-control w-full">
                 <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Import (JSON)</span></div>
@@ -88,16 +74,14 @@
             <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
         </label>
         
-        <div class="alert alert-info shadow-lg p-3 text-sm">
+        <div class="alert alert-warning shadow-lg p-3 text-sm">
              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <div class="text-xs">
-                Die Ziel-URL ist Hardcoded in der Datei:
-                <span class="font-mono font-semibold block mt-1">https://kurzlernen.de/servicetracker.html</span>
+                Die Standortdaten werden beim Generieren **in die Cloud synchronisiert**.
             </div>
         </div>
 
-
-        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg mt-6">QR Code Generieren & Anzeigen</button>
+        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg mt-6" id="generate-btn">QR Code Generieren & Synchronisieren</button>
     </div>
 
     <!-- QR Code Anzeige und Druckbereich -->
@@ -125,35 +109,115 @@
 
 </div>
 
+<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen -->
+<dialog id="info_modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg text-primary" id="modal-title">Info / Status</h3>
+        <p id="modal-message" class="py-4 text-gray-700"></p>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn">Schließen</button></form>
+        </div>
+    </div>
+</dialog>
+
+<!-- Firebase SDKs (Modul-Skript) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Globale Firebase-Variablen
+    const appId = 'servicetracker-app'; 
+    const FIREBASE_CONFIG_PLACEHOLDER = {};
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? 
+        (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : 
+        FIREBASE_CONFIG_PLACEHOLDER;
+    
+    let db, isFirebaseReady = false;
+
+    window.showModal = function(title, message, isError = false) {
+        const modal = document.getElementById('info_modal');
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-message').innerHTML = message;
+        modal.showModal();
+    }
+    
+    async function initFirebase() {
+        if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
+            console.warn("Firebase-Konfiguration fehlt. Die App kann keine Daten synchronisieren.");
+            window.showModal("Warnung", "Firebase-Konfiguration fehlt. Der QR-Code wird generiert, kann aber in der App **nicht** aufgelöst werden!", true);
+            return;
+        }
+
+        try {
+            setLogLevel('debug');
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            db = getFirestore(app);
+
+            // Anonyme Anmeldung nur für Schreibberechtigungen
+            await signInAnonymously(auth);
+            isFirebaseReady = true;
+            console.log("Firebase Generator erfolgreich anonym angemeldet.");
+            
+        } catch (error) {
+            console.error("Firebase Initialisierungsfehler im Generator:", error);
+            window.showModal("Firebase Fehler", `Initialisierungsfehler: ${error.message}. Synchronisierung nicht möglich.`, true);
+        }
+    }
+
+    // Funktion zum Speichern des Job-Konfigurations-Dokuments
+    window.syncJobConfig = async function(jobId, building, area) {
+        if (!isFirebaseReady) {
+            window.showModal("Fehler", "Firebase ist nicht bereit oder Konfiguration fehlt. Daten können nicht synchronisiert werden.", true);
+            return false;
+        }
+
+        try {
+            // Speicherort: /artifacts/{appId}/public/data/job_configs/{jobId}
+            const docRef = doc(db, `artifacts/${appId}/public/data/job_configs`, jobId);
+            await setDoc(docRef, {
+                building: building,
+                area: area,
+                createdAt: new Date().toISOString()
+            });
+            console.log(`Job-Konfiguration ${jobId} erfolgreich synchronisiert.`);
+            return true;
+        } catch (e) {
+            console.error("Fehler beim Synchronisieren der Job-Konfiguration: ", e);
+            window.showModal("Speicherfehler", `Die Standortdaten konnten nicht synchronisiert werden: ${e.message}`, true);
+            return false;
+        }
+    }
+    
+    initFirebase();
+</script>
+
+
 <script>
     // Globale Zustandsvariablen
     const STORAGE_KEY = 'ch_hohlfeld_qr_projects';
-    // Hardcoded Base URL für die Haupt-App (Servicetracker)
     const BASE_URL_HARDCODED = 'https://kurzlernen.de/servicetracker.html'; 
 
     let projects = [];
     let currentProjectId = null;
     let qrcode = null;
-
+    
     // --- Lokale Speicher- und Zustandsverwaltung ---
 
-    // Generiert eine einfache UUID (für die Eindeutigkeit des Standorts)
     function generateUUID() {
         return 'id-' + Date.now().toString(36) + Math.random().toString(36).substring(2);
     }
-
-    // Lädt alle Projekte aus dem LocalStorage
+    
     function loadProjects() {
         const stored = localStorage.getItem(STORAGE_KEY);
         try {
-            // Nur building, area und id werden aus dem Speicher geladen
             projects = stored ? JSON.parse(stored) : [];
         } catch (e) {
             console.error("Fehler beim Parsen der Projekte aus LocalStorage:", e);
             projects = [];
         }
         
-        // Initiales Projekt erstellen, wenn keine gefunden
         if (projects.length === 0) {
             newProject(true); 
         } else if (!currentProjectId) {
@@ -161,10 +225,8 @@
         }
     }
 
-    // Speichert nur die relevanten Daten (building, area, id)
     function saveProjects() {
         try {
-            // Speichere nur die reinen Projektdaten (ohne BaseURL)
             const dataToSave = projects.map(p => ({
                 id: p.id,
                 building: p.building,
@@ -177,7 +239,6 @@
         }
     }
 
-    // Erstellt ein neues Projekt und wechselt dazu
     window.newProject = function(isInitial = false) {
         const newId = generateUUID();
         
@@ -189,30 +250,25 @@
         projects.push(newProject);
         currentProjectId = newId;
         
-        // Nur speichern und wechseln, wenn es nicht die initiale (leere) Erstellung beim Laden ist
         if (!isInitial) { 
             saveProjects();
             switchProject(newId);
         }
     }
 
-    // Wechselt zum ausgewählten Projekt
     window.switchProject = function(projectId) {
         currentProjectId = projectId;
         const project = projects.find(p => p.id === projectId);
         if (project) {
             document.getElementById('building-input').value = project.building;
             document.getElementById('area-input').value = project.area;
-            
-            // QR Code muss neu generiert werden, um die Ansicht zu aktualisieren
-            generateQRCode(); 
+            generateQRCode(true); // Generiere den Code sofort, um die Ansicht zu aktualisieren (passives Update)
         }
     }
 
-    // Rendert die Dropdown-Auswahl
     function renderProjectSelector() {
         const selector = document.getElementById('project-selector');
-        selector.innerHTML = ''; // Vorherige Optionen löschen
+        selector.innerHTML = '';
         
         projects.forEach(project => {
             const option = document.createElement('option');
@@ -225,43 +281,30 @@
         });
     }
 
-    // Autosave-Logik beim Tippen in den Input-Feldern
     window.handleInputUpdate = function() {
         const project = projects.find(p => p.id === currentProjectId);
         if (project) {
             project.building = document.getElementById('building-input').value.trim();
             project.area = document.getElementById('area-input').value.trim();
-            // Die URL wird NICHT mehr gespeichert/aktualisiert
-            saveProjects(); // Speichert automatisch nach jeder Änderung
+            saveProjects(); 
         }
-        // Aktualisiert den QR-Code nur beim expliziten Klick auf "Generieren & Anzeigen"
+        // Passive QR Code Aktualisierung
+        generateQRCode(true); 
     }
 
-    // --- Export Funktion ---
-
     window.exportProjects = function() {
-        // Exportiert nur building, area, id
-        const dataToExport = projects.map(p => ({
-            id: p.id,
-            building: p.building,
-            area: p.area
-        }));
-        
+        const dataToExport = projects.map(p => ({ id: p.id, building: p.building, area: p.area }));
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
         const downloadAnchorNode = document.createElement('a');
-        // Personalisierter Dateiname
-        const filename = `QR_Projekte_Christian_Hohlfeld_${new Date().toISOString().slice(0, 10)}.json`; 
+        const filename = `QR_Projekte_Export_${new Date().toISOString().slice(0, 10)}.json`; 
         downloadAnchorNode.setAttribute("href", dataStr);
         downloadAnchorNode.setAttribute("download", filename);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
         
-        document.getElementById('error_modal_generator').showModal();
-        document.getElementById('error-message-generator').innerHTML = `Alle <b>${projects.length} Projekte</b> wurden erfolgreich als <b>${filename}</b> exportiert.`;
+        window.showModal("Export Erfolgreich", `Alle <b>${projects.length} Projekte</b> wurden erfolgreich als <b>${filename}</b> exportiert.`);
     }
-    
-    // --- Import Funktion ---
     
     window.importProjects = function(event) {
         const file = event.target.files[0];
@@ -271,27 +314,21 @@
         reader.onload = function(e) {
             try {
                 const importedData = JSON.parse(e.target.result);
-
-                // Validierung der Struktur (ohne BaseURL)
                 if (!Array.isArray(importedData) || importedData.some(p => !p.id || !p.building || !p.area)) {
                     throw new Error("Die importierte Datei ist kein gültiges QR-Projekt-Array.");
                 }
 
-                // Vorhandene Projekte überschreiben
                 projects = importedData;
                 currentProjectId = projects[0].id;
-                saveProjects(); // Speichert die importierten Daten (ohne BaseURL)
+                saveProjects(); 
                 switchProject(currentProjectId);
 
-                document.getElementById('error-message-generator').innerHTML = `Erfolgreich <b>${projects.length} Projekte</b> importiert. Die Daten wurden im lokalen Speicher gesichert.`;
-                document.getElementById('error_modal_generator').showModal();
+                window.showModal("Import Erfolgreich", `Erfolgreich <b>${projects.length} Projekte</b> importiert. Die Daten wurden im lokalen Speicher gesichert.`);
 
             } catch (error) {
                 console.error("Importfehler:", error);
-                document.getElementById('error-message-generator').innerHTML = `Fehler beim Importieren der Datei: ${error.message}`;
-                document.getElementById('error_modal_generator').showModal();
+                window.showModal("Import Fehler", `Fehler beim Importieren der Datei: ${error.message}`, true);
             } finally {
-                // Input-Feld zurücksetzen, damit die Datei erneut ausgewählt werden kann
                 event.target.value = null; 
             }
         };
@@ -300,31 +337,39 @@
 
     // --- QR Code Generierung ---
 
-    window.generateQRCode = function() {
+    // isPassive: true, wenn der Code nur generiert wird, um die Ansicht zu aktualisieren (ohne Button-Klick)
+    window.generateQRCode = async function(isPassive = false) {
         const project = projects.find(p => p.id === currentProjectId);
-        
+        const generateBtn = document.getElementById('generate-btn');
+
         if (!project || !project.building || !project.area) {
-            document.getElementById('error-message-generator').innerText = 'Bitte wählen oder erstellen Sie zuerst einen Standort und füllen Sie alle Felder aus.';
-            document.getElementById('error_modal_generator').showModal();
+            if (!isPassive) window.showModal("Eingabefehler", 'Bitte füllen Sie beide Felder (Gebäude, Bereich) aus.', true);
             return;
         }
         
-        let baseUrl = BASE_URL_HARDCODED; // Verwende die hardgecodete URL
-
-        // Sicherstellen, dass die Basis-URL keine bestehenden Query-Parameter stört
-        if (baseUrl.includes('?')) {
-             baseUrl = baseUrl.split('?')[0]; // Entferne alles nach dem ersten ?
+        // *************************************************************
+        // 1. SYNCHRONISIERUNG MIT FIRESTORE
+        // *************************************************************
+        if (!isPassive) {
+            generateBtn.disabled = true;
+            generateBtn.innerText = 'Synchronisiere Daten...';
+            const syncSuccess = await window.syncJobConfig(project.id, project.building, project.area);
+            generateBtn.disabled = false;
+            generateBtn.innerText = 'QR Code Generieren & Synchronisieren';
+            
+            if (!syncSuccess) {
+                return; // Abbruch bei Firebase Fehler
+            }
         }
         
-        // URL mit Query-Parametern für die Haupt-App erstellen
-        const encodedBuilding = encodeURIComponent(project.building);
-        const encodedArea = encodeURIComponent(project.area);
-        const targetUrl = `${baseUrl}?building=${encodedBuilding}&area=${encodedArea}`;
+        // *************************************************************
+        // 2. QR CODE ERSTELLUNG MIT EINDEUTIGER ID
+        // *************************************************************
+        const targetUrl = `${BASE_URL_HARDCODED}?jobId=${project.id}`;
 
         const container = document.getElementById('qrcode-container');
-        container.innerHTML = ''; // Vorherigen Code löschen
+        container.innerHTML = ''; 
 
-        // QR Code generieren: Bei jedem Klick NEU instanziieren.
         qrcode = new QRCode(container, {
             text: targetUrl,
             width: 256,
@@ -334,40 +379,28 @@
             correctLevel : QRCode.CorrectLevel.H
         });
 
-        // Druckbereich anzeigen und Daten aktualisieren
+        // UI-Aktualisierung
         document.getElementById('qr-building-display').innerText = project.building;
         document.getElementById('qr-area-display').innerText = project.area;
         document.getElementById('printable-area').classList.remove('hidden');
         document.getElementById('print-btn').classList.remove('hidden');
         
-        // URL im UI anzeigen
         document.getElementById('full-url-text').innerText = targetUrl;
         document.getElementById('qr-url-display').classList.remove('hidden');
 
-        console.log("Generierte URL:", targetUrl);
+        console.log("Generierte Job ID URL:", targetUrl);
+        if (!isPassive) {
+            window.showModal("Synchronisierung Erfolgreich", `Der Standort wurde erfolgreich synchronisiert. Der QR-Code enthält die eindeutige ID: **${project.id}**`);
+        }
     }
     
-    // Initialisierung beim Laden der Seite
     window.onload = function() {
         loadProjects();
         renderProjectSelector();
-        // Das erste Projekt in die Eingabefelder laden und den ersten QR-Code generieren
         if (currentProjectId) {
             switchProject(currentProjectId); 
         }
     };
 </script>
-
-<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen (Hinzugefügt, da alert() nicht erlaubt ist) -->
-<dialog id="error_modal_generator" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg text-primary">Info / Status</h3>
-        <p id="error-message-generator" class="py-4 text-gray-700"></p>
-        <div class="modal-action">
-            <form method="dialog"><button class="btn">Schließen</button></form>
-        </div>
-    </div>
-</dialog>
-
 </body>
 </html>
