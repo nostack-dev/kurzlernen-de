@@ -1,0 +1,492 @@
+<!-- 
+  Reinigungsprotokoll- und Arbeitsnachweis-App (Servicetracker)
+  Projekt von Christian Heinrich Hohlfeld (Konstanz, 05.04.1983)
+  Ziel: Nachweis und Qualitätssicherung von Reinigungs- oder Wartungsarbeiten mittels QR-Code, Standort und Fotobeweis.
+  Layout: Mobile First Design für optimale Nutzung auf Smartphones.
+-->
+<!DOCTYPE html>
+<html lang="de" data-theme="cmyk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servicetracker</title>
+    <!-- Tailwind CSS und DaisyUI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
+    <!-- Google Font Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        /* Style for loading state */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .loading .loading-overlay {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
+
+<!-- Hauptanwendung Container -->
+<div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
+
+    <header class="text-center mb-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker</h1>
+        <p class="text-sm text-gray-500">Für <span id="worker-display">Ihre Putz- und Reinigungskraft</span></p>
+    </header>
+
+    <!-- UI-Zustände -->
+    <div id="login-screen" class="app-state">
+        <h2 class="text-xl font-semibold mb-4 text-center">Login</h2>
+        <div class="card bg-base-100 shadow-md p-4 sm:p-6">
+            <label class="form-control w-full mb-4">
+                <div class="label"><span class="label-text">Benutzername (Optional)</span></div>
+                <input type="text" id="username-input" placeholder="Christian Mustermann" class="input input-bordered w-full" />
+            </label>
+            <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-lg">Einloggen & Starten</button>
+            <p class="text-xs text-center mt-4 text-gray-400">Anonyme Anmeldung für persistente Daten.</p>
+        </div>
+    </div>
+
+    <div id="scan-screen" class="app-state hidden">
+        <h2 class="text-xl font-semibold mb-4 text-center">1. QR-Code Scannen</h2>
+        <p class="text-center text-gray-600 mb-4 text-sm">Bitte scannen Sie den QR-Code des zu reinigenden Bereichs.</p>
+        <!-- Scanner-Bereich: Optimized for mobile vertical view -->
+        <div id="reader" class="w-full aspect-square max-h-[400px] mx-auto rounded-lg overflow-hidden border-2 border-primary shadow-inner mb-4"></div>
+        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg">Scanner Starten</button>
+    </div>
+
+    <div id="location-check-screen" class="app-state hidden text-center">
+        <h2 class="text-xl font-semibold mb-4">2. Standortprüfung</h2>
+        <div class="alert alert-info shadow-lg mb-4 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Wir benötigen Ihren aktuellen Standort zur Validierung.</span>
+        </div>
+        <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-lg">Standort Abfragen</button>
+        <p class="text-sm mt-2 text-error">Standortfreigabe ist zwingend erforderlich.</p>
+    </div>
+
+    <div id="capture-photos-screen" class="app-state hidden">
+        <h2 class="text-xl font-semibold mb-4 text-center">3. Fotobeweise</h2>
+        <div id="job-info" class="mb-4 p-3 rounded-lg bg-base-200 text-sm">
+            <p class="font-bold">Auftrag:</p>
+            <p id="info-text"></p>
+        </div>
+
+        <div id="photo-grid" class="grid grid-cols-2 gap-3">
+            <!-- Platzhalter für 4 Fotos, 2 Spalten auf allen Geräten -->
+        </div>
+
+        <p id="photo-status" class="text-center text-sm mt-4"></p>
+        <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-lg" id="submit-btn" disabled>
+            Abschließen & Senden
+        </button>
+    </div>
+    
+    <div id="success-screen" class="app-state hidden text-center">
+        <div class="card bg-green-100 border-green-500 border p-6 shadow-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-green-500 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            <h2 class="text-2xl font-bold text-green-700 mb-2">Arbeit Abgeschlossen!</h2>
+            <p class="text-gray-700">Der Nachweis wurde erfolgreich übermittelt.</p>
+            <p class="text-xs mt-4 text-gray-500">Transaktion ID: <span id="transaction-id"></span></p>
+        </div>
+        <button onclick="resetApp()" class="btn btn-ghost mt-6">Neue Aufgabe starten</button>
+    </div>
+
+    <!-- Modaler Dialog für Fehlermeldungen -->
+    <dialog id="error_modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg text-error">Fehler!</h3>
+            <p id="error-message" class="py-4 text-gray-700"></p>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn">Schließen</button></form>
+            </div>
+        </div>
+    </dialog>
+    
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+    </div>
+
+</div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, collection, addDoc, Timestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Globale Variablen (MANDATORISCH)
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    // IMPORTANT: Check if config is provided, otherwise set to null
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : null;
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    
+    // Globale Variablen für Firebase und Zustand
+    let app, db, auth;
+    let userId = null;
+    let isAuthReady = false;
+
+    // Zustand der Anwendung
+    window.appState = {
+        building: null,
+        area: null,
+        scanTime: null,
+        latitude: null,
+        longitude: null,
+        photos: [], // Speichert Base64-Strings der 4 Fotos
+        username: 'Unbekannte Kraft',
+        isLoggedIn: false
+    };
+
+    // Firebase Initialisierung und Authentifizierung
+    async function initFirebase() {
+        if (!firebaseConfig) {
+            console.error("Firebase Konfiguration nicht gefunden.");
+            showError("Fehler beim Laden der Firebase-Konfiguration. Kann nicht fortfahren.");
+            document.getElementById('app-container').classList.remove('loading');
+            return;
+        }
+        
+        try {
+            setLogLevel('debug'); // Wichtig für Logs
+
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            // Auth-Zustandsänderung überwachen
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    window.appState.isLoggedIn = true;
+                    console.log("Benutzer angemeldet. UID:", userId);
+                    isAuthReady = true;
+                    
+                    document.getElementById('worker-display').textContent = window.appState.username;
+
+                    // Korrigierte Logik: Zustand auf QR-Scan wechseln, falls Login erfolgreich war
+                    // und der Lade-Indikator noch aktiv ist.
+                    if (document.getElementById('app-container').classList.contains('loading')) {
+                        changeState('scan-screen');
+                    }
+                } else {
+                    userId = null;
+                    window.appState.isLoggedIn = false;
+                    isAuthReady = true; // Auth-Check abgeschlossen, auch wenn anonym
+                    console.log("Kein Benutzer angemeldet. Versuche anonyme Anmeldung.");
+                }
+            });
+
+            // Anmeldeversuch mit Custom Token oder anonym
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+                console.log("Erfolgreich mit Custom Token angemeldet.");
+            } else {
+                await signInAnonymously(auth);
+                console.log("Erfolgreich anonym angemeldet.");
+            }
+
+        } catch (error) {
+            console.error("Firebase Initialisierungsfehler:", error);
+            showError(`Initialisierungsfehler: ${error.message}`);
+            document.getElementById('app-container').classList.remove('loading');
+        }
+    }
+
+    window.simulateLoginAndInit = function() {
+        const usernameInput = document.getElementById('username-input').value.trim();
+        if (usernameInput) {
+            window.appState.username = usernameInput;
+        }
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app-container').classList.add('loading'); // Lade-Indikator
+        document.getElementById('worker-display').textContent = window.appState.username; // Display username immediately
+        initFirebase();
+    }
+    
+    window.authReady = function() {
+        return isAuthReady && userId;
+    }
+
+    window.db = db; // Firestore für globale Funktionen zugänglich machen
+</script>
+
+<!-- QR Code Scanner Bibliothek -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+
+<script>
+    // Globale Hilfsfunktionen und Zustand
+    let html5QrCode = null;
+
+    function showError(message) {
+        const modal = document.getElementById('error_modal');
+        document.getElementById('error-message').innerText = message;
+        modal.showModal();
+    }
+
+    function changeState(newStateId) {
+        document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
+        document.getElementById(newStateId).classList.remove('hidden');
+        document.getElementById('app-container').classList.remove('loading'); // Lade-Indikator entfernen
+    }
+
+    // --- 1. QR Code Scan ---
+
+    window.startScanner = async function() {
+        if (!window.authReady()) {
+             showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
+             return;
+        }
+        changeState('scan-screen');
+        document.getElementById('scan-btn').disabled = true;
+
+        if (!html5QrCode) {
+            // Adjust height for better mobile fit in vertical aspect-ratio area
+            html5QrCode = new Html5Qrcode("reader");
+        }
+        
+        // Reset the QR reader container's innerHTML to ensure clean restart
+        document.getElementById("reader").innerHTML = "";
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        
+        try {
+            await html5QrCode.start(
+                { facingMode: "environment" }, // Kamera-Modus: Rückkamera
+                config,
+                (decodedText, decodedResult) => {
+                    // QR-Code erfolgreich gescannt
+                    onScanSuccess(decodedText);
+                },
+                (errorMessage) => {
+                    // console.log("QR Scan Error: " + errorMessage); // Debugging
+                }
+            );
+            document.getElementById('scan-btn').innerText = 'Scanner Läuft...';
+        } catch (err) {
+            document.getElementById('scan-btn').innerText = 'Scanner Starten';
+            document.getElementById('scan-btn').disabled = false;
+            // Catch error if camera access is blocked
+            if (String(err).includes("Permission denied")) {
+                showError("Kamerafehler: Kamerazugriff wurde verweigert. Bitte erlauben Sie den Zugriff in Ihren Browsereinstellungen.");
+            } else {
+                showError(`Kamerafehler: ${err.message}. Bitte Kamera-Zugriff erlauben.`);
+            }
+        }
+    }
+
+    async function onScanSuccess(decodedText) {
+        try {
+            if (html5QrCode) {
+                 await html5QrCode.stop();
+            }
+            document.getElementById('scan-btn').innerText = 'Scanner Starten';
+            document.getElementById('scan-btn').disabled = false;
+            
+            window.appState.scanTime = new Date();
+
+            // QR-Code-Inhalt parsen: Erwartetes Format ist eine URL mit Query-Parametern
+            // z.B. https://kurzlernen.de/servicetracker.html?building=Geb%C3%A4ude%20A&area=K%C3%BCche%20EG
+            const url = new URL(decodedText);
+            const building = url.searchParams.get('building');
+            const area = url.searchParams.get('area');
+
+            if (building && area) {
+                window.appState.building = decodeURIComponent(building);
+                window.appState.area = decodeURIComponent(area);
+                changeState('location-check-screen');
+                console.log(`Scan erfolgreich: Gebäude: ${window.appState.building}, Bereich: ${window.appState.area}`);
+            } else {
+                showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building' oder 'area' Parameter in der URL.");
+                changeState('scan-screen'); // Zurück zum Scannen
+            }
+
+        } catch (error) {
+            console.error("Fehler nach Scan-Stopp oder URL-Parsing:", error);
+            showError(`Fehler: Der gescannte Code ist keine gültige URL für diese App. (${error.message})`);
+            changeState('scan-screen'); // Zurück zum Scannen
+        }
+    }
+
+    // --- 2. Standortprüfung ---
+
+    window.checkLocation = function() {
+        if (!navigator.geolocation) {
+            showError("Geolocation wird von Ihrem Gerät/Browser nicht unterstützt.");
+            return;
+        }
+
+        document.getElementById('location-btn').disabled = true;
+        document.getElementById('location-btn').innerText = 'Standort wird abgerufen...';
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                // Erfolgreiche Standortabfrage
+                window.appState.latitude = position.coords.latitude;
+                window.appState.longitude = position.coords.longitude;
+                console.log(`Standort erfasst: Lat ${window.appState.latitude}, Lon ${window.appState.longitude}`);
+                
+                // Fortsetzen zur Fotoaufnahme
+                setupPhotoCapture();
+                changeState('capture-photos-screen');
+            },
+            (error) => {
+                // Fehler bei Standortabfrage (z.B. Benutzer verweigert)
+                document.getElementById('location-btn').disabled = false;
+                document.getElementById('location-btn').innerText = 'Standort Abfragen';
+
+                let errorMessage = "Standortabfrage fehlgeschlagen. Bitte stellen Sie sicher, dass GPS aktiviert ist und Sie der App die Berechtigung erteilt haben.";
+                if (error.code === error.PERMISSION_DENIED) {
+                    errorMessage = "Standortzugriff verweigert. Sie müssen den Standort freigeben, um fortzufahren.";
+                }
+
+                showError(errorMessage);
+                console.error("Geolocation Fehler:", error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            }
+        );
+    }
+
+    // --- 3. Fotobeweise ---
+
+    function setupPhotoCapture() {
+        const infoText = document.getElementById('info-text');
+        infoText.innerHTML = `Gebäude: <span class="font-semibold">${window.appState.building}</span><br>Bereich: <span class="font-semibold text-primary">${window.appState.area}</span>`;
+        
+        const photoGrid = document.getElementById('photo-grid');
+        photoGrid.innerHTML = '';
+        window.appState.photos = []; // Reset Fotos
+
+        for (let i = 0; i < 4; i++) {
+            const photoSlot = document.createElement('div');
+            photoSlot.className = 'flex flex-col items-center p-2 border rounded-lg bg-base-100 shadow-sm';
+            photoSlot.innerHTML = `
+                <img id="preview-${i}" class="w-full h-20 object-cover rounded-md mb-2 bg-gray-200" src="https://placehold.co/100x80/cccccc/333333?text=Foto+${i+1}" onerror="this.onerror=null;this.src='https://placehold.co/100x80/cccccc/333333?text=Foto+${i+1}';" alt="Foto ${i+1} Vorschau">
+                <input type="file" accept="image/*" capture="environment" id="file-input-${i}" class="file-input file-input-xs file-input-bordered w-full" onchange="handlePhotoCapture(event, ${i})">
+            `;
+            photoGrid.appendChild(photoSlot);
+        }
+        updatePhotoStatus();
+    }
+
+    window.handlePhotoCapture = function(event, index) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64Image = e.target.result;
+                document.getElementById(`preview-${index}`).src = base64Image;
+                // Sicherstellen, dass das Array an der richtigen Stelle befüllt wird
+                window.appState.photos[index] = base64Image; 
+                updatePhotoStatus();
+            };
+            reader.readAsDataURL(file);
+        } else {
+            // Wenn das Foto entfernt wird, den Slot auf null setzen
+            window.appState.photos[index] = null;
+            document.getElementById(`preview-${index}`).src = `https://placehold.co/100x80/cccccc/333333?text=Foto+${index+1}`;
+            updatePhotoStatus();
+        }
+    }
+
+    function updatePhotoStatus() {
+        const takenPhotos = window.appState.photos.filter(p => p !== null && p !== undefined).length;
+        document.getElementById('photo-status').innerText = `Fotos aufgenommen: ${takenPhotos} von 4`;
+        
+        const submitBtn = document.getElementById('submit-btn');
+        if (takenPhotos === 4) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-disabled');
+        } else {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('btn-disabled');
+        }
+    }
+
+    // --- 4. Abschluss und Übermittlung ---
+
+    window.submitJob = async function() {
+        // Prüfen, ob genau 4 Fotos vorhanden sind (da Filter nicht ausreicht, muss die Länge 4 sein und kein null enthalten)
+        if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined) || !window.authReady()) {
+            showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
+            return;
+        }
+
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Wird übermittelt...';
+        
+        try {
+            // Das Base64-Array (mit den 4 Fotos) wird in einem Firestore-Dokument gespeichert.
+            const jobData = {
+                userId: userId,
+                workerName: window.appState.username,
+                building: window.appState.building,
+                area: window.appState.area,
+                scanTime: Timestamp.fromDate(window.appState.scanTime),
+                submissionTime: Timestamp.now(),
+                location: {
+                    latitude: window.appState.latitude,
+                    longitude: window.appState.longitude,
+                },
+                photos: window.appState.photos // Base64-Strings der 4 Fotos
+            };
+
+            const jobsCollectionRef = collection(db, `artifacts/${appId}/public/data/jobs`);
+            const docRef = await addDoc(jobsCollectionRef, jobData);
+
+            console.log("Dokument erfolgreich mit ID geschrieben:", docRef.id);
+            document.getElementById('transaction-id').innerText = docRef.id;
+            changeState('success-screen');
+
+        } catch (e) {
+            console.error("Fehler beim Hinzufügen des Dokuments: ", e);
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Abschließen & Senden';
+            showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
+        }
+    }
+
+    window.resetApp = function() {
+        // Behält Login-Daten bei, setzt aber alle Job-relevanten States zurück
+        window.appState.building = null;
+        window.appState.area = null;
+        window.appState.scanTime = null;
+        window.appState.latitude = null;
+        window.appState.longitude = null;
+        window.appState.photos = [];
+        
+        document.getElementById('transaction-id').innerText = '';
+        document.getElementById('submit-btn').classList.add('btn-disabled');
+        document.getElementById('submit-btn').disabled = true;
+        document.getElementById('submit-btn').innerText = 'Abschließen & Senden';
+        changeState('scan-screen');
+        // Stellt sicher, dass der Scanner neu gestartet wird, wenn er in den Scan-Screen wechselt
+        // startScanner() wird nicht automatisch aufgerufen, Benutzer muss klicken.
+    }
+
+    // Initialen Zustand setzen (Zeigt zuerst den Login)
+    window.onload = function() {
+        document.getElementById('app-container').classList.remove('loading');
+        changeState('login-screen');
+    };
+</script>
+
+</body>
+</html>
