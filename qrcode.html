@@ -1,7 +1,7 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 2 - Projektverwaltung)
+  QR Code Generator für Standorte und Bereiche (Version 3 - Hardcoded URL)
   Projekt von Christian Heinrich Hohlfeld (Konstanz, 05.04.1983)
-  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit lokaler Speicherung (localStorage), Auto-Save und Exportfunktion.
+  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit Hardcode der Ziel-App-URL.
   Layout: Mobile First Design für optimale Lesbarkeit und Bedienung.
 -->
 <!DOCTYPE html>
@@ -9,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V2</title>
+    <title>QR Code Generator V3</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -41,7 +41,7 @@
 <div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V2</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V3</h1>
         <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
     </header>
 
@@ -58,12 +58,20 @@
             <!-- Auf Mobile: Buttons nehmen volle Breite ein (w-full) und sind nebeneinander. -->
             <div class="flex gap-2 w-full md:w-2/5 md:justify-end">
                 <button onclick="newProject()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
-                    Neue
+                    Neu
                 </button>
                 <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap w-1/2">
                     Export
                 </button>
             </div>
+        </div>
+        
+        <!-- Import-Feld unter dem Selector -->
+        <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
+            <label class="form-control w-full">
+                <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Import (JSON)</span></div>
+                <input type="file" accept=".json" class="file-input file-input-bordered file-input-sm w-full" onchange="importProjects(event)" />
+            </label>
         </div>
     </div>
 
@@ -81,14 +89,16 @@
             <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
         </label>
         
-        <label class="form-control w-full mb-6">
-            <div class="label"><span class="label-text text-error font-bold text-xs sm:text-sm">Ziel-URL der Haupt-App (MUSS vor dem Upload angepasst werden!)</span></div>
-            <!-- WICHTIG: Hier muss der Platzhalter-Wert im Code auf die tatsächliche URL geändert werden! -->
-            <input type="text" id="base-url-input" placeholder="https://ihreapp.com/index.html" class="input input-bordered w-full input-error text-xs sm:text-sm" oninput="handleInputUpdate()" value="http://localhost:8080/index.html" />
-            <div class="label"><span class="label-text-alt text-error font-semibold text-xs">Bitte auf Ihre Domain ändern (z.B. https://ihredomain.de/index.html).</span></div>
-        </label>
+        <div class="alert alert-info shadow-lg p-3 text-sm">
+             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div class="text-xs">
+                Die Ziel-URL ist Hardcoded in der Datei:
+                <span class="font-mono font-semibold block mt-1">https://kurzlernen.de/servicetracker.html</span>
+            </div>
+        </div>
 
-        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg">QR Code Generieren & Anzeigen</button>
+
+        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg mt-6">QR Code Generieren & Anzeigen</button>
     </div>
 
     <!-- QR Code Anzeige und Druckbereich -->
@@ -119,6 +129,9 @@
 <script>
     // Globale Zustandsvariablen
     const STORAGE_KEY = 'ch_hohlfeld_qr_projects';
+    // Hardcoded Base URL für die Haupt-App (Servicetracker)
+    const BASE_URL_HARDCODED = 'https://kurzlernen.de/servicetracker.html'; 
+
     let projects = [];
     let currentProjectId = null;
     let qrcode = null;
@@ -134,25 +147,31 @@
     function loadProjects() {
         const stored = localStorage.getItem(STORAGE_KEY);
         try {
+            // Nur building, area und id werden aus dem Speicher geladen
             projects = stored ? JSON.parse(stored) : [];
         } catch (e) {
             console.error("Fehler beim Parsen der Projekte aus LocalStorage:", e);
             projects = [];
         }
         
+        // Initiales Projekt erstellen, wenn keine gefunden
         if (projects.length === 0) {
-            // Initiales Projekt erstellen, BASE_URL auf den Standardwert setzen
-            const defaultBaseUrl = document.getElementById('base-url-input').value;
-            newProject(true, defaultBaseUrl); 
+            newProject(true); 
         } else if (!currentProjectId) {
             currentProjectId = projects[0].id;
         }
     }
 
-    // Speichert alle Projekte im LocalStorage (Autosave-Funktion)
+    // Speichert nur die relevanten Daten (building, area, id)
     function saveProjects() {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+            // Speichere nur die reinen Projektdaten (ohne BaseURL)
+            const dataToSave = projects.map(p => ({
+                id: p.id,
+                building: p.building,
+                area: p.area
+            }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
             renderProjectSelector();
         } catch (e) {
             console.error("Fehler beim Speichern der Projekte in LocalStorage:", e);
@@ -160,15 +179,13 @@
     }
 
     // Erstellt ein neues Projekt und wechselt dazu
-    window.newProject = function(isInitial = false, defaultBaseUrl = null) {
+    window.newProject = function(isInitial = false) {
         const newId = generateUUID();
-        const baseUrlToUse = defaultBaseUrl || document.getElementById('base-url-input').value;
         
         const newProject = {
             id: newId,
             building: 'Neues Gebäude',
-            area: 'Neuer Bereich',
-            baseUrl: baseUrlToUse
+            area: 'Neuer Bereich'
         };
         projects.push(newProject);
         currentProjectId = newId;
@@ -188,11 +205,6 @@
         if (project) {
             document.getElementById('building-input').value = project.building;
             document.getElementById('area-input').value = project.area;
-            
-            // Wichtig: Wenn BaseURL im gespeicherten Projekt leer ist (was nicht passieren sollte, aber zur Sicherheit), 
-            // den aktuellen Standardwert aus dem Input-Feld verwenden.
-            const baseUrlInput = document.getElementById('base-url-input');
-            baseUrlInput.value = project.baseUrl || baseUrlInput.value;
             
             // QR Code muss neu generiert werden, um die Ansicht zu aktualisieren
             generateQRCode(); 
@@ -221,7 +233,7 @@
         if (project) {
             project.building = document.getElementById('building-input').value.trim();
             project.area = document.getElementById('area-input').value.trim();
-            project.baseUrl = document.getElementById('base-url-input').value.trim();
+            // Die URL wird NICHT mehr gespeichert/aktualisiert
             saveProjects(); // Speichert automatisch nach jeder Änderung
         }
         // Aktualisiert den QR-Code nur beim expliziten Klick auf "Generieren & Anzeigen"
@@ -230,7 +242,14 @@
     // --- Export Funktion ---
 
     window.exportProjects = function() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projects, null, 2));
+        // Exportiert nur building, area, id
+        const dataToExport = projects.map(p => ({
+            id: p.id,
+            building: p.building,
+            area: p.area
+        }));
+        
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
         const downloadAnchorNode = document.createElement('a');
         // Personalisierter Dateiname
         const filename = `QR_Projekte_Christian_Hohlfeld_${new Date().toISOString().slice(0, 10)}.json`; 
@@ -241,7 +260,44 @@
         downloadAnchorNode.remove();
         
         document.getElementById('error_modal_generator').showModal();
-        document.getElementById('error-message-generator').innerText = `Alle ${projects.length} Projekte wurden erfolgreich als ${filename} exportiert.`;
+        document.getElementById('error-message-generator').innerHTML = `Alle <b>${projects.length} Projekte</b> wurden erfolgreich als <b>${filename}</b> exportiert.`;
+    }
+    
+    // --- Import Funktion ---
+    
+    window.importProjects = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+
+                // Validierung der Struktur (ohne BaseURL)
+                if (!Array.isArray(importedData) || importedData.some(p => !p.id || !p.building || !p.area)) {
+                    throw new Error("Die importierte Datei ist kein gültiges QR-Projekt-Array.");
+                }
+
+                // Vorhandene Projekte überschreiben
+                projects = importedData;
+                currentProjectId = projects[0].id;
+                saveProjects(); // Speichert die importierten Daten (ohne BaseURL)
+                switchProject(currentProjectId);
+
+                document.getElementById('error-message-generator').innerHTML = `Erfolgreich <b>${projects.length} Projekte</b> importiert. Die Daten wurden im lokalen Speicher gesichert.`;
+                document.getElementById('error_modal_generator').showModal();
+
+            } catch (error) {
+                console.error("Importfehler:", error);
+                document.getElementById('error-message-generator').innerHTML = `Fehler beim Importieren der Datei: ${error.message}`;
+                document.getElementById('error_modal_generator').showModal();
+            } finally {
+                // Input-Feld zurücksetzen, damit die Datei erneut ausgewählt werden kann
+                event.target.value = null; 
+            }
+        };
+        reader.readAsText(file);
     }
 
     // --- QR Code Generierung ---
@@ -249,13 +305,13 @@
     window.generateQRCode = function() {
         const project = projects.find(p => p.id === currentProjectId);
         
-        if (!project || !project.building || !project.area || !project.baseUrl) {
+        if (!project || !project.building || !project.area) {
             document.getElementById('error-message-generator').innerText = 'Bitte wählen oder erstellen Sie zuerst einen Standort und füllen Sie alle Felder aus.';
             document.getElementById('error_modal_generator').showModal();
             return;
         }
         
-        let baseUrl = project.baseUrl;
+        let baseUrl = BASE_URL_HARDCODED; // Verwende die hardgecodete URL
 
         // Sicherstellen, dass die Basis-URL keine bestehenden Query-Parameter stört
         if (baseUrl.includes('?')) {
