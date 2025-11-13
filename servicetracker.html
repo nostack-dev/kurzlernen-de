@@ -1,14 +1,15 @@
 <!-- 
-  Servicetracker App (Version 6 - jsQR STABIL)
-  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe erfolgt via JSON Download.
-  Verwendet jsQR und native Kamera-API für höchste Stabilität.
+  Servicetracker App (Version 7 - ZIP EXPORT)
+  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe erfolgt via ZIP Download.
+  Verwendet jsQR und JSZip für höchste Stabilität und Formatierung.
+  Projektidee von Christian Heinrich Hohlfeld.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="cmyk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V6 (jsQR Stabil)</title>
+    <title>Servicetracker V7 (ZIP Export)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -35,11 +36,13 @@
             margin: auto;
             border-radius: 0.5rem;
             overflow: hidden;
-            border: 2px solid var(--p); /* Verwende Primary-Farbe */
+            border: 2px solid var(--p);
         }
     </style>
-    <!-- Neue, stabile QR-Code Bibliothek: jsQR -->
+    <!-- Stabile QR-Code Bibliothek: jsQR -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.0.4/dist/jsQR.min.js"></script>
+    <!-- Neue Bibliothek: JSZip für ZIP-Archiverstellung -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
 
@@ -47,11 +50,12 @@
 <div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V6</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V7</h1>
         <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display">Unbekannte Kraft</span></p>
     </header>
 
-    <!-- UI-Zustände -->
+    <!-- UI-Zustände (Beibehalten) -->
+    
     <div id="login-screen" class="app-state">
         <h2 class="text-xl font-semibold mb-4 text-center">Login (Lokal)</h2>
         <div class="card bg-base-100 shadow-md p-4 sm:p-6">
@@ -68,7 +72,6 @@
         <h2 class="text-xl font-semibold mb-4 text-center">1. QR-Code Scannen</h2>
         <p class="text-center text-gray-600 mb-4 text-sm">Bitte scannen Sie den QR-Code des zu reinigenden Bereichs.</p>
         
-        <!-- NEUER SCANNER BEREICH: Video und Canvas für jsQR -->
         <div id="reader-container" class="shadow-inner">
             <video id="qr-video" playsinline></video>
             <canvas id="qr-canvas" style="display: none;"></canvas>
@@ -104,17 +107,17 @@
 
         <p id="photo-status" class="text-center text-sm mt-4"></p>
         <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-lg" id="submit-btn" disabled>
-            Abschließen & JSON Herunterladen
+            Abschließen & ZIP-Datei Erstellen
         </button>
-        <div class="alert alert-warning mt-4 text-xs">Achtung: Die Datei muss manuell an den Vorgesetzten gesendet werden.</div>
+        <div class="alert alert-warning mt-4 text-xs">Achtung: Die ZIP-Datei muss manuell an den Vorgesetzten gesendet werden.</div>
     </div>
     
     <div id="success-screen" class="app-state hidden text-center">
         <div class="card bg-green-100 border-green-500 border p-6 shadow-xl">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-green-500 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
             <h2 class="text-2xl font-bold text-green-700 mb-2">Arbeit Abgeschlossen!</h2>
-            <p class="text-gray-700">Der Nachweis wurde als **JSON-Datei** heruntergeladen.</p>
-            <p class="text-xs mt-4 text-gray-500">Bitte senden Sie die Datei manuell weiter.</p>
+            <p class="text-gray-700">Der Nachweis wurde als **ZIP-Datei** heruntergeladen.</p>
+            <p class="text-xs mt-4 text-gray-500">Bitte senden Sie die Datei manuell weiter. ID: <span id="transaction-id">N/A</span></p>
         </div>
         <button onclick="resetApp()" class="btn btn-ghost mt-6">Neue Aufgabe starten</button>
     </div>
@@ -139,13 +142,12 @@
 
 <!-- GESAMTE LOGIK STARTET HIER -->
 <script>
-    // Globale Hilfsfunktionen und Zustand
+    // Globale Zustands- und Hardware-Variablen
     let videoStream = null;
     let video = document.getElementById('qr-video');
     let canvas = document.getElementById('qr-canvas');
     let canvasCtx = canvas.getContext("2d");
     let animationFrameId = null; 
-
     let isScannerRunning = false;
     
     window.appState = {
@@ -164,6 +166,19 @@
         document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
         document.getElementById(newStateId).classList.remove('hidden');
         document.getElementById('app-container').classList.remove('loading');
+    }
+    
+    // Hilfsfunktion zum Konvertieren von Base64 zu ArrayBuffer/Binary (für JSZip)
+    function base64ToUint8Array(base64) {
+        // Entfernt den Data-URL-Header (z.B. "data:image/png;base64,")
+        const base64WithoutHeader = base64.split(',')[1];
+        const binaryString = atob(base64WithoutHeader);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
     }
 
     // --- 0. Login (ohne Firebase) ---
@@ -208,12 +223,10 @@
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
             document.getElementById('loading-message').style.display = 'none';
 
-            // Setzt Canvas-Größe basierend auf Video-Größe
             canvas.height = video.videoHeight;
             canvas.width = video.videoWidth;
             canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Bilddaten aus dem Canvas extrahieren
             const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
             
             // jsQR ausführen
@@ -222,13 +235,11 @@
             });
 
             if (code) {
-                // QR-Code erfolgreich erkannt
                 stopScanner();
                 onScanSuccess(code.data);
-                return; // Beendet tick
+                return;
             }
         }
-        // Nächsten Frame anfordern
         animationFrameId = requestAnimationFrame(tick);
     }
     
@@ -249,20 +260,18 @@
         window.changeState('scan-screen');
 
         try {
-            // Native Kamera-Berechtigung erhalten (Rückkamera bevorzugt)
             videoStream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: 'environment' } 
             });
             
             video.srcObject = videoStream;
-            video.setAttribute("playsinline", true); // Wichtig für iOS
+            video.setAttribute("playsinline", true);
             await video.play(); 
 
             isScannerRunning = true;
             scanBtn.innerText = 'Scanner Läuft...';
             scanBtn.disabled = false;
             
-            // Startet den Scan-Loop
             animationFrameId = requestAnimationFrame(tick);
 
         } catch (err) {
@@ -306,7 +315,7 @@
         }
     }
 
-    // --- 2. Standortprüfung und Fotos ---
+    // --- 2. Standortprüfung und Fotos (unverändert) ---
 
     window.checkLocation = function() {
         if (!navigator.geolocation) {
@@ -391,7 +400,7 @@
         }
     }
 
-    // --- 4. Abschluss und Download ---
+    // --- 4. Abschluss und ZIP Download (NEU) ---
 
     window.submitJob = async function() {
         if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined)) {
@@ -401,9 +410,12 @@
 
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = true;
-        submitBtn.innerText = 'Erstelle JSON...';
+        submitBtn.innerText = 'Erstelle ZIP-Datei...';
         
         try {
+            const zip = new JSZip();
+            
+            // 1. Metadaten erstellen
             const jobData = {
                 transactionId: `TX-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
                 workerName: window.appState.username,
@@ -415,45 +427,68 @@
                     latitude: window.appState.latitude,
                     longitude: window.appState.longitude,
                 },
-                photosBase64: window.appState.photos
+                // Fotos werden separat gespeichert, daher hier nur Hinweis
+                photoCount: 4 
             };
+            
+            // Füge Metadaten als JSON-Datei hinzu
+            zip.file("metadata.json", JSON.stringify(jobData, null, 2));
+            
+            // 2. Fotos zur ZIP-Datei hinzufügen
+            window.appState.photos.forEach((base64Image, index) => {
+                const photoName = `foto_${index + 1}.png`;
+                // Konvertiere Base64-String in Uint8Array
+                const binaryData = base64ToUint8Array(base64Image); 
+                zip.file(photoName, binaryData, { binary: true });
+            });
 
-            const filename = `Protokoll_${jobData.building.replace(/[^a-zA-Z0-9]/g, '_')}_${jobData.submissionTime.substring(0, 10)}.json`;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jobData, null, 2));
+            // 3. ZIP-Datei generieren
+            const content = await zip.generateAsync({ type: "blob" });
+
+            // 4. Download auslösen
+            const filename = `Protokoll_${jobData.building.replace(/[^a-zA-Z0-9]/g, '_')}_${jobData.submissionTime.substring(0, 10)}.zip`;
             
             const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("href", URL.createObjectURL(content));
             downloadAnchorNode.setAttribute("download", filename);
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-
+            
+            // **FIX für Error 1:** Aktualisiere UI NACH dem Download
             document.getElementById('transaction-id').innerText = jobData.transactionId;
+            submitBtn.innerText = 'ZIP-Datei Heruntergeladen';
             window.changeState('success-screen');
+            
+            // Aufräumen (nachdem Download-Klick ausgelöst wurde)
+            downloadAnchorNode.remove();
+            URL.revokeObjectURL(content);
+
 
         } catch (e) {
-            console.error("Fehler beim Erstellen/Download des Dokuments: ", e);
+            console.error("Fehler beim Erstellen/Download der ZIP-Datei: ", e);
             submitBtn.disabled = false;
-            submitBtn.innerText = 'Abschließen & JSON Herunterladen';
-            window.showError(`Fehler beim Download: ${e.message}.`);
+            submitBtn.innerText = 'Abschließen & ZIP-Datei Erstellen';
+            window.showError(`Fehler beim ZIP-Download: ${e.message}.`);
         }
     }
 
     window.resetApp = function() {
-        stopScanner(); // Stellt sicher, dass der Video-Stream gestoppt wird
+        stopScanner();
         
         window.appState.building = null; window.appState.area = null; window.appState.scanTime = null;
         window.appState.latitude = null; window.appState.longitude = null; window.appState.photos = [];
         
-        document.getElementById('transaction-id').innerText = '';
+        // **FIX für Error 1:** Sicherstellen, dass das Element im Success-Screen nicht versucht wird zu aktualisieren
+        const txIdEl = document.getElementById('transaction-id');
+        if (txIdEl) txIdEl.innerText = 'N/A';
+        
         document.getElementById('submit-btn').classList.add('btn-disabled');
         document.getElementById('submit-btn').disabled = true;
-        document.getElementById('submit-btn').innerText = 'Abschließen & JSON Herunterladen';
+        document.getElementById('submit-btn').innerText = 'Abschließen & ZIP-Datei Erstellen';
         window.changeState('scan-screen');
     }
 
     window.onload = function() {
-        // Initialen Zustand setzen und Name aus LocalStorage laden
         const storedName = localStorage.getItem('workerName');
         if (storedName) {
             document.getElementById('worker-display').textContent = storedName;
