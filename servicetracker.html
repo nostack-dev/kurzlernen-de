@@ -1,6 +1,7 @@
 <!-- 
-  Servicetracker App (Version 4 - ID-Lookup)
-  Ziel: Nachweis und Qualitätssicherung von Reinigungs- oder Wartungsarbeiten mittels QR-Code ID, Standort und Fotobeweis.
+  Servicetracker App (Version 5 - KEIN BACKEND - JSON EXPORT)
+  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe erfolgt via JSON Download.
+  Projektidee von Christian Heinrich Hohlfeld.
   Layout: Mobile First Design für optimale Nutzung auf Smartphones.
 -->
 <!DOCTYPE html>
@@ -8,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V4</title>
+    <title>Servicetracker V5 (JSON Export)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -29,20 +30,20 @@
 <div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V5</h1>
         <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display">Unbekannte Kraft</span></p>
     </header>
 
     <!-- UI-Zustände -->
     <div id="login-screen" class="app-state">
-        <h2 class="text-xl font-semibold mb-4 text-center">Login</h2>
+        <h2 class="text-xl font-semibold mb-4 text-center">Login (Lokal)</h2>
         <div class="card bg-base-100 shadow-md p-4 sm:p-6">
             <label class="form-control w-full mb-4">
-                <div class="label"><span class="label-text">Benutzername (Optional)</span></div>
+                <div class="label"><span class="label-text">Benutzername (Optional, lokal gespeichert)</span></div>
                 <input type="text" id="username-input" placeholder="Name der Kraft" class="input input-bordered w-full" />
             </label>
             <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-lg">Einloggen & Starten</button>
-            <p class="text-xs text-center mt-4 text-gray-400">Anonyme Anmeldung für persistente Daten.</p>
+            <p class="text-xs text-center mt-4 text-gray-400">Speichert nur den Namen im Browser.</p>
         </div>
     </div>
 
@@ -77,16 +78,17 @@
 
         <p id="photo-status" class="text-center text-sm mt-4"></p>
         <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-lg" id="submit-btn" disabled>
-            Abschließen & Senden
+            Abschließen & JSON Herunterladen
         </button>
+        <div class="alert alert-warning mt-4 text-xs">Achtung: Die Datei muss manuell an den Vorgesetzten gesendet werden.</div>
     </div>
     
     <div id="success-screen" class="app-state hidden text-center">
         <div class="card bg-green-100 border-green-500 border p-6 shadow-xl">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-green-500 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
             <h2 class="text-2xl font-bold text-green-700 mb-2">Arbeit Abgeschlossen!</h2>
-            <p class="text-gray-700">Der Nachweis wurde erfolgreich übermittelt.</p>
-            <p class="text-xs mt-4 text-gray-500">Transaktion ID: <span id="transaction-id"></span></p>
+            <p class="text-gray-700">Der Nachweis wurde als **JSON-Datei** heruntergeladen.</p>
+            <p class="text-xs mt-4 text-gray-500">Bitte senden Sie die Datei manuell weiter.</p>
         </div>
         <button onclick="resetApp()" class="btn btn-ghost mt-6">Neue Aufgabe starten</button>
     </div>
@@ -115,6 +117,12 @@
     let html5QrCode = null;
     let isScannerRunning = false;
     
+    window.appState = {
+        building: null, area: null, scanTime: null, latitude: null, longitude: null, 
+        photos: [], username: 'Unbekannte Kraft', isLoggedIn: false
+    };
+    
+    // Hilfsfunktionen (global verfügbar)
     window.showError = function(message) {
         const modal = document.getElementById('error_modal');
         document.getElementById('error-message').innerText = message;
@@ -126,172 +134,35 @@
         document.getElementById(newStateId).classList.remove('hidden');
         document.getElementById('app-container').classList.remove('loading');
     }
-</script>
 
-<!-- Firebase SDKs (Modul-Skript) -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, doc, getDoc, addDoc, Timestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    const appId = 'servicetracker-app'; 
-    const FIREBASE_CONFIG_PLACEHOLDER = {};
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? 
-        (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : 
-        FIREBASE_CONFIG_PLACEHOLDER;
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-    
-    let app, db, auth;
-    let userId = null;
-    let isAuthReady = false;
-
-    window.appState = {
-        building: null, area: null, scanTime: null, latitude: null, longitude: null, 
-        photos: [], username: 'Unbekannte Kraft', isLoggedIn: false, jobId: null
-    };
-    
-    window.initFirebase = async function() {
-        
-        if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
-            console.warn("Firebase-Konfiguration fehlt. App kann keine Daten speichern.");
-            userId = 'anonymous-local';
-            window.appState.isLoggedIn = true;
-            isAuthReady = true;
-            window.changeState('scan-screen');
-            return;
-        }
-
-        try {
-            setLogLevel('debug');
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    window.appState.isLoggedIn = true;
-                    console.log("Benutzer angemeldet. UID:", userId);
-                    isAuthReady = true;
-                    
-                    document.getElementById('worker-display').textContent = window.appState.username;
-
-                    if (document.getElementById('app-container').classList.contains('loading')) {
-                        window.changeState('scan-screen');
-                    }
-                } else {
-                    userId = null;
-                    window.appState.isLoggedIn = false;
-                    isAuthReady = true;
-                    console.log("Kein Benutzer angemeldet. Versuche anonyme Anmeldung.");
-                }
-            });
-
-            if (initialAuthToken) {
-                await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-                await signInAnonymously(auth);
-            }
-
-        } catch (error) {
-            console.error("Firebase Initialisierungsfehler:", error);
-            window.showError(`Initialisierungsfehler: ${error.message}. (Prüfen Sie Ihre Firebase-Konfiguration)`);
-            document.getElementById('app-container').classList.remove('loading');
-        }
-    }
+    // --- 0. Login (ohne Firebase) ---
 
     window.simulateLoginAndInit = function() {
         const usernameInput = document.getElementById('username-input').value.trim();
+        const storedName = localStorage.getItem('workerName');
+
         if (usernameInput) {
             window.appState.username = usernameInput;
+            localStorage.setItem('workerName', usernameInput);
+        } else if (storedName) {
+             window.appState.username = storedName;
         }
-        document.getElementById('login-screen').classList.add('hidden');
-        document.getElementById('app-container').classList.add('loading');
-        document.getElementById('worker-display').textContent = window.appState.username;
-        window.initFirebase();
-    }
-    
-    window.authReady = function() {
-        return isAuthReady && userId;
-    }
-    
-    // Job-Konfiguration aus Firestore abrufen
-    window.lookupJobConfig = async function(jobId) {
-        if (!db) {
-            window.showError("Datenbank nicht initialisiert. Konfiguration kann nicht abgerufen werden.");
-            return null;
-        }
-        try {
-            const docRef = doc(db, `artifacts/${appId}/public/data/job_configs`, jobId);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                console.log("Job-Konfiguration gefunden:", docSnap.data());
-                return docSnap.data();
-            } else {
-                window.showError(`Fehler: Keine Standortkonfiguration für Job ID "${jobId}" gefunden. Wurde der QR-Code im Generator synchronisiert?`);
-                return null;
-            }
-        } catch (e) {
-            window.showError(`Fehler beim Abrufen der Konfiguration: ${e.message}`);
-            console.error("Fehler beim Abrufen der Konfiguration:", e);
-            return null;
-        }
-    }
-
-    // Submit Job ist unverändert, da es die globalen appState-Variablen verwendet
-    window.submitJob = async function() {
-        if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined) || !window.authReady()) {
-            window.showError("Fehler: Nicht alle 4 Fotos vorhanden oder Benutzer nicht angemeldet.");
-            return;
-        }
-
-        const submitBtn = document.getElementById('submit-btn');
-        submitBtn.disabled = true;
-        submitBtn.innerText = 'Wird übermittelt...';
         
-        try {
-            const jobData = {
-                userId: userId,
-                workerName: window.appState.username,
-                jobId: window.appState.jobId, // Job ID hinzufügen
-                building: window.appState.building,
-                area: window.appState.area,
-                scanTime: Timestamp.fromDate(window.appState.scanTime),
-                submissionTime: Timestamp.now(),
-                location: {
-                    latitude: window.appState.latitude,
-                    longitude: window.appState.longitude,
-                },
-                photos: window.appState.photos
-            };
-
-            const jobsCollectionRef = collection(db, `artifacts/${appId}/public/data/jobs`);
-            const docRef = await addDoc(jobsCollectionRef, jobData);
-
-            document.getElementById('transaction-id').innerText = docRef.id;
-            window.changeState('success-screen');
-
-        } catch (e) {
-            console.error("Fehler beim Hinzufügen des Dokuments: ", e);
-            submitBtn.disabled = false;
-            submitBtn.innerText = 'Abschließen & Senden';
-            window.showError(`Fehler beim Speichern des Nachweises: ${e.message}. Bitte versuchen Sie es erneut.`);
-        }
+        // Da es keinen echten Login gibt, wird die Authentifizierung sofort als "bereit" markiert
+        window.appState.isLoggedIn = true; 
+        
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('worker-display').textContent = window.appState.username;
+        window.changeState('scan-screen');
     }
-</script>
 
-<!-- Kern-Logik (Scanner, Geolocation) -->
-<script>
+    // --- 1. QR Code Scan ---
     
     async function tryGetCameraPermissionAndStartScanner() {
         const scanBtn = document.getElementById('scan-btn');
         scanBtn.disabled = true;
         scanBtn.innerText = 'Kamera wird initialisiert...';
         
-        // **FIX**: Der manuelle typeof-Check wurde entfernt, um Konflikte beim Laden zu vermeiden.
-        // Die Fehlerbehandlung erfolgt im Try/Catch-Block.
-
         try {
             // 1. Versuche, native Kamera-Berechtigung zu erhalten (erzwingt das Pop-up)
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -301,8 +172,7 @@
             readerDiv.innerHTML = ''; 
 
             if (!html5QrCode) {
-                // Wenn HTML5Qrcode hier undefined ist, fangen wir den ReferenceError im catch-Block ab.
-                html5QrCode = new HTML5Qrcode("reader");
+                html5QrCode = new Html5Qrcode("reader");
             }
             
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -335,8 +205,8 @@
     }
 
     window.startScanner = async function() {
-        if (!window.authReady()) {
-             window.showError("Authentifizierung läuft noch. Bitte warten Sie einen Moment.");
+        if (!window.appState.isLoggedIn) {
+             window.showError("Bitte zuerst einloggen.");
              return;
         }
         
@@ -359,24 +229,17 @@
         try {
             window.appState.scanTime = new Date();
             const url = new URL(decodedText);
-            const jobId = url.searchParams.get('jobId'); // Nur noch jobId auslesen
-
-            if (!jobId) {
-                window.showError("Ungültiger QR-Code-Inhalt. Es fehlt die eindeutige 'jobId' in der URL.");
-                window.changeState('scan-screen');
-                return;
-            }
-
-            // Lookup der Gebäude- und Bereichsdaten aus Firestore
-            const config = await window.lookupJobConfig(jobId);
             
-            if (config) {
-                window.appState.jobId = jobId;
-                window.appState.building = config.building;
-                window.appState.area = config.area;
+            // NEU: Building und Area werden direkt aus der URL gezogen (KEIN LOOKUP)
+            const building = url.searchParams.get('building');
+            const area = url.searchParams.get('area');
+
+            if (building && area) {
+                window.appState.building = decodeURIComponent(building);
+                window.appState.area = decodeURIComponent(area);
                 window.changeState('location-check-screen');
             } else {
-                // Fehler wurde bereits in lookupJobConfig gezeigt
+                window.showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building' oder 'area' Parameter in der URL.");
                 window.changeState('scan-screen');
             }
 
@@ -387,7 +250,7 @@
         }
     }
 
-    // --- 2. Standortprüfung und Fotos (unverändert) ---
+    // --- 2. Standortprüfung und Fotos ---
 
     window.checkLocation = function() {
         if (!navigator.geolocation) {
@@ -472,23 +335,79 @@
         }
     }
 
+    // --- 4. Abschluss und Download ---
+
+    window.submitJob = async function() {
+        if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined)) {
+            window.showError("Fehler: Nicht alle 4 Fotos vorhanden.");
+            return;
+        }
+
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Erstelle JSON...';
+        
+        try {
+            // JSON Payload erstellen
+            const jobData = {
+                transactionId: `TX-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+                workerName: window.appState.username,
+                building: window.appState.building,
+                area: window.appState.area,
+                scanTime: window.appState.scanTime.toISOString(),
+                submissionTime: new Date().toISOString(),
+                location: {
+                    latitude: window.appState.latitude,
+                    longitude: window.appState.longitude,
+                },
+                // Fotos als Base64 sind hier enthalten
+                photosBase64: window.appState.photos
+            };
+
+            const filename = `Protokoll_${jobData.building.replace(/[^a-zA-Z0-9]/g, '_')}_${jobData.submissionTime.substring(0, 10)}.json`;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jobData, null, 2));
+            
+            // Download auslösen
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", filename);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+
+            document.getElementById('transaction-id').innerText = jobData.transactionId;
+            window.changeState('success-screen');
+
+        } catch (e) {
+            console.error("Fehler beim Erstellen/Download des Dokuments: ", e);
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Abschließen & JSON Herunterladen';
+            window.showError(`Fehler beim Download: ${e.message}.`);
+        }
+    }
+
     window.resetApp = function() {
         window.appState.building = null; window.appState.area = null; window.appState.scanTime = null;
         window.appState.latitude = null; window.appState.longitude = null; window.appState.photos = [];
-        window.appState.jobId = null; 
         
         document.getElementById('transaction-id').innerText = '';
         document.getElementById('submit-btn').classList.add('btn-disabled');
         document.getElementById('submit-btn').disabled = true;
-        document.getElementById('submit-btn').innerText = 'Abschließen & Senden';
+        document.getElementById('submit-btn').innerText = 'Abschließen & JSON Herunterladen';
         window.changeState('scan-screen');
     }
 
     window.onload = function() {
+        // Initialen Zustand setzen und Name aus LocalStorage laden
+        const storedName = localStorage.getItem('workerName');
+        if (storedName) {
+            document.getElementById('worker-display').textContent = storedName;
+            window.appState.username = storedName;
+        }
+
         document.getElementById('app-container').classList.remove('loading');
         window.changeState('login-screen');
     };
 </script>
-
 </body>
 </html>
