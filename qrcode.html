@@ -1,15 +1,14 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 8 - Bereichs-Logik)
+  QR Code Generator für Standorte und Bereiche (Version 9 - Finale Prod - Kein Initial Modal)
   Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit Hardcode der Ziel-App-URL.
-  NEU: Ermöglicht das Anlegen neuer Bereiche für ein bestehendes Gebäude.
-  UI: Modale Eingabe und Inline-Fehlerbehandlung für optimale Usability.
+  Fokus: UX-Fix: Unterdrückt Pop-up beim initialen Laden. Ermöglicht das Anlegen neuer Bereiche.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="cmyk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V8 (Prod)</title>
+    <title>QR Code Generator V9 (Prod)</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -41,7 +40,7 @@
 <div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V8</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V9</h1>
         <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
     </header>
 
@@ -447,11 +446,41 @@
     window.generateQRCode = function() {
         const project = projects.find(p => p.id === currentProjectId);
         
-        if (!project || !project.building || !project.area || !project.address) {
-            document.getElementById('error-message-generator').innerText = 'Bitte wählen Sie einen Standort und füllen Sie die Details im Modal aus (Gebäude, Bereich, Adresse).';
+        // Überprüfen, ob es sich um das Default-Placeholder-Projekt handelt
+        const isDefaultPlaceholder = project && project.building === 'Neues Gebäude' && 
+                                     project.area === 'Neuer Bereich' && 
+                                     project.address === 'Adresse eingeben';
+
+        // Wenn es sich um das Default-Placeholder-Projekt handelt, oder das Projekt nicht existiert:
+        if (!project || isDefaultPlaceholder) {
+            
+            // Setze die Vorschau auf den Platzhalter-Text
+            if(project) {
+                document.getElementById('qr-building-display').innerText = project.building;
+                document.getElementById('qr-area-display').innerText = project.area;
+                document.getElementById('qr-address-display').innerText = project.address;
+            }
+
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = '<div class="text-gray-500">Bitte Standort im Modal definieren.</div>';
+
+            // Zeige den Placeholder-Bereich an, verstecke aber den Druck-Button und URL-Display
+            document.getElementById('printable-area').classList.remove('hidden'); 
+            document.getElementById('print-btn').classList.add('hidden');
+            document.getElementById('qr-url-display').classList.add('hidden');
+            
+            // Zeige KEIN MODAL, wenn dies über switchProject() beim Laden aufgerufen wird.
+            return;
+        }
+        
+        // Wenn Daten unvollständig sind, nachdem sie bearbeitet wurden (also NICHT der Placeholder):
+        if (!project.building || !project.area || !project.address) {
+            document.getElementById('error-message-generator').innerText = 'Bitte füllen Sie alle erforderlichen Details im Modal aus (Gebäude, Bereich, Adresse).';
             document.getElementById('error_modal_generator').showModal();
             return;
         }
+        
+        // --- Normaler Code für die Generierung ---
         
         let baseUrl = BASE_URL_HARDCODED; 
         if (baseUrl.includes('?')) {
