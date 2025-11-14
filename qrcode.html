@@ -1,7 +1,7 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 19 - Objekt-Editor mit Lösch-Sicherheit)
+  QR Code Generator für Standorte und Bereiche (Version 20 - Objekt-Editor mit Google Maps Autocomplete)
   Projektidee von Christian Heinrich Hohlfeld.
-  Ziel: Vereinfachter, Objekt-zentrierter Workflow. Implementierung einer Sicherheitsabfrage beim Löschen eines Objekts.
+  Ziel: Implementierung einer Maps-Infer Autocomplete-Suche für die Adresseingabe zur Steigerung der Datenqualität.
   Fokus: UX, Konsistenz und Datensicherheit.
 -->
 <!DOCTYPE html>
@@ -9,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V19</title>
+    <title>QR Code Generator V20</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -34,6 +34,9 @@
     </style>
     <!-- QR Code Bibliothek -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <!-- HINWEIS: ERSETZE 'YOUR_GOOGLE_MAPS_API_KEY' DURCH DEINEN ECHTEN SCHLÜSSEL! -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col items-center justify-start p-2 sm:p-4">
 
@@ -140,9 +143,10 @@
 
         <label class="form-control w-full mb-6">
             <div class="label"><span class="label-text font-semibold text-sm">Adresse (Straße, PLZ, Stadt)</span></div>
+            <!-- Das Input-Feld für Autocomplete -->
             <input type="text" id="modal-address-input" placeholder="Adresse eingeben" class="input input-bordered w-full input-md" data-default="Adresse eingeben" oninput="validateModal()" onfocus="clearPlaceholder(this)" />
             <p id="error-address" class="text-error text-xs mt-1 hidden">Adresse ist erforderlich.</p>
-            <p class="text-xs text-gray-500 mt-1">Für den Maps-Link im QR-Code.</p>
+            <p class="text-xs text-gray-500 mt-1">Für den Maps-Link im QR-Code (unterstützt Autovervollständigung).</p>
         </label>
         
         <!-- Bereichsverwaltung -->
@@ -386,6 +390,31 @@
         renderSelectors();
     }
 
+    // --- Google Maps Autocomplete Initialisierung ---
+    function initAutocomplete() {
+        const addressInput = document.getElementById('modal-address-input');
+        
+        // Prüfe, ob die Places Bibliothek geladen ist
+        if (typeof google === 'undefined' || typeof google.maps.places === 'undefined') {
+            console.error("Google Maps Places API nicht geladen. Bitte API-Key prüfen.");
+            return;
+        }
+
+        const autocomplete = new google.maps.places.Autocomplete(addressInput, {
+            types: ['geocode'], // Fokussiert auf Adressen
+            componentRestrictions: { 'country': ['de', 'at', 'ch'] } // Optional: Beschränkung auf DACH-Region
+        });
+
+        autocomplete.addListener('place_changed', function() {
+            const place = autocomplete.getPlace();
+            if (place.formatted_address) {
+                // Setzt die formatierte Adresse in das Feld und triggert Validierung
+                addressInput.value = place.formatted_address;
+                validateModal(); 
+            }
+        });
+    }
+
     // --- Modal Objekt-Editor Logik ---
     
     window.openEditModal = function(buildingId) {
@@ -405,6 +434,9 @@
         renderAreaList();
         validateModal(); 
         document.getElementById('edit-modal').showModal();
+        
+        // NEU: Autocomplete initialisieren, nachdem das Modal sichtbar ist
+        setTimeout(initAutocomplete, 100); 
     }
     
     // --- LÖSCH-LOGIK ---
