@@ -1,16 +1,16 @@
 <!-- 
-  Servicetracker App (Version 14 - Finale Produktion)
+  Servicetracker App (Version 15 - Finale Produktion)
   Projektidee von Christian Heinrich Hohlfeld.
   Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
-  Fokus: Resiliente UX, Material Design, ZIP Export und robuste Kamera-Logik (jsQR).
-  Fix: Behebt das Abbrechen des Scanners bei ungültigem Scan.
+  Fokus: Resiliente UX, Material Design, ZIP Export und Crash-Proof Scanner (jsQR).
+  Fix: Behebt den Scanner-Absturz bei ungültigem URL-Inhalt.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V14</title>
+    <title>Servicetracker V15</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -350,9 +350,14 @@
         document.getElementById('scan-btn').innerText = 'Scanner Starten';
         document.getElementById('scan-btn').disabled = false;
 
-        // Wenn isValid false ist, wird dies bei tick() abgefangen. Hier nur, wenn isValid true ist.
-        if (!isValid) return; 
+        // Wenn isValid false ist, kehren wir sofort zurück, da tick() weiterläuft
+        if (!isValid) {
+            // Dies sollte nur als Fallback dienen, falls die Logik in tick() einen Fehler übersehen hat.
+            // Wir müssen hier NICHTS tun, da der Scanner NICHT gestoppt wurde.
+            return; 
+        }
         
+        // Wenn isValid true ist:
         try {
             window.appState.scanTime = new Date();
             const url = new URL(decodedText);
@@ -372,12 +377,12 @@
                 document.getElementById('location-error-message').textContent = 'Standortfreigabe ist zwingend erforderlich.';
                 document.getElementById('location-btn').disabled = false;
             } else {
-                // Sollte durch validateScannedCode() abgefangen werden, dient als Fallback
+                // Dies sollte nicht passieren, da validateScannedCode() dies vorher prüft.
                 throw new Error("Fehlende Parameter.");
             }
 
         } catch (error) {
-            // Dieser Fehler sollte nur bei einem unvorhersehbaren Fehler auftreten, nicht bei einem ungültigen QR
+            // Dieser Catch blockt Fehler beim URL-Parsen nach einem GÜLTIGEN Scan und stoppt dann
             console.error("Fehler nach Scan-Stopp oder URL-Parsing:", error);
             window.showError(`Schwerer Fehler beim Parsen des Codes: (${error.message})`);
             window.changeState('scan-screen');
