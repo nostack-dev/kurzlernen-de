@@ -1,14 +1,15 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 9 - Finale Prod - Kein Initial Modal)
-  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit Hardcode der Ziel-App-URL.
-  Fokus: UX-Fix: Unterdrückt Pop-up beim initialen Laden. Ermöglicht das Anlegen neuer Bereiche.
+  QR Code Generator für Standorte und Bereiche (Version 10 - Ohne Modal)
+  Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes.
+  Fokus: UX-Fix: Direkte Bearbeitung im Hauptfenster. Inline-Fehler und optimierte Logik für "Bereich hinzufügen".
+  Projektidee von Christian Heinrich Hohlfeld.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="cmyk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V9 (Prod)</title>
+    <title>QR Code Generator V10 (Prod)</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -40,7 +41,7 @@
 <div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V9</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V10</h1>
         <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
     </header>
 
@@ -54,20 +55,15 @@
                     <select id="project-selector" class="select select-bordered select-sm sm:select-md w-full" onchange="switchProject(this.value)">
                         <!-- Optionen werden via JavaScript befüllt -->
                     </select>
-                    <button onclick="openEditModal(currentProjectId)" class="btn btn-sm btn-outline btn-primary whitespace-nowrap px-4" title="Standort bearbeiten">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                    </button>
                 </div>
             </label>
             
             <div class="flex flex-col gap-2 w-full md:w-2/5 md:justify-end">
                 <div class="flex gap-2 w-full">
-                    <!-- NEU: Bereich hinzufügen kopiert die Gebäude-Daten des aktuellen Standorts -->
-                    <button onclick="openEditModal('new-area')" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
+                    <button onclick="createNewAreaForCurrent()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
                         Bereich hinzufügen
                     </button>
-                    <!-- Neu: Full New Project -->
-                     <button onclick="openEditModal('new-project')" class="btn btn-sm btn-outline btn-accent whitespace-nowrap w-1/2">
+                     <button onclick="newProject(false)" class="btn btn-sm btn-outline btn-accent whitespace-nowrap w-1/2">
                         Neues Gebäude
                     </button>
                 </div>
@@ -85,76 +81,71 @@
             </label>
         </div>
     </div>
+    
+    <!-- Daten Eingabe (Zurück in die Hauptansicht) -->
+    <div class="card bg-base-100 shadow-md p-4 sm:p-6 mt-6">
+        <h2 class="text-xl font-semibold mb-4">Details bearbeiten & Generieren</h2>
+        
+        <label class="form-control w-full mb-2">
+            <div class="label"><span class="label-text text-sm">Gebäudename / Objekt</span></div>
+            <input type="text" id="building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
+            <div class="label"><span class="label-text-alt text-error hidden" id="error-building">Gebäudename fehlt.</span></div>
+        </label>
+
+        <label class="form-control w-full mb-2">
+            <div class="label"><span class="label-text text-sm">Bereich / Area</span></div>
+            <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
+            <div class="label"><span class="label-text-alt text-error hidden" id="error-area">Bereich fehlt.</span></div>
+        </label>
+        
+        <label class="form-control w-full mb-6">
+            <div class="label"><span class="label-text text-sm">Straße / Stadt / PLZ (Für Maps Link)</span></div>
+            <input type="text" id="address-input" placeholder="Musterstraße 1, 78462 Konstanz" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate(); updateMapLink(this.value);" />
+            <div class="label"><span class="label-text-alt text-error hidden" id="error-address">Adresse fehlt.</span></div>
+        </label>
+        
+        <!-- Maps Link für visuelle Bestätigung -->
+        <div class="mb-4 p-2 bg-blue-50 rounded-lg text-xs text-center">
+            <a id="map-link" href="#" target="_blank" class="text-blue-600 hover:underline font-semibold" title="Öffnet Google Maps">Adresse auf Google Maps anzeigen</a>
+        </div>
+
+
+        <button onclick="generateQRCode(true)" class="btn btn-primary w-full text-lg mt-2">QR Code Generieren & Anzeigen</button>
+    </div>
 
     <!-- QR Code Anzeige und Druckbereich -->
-    <div class="card bg-base-100 shadow-md p-4 sm:p-6 mt-6">
-        <button onclick="generateQRCode()" class="btn btn-primary w-full text-lg">QR Code Generieren & Anzeigen</button>
+    <div class="mt-8 p-4 sm:p-6 border-t border-gray-200">
+        <h2 class="text-xl font-semibold mb-4 text-center">Generierter QR Code</h2>
         
+        <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-lg shadow-inner text-center hidden flex flex-col items-center">
+            <div id="qrcode-container" class="mb-4">
+                <!-- QR Code wird hier generiert -->
+            </div>
+            <p id="qr-building-display" class="text-lg sm:text-xl font-bold mb-1"></p>
+            <p id="qr-area-display" class="text-md sm:text-lg text-primary mb-1"></p>
+            <p id="qr-address-display" class="text-sm text-gray-600 mb-4"></p>
+            <p class="text-xs sm:text-sm text-gray-500">Scannen für Arbeitsnachweis</p>
+        </div>
+
         <div id="qr-url-display" class="mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg hidden w-full">
             <p class="text-xs font-semibold mb-1 text-gray-700">Codierte URL:</p>
             <p id="full-url-text" class="text-xs text-gray-600 font-mono break-all"></p>
         </div>
 
-        <div class="mt-8 p-4 sm:p-6 border-t border-gray-200 text-center">
-            <h2 class="text-xl font-semibold mb-4">Generierter QR Code</h2>
-            
-            <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-lg shadow-inner text-center hidden flex flex-col items-center">
-                <div id="qrcode-container" class="mb-4">
-                    <!-- QR Code wird hier generiert -->
-                </div>
-                <p id="qr-building-display" class="text-lg sm:text-xl font-bold mb-1"></p>
-                <p id="qr-area-display" class="text-md sm:text-lg text-primary mb-1"></p>
-                <p id="qr-address-display" class="text-sm text-gray-600 mb-4"></p>
-                <p class="text-xs sm:text-sm text-gray-500">Scannen für Arbeitsnachweis</p>
-            </div>
-
-            <button id="print-btn" onclick="window.print()" class="btn btn-success w-full mt-6 text-lg hidden">
-                Drucken (mit Standortdaten)
-            </button>
-        </div>
-        
-        <div class="alert alert-info shadow-lg p-3 text-sm mt-6">
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <div class="text-xs">
-                Ziel-URL (Hardcoded):
-                <span class="font-mono font-semibold block mt-1">https://kurzlernen.de/servicetracker.html</span>
-            </div>
-        </div>
+        <button id="print-btn" onclick="window.print()" class="btn btn-success w-full mt-6 text-lg hidden">
+            Drucken (mit Standortdaten)
+        </button>
     </div>
+
 </div>
 
-<!-- MODAL für Standort bearbeiten/erstellen -->
-<dialog id="project_modal" class="modal">
+<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen -->
+<dialog id="error_modal_generator" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg text-primary" id="modal-title">Standort bearbeiten</h3>
-        <p class="text-sm text-gray-500 mb-4">Bearbeiten Sie die Details des aktiven Standorts.</p>
-
-        <label class="form-control w-full mb-4">
-            <div class="label"><span class="label-text text-sm">Gebäudename / Objekt</span></div>
-            <input type="text" id="modal-building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" data-default="Neues Gebäude" onfocus="clearDefault('modal-building-input')" />
-            <div class="label"><span class="label-text-alt text-error hidden" id="error-building">Feld darf nicht leer sein.</span></div>
-        </label>
-
-        <label class="form-control w-full mb-4">
-            <div class="label"><span class="label-text text-sm">Bereich / Area</span></div>
-            <input type="text" id="modal-area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" data-default="Neuer Bereich" onfocus="clearDefault('modal-area-input')" />
-            <div class="label"><span class="label-text-alt text-error hidden" id="error-area">Feld darf nicht leer sein.</span></div>
-        </label>
-        
-        <label class="form-control w-full mb-6">
-            <div class="label"><span class="label-text text-sm">Straße / Stadt / PLZ (Für Geolokalisierung)</span></div>
-            <input type="text" id="modal-address-input" placeholder="Musterstraße 1, 78462 Konstanz" class="input input-bordered w-full input-sm sm:input-md" data-default="Adresse eingeben" onfocus="clearDefault('modal-address-input')" />
-            <div class="label"><span class="label-text-alt text-error hidden" id="error-address">Feld darf nicht leer sein.</span></div>
-        </label>
-        
-        <!-- Maps Link für visuelle Bestätigung -->
-        <div class="mt-4 p-2 bg-blue-50 rounded-lg text-xs text-center">
-            <a id="map-link" href="#" target="_blank" class="text-blue-600 hover:underline font-semibold" title="Öffnet Google Maps">Adresse auf Google Maps anzeigen</a>
-        </div>
-        
-        <div class="modal-action mt-6">
-            <button onclick="saveModalChanges()" class="btn btn-primary" id="modal-save-btn">Speichern</button>
-            <form method="dialog"><button class="btn btn-ghost">Abbrechen</button></form>
+        <h3 class="font-bold text-lg text-primary">Info / Status</h3>
+        <p id="error-message-generator" class="py-4 text-gray-700"></p>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn">Schließen</button></form>
         </div>
     </div>
 </dialog>
@@ -167,23 +158,15 @@
     let projects = [];
     let currentProjectId = null;
     let qrcode = null;
-    let editingProjectId = null; // ID des Projekts, das gerade im Modal bearbeitet wird (oder null für neu)
 
-    // --- Best Practice UX: Eingabe leeren, wenn Standardtext vorhanden ---
-    window.clearDefault = function(inputElementId) {
-        const el = document.getElementById(inputElementId);
-        const defaultValue = el.getAttribute('data-default');
-
-        // Prüft, ob der aktuelle Wert dem Standardwert entspricht
-        if (el.value === defaultValue) {
-            el.value = '';
-        }
-        // Aktualisiert den Maps Link bei jeder Änderung im Adressfeld (damit es dynamisch ist)
-        if (inputElementId === 'modal-address-input') {
-             el.addEventListener('input', () => updateMapLink(el.value));
-        }
+    // --- UX: Maps Link (Jetzt global und direkt aktualisiert) ---
+    function updateMapLink(address) {
+        const encodedAddress = encodeURIComponent(address || '');
+        const mapLink = document.getElementById('map-link');
+        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+        mapLink.textContent = address && address.trim() ? 'Adresse auf Google Maps anzeigen' : 'Geben Sie eine Adresse ein (Maps Link)';
     }
-    
+
     // --- Lokale Speicher- und Zustandsverwaltung ---
 
     function generateUUID() {
@@ -200,7 +183,6 @@
         }
         
         if (projects.length === 0) {
-            // Initialprojekt erstellen, aber ohne Modal zu öffnen
             const newId = generateUUID();
             projects.push({
                 id: newId,
@@ -240,12 +222,54 @@
         };
     }
 
-    // Wechselt zum ausgewählten Projekt
+    /**
+     * Erstellt ein neues Projekt und lädt es in die Eingabefelder.
+     * @param {boolean} isInitial - Wenn true, wird kein Info-Modal angezeigt.
+     */
+    window.newProject = function(isInitial = false) {
+        const newProj = createNewProject('Neues Gebäude', 'Neuer Bereich', 'Adresse eingeben');
+        projects.push(newProj);
+        currentProjectId = newProj.id;
+        
+        saveProjects();
+        switchProject(newProj.id);
+        
+        if (!isInitial) {
+            document.getElementById('error-message-generator').innerHTML = `Neues Gebäude "${newProj.building}" wurde erstellt und ausgewählt.`;
+            document.getElementById('error_modal_generator').showModal();
+        }
+    }
+    
+    /**
+     * Erstellt einen neuen Bereich basierend auf dem aktuellen Gebäude/der Adresse.
+     */
+    window.createNewAreaForCurrent = function() {
+        const current = projects.find(p => p.id === currentProjectId);
+        if (!current) return;
+        
+        const newProj = createNewProject(current.building, 'Neuer Bereich', current.address);
+        projects.push(newProj);
+        currentProjectId = newProj.id;
+        
+        saveProjects();
+        switchProject(newProj.id);
+        
+        document.getElementById('error-message-generator').innerHTML = `Neuer Bereich für "${current.building}" wurde erstellt und ist aktiv.`;
+        document.getElementById('error_modal_generator').showModal();
+    }
+
+    // Wechselt zum ausgewählten Projekt und lädt es in die Input-Felder
     window.switchProject = function(projectId) {
         currentProjectId = projectId;
         const project = projects.find(p => p.id === projectId);
         if (project) {
-            generateQRCode(); 
+            document.getElementById('building-input').value = project.building;
+            document.getElementById('area-input').value = project.area;
+            document.getElementById('address-input').value = project.address; 
+            
+            // UI aktualisieren
+            updateMapLink(project.address);
+            generateQRCode(false); // Code ohne Validierung generieren (Autosave-Ansicht)
         }
     }
 
@@ -263,131 +287,27 @@
             selector.appendChild(option);
         });
         
-        // Stellt sicher, dass der Selector den aktuellen Wert anzeigt
         selector.value = currentProjectId;
     }
-    
-    // --- MODAL Logik ---
-    
-    // Hilfsfunktion, um Google Maps Link zu erstellen
-    function updateMapLink(address) {
-        const encodedAddress = encodeURIComponent(address);
-        const mapLink = document.getElementById('map-link');
-        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-        mapLink.textContent = address ? 'Adresse auf Google Maps anzeigen' : 'Adresse eingeben (Maps Link wird erstellt)';
-    }
 
-    /**
-     * Öffnet das Modal zum Bearbeiten oder Erstellen eines Standorts.
-     * @param {string} mode - Die ID des zu bearbeitenden Projekts, 'new-project' (komplett neu) oder 'new-area' (neuer Bereich im aktuellen Gebäude).
-     */
-    window.openEditModal = function(mode) {
-        const modal = document.getElementById('project_modal');
-        const currentProject = projects.find(p => p.id === currentProjectId);
-        
-        // Fehler ausblenden
+    // Autosave-Logik beim Tippen in den Input-Feldern
+    window.handleInputUpdate = function() {
+        const project = projects.find(p => p.id === currentProjectId);
+        if (project) {
+            project.building = document.getElementById('building-input').value.trim();
+            project.area = document.getElementById('area-input').value.trim();
+            project.address = document.getElementById('address-input').value.trim(); 
+            saveProjects();
+        }
+        // Fehler-UI bei Eingabe leeren, falls vorhanden
         document.getElementById('error-building').classList.add('hidden');
         document.getElementById('error-area').classList.add('hidden');
-        document.getElementById('error-address').classList.add('hidden'); 
+        document.getElementById('error-address').classList.add('hidden');
         
-        
-        if (mode === 'new-area') {
-            // Modus: Neuen Bereich zu bestehendem Gebäude hinzufügen
-            editingProjectId = null; // Markiert, dass es ein neues Projekt ist
-            
-            document.getElementById('modal-title').textContent = 'Neuen Bereich hinzufügen';
-            
-            // Gebäudedaten des aktuellen Projekts VORBELEGEN und NUR BEREICH leeren
-            document.getElementById('modal-building-input').value = currentProject ? currentProject.building : 'Neues Gebäude';
-            document.getElementById('modal-area-input').value = ''; 
-            document.getElementById('modal-area-input').placeholder = 'Neuer Bereich'; 
-            document.getElementById('modal-address-input').value = currentProject ? currentProject.address : 'Adresse eingeben';
-            
-        } else if (mode === 'new-project') {
-             // Modus: Komplett neues Projekt (Neues Gebäude)
-            editingProjectId = null;
-            
-            document.getElementById('modal-title').textContent = 'Neues Gebäude definieren';
-            
-            // Alle Felder leeren (setzen den data-default Wert)
-            document.getElementById('modal-building-input').value = '';
-            document.getElementById('modal-area-input').value = '';
-            document.getElementById('modal-address-input').value = '';
-
-        } else {
-            // Modus: Bestehendes Projekt bearbeiten
-            editingProjectId = mode; 
-            const project = projects.find(p => p.id === editingProjectId);
-            if (!project) return;
-            
-            document.getElementById('modal-title').textContent = `Standort bearbeiten: ${project.building} / ${project.area}`;
-            
-            // Werte aus dem Projekt laden
-            document.getElementById('modal-building-input').value = project.building;
-            document.getElementById('modal-area-input').value = project.area;
-            document.getElementById('modal-address-input').value = project.address; 
-        }
-        
-        // Maps Link aktualisieren (basierend auf dem gerade geladenen/vorbelegten Adresswert)
-        updateMapLink(document.getElementById('modal-address-input').value);
-
-        modal.showModal();
-    }
-    
-    window.saveModalChanges = function() {
-        const building = document.getElementById('modal-building-input').value.trim();
-        const area = document.getElementById('modal-area-input').value.trim();
-        const address = document.getElementById('modal-address-input').value.trim(); 
-        
-        let isValid = true;
-        
-        // Inline Validierung
-        if (!building) {
-            document.getElementById('error-building').classList.remove('hidden');
-            isValid = false;
-        } else {
-            document.getElementById('error-building').classList.add('hidden');
-        }
-        
-        if (!area) {
-            document.getElementById('error-area').classList.remove('hidden');
-            isValid = false;
-        } else {
-            document.getElementById('error-area').classList.add('hidden');
-        }
-        
-        if (!address) {
-            document.getElementById('error-address').classList.remove('hidden');
-            isValid = false;
-        } else {
-            document.getElementById('error-address').classList.add('hidden');
-        }
-
-        if (isValid) {
-            if (editingProjectId) {
-                // Bestehendes Projekt aktualisieren
-                const project = projects.find(p => p.id === editingProjectId);
-                if (project) {
-                    project.building = building;
-                    project.area = area;
-                    project.address = address; 
-                    currentProjectId = project.id; // Bleibt beim aktuellen Projekt
-                }
-            } else {
-                // Neues Projekt/Bereich erstellen
-                const newProject = createNewProject(building, area, address);
-                projects.push(newProject);
-                currentProjectId = newProject.id;
-            }
-            
-            saveProjects(); 
-            document.getElementById('project_modal').close(); 
-            // Nach dem Speichern sofort den neuen Zustand laden und QR Code generieren
-            switchProject(currentProjectId); 
-        }
+        // QR Code wird beim Tippen NICHT neu generiert, nur beim expliziten Klick.
     }
 
-    // --- Export/Import Funktionen ---
+    // --- Export/Import Funktionen (Unverändert) ---
 
     window.exportProjects = function() {
         const dataToExport = projects.map(p => ({
@@ -419,7 +339,7 @@
             try {
                 const importedData = JSON.parse(e.target.result);
                 if (!Array.isArray(importedData) || importedData.some(p => !p.id || !p.building || !p.area || typeof p.address === 'undefined')) {
-                    throw new Error("Die importierte Datei ist kein gültiges QR-Projekt-Array (Fehlende ID, Gebäude, Bereich oder Adresse).");
+                    throw new Error("Die importierte Datei ist kein gültiges QR-Projekt-Array.");
                 }
 
                 projects = importedData;
@@ -443,41 +363,65 @@
 
     // --- QR Code Generierung ---
 
-    window.generateQRCode = function() {
+    /**
+     * Generiert den QR Code basierend auf den aktuellen Input-Werten
+     * @param {boolean} requireValidation - Validierung für den Druck erzwingen.
+     */
+    window.generateQRCode = function(requireValidation = false) {
         const project = projects.find(p => p.id === currentProjectId);
         
-        // Überprüfen, ob es sich um das Default-Placeholder-Projekt handelt
-        const isDefaultPlaceholder = project && project.building === 'Neues Gebäude' && 
-                                     project.area === 'Neuer Bereich' && 
-                                     project.address === 'Adresse eingeben';
+        const currentBuilding = document.getElementById('building-input').value.trim();
+        const currentArea = document.getElementById('area-input').value.trim();
+        const currentAddress = document.getElementById('address-input').value.trim();
 
-        // Wenn es sich um das Default-Placeholder-Projekt handelt, oder das Projekt nicht existiert:
-        if (!project || isDefaultPlaceholder) {
-            
-            // Setze die Vorschau auf den Platzhalter-Text
-            if(project) {
-                document.getElementById('qr-building-display').innerText = project.building;
-                document.getElementById('qr-area-display').innerText = project.area;
-                document.getElementById('qr-address-display').innerText = project.address;
+        let isValid = true;
+        
+        // Nur Validierung anzeigen, wenn der Benutzer auf den Button klickt (requireValidation = true)
+        if (requireValidation) {
+            if (!currentBuilding) {
+                document.getElementById('error-building').classList.remove('hidden');
+                isValid = false;
+            } else {
+                document.getElementById('error-building').classList.add('hidden');
             }
-
-            const container = document.getElementById('qrcode-container');
-            container.innerHTML = '<div class="text-gray-500">Bitte Standort im Modal definieren.</div>';
-
-            // Zeige den Placeholder-Bereich an, verstecke aber den Druck-Button und URL-Display
-            document.getElementById('printable-area').classList.remove('hidden'); 
-            document.getElementById('print-btn').classList.add('hidden');
-            document.getElementById('qr-url-display').classList.add('hidden');
-            
-            // Zeige KEIN MODAL, wenn dies über switchProject() beim Laden aufgerufen wird.
-            return;
+            if (!currentArea) {
+                document.getElementById('error-area').classList.remove('hidden');
+                isValid = false;
+            } else {
+                document.getElementById('error-area').classList.add('hidden');
+            }
+            if (!currentAddress) {
+                document.getElementById('error-address').classList.remove('hidden');
+                isValid = false;
+            } else {
+                document.getElementById('error-address').classList.add('hidden');
+            }
         }
         
-        // Wenn Daten unvollständig sind, nachdem sie bearbeitet wurden (also NICHT der Placeholder):
-        if (!project.building || !project.area || !project.address) {
-            document.getElementById('error-message-generator').innerText = 'Bitte füllen Sie alle erforderlichen Details im Modal aus (Gebäude, Bereich, Adresse).';
-            document.getElementById('error_modal_generator').showModal();
+        if (!isValid && requireValidation) {
             return;
+        }
+
+        // Auch wenn es der Platzhalter ist, generieren wir einen Code oder eine Platzhalteransicht
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = ''; 
+
+        if (qrcode) {
+            qrcode.clear(); 
+            qrcode = null;
+        }
+        
+        // Wenn alle Felder leer sind oder die Platzhalterwerte enthalten (kein richtiger Code generierbar)
+        if (!currentBuilding || !currentArea || !currentAddress) {
+             document.getElementById('qr-building-display').innerText = currentBuilding || 'FEHLENDES GEBÄUDE';
+             document.getElementById('qr-area-display').innerText = currentArea || 'FEHLENDER BEREICH';
+             document.getElementById('qr-address-display').innerText = currentAddress || 'FEHLENDE ADRESSE';
+             container.innerHTML = '<div class="text-gray-500">Unvollständige Daten. QR-Code nicht generierbar.</div>';
+             
+             document.getElementById('printable-area').classList.remove('hidden'); 
+             document.getElementById('print-btn').classList.add('hidden');
+             document.getElementById('qr-url-display').classList.add('hidden');
+             return;
         }
         
         // --- Normaler Code für die Generierung ---
@@ -487,19 +431,11 @@
              baseUrl = baseUrl.split('?')[0];
         }
         
-        const encodedBuilding = encodeURIComponent(project.building);
-        const encodedArea = encodeURIComponent(project.area);
-        const encodedAddress = encodeURIComponent(project.address); 
+        const encodedBuilding = encodeURIComponent(currentBuilding);
+        const encodedArea = encodeURIComponent(currentArea);
+        const encodedAddress = encodeURIComponent(currentAddress); 
         
         const targetUrl = `${baseUrl}?building=${encodedBuilding}&area=${encodedArea}&address=${encodedAddress}`; 
-
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = ''; 
-
-        if (qrcode) {
-            qrcode.clear(); 
-            qrcode = null;
-        }
         
         // QR Code neu generieren
         qrcode = new QRCode(container, {
@@ -512,17 +448,15 @@
         });
 
         // Druckbereich und URL im UI anzeigen
-        document.getElementById('qr-building-display').innerText = project.building;
-        document.getElementById('qr-area-display').innerText = project.area;
-        document.getElementById('qr-address-display').innerText = project.address; 
+        document.getElementById('qr-building-display').innerText = currentBuilding;
+        document.getElementById('qr-area-display').innerText = currentArea;
+        document.getElementById('qr-address-display').innerText = currentAddress; 
         document.getElementById('printable-area').classList.remove('hidden');
         document.getElementById('print-btn').classList.remove('hidden');
         
         document.getElementById('full-url-text').innerText = targetUrl;
         document.getElementById('qr-url-display').classList.remove('hidden');
         
-        updateMapLink(project.address); // Maps Link in der UI aktualisieren (für Klick)
-
         console.log("Generierte URL:", targetUrl);
     }
     
