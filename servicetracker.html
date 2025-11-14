@@ -1,16 +1,16 @@
 <!-- 
-  Servicetracker App (Version 13 - Finale Produktion)
+  Servicetracker App (Version 14 - Finale Produktion)
   Projektidee von Christian Heinrich Hohlfeld.
   Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
   Fokus: Resiliente UX, Material Design, ZIP Export und robuste Kamera-Logik (jsQR).
-  Fix: Behebt den "Failed to construct 'URL'" Fehler.
+  Fix: Behebt das Abbrechen des Scanners bei ungültigem Scan.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V13</title>
+    <title>Servicetracker V14</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -39,6 +39,16 @@
             overflow: hidden;
             border: 3px solid theme('colors.primary'); 
             box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.2);
+        }
+        /* Style für temporäre Scan-Fehlermeldung */
+        #temp-scan-error {
+             position: absolute; bottom: 0; left: 0; right: 0; 
+             background-color: theme('colors.error.500'); 
+             color: white; padding: 4px; text-align: center; font-size: 0.75rem;
+             z-index: 50; opacity: 0; transition: opacity 0.3s;
+        }
+        .show-scan-error {
+            opacity: 1 !important;
         }
     </style>
     <!-- Stabile QR-Code Bibliothek: jsQR -->
@@ -84,6 +94,10 @@
         <div id="reader-container" class="shadow-xl">
             <video id="qr-video" playsinline></video>
             <canvas id="qr-canvas" style="display: none;"></canvas>
+            
+            <!-- Temporäre Fehleranzeige (überlappt den Video-Stream) -->
+            <div id="temp-scan-error"></div>
+
             <div id="loading-message" class="absolute inset-0 flex flex-col justify-center items-center bg-gray-900 bg-opacity-90 text-white text-sm">
                 <span class="loading loading-spinner loading-lg text-white mb-2"></span>
                 Kamera wird gestartet...
@@ -224,26 +238,66 @@
     }
 
     function tick() {
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            document.getElementById('loading-message').style.display = 'none';
-
-            canvas.height = video.videoHeight;
-            canvas.width = video.videoWidth;
-            canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
-            
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
-            });
-
-            if (code) {
-                stopScanner();
-                onScanSuccess(code.data);
-                return;
-            }
+        // Muss prüfen, ob der Video-Stream bereit ist
+        if (!videoStream || video.readyState !== video.HAVE_ENOUGH_DATA) {
+            animationFrameId = requestAnimationFrame(tick);
+            return;
         }
+
+        document.getElementById('loading-message').style.display = 'none';
+
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+        canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+        });
+
+        if (code) {
+             // WICHTIG: Prüfe den gescannten Text, bevor du den Scanner stoppst
+             if (validateScannedCode(code.data)) {
+                stopScanner();
+                onScanSuccess(code.data, true);
+                return;
+             } else {
+                // Zeige kurz Fehler an, aber breche nicht ab
+                showTemporaryScanError("Ungültiger Code: App-URL nicht erkannt.");
+             }
+        }
+        // Bleibt in der Schleife, um weiter zu scannen
         animationFrameId = requestAnimationFrame(tick);
+    }
+    
+    function showTemporaryScanError(message) {
+        const errorDiv = document.getElementById('temp-scan-error');
+        errorDiv.innerText = message;
+        errorDiv.classList.add('show-scan-error');
+        
+        // Nach 1.5 Sekunden ausblenden
+        if (errorDiv.timer) clearTimeout(errorDiv.timer);
+        errorDiv.timer = setTimeout(() => {
+            errorDiv.classList.remove('show-scan-error');
+        }, 1500);
+    }
+
+    // Validiert, ob der Code plausibel für DIESE App ist
+    function validateScannedCode(decodedText) {
+        if (!decodedText) return false;
+        const isUrl = decodedText.startsWith('http://') || decodedText.startsWith('https://');
+        
+        if (!isUrl) return false;
+
+        try {
+            const url = new URL(decodedText);
+            // Zusätzlicher Check: Enthält die URL die notwendigen Query-Parameter?
+            return url.searchParams.has('building') && url.searchParams.has('area') && url.searchParams.has('address');
+
+        } catch (e) {
+            return false;
+        }
     }
     
     window.startScanner = async function() {
@@ -253,6 +307,7 @@
         }
         
         if (isScannerRunning) {
+            stopScanner(); // Manuelles Stoppen, wenn bereits läuft
             return;
         }
         
@@ -272,7 +327,7 @@
             await video.play(); 
 
             isScannerRunning = true;
-            scanBtn.innerText = 'Scanner Läuft...';
+            scanBtn.innerText = 'Scanner Läuft... (Tippen zum Stoppen)';
             scanBtn.disabled = false;
             
             animationFrameId = requestAnimationFrame(tick);
@@ -291,16 +346,14 @@
         }
     }
 
-    function onScanSuccess(decodedText) {
+    function onScanSuccess(decodedText, isValid) {
         document.getElementById('scan-btn').innerText = 'Scanner Starten';
         document.getElementById('scan-btn').disabled = false;
+
+        // Wenn isValid false ist, wird dies bei tick() abgefangen. Hier nur, wenn isValid true ist.
+        if (!isValid) return; 
         
         try {
-            // FIX: Prüfen, ob der Text existiert und plausibel ist, bevor URL konstruiert wird.
-            if (!decodedText || (!decodedText.startsWith('http://') && !decodedText.startsWith('https://'))) {
-                throw new Error("Gescannter Text ist keine gültige URL.");
-            }
-
             window.appState.scanTime = new Date();
             const url = new URL(decodedText);
             
@@ -319,13 +372,14 @@
                 document.getElementById('location-error-message').textContent = 'Standortfreigabe ist zwingend erforderlich.';
                 document.getElementById('location-btn').disabled = false;
             } else {
-                window.showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building', 'area' oder 'address' Parameter in der URL.");
-                window.changeState('scan-screen');
+                // Sollte durch validateScannedCode() abgefangen werden, dient als Fallback
+                throw new Error("Fehlende Parameter.");
             }
 
         } catch (error) {
+            // Dieser Fehler sollte nur bei einem unvorhersehbaren Fehler auftreten, nicht bei einem ungültigen QR
             console.error("Fehler nach Scan-Stopp oder URL-Parsing:", error);
-            window.showError(`Fehler: Der gescannte Code ist keine gültige App-URL. (${error.message})`);
+            window.showError(`Schwerer Fehler beim Parsen des Codes: (${error.message})`);
             window.changeState('scan-screen');
         }
     }
@@ -382,7 +436,7 @@
     function setupPhotoCapture() {
         const infoText = document.getElementById('info-text');
         infoText.innerHTML = `
-            Gebäude: <span class="font-semibold">${window.appState.building}</span><br>
+            Objekt: <span class="font-semibold">${window.appState.building}</span><br>
             Bereich: <span class="font-semibold text-primary">${window.appState.area}</span><br>
             Adresse: <span class="font-semibold text-gray-600">${window.appState.address}</span>
         `; 
