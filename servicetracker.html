@@ -1,16 +1,16 @@
 <!-- 
-  Servicetracker App (Version 16 - Finale Produktion)
+  Servicetracker App (Version 17 - FINALE PRODUKTION)
   Projektidee von Christian Heinrich Hohlfeld.
   Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
-  Fokus: UX, Material Design, ZIP Export und SLIMMEN Workflow (Geolocation entfernt).
-  Fix: Entfernt den störenden Geolocation-Abfrageschritt.
+  Fokus: Resiliente UX, Material Design, ZIP Export und Crash-Proof Scanner (jsQR).
+  Fix: Behebt das Abstürzen des Scanners bei ungültigem QR-Code.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V16</title>
+    <title>Servicetracker V17</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -107,9 +107,6 @@
         <button id="scan-btn" onclick="startScanner()" class="btn btn-secondary w-full text-base font-bold mt-4 shadow-lg">Scanner Starten</button>
         <p class="text-center text-xs text-error mt-2">Kamera-Zugriff ist zwingend erforderlich.</p>
     </div>
-
-    <!-- HIER WURDE DER LOCATION-CHECK-SCREEN ENTFERNT -->
-    <!-- <div id="location-check-screen" class="app-state hidden text-center"> ... </div> -->
 
     <div id="capture-photos-screen" class="app-state hidden">
         <h2 class="text-xl font-semibold mb-4 text-success text-center">2. Fotobeweise</h2>
@@ -363,7 +360,7 @@
                 window.appState.area = decodeURIComponent(area);
                 window.appState.address = decodeURIComponent(address); 
                 
-                // Springt DIREKT zur Foto-Aufnahme (Schritt 2), da Geolocation entfernt wurde
+                // Springt DIREKT zur Foto-Aufnahme (Schritt 2)
                 setupPhotoCapture();
                 window.changeState('capture-photos-screen');
 
@@ -380,7 +377,7 @@
         }
     }
 
-    // HIER WURDE checkLocation() ENTFERNT
+    // --- 2. Fotobeweise (Nummerierung angepasst) ---
 
     function setupPhotoCapture() {
         const infoText = document.getElementById('info-text');
@@ -437,7 +434,7 @@
         }
     }
 
-    // --- 3. Abschluss und ZIP Download (Nummerierung angepasst) ---
+    // --- 3. Abschluss und ZIP Download ---
 
     window.submitJob = async function() {
         if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined)) {
