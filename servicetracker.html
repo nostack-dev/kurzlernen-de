@@ -1,7 +1,7 @@
 <!-- 
-  Servicetracker App (Version 7 - ZIP EXPORT)
+  Servicetracker App (Version 9 - GEOLOCATION RESILIENZ FIX)
   Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe erfolgt via ZIP Download.
-  Verwendet jsQR und JSZip für höchste Stabilität und Formatierung.
+  Fokus: Robuste Standortabfrage, die bei verweigerter Berechtigung nicht in eine Klick-Schleife gerät.
   Projektidee von Christian Heinrich Hohlfeld.
 -->
 <!DOCTYPE html>
@@ -9,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V7 (ZIP Export)</title>
+    <title>Servicetracker V9 (ZIP Export)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -50,7 +50,7 @@
 <div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V7</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V9</h1>
         <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display">Unbekannte Kraft</span></p>
     </header>
 
@@ -91,7 +91,7 @@
             <span>Wir benötigen Ihren aktuellen Standort zur Validierung.</span>
         </div>
         <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-lg">Standort Abfragen</button>
-        <p class="text-sm mt-2 text-error">Standortfreigabe ist zwingend erforderlich.</p>
+        <p class="text-sm mt-2 text-error" id="location-error-message">Standortfreigabe ist zwingend erforderlich.</p>
     </div>
 
     <div id="capture-photos-screen" class="app-state hidden">
@@ -151,7 +151,8 @@
     let isScannerRunning = false;
     
     window.appState = {
-        building: null, area: null, scanTime: null, latitude: null, longitude: null, 
+        building: null, area: null, address: null, 
+        scanTime: null, latitude: null, longitude: null, 
         photos: [], username: 'Unbekannte Kraft', isLoggedIn: false
     };
     
@@ -170,7 +171,6 @@
     
     // Hilfsfunktion zum Konvertieren von Base64 zu ArrayBuffer/Binary (für JSZip)
     function base64ToUint8Array(base64) {
-        // Entfernt den Data-URL-Header (z.B. "data:image/png;base64,")
         const base64WithoutHeader = base64.split(',')[1];
         const binaryString = atob(base64WithoutHeader);
         const len = binaryString.length;
@@ -229,7 +229,6 @@
             
             const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
             
-            // jsQR ausführen
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "dontInvert",
             });
@@ -298,13 +297,19 @@
             
             const building = url.searchParams.get('building');
             const area = url.searchParams.get('area');
+            const address = url.searchParams.get('address'); 
 
-            if (building && area) {
+            if (building && area && address) {
                 window.appState.building = decodeURIComponent(building);
                 window.appState.area = decodeURIComponent(area);
+                window.appState.address = decodeURIComponent(address); 
+                
                 window.changeState('location-check-screen');
+                // HIER: Geolocation-Fehlermeldung bei Zustandswchsel zurücksetzen
+                document.getElementById('location-error-message').textContent = 'Standortfreigabe ist zwingend erforderlich.';
+                document.getElementById('location-btn').disabled = false;
             } else {
-                window.showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building' oder 'area' Parameter in der URL.");
+                window.showError("Ungültiger QR-Code-Inhalt. Es fehlen 'building', 'area' oder 'address' Parameter in der URL.");
                 window.changeState('scan-screen');
             }
 
@@ -315,19 +320,23 @@
         }
     }
 
-    // --- 2. Standortprüfung und Fotos (unverändert) ---
+    // --- 2. Standortprüfung und Fotos (RESILIENZ FIX) ---
 
     window.checkLocation = function() {
+        const locationBtn = document.getElementById('location-btn');
+        const locationErrorMsg = document.getElementById('location-error-message');
+        
         if (!navigator.geolocation) {
             window.showError("Geolocation wird von Ihrem Gerät/Browser nicht unterstützt.");
             return;
         }
 
-        document.getElementById('location-btn').disabled = true;
-        document.getElementById('location-btn').innerText = 'Standort wird abgerufen...';
+        locationBtn.disabled = true;
+        locationBtn.innerText = 'Standort wird abgerufen...';
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
+                // ERFOLG
                 window.appState.latitude = position.coords.latitude;
                 window.appState.longitude = position.coords.longitude;
                 setupPhotoCapture();
@@ -337,13 +346,24 @@
 
             },
             (error) => {
-                document.getElementById('location-btn').disabled = false;
-                document.getElementById('location-btn').innerText = 'Standort Abfragen';
-                let errorMessage = "Standortabfrage fehlgeschlagen. Bitte stellen Sie sicher, dass Sie die Berechtigung erteilt haben.";
+                // FEHLER (Verweigerung oder Timeout)
+                locationBtn.innerText = 'Standort Abfragen';
+                
+                let errorMessageText;
+
                 if (error.code === error.PERMISSION_DENIED) {
-                    errorMessage = "Standortzugriff verweigert. Sie müssen den Standort freigeben, um fortzufahren.";
+                    // WICHTIG: PERMANENTE SPERRE
+                    locationBtn.disabled = true; // Button permanent sperren
+                    errorMessageText = "Standortzugriff VERWEIGERT. Bitte ändern Sie die Berechtigung in Ihren Browser-/Geräteeinstellungen, um fortzufahren.";
+                    window.showError("Berechtigungsfehler: " + errorMessageText);
+                } else {
+                    // Temporäre Fehler (Timeout/unbekannt)
+                    locationBtn.disabled = false; // Wiederholtes Klicken erlauben
+                    errorMessageText = "Standortabfrage fehlgeschlagen. Bitte versuchen Sie es erneut (Prüfen Sie GPS-Signal).";
+                    window.showError(errorMessageText);
                 }
-                window.showError(errorMessage);
+                
+                locationErrorMsg.textContent = errorMessageText;
             },
             { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
@@ -351,7 +371,11 @@
 
     function setupPhotoCapture() {
         const infoText = document.getElementById('info-text');
-        infoText.innerHTML = `Gebäude: <span class="font-semibold">${window.appState.building}</span><br>Bereich: <span class="font-semibold text-primary">${window.appState.area}</span>`;
+        infoText.innerHTML = `
+            Gebäude: <span class="font-semibold">${window.appState.building}</span><br>
+            Bereich: <span class="font-semibold text-primary">${window.appState.area}</span><br>
+            Adresse: <span class="font-semibold text-gray-600">${window.appState.address}</span>
+        `; 
         
         const photoGrid = document.getElementById('photo-grid');
         photoGrid.innerHTML = '';
@@ -400,7 +424,7 @@
         }
     }
 
-    // --- 4. Abschluss und ZIP Download (NEU) ---
+    // --- 4. Abschluss und ZIP Download ---
 
     window.submitJob = async function() {
         if (window.appState.photos.length !== 4 || window.appState.photos.some(p => p === null || p === undefined)) {
@@ -421,13 +445,13 @@
                 workerName: window.appState.username,
                 building: window.appState.building,
                 area: window.appState.area,
+                address: window.appState.address, 
                 scanTime: window.appState.scanTime.toISOString(),
                 submissionTime: new Date().toISOString(),
                 location: {
                     latitude: window.appState.latitude,
                     longitude: window.appState.longitude,
                 },
-                // Fotos werden separat gespeichert, daher hier nur Hinweis
                 photoCount: 4 
             };
             
@@ -437,7 +461,6 @@
             // 2. Fotos zur ZIP-Datei hinzufügen
             window.appState.photos.forEach((base64Image, index) => {
                 const photoName = `foto_${index + 1}.png`;
-                // Konvertiere Base64-String in Uint8Array
                 const binaryData = base64ToUint8Array(base64Image); 
                 zip.file(photoName, binaryData, { binary: true });
             });
@@ -454,12 +477,10 @@
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
             
-            // **FIX für Error 1:** Aktualisiere UI NACH dem Download
             document.getElementById('transaction-id').innerText = jobData.transactionId;
             submitBtn.innerText = 'ZIP-Datei Heruntergeladen';
             window.changeState('success-screen');
             
-            // Aufräumen (nachdem Download-Klick ausgelöst wurde)
             downloadAnchorNode.remove();
             URL.revokeObjectURL(content);
 
@@ -475,16 +496,20 @@
     window.resetApp = function() {
         stopScanner();
         
-        window.appState.building = null; window.appState.area = null; window.appState.scanTime = null;
-        window.appState.latitude = null; window.appState.longitude = null; window.appState.photos = [];
+        window.appState.building = null; window.appState.area = null; window.appState.address = null; 
+        window.appState.scanTime = null; window.appState.latitude = null; window.appState.longitude = null; window.appState.photos = [];
         
-        // **FIX für Error 1:** Sicherstellen, dass das Element im Success-Screen nicht versucht wird zu aktualisieren
         const txIdEl = document.getElementById('transaction-id');
         if (txIdEl) txIdEl.innerText = 'N/A';
         
         document.getElementById('submit-btn').classList.add('btn-disabled');
         document.getElementById('submit-btn').disabled = true;
         document.getElementById('submit-btn').innerText = 'Abschließen & ZIP-Datei Erstellen';
+        
+        // Geolocation Meldung zurücksetzen und Button aktivieren
+        document.getElementById('location-error-message').textContent = 'Standortfreigabe ist zwingend erforderlich.';
+        document.getElementById('location-btn').disabled = false;
+        
         window.changeState('scan-screen');
     }
 
