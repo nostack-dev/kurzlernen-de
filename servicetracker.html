@@ -1,15 +1,15 @@
 <!-- 
-  Servicetracker App (Version 10 - Ästhetisches Mobile-Fix)
-  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
-  Fokus: UX/UI-Überarbeitung: Sauberes Mobile First Layout, optimiert für Touch.
+  Servicetracker App (Version 12 - Finale Produktion)
   Projektidee von Christian Heinrich Hohlfeld.
+  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
+  Fokus: Resiliente UX, Material Design, ZIP Export und robuste Kamera-Logik (jsQR).
 -->
 <!DOCTYPE html>
-<html lang="de" data-theme="cmyk">
+<html lang="de" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V10</title>
+    <title>Servicetracker V12</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -34,10 +34,10 @@
             aspect-ratio: 1 / 1;
             max-height: 400px;
             margin: auto;
-            border-radius: 0.75rem; /* Abgerundete Ecken */
+            border-radius: 0.75rem; 
             overflow: hidden;
-            border: 3px solid #f6d860; /* Akzentfarbe von DaisyUI */
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 3px solid theme('colors.primary'); 
+            box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.2);
         }
     </style>
     <!-- Stabile QR-Code Bibliothek: jsQR -->
@@ -45,27 +45,34 @@
     <!-- Neue Bibliothek: JSZip für ZIP-Archiverstellung -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-2 sm:p-4">
 
 <!-- Hauptanwendung Container -->
-<div id="app-container" class="w-full max-w-xs sm:max-w-md bg-white shadow-2xl rounded-2xl p-6 md:p-8 relative">
+<div id="app-container" class="w-full max-w-xs sm:max-w-md bg-white shadow-2xl rounded-xl p-6 md:p-8 relative border border-gray-200">
 
     <header class="text-center mb-6">
         <h1 class="text-2xl font-extrabold text-gray-800">Servicetracker</h1>
-        <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display" class="font-semibold">Unbekannte Kraft</span></p>
+        <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display" class="font-semibold text-primary">Unbekannte Kraft</span></p>
     </header>
+
+    <!-- Inline Error Banner (ersetzt das Modal) -->
+    <div id="inline-error-banner" class="alert alert-error shadow-lg p-3 text-sm mb-6 hidden border-red-400 bg-red-50">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span id="error-message" class="text-gray-700"></span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('inline-error-banner').classList.add('hidden')">Schließen</button>
+    </div>
 
     <!-- UI-Zustände -->
     
     <div id="login-screen" class="app-state">
-        <h2 class="text-xl font-semibold mb-4 text-center text-primary">Start</h2>
-        <div class="card bg-base-100 shadow-lg p-5">
+        <h2 class="text-xl font-semibold mb-4 text-center text-primary">Anmeldung</h2>
+        <div class="card bg-gray-100 shadow-md p-5 rounded-lg border border-gray-200">
             <label class="form-control w-full mb-6">
                 <div class="label"><span class="label-text text-sm font-medium">Name der Reinigungskraft</span></div>
-                <input type="text" id="username-input" placeholder="Name eingeben" class="input input-bordered w-full input-sm" />
+                <input type="text" id="username-input" placeholder="Name eingeben" class="input input-bordered w-full input-sm bg-white" />
             </label>
-            <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-base font-bold">Einloggen & Starten</button>
-            <p class="text-xs text-center mt-3 text-gray-400">Der Name wird lokal gespeichert.</p>
+            <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-base font-bold shadow-lg">Einloggen & Starten</button>
+            <p class="text-xs text-center mt-3 text-gray-400">Lokale Speicherung des Namens.</p>
         </div>
     </div>
 
@@ -73,34 +80,34 @@
         <h2 class="text-xl font-semibold mb-4 text-center text-secondary">1. QR-Code Scannen</h2>
         <p class="text-center text-gray-600 mb-4 text-sm">Bitte halten Sie den QR-Code in die Kamera.</p>
         
-        <div id="reader-container">
+        <div id="reader-container" class="shadow-xl">
             <video id="qr-video" playsinline></video>
             <canvas id="qr-canvas" style="display: none;"></canvas>
-            <div id="loading-message" class="absolute inset-0 flex flex-col justify-center items-center bg-gray-900 bg-opacity-80 text-white text-sm">
+            <div id="loading-message" class="absolute inset-0 flex flex-col justify-center items-center bg-gray-900 bg-opacity-90 text-white text-sm">
                 <span class="loading loading-spinner loading-lg text-white mb-2"></span>
                 Kamera wird gestartet...
             </div>
         </div>
 
-        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-base font-bold mt-4">Scanner Starten</button>
+        <button id="scan-btn" onclick="startScanner()" class="btn btn-secondary w-full text-base font-bold mt-4 shadow-lg">Scanner Starten</button>
         <p class="text-center text-xs text-error mt-2">Kamera-Zugriff ist zwingend erforderlich.</p>
     </div>
 
     <div id="location-check-screen" class="app-state hidden text-center">
         <h2 class="text-xl font-semibold mb-4 text-warning">2. Standortprüfung</h2>
-        <div class="alert alert-warning shadow-lg mb-6 text-sm flex flex-col items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6 mb-2"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <span class="text-center">Wir benötigen Ihren aktuellen Standort zur Validierung des Reinigungsortes.</span>
+        <div class="alert alert-warning shadow-lg mb-6 text-sm flex flex-col items-center border-yellow-400 bg-yellow-50">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6 mb-2 text-warning"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span class="text-center text-gray-700">Wir benötigen Ihren aktuellen Standort zur Validierung des Reinigungsortes.</span>
         </div>
-        <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-base font-bold">Standort Abfragen</button>
+        <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-base font-bold shadow-lg">Standort Abfragen</button>
         <p class="text-sm mt-3 text-error" id="location-error-message">Standortfreigabe ist zwingend erforderlich.</p>
     </div>
 
     <div id="capture-photos-screen" class="app-state hidden">
-        <h2 class="text-xl font-semibold mb-4 text-accent text-center">3. Fotobeweise</h2>
-        <div id="job-info" class="mb-4 p-3 rounded-lg bg-base-200 text-sm">
+        <h2 class="text-xl font-semibold mb-4 text-success text-center">3. Fotobeweise</h2>
+        <div id="job-info" class="mb-4 p-3 rounded-lg bg-base-200 text-sm border border-gray-200">
             <p class="font-bold mb-1">Auftrag:</p>
-            <p id="info-text"></p>
+            <p id="info-text" class="text-gray-700"></p>
         </div>
 
         <div id="photo-grid" class="grid grid-cols-2 gap-4">
@@ -108,12 +115,12 @@
         </div>
 
         <p id="photo-status" class="text-center text-sm mt-4 font-medium"></p>
-        <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-base font-bold" id="submit-btn" disabled>
+        <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-base font-bold shadow-lg" id="submit-btn" disabled>
             Abschließen & ZIP-Datei Erstellen
         </button>
-        <div class="alert alert-info mt-4 p-3 text-xs">
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-             <span>Die ZIP-Datei enthält alle Fotos und Metadaten.</span>
+        <div class="alert alert-info mt-4 p-3 text-xs border-blue-400 bg-blue-50">
+             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-4 h-4 text-blue-500"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+             <span class="text-gray-700">Die ZIP-Datei enthält alle Fotos und Metadaten.</span>
         </div>
     </div>
     
@@ -122,22 +129,11 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-success mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
             <h2 class="text-2xl font-bold text-success mb-2">Arbeit Abgeschlossen!</h2>
             <p class="text-gray-700">Der Nachweis wurde als **ZIP-Datei** heruntergeladen.</p>
-            <p class="text-xs mt-4 text-gray-500">ID: <span id="transaction-id">N/A</span></p>
+            <p class="text-xs mt-4 text-gray-500">Transaktion ID: <span id="transaction-id">N/A</span></p>
         </div>
         <button onclick="resetApp()" class="btn btn-ghost mt-6 text-base">Neue Aufgabe starten</button>
     </div>
 
-    <!-- Modaler Dialog für Fehlermeldungen -->
-    <dialog id="error_modal" class="modal">
-        <div class="modal-box bg-error/10 border-error border">
-            <h3 class="font-bold text-xl text-error mb-3">Fehler!</h3>
-            <p id="error-message" class="py-2 text-gray-700 text-sm"></p>
-            <div class="modal-action">
-                <form method="dialog"><button class="btn btn-sm btn-error">Schließen</button></form>
-            </div>
-        </div>
-    </dialog>
-    
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay">
         <span class="loading loading-spinner loading-lg text-primary"></span>
@@ -163,12 +159,12 @@
     
     // Hilfsfunktionen (global verfügbar)
     window.showError = function(message) {
-        const modal = document.getElementById('error_modal');
         document.getElementById('error-message').innerText = message;
-        modal.showModal();
+        document.getElementById('inline-error-banner').classList.remove('hidden');
     }
 
     window.changeState = function(newStateId) {
+        document.getElementById('inline-error-banner').classList.add('hidden'); // Fehler bei Statuswechsel ausblenden
         document.querySelectorAll('.app-state').forEach(el => el.classList.add('hidden'));
         document.getElementById(newStateId).classList.remove('hidden');
         document.getElementById('app-container').classList.remove('loading');
@@ -302,6 +298,7 @@
             window.appState.scanTime = new Date();
             const url = new URL(decodedText);
             
+            // Parsen der 3 Query-Parameter: building, area, address
             const building = url.searchParams.get('building');
             const area = url.searchParams.get('area');
             const address = url.searchParams.get('address'); 
@@ -312,7 +309,7 @@
                 window.appState.address = decodeURIComponent(address); 
                 
                 window.changeState('location-check-screen');
-                // HIER: Geolocation-Fehlermeldung bei Zustandswchsel zurücksetzen
+                // Geolocation-Fehlermeldung bei Zustandswchsel zurücksetzen
                 document.getElementById('location-error-message').textContent = 'Standortfreigabe ist zwingend erforderlich.';
                 document.getElementById('location-btn').disabled = false;
             } else {
@@ -480,7 +477,8 @@
             const content = await zip.generateAsync({ type: "blob" });
 
             // 4. Download auslösen
-            const filename = `Protokoll_${jobData.building.replace(/[^a-zA-Z0-9]/g, '_')}_${jobData.submissionTime.substring(0, 10)}.zip`;
+            const sanitizedBuilding = jobData.building.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 15);
+            const filename = `Protokoll_${sanitizedBuilding}_${jobData.submissionTime.substring(0, 10)}.zip`;
             
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", URL.createObjectURL(content));
