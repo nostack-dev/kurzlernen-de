@@ -1,6 +1,7 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 7 - Finale Produktion)
+  QR Code Generator für Standorte und Bereiche (Version 8 - Bereichs-Logik)
   Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes mit Hardcode der Ziel-App-URL.
+  NEU: Ermöglicht das Anlegen neuer Bereiche für ein bestehendes Gebäude.
   UI: Modale Eingabe und Inline-Fehlerbehandlung für optimale Usability.
 -->
 <!DOCTYPE html>
@@ -8,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V7 (Prod)</title>
+    <title>QR Code Generator V8 (Prod)</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -40,7 +41,7 @@
 <div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V7</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V8</h1>
         <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
     </header>
 
@@ -54,17 +55,24 @@
                     <select id="project-selector" class="select select-bordered select-sm sm:select-md w-full" onchange="switchProject(this.value)">
                         <!-- Optionen werden via JavaScript befüllt -->
                     </select>
-                    <button onclick="openEditModal()" class="btn btn-sm btn-outline btn-primary whitespace-nowrap px-4" title="Standort bearbeiten">
+                    <button onclick="openEditModal(currentProjectId)" class="btn btn-sm btn-outline btn-primary whitespace-nowrap px-4" title="Standort bearbeiten">
                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                     </button>
                 </div>
             </label>
             
-            <div class="flex gap-2 w-full md:w-2/5 md:justify-end">
-                <button onclick="newProject(true)" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
-                    Neu
-                </button>
-                <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap w-1/2">
+            <div class="flex flex-col gap-2 w-full md:w-2/5 md:justify-end">
+                <div class="flex gap-2 w-full">
+                    <!-- NEU: Bereich hinzufügen kopiert die Gebäude-Daten des aktuellen Standorts -->
+                    <button onclick="openEditModal('new-area')" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
+                        Bereich hinzufügen
+                    </button>
+                    <!-- Neu: Full New Project -->
+                     <button onclick="openEditModal('new-project')" class="btn btn-sm btn-outline btn-accent whitespace-nowrap w-1/2">
+                        Neues Gebäude
+                    </button>
+                </div>
+                <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap w-full">
                     Export (JSON)
                 </button>
             </div>
@@ -124,19 +132,19 @@
 
         <label class="form-control w-full mb-4">
             <div class="label"><span class="label-text text-sm">Gebäudename / Objekt</span></div>
-            <input type="text" id="modal-building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" onfocus="clearDefault('modal-building-input')" />
+            <input type="text" id="modal-building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" data-default="Neues Gebäude" onfocus="clearDefault('modal-building-input')" />
             <div class="label"><span class="label-text-alt text-error hidden" id="error-building">Feld darf nicht leer sein.</span></div>
         </label>
 
         <label class="form-control w-full mb-4">
             <div class="label"><span class="label-text text-sm">Bereich / Area</span></div>
-            <input type="text" id="modal-area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" onfocus="clearDefault('modal-area-input')" />
+            <input type="text" id="modal-area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" data-default="Neuer Bereich" onfocus="clearDefault('modal-area-input')" />
             <div class="label"><span class="label-text-alt text-error hidden" id="error-area">Feld darf nicht leer sein.</span></div>
         </label>
         
         <label class="form-control w-full mb-6">
             <div class="label"><span class="label-text text-sm">Straße / Stadt / PLZ (Für Geolokalisierung)</span></div>
-            <input type="text" id="modal-address-input" placeholder="Musterstraße 1, 78462 Konstanz" class="input input-bordered w-full input-sm sm:input-md" onfocus="clearDefault('modal-address-input')" />
+            <input type="text" id="modal-address-input" placeholder="Musterstraße 1, 78462 Konstanz" class="input input-bordered w-full input-sm sm:input-md" data-default="Adresse eingeben" onfocus="clearDefault('modal-address-input')" />
             <div class="label"><span class="label-text-alt text-error hidden" id="error-address">Feld darf nicht leer sein.</span></div>
         </label>
         
@@ -160,13 +168,20 @@
     let projects = [];
     let currentProjectId = null;
     let qrcode = null;
+    let editingProjectId = null; // ID des Projekts, das gerade im Modal bearbeitet wird (oder null für neu)
 
     // --- Best Practice UX: Eingabe leeren, wenn Standardtext vorhanden ---
     window.clearDefault = function(inputElementId) {
         const el = document.getElementById(inputElementId);
-        // Prüft gegen die Standardtexte, die bei Neuanlage gesetzt werden
-        if (el.value === 'Neues Gebäude' || el.value === 'Neuer Bereich' || el.value === 'Adresse eingeben') {
+        const defaultValue = el.getAttribute('data-default');
+
+        // Prüft, ob der aktuelle Wert dem Standardwert entspricht
+        if (el.value === defaultValue) {
             el.value = '';
+        }
+        // Aktualisiert den Maps Link bei jeder Änderung im Adressfeld (damit es dynamisch ist)
+        if (inputElementId === 'modal-address-input') {
+             el.addEventListener('input', () => updateMapLink(el.value));
         }
     }
     
@@ -186,7 +201,16 @@
         }
         
         if (projects.length === 0) {
-            newProject(false); // Erstelle Initialprojekt ohne Modal-Anzeige
+            // Initialprojekt erstellen, aber ohne Modal zu öffnen
+            const newId = generateUUID();
+            projects.push({
+                id: newId,
+                building: 'Neues Gebäude',
+                area: 'Neuer Bereich',
+                address: 'Adresse eingeben'
+            });
+            currentProjectId = newId;
+            saveProjects();
         } else if (!currentProjectId) {
             currentProjectId = projects[0].id;
         }
@@ -198,7 +222,7 @@
                 id: p.id,
                 building: p.building,
                 area: p.area,
-                address: p.address // NEU: Adresse speichern
+                address: p.address
             }));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
             renderProjectSelector();
@@ -207,25 +231,14 @@
         }
     }
 
-    // Erstellt ein neues Projekt (zeigt sofort das Modal zur Bearbeitung)
-    window.newProject = function(openModal = false) {
-        const newId = generateUUID();
-        
-        const newProject = {
-            id: newId,
-            building: 'Neues Gebäude',
-            area: 'Neuer Bereich',
-            address: 'Adresse eingeben' // NEU: Standardadresse
+    // Erstellt ein neues Projekt-Objekt mit Standardwerten
+    function createNewProject(building, area, address) {
+        return {
+            id: generateUUID(),
+            building: building || 'Neues Gebäude',
+            area: area || 'Neuer Bereich',
+            address: address || 'Adresse eingeben'
         };
-        projects.push(newProject);
-        currentProjectId = newId;
-        
-        saveProjects();
-        switchProject(newId);
-        
-        if (openModal) {
-            openEditModal();
-        }
     }
 
     // Wechselt zum ausgewählten Projekt
@@ -233,7 +246,6 @@
         currentProjectId = projectId;
         const project = projects.find(p => p.id === projectId);
         if (project) {
-            // Aktualisiert die Anzeige des generierten QR Codes
             generateQRCode(); 
         }
     }
@@ -245,13 +257,15 @@
         projects.forEach(project => {
             const option = document.createElement('option');
             option.value = project.id;
-            // Zeigt Gebäude und Bereich im Selector
             option.textContent = `${project.building} / ${project.area}`; 
             if (project.id === currentProjectId) {
                 option.selected = true;
             }
             selector.appendChild(option);
         });
+        
+        // Stellt sicher, dass der Selector den aktuellen Wert anzeigt
+        selector.value = currentProjectId;
     }
     
     // --- MODAL Logik ---
@@ -261,39 +275,70 @@
         const encodedAddress = encodeURIComponent(address);
         const mapLink = document.getElementById('map-link');
         mapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+        mapLink.textContent = address ? 'Adresse auf Google Maps anzeigen' : 'Adresse eingeben (Maps Link wird erstellt)';
     }
 
-    window.openEditModal = function() {
-        const project = projects.find(p => p.id === currentProjectId);
-        if (!project) return;
-        
-        const isDefault = (project.building === 'Neues Gebäude' && project.area === 'Neuer Bereich' && project.address === 'Adresse eingeben');
-        
-        document.getElementById('modal-title').textContent = isDefault
-            ? 'Neuen Standort definieren' 
-            : `Standort bearbeiten: ${project.building} / ${project.area}`;
-            
-        // Werte in das Modal laden
-        document.getElementById('modal-building-input').value = project.building;
-        document.getElementById('modal-area-input').value = project.area;
-        document.getElementById('modal-address-input').value = project.address; // NEU
-        
-        // Maps Link aktualisieren
-        updateMapLink(project.address);
+    /**
+     * Öffnet das Modal zum Bearbeiten oder Erstellen eines Standorts.
+     * @param {string} mode - Die ID des zu bearbeitenden Projekts, 'new-project' (komplett neu) oder 'new-area' (neuer Bereich im aktuellen Gebäude).
+     */
+    window.openEditModal = function(mode) {
+        const modal = document.getElementById('project_modal');
+        const currentProject = projects.find(p => p.id === currentProjectId);
         
         // Fehler ausblenden
         document.getElementById('error-building').classList.add('hidden');
         document.getElementById('error-area').classList.add('hidden');
-        document.getElementById('error-address').classList.add('hidden'); // NEU
+        document.getElementById('error-address').classList.add('hidden'); 
         
-        // Modal anzeigen
-        document.getElementById('project_modal').showModal();
+        
+        if (mode === 'new-area') {
+            // Modus: Neuen Bereich zu bestehendem Gebäude hinzufügen
+            editingProjectId = null; // Markiert, dass es ein neues Projekt ist
+            
+            document.getElementById('modal-title').textContent = 'Neuen Bereich hinzufügen';
+            
+            // Gebäudedaten des aktuellen Projekts VORBELEGEN und NUR BEREICH leeren
+            document.getElementById('modal-building-input').value = currentProject ? currentProject.building : 'Neues Gebäude';
+            document.getElementById('modal-area-input').value = ''; 
+            document.getElementById('modal-area-input').placeholder = 'Neuer Bereich'; 
+            document.getElementById('modal-address-input').value = currentProject ? currentProject.address : 'Adresse eingeben';
+            
+        } else if (mode === 'new-project') {
+             // Modus: Komplett neues Projekt (Neues Gebäude)
+            editingProjectId = null;
+            
+            document.getElementById('modal-title').textContent = 'Neues Gebäude definieren';
+            
+            // Alle Felder leeren (setzen den data-default Wert)
+            document.getElementById('modal-building-input').value = '';
+            document.getElementById('modal-area-input').value = '';
+            document.getElementById('modal-address-input').value = '';
+
+        } else {
+            // Modus: Bestehendes Projekt bearbeiten
+            editingProjectId = mode; 
+            const project = projects.find(p => p.id === editingProjectId);
+            if (!project) return;
+            
+            document.getElementById('modal-title').textContent = `Standort bearbeiten: ${project.building} / ${project.area}`;
+            
+            // Werte aus dem Projekt laden
+            document.getElementById('modal-building-input').value = project.building;
+            document.getElementById('modal-area-input').value = project.area;
+            document.getElementById('modal-address-input').value = project.address; 
+        }
+        
+        // Maps Link aktualisieren (basierend auf dem gerade geladenen/vorbelegten Adresswert)
+        updateMapLink(document.getElementById('modal-address-input').value);
+
+        modal.showModal();
     }
     
     window.saveModalChanges = function() {
         const building = document.getElementById('modal-building-input').value.trim();
         const area = document.getElementById('modal-area-input').value.trim();
-        const address = document.getElementById('modal-address-input').value.trim(); // NEU
+        const address = document.getElementById('modal-address-input').value.trim(); 
         
         let isValid = true;
         
@@ -320,16 +365,26 @@
         }
 
         if (isValid) {
-            const project = projects.find(p => p.id === currentProjectId);
-            if (project) {
-                project.building = building;
-                project.area = area;
-                project.address = address; // NEU
-                
-                saveProjects(); 
-                document.getElementById('project_modal').close(); 
-                generateQRCode(); // Aktualisiert QR Code sofort
+            if (editingProjectId) {
+                // Bestehendes Projekt aktualisieren
+                const project = projects.find(p => p.id === editingProjectId);
+                if (project) {
+                    project.building = building;
+                    project.area = area;
+                    project.address = address; 
+                    currentProjectId = project.id; // Bleibt beim aktuellen Projekt
+                }
+            } else {
+                // Neues Projekt/Bereich erstellen
+                const newProject = createNewProject(building, area, address);
+                projects.push(newProject);
+                currentProjectId = newProject.id;
             }
+            
+            saveProjects(); 
+            document.getElementById('project_modal').close(); 
+            // Nach dem Speichern sofort den neuen Zustand laden und QR Code generieren
+            switchProject(currentProjectId); 
         }
     }
 
@@ -340,7 +395,7 @@
             id: p.id,
             building: p.building,
             area: p.area,
-            address: p.address // NEU: Adresse exportieren
+            address: p.address 
         }));
         
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
@@ -352,7 +407,6 @@
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
         
-        // Statusmeldung anzeigen
         document.getElementById('error-message-generator').innerHTML = `Alle <b>${projects.length} Projekte</b> wurden erfolgreich als <b>${filename}</b> exportiert.`;
         document.getElementById('error_modal_generator').showModal();
     }
@@ -365,7 +419,6 @@
         reader.onload = function(e) {
             try {
                 const importedData = JSON.parse(e.target.result);
-                // Validierung der Struktur: Jetzt muss 'address' existieren (auch wenn leer)
                 if (!Array.isArray(importedData) || importedData.some(p => !p.id || !p.building || !p.area || typeof p.address === 'undefined')) {
                     throw new Error("Die importierte Datei ist kein gültiges QR-Projekt-Array (Fehlende ID, Gebäude, Bereich oder Adresse).");
                 }
@@ -405,12 +458,11 @@
              baseUrl = baseUrl.split('?')[0];
         }
         
-        // Hinzufügen des neuen Adressparameters zur URL
         const encodedBuilding = encodeURIComponent(project.building);
         const encodedArea = encodeURIComponent(project.area);
-        const encodedAddress = encodeURIComponent(project.address); // NEU
+        const encodedAddress = encodeURIComponent(project.address); 
         
-        const targetUrl = `${baseUrl}?building=${encodedBuilding}&area=${encodedArea}&address=${encodedAddress}`; // NEU: Adresse hinzugefügt
+        const targetUrl = `${baseUrl}?building=${encodedBuilding}&area=${encodedArea}&address=${encodedAddress}`; 
 
         const container = document.getElementById('qrcode-container');
         container.innerHTML = ''; 
@@ -433,15 +485,14 @@
         // Druckbereich und URL im UI anzeigen
         document.getElementById('qr-building-display').innerText = project.building;
         document.getElementById('qr-area-display').innerText = project.area;
-        document.getElementById('qr-address-display').innerText = project.address; // NEU: Adresse anzeigen
+        document.getElementById('qr-address-display').innerText = project.address; 
         document.getElementById('printable-area').classList.remove('hidden');
         document.getElementById('print-btn').classList.remove('hidden');
         
         document.getElementById('full-url-text').innerText = targetUrl;
         document.getElementById('qr-url-display').classList.remove('hidden');
         
-        // Maps Link im Modal aktualisieren (falls Modal offen ist)
-        updateMapLink(project.address);
+        updateMapLink(project.address); // Maps Link in der UI aktualisieren (für Klick)
 
         console.log("Generierte URL:", targetUrl);
     }
