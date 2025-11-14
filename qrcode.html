@@ -1,7 +1,7 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 10 - Ohne Modal)
+  QR Code Generator für Standorte und Bereiche (Version 11 - Ästhetisches Mobile-Fix)
   Ziel: Erzeugung und Verwaltung von standortgebundenen QR-Codes.
-  Fokus: UX-Fix: Direkte Bearbeitung im Hauptfenster. Inline-Fehler und optimierte Logik für "Bereich hinzufügen".
+  Fokus: UX/UI-Überarbeitung: Sauberes Mobile First Layout, Inline-Fehler und optimierte Button-Gruppen.
   Projektidee von Christian Heinrich Hohlfeld.
 -->
 <!DOCTYPE html>
@@ -9,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V10 (Prod)</title>
+    <title>QR Code Generator V11</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -38,101 +38,98 @@
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start p-2 sm:p-4">
 
 <!-- Generator Container -->
-<div class="w-full max-w-sm sm:max-w-xl bg-white shadow-2xl rounded-xl p-4 md:p-8 mt-5 sm:mt-10">
+<div class="w-full max-w-xs sm:max-w-xl bg-white shadow-2xl rounded-2xl p-5 md:p-8 mt-5 sm:mt-10">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Standort QR Code Generator V10</h1>
-        <p class="text-sm text-gray-500">Projektverwaltung für Reinigungs- und Arbeitsnachweise</p>
+        <h1 class="text-2xl font-extrabold text-gray-800">QR Code Generator</h1>
+        <p class="text-sm text-gray-500">Standortverwaltung von Christian Hohlfeld</p>
     </header>
 
     <!-- Projektverwaltung -->
-    <div class="card bg-gray-50 shadow-inner p-3 sm:p-4 mb-6">
-        <div class="flex flex-col md:flex-row gap-3 items-center">
+    <div class="card bg-gray-50 shadow-inner p-4 mb-6">
+        <div class="flex flex-col gap-4">
             
-            <label class="form-control w-full md:w-3/5">
-                <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Aktiver Standort-Bereich</span></div>
-                <div class="flex gap-2 w-full">
-                    <select id="project-selector" class="select select-bordered select-sm sm:select-md w-full" onchange="switchProject(this.value)">
-                        <!-- Optionen werden via JavaScript befüllt -->
-                    </select>
-                </div>
+            <!-- Selector und Bearbeitungs-Buttons -->
+            <label class="form-control w-full">
+                <div class="label"><span class="label-text font-semibold text-sm">Aktiver Standort-Bereich</span></div>
+                <select id="project-selector" class="select select-bordered select-sm w-full" onchange="switchProject(this.value)">
+                    <!-- Optionen werden via JavaScript befüllt -->
+                </select>
             </label>
             
-            <div class="flex flex-col gap-2 w-full md:w-2/5 md:justify-end">
-                <div class="flex gap-2 w-full">
-                    <button onclick="createNewAreaForCurrent()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap w-1/2">
-                        Bereich hinzufügen
-                    </button>
-                     <button onclick="newProject(false)" class="btn btn-sm btn-outline btn-accent whitespace-nowrap w-1/2">
-                        Neues Gebäude
-                    </button>
-                </div>
-                <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap w-full">
-                    Export (JSON)
+            <!-- Button-Gruppe Mobile-Optimiert: Alle Buttons füllen die Breite -->
+            <div class="grid grid-cols-2 gap-2 w-full">
+                <button onclick="createNewAreaForCurrent()" class="btn btn-sm btn-outline btn-secondary whitespace-nowrap">
+                    Bereich hinzufügen
+                </button>
+                 <button onclick="newProject(false)" class="btn btn-sm btn-outline btn-accent whitespace-nowrap">
+                    Neues Gebäude
+                </button>
+                <button onclick="exportProjects()" class="btn btn-sm btn-outline btn-info whitespace-nowrap col-span-2">
+                    Export / Import (JSON)
                 </button>
             </div>
         </div>
         
         <!-- Import-Feld unter dem Selector -->
-        <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
+        <div class="flex gap-2 mt-4 pt-4 border-t border-gray-200">
             <label class="form-control w-full">
-                <div class="label"><span class="label-text font-semibold text-xs sm:text-sm">Import (JSON)</span></div>
                 <input type="file" accept=".json" class="file-input file-input-bordered file-input-sm w-full" onchange="importProjects(event)" />
             </label>
         </div>
     </div>
     
     <!-- Daten Eingabe (Zurück in die Hauptansicht) -->
-    <div class="card bg-base-100 shadow-md p-4 sm:p-6 mt-6">
-        <h2 class="text-xl font-semibold mb-4">Details bearbeiten & Generieren</h2>
+    <div class="card bg-base-100 shadow-lg p-5 mt-6">
+        <h2 class="text-xl font-semibold mb-4 text-primary">Details bearbeiten</h2>
         
-        <label class="form-control w-full mb-2">
-            <div class="label"><span class="label-text text-sm">Gebäudename / Objekt</span></div>
-            <input type="text" id="building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
-            <div class="label"><span class="label-text-alt text-error hidden" id="error-building">Gebäudename fehlt.</span></div>
+        <label class="form-control w-full mb-3">
+            <div class="label"><span class="label-text text-sm font-medium">Gebäudename / Objekt</span></div>
+            <input type="text" id="building-input" placeholder="Bürogebäude A" class="input input-bordered w-full input-sm" oninput="handleInputUpdate()" />
+            <div class="label pt-0"><span class="label-text-alt text-error hidden" id="error-building">Gebäudename fehlt.</span></div>
         </label>
 
-        <label class="form-control w-full mb-2">
-            <div class="label"><span class="label-text text-sm">Bereich / Area</span></div>
-            <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate()" />
-            <div class="label"><span class="label-text-alt text-error hidden" id="error-area">Bereich fehlt.</span></div>
+        <label class="form-control w-full mb-3">
+            <div class="label"><span class="label-text text-sm font-medium">Bereich / Area</span></div>
+            <input type="text" id="area-input" placeholder="1. OG Küche Nord" class="input input-bordered w-full input-sm" oninput="handleInputUpdate()" />
+            <div class="label pt-0"><span class="label-text-alt text-error hidden" id="error-area">Bereich fehlt.</span></div>
         </label>
         
-        <label class="form-control w-full mb-6">
-            <div class="label"><span class="label-text text-sm">Straße / Stadt / PLZ (Für Maps Link)</span></div>
-            <input type="text" id="address-input" placeholder="Musterstraße 1, 78462 Konstanz" class="input input-bordered w-full input-sm sm:input-md" oninput="handleInputUpdate(); updateMapLink(this.value);" />
-            <div class="label"><span class="label-text-alt text-error hidden" id="error-address">Adresse fehlt.</span></div>
+        <label class="form-control w-full mb-4">
+            <div class="label"><span class="label-text text-sm font-medium">Straße / Stadt / PLZ (Für Maps Link)</span></div>
+            <input type="text" id="address-input" placeholder="Musterstraße 1, 78462 Konstanz" class="input input-bordered w-full input-sm" oninput="handleInputUpdate(); updateMapLink(this.value);" />
+            <div class="label pt-0"><span class="label-text-alt text-error hidden" id="error-address">Adresse fehlt.</span></div>
         </label>
         
         <!-- Maps Link für visuelle Bestätigung -->
-        <div class="mb-4 p-2 bg-blue-50 rounded-lg text-xs text-center">
+        <div class="mb-4 p-2 bg-blue-50/20 rounded-lg text-xs text-center border border-blue-200">
             <a id="map-link" href="#" target="_blank" class="text-blue-600 hover:underline font-semibold" title="Öffnet Google Maps">Adresse auf Google Maps anzeigen</a>
         </div>
 
 
-        <button onclick="generateQRCode(true)" class="btn btn-primary w-full text-lg mt-2">QR Code Generieren & Anzeigen</button>
+        <button onclick="generateQRCode(true)" class="btn btn-primary w-full text-base font-bold mt-2">QR Code Generieren & Anzeigen</button>
     </div>
 
     <!-- QR Code Anzeige und Druckbereich -->
-    <div class="mt-8 p-4 sm:p-6 border-t border-gray-200">
+    <div class="mt-8 p-4 border-t border-gray-200">
         <h2 class="text-xl font-semibold mb-4 text-center">Generierter QR Code</h2>
         
-        <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-lg shadow-inner text-center hidden flex flex-col items-center">
+        <div id="printable-area" class="bg-white p-6 rounded-lg shadow-inner text-center hidden flex flex-col items-center border border-gray-200">
             <div id="qrcode-container" class="mb-4">
                 <!-- QR Code wird hier generiert -->
             </div>
-            <p id="qr-building-display" class="text-lg sm:text-xl font-bold mb-1"></p>
-            <p id="qr-area-display" class="text-md sm:text-lg text-primary mb-1"></p>
+            <p id="qr-building-display" class="text-lg font-bold mb-1"></p>
+            <p id="qr-area-display" class="text-md text-primary mb-1"></p>
             <p id="qr-address-display" class="text-sm text-gray-600 mb-4"></p>
-            <p class="text-xs sm:text-sm text-gray-500">Scannen für Arbeitsnachweis</p>
+            <p class="text-xs text-gray-500">Scannen für Arbeitsnachweis</p>
         </div>
 
-        <div id="qr-url-display" class="mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg hidden w-full">
+        <div id="qr-url-display" class="mt-4 p-3 bg-gray-100 rounded-lg hidden w-full border border-gray-200">
             <p class="text-xs font-semibold mb-1 text-gray-700">Codierte URL:</p>
             <p id="full-url-text" class="text-xs text-gray-600 font-mono break-all"></p>
         </div>
 
-        <button id="print-btn" onclick="window.print()" class="btn btn-success w-full mt-6 text-lg hidden">
+        <button id="print-btn" onclick="window.print()" class="btn btn-success w-full text-base font-bold mt-6 hidden">
             Drucken (mit Standortdaten)
         </button>
     </div>
@@ -141,11 +138,11 @@
 
 <!-- Modaler Dialog für Fehlermeldungen/Bestätigungen -->
 <dialog id="error_modal_generator" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg text-primary">Info / Status</h3>
-        <p id="error-message-generator" class="py-4 text-gray-700"></p>
+    <div class="modal-box bg-primary/10 border-primary border">
+        <h3 class="font-bold text-xl text-primary">Info / Status</h3>
+        <p id="error-message-generator" class="py-2 text-gray-700 text-sm"></p>
         <div class="modal-action">
-            <form method="dialog"><button class="btn">Schließen</button></form>
+            <form method="dialog"><button class="btn btn-sm btn-primary">Schließen</button></form>
         </div>
     </div>
 </dialog>
@@ -159,7 +156,7 @@
     let currentProjectId = null;
     let qrcode = null;
 
-    // --- UX: Maps Link (Jetzt global und direkt aktualisiert) ---
+    // --- UX: Maps Link ---
     function updateMapLink(address) {
         const encodedAddress = encodeURIComponent(address || '');
         const mapLink = document.getElementById('map-link');
@@ -183,6 +180,7 @@
         }
         
         if (projects.length === 0) {
+            // Initialprojekt erstellen, aber ohne Modal zu öffnen
             const newId = generateUUID();
             projects.push({
                 id: newId,
@@ -247,6 +245,7 @@
         const current = projects.find(p => p.id === currentProjectId);
         if (!current) return;
         
+        // Neues Projekt mit kopierten Gebäude-/Adressdaten, aber leerem Bereich
         const newProj = createNewProject(current.building, 'Neuer Bereich', current.address);
         projects.push(newProj);
         currentProjectId = newProj.id;
@@ -267,7 +266,6 @@
             document.getElementById('area-input').value = project.area;
             document.getElementById('address-input').value = project.address; 
             
-            // UI aktualisieren
             updateMapLink(project.address);
             generateQRCode(false); // Code ohne Validierung generieren (Autosave-Ansicht)
         }
@@ -303,11 +301,9 @@
         document.getElementById('error-building').classList.add('hidden');
         document.getElementById('error-area').classList.add('hidden');
         document.getElementById('error-address').classList.add('hidden');
-        
-        // QR Code wird beim Tippen NICHT neu generiert, nur beim expliziten Klick.
     }
 
-    // --- Export/Import Funktionen (Unverändert) ---
+    // --- Export/Import Funktionen ---
 
     window.exportProjects = function() {
         const dataToExport = projects.map(p => ({
@@ -368,15 +364,13 @@
      * @param {boolean} requireValidation - Validierung für den Druck erzwingen.
      */
     window.generateQRCode = function(requireValidation = false) {
-        const project = projects.find(p => p.id === currentProjectId);
-        
         const currentBuilding = document.getElementById('building-input').value.trim();
         const currentArea = document.getElementById('area-input').value.trim();
         const currentAddress = document.getElementById('address-input').value.trim();
 
         let isValid = true;
         
-        // Nur Validierung anzeigen, wenn der Benutzer auf den Button klickt (requireValidation = true)
+        // Inline Validierung anzeigen, wenn auf den Button geklickt wird
         if (requireValidation) {
             if (!currentBuilding) {
                 document.getElementById('error-building').classList.remove('hidden');
@@ -402,7 +396,6 @@
             return;
         }
 
-        // Auch wenn es der Platzhalter ist, generieren wir einen Code oder eine Platzhalteransicht
         const container = document.getElementById('qrcode-container');
         container.innerHTML = ''; 
 
@@ -411,12 +404,12 @@
             qrcode = null;
         }
         
-        // Wenn alle Felder leer sind oder die Platzhalterwerte enthalten (kein richtiger Code generierbar)
+        // Wenn Daten fehlen, zeige Platzhalter-Text
         if (!currentBuilding || !currentArea || !currentAddress) {
-             document.getElementById('qr-building-display').innerText = currentBuilding || 'FEHLENDES GEBÄUDE';
-             document.getElementById('qr-area-display').innerText = currentArea || 'FEHLENDER BEREICH';
-             document.getElementById('qr-address-display').innerText = currentAddress || 'FEHLENDE ADRESSE';
-             container.innerHTML = '<div class="text-gray-500">Unvollständige Daten. QR-Code nicht generierbar.</div>';
+             document.getElementById('qr-building-display').innerText = currentBuilding || 'GEBÄUDE FEHLT';
+             document.getElementById('qr-area-display').innerText = currentArea || 'BEREICH FEHLT';
+             document.getElementById('qr-address-display').innerText = currentAddress || 'ADRESSE FEHLT';
+             container.innerHTML = '<div class="text-gray-500 p-4">Unvollständige Daten. QR-Code nicht generierbar.</div>';
              
              document.getElementById('printable-area').classList.remove('hidden'); 
              document.getElementById('print-btn').classList.add('hidden');
@@ -470,13 +463,13 @@
     };
 </script>
 
-<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen -->
+<!-- Modaler Dialog für Fehlermeldungen/Bestätigungen (Info für Import/Export) -->
 <dialog id="error_modal_generator" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg text-primary">Info / Status</h3>
-        <p id="error-message-generator" class="py-4 text-gray-700"></p>
+    <div class="modal-box bg-primary/10 border-primary border">
+        <h3 class="font-bold text-xl text-primary">Info / Status</h3>
+        <p id="error-message-generator" class="py-2 text-gray-700 text-sm"></p>
         <div class="modal-action">
-            <form method="dialog"><button class="btn">Schließen</button></form>
+            <form method="dialog"><button class="btn btn-sm btn-primary">Schließen</button></form>
         </div>
     </div>
 </dialog>
