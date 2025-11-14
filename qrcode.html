@@ -1,7 +1,7 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 17 - Objekt-Editor)
+  QR Code Generator für Standorte und Bereiche (Version 18 - Objekt-Fokus)
   Projektidee von Christian Heinrich Hohlfeld.
-  Ziel: Objekt-zentrierte Verwaltung (Gebäude mit integriertem Bereich-Management im Editor).
+  Ziel: Vereinfachter, Objekt-zentrierter Workflow (Objekt mit integriertem Bereich-Management im Editor).
   Fokus: Vereinfachte UX, Konsistenz und logische Hierarchie.
 -->
 <!DOCTYPE html>
@@ -9,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V17</title>
+    <title>QR Code Generator V18</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -42,7 +42,7 @@
 
     <header class="text-center mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Standort QR Code Generator</h1>
-        <p class="text-sm text-gray-500">Hierarchische Verwaltung (Gebäude & Bereiche)</p>
+        <p class="text-sm text-gray-500">Hierarchische Verwaltung (Objekt & Bereiche)</p>
     </header>
 
     <!-- Inline Toast Message für Status (ersetzt Modal) -->
@@ -55,32 +55,34 @@
     <div class="card bg-base-100 shadow-md p-4 mb-6 border border-gray-200">
         <h2 class="text-xl font-semibold mb-4 text-primary">Standortverwaltung</h2>
         
-        <!-- Gebäude Selektor -->
+        <!-- Objekt Selektor -->
         <label class="form-control w-full mb-4">
-            <div class="label"><span class="label-text font-semibold text-sm">Aktives Objekt (Gebäude)</span></div>
+            <div class="label"><span class="label-text font-semibold text-sm">Aktives Objekt (Verwaltungseinheit)</span></div>
             <select id="building-selector" class="select select-bordered select-md w-full" onchange="switchBuilding(this.value)">
                 <!-- Optionen werden via JavaScript befüllt -->
             </select>
         </label>
         
-        <!-- Bereich Selektor -->
+        <!-- Bereich Selektor (wichtig für die QR Code URL) -->
         <label class="form-control w-full mb-4">
-            <div class="label"><span class="label-text font-semibold text-sm">Aktiver Bereich im Objekt</span></div>
+            <div class="label"><span class="label-text font-semibold text-sm">Aktiver Bereich zur QR-Code Generierung</span></div>
             <select id="area-selector" class="select select-bordered select-md w-full" onchange="switchArea(this.value)">
                 <!-- Optionen werden via JavaScript befüllt -->
             </select>
         </label>
 
-        <!-- Aktionen: Bearbeiten, Neu, Export, Löschen -->
+        <!-- Aktionen: Bearbeiten, Neu, Export -->
         <div class="flex flex-wrap gap-2 justify-between mt-2">
             <button onclick="openEditModal(currentBuildingId)" class="btn btn-sm btn-info btn-outline whitespace-nowrap">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                Details bearbeiten
+                Details / Bereiche bearbeiten
             </button>
             <button onclick="newObject()" class="btn btn-sm btn-secondary whitespace-nowrap">
                 + Neues Objekt hinzufügen
             </button>
         </div>
+        
+        <!-- Subtile Löschen/Import-Aktionen -->
         <div class="flex flex-wrap gap-2 justify-between mt-4 border-t border-gray-200 pt-3">
              <button onclick="exportProjects()" class="btn btn-sm btn-success btn-outline whitespace-nowrap">
                 Export (JSON)
@@ -88,11 +90,10 @@
             <button onclick="window.importInitiate()" class="btn btn-sm btn-warning btn-outline whitespace-nowrap" id="import-btn">
                 Import (JSON)
             </button>
-            <button onclick="clearAllProjects()" class="btn btn-sm btn-error btn-outline whitespace-nowrap">
+            <button onclick="clearAllProjects()" class="btn btn-xs btn-ghost text-error whitespace-nowrap">
                 Alle löschen (Local)
             </button>
         </div>
-        
     </div>
 
     <!-- QR Code Anzeige und Druckbereich -->
@@ -130,11 +131,11 @@
     <div class="modal-box bg-white p-6 shadow-2xl max-w-lg">
         <h3 id="modal-title" class="font-bold text-xl mb-4 text-secondary">Objekt-Editor</h3>
         
-        <!-- Gebäude / Adressfelder -->
+        <!-- Objekt / Adressfelder -->
         <label class="form-control w-full mb-3">
-            <div class="label"><span class="label-text font-semibold text-sm">Gebäudename / Objekt</span></div>
-            <input type="text" id="modal-building-input" placeholder="Neues Gebäude" class="input input-bordered w-full input-md" data-default="Neues Gebäude" oninput="validateModal()" onfocus="clearPlaceholder(this)" />
-            <p id="error-building" class="text-error text-xs mt-1 hidden">Gebäudename ist erforderlich.</p>
+            <div class="label"><span class="label-text font-semibold text-sm">Objektname (z.B. Hauptsitz, Lagerhalle A)</span></div>
+            <input type="text" id="modal-building-input" placeholder="Neues Objekt" class="input input-bordered w-full input-md" data-default="Neues Objekt" oninput="validateModal()" onfocus="clearPlaceholder(this)" />
+            <p id="error-building" class="text-error text-xs mt-1 hidden">Objektname ist erforderlich.</p>
         </label>
 
         <label class="form-control w-full mb-6">
@@ -187,9 +188,9 @@
     const STORAGE_KEY = 'ch_hohlfeld_qr_projects';
     const BASE_URL_HARDCODED = 'https://kurzlernen.de/servicetracker.html'; 
 
-    let projects = []; // Array von Gebäude-Objekten
-    let currentBuildingId = null;
-    let currentAreaId = null;
+    let projects = []; // Array von Objekt-Objekten
+    let currentBuildingId = null; // Stellt das aktive Objekt dar
+    let currentAreaId = null; // Stellt den aktiven Bereich dar
     let qrcode = null;
 
     // Speichert temporäre Daten während der Modal-Bearbeitung
@@ -241,7 +242,7 @@
         }
         
         if (projects.length === 0) {
-            createNewBuildingAndArea(true); // Erstellt Standardprojekt
+            createNewObjectAndArea(true); // Erstellt Standardprojekt
         }
         
         // Setze die aktuelle Auswahl
@@ -252,15 +253,17 @@
         const activeBuilding = findBuilding(currentBuildingId);
         
         if (activeBuilding && activeBuilding.areas && activeBuilding.areas.length > 0) {
+             // Wähle entweder den alten AreaId oder den ersten Bereich
              currentAreaId = activeBuilding.areas.find(a => a.id === currentAreaId) ? currentAreaId : activeBuilding.areas[0].id;
         } else if (activeBuilding) {
              currentAreaId = null;
         }
         
+        // Bereinigung, falls Daten korrupt sind
         if (!currentBuildingId || !currentAreaId) {
              localStorage.removeItem(STORAGE_KEY);
              projects = [];
-             createNewBuildingAndArea(true);
+             createNewObjectAndArea(true);
              currentBuildingId = projects[0].id;
              currentAreaId = projects[0].areas[0].id;
         }
@@ -276,8 +279,8 @@
         }
     }
     
-    // Erstellt ein neues Gebäude mit einem Standardbereich
-    function createNewBuildingAndArea(isInitial = false) {
+    // Erstellt ein neues Objekt mit einem Standardbereich
+    function createNewObjectAndArea(isInitial = false) {
         const newBuildingId = generateUUID();
         const newAreaId = generateUUID();
         
@@ -295,13 +298,14 @@
         if (!isInitial) {
             saveProjects();
             switchBuilding(newBuildingId); 
-            showToast("Neues Objekt wurde erstellt. Bitte bearbeiten Sie die Details.");
+            // Die Meldung erscheint im Modal, nicht als Toast
         }
     }
     
     window.newObject = function() {
-        createNewBuildingAndArea();
+        createNewObjectAndArea();
         openEditModal(currentBuildingId);
+        showToast("Neues Objekt wurde erstellt. Bitte bearbeiten Sie die Details.");
     }
 
     // --- UI Rendering und Auswahl ---
@@ -310,7 +314,7 @@
         const buildingSelector = document.getElementById('building-selector');
         const areaSelector = document.getElementById('area-selector');
 
-        // 1. Gebäude-Selektor füllen
+        // 1. Objekt-Selektor füllen
         buildingSelector.innerHTML = '';
         projects.forEach(building => {
             const option = document.createElement('option');
@@ -320,7 +324,7 @@
             buildingSelector.appendChild(option);
         });
         
-        // 2. Bereich-Selektor füllen (basierend auf aktivem Gebäude)
+        // 2. Bereich-Selektor füllen (basierend auf aktivem Objekt)
         areaSelector.innerHTML = '';
         const activeBuilding = findBuilding(currentBuildingId);
 
@@ -341,6 +345,7 @@
         currentBuildingId = buildingId;
         const building = findBuilding(buildingId);
         
+        // Setze den aktiven Bereich auf den ersten Bereich des neuen Objekts
         if (building && building.areas && building.areas.length > 0) {
             currentAreaId = building.areas[0].id; 
         } else {
@@ -369,11 +374,12 @@
         // Deep-Kopie für temporäre Bearbeitung
         tempBuildingData = JSON.parse(JSON.stringify(building));
         
+        // Felder befüllen (setzt den Wert, entfernt aber nicht den Platzhalter)
         document.getElementById('modal-building-input').value = building.building;
         document.getElementById('modal-address-input').value = building.address;
         
         renderAreaList();
-        validateModal(); // Validiert den initialen Zustand
+        validateModal(); 
         document.getElementById('edit-modal').showModal();
     }
 
@@ -381,7 +387,7 @@
         const container = document.getElementById('area-list-container');
         container.innerHTML = '';
         
-        tempBuildingData.areas.forEach((area, index) => {
+        tempBuildingData.areas.forEach((area) => {
             const item = document.createElement('div');
             item.className = 'area-item bg-gray-50 hover:bg-white';
             item.innerHTML = `
@@ -412,6 +418,9 @@
         });
         renderAreaList();
         validateModal();
+        // Optional: Fokussiere das neue Input-Feld, wenn hinzugefügt
+        const lastAreaId = tempBuildingData.areas[tempBuildingData.areas.length - 1].id;
+        document.getElementById(`area-input-${lastAreaId}`).focus();
     }
 
     window.removeAreaFromModal = function(areaId) {
@@ -437,16 +446,16 @@
         
         let isValid = true;
         
-        // 1. Validierung der Felder
-        if (!buildingInput || buildingInput === 'Neues Objekt') {
+        // 1. Validierung der Objektfelder
+        if (!buildingInput || buildingInput === document.getElementById('modal-building-input').getAttribute('data-default')) {
             document.getElementById('error-building').classList.remove('hidden'); isValid = false;
         } else { document.getElementById('error-building').classList.add('hidden'); }
         
-        if (!addressInput || addressInput === 'Adresse eingeben') {
+        if (!addressInput || addressInput === document.getElementById('modal-address-input').getAttribute('data-default')) {
             document.getElementById('error-address').classList.remove('hidden'); isValid = false;
         } else { document.getElementById('error-address').classList.add('hidden'); }
         
-        // 2. Validierung der Bereiche
+        // 2. Validierung der Bereiche (darf nicht leer sein)
         const validAreas = tempBuildingData.areas.filter(a => a.area && a.area.trim() !== '' && a.area.trim() !== 'Neuer Bereich (noch nicht gespeichert)');
         
         if (validAreas.length === 0) {
@@ -457,40 +466,42 @@
     }
 
     window.saveAndCloseModal = function() {
-        if (!document.getElementById('save-modal-btn').disabled) {
-            const buildingInput = document.getElementById('modal-building-input').value.trim();
-            const addressInput = document.getElementById('modal-address-input').value.trim();
-            
-            // 1. Filter ungültiger Bereiche aus der temporären Liste
-            tempBuildingData.areas = tempBuildingData.areas.filter(a => a.area && a.area.trim() !== '' && a.area.trim() !== 'Neuer Bereich (noch nicht gespeichert)');
+        // Sicherstellen, dass die Validierung aktuell ist
+        validateModal();
+        if (document.getElementById('save-modal-btn').disabled) return; 
 
-            // 2. Objekt in die Hauptliste übernehmen
-            const targetBuildingIndex = projects.findIndex(p => p.id === tempBuildingData.id);
+        const buildingInput = document.getElementById('modal-building-input').value.trim();
+        const addressInput = document.getElementById('modal-address-input').value.trim();
+        
+        // 1. Filter ungültiger Bereiche aus der temporären Liste
+        tempBuildingData.areas = tempBuildingData.areas.filter(a => a.area && a.area.trim() !== '' && a.area.trim() !== 'Neuer Bereich (noch nicht gespeichert)');
 
-            if (targetBuildingIndex !== -1) {
-                // Objekt existiert: Details aktualisieren
-                projects[targetBuildingIndex].building = buildingInput;
-                projects[targetBuildingIndex].address = addressInput;
-                projects[targetBuildingIndex].areas = tempBuildingData.areas;
+        // 2. Objekt in die Hauptliste übernehmen
+        const targetBuildingIndex = projects.findIndex(p => p.id === tempBuildingData.id);
 
-                // Stelle sicher, dass der aktuelle AreaId noch gültig ist
-                if (!findArea(currentBuildingId, currentAreaId)) {
-                    currentAreaId = projects[targetBuildingIndex].areas[0].id;
-                }
+        if (targetBuildingIndex !== -1) {
+            // Objekt existiert: Details aktualisieren
+            projects[targetBuildingIndex].building = buildingInput;
+            projects[targetBuildingIndex].address = addressInput;
+            projects[targetBuildingIndex].areas = tempBuildingData.areas;
 
-                showToast(`Objekt "${buildingInput}" und seine Bereiche gespeichert.`);
-
-            } else {
-                // Neues Objekt (sollte über newObject() abgedeckt sein, aber als Fallback)
-                projects.push(tempBuildingData);
-                currentBuildingId = tempBuildingData.id;
-                currentAreaId = tempBuildingData.areas[0].id;
-                showToast(`Neues Objekt "${buildingInput}" erfolgreich hinzugefügt.`);
+            // Stelle sicher, dass der aktuelle AreaId noch gültig ist (falls er gelöscht wurde)
+            if (!findArea(currentBuildingId, currentAreaId)) {
+                currentAreaId = projects[targetBuildingIndex].areas[0].id;
             }
 
-            saveProjects();
-            document.getElementById('edit-modal').close();
+            showToast(`Objekt "${buildingInput}" und seine Bereiche gespeichert.`);
+
+        } else {
+            // Neues Objekt (sollte über newObject() abgedeckt sein)
+            projects.push(tempBuildingData);
+            currentBuildingId = tempBuildingData.id;
+            currentAreaId = tempBuildingData.areas[0].id;
+            showToast(`Neues Objekt "${buildingInput}" erfolgreich hinzugefügt.`);
         }
+
+        saveProjects();
+        document.getElementById('edit-modal').close();
     }
 
     // --- Export, Import und Löschen ---
