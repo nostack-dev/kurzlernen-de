@@ -1,15 +1,15 @@
 <!-- 
-  QR Code Generator für Standorte und Bereiche (Version 18 - Objekt-Fokus)
+  QR Code Generator für Standorte und Bereiche (Version 19 - Objekt-Editor mit Lösch-Sicherheit)
   Projektidee von Christian Heinrich Hohlfeld.
-  Ziel: Vereinfachter, Objekt-zentrierter Workflow (Objekt mit integriertem Bereich-Management im Editor).
-  Fokus: Vereinfachte UX, Konsistenz und logische Hierarchie.
+  Ziel: Vereinfachter, Objekt-zentrierter Workflow. Implementierung einer Sicherheitsabfrage beim Löschen eines Objekts.
+  Fokus: UX, Konsistenz und Datensicherheit.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Generator V18</title>
+    <title>QR Code Generator V19</title>
     <!-- Tailwind CSS und DaisyUI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
@@ -160,12 +160,32 @@
             <p id="error-areas" class="text-error text-xs mt-3 hidden">Mindestens ein Bereich ist erforderlich.</p>
         </div>
         
-        <div class="modal-action flex justify-between mt-6">
-            <button onclick="document.getElementById('edit-modal').close()" class="btn btn-ghost">Abbrechen</button>
-            <button onclick="saveAndCloseModal()" class="btn btn-primary" id="save-modal-btn" disabled>Speichern & Schließen</button>
+        <div class="modal-action flex justify-between mt-6 border-t pt-4 border-gray-200">
+            <!-- Neuer Button für das Löschen des Objekts -->
+            <button onclick="confirmDeleteObject()" class="btn btn-error btn-outline">Objekt löschen</button>
+
+            <div class="flex gap-3">
+                <button onclick="document.getElementById('edit-modal').close()" class="btn btn-ghost">Abbrechen</button>
+                <button onclick="saveAndCloseModal()" class="btn btn-primary" id="save-modal-btn" disabled>Speichern & Schließen</button>
+            </div>
         </div>
     </div>
 </dialog>
+
+<!-- MODAL FÜR LÖSCHBESTÄTIGUNG -->
+<dialog id="delete-confirm-modal" class="modal">
+    <div class="modal-box bg-white p-6 shadow-2xl">
+        <h3 class="font-bold text-xl mb-4 text-error">⚠️ Löschbestätigung</h3>
+        <p class="mb-4 text-gray-700">Wollen Sie das Objekt "<span id="delete-building-name" class="font-bold text-error"></span>" WIRKLICH löschen?</p>
+        <p class="text-sm text-gray-500">Alle zugehörigen Bereiche und Daten gehen dabei verloren.</p>
+
+        <div class="modal-action">
+            <button onclick="document.getElementById('delete-confirm-modal').close()" class="btn btn-ghost">Abbrechen</button>
+            <button onclick="deleteBuilding(currentBuildingId)" class="btn btn-error">Ja, endgültig löschen</button>
+        </div>
+    </div>
+</dialog>
+
 
 <!-- MODAL FÜR IMPORTERSTELLUNG (WIRD NUR GEÖFFNET) -->
 <dialog id="import-modal" class="modal">
@@ -260,12 +280,17 @@
         }
         
         // Bereinigung, falls Daten korrupt sind
-        if (!currentBuildingId || !currentAreaId) {
+        if (!currentBuildingId || !activeBuilding || (activeBuilding.areas.length === 0 && projects.length > 0)) {
              localStorage.removeItem(STORAGE_KEY);
              projects = [];
              createNewObjectAndArea(true);
              currentBuildingId = projects[0].id;
              currentAreaId = projects[0].areas[0].id;
+             
+             // Nur beim Start, nicht während des normalen Flows toasten
+             if (stored && stored.length > 0) {
+                  showToast("Fehlerhafte lokale Daten bereinigt und neues Objekt erstellt.", true);
+             }
         }
     }
 
@@ -297,7 +322,6 @@
         
         if (!isInitial) {
             saveProjects();
-            switchBuilding(newBuildingId); 
             // Die Meldung erscheint im Modal, nicht als Toast
         }
     }
@@ -374,7 +398,7 @@
         // Deep-Kopie für temporäre Bearbeitung
         tempBuildingData = JSON.parse(JSON.stringify(building));
         
-        // Felder befüllen (setzt den Wert, entfernt aber nicht den Platzhalter)
+        // Felder befüllen (setzt den Wert)
         document.getElementById('modal-building-input').value = building.building;
         document.getElementById('modal-address-input').value = building.address;
         
@@ -382,6 +406,44 @@
         validateModal(); 
         document.getElementById('edit-modal').showModal();
     }
+    
+    // --- LÖSCH-LOGIK ---
+
+    window.confirmDeleteObject = function() {
+        const building = findBuilding(currentBuildingId);
+        if (!building) return;
+
+        // Namen im Bestätigungs-Modal anzeigen
+        document.getElementById('delete-building-name').innerText = building.building;
+        
+        document.getElementById('edit-modal').close(); // Editor schließen
+        document.getElementById('delete-confirm-modal').showModal(); // Bestätigung öffnen
+    }
+
+    window.deleteBuilding = function(buildingId) {
+        if (projects.length <= 1) {
+            showToast("FEHLER: Sie können das letzte Objekt nicht löschen.", true);
+            document.getElementById('delete-confirm-modal').close();
+            return;
+        }
+
+        const deletedBuilding = findBuilding(buildingId);
+        
+        // Objekt aus der Liste entfernen
+        projects = projects.filter(p => p.id !== buildingId);
+        
+        // Nächstes Objekt auswählen
+        currentBuildingId = projects[0].id;
+        currentAreaId = projects[0].areas[0].id;
+
+        saveProjects();
+        renderSelectors();
+        
+        document.getElementById('delete-confirm-modal').close();
+        showToast(`Objekt "${deletedBuilding.building}" wurde erfolgreich gelöscht.`, true);
+    }
+    
+    // --- BEREICH-LISTE LOGIK ---
 
     function renderAreaList() {
         const container = document.getElementById('area-list-container');
@@ -493,7 +555,7 @@
             showToast(`Objekt "${buildingInput}" und seine Bereiche gespeichert.`);
 
         } else {
-            // Neues Objekt (sollte über newObject() abgedeckt sein)
+            // Neues Objekt
             projects.push(tempBuildingData);
             currentBuildingId = tempBuildingData.id;
             currentAreaId = tempBuildingData.areas[0].id;
