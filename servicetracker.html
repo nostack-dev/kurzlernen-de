@@ -1,7 +1,7 @@
 <!-- 
-  Servicetracker App (Version 9 - GEOLOCATION RESILIENZ FIX)
-  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe erfolgt via ZIP Download.
-  Fokus: Robuste Standortabfrage, die bei verweigerter Berechtigung nicht in eine Klick-Schleife gerät.
+  Servicetracker App (Version 10 - Ästhetisches Mobile-Fix)
+  Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
+  Fokus: UX/UI-Überarbeitung: Sauberes Mobile First Layout, optimiert für Touch.
   Projektidee von Christian Heinrich Hohlfeld.
 -->
 <!DOCTYPE html>
@@ -9,19 +9,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V9 (ZIP Export)</title>
+    <title>Servicetracker V10</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body { font-family: 'Inter', sans-serif; }
         .loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8);
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9);
             display: none; justify-content: center; align-items: center; z-index: 1000;
         }
         .loading .loading-overlay { display: flex; }
         
-        /* Layout für Video und Canvas (jsQR) */
+        /* Layout für Video und Canvas (jsQR) - Sicherstellen, dass das Video im Container zentriert ist */
         #qr-video, #qr-canvas {
             width: 100%;
             height: 100%;
@@ -34,9 +34,10 @@
             aspect-ratio: 1 / 1;
             max-height: 400px;
             margin: auto;
-            border-radius: 0.5rem;
+            border-radius: 0.75rem; /* Abgerundete Ecken */
             overflow: hidden;
-            border: 2px solid var(--p);
+            border: 3px solid #f6d860; /* Akzentfarbe von DaisyUI */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
     <!-- Stabile QR-Code Bibliothek: jsQR -->
@@ -47,88 +48,92 @@
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-2 sm:p-4">
 
 <!-- Hauptanwendung Container -->
-<div id="app-container" class="w-full max-w-sm sm:max-w-lg bg-white shadow-2xl rounded-xl p-4 md:p-8 relative">
+<div id="app-container" class="w-full max-w-xs sm:max-w-md bg-white shadow-2xl rounded-2xl p-6 md:p-8 relative">
 
     <header class="text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Servicetracker V9</h1>
-        <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display">Unbekannte Kraft</span></p>
+        <h1 class="text-2xl font-extrabold text-gray-800">Servicetracker</h1>
+        <p class="text-sm text-gray-500">Angemeldet als: <span id="worker-display" class="font-semibold">Unbekannte Kraft</span></p>
     </header>
 
-    <!-- UI-Zustände (Beibehalten) -->
+    <!-- UI-Zustände -->
     
     <div id="login-screen" class="app-state">
-        <h2 class="text-xl font-semibold mb-4 text-center">Login (Lokal)</h2>
-        <div class="card bg-base-100 shadow-md p-4 sm:p-6">
-            <label class="form-control w-full mb-4">
-                <div class="label"><span class="label-text">Benutzername (Optional, lokal gespeichert)</span></div>
-                <input type="text" id="username-input" placeholder="Name der Kraft" class="input input-bordered w-full" />
+        <h2 class="text-xl font-semibold mb-4 text-center text-primary">Start</h2>
+        <div class="card bg-base-100 shadow-lg p-5">
+            <label class="form-control w-full mb-6">
+                <div class="label"><span class="label-text text-sm font-medium">Name der Reinigungskraft</span></div>
+                <input type="text" id="username-input" placeholder="Name eingeben" class="input input-bordered w-full input-sm" />
             </label>
-            <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-lg">Einloggen & Starten</button>
-            <p class="text-xs text-center mt-4 text-gray-400">Speichert nur den Namen im Browser.</p>
+            <button onclick="simulateLoginAndInit()" class="btn btn-primary w-full text-base font-bold">Einloggen & Starten</button>
+            <p class="text-xs text-center mt-3 text-gray-400">Der Name wird lokal gespeichert.</p>
         </div>
     </div>
 
     <div id="scan-screen" class="app-state hidden">
-        <h2 class="text-xl font-semibold mb-4 text-center">1. QR-Code Scannen</h2>
-        <p class="text-center text-gray-600 mb-4 text-sm">Bitte scannen Sie den QR-Code des zu reinigenden Bereichs.</p>
+        <h2 class="text-xl font-semibold mb-4 text-center text-secondary">1. QR-Code Scannen</h2>
+        <p class="text-center text-gray-600 mb-4 text-sm">Bitte halten Sie den QR-Code in die Kamera.</p>
         
-        <div id="reader-container" class="shadow-inner">
+        <div id="reader-container">
             <video id="qr-video" playsinline></video>
             <canvas id="qr-canvas" style="display: none;"></canvas>
-            <div id="loading-message" class="absolute inset-0 flex justify-center items-center bg-gray-900 bg-opacity-75 text-white text-sm">
-                Starte Kamera...
+            <div id="loading-message" class="absolute inset-0 flex flex-col justify-center items-center bg-gray-900 bg-opacity-80 text-white text-sm">
+                <span class="loading loading-spinner loading-lg text-white mb-2"></span>
+                Kamera wird gestartet...
             </div>
         </div>
 
-        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-lg mt-4">Scanner Starten</button>
+        <button id="scan-btn" onclick="startScanner()" class="btn btn-success w-full text-base font-bold mt-4">Scanner Starten</button>
         <p class="text-center text-xs text-error mt-2">Kamera-Zugriff ist zwingend erforderlich.</p>
     </div>
 
     <div id="location-check-screen" class="app-state hidden text-center">
-        <h2 class="text-xl font-semibold mb-4">2. Standortprüfung</h2>
-        <div class="alert alert-info shadow-lg mb-4 text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <span>Wir benötigen Ihren aktuellen Standort zur Validierung.</span>
+        <h2 class="text-xl font-semibold mb-4 text-warning">2. Standortprüfung</h2>
+        <div class="alert alert-warning shadow-lg mb-6 text-sm flex flex-col items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6 mb-2"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span class="text-center">Wir benötigen Ihren aktuellen Standort zur Validierung des Reinigungsortes.</span>
         </div>
-        <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-lg">Standort Abfragen</button>
-        <p class="text-sm mt-2 text-error" id="location-error-message">Standortfreigabe ist zwingend erforderlich.</p>
+        <button id="location-btn" onclick="checkLocation()" class="btn btn-warning w-full text-base font-bold">Standort Abfragen</button>
+        <p class="text-sm mt-3 text-error" id="location-error-message">Standortfreigabe ist zwingend erforderlich.</p>
     </div>
 
     <div id="capture-photos-screen" class="app-state hidden">
-        <h2 class="text-xl font-semibold mb-4 text-center">3. Fotobeweise</h2>
+        <h2 class="text-xl font-semibold mb-4 text-accent text-center">3. Fotobeweise</h2>
         <div id="job-info" class="mb-4 p-3 rounded-lg bg-base-200 text-sm">
-            <p class="font-bold">Auftrag:</p>
+            <p class="font-bold mb-1">Auftrag:</p>
             <p id="info-text"></p>
         </div>
 
-        <div id="photo-grid" class="grid grid-cols-2 gap-3">
+        <div id="photo-grid" class="grid grid-cols-2 gap-4">
             <!-- Platzhalter für 4 Fotos -->
         </div>
 
-        <p id="photo-status" class="text-center text-sm mt-4"></p>
-        <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-lg" id="submit-btn" disabled>
+        <p id="photo-status" class="text-center text-sm mt-4 font-medium"></p>
+        <button onclick="submitJob()" class="btn btn-primary w-full mt-6 text-base font-bold" id="submit-btn" disabled>
             Abschließen & ZIP-Datei Erstellen
         </button>
-        <div class="alert alert-warning mt-4 text-xs">Achtung: Die ZIP-Datei muss manuell an den Vorgesetzten gesendet werden.</div>
+        <div class="alert alert-info mt-4 p-3 text-xs">
+             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+             <span>Die ZIP-Datei enthält alle Fotos und Metadaten.</span>
+        </div>
     </div>
     
     <div id="success-screen" class="app-state hidden text-center">
-        <div class="card bg-green-100 border-green-500 border p-6 shadow-xl">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-green-500 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            <h2 class="text-2xl font-bold text-green-700 mb-2">Arbeit Abgeschlossen!</h2>
+        <div class="card bg-success/10 border-success border p-6 shadow-xl rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-success mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            <h2 class="text-2xl font-bold text-success mb-2">Arbeit Abgeschlossen!</h2>
             <p class="text-gray-700">Der Nachweis wurde als **ZIP-Datei** heruntergeladen.</p>
-            <p class="text-xs mt-4 text-gray-500">Bitte senden Sie die Datei manuell weiter. ID: <span id="transaction-id">N/A</span></p>
+            <p class="text-xs mt-4 text-gray-500">ID: <span id="transaction-id">N/A</span></p>
         </div>
-        <button onclick="resetApp()" class="btn btn-ghost mt-6">Neue Aufgabe starten</button>
+        <button onclick="resetApp()" class="btn btn-ghost mt-6 text-base">Neue Aufgabe starten</button>
     </div>
 
     <!-- Modaler Dialog für Fehlermeldungen -->
     <dialog id="error_modal" class="modal">
-        <div class="modal-box">
-            <h3 class="font-bold text-lg text-error">Fehler!</h3>
-            <p id="error-message" class="py-4 text-gray-700"></p>
+        <div class="modal-box bg-error/10 border-error border">
+            <h3 class="font-bold text-xl text-error mb-3">Fehler!</h3>
+            <p id="error-message" class="py-2 text-gray-700 text-sm"></p>
             <div class="modal-action">
-                <form method="dialog"><button class="btn">Schließen</button></form>
+                <form method="dialog"><button class="btn btn-sm btn-error">Schließen</button></form>
             </div>
         </div>
     </dialog>
@@ -192,6 +197,8 @@
             localStorage.setItem('workerName', usernameInput);
         } else if (storedName) {
              window.appState.username = storedName;
+        } else {
+             window.appState.username = 'Gast'; // Fallback
         }
         
         window.appState.isLoggedIn = true; 
@@ -383,7 +390,7 @@
 
         for (let i = 0; i < 4; i++) {
             const photoSlot = document.createElement('div');
-            photoSlot.className = 'flex flex-col items-center p-2 border rounded-lg bg-base-100 shadow-sm';
+            photoSlot.className = 'flex flex-col items-center p-2 border border-gray-200 rounded-lg bg-base-100 shadow-sm transition-all hover:shadow-md';
             photoSlot.innerHTML = `
                 <img id="preview-${i}" class="w-full h-20 object-cover rounded-md mb-2 bg-gray-200" src="https://placehold.co/100x80/cccccc/333333?text=Foto+${i+1}" onerror="this.onerror=null;this.src='https://placehold.co/100x80/cccccc/333333?text=Foto+${i+1}';" alt="Foto ${i+1} Vorschau">
                 <input type="file" accept="image/*" capture="environment" id="file-input-${i}" class="file-input file-input-xs file-input-bordered w-full" onchange="handlePhotoCapture(event, ${i})">
@@ -460,7 +467,11 @@
             
             // 2. Fotos zur ZIP-Datei hinzufügen
             window.appState.photos.forEach((base64Image, index) => {
-                const photoName = `foto_${index + 1}.png`;
+                // Extrahieren des Bildtyps (z.B. image/png -> png)
+                const match = base64Image.match(/^data:image\/(\w+);base64,/);
+                const extension = match ? match[1] : 'png';
+                const photoName = `foto_${index + 1}.${extension}`;
+                
                 const binaryData = base64ToUint8Array(base64Image); 
                 zip.file(photoName, binaryData, { binary: true });
             });
@@ -518,6 +529,7 @@
         if (storedName) {
             document.getElementById('worker-display').textContent = storedName;
             window.appState.username = storedName;
+            document.getElementById('username-input').value = storedName; // Name im Input befüllen
         }
 
         document.getElementById('app-container').classList.remove('loading');
