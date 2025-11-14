@@ -1,15 +1,16 @@
 <!-- 
-  Servicetracker App (Version 12 - Finale Produktion)
+  Servicetracker App (Version 13 - Finale Produktion)
   Projektidee von Christian Heinrich Hohlfeld.
   Ziel: Nachweis und Qualitätssicherung von Reinigungsarbeiten. Datenabgabe via ZIP Download.
   Fokus: Resiliente UX, Material Design, ZIP Export und robuste Kamera-Logik (jsQR).
+  Fix: Behebt den "Failed to construct 'URL'" Fehler.
 -->
 <!DOCTYPE html>
 <html lang="de" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Servicetracker V12</title>
+    <title>Servicetracker V13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.css" rel="stylesheet" type="text/css" />
     <style>
@@ -295,6 +296,11 @@
         document.getElementById('scan-btn').disabled = false;
         
         try {
+            // FIX: Prüfen, ob der Text existiert und plausibel ist, bevor URL konstruiert wird.
+            if (!decodedText || (!decodedText.startsWith('http://') && !decodedText.startsWith('https://'))) {
+                throw new Error("Gescannter Text ist keine gültige URL.");
+            }
+
             window.appState.scanTime = new Date();
             const url = new URL(decodedText);
             
