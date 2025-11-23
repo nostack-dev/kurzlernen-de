@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Where on Earth? - Mapillary Edition</title>
+    <title>Where on Earth? - Unlimited Edition</title>
     
     <!-- LEAFLET CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -19,464 +19,395 @@
             --hud-bg: rgba(0, 0, 0, 0.7);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--bg-dark);
-            color: white;
-        }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); color: white; }
 
         /* --- VIEW LAYER (Mapillary) --- */
-        #mly {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-            background: #000;
-        }
+        #mly { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background: #000; }
         
         /* Loading Indicator */
         #loader {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 5;
-            font-size: 1.2rem;
-            font-weight: bold;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 5; font-size: 1.2rem; font-weight: bold;
             text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s;
         }
         .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(255,255,255,0.2);
-            border-radius: 50%;
-            border-top-color: var(--primary);
+            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
+            border-radius: 50%; border-top-color: var(--primary);
             animation: spin 0.8s ease-in-out infinite;
         }
 
         /* --- MINIMAP --- */
         #map-container {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 350px;
-            height: 250px;
-            z-index: 10;
-            border-radius: 14px;
-            border: 3px solid rgba(0,0,0,0.15);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            position: absolute; bottom: 30px; right: 30px;
+            width: 350px; height: 250px; z-index: 10;
+            border-radius: 12px;
+            border: 4px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
             overflow: hidden;
             transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-            background: #f5f5f5; /* helles Panel */
+            background: #fff;
         }
         #map-container.expanded {
-            width: 80%;
-            height: 70%;
-            bottom: 50%;
-            right: 50%;
-            transform: translate(50%, 50%);
-            border-color: var(--primary);
-            z-index: 50;
+            width: 80%; height: 70%; bottom: 50%; right: 50%;
+            transform: translate(50%, 50%); border-color: var(--primary); z-index: 50;
         }
-        #map-container:not(.expanded):hover {
-            transform: scale(1.02);
-            border-color: var(--primary);
-            cursor: crosshair;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-            background: #e8e8e8; /* heller Hintergrund beim Laden */
-        }
+        #map-container:not(.expanded):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
+        #map { width: 100%; height: 100%; background: #ddd; }
 
         /* --- HUD --- */
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 20;
-            display: flex;
-            gap: 15px;
-            pointer-events: none;
-        }
+        #hud { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 15px; pointer-events: none; }
         .hud-panel {
-            background: var(--hud-bg);
-            backdrop-filter: blur(10px);
-            padding: 10px 20px;
-            border-radius: 30px;
+            background: var(--hud-bg); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 30px;
             border: 1px solid rgba(255,255,255,0.1);
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            pointer-events: auto;
+            font-weight: bold; display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: auto;
         }
-        #timer {
-            font-size: 1.5rem;
-            color: var(--primary);
-            font-family: monospace;
-        }
-        #timer.warning {
-            color: var(--accent);
-            animation: pulse 1s infinite;
-        }
+        #timer { font-size: 1.5rem; color: var(--primary); font-family: monospace; }
+        #timer.warning { color: var(--accent); animation: pulse 1s infinite; }
 
         /* --- INTERACTION --- */
         #guess-btn {
-            position: absolute;
-            bottom: 30px;
-            left: 30px; /* aus dem FOV raus */
+            position: absolute; 
+            bottom: 30px; 
+            left: 30px; 
+            right: auto;
             z-index: 20;
-            background: var(--primary);
-            color: #000;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border-radius: 999px;
-            cursor: pointer;
+            background: var(--primary); color: #000; border: none;
+            padding: 15px 40px; font-size: 1.2rem; font-weight: bold;
+            border-radius: 50px; cursor: pointer;
             box-shadow: 0 4px 20px rgba(5, 203, 99, 0.4);
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
         }
-        #guess-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6);
-        }
-        #guess-btn:disabled {
-            background: #ccc;
-            color: #777;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
+        #guess-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6); }
+        #guess-btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
 
         /* --- RESULT OVERLAY --- */
         #result-overlay {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(10px);
-            padding: 20px 40px;
-            border-radius: 15px;
-            text-align: center;
-            border: 1px solid rgba(0,0,0,0.08);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s 0.5s;
-            min-width: 320px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            z-index: 100;
-            color: #111;
+            position: absolute; 
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(15px);
+            padding: 40px; border-radius: 20px; text-align: center;
+            border: 2px solid var(--primary);
+            opacity: 0; pointer-events: none; transition: opacity 0.5s;
+            min-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); z-index: 100;
+            display: flex; flex-direction: column; gap: 10px; align-items: center;
         }
-        #map-container.expanded #result-overlay {
-            opacity: 1;
-            pointer-events: all;
+        #map-container.expanded #result-overlay { opacity: 1; pointer-events: all; }
+        
+        .result-title { font-size: 2.5rem; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900;}
+        .location-reveal { color: #fff; font-size: 1.5rem; font-weight: bold;}
+        .distance-info { color: #ccc; font-size: 1.1rem; margin-bottom: 10px; }
+        
+        .score-box { 
+            background: rgba(255,255,255,0.1); padding: 15px 30px; border-radius: 15px; margin: 15px 0; width: 100%;
         }
-        .location-reveal {
-            color: #111;
-            font-size: 1.3rem;
-            font-weight: bold;
-            margin-bottom: 5px;
+        .score-change { font-size: 4rem; color: var(--primary); font-weight: bold; line-height: 1; text-shadow: 0 0 30px rgba(5, 203, 99, 0.4); }
+        .score-label { color: #888; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px; }
+        
+        .btn { 
+            background: var(--primary); border: none; padding: 15px 40px; color: #000; font-weight: bold; border-radius: 50px; 
+            cursor: pointer; margin-top: 10px; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 1px; 
+            box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: inline-flex; align-items: center; gap: 10px;
         }
-        .score-change {
-            font-size: 2.5rem;
-            color: #111;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-        .btn {
-            background: var(--primary);
-            border: none;
-            padding: 10px 25px;
-            color: #000;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 15px;
-            font-size: 1rem;
-        }
-        .btn:hover { opacity: 0.9; }
+        .btn:hover { opacity: 0.9; transform: scale(1.05); box-shadow: 0 6px 20px rgba(5,203,99,0.6); }
 
-        /* --- START SCREEN --- */
+        /* --- START / END SCREENS --- */
         #overlay-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.95);
-            z-index: 200;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 200;
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
         }
-        .modal {
-            background: #1a1a1a;
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            border: 1px solid #333;
-            max-width: 500px;
-            width: 90%;
-        }
-        h1 {
-            font-size: 2.2rem;
-            background: linear-gradient(to right, var(--primary), #fff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-        }
+        .modal { background: #1a1a1a; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #333; max-width: 500px; width: 90%; }
+        h1 { font-size: 2.2rem; background: linear-gradient(to right, var(--primary), #fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
         
         /* Music Toggle */
-        #music-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 30;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: rgba(0,0,0,0.5);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.2);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        #music-toggle { position: absolute; top: 20px; right: 20px; z-index: 30; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;}
 
         .hidden { display: none !important; }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <!-- FontAwesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
 
-    <!-- START OVERLAY -->
+    <!-- START SCREEN -->
     <div id="overlay-screen">
         <div class="modal" id="start-modal">
             <h1>Mapillary Explorer</h1>
             <h4 style="color: #666; margin-bottom: 20px;">Christian H. Hohlfeld Edition</h4>
             <p style="color: #ccc; font-size: 0.9rem; line-height: 1.5;">
-                Ein Versuch, ein Ort, ein Score.<br>
-                Navigiere wie in Street View, setz deinen Pin auf der Karte<br>
-                und finde heraus, wie nah du dran warst.
+                <b>Unlimited Edition</b><br>
+                Dynamische Startpunkte. Nie das gleiche Bild.<br>
+                Finde heraus, wo du bist.
             </p>
-            <button class="btn" onclick="startGame()">Spiel starten <i class="fas fa-play"></i></button>
-            <p style="margin-top: 16px; font-size: 0.75rem; color: #777;">
-                Datenquelle: Mapillary – <a id="mapillary-link" href="#" target="_blank" rel="noreferrer" style="color:#05cb63;">App-Info</a>
-            </p>
+            <button class="btn" onclick="initApp()" style="margin-top: 30px;">Starten <i class="fas fa-play"></i></button>
         </div>
     </div>
 
     <!-- LOADING INDICATOR -->
     <div id="loader">
         <div class="spinner"></div>
-        <span id="loader-text">Suche Startpunkt...</span>
+        <span id="loader-text">Lade Zufalls-Ort...</span>
     </div>
 
     <!-- GAME UI -->
-    
-    <!-- 1. Mapillary Viewer -->
     <div id="mly"></div>
 
-    <!-- 2. HUD -->
+    <!-- HUD -->
     <div id="hud">
         <div class="hud-panel">
             <i class="fas fa-stopwatch"></i> <span id="timer">02:00</span>
         </div>
-        <div class="hud-panel">
-            <i class="fas fa-trophy"></i> <span id="score">0</span>
-        </div>
     </div>
 
-    <!-- 3. Guess Button -->
-    <button id="guess-btn" onclick="submitGuess()" disabled>Tipp abgeben</button>
+    <!-- Guess Button -->
+    <button id="guess-btn" onclick="submitGuess()" disabled>Tipp Abgeben</button>
 
-    <!-- 4. Map & Result -->
+    <!-- Map & Result -->
     <div id="map-container">
         <div id="map"></div>
         
-        <!-- Result Info -->
+        <!-- Result / Reward Overlay -->
         <div id="result-overlay">
+            <div class="result-title" id="res-title">ERGEBNIS</div>
             <div class="location-reveal" id="res-location">Ort Name</div>
-            <div style="color: #555; margin-bottom: 5px;" id="res-distance">0 km daneben</div>
-            <div class="score-change" id="res-points">0 Punkte</div>
-            <button class="btn" onclick="restartGame()">Neu starten <i class="fas fa-redo"></i></button>
+            <div class="distance-info" id="res-distance">0 km daneben</div>
+            
+            <div class="score-box">
+                <div class="score-change" id="res-points">0</div>
+                <div class="score-label">PUNKTE ERZIELT</div>
+            </div>
+
+            <!-- RESTART BUTTON -->
+            <button class="btn" onclick="location.reload()"><i class="fas fa-redo"></i> Noch eine Runde</button>
         </div>
     </div>
 
-    <!-- 5. Audio Toggle -->
+    <!-- Audio Toggle -->
     <button id="music-toggle" onclick="toggleMusic()">
         <i class="fas fa-volume-mute" id="music-icon"></i>
     </button>
 
-    <!-- Audio -->
-    <audio id="bg-music" loop>
-        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
-    </audio>
-
     <!-- LIBS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Mapillary JS -->
     <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"></script>
 
     <script>
-        // *** HIER EINMALIG DEINEN MAPILLARY CLIENT TOKEN SETZEN ***
-        // Den kompletten MLY|... Access Token eintragen:
-        const MAPILLARY_TOKEN = "DEIN_MAPILLARY_ACCESS_TOKEN_HIER"; // <- ersetzen
+        // --- KONFIGURATION ---
+        const MAPILLARY_CONFIG = {
+            accessToken: "MLY|24346716201668098|5aa98286cac1799925ddf57c3f33f190"
+        };
 
-        // Nicht-geheime App-Metadaten:
-        const MAPILLARY_CLIENT_ID = "24346716201668098";
-        const MAPILLARY_REDIRECT_URI = "https://kurzlernen.de/";
-        const MAPILLARY_CONNECT_URL =
-            "https://www.mapillary.com/connect?client_id=" + MAPILLARY_CLIENT_ID;
+        // --- RIESIGE DATENBANK AN ZIELEN ---
+        // Mix aus Hauptstädten, Touri-Spots und interessanten Orten
+        const DATABASE = [
+            { name: "Paris, Frankreich", lat: 48.8566, lng: 2.3522 },
+            { name: "Berlin, Deutschland", lat: 52.5200, lng: 13.4050 },
+            { name: "Konstanz, Deutschland", lat: 47.6603, lng: 9.1758 },
+            { name: "London, UK", lat: 51.5074, lng: -0.1278 },
+            { name: "New York, USA", lat: 40.7128, lng: -74.0060 },
+            { name: "Tokio, Japan", lat: 35.6762, lng: 139.6503 },
+            { name: "Sydney, Australien", lat: -33.8688, lng: 151.2093 },
+            { name: "Kapstadt, Südafrika", lat: -33.9249, lng: 18.4241 },
+            { name: "Rio de Janeiro, Brasilien", lat: -22.9068, lng: -43.1729 },
+            { name: "Moskau, Russland", lat: 55.7558, lng: 37.6173 },
+            { name: "Istanbul, Türkei", lat: 41.0082, lng: 28.9784 },
+            { name: "Rom, Italien", lat: 41.9028, lng: 12.4964 },
+            { name: "Dubai, VAE", lat: 25.2048, lng: 55.2708 },
+            { name: "Singapur", lat: 1.3521, lng: 103.8198 },
+            { name: "Barcelona, Spanien", lat: 41.3851, lng: 2.1734 },
+            { name: "Amsterdam, Niederlande", lat: 52.3676, lng: 4.9041 },
+            { name: "San Francisco, USA", lat: 37.7749, lng: -122.4194 },
+            { name: "Bangkok, Thailand", lat: 13.7563, lng: 100.5018 },
+            { name: "Buenos Aires, Argentinien", lat: -34.6037, lng: -58.3816 },
+            { name: "Kairo, Ägypten", lat: 30.0444, lng: 31.2357 },
+            { name: "Mexiko-Stadt, Mexiko", lat: 19.4326, lng: -99.1332 },
+            { name: "Mumbai, Indien", lat: 19.0760, lng: 72.8777 },
+            { name: "Seoul, Südkorea", lat: 37.5665, lng: 126.9780 },
+            { name: "Athen, Griechenland", lat: 37.9838, lng: 23.7275 },
+            { name: "Toronto, Kanada", lat: 43.6510, lng: -79.3470 },
+            { name: "Wien, Österreich", lat: 48.2081, lng: 16.3738 },
+            { name: "Lissabon, Portugal", lat: 38.7223, lng: -9.1393 },
+            { name: "Prag, Tschechien", lat: 50.0755, lng: 14.4378 },
+            { name: "Budapest, Ungarn", lat: 47.4979, lng: 19.0402 },
+            { name: "Stockholm, Schweden", lat: 59.3293, lng: 18.0686 },
+            { name: "Kopenhagen, Dänemark", lat: 55.6761, lng: 12.5683 },
+            { name: "Zürich, Schweiz", lat: 47.3769, lng: 8.5417 },
+            { name: "München, Deutschland", lat: 48.1351, lng: 11.5820 },
+            { name: "Hamburg, Deutschland", lat: 53.5511, lng: 9.9937 },
+            { name: "Mailand, Italien", lat: 45.4642, lng: 9.1900 },
+            { name: "Venedig, Italien", lat: 45.4408, lng: 12.3155 },
+            { name: "Los Angeles, USA", lat: 34.0522, lng: -118.2437 },
+            { name: "Chicago, USA", lat: 41.8781, lng: -87.6298 },
+            { name: "Miami, USA", lat: 25.7617, lng: -80.1918 },
+            { name: "Vancouver, Kanada", lat: 49.2827, lng: -123.1207 },
+            { name: "Hongkong", lat: 22.3193, lng: 114.1694 },
+            { name: "Kuala Lumpur, Malaysia", lat: 3.1390, lng: 101.6869 },
+            { name: "Jakarta, Indonesien", lat: -6.2088, lng: 106.8456 },
+            { name: "Taipeh, Taiwan", lat: 25.0330, lng: 121.5654 },
+            { name: "Hanoi, Vietnam", lat: 21.0285, lng: 105.8542 },
+            { name: "Melbourne, Australien", lat: -37.8136, lng: 144.9631 },
+            { name: "Auckland, Neuseeland", lat: -36.8485, lng: 174.7633 },
+            { name: "Santiago, Chile", lat: -33.4489, lng: -70.6693 },
+            { name: "Bogota, Kolumbien", lat: 4.7110, lng: -74.0721 },
+            { name: "Lima, Peru", lat: -12.0464, lng: -77.0428 },
+            { name: "Casablanca, Marokko", lat: 33.5731, lng: -7.5898 },
+            { name: "Nairobi, Kenia", lat: -1.2921, lng: 36.8219 },
+            { name: "Reykjavik, Island", lat: 64.1466, lng: -21.9426 },
+            { name: "Dublin, Irland", lat: 53.3498, lng: -6.2603 },
+            { name: "Edinburgh, Schottland", lat: 55.9533, lng: -3.1883 },
+            { name: "Brüssel, Belgien", lat: 50.8503, lng: 4.3517 },
+            { name: "Oslo, Norwegen", lat: 59.9139, lng: 10.7522 },
+            { name: "Helsinki, Finnland", lat: 60.1699, lng: 24.9384 },
+            { name: "Warschau, Polen", lat: 52.2297, lng: 21.0122 }
+        ];
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const link = document.getElementById("mapillary-link");
-            if (link) {
-                link.href = MAPILLARY_CONNECT_URL;
-            }
-        });
-
-        // --- ZIELE (Lat/Lng) ---
-        const TARGETS = [
-            { name: "Eiffelturm Umgebung, Paris", lat: 48.8584, lng: 2.2945 },
-            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 },
-            { name: "Times Square Area, NYC", lat: 40.7580, lng: -73.9855 },
-            { name: "Shibuya Crossing, Tokyo", lat: 35.6595, lng: 139.7004 },
-            { name: "Brandenburger Tor, Berlin", lat: 52.5163, lng: 13.3777 },
-            { name: "Colosseum, Rom", lat: 41.8902, lng: 12.4922 },
-            { name: "Opera House, Sydney", lat: -33.8568, lng: 151.2153 },
-            { name: "Downtown Dubai", lat: 25.1972, lng: 55.2744 },
-            { name: "Amsterdam Zentrum", lat: 52.3702, lng: 4.8952 },
-            { name: "San Francisco Bay", lat: 37.8087, lng: -122.4098 },
-            { name: "London Eye Area", lat: 51.5033, lng: -0.1195 },
-            { name: "Barcelona Strand", lat: 41.3809, lng: 2.1911 },
-            { name: "Wien Zentrum", lat: 48.2082, lng: 16.3738 },
-            { name: "Kapstadt Waterfront", lat: -33.9036, lng: 18.4205 }
+        // --- PLAYLIST (Chill / Lo-Fi) ---
+        const PLAYLIST = [
+            "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", 
+            "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3", 
+            "https://cdn.pixabay.com/download/audio/2022/02/07/audio_182957832d.mp3", 
+            "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d4633e2d4d.mp3"
         ];
 
         // --- STATE ---
-        let mly; // Mapillary Viewer
-        let map; // Leaflet Map
-        let accessToken = "";
-        let score = 0;
-        let timeLeft = 120;
-        let timerInterval;
-        let roundRetries = 0;
-        const MAX_RETRIES = 10;
-        
-        let currentTarget = null; // { lat, lng, name }
-        let startImageId = null;
-        let actualStartCoords = null; // { lat, lng }
+        let mly, map; 
+        let timeLeft = 120, timerInterval;
+        let currentTarget = null, startImageId = null, actualStartCoords = null, retryCount = 0;
+        let userMarker, targetMarker, resultLine, userGuessCoords = null;
+        let isMusicPlaying = false, currentTrackIndex = 0, bgMusic = new Audio();
 
-        let userMarker, targetMarker, resultLine;
-        let userGuessCoords = null;
-        let isMusicPlaying = false;
-        const bgMusic = document.getElementById('bg-music');
-        bgMusic.volume = 0.15;
-
-        function startGame() {
-            accessToken = MAPILLARY_TOKEN.trim();
-            if (!accessToken || accessToken === "DEIN_MAPILLARY_ACCESS_TOKEN_HIER") {
-                alert("Bitte im Code deinen eigenen MAPILLARY_TOKEN setzen (MLY|...).");
-                return;
+        // --- INIT ---
+        async function initApp() {
+            if (typeof mapillary === 'undefined') {
+                let checks = 0;
+                while(typeof mapillary === 'undefined' && checks < 10) { await new Promise(r => setTimeout(r, 500)); checks++; }
+                if (typeof mapillary === 'undefined') { alert("Fehler: Mapillary JS nicht geladen."); return; }
             }
 
-            score = 0;
-            document.getElementById('score').innerText = '0';
-            roundRetries = 0;
-
             document.getElementById('overlay-screen').classList.add('hidden');
-            document.getElementById('start-modal').classList.add('hidden');
-
+            initAudioSystem();
             initLeaflet();
             startRound();
         }
 
         function initLeaflet() {
             if(map) return;
-            map = L.map('map', {
-                center: [20,0],
-                zoom: 2,
-                zoomControl: false,
-                attributionControl: true
-            });
-
-            // Helle, klassische OSM-Karte
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>-Mitwirkende'
-            }).addTo(map);
-
+            map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OSM' }).addTo(map);
             map.on('click', onMapClick);
         }
 
+        // --- AUDIO SYSTEM ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function initAudioSystem() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            currentTrackIndex = Math.floor(Math.random() * PLAYLIST.length);
+            playTrack(currentTrackIndex);
+            bgMusic.addEventListener('ended', () => {
+                currentTrackIndex = (currentTrackIndex + 1) % PLAYLIST.length;
+                playTrack(currentTrackIndex);
+            });
+            bgMusic.volume = 0.15;
+            isMusicPlaying = true;
+            document.getElementById('music-icon').className="fas fa-volume-up";
+        }
+
+        function playTrack(index) {
+            bgMusic.src = PLAYLIST[index];
+            if(isMusicPlaying) bgMusic.play().catch(e => console.log("Autoplay blocked", e));
+        }
+
+        function toggleMusic() {
+            if(isMusicPlaying) { bgMusic.pause(); document.getElementById('music-icon').className="fas fa-volume-mute"; } 
+            else { 
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                bgMusic.play(); document.getElementById('music-icon').className="fas fa-volume-up"; 
+            }
+            isMusicPlaying = !isMusicPlaying;
+        }
+
+        function playTone(freq, type, duration, volume = 0.1, delay = 0) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+            gain.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + delay + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + delay);
+            osc.stop(audioCtx.currentTime + delay + duration + 0.1);
+        }
+
+        function playClick() { playTone(600, 'sine', 0.1, 0.05); }
+        function playTimerTick() { playTone(800, 'sine', 0.05, 0.03); }
+        function playSuccess() { 
+            const root = 523.25; 
+            playTone(root, 'sine', 1.5, 0.1, 0);
+            playTone(root * 1.25, 'sine', 1.5, 0.1, 0.1);
+            playTone(root * 1.5, 'sine', 1.5, 0.1, 0.2);
+            playTone(root * 2, 'sine', 2.0, 0.08, 0.3);
+        }
+        function playFail() { 
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        // --- GAME LOGIC ---
+
         async function startRound() {
-            if (roundRetries >= MAX_RETRIES) {
-                console.error("Zu viele Versuche, keine Bilder gefunden. Prüfe Token oder Internet.");
-                alert("Aktuell können keine Mapillary-Bilder geladen werden. Bitte Token/Netz prüfen.");
+            if (retryCount > 10) {
+                alert("Keine Bilder gefunden. Versuche es später erneut.");
+                retryCount = 0;
+                document.getElementById('overlay-screen').classList.remove('hidden'); 
                 return;
             }
 
             const container = document.getElementById('map-container');
             container.classList.remove('expanded');
-
-            if(userMarker) { map.removeLayer(userMarker); userMarker = null; }
-            if(targetMarker) { map.removeLayer(targetMarker); targetMarker = null; }
-            if(resultLine) { map.removeLayer(resultLine); resultLine = null; }
+            if(userMarker) map.removeLayer(userMarker);
+            if(targetMarker) map.removeLayer(targetMarker);
+            if(resultLine) map.removeLayer(resultLine);
+            userMarker = null;
             userGuessCoords = null;
-
-            const guessBtn = document.getElementById('guess-btn');
-            guessBtn.disabled = true;
-            guessBtn.style.display = 'block';
-
+            
+            document.getElementById('guess-btn').disabled = true;
+            document.getElementById('guess-btn').style.display = 'block';
             document.getElementById('loader').style.opacity = 1;
             
-            const randomIndex = Math.floor(Math.random() * TARGETS.length);
-            currentTarget = TARGETS[randomIndex];
+            // 1. Wähle zufälliges Ziel aus der großen DB
+            const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
+            currentTarget = target;
+            
+            // 2. Würfle eine RANDOM Location im Umkreis von ca. 2-3km
+            // Dies verhindert, dass man immer exakt am gleichen Punkt startet
+            const randomLat = target.lat + (Math.random() - 0.5) * 0.04; // +/- 0.02 Grad (~2.2km)
+            const randomLng = target.lng + (Math.random() - 0.5) * 0.04; 
             
             try {
-                const imgData = await fetchImageNear(currentTarget.lat, currentTarget.lng);
-                if(!imgData) {
-                    roundRetries++;
-                    throw new Error("Kein Bild gefunden");
-                }
+                const imgData = await fetchImageNear(randomLat, randomLng);
+                if(!imgData) throw new Error("Kein Bild");
                 
+                retryCount = 0;
                 startImageId = imgData.id;
                 actualStartCoords = { 
                     lat: imgData.geometry.coordinates[1], 
@@ -484,83 +415,64 @@
                 };
 
                 initMapillary(startImageId);
-                
                 document.getElementById('loader').style.opacity = 0;
-                roundRetries = 0;
                 startTimer();
 
             } catch(e) {
-                console.error(e);
-                // Versuche anderes Ziel
+                console.log("Retry search...", e);
+                retryCount++;
+                await new Promise(r => setTimeout(r, 200));
                 startRound();
             }
         }
 
         async function fetchImageNear(lat, lng) {
-            const delta = 0.01; // ~ 1 km
+            // Radius ca 1km
+            const delta = 0.01; 
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-            const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1&access_token=${encodeURIComponent(accessToken)}`;
+            const encodedToken = encodeURIComponent(MAPILLARY_CONFIG.accessToken);
+            const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1`;
             
-            const res = await fetch(url);
-            let data;
-            try {
-                data = await res.json();
-            } catch (e) {
-                console.error("Mapillary API Antwort nicht lesbar:", e);
-                return null;
-            }
-
-            if (!res.ok) {
-                console.error("Mapillary API Fehler:", data);
-                return null;
-            }
-
-            if(data.data && data.data.length > 0) {
-                return data.data[0];
-            }
-            console.warn("Kein Bild in diesem BBOX gefunden:", bbox);
+            const res = await fetch(url, {
+                headers: { 'Authorization': `OAuth ${MAPILLARY_CONFIG.accessToken}` }
+            });
+            
+            if (!res.ok) return null;
+            const data = await res.json();
+            if(data.data && data.data.length > 0) return data.data[0];
             return null;
         }
 
         function initMapillary(imgId) {
-            if (typeof mapillary === "undefined") {
-                console.error("mapillary ist nicht definiert – Script konnte nicht geladen werden.");
-                alert("Mapillary JS konnte nicht geladen werden. Prüfe CDN-URL oder Internet.");
-                return;
-            }
-
-            const { Viewer } = mapillary;
-
             if(mly) {
-                mly.moveTo(imgId).catch(e => console.log(e));
+                mly.moveTo(imgId).catch(e => console.log("Nav Fehler", e));
             } else {
-                mly = new Viewer({
-                    accessToken: accessToken,
-                    container: 'mly',
-                    imageId: imgId,
-                    component: {
-                        cover: false,
-                        direction: true,
-                        imagePlane: true,
-                        sequence: true
-                    }
-                });
-                window.dispatchEvent(new Event('resize'));
+                try {
+                    mly = new mapillary.Viewer({
+                        accessToken: MAPILLARY_CONFIG.accessToken,
+                        container: 'mly',
+                        imageId: imgId,
+                        component: {
+                            cover: false,
+                            direction: true,
+                            imagePlane: true,
+                            sequence: true, 
+                            spatial: true, // WICHTIG für 3D Movement
+                            mouse: { doubleClickZoom: false }
+                        }
+                    });
+                    window.dispatchEvent(new Event('resize'));
+                } catch (err) {
+                    console.error("Viewer Init Fehler:", err);
+                }
             }
         }
 
         function onMapClick(e) {
-            const container = document.getElementById('map-container');
-            if(container.classList.contains('expanded')) return;
-            
+            if(document.getElementById('map-container').classList.contains('expanded')) return;
             if(userMarker) map.removeLayer(userMarker);
             userMarker = L.circleMarker(e.latlng, {
-                radius: 8,
-                fillColor: "#05cb63",
-                color: "#fff",
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 1
+                radius: 8, fillColor: "#05cb63", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
             }).addTo(map);
             
             userGuessCoords = e.latlng;
@@ -583,7 +495,7 @@
 
                 if(timeLeft <= 10) {
                     tEl.classList.add('warning');
-                    playTone(800, 'sine', 0.05);
+                    playTimerTick();
                 }
                 if(timeLeft <= 0) {
                     clearInterval(timerInterval);
@@ -593,13 +505,12 @@
         }
 
         function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
+            const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
             return R * c;
         }
 
@@ -608,8 +519,6 @@
             let dist = 0, pts = 0;
             let guess = userGuessCoords || { lat: 0, lng: 0 };
             
-            if (!actualStartCoords) return;
-
             const targetLat = actualStartCoords.lat;
             const targetLng = actualStartCoords.lng;
 
@@ -621,14 +530,11 @@
             if(dist < 50) pts = 5000;
             if(!userGuessCoords) pts = 0;
 
-            score = pts;
-            document.getElementById('score').innerText = score.toString();
+            // SOUND REWARD
+            if(pts > 2000) playSuccess(); else playFail();
 
-            if(pts > 3000) playSuccess(); else playFail();
-
-            const guessBtn = document.getElementById('guess-btn');
-            guessBtn.style.display = 'none';
-
+            // UI RESULT
+            document.getElementById('guess-btn').style.display = 'none';
             const container = document.getElementById('map-container');
             container.classList.add('expanded');
 
@@ -636,62 +542,26 @@
                 map.invalidateSize();
                 
                 targetMarker = L.circleMarker([targetLat, targetLng], {
-                    radius: 8,
-                    fillColor: "#ff0055",
-                    color: "#fff",
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 1
+                    radius: 8, fillColor: "#ff0055", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
                 }).addTo(map).bindPopup(`<b>${currentTarget.name}</b>`).openPopup();
 
                 const latlngs = [[guess.lat, guess.lng], [targetLat, targetLng]];
-                resultLine = L.polyline(latlngs, {color: 'gold', dashArray: '10, 10'}).addTo(map);
+                resultLine = L.polyline(latlngs, {color: 'blue', dashArray: '10, 10'}).addTo(map);
                 map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
 
+                // REWARD TEXT
+                let title = "ERGEBNIS";
+                if(pts === 5000) title = "👑 PERFEKT! 👑";
+                else if(pts > 4500) title = "🔥 WELTKLASSE! 🔥";
+                else if(pts > 3000) title = "SEHR GUT!";
+                else if(pts > 1000) title = "GUTER VERSUCH";
+                else title = "KNAPP DANEBEN";
+
+                document.getElementById('res-title').innerText = title;
                 document.getElementById('res-location').innerText = currentTarget.name;
                 document.getElementById('res-distance').innerText = Math.round(dist) + " km entfernt";
-                document.getElementById('res-points').innerText = score + " Punkte";
+                document.getElementById('res-points').innerText = pts;
             }, 600);
-        }
-
-        function restartGame() {
-            score = 0;
-            document.getElementById('score').innerText = '0';
-            roundRetries = 0;
-            startRound();
-        }
-
-        // AUDIO
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playTone(freq, type, duration) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration + 0.1);
-        }
-        function playClick() { playTone(800, 'sine', 0.1); }
-        function playSuccess() {
-            playTone(440, 'triangle', 0.2);
-            setTimeout(()=>playTone(554, 'triangle', 0.4), 150);
-        }
-        function playFail() { playTone(150, 'sawtooth', 0.4); }
-        function toggleMusic() {
-            if(isMusicPlaying) {
-                bgMusic.pause();
-                document.getElementById('music-icon').className="fas fa-volume-mute";
-            } else {
-                bgMusic.play();
-                document.getElementById('music-icon').className="fas fa-volume-up";
-            }
-            isMusicPlaying = !isMusicPlaying;
         }
     </script>
 </body>
