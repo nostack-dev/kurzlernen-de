@@ -144,7 +144,7 @@
             <h4 style="color: #666; margin-bottom: 20px;">Christian H. Hohlfeld Edition</h4>
             <p style="color: #ccc; font-size: 0.9rem; line-height: 1.5;">
                 <b>Unlimited Edition</b><br>
-                Dynamische Startpunkte. Nie das gleiche Bild.<br>
+                High Quality Navigation Priorisiert.<br>
                 Finde heraus, wo du bist.
             </p>
             <button class="btn" onclick="initApp()" style="margin-top: 30px;">Starten <i class="fas fa-play"></i></button>
@@ -154,7 +154,7 @@
     <!-- LOADING INDICATOR -->
     <div id="loader">
         <div class="spinner"></div>
-        <span id="loader-text">Lade Zufalls-Ort...</span>
+        <span id="loader-text">Suche perfekte Startposition...</span>
     </div>
 
     <!-- GAME UI -->
@@ -375,10 +375,11 @@
         // --- GAME LOGIC ---
 
         async function startRound() {
-            if (retryCount > 10) {
-                alert("Keine Bilder gefunden. Versuche es später erneut.");
+            if (retryCount > 20) { // Mehr Retries erlaubt für Qualitätsfilter
+                alert("Keine qualitativ hochwertigen Bilder in dieser Region gefunden. Wir probieren es woanders.");
                 retryCount = 0;
-                document.getElementById('overlay-screen').classList.remove('hidden'); 
+                // Fallback: Einfach neu starten
+                location.reload(); 
                 return;
             }
 
@@ -393,19 +394,22 @@
             document.getElementById('guess-btn').disabled = true;
             document.getElementById('guess-btn').style.display = 'block';
             document.getElementById('loader').style.opacity = 1;
+            document.getElementById('loader-text').innerText = "Suche navigierbares Gebiet...";
             
             // 1. Wähle zufälliges Ziel aus der großen DB
             const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
             currentTarget = target;
             
-            // 2. Würfle eine RANDOM Location im Umkreis von ca. 2-3km
-            // Dies verhindert, dass man immer exakt am gleichen Punkt startet
-            const randomLat = target.lat + (Math.random() - 0.5) * 0.04; // +/- 0.02 Grad (~2.2km)
+            // 2. Zufalls-Radius: Wir gehen bis zu 2km (0.02 Grad) weg vom Zentrum
+            // Das sorgt für Varianz!
+            const randomLat = target.lat + (Math.random() - 0.5) * 0.04; 
             const randomLng = target.lng + (Math.random() - 0.5) * 0.04; 
             
             try {
-                const imgData = await fetchImageNear(randomLat, randomLng);
-                if(!imgData) throw new Error("Kein Bild");
+                // Wir fordern explizit 'sequence' und 'is_pano' an
+                const imgData = await fetchBestImageNear(randomLat, randomLng);
+                
+                if(!imgData) throw new Error("Kein passendes Bild");
                 
                 retryCount = 0;
                 startImageId = imgData.id;
@@ -419,19 +423,22 @@
                 startTimer();
 
             } catch(e) {
-                console.log("Retry search...", e);
+                console.log(`Retry (${retryCount}): ${currentTarget.name} - ${e.message}`);
                 retryCount++;
-                await new Promise(r => setTimeout(r, 200));
+                // Kurzes Warten, dann neu versuchen
+                await new Promise(r => setTimeout(r, 100));
                 startRound();
             }
         }
 
-        async function fetchImageNear(lat, lng) {
-            // Radius ca 1km
-            const delta = 0.01; 
+        async function fetchBestImageNear(lat, lng) {
+            // Radius ca 2km (etwas größer um mehr Auswahl zu haben)
+            const delta = 0.02; 
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
             const encodedToken = encodeURIComponent(MAPILLARY_CONFIG.accessToken);
-            const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1`;
+            
+            // Wir holen bis zu 30 Bilder in der Region um das Beste auszuwählen
+            const url = `https://graph.mapillary.com/images?fields=id,geometry,sequence,is_pano&bbox=${bbox}&limit=30`;
             
             const res = await fetch(url, {
                 headers: { 'Authorization': `OAuth ${MAPILLARY_CONFIG.accessToken}` }
@@ -439,8 +446,23 @@
             
             if (!res.ok) return null;
             const data = await res.json();
-            if(data.data && data.data.length > 0) return data.data[0];
-            return null;
+            
+            if(!data.data || data.data.length === 0) return null;
+
+            // PRIORISIERUNGS-LOGIK
+            // 1. Prio: 360° UND Sequenz (Beste Experience)
+            let bestImage = data.data.find(img => img.is_pano === true && img.sequence);
+            
+            // 2. Prio: Nur 360° (Gut zum Umschauen)
+            if(!bestImage) bestImage = data.data.find(img => img.is_pano === true);
+            
+            // 3. Prio: Nur Sequenz (Gut zum Laufen)
+            if(!bestImage) bestImage = data.data.find(img => img.sequence);
+            
+            // Fallback: Irgendein Bild
+            if(!bestImage) bestImage = data.data[Math.floor(Math.random() * data.data.length)];
+
+            return bestImage;
         }
 
         function initMapillary(imgId) {
@@ -456,8 +478,8 @@
                             cover: false,
                             direction: true,
                             imagePlane: true,
-                            sequence: true, 
-                            spatial: true, // WICHTIG für 3D Movement
+                            sequence: true, // Ermöglicht das Laufen (Pfeile)
+                            spatial: true, // WICHTIG: Ermöglicht 3D Navigation im Raum
                             mouse: { doubleClickZoom: false }
                         }
                     });
