@@ -171,7 +171,6 @@
         <div class="hud-panel">
             <i class="fas fa-stopwatch"></i> <span id="timer">02:00</span>
         </div>
-        <!-- Nur Timer, keine Rundenzahl -->
     </div>
 
     <!-- 3. Guess Button (Jetzt links unten) -->
@@ -202,14 +201,8 @@
         <i class="fas fa-volume-mute" id="music-icon"></i>
     </button>
 
-    <!-- Audio -->
-    <audio id="bg-music" loop>
-        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
-    </audio>
-
     <!-- LIBS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Korrekte URL für mapillary.js -->
     <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"></script>
 
     <script>
@@ -240,47 +233,48 @@
             { name: "Kapstadt Waterfront", lat: -33.9036, lng: 18.4205 }
         ];
 
+        // --- PLAYLIST (Chill / Lo-Fi) ---
+        const PLAYLIST = [
+            "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", // Empty Mind
+            "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3", // Lofi Study
+            "https://cdn.pixabay.com/download/audio/2022/02/07/audio_182957832d.mp3", // Lofi Chill
+            "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d4633e2d4d.mp3"  // Lofi Vibes
+        ];
+
         // --- STATE ---
-        let mly; // Mapillary Viewer
-        let map; // Leaflet Map
+        let mly; 
+        let map; 
         let timeLeft = 120;
         let timerInterval;
         
-        let currentTarget = null; // { lat, lng, name }
-        let startImageId = null; // ID from Mapillary API
-        let actualStartCoords = null; // { lat, lng } from image
-        let retryCount = 0; // Notbremse für Rekursion
+        let currentTarget = null;
+        let startImageId = null; 
+        let actualStartCoords = null; 
+        let retryCount = 0; 
 
         let userMarker, targetMarker, resultLine;
         let userGuessCoords = null;
         let isMusicPlaying = false;
-        const bgMusic = document.getElementById('bg-music');
-        bgMusic.volume = 0.15;
+        let currentTrackIndex = 0;
+        let bgMusic = new Audio();
 
         // --- INIT ---
         async function initApp() {
-            // Warte bis Mapillary geladen ist (Sicherheitsnetz)
             if (typeof mapillary === 'undefined') {
-                const btn = document.querySelector('#start-modal .btn');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Warte auf API...';
-                btn.disabled = true;
-                
+                // Simple wait
                 let checks = 0;
-                while(typeof mapillary === 'undefined' && checks < 20) {
+                while(typeof mapillary === 'undefined' && checks < 10) {
                     await new Promise(r => setTimeout(r, 500));
                     checks++;
                 }
-                
                 if (typeof mapillary === 'undefined') {
-                     alert("Mapillary Bibliothek konnte nicht geladen werden. Eventuell blockiert ein Adblocker das Skript.");
-                     btn.innerHTML = originalText;
-                     btn.disabled = false;
+                     alert("Fehler: Mapillary JS nicht geladen.");
                      return;
                 }
             }
 
             document.getElementById('overlay-screen').classList.add('hidden');
+            initAudioSystem(); // Init Audio immediately on user gesture
             initLeaflet();
             startRound();
         }
@@ -288,7 +282,6 @@
         function initLeaflet() {
             if(map) return;
             map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
-            // STANDARD OPENSTREETMAP TILES (Hell & Bunt)
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap'
@@ -296,11 +289,103 @@
             map.on('click', onMapClick);
         }
 
+        // --- AUDIO SYSTEM ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function initAudioSystem() {
+            // Init Background Music
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // Random Start Track
+            currentTrackIndex = Math.floor(Math.random() * PLAYLIST.length);
+            playTrack(currentTrackIndex);
+            
+            // Auto-Next
+            bgMusic.addEventListener('ended', () => {
+                currentTrackIndex = (currentTrackIndex + 1) % PLAYLIST.length;
+                playTrack(currentTrackIndex);
+            });
+            
+            bgMusic.volume = 0.15;
+            isMusicPlaying = true;
+            document.getElementById('music-icon').className="fas fa-volume-up";
+        }
+
+        function playTrack(index) {
+            bgMusic.src = PLAYLIST[index];
+            if(isMusicPlaying) bgMusic.play().catch(e => console.log("Autoplay blocked", e));
+        }
+
+        function toggleMusic() {
+            if(isMusicPlaying) { 
+                bgMusic.pause(); 
+                document.getElementById('music-icon').className="fas fa-volume-mute"; 
+            } else { 
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                bgMusic.play(); 
+                document.getElementById('music-icon').className="fas fa-volume-up"; 
+            }
+            isMusicPlaying = !isMusicPlaying;
+        }
+
+        // REWARDING SOUND DESIGN (Synthesized)
+        function playTone(freq, type, duration, volume = 0.1, delay = 0) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+            
+            // Soft Envelope
+            gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+            gain.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + delay + 0.02); // Attack
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration); // Release
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + delay);
+            osc.stop(audioCtx.currentTime + delay + duration + 0.1);
+        }
+
+        function playClick() { 
+            // Soft "Pop"
+            playTone(600, 'sine', 0.1, 0.05); 
+        }
+
+        function playTimerTick() {
+            // Woodblock Style
+            playTone(800, 'sine', 0.05, 0.03);
+        }
+
+        function playSuccess() { 
+            // Celesta-like C-Major Chord Arpeggio (Rewarding!)
+            const root = 523.25; // C5
+            playTone(root, 'sine', 1.5, 0.1, 0);
+            playTone(root * 1.25, 'sine', 1.5, 0.1, 0.1); // E5
+            playTone(root * 1.5, 'sine', 1.5, 0.1, 0.2); // G5
+            playTone(root * 2, 'sine', 2.0, 0.08, 0.3); // C6
+        }
+
+        function playFail() { 
+            // Soft descending slide
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+            
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
         // --- GAME LOGIC ---
 
         async function startRound() {
-            
-            // Rekursions-Bremse
             if (retryCount > 10) {
                 alert("Wir haben technische Probleme, Bilder zu finden. Bitte lade die Seite neu.");
                 retryCount = 0;
@@ -308,7 +393,6 @@
                 return;
             }
 
-            // Reset UI
             const container = document.getElementById('map-container');
             container.classList.remove('expanded');
             if(userMarker) map.removeLayer(userMarker);
@@ -319,22 +403,16 @@
             
             document.getElementById('guess-btn').disabled = true;
             document.getElementById('guess-btn').style.display = 'block';
-
-            // Loading State
             document.getElementById('loader').style.opacity = 1;
             
-            // Select Target
             const randomIndex = Math.floor(Math.random() * TARGETS.length);
             currentTarget = TARGETS[randomIndex];
             
-            // Fetch Mapillary Image near Target
             try {
                 const imgData = await fetchImageNear(currentTarget.lat, currentTarget.lng);
                 if(!imgData) throw new Error("Kein Bild gefunden");
                 
-                // Reset Retry Counter on success
                 retryCount = 0;
-
                 startImageId = imgData.id;
                 actualStartCoords = { 
                     lat: imgData.geometry.coordinates[1], 
@@ -342,40 +420,31 @@
                 };
 
                 initMapillary(startImageId);
-                
                 document.getElementById('loader').style.opacity = 0;
                 startTimer();
 
             } catch(e) {
                 console.log("Skip location (Versuch " + retryCount + "): " + currentTarget.name);
                 retryCount++;
-                // Schneller Retry
                 await new Promise(r => setTimeout(r, 200));
                 startRound();
             }
         }
 
         async function fetchImageNear(lat, lng) {
-            // Radius ca 1km
             const delta = 0.01; 
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-            
-            // WICHTIG: Token URL encoded!
+            const encodedToken = encodeURIComponent(MAPILLARY_CONFIG.accessToken);
             const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1`;
             
             const res = await fetch(url, {
-                headers: {
-                    'Authorization': `OAuth ${MAPILLARY_CONFIG.accessToken}` // Token im Header senden
-                }
+                headers: { 'Authorization': `OAuth ${MAPILLARY_CONFIG.accessToken}` }
             });
             
             if (!res.ok) return null;
-
             const data = await res.json();
             
-            if(data.data && data.data.length > 0) {
-                return data.data[0];
-            }
+            if(data.data && data.data.length > 0) return data.data[0];
             return null;
         }
 
@@ -405,7 +474,6 @@
 
         function onMapClick(e) {
             if(document.getElementById('map-container').classList.contains('expanded')) return;
-            
             if(userMarker) map.removeLayer(userMarker);
             userMarker = L.circleMarker(e.latlng, {
                 radius: 8, fillColor: "#05cb63", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
@@ -431,7 +499,7 @@
 
                 if(timeLeft <= 10) {
                     tEl.classList.add('warning');
-                    playTone(800, 'sine', 0.05);
+                    playTimerTick();
                 }
                 if(timeLeft <= 0) {
                     clearInterval(timerInterval);
@@ -466,10 +534,10 @@
             if(dist < 50) pts = 5000;
             if(!userGuessCoords) pts = 0;
 
-            // SOUND
-            if(pts > 3000) playSuccess(); else playFail();
+            // SOUND REWARD
+            if(pts > 2000) playSuccess(); else playFail();
 
-            // UI Result - SHOW IMMEDIATELY
+            // UI RESULT
             document.getElementById('guess-btn').style.display = 'none';
             const container = document.getElementById('map-container');
             container.classList.add('expanded');
@@ -485,7 +553,7 @@
                 resultLine = L.polyline(latlngs, {color: 'blue', dashArray: '10, 10'}).addTo(map);
                 map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
 
-                // REWARD LOGIC
+                // REWARD TEXT
                 let title = "ERGEBNIS";
                 if(pts === 5000) title = "👑 PERFEKT! 👑";
                 else if(pts > 4500) title = "🔥 WELTKLASSE! 🔥";
@@ -498,31 +566,6 @@
                 document.getElementById('res-distance').innerText = Math.round(dist) + " km entfernt";
                 document.getElementById('res-points').innerText = pts;
             }, 600);
-        }
-
-        // AUDIO
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playTone(freq, type, duration) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration + 0.1);
-        }
-        function playClick() { playTone(800, 'sine', 0.1); }
-        function playSuccess() { playTone(440, 'triangle', 0.2); setTimeout(()=>playTone(554, 'triangle', 0.4), 150); }
-        function playFail() { playTone(150, 'sawtooth', 0.4); }
-        function toggleMusic() {
-            if(isMusicPlaying) { bgMusic.pause(); document.getElementById('music-icon').className="fas fa-volume-mute"; }
-            else { bgMusic.play(); document.getElementById('music-icon').className="fas fa-volume-up"; }
-            isMusicPlaying = !isMusicPlaying;
         }
     </script>
 </body>
