@@ -137,12 +137,12 @@
             <div style="text-align: left; margin-top: 20px; font-size: 0.8rem; color: #aaa;">
                 <i class="fas fa-key"></i> Mapillary Client Token:
             </div>
-            <!-- Token ist jetzt prefilled -->
-            <input type="text" id="token-input" value="MLY|24346716201668098|5aa98286cac1799925ddf57c3f33f190">
+            <!-- Token ist jetzt prefilled (UNBEDINGT eigenen Token eintragen) -->
+            <input type="text" id="token-input" value="DEIN_EIGENER_MAPILLARY_CLIENT_TOKEN_HIER">
             
             <button class="btn" onclick="initApp()">Spiel Starten <i class="fas fa-play"></i></button>
             <p style="margin-top: 15px; font-size: 0.75rem; color: #555;">
-                Token ist bereits hinterlegt.
+                Token ist bereits hinterlegt (bitte eigenen Token verwenden).
             </p>
         </div>
 
@@ -206,14 +206,14 @@
 
     <!-- LIBS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Mapillary JS with onerror handler to debug loading issues -->
-    <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.min.js" onerror="alert('Mapillary JS konnte nicht geladen werden. Bitte prüfen Sie Ihre Internetverbindung oder Adblocker.')"></script>
+    <!-- WICHTIG: richtiges Mapillary-CDN -->
+    <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"></script>
 
     <script>
         // --- ZIELE (Lat/Lng) ---
         const TARGETS = [
             { name: "Eiffelturm Umgebung, Paris", lat: 48.8584, lng: 2.2945 },
-            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 }, 
+            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 },
             { name: "Times Square Area, NYC", lat: 40.7580, lng: -73.9855 },
             { name: "Shibuya Crossing, Tokyo", lat: 35.6595, lng: 139.7004 },
             { name: "Brandenburger Tor, Berlin", lat: 52.5163, lng: 13.3777 },
@@ -237,11 +237,12 @@
         let score = 0;
         let timeLeft = 120;
         let timerInterval;
+        let roundRetries = 0;
+        const MAX_RETRIES_PER_ROUND = 10;
         
         let currentTarget = null; // { lat, lng, name }
-        let startImageId = null; // ID from Mapillary API
-        let actualStartCoords = null; // { lat, lng } from image
-        let retryCount = 0; // Notbremse für Rekursion
+        let startImageId = null;
+        let actualStartCoords = null; // { lat, lng }
 
         let userMarker, targetMarker, resultLine;
         let userGuessCoords = null;
@@ -249,13 +250,12 @@
         const bgMusic = document.getElementById('bg-music');
         bgMusic.volume = 0.15;
 
-        // --- INIT ---
         function initApp() {
             const input = document.getElementById('token-input');
             accessToken = input.value.trim();
             
             if(!accessToken) {
-                alert("Token fehlt!");
+                alert("Token fehlt! Bitte eigenen Mapillary Client Token eintragen.");
                 return;
             } else {
                 localStorage.setItem('mly_token', accessToken);
@@ -266,7 +266,6 @@
             startRound();
         }
 
-        // Lade Token beim Start
         window.onload = () => {
             const saved = localStorage.getItem('mly_token');
             if(saved) document.getElementById('token-input').value = saved;
@@ -281,18 +280,16 @@
             map.on('click', onMapClick);
         }
 
-        // --- GAME LOGIC ---
-
         async function startRound() {
             if(currentRound >= maxRounds) {
                 endGame();
                 return;
             }
-            
-            // Rekursions-Bremse
-            if (retryCount > 10) {
-                alert("Es konnten keine Bilder gefunden werden. Bitte prüfen Sie das Token oder die Internetverbindung.");
-                retryCount = 0;
+
+            if (roundRetries >= MAX_RETRIES_PER_ROUND) {
+                console.error("Zu viele Versuche, keine Bilder gefunden. Prüfe Token oder Internet.");
+                alert("Aktuell können keine Mapillary-Bilder geladen werden. Bitte Token/Netz prüfen.");
+                endGame();
                 return;
             }
 
@@ -312,18 +309,16 @@
             // Loading State
             document.getElementById('loader').style.opacity = 1;
             
-            // Select Target
             const randomIndex = Math.floor(Math.random() * TARGETS.length);
             currentTarget = TARGETS[randomIndex];
             
-            // Fetch Mapillary Image near Target
             try {
                 const imgData = await fetchImageNear(currentTarget.lat, currentTarget.lng);
-                if(!imgData) throw new Error("Kein Bild gefunden");
+                if(!imgData) {
+                    roundRetries++;
+                    throw new Error("Kein Bild gefunden");
+                }
                 
-                // Reset Retry Counter on success
-                retryCount = 0;
-
                 startImageId = imgData.id;
                 actualStartCoords = { 
                     lat: imgData.geometry.coordinates[1], 
@@ -333,68 +328,66 @@
                 initMapillary(startImageId);
                 
                 document.getElementById('loader').style.opacity = 0;
+                roundRetries = 0;
                 startTimer();
 
             } catch(e) {
-                console.warn("Fehler beim Laden (Versuch " + retryCount + "):", e);
-                retryCount++;
-                // Retry different target
+                console.error(e);
+                // Versuche anderes Ziel
                 startRound();
             }
         }
 
         async function fetchImageNear(lat, lng) {
-            const delta = 0.005; // ca 500m
+            const delta = 0.01; // ~ 1 km
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-            // WICHTIG: Token muss URL-Encoded sein, da es "|" enthält
-            const encodedToken = encodeURIComponent(accessToken);
-            const url = `https://graph.mapillary.com/images?access_token=${encodedToken}&fields=id,geometry&bbox=${bbox}&limit=1`;
+            const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1&access_token=${encodeURIComponent(accessToken)}`;
             
             const res = await fetch(url);
-            
-            if (!res.ok) {
-                const errText = await res.text();
-                console.error("Mapillary API Error:", res.status, errText);
-                throw new Error("API request failed: " + res.status);
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                console.error("Mapillary API Antwort nicht lesbar:", e);
+                return null;
             }
 
-            const data = await res.json();
-            
+            if (!res.ok) {
+                console.error("Mapillary API Fehler:", data);
+                return null;
+            }
+
             if(data.data && data.data.length > 0) {
                 return data.data[0];
             }
+            console.warn("Kein Bild in diesem BBOX gefunden:", bbox);
             return null;
         }
 
         function initMapillary(imgId) {
-            // Sicherheits-Check: Ist die Library geladen?
-            if (typeof mapillary === 'undefined') {
-                console.error("Mapillary JS Library ist nicht definiert!");
-                alert("Fehler: Mapillary Bibliothek wurde nicht geladen.");
+            if (typeof mapillary === "undefined") {
+                console.error("mapillary ist nicht definiert – Script konnte nicht geladen werden.");
+                alert("Mapillary JS konnte nicht geladen werden. Prüfe CDN-URL oder Internet.");
                 return;
             }
+
+            const { Viewer } = mapillary;
 
             if(mly) {
                 mly.moveTo(imgId).catch(e => console.log(e));
             } else {
-                try {
-                    mly = new mapillary.Viewer({
-                        accessToken: accessToken,
-                        container: 'mly',
-                        imageId: imgId,
-                        component: {
-                            cover: false,
-                            direction: true,
-                            imagePlane: true,
-                            sequence: true, // Ermöglicht das "Laufen"
-                            mouse: { doubleClickZoom: false }
-                        }
-                    });
-                    // Resize fix
-                    window.dispatchEvent(new Event('resize'));
-                } catch (err) {
-                    console.error("Fehler beim Initialisieren des Viewers:", err);
-                }
+                mly = new Viewer({
+                    accessToken: accessToken,
+                    container: 'mly',
+                    imageId: imgId,
+                    component: {
+                        cover: false,
+                        direction: true,
+                        imagePlane: true,
+                        sequence: true
+                    }
+                });
+                window.dispatchEvent(new Event('resize'));
             }
         }
 
@@ -466,7 +459,6 @@
 
             if(pts > 3000) playSuccess(); else playFail();
 
-            // UI Result
             document.getElementById('guess-btn').style.display = 'none';
             const container = document.getElementById('map-container');
             container.classList.add('expanded');
@@ -474,12 +466,10 @@
             setTimeout(() => {
                 map.invalidateSize();
                 
-                // Zeige Ziel
                 targetMarker = L.circleMarker([targetLat, targetLng], {
                     radius: 8, fillColor: "#ff0055", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
                 }).addTo(map).bindPopup(`<b>${currentTarget.name}</b>`).openPopup();
 
-                // Linie
                 const latlngs = [[guess.lat, guess.lng], [targetLat, targetLng]];
                 resultLine = L.polyline(latlngs, {color: 'yellow', dashArray: '10, 10'}).addTo(map);
                 map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
