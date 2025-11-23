@@ -48,16 +48,27 @@
         #map-container {
             position: absolute; bottom: 30px; right: 30px;
             width: 300px; height: 200px; 
-            z-index: 30; border-radius: 12px; border: 4px solid rgba(255, 255, 255, 0.9);
+            z-index: 30; border-radius: 12px; border: 4px solid #fff;
             box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden;
             transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1); background: #fff;
         }
         
+        /* Map Toggle Button - FIXED VISIBILITY */
+        #map-toggle-btn {
+            position: absolute; top: 10px; right: 10px; z-index: 1000; /* High Z-Index */
+            width: 44px; height: 44px; 
+            background: var(--primary); color: #000;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: transform 0.2s;
+            font-size: 1.4rem; border: 2px solid #fff;
+        }
+        #map-toggle-btn:active { transform: scale(0.9); }
+
         /* Maximized State (Ingame Toggle) */
         #map-container.maximized {
             width: 90% !important; height: 65% !important;
             bottom: 100px; right: 5%; border-color: var(--own);
-            z-index: 40; /* Über HUD */
+            z-index: 40;
         }
 
         /* Result State (Fullscreen) */
@@ -67,18 +78,17 @@
             z-index: 200; 
         }
         
-        #map-container:not(.expanded):not(.maximized):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
         #map { width: 100%; height: 100%; background: #ddd; }
 
-        /* Map Toggle Button */
-        #map-toggle-btn {
-            position: absolute; top: 5px; right: 5px; z-index: 400;
-            width: 40px; height: 40px; background: #fff; color: #333;
-            border-radius: 8px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: background 0.2s;
-            font-size: 1.2rem;
+        /* --- AVATAR MARKER STYLES --- */
+        .avatar-marker {
+            border-radius: 50%; border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+            background-size: cover; background-position: center;
+            transition: transform 0.2s;
         }
-        #map-toggle-btn:active { background: #ddd; }
+        .avatar-marker.own { border-color: var(--own); z-index: 1000 !important; }
+        .avatar-marker.opponent { border-color: var(--accent); z-index: 900 !important; }
+        .avatar-marker:hover { transform: scale(1.2); z-index: 1100 !important; }
 
         /* --- HUD --- */
         #hud { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 15px; pointer-events: none; }
@@ -125,9 +135,12 @@
         .res-title { font-size: 2rem; font-weight: 900; margin-bottom: 5px; text-transform: uppercase; color: var(--primary); }
         .res-location { font-size: 1.2rem; color: #fff; margin-bottom: 15px; }
         .stats-row { display: flex; gap: 30px; justify-content: center; width: 100%; margin-bottom: 20px; }
-        .stat-box { text-align: center; }
+        .stat-box { text-align: center; display: flex; flex-direction: column; align-items: center; }
         .stat-val { font-size: 1.8rem; font-weight: bold; color: #fff; }
         .stat-label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* Mini Avatar in Stats */
+        .stat-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #fff; margin-bottom: 5px; background-size: cover; background-position: center; background-color: #555; }
 
         .btn-restart {
             background: var(--primary); color: #000; border: none; padding: 15px 50px;
@@ -149,55 +162,36 @@
         .mode-btn:hover { border-color: var(--primary); background: #2a2a2a; transform: translateY(-3px);}
         .mode-btn i { font-size: 2rem; color: var(--primary); }
         .mode-btn span { font-weight: bold; font-size: 1rem; }
-        #host-ui, #join-ui { display: none; margin-top: 20px; width: 100%; }
+        #host-ui, #join-ui, #profile-setup { display: none; margin-top: 20px; width: 100%; }
         .lobby-code { font-size: 3rem; letter-spacing: 8px; font-family: monospace; color: var(--primary); margin: 15px 0; font-weight: bold; background: #000; padding: 15px; border-radius: 15px; border: 1px solid #333;}
         input[type="text"] { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; border-radius: 10px; border: 2px solid #444; background: #000; color: white; font-family: monospace; letter-spacing: 5px; margin-bottom: 15px; text-transform: uppercase;}
         #music-toggle { position: absolute; top: 20px; right: 20px; z-index: 30; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;}
         
+        /* Profile Upload */
+        .file-upload-label {
+            display: inline-block; padding: 15px 30px; background: #333; color: #fff; border-radius: 50px; cursor: pointer; border: 2px dashed #666; transition: all 0.2s; margin-bottom: 20px;
+        }
+        .file-upload-label:hover { border-color: var(--primary); color: var(--primary); }
+        #profile-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary); display: none; margin: 0 auto 20px auto; }
+
         .hidden { display: none !important; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 767px) {
-            /* HUD nach unten links verschieben */
-            #hud {
-                top: auto;
-                bottom: 85px;
-                left: 5%;
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
+            #hud { top: auto; bottom: 85px; left: 5%; flex-direction: column; align-items: flex-start; gap: 8px; }
+            .hud-panel { padding: 5px 15px; font-size: 0.9rem; }
             
-            /* Kleinere Panels für Mobile */
-            .hud-panel {
-                padding: 5px 15px;
-                font-size: 0.9rem;
-            }
+            /* Kleinere Minimap für Mobile */
+            #map-container { width: 120px; height: 120px; bottom: 90px; right: 10px; }
+            #map-container.maximized { width: 94% !important; height: 60% !important; bottom: 100px; right: 3%; }
+            
+            /* Map Toggle Button besser erreichbar auf Mobile */
+            #map-toggle-btn { width: 36px; height: 36px; top: -15px; right: -5px; font-size: 1rem;}
 
-            /* Kleinere Minimap rechts unten */
-            #map-container { 
-                width: 120px; height: 120px; 
-                bottom: 90px; right: 10px;
-            }
-            
-            /* Maximierte Karte */
-            #map-container.maximized {
-                width: 94% !important; 
-                height: 60% !important; 
-                bottom: 100px; 
-                right: 3%;
-            }
-
-            #guess-btn {
-                width: 90%; left: 5%; bottom: 20px;
-                padding: 15px; font-size: 1.1rem;
-            }
-            
-            .result-card {
-                width: 95%; height: 90%; max-height: none;
-            }
+            #guess-btn { width: 90%; left: 5%; bottom: 20px; padding: 15px; font-size: 1.1rem; }
+            .result-card { width: 95%; height: 90%; max-height: none; }
             .result-stats-area { flex: 1.5; }
         }
     </style>
@@ -210,8 +204,19 @@
             <h1>P2P Versus</h1>
             <h4 style="color: #666; margin-bottom: 20px;">Christian H. Hohlfeld Edition</h4>
             
-            <!-- Main Menu -->
-            <div id="main-menu">
+            <!-- 1. Profile Setup (First Run) -->
+            <div id="profile-setup">
+                <p style="color: #ccc; margin-bottom: 15px;">Erstelle dein Profil für den Multiplayer:</p>
+                <img id="profile-preview" alt="Vorschau">
+                <label class="file-upload-label">
+                    <i class="fas fa-camera"></i> Foto aufnehmen / wählen
+                    <input type="file" id="avatar-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(this)">
+                </label>
+                <button class="btn" onclick="saveProfile()">Speichern & Weiter</button>
+            </div>
+
+            <!-- 2. Main Menu -->
+            <div id="main-menu" class="hidden">
                 <p style="color: #ccc;">Wähle deinen Modus:</p>
                 <div class="mode-select">
                     <div class="mode-btn" onclick="startSinglePlayer()">
@@ -227,6 +232,7 @@
                         <span>Beitreten</span>
                     </div>
                 </div>
+                <p style="margin-top: 20px; font-size: 0.8rem; color: #555; cursor: pointer;" onclick="resetProfile()">Profil ändern</p>
             </div>
 
             <!-- Host UI -->
@@ -263,10 +269,6 @@
         <div class="hud-panel hidden" id="opponent-status" style="background: rgba(255,0,85,0.2); border-color: var(--accent);">
             <i class="fas fa-user-secret" style="color: var(--accent)"></i> <span id="opp-status-text" style="color: #fff">Gegner sucht...</span>
         </div>
-        <!-- CONNECTION STATUS INDICATOR -->
-        <div class="hud-panel hidden" id="conn-panel" style="width: 40px; justify-content: center; padding: 0;">
-            <div id="conn-status" title="Verbindungsstatus"></div>
-        </div>
     </div>
 
     <button id="guess-btn" onclick="submitGuess()" disabled>Tipp Abgeben</button>
@@ -280,6 +282,7 @@
 
     <!-- MINIMAP (Normal State) -->
     <div id="map-container">
+        <!-- Map Toggle Button (Jetzt sicher sichtbar) -->
         <div id="map-toggle-btn" onclick="toggleMapSize(event)" title="Größe ändern">
             <i class="fas fa-expand-arrows-alt" id="map-toggle-icon"></i>
         </div>
@@ -300,17 +303,22 @@
                 <div class="res-location" id="res-location">Ort Name</div>
                 
                 <div class="stats-row">
+                    <!-- DU -->
                     <div class="stat-box">
+                        <div class="stat-avatar" id="p1-res-avatar"></div>
                         <div class="stat-val" style="color: var(--own)" id="res-p1-dist">---</div>
                         <div class="stat-label">Du (km)</div>
                     </div>
                     
+                    <!-- SOLO POINTS -->
                     <div class="stat-box" id="stat-box-points">
                         <div class="stat-val" style="color: #fff" id="res-points">0</div>
                         <div class="stat-label">Punkte</div>
                     </div>
 
+                    <!-- GEGNER -->
                     <div class="stat-box hidden" id="stat-box-p2">
+                        <div class="stat-avatar" id="p2-res-avatar"></div>
                         <div class="stat-val" style="color: var(--accent)" id="res-p2-dist">---</div>
                         <div class="stat-label">Gegner (km)</div>
                     </div>
@@ -369,6 +377,9 @@
         let timeLeft = 120, timerInterval;
         let isMusicPlaying = false, currentTrackIndex = 0;
         let isMapMaximized = false;
+        let myAvatar = null; // Base64 string
+        let opponentAvatar = null; // Base64 string
+
         const bgMusic = document.getElementById('bg-music');
         const PLAYLIST = ["https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3"];
         bgMusic.volume = 0.15;
@@ -383,7 +394,89 @@
         window.toggleMusic = toggleMusic;
         window.toggleMapSize = toggleMapSize;
         window.triggerNextRound = triggerNextRound;
-        window.initApp = () => {}; 
+        window.handleImageUpload = handleImageUpload;
+        window.saveProfile = saveProfile;
+        window.resetProfile = resetProfile;
+        window.initApp = initApp; 
+
+        // --- INIT ---
+        function initApp() {
+            // Check for existing profile
+            const savedAvatar = localStorage.getItem('geo_avatar');
+            if (savedAvatar) {
+                myAvatar = savedAvatar;
+                document.getElementById('profile-setup').classList.add('hidden');
+                document.getElementById('main-menu').classList.remove('hidden');
+            } else {
+                document.getElementById('profile-setup').style.display = 'block';
+            }
+        }
+
+        // --- PROFILE LOGIC ---
+        function handleImageUpload(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Resize image using canvas to avoid huge payloads
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        // Set size to 100x100 for avatar
+                        const maxSize = 100;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > height) {
+                            if (width > maxSize) {
+                                height *= maxSize / width;
+                                width = maxSize;
+                            }
+                        } else {
+                            if (height > maxSize) {
+                                width *= maxSize / height;
+                                height = maxSize;
+                            }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                        document.getElementById('profile-preview').src = dataUrl;
+                        document.getElementById('profile-preview').style.display = 'block';
+                        myAvatar = dataUrl; // Store temp
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function saveProfile() {
+            if (!myAvatar) {
+                // Create random colored placeholder if no image
+                const canvas = document.createElement('canvas');
+                canvas.width = 100; canvas.height = 100;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#'+Math.floor(Math.random()*16777215).toString(16);
+                ctx.fillRect(0,0,100,100);
+                ctx.fillStyle = '#fff';
+                ctx.font = '50px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('?', 50, 50);
+                myAvatar = canvas.toDataURL();
+            }
+            localStorage.setItem('geo_avatar', myAvatar);
+            document.getElementById('profile-setup').classList.add('hidden');
+            document.getElementById('main-menu').classList.remove('hidden');
+        }
+
+        function resetProfile() {
+            localStorage.removeItem('geo_avatar');
+            location.reload();
+        }
 
         // --- MENU LOGIC ---
         function resetToMenu() { location.reload(); }
@@ -397,6 +490,8 @@
             peer.on('open', () => document.getElementById('host-status').innerText = "Warte auf Spieler...");
             peer.on('connection', (c) => {
                 conn = c; isHost = true; isMultiplayer = true; setupConnection();
+                // Send my avatar immediately
+                setTimeout(() => conn.send({ type: 'PROFILE', data: { avatar: myAvatar } }), 500);
                 generateAndSendRound();
             });
             peer.on('error', () => { alert("Fehler. Code evtl. belegt."); resetToMenu(); });
@@ -414,19 +509,20 @@
             peer.on('open', () => {
                 conn = peer.connect(PEER_PREFIX + code);
                 isHost = false; isMultiplayer = true; setupConnection();
+                // Send my avatar immediately
+                setTimeout(() => conn.send({ type: 'PROFILE', data: { avatar: myAvatar } }), 500);
             });
             peer.on('error', () => alert("Verbindung fehlgeschlagen."));
         }
 
         function setupConnection() {
-            document.getElementById('conn-panel').classList.remove('hidden');
-            setConnStatus(true);
-            
-            conn.on('close', () => { alert("Gegner hat verlassen"); resetToMenu(); });
             conn.on('data', (msg) => {
                 if(msg.type === 'START_ROUND') {
                     resetGameUI();
                     startRoundLogic(msg.data);
+                }
+                if(msg.type === 'PROFILE') {
+                    opponentAvatar = msg.data.avatar;
                 }
                 if(msg.type === 'GUESS') {
                     opponentGuessData = msg.data;
@@ -435,12 +531,6 @@
                     checkGameState(); 
                 }
             });
-        }
-
-        function setConnStatus(online) {
-            const el = document.getElementById('conn-status');
-            if(online) { el.classList.add('online'); el.classList.remove('offline'); }
-            else { el.classList.add('offline'); el.classList.remove('online'); }
         }
 
         function generateAndSendRound() {
@@ -484,11 +574,12 @@
             mapC.classList.remove('maximized', 'expanded');
             mapC.style.display = 'block';
             
-            // Apply default styles again (important after moving back from modal)
+            // Reset styles
             mapC.style.position = "absolute";
             mapC.style.borderRadius = "12px";
             mapC.style.boxShadow = "0 10px 40px rgba(0,0,0,0.6)";
             
+            // Force layout reset for mobile/desktop
             if(window.innerWidth < 768) {
                 mapC.style.width = "120px"; mapC.style.height = "120px"; mapC.style.bottom = "90px"; mapC.style.right = "10px";
             } else {
@@ -568,7 +659,16 @@
             map.on('click', (e) => {
                 if(document.getElementById('result-modal-container').classList.contains('visible')) return;
                 if(userMarker) map.removeLayer(userMarker);
-                userMarker = L.circleMarker(e.latlng, {radius: 8, fillColor: "#0088ff", color: "#fff", weight: 2, fillOpacity: 1}).addTo(map);
+                
+                // Use Custom Avatar Icon for Marker
+                const icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="avatar-marker own" style="width:30px;height:30px;background-image:url('${myAvatar}')"></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                
+                userMarker = L.marker(e.latlng, {icon: icon}).addTo(map);
                 userGuessCoords = e.latlng;
                 document.getElementById('guess-btn').disabled = false;
                 playClick();
@@ -636,12 +736,23 @@
             mapContainer.style.boxShadow = "none";
 
             document.getElementById('result-modal-container').classList.add('visible');
+            
+            // Set Avatar Images in Stats
+            document.getElementById('p1-res-avatar').style.backgroundImage = `url('${myAvatar}')`;
+            if (opponentAvatar) document.getElementById('p2-res-avatar').style.backgroundImage = `url('${opponentAvatar}')`;
 
             setTimeout(() => {
                 map.invalidateSize();
                 L.circleMarker([currentTarget.lat, currentTarget.lng], {radius: 10, fillColor: "#05cb63", color: "#fff", weight:3, fillOpacity:1}).addTo(map).bindPopup("Ziel").openPopup();
+                
+                // Re-add my marker with icon
                 if(userGuessCoords) {
-                    L.circleMarker([userGuessCoords.lat, userGuessCoords.lng], {radius: 8, fillColor: "#0088ff", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Du");
+                    const icon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="avatar-marker own" style="width:30px;height:30px;background-image:url('${myAvatar}')"></div>`,
+                        iconSize: [30, 30], iconAnchor: [15, 15]
+                    });
+                    L.marker(userGuessCoords, {icon: icon}).addTo(map).bindPopup("Du");
                     L.polyline([[userGuessCoords.lat, userGuessCoords.lng], [currentTarget.lat, currentTarget.lng]], {color: '#0088ff', dashArray:'5,5'}).addTo(map);
                 }
 
@@ -650,7 +761,14 @@
 
                 if(isMultiplayer) {
                     const oppData = opponentDataOrPoints;
-                    L.circleMarker([oppData.lat, oppData.lng], {radius: 8, fillColor: "#ff0055", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Gegner");
+                    // Add opponent marker with icon
+                    const oppIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="avatar-marker opponent" style="width:30px;height:30px;background-image:url('${opponentAvatar || ''}')"></div>`,
+                        iconSize: [30, 30], iconAnchor: [15, 15]
+                    });
+                    
+                    L.marker([oppData.lat, oppData.lng], {icon: oppIcon}).addTo(map).bindPopup("Gegner");
                     L.polyline([[oppData.lat, oppData.lng], [currentTarget.lat, currentTarget.lng]], {color: '#ff0055', dashArray:'5,5'}).addTo(map);
                     
                     document.getElementById('stat-box-p2').classList.remove('hidden');
@@ -721,6 +839,9 @@
         function playTimerTick(){playTone(800,'sine',0.05,0.03);}
         function playSuccess(){const r=523.25;playTone(r,'sine',1.5,0.1,0);playTone(r*1.25,'sine',1.5,0.1,0.1);playTone(r*1.5,'sine',1.5,0.1,0.2);playTone(r*2,'sine',2,0.08,0.3);}
         function playFail(){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.setValueAtTime(300,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(100,audioCtx.currentTime+0.5);g.gain.setValueAtTime(0.1,audioCtx.currentTime);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.5);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+0.5);}
+        
+        // Auto Init on Load to check profile
+        window.onload = initApp;
     </script>
 </body>
 </html>
