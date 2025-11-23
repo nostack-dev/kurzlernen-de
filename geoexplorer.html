@@ -19,139 +19,286 @@
             --hud-bg: rgba(0, 0, 0, 0.7);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
 
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); color: white; }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            color: white;
+        }
 
         /* --- VIEW LAYER (Mapillary) --- */
-        #mly { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background: #000; }
+        #mly {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background: #000;
+        }
         
         /* Loading Indicator */
         #loader {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 5; font-size: 1.2rem; font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            font-size: 1.2rem;
+            font-weight: bold;
             text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-            display: flex; flex-direction: column; align-items: center; gap: 15px;
-            pointer-events: none; opacity: 0; transition: opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
         .spinner {
-            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
-            border-radius: 50%; border-top-color: var(--primary);
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            border-top-color: var(--primary);
             animation: spin 0.8s ease-in-out infinite;
         }
 
         /* --- MINIMAP --- */
         #map-container {
-            position: absolute; bottom: 30px; right: 30px;
-            width: 350px; height: 250px; z-index: 10;
-            border-radius: 12px;
-            border: 4px solid rgba(255, 255, 255, 0.9);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 350px;
+            height: 250px;
+            z-index: 10;
+            border-radius: 14px;
+            border: 3px solid rgba(0,0,0,0.15);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
             overflow: hidden;
             transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-            background: #fff; /* Helles Hintergrund für die Map */
+            background: #f5f5f5; /* helles Panel */
         }
         #map-container.expanded {
-            width: 80%; height: 70%; bottom: 50%; right: 50%;
-            transform: translate(50%, 50%); border-color: var(--primary); z-index: 50;
+            width: 80%;
+            height: 70%;
+            bottom: 50%;
+            right: 50%;
+            transform: translate(50%, 50%);
+            border-color: var(--primary);
+            z-index: 50;
         }
-        #map-container:not(.expanded):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
-        
-        /* Helle Karte braucht keine dunkle Hintergrundfarbe */
-        #map { width: 100%; height: 100%; background: #ddd; }
+        #map-container:not(.expanded):hover {
+            transform: scale(1.02);
+            border-color: var(--primary);
+            cursor: crosshair;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #e8e8e8; /* heller Hintergrund beim Laden */
+        }
 
         /* --- HUD --- */
-        #hud { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 15px; pointer-events: none; }
-        .hud-panel {
-            background: var(--hud-bg); backdrop-filter: blur(10px);
-            padding: 10px 20px; border-radius: 30px;
-            border: 1px solid rgba(255,255,255,0.1);
-            font-weight: bold; display: flex; align-items: center; gap: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: auto;
-        }
-        #timer { font-size: 1.5rem; color: var(--primary); font-family: monospace; }
-        #timer.warning { color: var(--accent); animation: pulse 1s infinite; }
-
-        /* --- INTERACTION (Button verschoben nach links unten) --- */
-        #guess-btn {
-            position: absolute; 
-            bottom: 30px; 
-            left: 30px; /* NEU: Links statt rechts, aus dem Weg der Navigation */
-            right: auto;
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
             z-index: 20;
-            background: var(--primary); color: #000; border: none;
-            padding: 15px 40px; font-size: 1.2rem; font-weight: bold;
-            border-radius: 50px; cursor: pointer;
+            display: flex;
+            gap: 15px;
+            pointer-events: none;
+        }
+        .hud-panel {
+            background: var(--hud-bg);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            pointer-events: auto;
+        }
+        #timer {
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-family: monospace;
+        }
+        #timer.warning {
+            color: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        /* --- INTERACTION --- */
+        #guess-btn {
+            position: absolute;
+            bottom: 30px;
+            left: 30px; /* aus dem FOV raus */
+            z-index: 20;
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 999px;
+            cursor: pointer;
             box-shadow: 0 4px 20px rgba(5, 203, 99, 0.4);
-            transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        #guess-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6); }
-        #guess-btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
+        #guess-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6);
+        }
+        #guess-btn:disabled {
+            background: #ccc;
+            color: #777;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
 
-        /* --- RESULT OVERLAY (Der Reward Screen) --- */
+        /* --- RESULT OVERLAY --- */
         #result-overlay {
-            position: absolute; 
-            top: 50%; left: 50%; transform: translate(-50%, -50%); /* Zentriert */
-            background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(15px);
-            padding: 40px; border-radius: 20px; text-align: center;
-            border: 2px solid var(--primary);
-            opacity: 0; pointer-events: none; transition: opacity 0.5s;
-            min-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); z-index: 100;
-            display: flex; flex-direction: column; gap: 10px; align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+            padding: 20px 40px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid rgba(0,0,0,0.08);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s 0.5s;
+            min-width: 320px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            z-index: 100;
+            color: #111;
         }
-        #map-container.expanded #result-overlay { opacity: 1; pointer-events: all; }
-        
-        .result-title { font-size: 2.5rem; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900;}
-        .location-reveal { color: #fff; font-size: 1.5rem; font-weight: bold;}
-        .distance-info { color: #ccc; font-size: 1.1rem; margin-bottom: 10px; }
-        
-        .score-box { 
-            background: rgba(255,255,255,0.1); padding: 15px 30px; border-radius: 15px; margin: 15px 0; width: 100%;
+        #map-container.expanded #result-overlay {
+            opacity: 1;
+            pointer-events: all;
         }
-        .score-change { font-size: 4rem; color: var(--primary); font-weight: bold; line-height: 1; text-shadow: 0 0 30px rgba(5, 203, 99, 0.4); }
-        .score-label { color: #888; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px; }
-        
-        .btn { 
-            background: var(--primary); border: none; padding: 15px 40px; color: #000; font-weight: bold; border-radius: 50px; 
-            cursor: pointer; margin-top: 10px; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 1px; 
-            box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: inline-flex; align-items: center; gap: 10px;
+        .location-reveal {
+            color: #111;
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 5px;
         }
-        .btn:hover { opacity: 0.9; transform: scale(1.05); box-shadow: 0 6px 20px rgba(5,203,99,0.6); }
+        .score-change {
+            font-size: 2.5rem;
+            color: #111;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .btn {
+            background: var(--primary);
+            border: none;
+            padding: 10px 25px;
+            color: #000;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 1rem;
+        }
+        .btn:hover { opacity: 0.9; }
 
-        /* --- START / END SCREENS --- */
+        /* --- START SCREEN --- */
         #overlay-screen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 200;
-            display: flex; justify-content: center; align-items: center; flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 200;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
         }
-        .modal { background: #1a1a1a; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #333; max-width: 500px; width: 90%; }
-        h1 { font-size: 2.2rem; background: linear-gradient(to right, var(--primary), #fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+        .modal {
+            background: #1a1a1a;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            border: 1px solid #333;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            font-size: 2.2rem;
+            background: linear-gradient(to right, var(--primary), #fff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
         
         /* Music Toggle */
-        #music-toggle { position: absolute; top: 20px; right: 20px; z-index: 30; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;}
+        #music-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 30;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
         .hidden { display: none !important; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
     <!-- FontAwesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
 
-    <!-- START SCREEN -->
+    <!-- START OVERLAY -->
     <div id="overlay-screen">
         <div class="modal" id="start-modal">
             <h1>Mapillary Explorer</h1>
             <h4 style="color: #666; margin-bottom: 20px;">Christian H. Hohlfeld Edition</h4>
             <p style="color: #ccc; font-size: 0.9rem; line-height: 1.5;">
-                Erkunde die Welt mit echten 360°-Aufnahmen.<br>
-                Finde heraus, wo du bist. <br>
-                Ein Ort. Eine Chance.
+                Ein Versuch, ein Ort, ein Score.<br>
+                Navigiere wie in Street View, setz deinen Pin auf der Karte<br>
+                und finde heraus, wie nah du dran warst.
             </p>
-            
-            <!-- Token ist jetzt hardcoded und unsichtbar für den User -->
-            <button class="btn" onclick="initApp()" style="margin-top: 30px;">Starten <i class="fas fa-play"></i></button>
+            <button class="btn" onclick="startGame()">Spiel starten <i class="fas fa-play"></i></button>
+            <p style="margin-top: 16px; font-size: 0.75rem; color: #777;">
+                Datenquelle: Mapillary – <a id="mapillary-link" href="#" target="_blank" rel="noreferrer" style="color:#05cb63;">App-Info</a>
+            </p>
         </div>
     </div>
 
@@ -171,28 +318,24 @@
         <div class="hud-panel">
             <i class="fas fa-stopwatch"></i> <span id="timer">02:00</span>
         </div>
+        <div class="hud-panel">
+            <i class="fas fa-trophy"></i> <span id="score">0</span>
+        </div>
     </div>
 
-    <!-- 3. Guess Button (Jetzt links unten) -->
-    <button id="guess-btn" onclick="submitGuess()" disabled>Tipp Abgeben</button>
+    <!-- 3. Guess Button -->
+    <button id="guess-btn" onclick="submitGuess()" disabled>Tipp abgeben</button>
 
     <!-- 4. Map & Result -->
     <div id="map-container">
         <div id="map"></div>
         
-        <!-- Result / Reward Overlay -->
+        <!-- Result Info -->
         <div id="result-overlay">
-            <div class="result-title" id="res-title">ERGEBNIS</div>
             <div class="location-reveal" id="res-location">Ort Name</div>
-            <div class="distance-info" id="res-distance">0 km daneben</div>
-            
-            <div class="score-box">
-                <div class="score-change" id="res-points">0</div>
-                <div class="score-label">PUNKTE ERZIELT</div>
-            </div>
-
-            <!-- RESTART BUTTON -->
-            <button class="btn" onclick="location.reload()"><i class="fas fa-redo"></i> Neu Starten</button>
+            <div style="color: #555; margin-bottom: 5px;" id="res-distance">0 km daneben</div>
+            <div class="score-change" id="res-points">0 Punkte</div>
+            <button class="btn" onclick="restartGame()">Neu starten <i class="fas fa-redo"></i></button>
         </div>
     </div>
 
@@ -201,24 +344,38 @@
         <i class="fas fa-volume-mute" id="music-icon"></i>
     </button>
 
+    <!-- Audio -->
+    <audio id="bg-music" loop>
+        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
+    </audio>
+
     <!-- LIBS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Mapillary JS -->
     <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"></script>
 
     <script>
-        // --- KONFIGURATION ---
-        const MAPILLARY_CONFIG = {
-            authUrl: "https://www.mapillary.com/connect?client_id=24346716201668098",
-            accessToken: "MLY|24346716201668098|5aa98286cac1799925ddf57c3f33f190",
-            clientSecret: "MLY|24346716201668098|5e0204d76f8dbc42efb1f2b31da8fb49",
-            redirectUrl: "https://kurzlernen.de/",
-            appId: "24346716201668098"
-        };
+        // *** HIER EINMALIG DEINEN MAPILLARY CLIENT TOKEN SETZEN ***
+        // Den kompletten MLY|... Access Token eintragen:
+        const MAPILLARY_TOKEN = "DEIN_MAPILLARY_ACCESS_TOKEN_HIER"; // <- ersetzen
+
+        // Nicht-geheime App-Metadaten:
+        const MAPILLARY_CLIENT_ID = "24346716201668098";
+        const MAPILLARY_REDIRECT_URI = "https://kurzlernen.de/";
+        const MAPILLARY_CONNECT_URL =
+            "https://www.mapillary.com/connect?client_id=" + MAPILLARY_CLIENT_ID;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const link = document.getElementById("mapillary-link");
+            if (link) {
+                link.href = MAPILLARY_CONNECT_URL;
+            }
+        });
 
         // --- ZIELE (Lat/Lng) ---
         const TARGETS = [
             { name: "Eiffelturm Umgebung, Paris", lat: 48.8584, lng: 2.2945 },
-            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 }, 
+            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 },
             { name: "Times Square Area, NYC", lat: 40.7580, lng: -73.9855 },
             { name: "Shibuya Crossing, Tokyo", lat: 35.6595, lng: 139.7004 },
             { name: "Brandenburger Tor, Berlin", lat: 52.5163, lng: 13.3777 },
@@ -233,176 +390,81 @@
             { name: "Kapstadt Waterfront", lat: -33.9036, lng: 18.4205 }
         ];
 
-        // --- PLAYLIST (Chill / Lo-Fi) ---
-        const PLAYLIST = [
-            "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", // Empty Mind
-            "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3", // Lofi Study
-            "https://cdn.pixabay.com/download/audio/2022/02/07/audio_182957832d.mp3", // Lofi Chill
-            "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d4633e2d4d.mp3"  // Lofi Vibes
-        ];
-
         // --- STATE ---
-        let mly; 
-        let map; 
+        let mly; // Mapillary Viewer
+        let map; // Leaflet Map
+        let accessToken = "";
+        let score = 0;
         let timeLeft = 120;
         let timerInterval;
+        let roundRetries = 0;
+        const MAX_RETRIES = 10;
         
-        let currentTarget = null;
-        let startImageId = null; 
-        let actualStartCoords = null; 
-        let retryCount = 0; 
+        let currentTarget = null; // { lat, lng, name }
+        let startImageId = null;
+        let actualStartCoords = null; // { lat, lng }
 
         let userMarker, targetMarker, resultLine;
         let userGuessCoords = null;
         let isMusicPlaying = false;
-        let currentTrackIndex = 0;
-        let bgMusic = new Audio();
+        const bgMusic = document.getElementById('bg-music');
+        bgMusic.volume = 0.15;
 
-        // --- INIT ---
-        async function initApp() {
-            if (typeof mapillary === 'undefined') {
-                // Simple wait
-                let checks = 0;
-                while(typeof mapillary === 'undefined' && checks < 10) {
-                    await new Promise(r => setTimeout(r, 500));
-                    checks++;
-                }
-                if (typeof mapillary === 'undefined') {
-                     alert("Fehler: Mapillary JS nicht geladen.");
-                     return;
-                }
+        function startGame() {
+            accessToken = MAPILLARY_TOKEN.trim();
+            if (!accessToken || accessToken === "DEIN_MAPILLARY_ACCESS_TOKEN_HIER") {
+                alert("Bitte im Code deinen eigenen MAPILLARY_TOKEN setzen (MLY|...).");
+                return;
             }
 
+            score = 0;
+            document.getElementById('score').innerText = '0';
+            roundRetries = 0;
+
             document.getElementById('overlay-screen').classList.add('hidden');
-            initAudioSystem(); // Init Audio immediately on user gesture
+            document.getElementById('start-modal').classList.add('hidden');
+
             initLeaflet();
             startRound();
         }
 
         function initLeaflet() {
             if(map) return;
-            map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
+            map = L.map('map', {
+                center: [20,0],
+                zoom: 2,
+                zoomControl: false,
+                attributionControl: true
+            });
+
+            // Helle, klassische OSM-Karte
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>-Mitwirkende'
             }).addTo(map);
+
             map.on('click', onMapClick);
         }
 
-        // --- AUDIO SYSTEM ---
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        function initAudioSystem() {
-            // Init Background Music
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            // Random Start Track
-            currentTrackIndex = Math.floor(Math.random() * PLAYLIST.length);
-            playTrack(currentTrackIndex);
-            
-            // Auto-Next
-            bgMusic.addEventListener('ended', () => {
-                currentTrackIndex = (currentTrackIndex + 1) % PLAYLIST.length;
-                playTrack(currentTrackIndex);
-            });
-            
-            bgMusic.volume = 0.15;
-            isMusicPlaying = true;
-            document.getElementById('music-icon').className="fas fa-volume-up";
-        }
-
-        function playTrack(index) {
-            bgMusic.src = PLAYLIST[index];
-            if(isMusicPlaying) bgMusic.play().catch(e => console.log("Autoplay blocked", e));
-        }
-
-        function toggleMusic() {
-            if(isMusicPlaying) { 
-                bgMusic.pause(); 
-                document.getElementById('music-icon').className="fas fa-volume-mute"; 
-            } else { 
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-                bgMusic.play(); 
-                document.getElementById('music-icon').className="fas fa-volume-up"; 
-            }
-            isMusicPlaying = !isMusicPlaying;
-        }
-
-        // REWARDING SOUND DESIGN (Synthesized)
-        function playTone(freq, type, duration, volume = 0.1, delay = 0) {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
-            
-            // Soft Envelope
-            gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
-            gain.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + delay + 0.02); // Attack
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration); // Release
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(audioCtx.currentTime + delay);
-            osc.stop(audioCtx.currentTime + delay + duration + 0.1);
-        }
-
-        function playClick() { 
-            // Soft "Pop"
-            playTone(600, 'sine', 0.1, 0.05); 
-        }
-
-        function playTimerTick() {
-            // Woodblock Style
-            playTone(800, 'sine', 0.05, 0.03);
-        }
-
-        function playSuccess() { 
-            // Celesta-like C-Major Chord Arpeggio (Rewarding!)
-            const root = 523.25; // C5
-            playTone(root, 'sine', 1.5, 0.1, 0);
-            playTone(root * 1.25, 'sine', 1.5, 0.1, 0.1); // E5
-            playTone(root * 1.5, 'sine', 1.5, 0.1, 0.2); // G5
-            playTone(root * 2, 'sine', 2.0, 0.08, 0.3); // C6
-        }
-
-        function playFail() { 
-            // Soft descending slide
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
-            
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
-        }
-
-        // --- GAME LOGIC ---
-
         async function startRound() {
-            if (retryCount > 10) {
-                alert("Wir haben technische Probleme, Bilder zu finden. Bitte lade die Seite neu.");
-                retryCount = 0;
-                document.getElementById('overlay-screen').classList.remove('hidden'); 
+            if (roundRetries >= MAX_RETRIES) {
+                console.error("Zu viele Versuche, keine Bilder gefunden. Prüfe Token oder Internet.");
+                alert("Aktuell können keine Mapillary-Bilder geladen werden. Bitte Token/Netz prüfen.");
                 return;
             }
 
             const container = document.getElementById('map-container');
             container.classList.remove('expanded');
-            if(userMarker) map.removeLayer(userMarker);
-            if(targetMarker) map.removeLayer(targetMarker);
-            if(resultLine) map.removeLayer(resultLine);
-            userMarker = null;
+
+            if(userMarker) { map.removeLayer(userMarker); userMarker = null; }
+            if(targetMarker) { map.removeLayer(targetMarker); targetMarker = null; }
+            if(resultLine) { map.removeLayer(resultLine); resultLine = null; }
             userGuessCoords = null;
-            
-            document.getElementById('guess-btn').disabled = true;
-            document.getElementById('guess-btn').style.display = 'block';
+
+            const guessBtn = document.getElementById('guess-btn');
+            guessBtn.disabled = true;
+            guessBtn.style.display = 'block';
+
             document.getElementById('loader').style.opacity = 1;
             
             const randomIndex = Math.floor(Math.random() * TARGETS.length);
@@ -410,9 +472,11 @@
             
             try {
                 const imgData = await fetchImageNear(currentTarget.lat, currentTarget.lng);
-                if(!imgData) throw new Error("Kein Bild gefunden");
+                if(!imgData) {
+                    roundRetries++;
+                    throw new Error("Kein Bild gefunden");
+                }
                 
-                retryCount = 0;
                 startImageId = imgData.id;
                 actualStartCoords = { 
                     lat: imgData.geometry.coordinates[1], 
@@ -420,63 +484,83 @@
                 };
 
                 initMapillary(startImageId);
+                
                 document.getElementById('loader').style.opacity = 0;
+                roundRetries = 0;
                 startTimer();
 
             } catch(e) {
-                console.log("Skip location (Versuch " + retryCount + "): " + currentTarget.name);
-                retryCount++;
-                await new Promise(r => setTimeout(r, 200));
+                console.error(e);
+                // Versuche anderes Ziel
                 startRound();
             }
         }
 
         async function fetchImageNear(lat, lng) {
-            const delta = 0.01; 
+            const delta = 0.01; // ~ 1 km
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-            const encodedToken = encodeURIComponent(MAPILLARY_CONFIG.accessToken);
-            const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1`;
+            const url = `https://graph.mapillary.com/images?fields=id,geometry&bbox=${bbox}&limit=1&access_token=${encodeURIComponent(accessToken)}`;
             
-            const res = await fetch(url, {
-                headers: { 'Authorization': `OAuth ${MAPILLARY_CONFIG.accessToken}` }
-            });
-            
-            if (!res.ok) return null;
-            const data = await res.json();
-            
-            if(data.data && data.data.length > 0) return data.data[0];
+            const res = await fetch(url);
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                console.error("Mapillary API Antwort nicht lesbar:", e);
+                return null;
+            }
+
+            if (!res.ok) {
+                console.error("Mapillary API Fehler:", data);
+                return null;
+            }
+
+            if(data.data && data.data.length > 0) {
+                return data.data[0];
+            }
+            console.warn("Kein Bild in diesem BBOX gefunden:", bbox);
             return null;
         }
 
         function initMapillary(imgId) {
+            if (typeof mapillary === "undefined") {
+                console.error("mapillary ist nicht definiert – Script konnte nicht geladen werden.");
+                alert("Mapillary JS konnte nicht geladen werden. Prüfe CDN-URL oder Internet.");
+                return;
+            }
+
+            const { Viewer } = mapillary;
+
             if(mly) {
-                mly.moveTo(imgId).catch(e => console.log("Nav Fehler", e));
+                mly.moveTo(imgId).catch(e => console.log(e));
             } else {
-                try {
-                    mly = new mapillary.Viewer({
-                        accessToken: MAPILLARY_CONFIG.accessToken,
-                        container: 'mly',
-                        imageId: imgId,
-                        component: {
-                            cover: false,
-                            direction: true,
-                            imagePlane: true,
-                            sequence: true, 
-                            mouse: { doubleClickZoom: false }
-                        }
-                    });
-                    window.dispatchEvent(new Event('resize'));
-                } catch (err) {
-                    console.error("Viewer Init Fehler:", err);
-                }
+                mly = new Viewer({
+                    accessToken: accessToken,
+                    container: 'mly',
+                    imageId: imgId,
+                    component: {
+                        cover: false,
+                        direction: true,
+                        imagePlane: true,
+                        sequence: true
+                    }
+                });
+                window.dispatchEvent(new Event('resize'));
             }
         }
 
         function onMapClick(e) {
-            if(document.getElementById('map-container').classList.contains('expanded')) return;
+            const container = document.getElementById('map-container');
+            if(container.classList.contains('expanded')) return;
+            
             if(userMarker) map.removeLayer(userMarker);
             userMarker = L.circleMarker(e.latlng, {
-                radius: 8, fillColor: "#05cb63", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
+                radius: 8,
+                fillColor: "#05cb63",
+                color: "#fff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 1
             }).addTo(map);
             
             userGuessCoords = e.latlng;
@@ -499,7 +583,7 @@
 
                 if(timeLeft <= 10) {
                     tEl.classList.add('warning');
-                    playTimerTick();
+                    playTone(800, 'sine', 0.05);
                 }
                 if(timeLeft <= 0) {
                     clearInterval(timerInterval);
@@ -509,12 +593,13 @@
         }
 
         function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c;
         }
 
@@ -523,6 +608,8 @@
             let dist = 0, pts = 0;
             let guess = userGuessCoords || { lat: 0, lng: 0 };
             
+            if (!actualStartCoords) return;
+
             const targetLat = actualStartCoords.lat;
             const targetLng = actualStartCoords.lng;
 
@@ -534,11 +621,14 @@
             if(dist < 50) pts = 5000;
             if(!userGuessCoords) pts = 0;
 
-            // SOUND REWARD
-            if(pts > 2000) playSuccess(); else playFail();
+            score = pts;
+            document.getElementById('score').innerText = score.toString();
 
-            // UI RESULT
-            document.getElementById('guess-btn').style.display = 'none';
+            if(pts > 3000) playSuccess(); else playFail();
+
+            const guessBtn = document.getElementById('guess-btn');
+            guessBtn.style.display = 'none';
+
             const container = document.getElementById('map-container');
             container.classList.add('expanded');
 
@@ -546,26 +636,62 @@
                 map.invalidateSize();
                 
                 targetMarker = L.circleMarker([targetLat, targetLng], {
-                    radius: 8, fillColor: "#ff0055", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
+                    radius: 8,
+                    fillColor: "#ff0055",
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 1
                 }).addTo(map).bindPopup(`<b>${currentTarget.name}</b>`).openPopup();
 
                 const latlngs = [[guess.lat, guess.lng], [targetLat, targetLng]];
-                resultLine = L.polyline(latlngs, {color: 'blue', dashArray: '10, 10'}).addTo(map);
+                resultLine = L.polyline(latlngs, {color: 'gold', dashArray: '10, 10'}).addTo(map);
                 map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
 
-                // REWARD TEXT
-                let title = "ERGEBNIS";
-                if(pts === 5000) title = "👑 PERFEKT! 👑";
-                else if(pts > 4500) title = "🔥 WELTKLASSE! 🔥";
-                else if(pts > 3000) title = "SEHR GUT!";
-                else if(pts > 1000) title = "GUTER VERSUCH";
-                else title = "KNAPP DANEBEN";
-
-                document.getElementById('res-title').innerText = title;
                 document.getElementById('res-location').innerText = currentTarget.name;
                 document.getElementById('res-distance').innerText = Math.round(dist) + " km entfernt";
-                document.getElementById('res-points').innerText = pts;
+                document.getElementById('res-points').innerText = score + " Punkte";
             }, 600);
+        }
+
+        function restartGame() {
+            score = 0;
+            document.getElementById('score').innerText = '0';
+            roundRetries = 0;
+            startRound();
+        }
+
+        // AUDIO
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration + 0.1);
+        }
+        function playClick() { playTone(800, 'sine', 0.1); }
+        function playSuccess() {
+            playTone(440, 'triangle', 0.2);
+            setTimeout(()=>playTone(554, 'triangle', 0.4), 150);
+        }
+        function playFail() { playTone(150, 'sawtooth', 0.4); }
+        function toggleMusic() {
+            if(isMusicPlaying) {
+                bgMusic.pause();
+                document.getElementById('music-icon').className="fas fa-volume-mute";
+            } else {
+                bgMusic.play();
+                document.getElementById('music-icon').className="fas fa-volume-up";
+            }
+            isMusicPlaying = !isMusicPlaying;
         }
     </script>
 </body>
