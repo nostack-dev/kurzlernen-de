@@ -206,14 +206,14 @@
 
     <!-- LIBS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.min.js"></script>
+    <!-- Mapillary JS with onerror handler to debug loading issues -->
+    <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.min.js" onerror="alert('Mapillary JS konnte nicht geladen werden. Bitte prüfen Sie Ihre Internetverbindung oder Adblocker.')"></script>
 
     <script>
         // --- ZIELE (Lat/Lng) ---
-        // Wir definieren grobe Ziele. Das Script sucht dann echte Bilder in der Nähe.
         const TARGETS = [
             { name: "Eiffelturm Umgebung, Paris", lat: 48.8584, lng: 2.2945 },
-            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 }, // Special für dich
+            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 }, 
             { name: "Times Square Area, NYC", lat: 40.7580, lng: -73.9855 },
             { name: "Shibuya Crossing, Tokyo", lat: 35.6595, lng: 139.7004 },
             { name: "Brandenburger Tor, Berlin", lat: 52.5163, lng: 13.3777 },
@@ -241,6 +241,7 @@
         let currentTarget = null; // { lat, lng, name }
         let startImageId = null; // ID from Mapillary API
         let actualStartCoords = null; // { lat, lng } from image
+        let retryCount = 0; // Notbremse für Rekursion
 
         let userMarker, targetMarker, resultLine;
         let userGuessCoords = null;
@@ -257,7 +258,6 @@
                 alert("Token fehlt!");
                 return;
             } else {
-                // Speichern für später
                 localStorage.setItem('mly_token', accessToken);
             }
 
@@ -268,7 +268,6 @@
 
         // Lade Token beim Start
         window.onload = () => {
-            // Standardwert ist jetzt im HTML, aber wir checken trotzdem localStorage
             const saved = localStorage.getItem('mly_token');
             if(saved) document.getElementById('token-input').value = saved;
         }
@@ -287,6 +286,13 @@
         async function startRound() {
             if(currentRound >= maxRounds) {
                 endGame();
+                return;
+            }
+            
+            // Rekursions-Bremse
+            if (retryCount > 10) {
+                alert("Es konnten keine Bilder gefunden werden. Bitte prüfen Sie das Token oder die Internetverbindung.");
+                retryCount = 0;
                 return;
             }
 
@@ -315,6 +321,9 @@
                 const imgData = await fetchImageNear(currentTarget.lat, currentTarget.lng);
                 if(!imgData) throw new Error("Kein Bild gefunden");
                 
+                // Reset Retry Counter on success
+                retryCount = 0;
+
                 startImageId = imgData.id;
                 actualStartCoords = { 
                     lat: imgData.geometry.coordinates[1], 
@@ -327,7 +336,8 @@
                 startTimer();
 
             } catch(e) {
-                console.error(e);
+                console.warn("Fehler beim Laden (Versuch " + retryCount + "):", e);
+                retryCount++;
                 // Retry different target
                 startRound();
             }
@@ -336,10 +346,18 @@
         async function fetchImageNear(lat, lng) {
             const delta = 0.005; // ca 500m
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-            // API Call
-            const url = `https://graph.mapillary.com/images?access_token=${accessToken}&fields=id,geometry&bbox=${bbox}&limit=1`;
+            // WICHTIG: Token muss URL-Encoded sein, da es "|" enthält
+            const encodedToken = encodeURIComponent(accessToken);
+            const url = `https://graph.mapillary.com/images?access_token=${encodedToken}&fields=id,geometry&bbox=${bbox}&limit=1`;
             
             const res = await fetch(url);
+            
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error("Mapillary API Error:", res.status, errText);
+                throw new Error("API request failed: " + res.status);
+            }
+
             const data = await res.json();
             
             if(data.data && data.data.length > 0) {
@@ -349,23 +367,34 @@
         }
 
         function initMapillary(imgId) {
+            // Sicherheits-Check: Ist die Library geladen?
+            if (typeof mapillary === 'undefined') {
+                console.error("Mapillary JS Library ist nicht definiert!");
+                alert("Fehler: Mapillary Bibliothek wurde nicht geladen.");
+                return;
+            }
+
             if(mly) {
                 mly.moveTo(imgId).catch(e => console.log(e));
             } else {
-                mly = new mapillary.Viewer({
-                    accessToken: accessToken,
-                    container: 'mly',
-                    imageId: imgId,
-                    component: {
-                        cover: false,
-                        direction: true,
-                        imagePlane: true,
-                        sequence: true, // Ermöglicht das "Laufen"
-                        mouse: { doubleClickZoom: false }
-                    }
-                });
-                // Resize fix
-                window.dispatchEvent(new Event('resize'));
+                try {
+                    mly = new mapillary.Viewer({
+                        accessToken: accessToken,
+                        container: 'mly',
+                        imageId: imgId,
+                        component: {
+                            cover: false,
+                            direction: true,
+                            imagePlane: true,
+                            sequence: true, // Ermöglicht das "Laufen"
+                            mouse: { doubleClickZoom: false }
+                        }
+                    });
+                    // Resize fix
+                    window.dispatchEvent(new Event('resize'));
+                } catch (err) {
+                    console.error("Fehler beim Initialisieren des Viewers:", err);
+                }
             }
         }
 
