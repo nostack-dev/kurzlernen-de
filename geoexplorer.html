@@ -49,26 +49,35 @@
             width: 300px; height: 200px; 
             z-index: 30; border-radius: 12px; border: 4px solid rgba(255, 255, 255, 0.9);
             box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1); background: #fff;
+            transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1); background: #fff;
         }
         
         /* Maximized State (Ingame Toggle) */
         #map-container.maximized {
-            width: 90% !important; height: 60% !important;
+            width: 90% !important; height: 65% !important;
             bottom: 100px; right: 5%; border-color: var(--own);
+            z-index: 40; /* Über HUD */
         }
 
+        /* Result State (Fullscreen) */
+        #map-container.expanded {
+            width: 100% !important; height: 100% !important; 
+            bottom: 0; right: 0; border: none; border-radius: 0;
+            z-index: 200; 
+        }
+        
         #map-container:not(.expanded):not(.maximized):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
         #map { width: 100%; height: 100%; background: #ddd; }
 
         /* Map Toggle Button */
         #map-toggle-btn {
-            position: absolute; top: 10px; right: 10px; z-index: 400;
-            width: 35px; height: 35px; background: #fff; color: #333;
-            border-radius: 5px; display: flex; align-items: center; justify-content: center;
+            position: absolute; top: 5px; right: 5px; z-index: 400;
+            width: 40px; height: 40px; background: #fff; color: #333;
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
             cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: background 0.2s;
+            font-size: 1.2rem;
         }
-        #map-toggle-btn:hover { background: #eee; }
+        #map-toggle-btn:active { background: #ddd; }
 
         /* --- HUD --- */
         #hud { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 15px; pointer-events: none; }
@@ -111,7 +120,6 @@
             flex: 2; /* Nimmt 2/3 Platz */
             position: relative; background: #222;
         }
-        /* Map Container wird hierhin verschoben */
         
         /* Untere Hälfte: Stats */
         .result-stats-area {
@@ -159,6 +167,34 @@
         .hidden { display: none !important; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* --- MOBILE OPTIMIZATIONS --- */
+        @media (max-width: 767px) {
+            /* Sehr kleine Minimap als Default */
+            #map-container { 
+                width: 120px; height: 120px; 
+                bottom: 90px; right: 10px;
+            }
+            
+            /* Große Maximierung, aber Platz für Button lassen */
+            #map-container.maximized {
+                width: 94% !important; 
+                height: 65% !important; 
+                bottom: 100px; 
+                right: 3%;
+            }
+
+            #guess-btn {
+                width: 90%; left: 5%; bottom: 20px;
+                padding: 15px; font-size: 1.1rem;
+            }
+            
+            /* Result Card besser für Mobile */
+            .result-card {
+                width: 95%; height: 90%; max-height: none;
+            }
+            .result-stats-area { flex: 1.5; } /* Mehr Platz für Stats */
+        }
     </style>
 </head>
 <body>
@@ -235,7 +271,7 @@
 
     <!-- MINIMAP (Normal State) -->
     <div id="map-container">
-        <div id="map-toggle-btn" onclick="toggleMapSize()" title="Größe ändern">
+        <div id="map-toggle-btn" onclick="toggleMapSize(event)" title="Größe ändern">
             <i class="fas fa-expand-arrows-alt" id="map-toggle-icon"></i>
         </div>
         <div id="map"></div>
@@ -420,6 +456,20 @@
             }
             mapC.classList.remove('maximized', 'expanded');
             mapC.style.display = 'block';
+            // Reset styles from result modal
+            mapC.style.position = "absolute";
+            mapC.style.bottom = "30px";
+            mapC.style.right = "30px";
+            mapC.style.width = "300px";
+            mapC.style.height = "200px";
+            // Re-apply mobile specific if needed (handled by css media query usually, but let's be safe)
+            if(window.innerWidth < 768) {
+                mapC.style.width = "120px";
+                mapC.style.height = "120px";
+                mapC.style.bottom = "90px";
+                mapC.style.right = "10px";
+            }
+            mapC.style.borderRadius = "12px";
             
             document.getElementById('waiting-overlay').style.display = 'none';
             document.getElementById('guess-btn').style.display = 'block';
@@ -501,13 +551,24 @@
             });
         }
 
-        function toggleMapSize() {
+        function toggleMapSize(e) {
+            // Event Bubbling verhindern (wichtig!)
+            if(e) e.stopPropagation();
+            
             const container = document.getElementById('map-container');
             const icon = document.getElementById('map-toggle-icon');
+            
             if(document.getElementById('result-modal-container').classList.contains('visible')) return;
+            
             isMapMaximized = !isMapMaximized;
-            if(isMapMaximized) { container.classList.add('maximized'); icon.className = 'fas fa-compress-arrows-alt'; }
-            else { container.classList.remove('maximized'); icon.className = 'fas fa-expand-arrows-alt'; }
+            if(isMapMaximized) { 
+                container.classList.add('maximized'); 
+                icon.className = 'fas fa-compress-arrows-alt'; 
+            }
+            else { 
+                container.classList.remove('maximized'); 
+                icon.className = 'fas fa-expand-arrows-alt'; 
+            }
             setTimeout(() => { map.invalidateSize(); }, 400);
         }
 
@@ -544,7 +605,8 @@
             mapContainer.classList.remove('maximized');
             // Trick: Move DOM element to modal to show it there
             document.getElementById('result-map-target').appendChild(mapContainer);
-            // Styling override for modal usage
+            
+            // Strict styling for modal usage
             mapContainer.style.width = "100%";
             mapContainer.style.height = "100%";
             mapContainer.style.position = "relative";
