@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Where on Earth? - Christian H. Hohlfeld Edition</title>
     
     <!-- LEAFLET CSS -->
@@ -19,13 +19,12 @@
             --accent: #ff0055; /* Enemy Color */
             --own: #0088ff;    /* Own Color */
             --bg-dark: #111;
-            --hud-bg: rgba(0, 0, 0, 0.8);
-            --glass: rgba(20, 20, 20, 0.95);
+            --glass: rgba(15, 23, 42, 0.98);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
 
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); color: white; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); color: white; touch-action: none; }
 
         /* --- VIEW LAYER --- */
         #mly { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background: #000; }
@@ -44,29 +43,44 @@
             animation: spin 0.8s ease-in-out infinite;
         }
 
-        /* --- MINIMAP (Ingame) --- */
+        /* --- MINIMAP --- */
         #map-container {
             position: absolute; bottom: 30px; right: 30px;
-            width: 300px; height: 200px; /* Kompakt */
-            z-index: 10; border-radius: 12px; border: 4px solid rgba(255, 255, 255, 0.9);
+            width: 300px; height: 200px; 
+            z-index: 30; border-radius: 12px; border: 4px solid rgba(255, 255, 255, 0.9);
             box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden;
-            transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1); background: #fff;
+            transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1); background: #fff;
         }
         
-        /* --- RESULT STATE (Fullscreen Map) --- */
+        /* Maximized State */
+        #map-container.maximized {
+            width: 95% !important; height: 65% !important;
+            bottom: 100px; right: 2.5%; border-color: var(--own);
+        }
+
+        /* Result State (Fullscreen) */
         #map-container.expanded {
             width: 100% !important; height: 100% !important; 
             bottom: 0; right: 0; border: none; border-radius: 0;
-            z-index: 200; /* Top Level */
+            z-index: 200; 
         }
         
-        #map-container:not(.expanded):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
+        #map-container:not(.expanded):not(.maximized):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
         #map { width: 100%; height: 100%; background: #ddd; }
+
+        /* Map Toggle Button */
+        #map-toggle-btn {
+            position: absolute; top: 10px; right: 10px; z-index: 400;
+            width: 35px; height: 35px; background: #fff; color: #333;
+            border-radius: 5px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: background 0.2s;
+        }
+        #map-toggle-btn:hover { background: #eee; }
 
         /* --- HUD --- */
         #hud { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 15px; pointer-events: none; }
         .hud-panel {
-            background: var(--hud-bg); backdrop-filter: blur(10px); padding: 10px 20px; border-radius: 30px;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); padding: 10px 20px; border-radius: 30px;
             border: 1px solid rgba(255,255,255,0.1); font-weight: bold; display: flex; align-items: center; gap: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: auto;
         }
@@ -82,65 +96,76 @@
         #guess-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6); }
         #guess-btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        /* --- RESULT OVERLAY (Responsive Redesign) --- */
+        /* --- WAITING OVERLAY --- */
+        #waiting-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); padding: 30px; border-radius: 20px; text-align: center;
+            z-index: 250; border: 2px solid var(--primary); display: none;
+        }
+
+        /* --- RESULT OVERLAY (Redesign) --- */
         #result-overlay {
-            position: absolute; 
-            z-index: 300;
-            background: var(--glass); 
-            backdrop-filter: blur(20px);
-            padding: 30px; 
+            position: absolute; z-index: 300;
+            background: var(--glass); backdrop-filter: blur(20px);
+            padding: 0; /* Reset padding for grid */
             border: 1px solid rgba(255,255,255,0.1);
-            opacity: 0; 
-            pointer-events: none; 
-            transition: all 0.5s ease;
-            display: flex; flex-direction: column; gap: 15px; align-items: center;
-            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+            opacity: 0; pointer-events: none; transition: all 0.5s ease;
+            box-shadow: 0 10px 60px rgba(0,0,0,0.8);
+            border-radius: 20px; overflow: hidden;
+            display: flex; flex-direction: column;
         }
 
         /* Desktop Style */
         @media (min-width: 768px) {
             #result-overlay {
-                top: 40px; left: 40px; /* Top Left Corner */
-                width: 350px;
-                border-radius: 20px;
-                transform: translateX(-50px); /* Start animation pos */
+                top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+                width: 500px;
             }
             #map-container.expanded #result-overlay {
-                opacity: 1; pointer-events: all;
-                transform: translateX(0);
+                opacity: 1; pointer-events: all; transform: translate(-50%, -50%) scale(1);
             }
         }
 
-        /* Mobile Style (Bottom Sheet) */
+        /* Mobile Style */
         @media (max-width: 767px) {
             #result-overlay {
                 bottom: 0; left: 0; width: 100%;
                 border-radius: 25px 25px 0 0;
-                transform: translateY(100%); /* Start animation pos */
-                padding-bottom: 40px;
+                transform: translateY(100%);
             }
             #map-container.expanded #result-overlay {
-                opacity: 1; pointer-events: all;
-                transform: translateY(0);
+                opacity: 1; pointer-events: all; transform: translateY(0);
             }
-            #map-container { width: 140px; height: 180px; bottom: 80px; right: 10px; } /* Smaller Minimap on Mobile */
+            #map-container { width: 140px; height: 160px; bottom: 90px; right: 10px; }
+            #map-container.maximized { width: 95% !important; height: 60% !important; bottom: 100px; right: 2.5%; }
+            #guess-btn { width: 90%; left: 5%; bottom: 20px; padding: 15px; font-size: 1.1rem; }
         }
         
-        .result-title { font-size: 2rem; color: var(--primary); font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 2px; line-height: 1;}
-        .winner-text { font-size: 1.1rem; color: #eee; margin-bottom: 5px; font-weight: 500; }
-        .location-reveal { color: #fff; font-size: 1.3rem; font-weight: bold; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; width: 100%;}
+        .res-header { background: rgba(255,255,255,0.05); padding: 20px; text-align: center; }
+        .res-body { padding: 20px; }
         
-        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; text-align: center;}
-        .score-col { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; }
-        .score-col h4 { color: #aaa; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
-        .score-val { font-size: 1.1rem; font-weight: bold; }
+        .result-title { font-size: 2rem; color: #fff; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 2px; }
+        .location-reveal { color: var(--primary); font-size: 1.1rem; font-weight: bold; margin-top: 5px;}
         
-        .main-score { font-size: 3.5rem; font-weight: 900; color: #fff; line-height: 1; margin: 10px 0; text-shadow: 0 0 30px var(--primary); }
+        /* VS GRID */
+        .vs-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 10px; }
+        .vs-player { text-align: center; position: relative; padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.03); }
+        .vs-player.winner { border: 2px solid #ffd700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
         
+        .avatar { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px auto; font-size: 1.5rem; color: #fff; font-weight: bold; }
+        .p1-av { background: var(--own); }
+        .p2-av { background: var(--accent); }
+        
+        .dist-val { font-size: 1.3rem; font-weight: bold; color: #fff; }
+        .dist-label { font-size: 0.8rem; color: #aaa; text-transform: uppercase; }
+        
+        .vs-sep { font-weight: 900; font-size: 1.5rem; color: #555; font-style: italic; }
+
         .btn { 
             background: var(--primary); border: none; padding: 15px 30px; color: #000; font-weight: bold; border-radius: 50px; 
             cursor: pointer; width: 100%; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; 
             box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-top: 20px;
         }
         .btn-secondary { background: transparent; border: 2px solid #444; color: #fff; box-shadow: none; }
         .btn:hover { opacity: 0.9; transform: scale(1.02); }
@@ -152,18 +177,14 @@
             display: flex; justify-content: center; align-items: center; flex-direction: column;
         }
         .modal { background: #1a1a1a; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #333; max-width: 500px; width: 90%; }
-        
         .mode-select { display: flex; gap: 15px; margin-top: 30px; flex-wrap: wrap;}
         .mode-btn { flex: 1; min-width: 130px; padding: 20px; background: #222; border: 2px solid #333; border-radius: 15px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 10px;}
         .mode-btn:hover { border-color: var(--primary); background: #2a2a2a; transform: translateY(-3px);}
         .mode-btn i { font-size: 2rem; color: var(--primary); }
         .mode-btn span { font-weight: bold; font-size: 1rem; }
-
         #host-ui, #join-ui { display: none; margin-top: 20px; width: 100%; }
         .lobby-code { font-size: 3rem; letter-spacing: 8px; font-family: monospace; color: var(--primary); margin: 15px 0; font-weight: bold; background: #000; padding: 15px; border-radius: 15px; border: 1px solid #333;}
-        
         input[type="text"] { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; border-radius: 10px; border: 2px solid #444; background: #000; color: white; font-family: monospace; letter-spacing: 5px; margin-bottom: 15px; text-transform: uppercase;}
-        
         #music-toggle { position: absolute; top: 20px; right: 20px; z-index: 30; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;}
         
         .hidden { display: none !important; }
@@ -236,36 +257,54 @@
 
     <button id="guess-btn" onclick="submitGuess()" disabled>Tipp Abgeben</button>
 
+    <!-- WAITING OVERLAY (Multiplayer) -->
+    <div id="waiting-overlay">
+        <div class="spinner" style="margin: 0 auto 20px auto;"></div>
+        <h2>Warte auf Gegner...</h2>
+        <p style="color:#aaa">Du hast getippt. Sobald dein Gegner tippt, seht ihr das Ergebnis.</p>
+    </div>
+
     <!-- Map & Result -->
     <div id="map-container">
+        <!-- Map Toggle Button -->
+        <div id="map-toggle-btn" onclick="toggleMapSize()" title="Karte vergrößern/verkleinern">
+            <i class="fas fa-expand-arrows-alt" id="map-toggle-icon"></i>
+        </div>
         <div id="map"></div>
         
         <!-- Redesigned Result Overlay -->
         <div id="result-overlay">
-            <div class="result-title" id="res-title">RUNDE VORBEI</div>
-            <div class="winner-text" id="res-winner">Auswertung...</div>
-            
-            <div class="location-reveal" id="res-location">Ort Name</div>
-
-            <!-- Singleplayer Score -->
-            <div id="sp-score-box" class="hidden" style="text-align:center; width:100%">
-                <div class="main-score" id="res-points">0</div>
-                <div style="color:#888; font-size:0.9rem; text-transform:uppercase; letter-spacing:2px;">Punkte</div>
+            <div class="res-header">
+                <div class="result-title" id="res-title">ERGEBNIS</div>
+                <div class="location-reveal" id="res-location">Ort Name</div>
             </div>
             
-            <!-- Multiplayer Grid -->
-            <div class="score-grid hidden" id="mp-score-grid">
-                <div class="score-col" style="border: 1px solid var(--own)">
-                    <h4 style="color: var(--own)">Du</h4>
-                    <div class="score-val" id="res-p1-dist">---</div>
+            <div class="res-body">
+                <!-- VS GRID -->
+                <div class="vs-grid">
+                    <!-- DU -->
+                    <div class="vs-player" id="p1-box">
+                        <div class="avatar p1-av">DU</div>
+                        <div class="dist-val" id="res-p1-dist">---</div>
+                        <div class="dist-label">Entfernung</div>
+                    </div>
+                    
+                    <div class="vs-sep">VS</div>
+                    
+                    <!-- GEGNER (Oder Target in Solo) -->
+                    <div class="vs-player" id="p2-box">
+                        <div class="avatar p2-av" id="p2-av-text">G</div>
+                        <div class="dist-val" id="res-p2-dist">---</div>
+                        <div class="dist-label" id="p2-label">Entfernung</div>
+                    </div>
                 </div>
-                <div class="score-col" style="border: 1px solid var(--accent)">
-                    <h4 style="color: var(--accent)">Gegner</h4>
-                    <div class="score-val" id="res-p2-dist">---</div>
-                </div>
-            </div>
 
-            <button class="btn" onclick="location.reload()"><i class="fas fa-redo"></i> Neue Runde</button>
+                <!-- RESTART BUTTON -->
+                <button class="btn" id="next-round-btn" onclick="triggerNextRound()">
+                    <i class="fas fa-redo"></i> Nächste Runde
+                </button>
+                <p id="wait-host-msg" class="hidden" style="text-align:center; color:#888; margin-top:10px; font-size:0.8rem;">Warte auf Host...</p>
+            </div>
         </div>
     </div>
 
@@ -289,50 +328,35 @@
 
         // --- DATABASE (German Optimized) ---
         const DATABASE = [
-            // Europa
             { name: "Berlin, Deutschland", lat: 52.5200, lng: 13.4050 },
             { name: "München, Deutschland", lat: 48.1351, lng: 11.5820 },
-            { name: "Hamburg, Deutschland", lat: 53.5511, lng: 9.9937 },
             { name: "Konstanz, Deutschland", lat: 47.6603, lng: 9.1758 },
             { name: "Paris, Frankreich", lat: 48.8566, lng: 2.3522 },
             { name: "London, UK", lat: 51.5074, lng: -0.1278 },
             { name: "Rom, Italien", lat: 41.9028, lng: 12.4964 },
             { name: "Venedig, Italien", lat: 45.4408, lng: 12.3155 },
             { name: "Madrid, Spanien", lat: 40.4168, lng: -3.7038 },
-            { name: "Barcelona, Spanien", lat: 41.3851, lng: 2.1734 },
             { name: "Wien, Österreich", lat: 48.2081, lng: 16.3738 },
-            { name: "Zürich, Schweiz", lat: 47.3769, lng: 8.5417 },
             { name: "Amsterdam, Niederlande", lat: 52.3676, lng: 4.9041 },
-            { name: "Kopenhagen, Dänemark", lat: 55.6761, lng: 12.5683 },
-            { name: "Stockholm, Schweden", lat: 59.3293, lng: 18.0686 },
-            { name: "Reykjavik, Island", lat: 64.1466, lng: -21.9426 },
-            { name: "Prag, Tschechien", lat: 50.0755, lng: 14.4378 },
-            { name: "Budapest, Ungarn", lat: 47.4979, lng: 19.0402 },
-            { name: "Athen, Griechenland", lat: 37.9838, lng: 23.7275 },
-            { name: "Istanbul, Türkei", lat: 41.0082, lng: 28.9784 },
-            
-            // Weltweit
             { name: "New York, USA", lat: 40.7128, lng: -74.0060 },
             { name: "San Francisco, USA", lat: 37.7749, lng: -122.4194 },
             { name: "Tokio, Japan", lat: 35.6762, lng: 139.6503 },
             { name: "Sydney, Australien", lat: -33.8688, lng: 151.2093 },
             { name: "Kapstadt, Südafrika", lat: -33.9249, lng: 18.4241 },
-            { name: "Rio de Janeiro, Brasilien", lat: -22.9068, lng: -43.1729 },
             { name: "Dubai, VAE", lat: 25.2048, lng: 55.2708 },
             { name: "Singapur", lat: 1.3521, lng: 103.8198 },
-            { name: "Bangkok, Thailand", lat: 13.7563, lng: 100.5018 },
-            { name: "Buenos Aires, Argentinien", lat: -34.6037, lng: -58.3816 },
-            { name: "Kairo, Ägypten", lat: 30.0444, lng: 31.2357 },
-            { name: "Mexiko-Stadt, Mexiko", lat: 19.4326, lng: -99.1332 }
+            { name: "Rio de Janeiro, Brasilien", lat: -22.9068, lng: -43.1729 }
         ];
 
         // --- STATE ---
         let mly, map, peer, conn;
         let isHost = false, isMultiplayer = false;
-        let currentTarget = null, startImageId = null, actualStartCoords = null;
+        let currentTarget = null;
         let userMarker, targetMarker, resultLine, userGuessCoords = null, opponentGuessData = null;
-        let timeLeft = 120, timerInterval, retryCount = 0;
+        let timeLeft = 120, timerInterval;
         let isMusicPlaying = false, currentTrackIndex = 0;
+        let isMapMaximized = false;
+        let roundFinished = false;
         const bgMusic = document.getElementById('bg-music');
         const PLAYLIST = ["https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3"];
         bgMusic.volume = 0.15;
@@ -345,6 +369,8 @@
         window.joinGame = joinGame;
         window.submitGuess = submitGuess;
         window.toggleMusic = toggleMusic;
+        window.toggleMapSize = toggleMapSize;
+        window.triggerNextRound = triggerNextRound;
         window.initApp = () => {}; 
 
         // --- MENU LOGIC ---
@@ -353,19 +379,13 @@
         function showHostUI() {
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('host-ui').style.display = 'block';
-            
             const code = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('host-code-display').innerText = code;
-            
             peer = new Peer(PEER_PREFIX + code);
             peer.on('open', () => document.getElementById('host-status').innerText = "Warte auf Spieler...");
             peer.on('connection', (c) => {
                 conn = c; isHost = true; isMultiplayer = true; setupConnection();
-                const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
-                const lat = target.lat + (Math.random() - 0.5) * 0.04;
-                const lng = target.lng + (Math.random() - 0.5) * 0.04;
-                const gameData = { lat, lng, name: target.name };
-                setTimeout(() => { conn.send({ type: 'START', data: gameData }); startMultiplayerRound(gameData); }, 1000);
+                generateAndSendRound();
             });
             peer.on('error', () => { alert("Fehler. Code evtl. belegt."); resetToMenu(); });
         }
@@ -388,50 +408,113 @@
 
         function setupConnection() {
             conn.on('data', (msg) => {
-                if(msg.type === 'START') startMultiplayerRound(msg.data);
+                if(msg.type === 'START_ROUND') {
+                    resetGameUI();
+                    startRoundLogic(msg.data);
+                }
                 if(msg.type === 'GUESS') {
                     opponentGuessData = msg.data;
                     document.getElementById('opp-status-text').innerText = "Gegner fertig!";
-                    document.getElementById('opp-status-text').style.color = "#fff";
                     document.getElementById('opponent-status').style.backgroundColor = "var(--primary)";
-                    if(userGuessCoords) showResults(calcDist(userGuessCoords), opponentGuessData);
+                    checkEndRound();
                 }
             });
         }
 
+        function generateAndSendRound() {
+            const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
+            const lat = target.lat + (Math.random() - 0.5) * 0.04;
+            const lng = target.lng + (Math.random() - 0.5) * 0.04;
+            const gameData = { lat, lng, name: target.name };
+            
+            // Delay sending to ensure connection is stable or UI is ready
+            setTimeout(() => {
+                conn.send({ type: 'START_ROUND', data: gameData });
+                resetGameUI();
+                startRoundLogic(gameData);
+            }, 500);
+        }
+
+        function triggerNextRound() {
+            if (isMultiplayer) {
+                if(isHost) {
+                    generateAndSendRound();
+                } else {
+                    // Guest cannot trigger next round
+                }
+            } else {
+                // Singleplayer
+                resetGameUI();
+                startSinglePlayer();
+            }
+        }
+
+        // --- GAME START LOGIC ---
         function startSinglePlayer() {
             isMultiplayer = false;
             const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
             const lat = target.lat + (Math.random() - 0.5) * 0.04;
             const lng = target.lng + (Math.random() - 0.5) * 0.04;
-            startRound({lat, lng, name: target.name});
+            resetGameUI();
+            startRoundLogic({lat, lng, name: target.name});
         }
 
-        function startMultiplayerRound(target) {
+        function resetGameUI() {
             document.getElementById('overlay-screen').classList.add('hidden');
-            document.getElementById('opponent-status').classList.remove('hidden');
-            startRound(target);
-        }
-
-        // --- CORE ---
-        async function startRound(target) {
-            document.getElementById('overlay-screen').classList.add('hidden');
-            initLeaflet();
-            initAudioSystem();
+            document.getElementById('map-container').classList.remove('expanded');
+            document.getElementById('result-overlay').style.opacity = 0;
+            document.getElementById('result-overlay').style.pointerEvents = 'none';
+            document.getElementById('waiting-overlay').style.display = 'none';
+            document.getElementById('guess-btn').style.display = 'block';
+            document.getElementById('guess-btn').disabled = true;
+            document.getElementById('guess-btn').innerText = "Tipp Abgeben";
+            document.getElementById('hud').style.display = 'flex';
             
+            // Reset Map
+            initLeaflet();
+            if(userMarker) map.removeLayer(userMarker);
+            if(targetMarker) map.removeLayer(targetMarker);
+            if(resultLine) map.removeLayer(resultLine);
+            
+            // Reset Vars
+            userGuessCoords = null;
+            opponentGuessData = null;
+            roundFinished = false;
+            
+            // UI Reset
+            if(isMultiplayer) {
+                document.getElementById('opponent-status').classList.remove('hidden');
+                document.getElementById('opponent-status').style.backgroundColor = "rgba(255,0,85,0.2)";
+                document.getElementById('opp-status-text').innerText = "Gegner sucht...";
+                
+                if(!isHost) {
+                    document.getElementById('next-round-btn').style.display = 'none';
+                    document.getElementById('wait-host-msg').classList.remove('hidden');
+                } else {
+                    document.getElementById('next-round-btn').style.display = 'flex';
+                    document.getElementById('wait-host-msg').classList.add('hidden');
+                }
+            } else {
+                document.getElementById('opponent-status').classList.add('hidden');
+                document.getElementById('next-round-btn').style.display = 'flex';
+                document.getElementById('wait-host-msg').classList.add('hidden');
+            }
+        }
+
+        async function startRoundLogic(target) {
+            initAudioSystem();
             currentTarget = target;
             document.getElementById('loader').style.opacity = 1;
             
             try {
                 const imgData = await fetchBestImageNear(target.lat, target.lng);
                 if(!imgData) throw new Error("Kein Bild");
-                actualStartCoords = { lat: imgData.geometry.coordinates[1], lng: imgData.geometry.coordinates[0] };
                 initMapillary(imgData.id);
                 document.getElementById('loader').style.opacity = 0;
                 startTimer();
             } catch(e) {
-                if(!isMultiplayer) startSinglePlayer(); // Retry new loc
-                else { alert("Fehler beim Laden. Neustart."); resetToMenu(); }
+                if(isMultiplayer && isHost) generateAndSendRound(); // Host retries
+                else if(!isMultiplayer) startSinglePlayer(); // SP retries
             }
         }
 
@@ -443,13 +526,13 @@
             if(!res.ok) return null;
             const data = await res.json();
             if(!data.data || !data.data.length) return null;
-            
             let best = data.data.find(img => img.is_pano && img.sequence);
             if(!best) best = data.data.find(img => img.is_pano);
             if(!best) best = data.data.find(img => img.sequence);
             return best || data.data[0];
         }
 
+        // --- GAMEPLAY ---
         function initMapillary(id) {
             if(mly) mly.moveTo(id).catch(console.warn);
             else {
@@ -464,10 +547,7 @@
         function initLeaflet() {
             if(map) return;
             map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
-            // GERMAN TILES
-            L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
-                maxZoom: 19, attribution: '&copy; OpenStreetMap DE'
-            }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OSM' }).addTo(map);
             map.on('click', (e) => {
                 if(document.getElementById('map-container').classList.contains('expanded')) return;
                 if(userMarker) map.removeLayer(userMarker);
@@ -481,75 +561,117 @@
         function submitGuess() {
             if(!userGuessCoords) return;
             clearInterval(timerInterval);
+            
             const dist = calcDist(userGuessCoords);
-            const myData = { lat: userGuessCoords.lat, lng: userGuessCoords.lng, dist: dist };
-
+            
             if(isMultiplayer) {
-                document.getElementById('guess-btn').innerText = "WARTE AUF GEGNER...";
-                document.getElementById('guess-btn').disabled = true;
+                const myData = { lat: userGuessCoords.lat, lng: userGuessCoords.lng, dist: dist };
                 conn.send({ type: 'GUESS', data: myData });
-                if(opponentGuessData) showResults(dist, opponentGuessData);
+                
+                if(!opponentGuessData) {
+                    document.getElementById('waiting-overlay').style.display = 'block';
+                } else {
+                    checkEndRound();
+                }
             } else {
-                showResults(dist, null);
+                // Singleplayer
+                document.getElementById('p2-label').innerText = "PUNKTE";
+                document.getElementById('p2-av-text').innerText = "PT";
+                document.getElementById('p2-av-text').style.backgroundColor = "#555";
+                
+                const pts = Math.round(5000 * Math.exp(-dist/2000));
+                showResults(dist, pts); // Pass points as 2nd arg for SP
             }
         }
 
-        function showResults(myDist, oppData) {
+        function checkEndRound() {
+            if(userGuessCoords && opponentGuessData) {
+                document.getElementById('waiting-overlay').style.display = 'none';
+                showResults(calcDist(userGuessCoords), opponentGuessData);
+            }
+        }
+
+        function showResults(myDist, opponentDataOrPoints) {
             const container = document.getElementById('map-container');
             container.classList.add('expanded');
             document.getElementById('guess-btn').style.display = 'none';
             document.getElementById('hud').style.display = 'none';
+            
+            // Remove maximization styles if present
+            container.classList.remove('maximized');
+            document.getElementById('map-toggle-btn').style.display = 'none';
 
             setTimeout(() => {
                 map.invalidateSize();
-                // Markers
+                
+                // Ziel (Grün)
                 L.circleMarker([currentTarget.lat, currentTarget.lng], {radius: 10, fillColor: "#05cb63", color: "#fff", weight:3, fillOpacity:1}).addTo(map).bindPopup("Ziel").openPopup();
-                if(userGuessCoords) {
-                    L.circleMarker([userGuessCoords.lat, userGuessCoords.lng], {radius: 8, fillColor: "#0088ff", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Du");
-                    L.polyline([[userGuessCoords.lat, userGuessCoords.lng], [currentTarget.lat, currentTarget.lng]], {color: '#0088ff', dashArray:'5,5'}).addTo(map);
-                }
-                if(oppData) {
+
+                // Ich (Blau)
+                L.circleMarker([userGuessCoords.lat, userGuessCoords.lng], {radius: 8, fillColor: "#0088ff", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Du");
+                L.polyline([[userGuessCoords.lat, userGuessCoords.lng], [currentTarget.lat, currentTarget.lng]], {color: '#0088ff', dashArray:'5,5'}).addTo(map);
+
+                // UI Updates
+                document.getElementById('res-location').innerText = currentTarget.name;
+                document.getElementById('res-p1-dist').innerText = Math.round(myDist) + " km";
+
+                if(isMultiplayer) {
+                    // opponentDataOrPoints is Object {lat, lng, dist}
+                    const oppData = opponentDataOrPoints;
+                    const oppDist = Math.round(oppData.dist);
+                    
+                    // Gegner Marker
                     L.circleMarker([oppData.lat, oppData.lng], {radius: 8, fillColor: "#ff0055", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Gegner");
                     L.polyline([[oppData.lat, oppData.lng], [currentTarget.lat, currentTarget.lng]], {color: '#ff0055', dashArray:'5,5'}).addTo(map);
-                }
-
-                // INTELLIGENT PADDING
-                const bounds = L.latLngBounds([[currentTarget.lat, currentTarget.lng]]);
-                if(userGuessCoords) bounds.extend([userGuessCoords.lat, userGuessCoords.lng]);
-                if(oppData) bounds.extend([oppData.lat, oppData.lng]);
-                
-                // Detect Mobile vs Desktop for padding
-                const isMobile = window.innerWidth < 768;
-                const paddingOptions = isMobile 
-                    ? { paddingBottomRight: [0, 350], padding: [20, 20] } // Mobile: Box unten
-                    : { paddingTopLeft: [400, 0], padding: [50, 50] };    // Desktop: Box links
-
-                map.fitBounds(bounds, paddingOptions);
-
-                // UI DATA
-                document.getElementById('res-location').innerText = currentTarget.name;
-                
-                if(isMultiplayer) {
-                    document.getElementById('mp-score-grid').classList.remove('hidden');
+                    
+                    // VS Text
+                    document.getElementById('res-p2-dist').innerText = oppDist + " km";
+                    document.getElementById('p2-label').innerText = "ENTFERNUNG";
+                    document.getElementById('p2-av-text').innerText = "G";
+                    document.getElementById('p2-av-text').style.backgroundColor = "var(--accent)";
+                    
                     const myD = Math.round(myDist);
-                    const oppD = Math.round(oppData.dist);
-                    document.getElementById('res-p1-dist').innerText = myD + " km";
-                    document.getElementById('res-p2-dist').innerText = oppD + " km";
-                    document.getElementById('res-title').innerText = myD < oppD ? "GEWONNEN! 🏆" : "VERLOREN 💀";
-                    document.getElementById('res-winner').innerText = myD < oppD ? "Du warst näher dran!" : "Der Gegner war präziser.";
-                    myD < oppD ? playSuccess() : playFail();
+                    
+                    if(myD < oppDist) {
+                        document.getElementById('res-title').innerText = "GEWONNEN! 🏆";
+                        document.getElementById('p1-box').classList.add('winner');
+                        document.getElementById('p2-box').classList.remove('winner');
+                        playSuccess();
+                    } else {
+                        document.getElementById('res-title').innerText = "VERLOREN 💀";
+                        document.getElementById('p2-box').classList.add('winner');
+                        document.getElementById('p1-box').classList.remove('winner');
+                        playFail();
+                    }
+                    
+                    // Fit bounds to include opponent
+                    const bounds = L.latLngBounds([[currentTarget.lat, currentTarget.lng], [userGuessCoords.lat, userGuessCoords.lng], [oppData.lat, oppData.lng]]);
+                    
+                    // Mobile Padding: Bottom 350px free for sheet. Desktop: Left 400px.
+                    const isMobile = window.innerWidth < 768;
+                    const padding = isMobile ? { paddingBottomRight: [0, 350], padding: [20,20] } : { paddingTopLeft: [400, 0], padding: [50,50] };
+                    map.fitBounds(bounds, padding);
+
                 } else {
-                    document.getElementById('sp-score-box').classList.remove('hidden');
-                    const pts = Math.round(5000 * Math.exp(-myDist/2000));
-                    document.getElementById('res-points').innerText = pts;
-                    document.getElementById('res-winner').innerText = Math.round(myDist) + " km Abweichung";
-                    if(pts>3000) { document.getElementById('res-title').innerText = "FANTASTISCH!"; playSuccess(); }
-                    else { document.getElementById('res-title').innerText = "GUT GEMACHT"; playFail(); }
+                    // Singleplayer: opponentDataOrPoints is Points (Number)
+                    const pts = opponentDataOrPoints;
+                    document.getElementById('res-p2-dist').innerText = pts;
+                    document.getElementById('p2-av-text').innerText = "★";
+                    
+                    if(pts > 3000) { document.getElementById('res-title').innerText = "SUPER!"; playSuccess(); }
+                    else { document.getElementById('res-title').innerText = "GUT!"; playFail(); }
+                    
+                    // Fit bounds
+                    const bounds = L.latLngBounds([[currentTarget.lat, currentTarget.lng], [userGuessCoords.lat, userGuessCoords.lng]]);
+                    const isMobile = window.innerWidth < 768;
+                    const padding = isMobile ? { paddingBottomRight: [0, 350], padding: [20,20] } : { paddingTopLeft: [400, 0], padding: [50,50] };
+                    map.fitBounds(bounds, padding);
                 }
+                
             }, 300);
         }
 
-        // HELPERS
+        // HELPERS & AUDIO
         function startTimer() {
             clearInterval(timerInterval);
             const tEl = document.getElementById('timer');
@@ -566,7 +688,17 @@
             return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
         }
         
-        // AUDIO
+        function toggleMapSize() {
+            const container = document.getElementById('map-container');
+            const icon = document.getElementById('map-toggle-icon');
+            if(container.classList.contains('expanded')) return;
+            isMapMaximized = !isMapMaximized;
+            if(isMapMaximized) { container.classList.add('maximized'); icon.className = 'fas fa-compress-arrows-alt'; }
+            else { container.classList.remove('maximized'); icon.className = 'fas fa-expand-arrows-alt'; }
+            setTimeout(() => { map.invalidateSize(); }, 400);
+        }
+
+        // Audio
         const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
         function initAudioSystem() {
             if(audioCtx.state==='suspended') audioCtx.resume();
