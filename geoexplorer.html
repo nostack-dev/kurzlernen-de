@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Where on Earth? - Mapillary Edition</title>
+    
+    <!-- LEAFLET CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- MAPILLARY CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css" />
+    
+    <style>
+        :root {
+            --primary: #05cb63; /* Mapillary Greenish */
+            --secondary: #ffffff;
+            --accent: #ff0055;
+            --bg-dark: #111;
+            --hud-bg: rgba(0, 0, 0, 0.7);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); color: white; }
+
+        /* --- VIEW LAYER (Mapillary) --- */
+        #mly { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background: #000; }
+        
+        /* Loading Indicator */
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 5; font-size: 1.2rem; font-weight: bold;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s;
+        }
+        .spinner {
+            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
+            border-radius: 50%; border-top-color: var(--primary);
+            animation: spin 0.8s ease-in-out infinite;
+        }
+
+        /* --- MINIMAP --- */
+        #map-container {
+            position: absolute; bottom: 30px; right: 30px;
+            width: 350px; height: 250px; z-index: 10;
+            border-radius: 12px;
+            border: 4px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            overflow: hidden;
+            transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+            background: #222;
+        }
+        #map-container.expanded {
+            width: 80%; height: 70%; bottom: 50%; right: 50%;
+            transform: translate(50%, 50%); border-color: var(--primary); z-index: 50;
+        }
+        #map-container:not(.expanded):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
+        #map { width: 100%; height: 100%; background: #1a1a1a; }
+
+        /* --- HUD --- */
+        #hud { position: absolute; top: 20px; left: 20px; z-index: 20; display: flex; gap: 15px; pointer-events: none; }
+        .hud-panel {
+            background: var(--hud-bg); backdrop-filter: blur(10px);
+            padding: 10px 20px; border-radius: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-weight: bold; display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: auto;
+        }
+        #timer { font-size: 1.5rem; color: var(--primary); font-family: monospace; }
+        #timer.warning { color: var(--accent); animation: pulse 1s infinite; }
+
+        /* --- INTERACTION --- */
+        #guess-btn {
+            position: absolute; bottom: 30px; right: 400px; z-index: 20;
+            background: var(--primary); color: #000; border: none;
+            padding: 15px 40px; font-size: 1.2rem; font-weight: bold;
+            border-radius: 50px; cursor: pointer;
+            box-shadow: 0 4px 20px rgba(5, 203, 99, 0.4);
+            transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+        }
+        #guess-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6); }
+        #guess-btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* --- RESULT OVERLAY --- */
+        #result-overlay {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(10px);
+            padding: 20px 40px; border-radius: 15px; text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            opacity: 0; pointer-events: none; transition: opacity 0.3s 0.5s;
+            min-width: 320px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); z-index: 100;
+        }
+        #map-container.expanded #result-overlay { opacity: 1; pointer-events: all; }
+        .location-reveal { color: var(--primary); font-size: 1.3rem; font-weight: bold; margin-bottom: 5px; }
+        .score-change { font-size: 2.5rem; color: white; font-weight: bold; margin: 10px 0; }
+        .btn { background: var(--primary); border: none; padding: 10px 25px; color: #000; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; font-size: 1rem;}
+        .btn:hover { opacity: 0.9; }
+
+        /* --- START / END SCREENS --- */
+        #overlay-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 200;
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .modal { background: #1a1a1a; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #333; max-width: 500px; width: 90%; }
+        h1 { font-size: 2.2rem; background: linear-gradient(to right, var(--primary), #fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+        
+        input[type="text"] {
+            width: 100%; padding: 12px; margin: 20px 0; border-radius: 8px;
+            border: 1px solid #444; background: #222; color: white; font-family: monospace;
+        }
+
+        /* Music Toggle */
+        #music-toggle { position: absolute; top: 20px; right: 20px; z-index: 30; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;}
+
+        .hidden { display: none !important; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <!-- FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- START SCREEN -->
+    <div id="overlay-screen">
+        <div class="modal" id="start-modal">
+            <h1>Mapillary Explorer</h1>
+            <h4 style="color: #666; margin-bottom: 20px;">Christian H. Hohlfeld Edition</h4>
+            <p style="color: #ccc; font-size: 0.9rem; line-height: 1.5;">
+                Erkunde die Welt mit echten 360°-Aufnahmen.<br>
+                Navigiere durch Straßen, schau dich um.<br>
+                Völlig kostenlos & ohne Google.
+            </p>
+            
+            <div style="text-align: left; margin-top: 20px; font-size: 0.8rem; color: #aaa;">
+                <i class="fas fa-key"></i> Mapillary Client Token:
+            </div>
+            <!-- Token ist jetzt prefilled -->
+            <input type="text" id="token-input" value="MLY|24346716201668098|5aa98286cac1799925ddf57c3f33f190">
+            
+            <button class="btn" onclick="initApp()">Spiel Starten <i class="fas fa-play"></i></button>
+            <p style="margin-top: 15px; font-size: 0.75rem; color: #555;">
+                Token ist bereits hinterlegt.
+            </p>
+        </div>
+
+        <div class="modal hidden" id="game-over-modal">
+            <h1>Runde Beendet</h1>
+            <p style="color: #ccc">Gesamtpunkte:</p>
+            <div class="score-change" id="final-score" style="margin-bottom: 20px;">0</div>
+            <button class="btn" onclick="location.reload()">Neustart <i class="fas fa-redo"></i></button>
+        </div>
+    </div>
+
+    <!-- LOADING INDICATOR -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <span id="loader-text">Suche Startpunkt...</span>
+    </div>
+
+    <!-- GAME UI -->
+    
+    <!-- 1. Mapillary Viewer -->
+    <div id="mly"></div>
+
+    <!-- 2. HUD -->
+    <div id="hud">
+        <div class="hud-panel">
+            <i class="fas fa-stopwatch"></i> <span id="timer">02:00</span>
+        </div>
+        <div class="hud-panel">
+            <i class="fas fa-trophy"></i> <span id="score">0</span>
+        </div>
+        <div class="hud-panel">
+            <i class="fas fa-map-marker-alt"></i> <span id="round-display">1/5</span>
+        </div>
+    </div>
+
+    <!-- 3. Guess Button -->
+    <button id="guess-btn" onclick="submitGuess()" disabled>Tipp Abgeben</button>
+
+    <!-- 4. Map & Result -->
+    <div id="map-container">
+        <div id="map"></div>
+        
+        <!-- Result Info -->
+        <div id="result-overlay">
+            <div class="location-reveal" id="res-location">Ort Name</div>
+            <div style="color: #ccc; margin-bottom: 5px;" id="res-distance">0 km daneben</div>
+            <div class="score-change" id="res-points">+0</div>
+            <button class="btn" onclick="nextRound()">Weiter <i class="fas fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <!-- 5. Audio Toggle -->
+    <button id="music-toggle" onclick="toggleMusic()">
+        <i class="fas fa-volume-mute" id="music-icon"></i>
+    </button>
+
+    <!-- Audio -->
+    <audio id="bg-music" loop>
+        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- LIBS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.min.js"></script>
+
+    <script>
+        // --- ZIELE (Lat/Lng) ---
+        // Wir definieren grobe Ziele. Das Script sucht dann echte Bilder in der Nähe.
+        const TARGETS = [
+            { name: "Eiffelturm Umgebung, Paris", lat: 48.8584, lng: 2.2945 },
+            { name: "Hafen von Konstanz", lat: 47.6635, lng: 9.1809 }, // Special für dich
+            { name: "Times Square Area, NYC", lat: 40.7580, lng: -73.9855 },
+            { name: "Shibuya Crossing, Tokyo", lat: 35.6595, lng: 139.7004 },
+            { name: "Brandenburger Tor, Berlin", lat: 52.5163, lng: 13.3777 },
+            { name: "Colosseum, Rom", lat: 41.8902, lng: 12.4922 },
+            { name: "Opera House, Sydney", lat: -33.8568, lng: 151.2153 },
+            { name: "Downtown Dubai", lat: 25.1972, lng: 55.2744 },
+            { name: "Amsterdam Zentrum", lat: 52.3702, lng: 4.8952 },
+            { name: "San Francisco Bay", lat: 37.8087, lng: -122.4098 },
+            { name: "London Eye Area", lat: 51.5033, lng: -0.1195 },
+            { name: "Barcelona Strand", lat: 41.3809, lng: 2.1911 },
+            { name: "Wien Zentrum", lat: 48.2082, lng: 16.3738 },
+            { name: "Kapstadt Waterfront", lat: -33.9036, lng: 18.4205 }
+        ];
+
+        // --- STATE ---
+        let mly; // Mapillary Viewer
+        let map; // Leaflet Map
+        let accessToken = "";
+        let currentRound = 0;
+        let maxRounds = 5;
+        let score = 0;
+        let timeLeft = 120;
+        let timerInterval;
+        
+        let currentTarget = null; // { lat, lng, name }
+        let startImageId = null; // ID from Mapillary API
+        let actualStartCoords = null; // { lat, lng } from image
+
+        let userMarker, targetMarker, resultLine;
+        let userGuessCoords = null;
+        let isMusicPlaying = false;
+        const bgMusic = document.getElementById('bg-music');
+        bgMusic.volume = 0.15;
+
+        // --- INIT ---
+        function initApp() {
+            const input = document.getElementById('token-input');
+            accessToken = input.value.trim();
+            
+            if(!accessToken) {
+                alert("Token fehlt!");
+                return;
+            } else {
+                // Speichern für später
+                localStorage.setItem('mly_token', accessToken);
+            }
+
+            document.getElementById('overlay-screen').classList.add('hidden');
+            initLeaflet();
+            startRound();
+        }
+
+        // Lade Token beim Start
+        window.onload = () => {
+            // Standardwert ist jetzt im HTML, aber wir checken trotzdem localStorage
+            const saved = localStorage.getItem('mly_token');
+            if(saved) document.getElementById('token-input').value = saved;
+        }
+
+        function initLeaflet() {
+            if(map) return;
+            map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19, subdomains: 'abcd'
+            }).addTo(map);
+            map.on('click', onMapClick);
+        }
+
+        // --- GAME LOGIC ---
+
+        async function startRound() {
+            if(currentRound >= maxRounds) {
+                endGame();
+                return;
+            }
+
+            // Reset UI
+            const container = document.getElementById('map-container');
+            container.classList.remove('expanded');
+            if(userMarker) map.removeLayer(userMarker);
+            if(targetMarker) map.removeLayer(targetMarker);
+            if(resultLine) map.removeLayer(resultLine);
+            userMarker = null;
+            userGuessCoords = null;
+            
+            document.getElementById('guess-btn').disabled = true;
+            document.getElementById('guess-btn').style.display = 'block';
+            document.getElementById('round-display').innerText = `${currentRound + 1}/${maxRounds}`;
+
+            // Loading State
+            document.getElementById('loader').style.opacity = 1;
+            
+            // Select Target
+            const randomIndex = Math.floor(Math.random() * TARGETS.length);
+            currentTarget = TARGETS[randomIndex];
+            
+            // Fetch Mapillary Image near Target
+            try {
+                const imgData = await fetchImageNear(currentTarget.lat, currentTarget.lng);
+                if(!imgData) throw new Error("Kein Bild gefunden");
+                
+                startImageId = imgData.id;
+                actualStartCoords = { 
+                    lat: imgData.geometry.coordinates[1], 
+                    lng: imgData.geometry.coordinates[0] 
+                };
+
+                initMapillary(startImageId);
+                
+                document.getElementById('loader').style.opacity = 0;
+                startTimer();
+
+            } catch(e) {
+                console.error(e);
+                // Retry different target
+                startRound();
+            }
+        }
+
+        async function fetchImageNear(lat, lng) {
+            const delta = 0.005; // ca 500m
+            const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
+            // API Call
+            const url = `https://graph.mapillary.com/images?access_token=${accessToken}&fields=id,geometry&bbox=${bbox}&limit=1`;
+            
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if(data.data && data.data.length > 0) {
+                return data.data[0];
+            }
+            return null;
+        }
+
+        function initMapillary(imgId) {
+            if(mly) {
+                mly.moveTo(imgId).catch(e => console.log(e));
+            } else {
+                mly = new mapillary.Viewer({
+                    accessToken: accessToken,
+                    container: 'mly',
+                    imageId: imgId,
+                    component: {
+                        cover: false,
+                        direction: true,
+                        imagePlane: true,
+                        sequence: true, // Ermöglicht das "Laufen"
+                        mouse: { doubleClickZoom: false }
+                    }
+                });
+                // Resize fix
+                window.dispatchEvent(new Event('resize'));
+            }
+        }
+
+        function onMapClick(e) {
+            if(document.getElementById('map-container').classList.contains('expanded')) return;
+            
+            if(userMarker) map.removeLayer(userMarker);
+            userMarker = L.circleMarker(e.latlng, {
+                radius: 8, fillColor: "#05cb63", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
+            }).addTo(map);
+            
+            userGuessCoords = e.latlng;
+            document.getElementById('guess-btn').disabled = false;
+            playClick();
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 120;
+            const tEl = document.getElementById('timer');
+            tEl.innerText = "02:00";
+            tEl.classList.remove('warning');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                let m = Math.floor(timeLeft / 60).toString().padStart(2,'0');
+                let s = (timeLeft % 60).toString().padStart(2,'0');
+                tEl.innerText = `${m}:${s}`;
+
+                if(timeLeft <= 10) {
+                    tEl.classList.add('warning');
+                    playTone(800, 'sine', 0.05);
+                }
+                if(timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    submitGuess(true);
+                }
+            }, 1000);
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c;
+        }
+
+        function submitGuess(auto=false) {
+            clearInterval(timerInterval);
+            let dist = 0, pts = 0;
+            let guess = userGuessCoords || { lat: 0, lng: 0 };
+            
+            const targetLat = actualStartCoords.lat;
+            const targetLng = actualStartCoords.lng;
+
+            if(!userGuessCoords && auto) dist = 20000;
+            else if(userGuessCoords) dist = getDistance(guess.lat, guess.lng, targetLat, targetLng);
+            else return;
+
+            pts = Math.round(5000 * Math.exp(-dist / 2000));
+            if(dist < 50) pts = 5000;
+            if(!userGuessCoords) pts = 0;
+
+            score += pts;
+            document.getElementById('score').innerText = score;
+
+            if(pts > 3000) playSuccess(); else playFail();
+
+            // UI Result
+            document.getElementById('guess-btn').style.display = 'none';
+            const container = document.getElementById('map-container');
+            container.classList.add('expanded');
+
+            setTimeout(() => {
+                map.invalidateSize();
+                
+                // Zeige Ziel
+                targetMarker = L.circleMarker([targetLat, targetLng], {
+                    radius: 8, fillColor: "#ff0055", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
+                }).addTo(map).bindPopup(`<b>${currentTarget.name}</b>`).openPopup();
+
+                // Linie
+                const latlngs = [[guess.lat, guess.lng], [targetLat, targetLng]];
+                resultLine = L.polyline(latlngs, {color: 'yellow', dashArray: '10, 10'}).addTo(map);
+                map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
+
+                document.getElementById('res-location').innerText = currentTarget.name;
+                document.getElementById('res-distance').innerText = Math.round(dist) + " km entfernt";
+                document.getElementById('res-points').innerText = "+" + pts;
+            }, 600);
+        }
+
+        function nextRound() {
+            currentRound++;
+            startRound();
+        }
+
+        function endGame() {
+            document.getElementById('overlay-screen').classList.remove('hidden');
+            document.getElementById('start-modal').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+            playSuccess();
+        }
+
+        // AUDIO
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration + 0.1);
+        }
+        function playClick() { playTone(800, 'sine', 0.1); }
+        function playSuccess() { playTone(440, 'triangle', 0.2); setTimeout(()=>playTone(554, 'triangle', 0.4), 150); }
+        function playFail() { playTone(150, 'sawtooth', 0.4); }
+        function toggleMusic() {
+            if(isMusicPlaying) { bgMusic.pause(); document.getElementById('music-icon').className="fas fa-volume-mute"; }
+            else { bgMusic.play(); document.getElementById('music-icon').className="fas fa-volume-up"; }
+            isMusicPlaying = !isMusicPlaying;
+        }
+    </script>
+</body>
+</html>
