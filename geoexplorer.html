@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Where on Earth? - Unlimited Edition</title>
+    <title>Where on Earth? - Mapillary Edition</title>
     
     <!-- LEAFLET CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -40,10 +40,11 @@
             animation: spin 0.8s ease-in-out infinite;
         }
 
-        /* --- MINIMAP --- */
+        /* --- MINIMAP (Kleiner & Kompakter) --- */
         #map-container {
             position: absolute; bottom: 30px; right: 30px;
-            width: 350px; height: 250px; z-index: 10;
+            width: 310px; height: 220px; /* Ca. 12% kleiner als vorher */
+            z-index: 10;
             border-radius: 12px;
             border: 4px solid rgba(255, 255, 255, 0.9);
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
@@ -51,9 +52,13 @@
             transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
             background: #fff;
         }
+        /* Expanded State: Lässt Platz für UI */
         #map-container.expanded {
-            width: 80%; height: 70%; bottom: 50%; right: 50%;
-            transform: translate(50%, 50%); border-color: var(--primary); z-index: 50;
+            width: 85%; height: 85%; 
+            bottom: 50%; right: 50%;
+            transform: translate(50%, 50%); 
+            border-color: var(--primary); 
+            z-index: 50;
         }
         #map-container:not(.expanded):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
         #map { width: 100%; height: 100%; background: #ddd; }
@@ -86,33 +91,30 @@
         #guess-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6); }
         #guess-btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        /* --- RESULT OVERLAY --- */
+        /* --- RESULT OVERLAY (Verschoben nach OBEN) --- */
         #result-overlay {
             position: absolute; 
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(15px);
-            padding: 40px; border-radius: 20px; text-align: center;
+            top: 20px; left: 50%; transform: translateX(-50%); /* Oben zentriert */
+            background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(15px);
+            padding: 20px 40px; border-radius: 15px; text-align: center;
             border: 2px solid var(--primary);
             opacity: 0; pointer-events: none; transition: opacity 0.5s;
-            min-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); z-index: 100;
-            display: flex; flex-direction: column; gap: 10px; align-items: center;
+            min-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 100;
+            display: flex; flex-direction: column; gap: 5px; align-items: center;
         }
         #map-container.expanded #result-overlay { opacity: 1; pointer-events: all; }
         
-        .result-title { font-size: 2.5rem; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900;}
-        .location-reveal { color: #fff; font-size: 1.5rem; font-weight: bold;}
-        .distance-info { color: #ccc; font-size: 1.1rem; margin-bottom: 10px; }
+        .result-title { font-size: 1.5rem; color: var(--primary); font-weight: 900; margin: 0;}
+        .location-reveal { color: #fff; font-size: 1.2rem; font-weight: bold;}
+        .distance-info { color: #ccc; font-size: 1rem; }
         
-        .score-box { 
-            background: rgba(255,255,255,0.1); padding: 15px 30px; border-radius: 15px; margin: 15px 0; width: 100%;
-        }
-        .score-change { font-size: 4rem; color: var(--primary); font-weight: bold; line-height: 1; text-shadow: 0 0 30px rgba(5, 203, 99, 0.4); }
-        .score-label { color: #888; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px; }
+        .score-change { font-size: 2.5rem; color: var(--primary); font-weight: bold; line-height: 1; margin: 5px 0; text-shadow: 0 0 15px rgba(5, 203, 99, 0.4); }
         
+        /* Kompakter Restart Button */
         .btn { 
-            background: var(--primary); border: none; padding: 15px 40px; color: #000; font-weight: bold; border-radius: 50px; 
-            cursor: pointer; margin-top: 10px; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 1px; 
-            box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: inline-flex; align-items: center; gap: 10px;
+            background: var(--primary); border: none; padding: 10px 30px; color: #000; font-weight: bold; border-radius: 50px; 
+            cursor: pointer; margin-top: 5px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; 
+            box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
         }
         .btn:hover { opacity: 0.9; transform: scale(1.05); box-shadow: 0 6px 20px rgba(5,203,99,0.6); }
 
@@ -143,8 +145,8 @@
             <h1>Mapillary Explorer</h1>
             <h4 style="color: #666; margin-bottom: 20px;">Christian H. Hohlfeld Edition</h4>
             <p style="color: #ccc; font-size: 0.9rem; line-height: 1.5;">
-                <b>Unlimited Edition</b><br>
-                High Quality Navigation Priorisiert.<br>
+                <b>Clean Edition</b><br>
+                Entdecke die Welt ohne Ablenkung.<br>
                 Finde heraus, wo du bist.
             </p>
             <button class="btn" onclick="initApp()" style="margin-top: 30px;">Starten <i class="fas fa-play"></i></button>
@@ -154,7 +156,7 @@
     <!-- LOADING INDICATOR -->
     <div id="loader">
         <div class="spinner"></div>
-        <span id="loader-text">Suche perfekte Startposition...</span>
+        <span id="loader-text">Suche Startposition...</span>
     </div>
 
     <!-- GAME UI -->
@@ -174,19 +176,16 @@
     <div id="map-container">
         <div id="map"></div>
         
-        <!-- Result / Reward Overlay -->
+        <!-- Result / Reward Overlay (Jetzt Oben) -->
         <div id="result-overlay">
             <div class="result-title" id="res-title">ERGEBNIS</div>
             <div class="location-reveal" id="res-location">Ort Name</div>
             <div class="distance-info" id="res-distance">0 km daneben</div>
             
-            <div class="score-box">
-                <div class="score-change" id="res-points">0</div>
-                <div class="score-label">PUNKTE ERZIELT</div>
-            </div>
+            <div class="score-change" id="res-points">0</div>
 
             <!-- RESTART BUTTON -->
-            <button class="btn" onclick="location.reload()"><i class="fas fa-redo"></i> Noch eine Runde</button>
+            <button class="btn" onclick="location.reload()"><i class="fas fa-redo"></i> Neu Starten</button>
         </div>
     </div>
 
@@ -206,7 +205,6 @@
         };
 
         // --- RIESIGE DATENBANK AN ZIELEN ---
-        // Mix aus Hauptstädten, Touri-Spots und interessanten Orten
         const DATABASE = [
             { name: "Paris, Frankreich", lat: 48.8566, lng: 2.3522 },
             { name: "Berlin, Deutschland", lat: 52.5200, lng: 13.4050 },
@@ -375,10 +373,9 @@
         // --- GAME LOGIC ---
 
         async function startRound() {
-            if (retryCount > 20) { // Mehr Retries erlaubt für Qualitätsfilter
+            if (retryCount > 20) { 
                 alert("Keine qualitativ hochwertigen Bilder in dieser Region gefunden. Wir probieren es woanders.");
                 retryCount = 0;
-                // Fallback: Einfach neu starten
                 location.reload(); 
                 return;
             }
@@ -394,19 +391,15 @@
             document.getElementById('guess-btn').disabled = true;
             document.getElementById('guess-btn').style.display = 'block';
             document.getElementById('loader').style.opacity = 1;
-            document.getElementById('loader-text').innerText = "Suche navigierbares Gebiet...";
+            document.getElementById('loader-text').innerText = "Suche sauberes Bild...";
             
-            // 1. Wähle zufälliges Ziel aus der großen DB
             const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
             currentTarget = target;
             
-            // 2. Zufalls-Radius: Wir gehen bis zu 2km (0.02 Grad) weg vom Zentrum
-            // Das sorgt für Varianz!
             const randomLat = target.lat + (Math.random() - 0.5) * 0.04; 
             const randomLng = target.lng + (Math.random() - 0.5) * 0.04; 
             
             try {
-                // Wir fordern explizit 'sequence' und 'is_pano' an
                 const imgData = await fetchBestImageNear(randomLat, randomLng);
                 
                 if(!imgData) throw new Error("Kein passendes Bild");
@@ -425,19 +418,14 @@
             } catch(e) {
                 console.log(`Retry (${retryCount}): ${currentTarget.name} - ${e.message}`);
                 retryCount++;
-                // Kurzes Warten, dann neu versuchen
                 await new Promise(r => setTimeout(r, 100));
                 startRound();
             }
         }
 
         async function fetchBestImageNear(lat, lng) {
-            // Radius ca 2km (etwas größer um mehr Auswahl zu haben)
             const delta = 0.02; 
             const bbox = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-            const encodedToken = encodeURIComponent(MAPILLARY_CONFIG.accessToken);
-            
-            // Wir holen bis zu 30 Bilder in der Region um das Beste auszuwählen
             const url = `https://graph.mapillary.com/images?fields=id,geometry,sequence,is_pano&bbox=${bbox}&limit=30`;
             
             const res = await fetch(url, {
@@ -450,16 +438,9 @@
             if(!data.data || data.data.length === 0) return null;
 
             // PRIORISIERUNGS-LOGIK
-            // 1. Prio: 360° UND Sequenz (Beste Experience)
             let bestImage = data.data.find(img => img.is_pano === true && img.sequence);
-            
-            // 2. Prio: Nur 360° (Gut zum Umschauen)
             if(!bestImage) bestImage = data.data.find(img => img.is_pano === true);
-            
-            // 3. Prio: Nur Sequenz (Gut zum Laufen)
             if(!bestImage) bestImage = data.data.find(img => img.sequence);
-            
-            // Fallback: Irgendein Bild
             if(!bestImage) bestImage = data.data[Math.floor(Math.random() * data.data.length)];
 
             return bestImage;
@@ -478,8 +459,8 @@
                             cover: false,
                             direction: true,
                             imagePlane: true,
-                            sequence: true, // Ermöglicht das Laufen (Pfeile)
-                            spatial: true, // WICHTIG: Ermöglicht 3D Navigation im Raum
+                            sequence: true, 
+                            spatial: false, // CLEAN VIEW (Keine Punkte!)
                             mouse: { doubleClickZoom: false }
                         }
                     });
@@ -569,7 +550,9 @@
 
                 const latlngs = [[guess.lat, guess.lng], [targetLat, targetLng]];
                 resultLine = L.polyline(latlngs, {color: 'blue', dashArray: '10, 10'}).addTo(map);
-                map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
+                
+                // ZOOM WITH PADDING (Oben mehr Platz für Overlay)
+                map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50], paddingTopLeft: [0, 200] });
 
                 // REWARD TEXT
                 let title = "ERGEBNIS";
