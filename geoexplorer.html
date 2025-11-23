@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <!-- MAPILLARY CSS -->
     <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css" />
+    <!-- FONT AWESOME -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
         :root {
@@ -18,6 +20,7 @@
             --own: #0088ff;    /* Own Color */
             --bg-dark: #111;
             --hud-bg: rgba(0, 0, 0, 0.8);
+            --glass: rgba(20, 20, 20, 0.95);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
@@ -41,18 +44,22 @@
             animation: spin 0.8s ease-in-out infinite;
         }
 
-        /* --- MAP --- */
+        /* --- MINIMAP (Ingame) --- */
         #map-container {
             position: absolute; bottom: 30px; right: 30px;
-            width: 310px; height: 220px;
+            width: 300px; height: 200px; /* Kompakt */
             z-index: 10; border-radius: 12px; border: 4px solid rgba(255, 255, 255, 0.9);
             box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden;
             transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1); background: #fff;
         }
+        
+        /* --- RESULT STATE (Fullscreen Map) --- */
         #map-container.expanded {
-            width: 85%; height: 85%; bottom: 50%; right: 50%;
-            transform: translate(50%, 50%); border-color: var(--primary); z-index: 50;
+            width: 100% !important; height: 100% !important; 
+            bottom: 0; right: 0; border: none; border-radius: 0;
+            z-index: 200; /* Top Level */
         }
+        
         #map-container:not(.expanded):hover { transform: scale(1.02); border-color: var(--primary); cursor: crosshair; }
         #map { width: 100%; height: 100%; background: #ddd; }
 
@@ -75,29 +82,67 @@
         #guess-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(5, 203, 99, 0.6); }
         #guess-btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        /* --- RESULT OVERLAY --- */
+        /* --- RESULT OVERLAY (Responsive Redesign) --- */
         #result-overlay {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(15px);
-            padding: 20px 40px; border-radius: 15px; text-align: center; border: 2px solid var(--primary);
-            opacity: 0; pointer-events: none; transition: opacity 0.5s;
-            min-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 100;
-            display: flex; flex-direction: column; gap: 5px; align-items: center;
+            position: absolute; 
+            z-index: 300;
+            background: var(--glass); 
+            backdrop-filter: blur(20px);
+            padding: 30px; 
+            border: 1px solid rgba(255,255,255,0.1);
+            opacity: 0; 
+            pointer-events: none; 
+            transition: all 0.5s ease;
+            display: flex; flex-direction: column; gap: 15px; align-items: center;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
         }
-        #map-container.expanded #result-overlay { opacity: 1; pointer-events: all; }
+
+        /* Desktop Style */
+        @media (min-width: 768px) {
+            #result-overlay {
+                top: 40px; left: 40px; /* Top Left Corner */
+                width: 350px;
+                border-radius: 20px;
+                transform: translateX(-50px); /* Start animation pos */
+            }
+            #map-container.expanded #result-overlay {
+                opacity: 1; pointer-events: all;
+                transform: translateX(0);
+            }
+        }
+
+        /* Mobile Style (Bottom Sheet) */
+        @media (max-width: 767px) {
+            #result-overlay {
+                bottom: 0; left: 0; width: 100%;
+                border-radius: 25px 25px 0 0;
+                transform: translateY(100%); /* Start animation pos */
+                padding-bottom: 40px;
+            }
+            #map-container.expanded #result-overlay {
+                opacity: 1; pointer-events: all;
+                transform: translateY(0);
+            }
+            #map-container { width: 140px; height: 180px; bottom: 80px; right: 10px; } /* Smaller Minimap on Mobile */
+        }
         
-        .result-title { font-size: 1.8rem; color: var(--primary); font-weight: 900; margin: 0; text-transform: uppercase;}
-        .winner-text { font-size: 1.2rem; color: #fff; margin: 10px 0; font-weight: bold; }
-        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; margin-top: 10px; text-align: center;}
-        .score-col h4 { color: #aaa; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 5px; }
-        .score-val { font-size: 1.2rem; font-weight: bold; }
+        .result-title { font-size: 2rem; color: var(--primary); font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 2px; line-height: 1;}
+        .winner-text { font-size: 1.1rem; color: #eee; margin-bottom: 5px; font-weight: 500; }
+        .location-reveal { color: #fff; font-size: 1.3rem; font-weight: bold; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; width: 100%;}
+        
+        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; text-align: center;}
+        .score-col { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; }
+        .score-col h4 { color: #aaa; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; }
+        .score-val { font-size: 1.1rem; font-weight: bold; }
+        
+        .main-score { font-size: 3.5rem; font-weight: 900; color: #fff; line-height: 1; margin: 10px 0; text-shadow: 0 0 30px var(--primary); }
         
         .btn { 
-            background: var(--primary); border: none; padding: 12px 30px; color: #000; font-weight: bold; border-radius: 50px; 
-            cursor: pointer; margin-top: 15px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; 
-            box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; width: 100%; justify-content: center;
+            background: var(--primary); border: none; padding: 15px 30px; color: #000; font-weight: bold; border-radius: 50px; 
+            cursor: pointer; width: 100%; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; 
+            box-shadow: 0 4px 15px rgba(5,203,99,0.4); transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
-        .btn-secondary { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-secondary { background: transparent; border: 2px solid #444; color: #fff; box-shadow: none; }
         .btn:hover { opacity: 0.9; transform: scale(1.02); }
 
         /* --- START SCREENS --- */
@@ -109,15 +154,15 @@
         .modal { background: #1a1a1a; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #333; max-width: 500px; width: 90%; }
         
         .mode-select { display: flex; gap: 15px; margin-top: 30px; flex-wrap: wrap;}
-        .mode-btn { flex: 1; min-width: 140px; padding: 20px; background: #222; border: 2px solid #444; border-radius: 15px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 10px;}
-        .mode-btn:hover { border-color: var(--primary); background: #2a2a2a; }
+        .mode-btn { flex: 1; min-width: 130px; padding: 20px; background: #222; border: 2px solid #333; border-radius: 15px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 10px;}
+        .mode-btn:hover { border-color: var(--primary); background: #2a2a2a; transform: translateY(-3px);}
         .mode-btn i { font-size: 2rem; color: var(--primary); }
-        .mode-btn span { font-weight: bold; font-size: 1.1rem; }
+        .mode-btn span { font-weight: bold; font-size: 1rem; }
 
         #host-ui, #join-ui { display: none; margin-top: 20px; width: 100%; }
-        .lobby-code { font-size: 2.5rem; letter-spacing: 5px; font-family: monospace; color: var(--primary); margin: 10px 0; font-weight: bold; background: #000; padding: 10px; border-radius: 10px;}
+        .lobby-code { font-size: 3rem; letter-spacing: 8px; font-family: monospace; color: var(--primary); margin: 15px 0; font-weight: bold; background: #000; padding: 15px; border-radius: 15px; border: 1px solid #333;}
         
-        input[type="text"] { width: 100%; padding: 15px; font-size: 1.2rem; text-align: center; border-radius: 10px; border: 2px solid #444; background: #000; color: white; font-family: monospace; letter-spacing: 3px; margin-bottom: 15px; text-transform: uppercase;}
+        input[type="text"] { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; border-radius: 10px; border: 2px solid #444; background: #000; color: white; font-family: monospace; letter-spacing: 5px; margin-bottom: 15px; text-transform: uppercase;}
         
         #music-toggle { position: absolute; top: 20px; right: 20px; z-index: 30; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;}
         
@@ -125,7 +170,6 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
 
@@ -144,11 +188,11 @@
                         <span>Solo</span>
                     </div>
                     <div class="mode-btn" onclick="showHostUI()">
-                        <i class="fas fa-plus-circle"></i>
+                        <i class="fas fa-broadcast-tower"></i>
                         <span>Hosten</span>
                     </div>
                     <div class="mode-btn" onclick="showJoinUI()">
-                        <i class="fas fa-sign-in-alt"></i>
+                        <i class="fas fa-gamepad"></i>
                         <span>Beitreten</span>
                     </div>
                 </div>
@@ -156,10 +200,9 @@
 
             <!-- Host UI -->
             <div id="host-ui">
-                <p>Dein Game Code:</p>
+                <p>Teile diesen Code:</p>
                 <div class="lobby-code" id="host-code-display">...</div>
-                <p style="color: #888; font-size: 0.9rem;" id="host-status">Verbinde zu PeerJS...</p>
-                <div class="spinner" style="width: 30px; height: 30px; margin: 10px auto;"></div>
+                <p style="color: #888; font-size: 0.9rem;" id="host-status"><i class="fas fa-spinner fa-spin"></i> Server Verbindung...</p>
                 <button class="btn btn-secondary" onclick="resetToMenu()">Abbrechen</button>
             </div>
 
@@ -186,8 +229,8 @@
         <div class="hud-panel">
             <i class="fas fa-stopwatch"></i> <span id="timer">02:00</span>
         </div>
-        <div class="hud-panel hidden" id="opponent-status">
-            <i class="fas fa-user-secret"></i> <span id="opp-status-text">Gegner sucht...</span>
+        <div class="hud-panel hidden" id="opponent-status" style="background: rgba(255,0,85,0.2); border-color: var(--accent);">
+            <i class="fas fa-user-secret" style="color: var(--accent)"></i> <span id="opp-status-text" style="color: #fff">Gegner sucht...</span>
         </div>
     </div>
 
@@ -197,22 +240,32 @@
     <div id="map-container">
         <div id="map"></div>
         
+        <!-- Redesigned Result Overlay -->
         <div id="result-overlay">
             <div class="result-title" id="res-title">RUNDE VORBEI</div>
-            <div class="winner-text" id="res-winner">Warte auf Gegner...</div>
+            <div class="winner-text" id="res-winner">Auswertung...</div>
             
-            <div class="score-grid" id="res-grid">
-                <div class="score-col">
-                    <h4>Du</h4>
-                    <div class="score-val" style="color: var(--own)" id="res-p1-dist">---</div>
+            <div class="location-reveal" id="res-location">Ort Name</div>
+
+            <!-- Singleplayer Score -->
+            <div id="sp-score-box" class="hidden" style="text-align:center; width:100%">
+                <div class="main-score" id="res-points">0</div>
+                <div style="color:#888; font-size:0.9rem; text-transform:uppercase; letter-spacing:2px;">Punkte</div>
+            </div>
+            
+            <!-- Multiplayer Grid -->
+            <div class="score-grid hidden" id="mp-score-grid">
+                <div class="score-col" style="border: 1px solid var(--own)">
+                    <h4 style="color: var(--own)">Du</h4>
+                    <div class="score-val" id="res-p1-dist">---</div>
                 </div>
-                <div class="score-col">
-                    <h4>Gegner</h4>
-                    <div class="score-val" style="color: var(--accent)" id="res-p2-dist">---</div>
+                <div class="score-col" style="border: 1px solid var(--accent)">
+                    <h4 style="color: var(--accent)">Gegner</h4>
+                    <div class="score-val" id="res-p2-dist">---</div>
                 </div>
             </div>
 
-            <button class="btn" onclick="location.reload()"><i class="fas fa-home"></i> Zurück zum Menü</button>
+            <button class="btn" onclick="location.reload()"><i class="fas fa-redo"></i> Neue Runde</button>
         </div>
     </div>
 
@@ -227,16 +280,14 @@
     <!-- LIBS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"></script>
-    <!-- PeerJS für P2P -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
     <script>
         // --- CONFIG ---
         const MAPILLARY_TOKEN = "MLY|24346716201668098|5aa98286cac1799925ddf57c3f33f190";
-        // Wir nutzen den PeerJS Public Server. Um Kollisionen zu vermeiden, nutzen wir ein Prefix.
         const PEER_PREFIX = "cgeo-game-"; 
 
-        // --- RIESIGE DATENBANK (120+ Einträge) ---
+        // --- DATABASE (German Optimized) ---
         const DATABASE = [
             // Europa
             { name: "Berlin, Deutschland", lat: 52.5200, lng: 13.4050 },
@@ -244,158 +295,81 @@
             { name: "Hamburg, Deutschland", lat: 53.5511, lng: 9.9937 },
             { name: "Konstanz, Deutschland", lat: 47.6603, lng: 9.1758 },
             { name: "Paris, Frankreich", lat: 48.8566, lng: 2.3522 },
-            { name: "Lyon, Frankreich", lat: 45.7640, lng: 4.8357 },
-            { name: "Marseille, Frankreich", lat: 43.2965, lng: 5.3698 },
             { name: "London, UK", lat: 51.5074, lng: -0.1278 },
-            { name: "Manchester, UK", lat: 53.4808, lng: -2.2426 },
-            { name: "Edinburgh, Schottland", lat: 55.9533, lng: -3.1883 },
-            { name: "Dublin, Irland", lat: 53.3498, lng: -6.2603 },
             { name: "Rom, Italien", lat: 41.9028, lng: 12.4964 },
-            { name: "Mailand, Italien", lat: 45.4642, lng: 9.1900 },
             { name: "Venedig, Italien", lat: 45.4408, lng: 12.3155 },
-            { name: "Neapel, Italien", lat: 40.8518, lng: 14.2681 },
             { name: "Madrid, Spanien", lat: 40.4168, lng: -3.7038 },
             { name: "Barcelona, Spanien", lat: 41.3851, lng: 2.1734 },
-            { name: "Sevilla, Spanien", lat: 37.3891, lng: -5.9845 },
-            { name: "Lissabon, Portugal", lat: 38.7223, lng: -9.1393 },
-            { name: "Porto, Portugal", lat: 41.1579, lng: -8.6291 },
             { name: "Wien, Österreich", lat: 48.2081, lng: 16.3738 },
-            { name: "Salzburg, Österreich", lat: 47.8095, lng: 13.0550 },
             { name: "Zürich, Schweiz", lat: 47.3769, lng: 8.5417 },
-            { name: "Genf, Schweiz", lat: 46.2044, lng: 6.1432 },
             { name: "Amsterdam, Niederlande", lat: 52.3676, lng: 4.9041 },
-            { name: "Brüssel, Belgien", lat: 50.8503, lng: 4.3517 },
             { name: "Kopenhagen, Dänemark", lat: 55.6761, lng: 12.5683 },
             { name: "Stockholm, Schweden", lat: 59.3293, lng: 18.0686 },
-            { name: "Oslo, Norwegen", lat: 59.9139, lng: 10.7522 },
-            { name: "Helsinki, Finnland", lat: 60.1699, lng: 24.9384 },
             { name: "Reykjavik, Island", lat: 64.1466, lng: -21.9426 },
             { name: "Prag, Tschechien", lat: 50.0755, lng: 14.4378 },
             { name: "Budapest, Ungarn", lat: 47.4979, lng: 19.0402 },
-            { name: "Warschau, Polen", lat: 52.2297, lng: 21.0122 },
-            { name: "Krakau, Polen", lat: 50.0647, lng: 19.9450 },
             { name: "Athen, Griechenland", lat: 37.9838, lng: 23.7275 },
             { name: "Istanbul, Türkei", lat: 41.0082, lng: 28.9784 },
-            { name: "Moskau, Russland", lat: 55.7558, lng: 37.6173 },
             
-            // Amerika (Nord & Süd)
+            // Weltweit
             { name: "New York, USA", lat: 40.7128, lng: -74.0060 },
-            { name: "Los Angeles, USA", lat: 34.0522, lng: -118.2437 },
-            { name: "Chicago, USA", lat: 41.8781, lng: -87.6298 },
             { name: "San Francisco, USA", lat: 37.7749, lng: -122.4194 },
-            { name: "Miami, USA", lat: 25.7617, lng: -80.1918 },
-            { name: "Toronto, Kanada", lat: 43.6510, lng: -79.3470 },
-            { name: "Vancouver, Kanada", lat: 49.2827, lng: -123.1207 },
-            { name: "Montreal, Kanada", lat: 45.5017, lng: -73.5673 },
-            { name: "Mexiko-Stadt, Mexiko", lat: 19.4326, lng: -99.1332 },
-            { name: "Cancún, Mexiko", lat: 21.1619, lng: -86.8515 },
-            { name: "Rio de Janeiro, Brasilien", lat: -22.9068, lng: -43.1729 },
-            { name: "São Paulo, Brasilien", lat: -23.5505, lng: -46.6333 },
-            { name: "Buenos Aires, Argentinien", lat: -34.6037, lng: -58.3816 },
-            { name: "Santiago, Chile", lat: -33.4489, lng: -70.6693 },
-            { name: "Bogota, Kolumbien", lat: 4.7110, lng: -74.0721 },
-            { name: "Lima, Peru", lat: -12.0464, lng: -77.0428 },
-            
-            // Asien & Ozeanien
             { name: "Tokio, Japan", lat: 35.6762, lng: 139.6503 },
-            { name: "Kyoto, Japan", lat: 35.0116, lng: 135.7681 },
-            { name: "Seoul, Südkorea", lat: 37.5665, lng: 126.9780 },
-            { name: "Peking, China", lat: 39.9042, lng: 116.4074 },
-            { name: "Shanghai, China", lat: 31.2304, lng: 121.4737 },
-            { name: "Hongkong", lat: 22.3193, lng: 114.1694 },
-            { name: "Bangkok, Thailand", lat: 13.7563, lng: 100.5018 },
-            { name: "Singapur", lat: 1.3521, lng: 103.8198 },
-            { name: "Mumbai, Indien", lat: 19.0760, lng: 72.8777 },
-            { name: "Neu-Delhi, Indien", lat: 28.6139, lng: 77.2090 },
-            { name: "Dubai, VAE", lat: 25.2048, lng: 55.2708 },
             { name: "Sydney, Australien", lat: -33.8688, lng: 151.2093 },
-            { name: "Melbourne, Australien", lat: -37.8136, lng: 144.9631 },
-            { name: "Auckland, Neuseeland", lat: -36.8485, lng: 174.7633 },
-            
-            // Afrika
-            { name: "Kairo, Ägypten", lat: 30.0444, lng: 31.2357 },
             { name: "Kapstadt, Südafrika", lat: -33.9249, lng: 18.4241 },
-            { name: "Marrakesch, Marokko", lat: 31.6295, lng: -7.9811 },
-            { name: "Nairobi, Kenia", lat: -1.2921, lng: 36.8219 }
+            { name: "Rio de Janeiro, Brasilien", lat: -22.9068, lng: -43.1729 },
+            { name: "Dubai, VAE", lat: 25.2048, lng: 55.2708 },
+            { name: "Singapur", lat: 1.3521, lng: 103.8198 },
+            { name: "Bangkok, Thailand", lat: 13.7563, lng: 100.5018 },
+            { name: "Buenos Aires, Argentinien", lat: -34.6037, lng: -58.3816 },
+            { name: "Kairo, Ägypten", lat: 30.0444, lng: 31.2357 },
+            { name: "Mexiko-Stadt, Mexiko", lat: 19.4326, lng: -99.1332 }
         ];
 
         // --- STATE ---
-        let mly, map;
-        let peer, conn;
-        let isHost = false;
-        let isMultiplayer = false;
-        let currentTarget = null;
-        let actualStartCoords = null;
-        let userGuessCoords = null;
-        let opponentGuessData = null;
-        let timeLeft = 120, timerInterval;
-        let retryCount = 0;
-        
-        // Audio
+        let mly, map, peer, conn;
+        let isHost = false, isMultiplayer = false;
+        let currentTarget = null, startImageId = null, actualStartCoords = null;
+        let userMarker, targetMarker, resultLine, userGuessCoords = null, opponentGuessData = null;
+        let timeLeft = 120, timerInterval, retryCount = 0;
         let isMusicPlaying = false, currentTrackIndex = 0;
         const bgMusic = document.getElementById('bg-music');
         const PLAYLIST = ["https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3", "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3"];
         bgMusic.volume = 0.15;
 
-        // --- GAME FLOW ---
+        // --- EXPORTS ---
+        window.startSinglePlayer = startSinglePlayer;
+        window.showHostUI = showHostUI;
+        window.showJoinUI = showJoinUI;
+        window.resetToMenu = resetToMenu;
+        window.joinGame = joinGame;
+        window.submitGuess = submitGuess;
+        window.toggleMusic = toggleMusic;
+        window.initApp = () => {}; 
 
-        function startSinglePlayer() {
-            isMultiplayer = false;
-            document.getElementById('overlay-screen').classList.add('hidden');
-            initLeaflet();
-            initAudioSystem();
-            
-            // Wähle Ziel
-            const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
-            // Zufalls-Radius (ca. 2km)
-            const lat = target.lat + (Math.random() - 0.5) * 0.04;
-            const lng = target.lng + (Math.random() - 0.5) * 0.04;
-            
-            startRound({lat, lng, name: target.name});
-        }
-
-        // --- P2P HOSTING ---
+        // --- MENU LOGIC ---
+        function resetToMenu() { location.reload(); }
+        
         function showHostUI() {
             document.getElementById('main-menu').classList.add('hidden');
-            document.getElementById('host-ui').style.display = 'block'; // Explicit block
+            document.getElementById('host-ui').style.display = 'block';
             
-            const code = Math.floor(1000 + Math.random() * 9000).toString(); // Simple 4 Digit
-            const peerId = PEER_PREFIX + code;
-            
+            const code = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('host-code-display').innerText = code;
             
-            peer = new Peer(peerId);
-            
-            peer.on('open', (id) => {
-                document.getElementById('host-status').innerText = "Warte auf Mitspieler...";
-            });
-            
+            peer = new Peer(PEER_PREFIX + code);
+            peer.on('open', () => document.getElementById('host-status').innerText = "Warte auf Spieler...");
             peer.on('connection', (c) => {
-                conn = c;
-                isHost = true;
-                isMultiplayer = true;
-                setupConnection();
-                
-                // Spiel vorbereiten und an Client senden
+                conn = c; isHost = true; isMultiplayer = true; setupConnection();
                 const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
                 const lat = target.lat + (Math.random() - 0.5) * 0.04;
                 const lng = target.lng + (Math.random() - 0.5) * 0.04;
                 const gameData = { lat, lng, name: target.name };
-                
-                // Kurze Verzögerung damit Client bereit ist
-                setTimeout(() => {
-                    conn.send({ type: 'START', data: gameData });
-                    startMultiplayerRound(gameData);
-                }, 1000);
+                setTimeout(() => { conn.send({ type: 'START', data: gameData }); startMultiplayerRound(gameData); }, 1000);
             });
-            
-            peer.on('error', (err) => {
-                alert("P2P Fehler: " + err.type);
-                resetToMenu();
-            });
+            peer.on('error', () => { alert("Fehler. Code evtl. belegt."); resetToMenu(); });
         }
 
-        // --- P2P JOINING ---
         function showJoinUI() {
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('join-ui').style.display = 'block';
@@ -403,108 +377,118 @@
 
         function joinGame() {
             const code = document.getElementById('join-code-input').value.trim();
-            if(code.length !== 4) return alert("Code muss 4 Stellen haben");
-            
-            const hostId = PEER_PREFIX + code;
-            peer = new Peer(); // Random ID for guest
-            
+            if(code.length !== 4) return alert("4 Stellen!");
+            peer = new Peer();
             peer.on('open', () => {
-                conn = peer.connect(hostId);
-                isHost = false;
-                isMultiplayer = true;
-                setupConnection();
+                conn = peer.connect(PEER_PREFIX + code);
+                isHost = false; isMultiplayer = true; setupConnection();
             });
-            
-            peer.on('error', (err) => {
-                alert("Verbindung fehlgeschlagen. Code prüfen.");
-                resetToMenu();
-            });
+            peer.on('error', () => alert("Verbindung fehlgeschlagen."));
         }
 
         function setupConnection() {
             conn.on('data', (msg) => {
-                if(msg.type === 'START') {
-                    startMultiplayerRound(msg.data);
-                }
+                if(msg.type === 'START') startMultiplayerRound(msg.data);
                 if(msg.type === 'GUESS') {
                     opponentGuessData = msg.data;
                     document.getElementById('opp-status-text').innerText = "Gegner fertig!";
-                    document.getElementById('opponent-status').style.color = "var(--primary)";
-                    
-                    // Wenn ich auch schon getippt habe, zeige Ergebnis
+                    document.getElementById('opp-status-text').style.color = "#fff";
+                    document.getElementById('opponent-status').style.backgroundColor = "var(--primary)";
                     if(userGuessCoords) showResults(calcDist(userGuessCoords), opponentGuessData);
                 }
             });
         }
 
-        function startMultiplayerRound(targetData) {
-            document.getElementById('overlay-screen').classList.add('hidden');
-            document.getElementById('opponent-status').classList.remove('hidden');
-            initLeaflet();
-            initAudioSystem();
-            startRound(targetData);
+        function startSinglePlayer() {
+            isMultiplayer = false;
+            const target = DATABASE[Math.floor(Math.random() * DATABASE.length)];
+            const lat = target.lat + (Math.random() - 0.5) * 0.04;
+            const lng = target.lng + (Math.random() - 0.5) * 0.04;
+            startRound({lat, lng, name: target.name});
         }
 
-        // --- CORE LOGIC ---
+        function startMultiplayerRound(target) {
+            document.getElementById('overlay-screen').classList.add('hidden');
+            document.getElementById('opponent-status').classList.remove('hidden');
+            startRound(target);
+        }
 
+        // --- CORE ---
         async function startRound(target) {
+            document.getElementById('overlay-screen').classList.add('hidden');
+            initLeaflet();
+            initAudioSystem();
+            
             currentTarget = target;
             document.getElementById('loader').style.opacity = 1;
             
             try {
                 const imgData = await fetchBestImageNear(target.lat, target.lng);
-                if(!imgData) throw new Error("Bild nicht gefunden");
-                
+                if(!imgData) throw new Error("Kein Bild");
                 actualStartCoords = { lat: imgData.geometry.coordinates[1], lng: imgData.geometry.coordinates[0] };
                 initMapillary(imgData.id);
-                
                 document.getElementById('loader').style.opacity = 0;
                 startTimer();
             } catch(e) {
-                console.log("Retry new location...");
-                // Im Singleplayer: Einfach neu würfeln
-                if(!isMultiplayer) {
-                    startSinglePlayer();
-                } else {
-                    alert("Fehler beim Laden der gemeinsamen Location. Neustart erforderlich.");
-                    location.reload();
-                }
+                if(!isMultiplayer) startSinglePlayer(); // Retry new loc
+                else { alert("Fehler beim Laden. Neustart."); resetToMenu(); }
             }
         }
 
         async function fetchBestImageNear(lat, lng) {
             const bbox = `${lng-0.02},${lat-0.02},${lng+0.02},${lat+0.02}`;
-            const url = `https://graph.mapillary.com/images?fields=id,geometry,sequence,is_pano&bbox=${bbox}&limit=30`;
-            const res = await fetch(url, { headers: { 'Authorization': `OAuth ${MAPILLARY_TOKEN}` } });
+            const res = await fetch(`https://graph.mapillary.com/images?fields=id,geometry,sequence,is_pano&bbox=${bbox}&limit=30`, {
+                headers: { 'Authorization': `OAuth ${MAPILLARY_TOKEN}` }
+            });
             if(!res.ok) return null;
             const data = await res.json();
-            if(!data.data || data.data.length === 0) return null;
+            if(!data.data || !data.data.length) return null;
             
-            // Prio Logic
             let best = data.data.find(img => img.is_pano && img.sequence);
             if(!best) best = data.data.find(img => img.is_pano);
             if(!best) best = data.data.find(img => img.sequence);
             return best || data.data[0];
         }
 
-        // --- SUBMIT & RESULTS ---
+        function initMapillary(id) {
+            if(mly) mly.moveTo(id).catch(console.warn);
+            else {
+                mly = new mapillary.Viewer({
+                    accessToken: MAPILLARY_TOKEN, container: 'mly', imageId: id,
+                    component: { cover: false, direction: true, imagePlane: true, sequence: true, spatial: false, mouse: {doubleClickZoom: false} }
+                });
+                window.dispatchEvent(new Event('resize'));
+            }
+        }
+
+        function initLeaflet() {
+            if(map) return;
+            map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
+            // GERMAN TILES
+            L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '&copy; OpenStreetMap DE'
+            }).addTo(map);
+            map.on('click', (e) => {
+                if(document.getElementById('map-container').classList.contains('expanded')) return;
+                if(userMarker) map.removeLayer(userMarker);
+                userMarker = L.circleMarker(e.latlng, {radius: 8, fillColor: "#0088ff", color: "#fff", weight: 2, fillOpacity: 1}).addTo(map);
+                userGuessCoords = e.latlng;
+                document.getElementById('guess-btn').disabled = false;
+                playClick();
+            });
+        }
 
         function submitGuess() {
             if(!userGuessCoords) return;
             clearInterval(timerInterval);
-            
-            const dist = getDistance(userGuessCoords.lat, userGuessCoords.lng, currentTarget.lat, currentTarget.lng);
+            const dist = calcDist(userGuessCoords);
             const myData = { lat: userGuessCoords.lat, lng: userGuessCoords.lng, dist: dist };
 
             if(isMultiplayer) {
                 document.getElementById('guess-btn').innerText = "WARTE AUF GEGNER...";
                 document.getElementById('guess-btn').disabled = true;
-                
                 conn.send({ type: 'GUESS', data: myData });
-                
-                if(opponentGuessData) {
-                    showResults(dist, opponentGuessData);
-                }
+                if(opponentGuessData) showResults(dist, opponentGuessData);
             } else {
                 showResults(dist, null);
             }
@@ -518,120 +502,84 @@
 
             setTimeout(() => {
                 map.invalidateSize();
-                
-                // Ziel (Grün)
-                L.circleMarker([currentTarget.lat, currentTarget.lng], {radius: 10, fillColor: "#05cb63", color: "#fff", weight:3, fillOpacity:1}).addTo(map).bindPopup("Ziel");
-
-                // Ich (Blau)
-                L.circleMarker([userGuessCoords.lat, userGuessCoords.lng], {radius: 8, fillColor: "#0088ff", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Du");
-                L.polyline([[userGuessCoords.lat, userGuessCoords.lng], [currentTarget.lat, currentTarget.lng]], {color: '#0088ff', dashArray:'5,5'}).addTo(map);
-
-                // Gegner (Rot)
+                // Markers
+                L.circleMarker([currentTarget.lat, currentTarget.lng], {radius: 10, fillColor: "#05cb63", color: "#fff", weight:3, fillOpacity:1}).addTo(map).bindPopup("Ziel").openPopup();
+                if(userGuessCoords) {
+                    L.circleMarker([userGuessCoords.lat, userGuessCoords.lng], {radius: 8, fillColor: "#0088ff", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Du");
+                    L.polyline([[userGuessCoords.lat, userGuessCoords.lng], [currentTarget.lat, currentTarget.lng]], {color: '#0088ff', dashArray:'5,5'}).addTo(map);
+                }
                 if(oppData) {
                     L.circleMarker([oppData.lat, oppData.lng], {radius: 8, fillColor: "#ff0055", color: "#fff", fillOpacity:1}).addTo(map).bindPopup("Gegner");
                     L.polyline([[oppData.lat, oppData.lng], [currentTarget.lat, currentTarget.lng]], {color: '#ff0055', dashArray:'5,5'}).addTo(map);
                 }
 
-                // Zoom
-                const group = new L.featureGroup([
-                    L.marker([currentTarget.lat, currentTarget.lng]),
-                    L.marker([userGuessCoords.lat, userGuessCoords.lng])
-                ]);
-                map.fitBounds(group.getBounds(), { padding: [50, 50], paddingTopLeft: [0, 150] });
+                // INTELLIGENT PADDING
+                const bounds = L.latLngBounds([[currentTarget.lat, currentTarget.lng]]);
+                if(userGuessCoords) bounds.extend([userGuessCoords.lat, userGuessCoords.lng]);
+                if(oppData) bounds.extend([oppData.lat, oppData.lng]);
+                
+                // Detect Mobile vs Desktop for padding
+                const isMobile = window.innerWidth < 768;
+                const paddingOptions = isMobile 
+                    ? { paddingBottomRight: [0, 350], padding: [20, 20] } // Mobile: Box unten
+                    : { paddingTopLeft: [400, 0], padding: [50, 50] };    // Desktop: Box links
 
-                // Text Updates
+                map.fitBounds(bounds, paddingOptions);
+
+                // UI DATA
                 document.getElementById('res-location').innerText = currentTarget.name;
                 
                 if(isMultiplayer) {
+                    document.getElementById('mp-score-grid').classList.remove('hidden');
                     const myD = Math.round(myDist);
                     const oppD = Math.round(oppData.dist);
                     document.getElementById('res-p1-dist').innerText = myD + " km";
                     document.getElementById('res-p2-dist').innerText = oppD + " km";
-                    
-                    if(myD < oppD) {
-                        document.getElementById('res-title').innerText = "GEWONNEN! 🏆";
-                        playSuccess();
-                    } else {
-                        document.getElementById('res-title').innerText = "VERLOREN 💀";
-                        playFail();
-                    }
+                    document.getElementById('res-title').innerText = myD < oppD ? "GEWONNEN! 🏆" : "VERLOREN 💀";
+                    document.getElementById('res-winner').innerText = myD < oppD ? "Du warst näher dran!" : "Der Gegner war präziser.";
+                    myD < oppD ? playSuccess() : playFail();
                 } else {
+                    document.getElementById('sp-score-box').classList.remove('hidden');
                     const pts = Math.round(5000 * Math.exp(-myDist/2000));
-                    document.getElementById('res-title').innerText = pts > 3000 ? "SUPER!" : "GUT!";
-                    document.getElementById('res-grid').innerHTML = `<div><h1>${pts} Pkt</h1><small>${Math.round(myDist)} km</small></div>`;
-                    if(pts > 2000) playSuccess(); else playFail();
+                    document.getElementById('res-points').innerText = pts;
+                    document.getElementById('res-winner').innerText = Math.round(myDist) + " km Abweichung";
+                    if(pts>3000) { document.getElementById('res-title').innerText = "FANTASTISCH!"; playSuccess(); }
+                    else { document.getElementById('res-title').innerText = "GUT GEMACHT"; playFail(); }
                 }
             }, 300);
         }
 
-        // --- UTILS ---
-        function resetToMenu() {
-            location.reload();
-        }
-        function initLeaflet() {
-            if(map) return;
-            map = L.map('map', { center: [20,0], zoom: 2, zoomControl: false, attributionControl: false });
-            // DEUTSCHE KACHELN
-            L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
-                maxZoom: 19, attribution: '&copy; OpenStreetMap DE'
-            }).addTo(map);
-            map.on('click', (e) => {
-                if(document.getElementById('map-container').classList.contains('expanded')) return;
-                if(userMarker) map.removeLayer(userMarker);
-                userMarker = L.circleMarker(e.latlng, {radius: 8, fillColor: "#0088ff", color: "#fff", weight: 2, fillOpacity: 1}).addTo(map);
-                userGuessCoords = e.latlng;
-                document.getElementById('guess-btn').disabled = false;
-                playClick();
-            });
-        }
-        function initMapillary(id) {
-            if(mly) mly.moveTo(id).catch(console.warn);
-            else {
-                mly = new mapillary.Viewer({
-                    accessToken: MAPILLARY_TOKEN, container: 'mly', imageId: id,
-                    component: { cover: false, direction: true, imagePlane: true, sequence: true, spatial: false, mouse: {doubleClickZoom: false} }
-                });
-                window.dispatchEvent(new Event('resize'));
-            }
-        }
+        // HELPERS
         function startTimer() {
             clearInterval(timerInterval);
             const tEl = document.getElementById('timer');
             timerInterval = setInterval(() => {
                 timeLeft--;
-                const m = Math.floor(timeLeft/60).toString().padStart(2,'0');
-                const s = (timeLeft%60).toString().padStart(2,'0');
-                tEl.innerText = `${m}:${s}`;
+                tEl.innerText = `${Math.floor(timeLeft/60).toString().padStart(2,'0')}:${(timeLeft%60).toString().padStart(2,'0')}`;
                 if(timeLeft<=10) { tEl.classList.add('warning'); playTimerTick(); }
                 if(timeLeft<=0) { clearInterval(timerInterval); submitGuess(); }
             }, 1000);
         }
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180;
-            const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        function calcDist(c) { 
+            const R=6371, dLat=(currentTarget.lat-c.lat)*Math.PI/180, dLon=(currentTarget.lng-c.lng)*Math.PI/180;
+            const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(c.lat*Math.PI/180)*Math.cos(currentTarget.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+            return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
         }
-        function calcDist(coords) { return getDistance(coords.lat, coords.lng, currentTarget.lat, currentTarget.lng); }
-
-        // Audio
+        
+        // AUDIO
+        const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
         function initAudioSystem() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if(audioCtx.state==='suspended') audioCtx.resume();
             bgMusic.src = PLAYLIST[0];
-            bgMusic.addEventListener('ended', () => { currentTrackIndex=(currentTrackIndex+1)%PLAYLIST.length; bgMusic.src=PLAYLIST[currentTrackIndex]; bgMusic.play(); });
-            isMusicPlaying = true;
-            bgMusic.play().catch(console.warn);
+            bgMusic.addEventListener('ended', ()=>{ currentTrackIndex=(currentTrackIndex+1)%PLAYLIST.length; bgMusic.src=PLAYLIST[currentTrackIndex]; bgMusic.play(); });
+            isMusicPlaying = true; bgMusic.play().catch(console.warn);
         }
         function toggleMusic() {
             if(isMusicPlaying) { bgMusic.pause(); document.getElementById('music-icon').className="fas fa-volume-mute"; }
             else { bgMusic.play(); document.getElementById('music-icon').className="fas fa-volume-up"; }
             isMusicPlaying = !isMusicPlaying;
         }
-        function playTone(f,t,d,v=0.1,del=0) {
-            const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-            o.type=t; o.frequency.setValueAtTime(f, audioCtx.currentTime+del);
-            g.gain.setValueAtTime(0, audioCtx.currentTime+del); g.gain.linearRampToValueAtTime(v, audioCtx.currentTime+del+0.02); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+del+d);
-            o.connect(g); g.connect(audioCtx.destination); o.start(audioCtx.currentTime+del); o.stop(audioCtx.currentTime+del+d+0.1);
-        }
+        function playTone(f,t,d,v=0.1,del=0){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=t;o.frequency.setValueAtTime(f,audioCtx.currentTime+del);g.gain.setValueAtTime(0,audioCtx.currentTime+del);g.gain.linearRampToValueAtTime(v,audioCtx.currentTime+del+0.02);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+del+d);o.connect(g);g.connect(audioCtx.destination);o.start(audioCtx.currentTime+del);o.stop(audioCtx.currentTime+del+d+0.1);}
         function playClick(){playTone(600,'sine',0.1,0.05);}
         function playTimerTick(){playTone(800,'sine',0.05,0.03);}
         function playSuccess(){const r=523.25;playTone(r,'sine',1.5,0.1,0);playTone(r*1.25,'sine',1.5,0.1,0.1);playTone(r*1.5,'sine',1.5,0.1,0.2);playTone(r*2,'sine',2,0.08,0.3);}
