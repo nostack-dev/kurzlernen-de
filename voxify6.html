@@ -1,0 +1,896 @@
+<html lang="en" data-theme="dark" data-google-analytics-opt-out="">
+<head>
+  <meta charset="UTF-8">
+  <title>STL/3MF → VoxelShaper (Ground-Aligned • Cubic • Colored Solid Voxels • Y-up)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <!-- Three.js (single version) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <!-- NEW: 3MF Loader for colored models -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/3MFLoader.js"></script>
+  <!-- FIX: Required for 3MFLoader to decompress compressed 3MF files -->
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.js"></script>
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; display: flex; flex-direction: column; background: #0b0f14; color: #e5e7eb; }
+    #canvas-wrap { position: relative; flex: 1; min-height: 0; }
+    #renderer { position:absolute; inset:0; display:block; width:100%; height:100%; }
+    .pill { padding:.25rem .5rem; border-radius:999px; background:#111827; }
+    .mono { font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+  <style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:75%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.absolute{position:absolute}.inset-0{inset:0px}.mb-2{margin-bottom:0.5rem}.ml-2{margin-left:0.5rem}.ml-4{margin-left:1rem}.ml-auto{margin-left:auto}.flex{display:flex}.hidden{display:none}.w-16{width:4rem}.w-60{width:15rem}.flex-wrap{flex-wrap:wrap}.items-center{align-items:center}.justify-center{justify-content:center}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-4{gap:1rem}.p-3{padding:0.75rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.text-center{text-align:center}.text-right{text-align:right}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.opacity-60{opacity:0.6}.opacity-70{opacity:0.7}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}</style>
+</head>
+<body>
+  <header class="p-3 bg-base-200 shadow flex flex-wrap items-center gap-3">
+    <div class="text-xl font-bold text-primary">STL/3MF → VoxelShaper</div>
+
+    <label class="btn btn-primary btn-sm gap-2">
+      <i class="fa-solid fa-file-arrow-up"></i> Load Model
+      <!-- Updated input to accept both .stl and .3mf -->
+      <input id="model-file" type="file" accept=".stl,.3mf" class="hidden">
+    </label>
+
+    <div class="flex items-center gap-2">
+      <span class="pill">Grid <span id="gridLabel" class="mono">96</span>³</span>
+      <input id="grid" type="range" min="16" max="512" value="128" step="1" class="range range-sm range-primary w-60">
+    </div>
+
+    <label class="flex items-center gap-2 ml-2 text-sm">
+      <input id="zUp" type="checkbox" class="toggle toggle-xs" checked="">
+      <span>Input Z-up → rotate Y-up</span>
+    </label>
+
+    <label class="flex items-center gap-2 ml-4 text-sm">
+      <input id="autosave" type="checkbox" class="toggle toggle-xs" checked="">
+      <span>Auto-save</span>
+    </label>
+
+    <!-- Visibility toggles -->
+    <div class="ml-4 flex items-center gap-4">
+      <label class="flex items-center gap-2 text-sm">
+        <input id="showSTL" type="checkbox" class="toggle toggle-xs" checked="">
+        <span>Show Mesh</span>
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input id="showVox" type="checkbox" class="toggle toggle-xs" checked="">
+        <span>Show Voxels</span>
+      </label>
+    </div>
+
+    <div class="ml-auto flex gap-2">
+      <button id="voxelize" class="btn btn-secondary btn-sm">
+        <i class="fa-solid fa-cubes"></i> Voxelize
+      </button>
+      <button id="download" class="btn btn-success btn-sm">
+        <i class="fa-solid fa-download"></i> Download JSON
+      </button>
+      <button id="clear" class="btn btn-outline btn-sm">
+        <i class="fa-solid fa-broom"></i> Reset
+      </button>
+    </div>
+  </header>
+
+  <div class="px-3 py-2 flex items-center gap-4 bg-base-300/40">
+    <div class="flex items-center gap-2">
+      <span class="text-xs opacity-70">Status:</span>
+      <span id="status" class="text-xs pill mono">idle</span>
+      </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs opacity-70">Progress:</span>
+      <progress id="prog" class="progress progress-primary w-60" value="0" max="100"></progress>
+      <span id="progLabel" class="text-xs mono w-16 text-right">0%</span>
+    </div>
+    <div id="syncNote" class="text-xs opacity-70"></div>
+    <div id="palette-size" class="text-xs ml-auto opacity-70"></div>
+  </div>
+
+  <div id="canvas-wrap" class="">
+    <canvas id="renderer" width="750" height="708"></canvas>
+    <div id="hint" class="absolute inset-0 flex items-center justify-center text-center pointer-events-none">
+      <div class="opacity-60">
+        <div class="text-3xl mb-2">Drop an STL or 3MF here</div>
+        <div class="text-sm">Ground (0,0,0) shared for Mesh &amp; Voxels • Auto-voxelize on grid release.</div>
+        </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // ==== UI refs ====
+    var elFile = document.getElementById('model-file');
+    var elGrid = document.getElementById('grid');
+    var elGridLabel = document.getElementById('gridLabel');
+    var elZup = document.getElementById('zUp');
+    var elAutosave = document.getElementById('autosave');
+    var elVoxelize = document.getElementById('voxelize');
+    var elDownload = document.getElementById('download');
+    var elClear = document.getElementById('clear');
+    var elStatus = document.getElementById('status');
+    var elProg = document.getElementById('prog');
+    var elProgLabel = document.getElementById('progLabel');
+    var elHint = document.getElementById('hint');
+    var elShowSTL = document.getElementById('showSTL');
+    var elShowVox = document.getElementById('showVox');
+    var elSyncNote = document.getElementById('syncNote');
+    var elPaletteSize = document.getElementById('palette-size');
+
+    function setStatus(s){ elStatus.textContent = s; }
+    function setProg(v, max){ elProg.max = max||100; elProg.value = v; var p = (v/(max||100))*100; elProgLabel.textContent = (p|0) + "%"; }
+    function setSyncNote(text){ elSyncNote.textContent = text||""; }
+    function setPaletteSize(count){ elPaletteSize.textContent = count ? "Palette Size: " + count : ""; }
+
+    // Auto-voxelize on slider RELEASE
+    var autoTimer = null, busy = false;
+    function onGridInput(){
+      elGridLabel.textContent = elGrid.value;
+      // DO NOT clear voxel preview while dragging
+      if (modelGroup.children.length > 0){
+        var n = parseInt(elGrid.value,10);
+        if (voxelData && voxelData.gridSize && voxelData.gridSize !== n){
+          setSyncNote("Preview is " + voxelData.gridSize + "³; slider " + n + "³ — release slider or click Voxelize to update.");
+        } else {
+          setSyncNote("");
+        }
+        setStatus("Adjusting grid… (preview stays visible)");
+      } else {
+        setStatus("Grid changed");
+      }
+      savePrefs();
+    }
+    function onGridChange(){
+      elGridLabel.textContent = elGrid.value;
+      setSyncNote("");
+      if (modelGroup.children.length > 0){
+        if (autoTimer) clearTimeout(autoTimer);
+        autoTimer = setTimeout(function(){
+          if (!busy) {
+            gridN = parseInt(elGrid.value,10);
+            voxelize(modelGroup, gridN);
+          }
+        }, 60);
+      }
+      savePrefs();
+    }
+    elGrid.addEventListener('input', onGridInput);
+    elGrid.addEventListener('change', onGridChange);
+
+    elZup.addEventListener('change', savePrefs);
+    elAutosave.addEventListener('change', savePrefs);
+
+    // Visibility toggles
+    function applyVisibility(){
+      modelGroup.children.forEach(c => c.visible = !!elShowSTL.checked);
+      voxGroup.visible = !!elShowVox.checked;
+    }
+    elShowSTL.addEventListener('change', function(){ applyVisibility(); savePrefs(); });
+    elShowVox.addEventListener('change', function(){ applyVisibility(); savePrefs(); });
+
+    // ==== THREE ====
+    var canvas = document.getElementById('renderer');
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0f14);
+    var camera = new THREE.PerspectiveCamera(45, 16/9, 0.01, 5000);
+    camera.position.set(2, 1.5, 2.5);
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+
+    function resize(){
+      // FIX: Correctly determine parent size and set the renderer/camera without 
+      // incorrectly assigning to canvas.clientWidth/clientHeight.
+      var w = canvas.parentElement.clientWidth;
+      var h = canvas.parentElement.clientHeight;
+      
+      renderer.setSize(w, h, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+      camera.aspect = w/h; 
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    var key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(3,4,2); scene.add(key);
+
+    var modelGroup = new THREE.Group(); scene.add(modelGroup); // Contains all loaded Meshes (STL or 3MF)
+    var voxGroup = new THREE.Group(); scene.add(voxGroup);
+
+    // Helpers / state
+    var modelName = "";
+    var meshBBHelper = null;     // Mesh BB (non-cubic)
+    var gridCubeHelper = null;   // cubic export/grid helper
+    var voxelData = null;
+    var gridN = parseInt(elGrid.value,10);
+    var lastMap = null; // {min,size,s,offX,offY,offZ,N}
+
+    // NEW: Global structures to hold pre-processed triangle data and palette
+    var globalTriData = []; // [{ tri: Float32Array(9), ci: number }, ...]
+    var globalPalette = []; // ['#HEX', '#HEX', ...]
+
+    var DEFAULT_COLOR = new THREE.Color(0x1e90ff); // Default color for uncolored STLs
+    var PREVIEW_VOXEL_COLOR = '#22C55E'; // Fallback preview color (only used if 3MF fails to load colors)
+
+    function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); }
+    loop(); resize();
+
+    function clearScene(){
+      // Dispose and clear model group
+      modelGroup.children.forEach(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
+      modelGroup.clear();
+
+      if (meshBBHelper){ modelGroup.remove(meshBBHelper); meshBBHelper=null; }
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      
+      // Reset state
+      voxelData=null; modelName=""; lastMap=null;
+      globalTriData=[]; globalPalette=[];
+      elVoxelize.disabled = true; elDownload.disabled = true; elShowVox.disabled = true;
+      setProg(0,100); setStatus("idle"); setSyncNote(""); setPaletteSize(0); elHint.style.display="";
+      saveAutosave();
+    }
+
+    function clearVoxelPreviewOnly(){
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      voxGroup.visible = !!elShowVox.checked;
+      voxelData = null;
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      saveAutosave();
+    }
+
+    // ==== persistence ====
+    var LS_KEY_JSON = "vx_proj_grounded_v9_3mf"; // Updated version key
+    var LS_KEY_PREF = "vx_pref_grounded_v9_3mf";
+    function saveAutosave(){
+      if (!elAutosave.checked){ try{ localStorage.removeItem(LS_KEY_JSON); }catch(_){} return; }
+      if (voxelData){
+        try{ localStorage.setItem(LS_KEY_JSON, JSON.stringify(voxelData)); }catch(e){}
+      } else { try{ localStorage.removeItem(LS_KEY_JSON); }catch(_){} }
+    }
+    function savePrefs(){
+      try{
+        localStorage.setItem(LS_KEY_PREF, JSON.stringify({
+          grid:+elGrid.value, zUp:!!elZup.checked, autosave:!!elAutosave.checked,
+          showSTL: !!elShowSTL.checked, showVox: !!elShowVox.checked
+        }));
+      }catch(_){}
+    }
+    // Restore ONLY preferences; start with empty scene every time.
+    (function restorePrefsOnly(){
+      try{
+        var p = JSON.parse(localStorage.getItem(LS_KEY_PREF)||"null");
+        if (p){
+          elGrid.value=p.grid||128; elGridLabel.textContent=elGrid.value;
+          elZup.checked=!!p.zUp; elAutosave.checked=!!p.autosave;
+          elShowSTL.checked = p.showSTL!==undefined ? !!p.showSTL : true;
+          elShowVox.checked = p.showVox!==undefined ? !!p.showVox : true;
+        } else {
+          elGridLabel.textContent = elGrid.value;
+        }
+        applyVisibility();
+        setStatus("fresh session — load STL/3MF to start (v9)");
+      }catch(_){}
+    })();
+
+    // ==== drag & drop ====
+    (function setupDnD(){
+      var wrap = document.getElementById('canvas-wrap');
+      ['dragenter','dragover'].forEach(function(ev){
+        wrap.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); wrap.classList.add('ring','ring-primary'); }, false);
+      });
+      ['dragleave','drop'].forEach(function(ev){
+        wrap.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); wrap.classList.remove('ring','ring-primary'); }, false);
+      });
+      wrap.addEventListener('drop', function(e){
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) { if (modelGroup.children.length || voxelData){ if(!confirm("Replace current scene?")) return; } loadModelFile(f); }
+      }, false);
+    })();
+
+    // ==== file UI ====
+    elFile.addEventListener('change', function(e){
+      var f = e.target.files[0];
+      if (!f) return;
+      if (modelGroup.children.length || voxelData){ if (!confirm("Replace current scene? This will reset the view.")) { elFile.value=""; return; } }
+      loadModelFile(f);
+    });
+    elClear.addEventListener('click', function(){
+      if (!modelGroup.children.length && !voxelData) return;
+      if (confirm("Reset scene to empty?")) clearScene();
+    });
+    elVoxelize.addEventListener('click', function(){
+      if (!modelGroup.children.length || busy){ return; }
+      gridN = parseInt(elGrid.value,10);
+      voxelize(modelGroup, gridN);
+    });
+
+    // --- Color and Palette Management ---
+    function getColorIndex(color){
+      var hex = '#' + color.getHexString().toUpperCase();
+      var ci = globalPalette.indexOf(hex);
+      if (ci === -1){
+        ci = globalPalette.length;
+        globalPalette.push(hex);
+      }
+      return ci;
+    }
+
+    // --- Triangle Data Collection (Core for color voxelization) ---
+    function collectTriangleData(mesh){
+      var geometry = mesh.geometry;
+      var material = mesh.material;
+      
+      // FIX: Ensure geometry exists and has a position attribute with data before proceeding.
+      if (!geometry || !(geometry instanceof THREE.BufferGeometry)) return;
+      
+      var position = geometry.getAttribute('position');
+      if (!position || position.count === 0) return;
+      
+
+      geometry.normalizeNormals();
+      geometry.computeVertexNormals();
+      if (!geometry.index) geometry = geometry.toNonIndexed(); // Ensure indexed geometry is flat
+
+      var color = geometry.getAttribute('color');
+      var triCount = position.count / 3;
+      var defaultColor = (material instanceof THREE.MeshStandardMaterial) ? material.color : DEFAULT_COLOR;
+
+      var tempColor = new THREE.Color();
+      for (var i = 0; i < triCount; i++){
+        var triPos = new Float32Array(9);
+        var ci = 0;
+
+        // 1. Get Positions
+        for (var j = 0; j < 9; j++){
+          triPos[j] = position.array[i * 9 + j];
+        }
+
+        // 2. Get Color (Preference: Vertex Color > Face Material Color)
+        if (color){
+          // Average vertex color to represent face color (simplification)
+          tempColor.setRGB(0, 0, 0);
+          for (var v = 0; v < 3; v++) {
+            tempColor.r += color.getX(i * 3 + v);
+            tempColor.g += color.getY(i * 3 + v);
+            tempColor.b += color.getZ(i * 3 + v);
+          }
+          tempColor.r /= 3; tempColor.g /= 3; tempColor.b /= 3;
+          ci = getColorIndex(tempColor);
+        } else {
+          ci = getColorIndex(defaultColor);
+        }
+
+        globalTriData.push({ tri: triPos, ci: ci });
+      }
+    }
+
+    // --- Loading Functions (STL and 3MF) ---
+
+    function loadModelFile(file){
+      clearScene();
+      modelName = file.name||"model";
+      var ext = modelName.split('.').pop().toLowerCase();
+      var reader = new FileReader();
+
+      reader.onload = function(e){
+        try{
+          setStatus("parsing " + ext.toUpperCase() + "…");
+          var loader = (ext === 'stl') ? new THREE.STLLoader() : new THREE.ThreeMFLoader();
+          var result = loader.parse(e.target.result);
+
+          if (ext === 'stl'){
+            // STL returns a BufferGeometry
+            var geometry = result;
+            var mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: DEFAULT_COLOR, roughness: 0.6 }));
+            modelGroup.add(mesh);
+          } else if (ext === '3mf'){
+            // 3MF returns a Group
+            modelGroup.add(result);
+          }
+
+          placeModelGroundAligned();
+          elVoxelize.disabled = false;
+          setStatus(ext.toUpperCase() + " loaded: " + modelName);
+          elHint.style.display = "none";
+          setPaletteSize(globalPalette.length);
+          applyVisibility();
+        }catch(err){ setStatus(ext.toUpperCase() + " parse failed"); console.error(err); }
+      };
+
+      if (ext === 'stl' || ext === '3mf'){
+        reader.readAsArrayBuffer(file);
+      } else {
+        setStatus("Unsupported file type: " + ext);
+      }
+    }
+
+    // === Place model so: scaled to unit bounding max, optional Z→Y rotate, then X/Z centered and minY=0 ===
+    function placeModelGroundAligned(){
+      // Calculate bounding box for the entire group
+      var bb = new THREE.Box3().setFromObject(modelGroup);
+      var size = new THREE.Vector3(); bb.getSize(size);
+      var center = new THREE.Vector3(); bb.getCenter(center);
+      
+      if (size.x === 0 && size.y === 0 && size.z === 0) return;
+
+      // 1) scale to unit bounding max
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var scale = 1.0 / maxDim;
+      var M = new THREE.Matrix4().makeScale(scale, scale, scale);
+
+      // 2) optional Z-up correction
+      if (elZup.checked){ var Rx = new THREE.Matrix4().makeRotationX(-Math.PI/2); M.premultiply(Rx); }
+
+      // Apply transformations and gather triangle data
+      globalTriData = []; // Clear previous data
+      globalPalette = [DEFAULT_COLOR.getHexString().toUpperCase()]; // Reset palette with default color
+
+      modelGroup.traverse(function(child){
+        if (child instanceof THREE.Mesh){
+          // Apply the combined matrix (Scale + Rotate)
+          child.geometry.applyMatrix4(M);
+          collectTriangleData(child); // Gather tri data with colors
+        }
+      });
+      
+      // Recalculate BB after scaling/rotation
+      bb.setFromObject(modelGroup);
+      
+      // 3) ground-align: center X/Z, minY -> 0
+      var cx = 0.5*(bb.min.x + bb.max.x);
+      var cz = 0.5*(bb.min.z + bb.max.z);
+      var minY = bb.min.y;
+      
+      // Final translation matrix
+      var T = new THREE.Matrix4().makeTranslation(-cx, -minY, -cz);
+      
+      // Apply final translation to model group and all geometries
+      modelGroup.traverse(function(child){
+        if (child instanceof THREE.Mesh){
+          child.geometry.applyMatrix4(T);
+          child.geometry.computeBoundingBox();
+          child.geometry.computeVertexNormals();
+        }
+      });
+      
+      // Reapply translation to the raw tri data (since it was extracted BEFORE the final translation T)
+      var tx = -cx, ty = -minY, tz = -cz;
+      for(var i=0; i < globalTriData.length; i++){
+        var tri = globalTriData[i].tri;
+        for(var j=0; j < 9; j+=3){
+          tri[j] += tx;
+          tri[j+1] += ty;
+          tri[j+2] += tz;
+        }
+      }
+
+      // Recalculate BB for helpers
+      bb.setFromObject(modelGroup);
+
+      if (meshBBHelper){ modelGroup.remove(meshBBHelper); meshBBHelper=null; }
+      meshBBHelper = new THREE.Box3Helper(bb, 0x7f7f7f);
+      modelGroup.add(meshBBHelper);
+
+      // frame camera
+      bb.getSize(size);
+      var r = Math.max(size.x, size.y, size.z) * 0.8 + 0.35;
+      camera.position.set(r, r*0.7, r);
+      controls.target.set(0, size.y*0.5, 0); // look at mid-height above ground
+      controls.update();
+      setPaletteSize(globalPalette.length);
+    }
+
+
+    // World→Grid uniform cubic map; X/Z centered, **Y anchored (offY=0)** so ground aligns
+    function computeUniformMap(geometryBB, N){
+      var bb = geometryBB.clone();
+      var min = bb.min.clone();
+      var size = new THREE.Vector3(); bb.getSize(size);
+
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var s = (N - 1) / maxDim; // uniform
+
+      var gxSpan = size.x * s;
+      var gzSpan = size.z * s;
+
+      var offX = ((N - 1) - gxSpan) * 0.5; // center in X
+      var offY = 0;                        // anchor bottom in Y
+      var offZ = ((N - 1) - gzSpan) * 0.5; // center in Z
+
+      // NOTE: min.y is 0 after ground-align; offY=0 keeps voxel y=0 at world y=0 (cube bottom)
+      return { min:min, size:size, s:s, offX:offX, offY:offY, offZ:offZ, N:N };
+    }
+
+    function worldToGrid(vx,vy,vz,map){
+      return {
+        x: (vx - map.min.x)*map.s + map.offX,
+        y: (vy - map.min.y)*map.s + map.offY,
+        z: (vz - map.min.z)*map.s + map.offZ
+      };
+    }
+
+    // Precompute all triangles in GRID space + Y-slice bins (with color index)
+    function buildTriDataAndBins(map){
+      var triCount = globalTriData.length;
+      var tri_pos = new Float32Array(triCount * 9); // Grid coordinates
+      var tri_ci = new Int32Array(triCount);        // Color index
+      var binsY = new Array(map.N); for (var i=0;i<map.N;i++) binsY[i]=[]; // Triangle indices per Y-slice
+
+      for (var i=0;i<triCount;i++){
+        var triWorld = globalTriData[i].tri;
+        tri_ci[i] = globalTriData[i].ci;
+
+        var ax=triWorld[0], ay=triWorld[1], az=triWorld[2];
+        var bx=triWorld[3], by=triWorld[4], bz=triWorld[5];
+        var cx=triWorld[6], cy=triWorld[7], cz=triWorld[8];
+
+        var A=worldToGrid(ax,ay,az,map), B=worldToGrid(bx,by,bz,map), C=worldToGrid(cx,cy,cz,map);
+
+        var t9=i*9;
+        tri_pos[t9  ]=A.x; tri_pos[t9+1]=A.y; tri_pos[t9+2]=A.z;
+        tri_pos[t9+3]=B.x; tri_pos[t9+4]=B.y; tri_pos[t9+5]=B.z;
+        tri_pos[t9+6]=C.x; tri_pos[t9+7]=C.y; tri_pos[t9+8]=C.z;
+
+        var minY = Math.min(A.y,B.y,C.y);
+        var maxY = Math.max(A.y,B.y,C.y);
+        var start = Math.ceil(minY - 0.5);
+        var end   = Math.floor(maxY - 0.5);
+        if (start < 0) start = 0;
+        if (end > map.N-1) end = map.N-1;
+        if (start <= end){
+          for (var y=start;y<=end;y++){ binsY[y].push(i); } // Store global triangle index
+        }
+      }
+      return { tri_pos:tri_pos, tri_ci:tri_ci, triCount:triCount, binsY:binsY };
+    }
+
+    // half-open rules (no eps)
+    function edgeCross(y1, y2, yStar){ return (y1 <= yStar && y2 > yStar) || (y2 <= yStar && y1 > yStar); }
+    function rowCross(z1, z2, zRow){ return (z1 <= zRow && z2 > zRow) || (z2 <= zRow && z1 > zRow); }
+
+    async function voxelize(group, N){
+      if (busy) return;
+      busy = true;
+      clearVoxelPreviewOnly();
+      setStatus("preparing…"); setProg(0,100); setSyncNote("");
+
+      // Use the model group's bounding box
+      var geometryBB = new THREE.Box3().setFromObject(group);
+      if (geometryBB.isEmpty()) { setStatus("Error: Model has no volume."); busy = false; return; }
+
+      lastMap = computeUniformMap(geometryBB, N);
+      var data = buildTriDataAndBins(lastMap);
+      var tri_pos = data.tri_pos, tri_ci = data.tri_ci, binsY = data.binsY;
+
+      // exported cubic grid helper (world), bottom at y=0
+      if (gridCubeHelper){ modelGroup.remove(gridCubeHelper); gridCubeHelper=null; }
+      gridCubeHelper = buildGridCubeHelper(lastMap);
+      modelGroup.add(gridCubeHelper);
+
+      var N2 = N*N, total = N*N*N;
+      // NEW: colorGrid stores the Color Index (ci), init to -1 (empty)
+      var colorGrid = new Int32Array(total).fill(-1);
+      var tempColor = 0; // Temporary color index for the filling operation
+
+      setStatus("slice raster (with color)…");
+      for (var y=0;y<N;y++){
+        var yStar = y + 0.5;
+        var list = binsY[y];
+        if (list.length){
+          // gather all segment crossings for this Y
+          var segX1=[], segZ1=[], segX2=[], segZ2=[], segCI=[];
+          var segBins = new Array(N); for (var i=0;i<N;i++) segBins[i]=[];
+
+          for (var k=0; k<list.length; k++){
+            var triIdx = list[k]; // Global triangle index
+            var t = triIdx*9;
+            var ci = tri_ci[triIdx];
+
+            var ax=tri_pos[t], ay=tri_pos[t+1], az=tri_pos[t+2];
+            var bx=tri_pos[t+3], by=tri_pos[t+4], bz=tri_pos[t+5];
+            var cx=tri_pos[t+6], cy=tri_pos[t+7], cz=tri_pos[t+8];
+
+            var px0=0,pz0=0,px1=0,pz1=0, c=0;
+
+            if (edgeCross(ay,by,yStar)){ var t1=(yStar-ay)/(by-ay); px0=ax+t1*(bx-ax); pz0=az+t1*(bz-az); c=1; }
+            if (edgeCross(by,cy,yStar)){
+              var t2=(yStar-by)/(cy-by);
+              if (c===0){ px0=bx+t2*(cx-bx); pz0=bz+t2*(cz-bz); c=1; }
+              else      { px1=bx+t2*(cx-bx); pz1=bz+t2*(cz-bz); c=2; }
+            }
+            if (c<2 && edgeCross(cy,ay,yStar)){
+              var t3=(yStar-cy)/(ay-cy);
+              if (c===0){ px0=cx+t3*(ax-cx); pz0=cz+t3*(az-cz); c=1; }
+              else      { px1=cx+t3*(ax-cx); pz1=cz+t3*(az-cz); c=2; }
+            }
+
+            if (c===2){
+              var si=segX1.length;
+              segX1.push(px0); segZ1.push(pz0); segX2.push(px1); segZ2.push(pz1);
+              segCI.push(ci); // Store color index with the segment
+
+              var zmin = pz0 < pz1 ? pz0 : pz1;
+              var zmax = pz0 > pz1 ? pz0 : pz1;
+              var zs = Math.ceil(zmin - 0.5);
+              var ze = Math.floor(zmax - 0.5);
+              if (zs<0) zs=0; if (ze>N-1) ze=N-1;
+              for (var zz=zs; zz<=ze; zz++){ segBins[zz].push(si); }
+            }
+          }
+
+          // parity fill along X for each Z row
+          for (var z=0; z<N; z++){
+            var zRow = z + 0.5;
+            var indices = segBins[z];
+            if (!indices.length) continue;
+
+            // Store X-intersections along with their segment's Color Index
+            var xs_color = [];
+            for (var ii=0; ii<indices.length; ii++){
+              var sIdx = indices[ii];
+              var x1=segX1[sIdx], z1=segZ1[sIdx], x2=segX2[sIdx], z2=segZ2[sIdx];
+              if (rowCross(z1, z2, zRow)){
+                var tt=(zRow - z1)/(z2 - z1);
+                var x_pos = x1 + tt*(x2 - x1);
+                xs_color.push({x: x_pos, ci: segCI[sIdx]});
+              }
+            }
+            if (xs_color.length<2) continue;
+            
+            // Sort intersections by X position
+            xs_color.sort(function(a,b){ return a.x - b.x; });
+
+            // Parity Fill with Color
+            for (var p=0; p+1<xs_color.length; p+=2){
+              var x0 = xs_color[p].x, x1 = xs_color[p+1].x;
+              var sx = Math.ceil(x0 - 0.5);
+              var ex = Math.floor(x1 - 0.5);
+              
+              // Use the color index of the segment that started the filled region
+              tempColor = xs_color[p].ci;
+              
+              if (sx<0) sx=0; if (ex>N-1) ex=N-1;
+              if (sx<=ex){
+                var base = y*N2 + z*N;
+                for (var xx=sx; xx<=ex; xx++){
+                  // Only set color if it's currently empty (first triangle to claim it wins)
+                  var id = base + xx;
+                  if (colorGrid[id] === -1){
+                    colorGrid[id] = tempColor;
+                  }
+                }
+              }
+            }
+          }
+        }
+        if ((y & 3)===0){ setProg((y/N)*80,100); await idle(); }
+      }
+
+      setProg(80,100); setStatus("surface + islands…");
+      
+      // OCCUPIED is now defined as any voxel that has a color index assigned
+      var occ = new Uint8Array(total);
+      for(var i=0; i<total; i++) {
+        if (colorGrid[i] !== -1) occ[i] = 1;
+      }
+
+      // surface marking (using the new occ array)
+      var surf = new Uint8Array(total);
+      for (var yy=0; yy<N; yy++){
+        var yOff = yy*N2;
+        for (var zz=0; zz<N; zz++){
+          var base=yOff+zz*N;
+          for (var xx=0; xx<N; xx++){
+            var id=base+xx; if (!occ[id]) continue;
+            var border = (xx===0||yy===0||zz===0||xx===N-1||yy===N-1||zz===N-1);
+            var neighEmpty =
+              (xx>0   ? (occ[id-1]===0)    : true) ||
+              (xx<N-1 ? (occ[id+1]===0)    : true) ||
+              (yy>0   ? (occ[id-N2]===0)   : true) ||
+              (yy<N-1 ? (occ[id+N2]===0)   : true) ||
+              (zz>0   ? (occ[id-N]===0)    : true) ||
+              (zz<N-1 ? (occ[id+N]===0)    : true);
+            if (border || neighEmpty) surf[id]=1;
+          }
+        }
+        if ((yy & 7)===0){ setProg(80 + (yy/N)*10, 100); await idle(); }
+      }
+
+      // BFS keep only content connected to surface
+      var keep = new Uint8Array(total);
+      var q = new Int32Array(total); var qh=0, qt=0;
+      for (var i=0;i<total;i++){ if (surf[i]===1){ keep[i]=1; q[qt++]=i; } }
+      while (qh<qt){
+        var id=q[qh++]; var x=id%N; var yz=(id/N)|0; var y=(yz/N)|0; var z=yz%N;
+        var n;
+        // Must check against colorGrid! Only fill into occupied voxels
+        if (x>0   ){ n=id-1;   if(!keep[n]&&colorGrid[n]!==-1){keep[n]=1;q[qt++]=n;} }
+        if (x<N-1 ){ n=id+1;   if(!keep[n]&&colorGrid[n]!==-1){keep[n]=1;q[qt++]=n;} }
+        if (y>0   ){ n=id-N2;  if(!keep[n]&&colorGrid[n]!==-1){keep[n]=1;q[qt++]=n;} }
+        if (y<N-1 ){ n=id+N2;  if(!keep[n]&&colorGrid[n]!==-1){keep[n]=1;q[qt++]=n;} }
+        if (z>0   ){ n=id-N;   if(!keep[n]&&colorGrid[n]!==-1){keep[n]=1;q[qt++]=n;} }
+        if (z<N-1 ){ n=id+N;   if(!keep[n]&&colorGrid[n]!==-1){keep[n]=1;q[qt++]=n;} }
+      }
+      
+      // Filter colorGrid: remove non-connected
+      for (var i=0; i<total; i++) {
+        if (!keep[i]) colorGrid[i] = -1;
+      }
+
+      // occupied content bounds (grid)
+      var cmin = {x:N, y:N, z:N}, cmax = {x:-1, y:-1, z:-1};
+      for (var id2=0; id2<total; id2++){
+        if (colorGrid[id2] !== -1){
+          var x5=id2%N; var yz5=(id2/N)|0; var y5=(yz5/N)|0; var z5=yz5%N;
+          if (x5<cmin.x) cmin.x=x5; if (x5>cmax.x) cmax.x=x5;
+          if (y5<cmin.y) cmin.y=y5; if (y5>cmax.y) cmax.y=y5;
+          if (z5<cmin.z) cmin.z=z5; if (z5>cmax.z) cmax.z=z5;
+        }
+      }
+      if (cmax.x<0){ cmin={x:0,y:0,z:0}; cmax={x:0,y:0,z:0}; }
+
+      // Optional grounding shift (min.y to 0)
+      var shiftY = cmin.y>0 ? cmin.y : 0;
+      if (shiftY){
+        var colorShift = new Int32Array(total).fill(-1);
+        for (var id3=0; id3<total; id3++){
+          var ci = colorGrid[id3];
+          if (ci !== -1){
+            var x=id3%N; var yz=(id3/N)|0; var y=(yz/N)|0; var z=yz%N;
+            var y2 = y - shiftY;
+            if (y2>=0){ colorShift[y2*N*N + z*N + x] = ci; }
+          }
+        }
+        colorGrid = colorShift;
+        cmax.y -= shiftY; cmin.y = 0;
+      }
+
+      // build voxels w/ palette (color index + legacy color)
+      var voxels = [];
+      var finalPalette = globalPalette;
+      for (var id4=0; id4<total; id4++){
+        var ci = colorGrid[id4];
+        if (ci !== -1){
+          var x6=id4%N; var yz6=(id4/N)|0; var y6=(yz6/N)|0; var z6=yz6%N;
+          voxels.push({x:x6,y:y6,z:z6,ci:ci,color:finalPalette[ci]});
+        }
+      }
+
+      // final JSON (cubic export; grounded y=0)
+      var worldVoxel = 1/lastMap.s; // size of a voxel edge in world coords
+      voxelData = {
+        name: (modelName||"model").replace(/\.[^/.]+$/, ""),
+        yUp: true,
+        anchor: "minY",
+        gridSize: N, gridSizeX: N, gridSizeY: N, gridSizeZ: N,
+        bounds: {
+          grid: { min:{x:0,y:0,z:0}, max:{x:N-1,y:N-1,z:N-1}, size:{x:N,y:N,z:N} },
+          worldCube: { min:{x: ((0   - lastMap.offX)/lastMap.s + lastMap.min.x),
+                             y: ((0   - lastMap.offY)/lastMap.s + lastMap.min.y),
+                             z: ((0   - lastMap.offZ)/lastMap.s + lastMap.min.z) },
+                       max:{x: (((N-1) - lastMap.offX)/lastMap.s + lastMap.min.x),
+                             y: (((N-1) - lastMap.offY)/lastMap.s + lastMap.min.y),
+                             z: (((N-1) - lastMap.offZ)/lastMap.s + lastMap.min.z) } },
+          voxelSizeWorld: { x:worldVoxel, y:worldVoxel, z:worldVoxel }
+        },
+        contentBounds: { grid: { min:cmin, max:cmax } }, /* min.y == 0 */
+        palette: finalPalette, // Export full color palette
+        currentDrawingAxis: "y",
+        activeDrawingLevel: {x:0,y:0,z:0},
+        voxels: voxels,
+        creator: "Christian Heinrich Hohlfeld",
+        source: modelName||"STL/3MF Import",
+        conversionDate: new Date().toISOString()
+      };
+      saveAutosave();
+
+      setProg(95,100); setStatus("preview…");
+      previewSurfaceFromColorGrid(colorGrid, finalPalette, N, lastMap);
+      elDownload.disabled = false;
+      elVoxelize.disabled = false;
+      elShowVox.disabled = false;
+      applyVisibility();
+      setProg(100,100); setStatus("done: "+voxels.length+" voxels | Colors: "+finalPalette.length);
+      busy = false;
+    }
+
+    function idle(){ return new Promise(function(res){ requestAnimationFrame(res); }); }
+
+    function buildGridCubeHelper(map){
+      // world cube around the occupied grid [0..N-1], bottom on y=0
+      var N=map.N, s=map.s, min=map.min, offX=map.offX, offY=map.offY, offZ=map.offZ;
+      function g2w(gx,gy,gz){ return new THREE.Vector3((gx-offX)/s+min.x, (gy-offY)/s+min.y, (gz-offZ)/s+min.z); }
+      var wmin=g2w(0,0,0), wmax=g2w(N-1,N-1,N-1);
+      return new THREE.Box3Helper(new THREE.Box3(wmin,wmax), 0xffa500);
+    }
+
+    // ---- Solid colored voxel surface preview (InstancedMesh) ----
+    function previewSurfaceFromColorGrid(colorGrid, palette, N, map){
+      while (voxGroup.children.length){ var c = voxGroup.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      var N2=N*N;
+      var instanceData = new Array(palette.length).fill(0).map(() => []);
+
+      for (var y=0;y<N;y++){
+        var yOff=y*N2;
+        for (var z=0;z<N;z++){
+          var base=yOff+z*N;
+          for (var x=0;x<N;x++){
+            var id=base+x; 
+            var ci = colorGrid[id];
+            if (ci === -1) continue;
+
+            var isSurface =
+              (x===0   ? true : (colorGrid[id-1]=== -1)) ||
+              (x===N-1 ? true : (colorGrid[id+1]=== -1)) ||
+              (y===0   ? true : (colorGrid[id-N2]=== -1)) ||
+              (y===N-1 ? true : (colorGrid[id+N2]=== -1)) ||
+              (z===0   ? true : (colorGrid[id-N]=== -1)) ||
+              (z===N-1 ? true : (colorGrid[id+N]=== -1));
+              
+            if (isSurface){ instanceData[ci].push(x,y,z); }
+          }
+        }
+      }
+
+      var box = new THREE.BoxGeometry(1,1,1);
+      var m = new THREE.Matrix4();
+      var q = new THREE.Quaternion(); q.set(0,0,0,1);
+      var svec = new THREE.Vector3();
+      var vEdge = 1 / map.s;             // world voxel edge
+      svec.set(vEdge, vEdge, vEdge);     // constant per instance scale
+      var min=map.min, offX=map.offX, offY=map.offY, offZ=map.offZ, s=map.s;
+
+      for (var ci=0; ci<palette.length; ci++){
+        var coords = instanceData[ci];
+        if (coords.length === 0) continue;
+        
+        var mat = new THREE.MeshStandardMaterial({ color: palette[ci], roughness: 0.8, metalness: 0.0 });
+        var inst = new THREE.InstancedMesh(box, mat, (coords.length/3)|0);
+
+        for (var i=0, idx=0; i<coords.length; ){
+          var gx=coords[i++], gy=coords[i++], gz=coords[i++];
+          var wx = ( (gx + 0.5) - offX)/s + min.x;
+          var wy = ( (gy + 0.5) - offY)/s + min.y; // with offY=0 and min.y=0 → ground aligned
+          var wz = ( (gz + 0.5) - offZ)/s + min.z;
+          m.compose(new THREE.Vector3(wx,wy,wz), q, svec);
+          inst.setMatrixAt(idx++, m);
+        }
+        inst.instanceMatrix.needsUpdate=true;
+        voxGroup.add(inst);
+      }
+    }
+
+    elDownload.addEventListener('click', function(){
+      if (!voxelData){ alert("Nothing to export."); return; }
+      var name = (modelName||voxelData.name||"model").replace(/\.[^/.]+$/, "");
+      var fn = name+"_"+voxelData.gridSize+"x"+voxelData.gridSize+"x"+voxelData.gridSize+".json";
+      var json = JSON.stringify(voxelData);
+      var blob = new Blob([json], {type:"application/json"});
+      var url  = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 0);
+    });
+
+    window.addEventListener('beforeunload', function(e){
+      if (elAutosave.checked) return;
+      if (voxelData || modelGroup.children.length > 0){ e.preventDefault(); e.returnValue = ""; }
+    });
+
+    // Initial clear to ensure state is correct on load
+    clearScene();
+    setStatus("fresh session — load STL/3MF to start (v9)");
+
+  })();
+  </script>
+
+
+</body></html>
