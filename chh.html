@@ -4,15 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Dynamic meta description will be updated via JS, this is just initial default (EN) -->
-    <meta name="description" content="Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking and automotive to startup platforms and public-sector digitalization. AI is my tool – my kryptonite.">
+    <!-- Default meta (EN) – will be updated via JS on language switch -->
+    <meta name="description" content="Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking (ZAB-Abrechnungsgesellschaft) and automotive (Bosch) to startup platforms and public-sector digitalization (WOBAK, servicetrail.de, voxelshaper.com, HDR on Zenodo). AI is my tool – my kryptonite.">
 
     <title>Christian Heinrich Hohlfeld | Senior Engineer</title>
 
-    <!-- Open Graph (optional but nice) -->
+    <!-- Open Graph -->
     <meta property="og:title" content="Christian Heinrich Hohlfeld | Senior Engineer">
-    <meta property="og:description" content="Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking and automotive to startup platforms and public-sector digitalization. AI is my tool – my kryptonite.">
+    <meta property="og:description" content="Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking (ZAB-Abrechnungsgesellschaft) and automotive (Bosch) to startup platforms and public-sector digitalization (WOBAK, servicetrail.de, voxelshaper.com, HDR on Zenodo). AI is my tool – my kryptonite.">
     <meta property="og:type" content="website">
+
+    <!-- Simple SEO keywords (for recruiters scanning source) -->
+    <meta name="keywords" content="Senior Software Engineer, Full-Stack, BaFin, Banking, Automotive, Bosch, ZAB-Abrechnungsgesellschaft, GDPR, Digitalization, Konstanz, Germany, Java, C++, C#, React, WebGL, 3D, Voxel, B.Sc. Software Engineering">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -31,11 +34,11 @@
                         sans: ['Inter', 'sans-serif'],
                     },
                     colors: {
-                        primary: '#111827',    // Gray 900
-                        secondary: '#374151',  // Gray 700
-                        muted: '#6B7280',      // Gray 500
-                        accent: '#2563EB',     // Engineering Blue
-                        bg: '#F9FAFB',         // Gray 50
+                        primary: '#111827',
+                        secondary: '#374151',
+                        muted: '#6B7280',
+                        accent: '#2563EB',
+                        bg: '#F9FAFB',
                         surface: '#FFFFFF',
                     }
                 }
@@ -61,11 +64,23 @@
                 </div>
 
                 <!-- Desktop Menu -->
-                <div class="hidden md:flex space-x-8">
-                    <a href="#deep-tech" class="text-sm font-medium text-secondary hover:text-accent transition-colors">Deep Tech</a>
-                    <a href="#experience" class="text-sm font-medium text-secondary hover:text-accent transition-colors">Experience</a>
-                    <a href="#skills" class="text-sm font-medium text-secondary hover:text-accent transition-colors">Skills</a>
-                    <a href="mailto:chris.hohlfeld@gmail.com" class="text-sm font-medium px-4 py-2 rounded bg-primary text-white hover:bg-accent transition-colors">Contact</a>
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="#deep-tech" class="text-sm font-medium text-secondary hover:text-accent transition-colors">
+                        <span class="lang-en">Deep Tech</span>
+                        <span class="lang-de hidden">Deep Tech</span>
+                    </a>
+                    <a href="#experience" class="text-sm font-medium text-secondary hover:text-accent transition-colors">
+                        <span class="lang-en">Experience</span>
+                        <span class="lang-de hidden">Erfahrung</span>
+                    </a>
+                    <a href="#skills" class="text-sm font-medium text-secondary hover:text-accent transition-colors">
+                        <span class="lang-en">Skills</span>
+                        <span class="lang-de hidden">Skills</span>
+                    </a>
+                    <a href="mailto:chris.hohlfeld@gmail.com" class="text-sm font-medium px-4 py-2 rounded bg-primary text-white hover:bg-accent transition-colors">
+                        <span class="lang-en">Contact</span>
+                        <span class="lang-de hidden">Kontakt</span>
+                    </a>
                 </div>
 
                 <!-- Mobile Menu Button -->
@@ -80,10 +95,22 @@
         <!-- Mobile Menu Panel -->
         <div id="mobile-menu" class="hidden md:hidden bg-white border-b border-gray-200 absolute w-full shadow-lg">
             <div class="px-4 py-4 space-y-3">
-                <a href="#deep-tech" class="block text-base font-medium text-secondary hover:text-accent">Deep Tech</a>
-                <a href="#experience" class="block text-base font-medium text-secondary hover:text-accent">Experience</a>
-                <a href="#skills" class="block text-base font-medium text-secondary hover:text-accent">Skills</a>
-                <a href="mailto:chris.hohlfeld@gmail.com" class="block text-base font-medium text-accent">Contact via Email</a>
+                <a href="#deep-tech" class="block text-base font-medium text-secondary hover:text-accent">
+                    <span class="lang-en">Deep Tech</span>
+                    <span class="lang-de hidden">Deep Tech</span>
+                </a>
+                <a href="#experience" class="block text-base font-medium text-secondary hover:text-accent">
+                    <span class="lang-en">Experience</span>
+                    <span class="lang-de hidden">Erfahrung</span>
+                </a>
+                <a href="#skills" class="block text-base font-medium text-secondary hover:text-accent">
+                    <span class="lang-en">Skills</span>
+                    <span class="lang-de hidden">Skills</span>
+                </a>
+                <a href="mailto:chris.hohlfeld@gmail.com" class="block text-base font-medium text-accent">
+                    <span class="lang-en">Contact via Email</span>
+                    <span class="lang-de hidden">Kontakt per E-Mail</span>
+                </a>
             </div>
         </div>
     </nav>
@@ -93,23 +120,44 @@
         <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="max-w-3xl">
                 <div class="flex flex-wrap gap-3 text-sm font-medium text-muted mb-6">
-                    <span class="flex items-center"><i class="fa-solid fa-location-dot mr-2 text-accent"></i> Konstanz, Germany</span>
+                    <span class="flex items-center">
+                        <i class="fa-solid fa-location-dot mr-2 text-accent"></i>
+                        <span class="lang-en">Konstanz, Germany</span>
+                        <span class="lang-de hidden">Konstanz, Deutschland</span>
+                    </span>
                     <span class="hidden sm:inline text-gray-300">•</span>
-                    <span>Born 1983</span>
+                    <span>
+                        <span class="lang-en">Born 1983</span>
+                        <span class="lang-de hidden">Jahrgang 1983</span>
+                    </span>
                 </div>
 
                 <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold text-primary mb-4 tracking-tight">
                     Christian Heinrich Hohlfeld
                 </h1>
                 <p class="text-xl md:text-2xl text-accent font-medium mb-6">
-                    Senior Software Engineer &amp; Architect, B.Sc. Software Engineering
+                    <span class="lang-en">Senior Software Engineer &amp; Architect, B.Sc. Software Engineering</span>
+                    <span class="lang-de hidden">Senior Software Engineer &amp; Architect, B.Sc. Software Engineering</span>
                 </p>
 
-                <!-- Language-aware 2-sentence bio -->
-                <p id="bio-text" class="text-lg text-secondary leading-relaxed max-w-2xl"></p>
+                <!-- Zweisprachige 2-Satz-Bio -->
+                <p class="text-lg text-secondary leading-relaxed max-w-2xl">
+                    <span class="lang-en">
+                        Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking (ZAB-Abrechnungsgesellschaft) and automotive (Bosch) to startup platforms and public-sector digitalization (WOBAK, servicetrail.de, voxelshaper.com, HDR on Zenodo).
+                        <span class="mt-2 block font-semibold text-accent text-base">AI is my tool – my kryptonite.</span>
+                    </span>
+                    <span class="lang-de hidden">
+                        Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) mit über 15 Jahren Full-Stack-Erfahrung von BaFin-regulierter Bankensoftware (ZAB-Abrechnungsgesellschaft) und Automotive (Bosch) bis hin zu Startup-Plattformen und öffentlicher Digitalisierung (WOBAK, servicetrail.de, voxelshaper.com, HDR auf Zenodo).
+                        <span class="mt-2 block font-semibold text-accent text-base">AI ist mein Werkzeug – mein Kryptonit.</span>
+                    </span>
+                </p>
 
+                <!-- Language Switch -->
                 <div class="mt-4 flex items-center gap-3 text-sm text-muted">
-                    <span class="font-semibold text-secondary">Language / Sprache:</span>
+                    <span class="font-semibold text-secondary">
+                        <span class="lang-en">Language:</span>
+                        <span class="lang-de hidden">Sprache:</span>
+                    </span>
                     <select id="lang-switch" class="border border-gray-300 rounded-md px-3 py-1 bg-white text-secondary text-sm focus:outline-none focus:ring-1 focus:ring-accent">
                         <option value="en">English</option>
                         <option value="de">Deutsch</option>
@@ -118,10 +166,13 @@
 
                 <div class="mt-10 flex gap-4">
                     <a href="mailto:chris.hohlfeld@gmail.com" class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary hover:bg-accent transition-colors shadow-sm">
-                        <i class="fa-regular fa-envelope mr-2"></i> Get in touch
+                        <i class="fa-regular fa-envelope mr-2"></i>
+                        <span class="lang-en">Get in touch</span>
+                        <span class="lang-de hidden">Kontakt aufnehmen</span>
                     </a>
                     <a href="#deep-tech" class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-secondary bg-white hover:bg-gray-50 transition-colors">
-                        View Engineering Projects
+                        <span class="lang-en">View Engineering Projects</span>
+                        <span class="lang-de hidden">Engineering-Projekte ansehen</span>
                     </a>
                 </div>
             </div>
@@ -133,7 +184,10 @@
         <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center mb-12">
                 <div class="bg-accent h-8 w-1 mr-4 rounded-full"></div>
-                <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Deep Tech &amp; Engineering Projects</h2>
+                <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">
+                    <span class="lang-en">Deep Tech &amp; Engineering Projects</span>
+                    <span class="lang-de hidden">Deep Tech &amp; Engineering-Projekte</span>
+                </h2>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -145,12 +199,22 @@
                         <i class="fa-solid fa-wave-square text-accent text-xl"></i>
                     </div>
                     <p class="text-secondary mb-6 text-sm leading-relaxed">
-                        Research work published on Zenodo introducing a rigorous mathematical framework for
-                        <strong>deterministic signal reconstruction</strong> and proportional mapping.
-                        <em class="block mt-2 text-muted">
-                            Key achievement: A method for 100% deterministic stability in noise interpretation,
-                            avoiding purely stochastic ambiguity.
-                        </em>
+                        <span class="lang-en">
+                            Research work published on Zenodo introducing a rigorous mathematical framework for
+                            <strong>deterministic signal reconstruction</strong> and proportional mapping.
+                            <em class="block mt-2 text-muted">
+                                Key achievement: A method for 100% deterministic stability in noise interpretation,
+                                avoiding purely stochastic ambiguity.
+                            </em>
+                        </span>
+                        <span class="lang-de hidden">
+                            Forschungsarbeit auf Zenodo mit einem strengen mathematischen Rahmen für
+                            <strong>deterministische Signalrekonstruktion</strong> und proportionale Abbildung.
+                            <em class="block mt-2 text-muted">
+                                Kernergebnis: Ein Verfahren für 100 % deterministische Stabilität bei der Rauschinterpretation,
+                                ohne rein stochastische Unschärfe.
+                            </em>
+                        </span>
                     </p>
                     <div class="flex flex-wrap gap-2 mt-auto">
                         <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Signal Processing</span>
@@ -166,11 +230,20 @@
                         <i class="fa-solid fa-cubes text-accent text-xl"></i>
                     </div>
                     <p class="text-secondary mb-6 text-sm leading-relaxed">
-                        Founder and developer of a browser-based CAD and slicer engine.
-                        Implements volumetric voxel geometry directly in WebGL with an integrated slicing pipeline.
-                        <em class="block mt-2 text-muted">
-                            Capabilities: Real-time slicing, export to 3MF/STL and native G-code generation for Bambu Lab printers.
-                        </em>
+                        <span class="lang-en">
+                            Founder and developer of a browser-based CAD and slicer engine.
+                            Implements volumetric voxel geometry directly in WebGL with an integrated slicing pipeline.
+                            <em class="block mt-2 text-muted">
+                                Capabilities: Real-time slicing, export to 3MF/STL and native G-code generation for Bambu Lab printers.
+                            </em>
+                        </span>
+                        <span class="lang-de hidden">
+                            Gründer und Entwickler einer browserbasierten CAD- und Slicer-Engine.
+                            Implementiert volumetrische Voxel-Geometrie direkt in WebGL mit integrierter Slicing-Pipeline.
+                            <em class="block mt-2 text-muted">
+                                Fähigkeiten: Echtzeit-Slicing, Export nach 3MF/STL sowie nativer G-Code für Bambu Lab Drucker.
+                            </em>
+                        </span>
                     </p>
                     <div class="flex flex-wrap gap-2 mt-auto">
                         <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">WebGL</span>
@@ -186,11 +259,20 @@
                         <i class="fa-solid fa-network-wired text-accent text-xl"></i>
                     </div>
                     <p class="text-secondary mb-6 text-sm leading-relaxed">
-                        Implementation of a Recurrent Neural Network stack from scratch in Node.js, including
-                        a specialized phoneme-compression layer and an autonomous discovery worker.
-                        <em class="block mt-2 text-muted">
-                            Built to understand AI at implementation level, without relying on heavy frameworks.
-                        </em>
+                        <span class="lang-en">
+                            Implementation of a Recurrent Neural Network stack from scratch in Node.js, including
+                            a specialized phoneme-compression layer and an autonomous discovery worker.
+                            <em class="block mt-2 text-muted">
+                                Built to understand AI at implementation level, without relying on heavy frameworks.
+                            </em>
+                        </span>
+                        <span class="lang-de hidden">
+                            Implementierung eines Recurrent-Neural-Network-Stacks von Grund auf in Node.js,
+                            inklusive spezialisierter Phonem-Kompressionsschicht und autonomem Discovery-Worker.
+                            <em class="block mt-2 text-muted">
+                                Entwickelt, um KI auf Implementierungsebene zu verstehen – ohne schwere Frameworks.
+                            </em>
+                        </span>
                     </p>
                     <div class="flex flex-wrap gap-2 mt-auto">
                         <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Node.js</span>
@@ -202,14 +284,25 @@
                 <!-- Mobile/Game Engineering -->
                 <div class="bg-white rounded-lg border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow">
                     <div class="flex justify-between items-start mb-4">
-                        <h3 class="text-xl font-bold text-primary">Mobile &amp; Game Engineering</h3>
+                        <h3 class="text-xl font-bold text-primary">
+                            <span class="lang-en">Mobile &amp; Game Engineering</span>
+                            <span class="lang-de hidden">Mobile- &amp; Game-Engineering</span>
+                        </h3>
                         <i class="fa-solid fa-gamepad text-accent text-xl"></i>
                     </div>
                     <div class="text-secondary mb-6 text-sm leading-relaxed">
-                        <ul class="list-disc pl-4 space-y-2">
-                            <li><strong>MMA News App:</strong> Built the first dedicated MMA news app on Android, pioneering the segment.</li>
-                            <li><strong>Alien Star Racing:</strong> C++/Cocos2d-x hill-climb style game, ranked among the top 10 titles in the official Microsoft Windows Game Cocos Contest.</li>
-                        </ul>
+                        <span class="lang-en">
+                            <ul class="list-disc pl-4 space-y-2">
+                                <li><strong>MMA News App:</strong> Built the first dedicated MMA news app on Android, pioneering the segment.</li>
+                                <li><strong>Alien Star Racing:</strong> C++/Cocos2d-x hill-climb style game, ranked among the top 10 titles in the official Microsoft Windows Game Cocos Contest.</li>
+                            </ul>
+                        </span>
+                        <span class="lang-de hidden">
+                            <ul class="list-disc pl-4 space-y-2">
+                                <li><strong>MMA News App:</strong> Erste dedizierte MMA-News-App auf Android, die den Markt in diesem Segment früh geprägt hat.</li>
+                                <li><strong>Alien Star Racing:</strong> C++/Cocos2d-x Hill-Climb-Game, das im offiziellen Microsoft Windows Game Cocos Contest unter die Top-10 kam.</li>
+                            </ul>
+                        </span>
                     </div>
                     <div class="flex flex-wrap gap-2 mt-auto">
                         <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">C++</span>
@@ -227,85 +320,136 @@
         <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center mb-12">
                 <div class="bg-primary h-8 w-1 mr-4 rounded-full"></div>
-                <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Professional Experience</h2>
+                <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">
+                    <span class="lang-en">Professional Experience</span>
+                    <span class="lang-de hidden">Berufserfahrung</span>
+                </h2>
             </div>
 
             <div class="space-y-12 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
 
-                <!-- Item 1: WOBAK -->
+                <!-- WOBAK -->
                 <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                     <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 group-[.is-active]:bg-accent group-[.is-active]:text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
                         <i class="fa-solid fa-shield-halved text-sm"></i>
                     </div>
                     <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
                         <div class="flex justify-between items-baseline mb-2">
-                            <h3 class="font-bold text-primary">Lead Data Protection &amp; Digitalization</h3>
-                            <span class="text-xs font-mono text-accent bg-blue-50 px-2 py-1 rounded">Current</span>
+                            <h3 class="font-bold text-primary">
+                                <span class="lang-en">Lead Data Protection &amp; Digitalization</span>
+                                <span class="lang-de hidden">Lead Datenschutz &amp; Digitalisierung</span>
+                            </h3>
+                            <span class="text-xs font-mono text-accent bg-blue-50 px-2 py-1 rounded">
+                                <span class="lang-en">Current</span>
+                                <span class="lang-de hidden">Aktuell</span>
+                            </span>
                         </div>
                         <div class="text-sm font-semibold text-secondary mb-3">@ WOBAK Konstanz</div>
                         <div class="text-sm text-secondary leading-relaxed">
-                            Responsible for data protection and consulting on digitalization initiatives, with a leading role in the internal digitalization group.
-                            <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
-                                <li>Architecture and implementation of <strong>servicetrail.de</strong> as an internal service and documentation platform.</li>
-                                <li>GDPR-compliant data handling and infrastructure concepts for a municipal housing company.</li>
-                            </ul>
+                            <span class="lang-en">
+                                Responsible for data protection and consulting on digitalization initiatives, with a leading role in the internal digitalization group.
+                                <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                    <li>Architecture and implementation of <strong>servicetrail.de</strong> as an internal service and documentation platform.</li>
+                                    <li>GDPR-compliant data handling and infrastructure concepts for a municipal housing company.</li>
+                                </ul>
+                            </span>
+                            <span class="lang-de hidden">
+                                Verantwortlich für Datenschutz und Beratung in Digitalisierungsprojekten, mit leitender Rolle in der internen Digitalisierungsgruppe.
+                                <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                    <li>Architektur und Umsetzung von <strong>servicetrail.de</strong> als interne Service- und Dokumentationsplattform.</li>
+                                    <li>DSGVO-konforme Datenhaltung und Infrastrukturkonzepte für eine kommunale Wohnungsbaugesellschaft.</li>
+                                </ul>
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Item 2: INES CH / ZAB -->
+                <!-- INES CH / ZAB -->
                 <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
                     <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
                         <i class="fa-solid fa-building-columns text-sm"></i>
                     </div>
                     <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
                         <div class="flex justify-between items-baseline mb-2">
-                            <h3 class="font-bold text-primary">Senior Full-Stack Engineer</h3>
+                            <h3 class="font-bold text-primary">
+                                <span class="lang-en">Senior Full-Stack Engineer</span>
+                                <span class="lang-de hidden">Senior Full-Stack Engineer</span>
+                            </h3>
                         </div>
                         <div class="text-sm font-semibold text-secondary mb-3">@ INES CH / ZAB-Abrechnungsgesellschaft</div>
                         <div class="text-sm text-secondary leading-relaxed">
-                            Responsible for the banking platform of ZAB-Abrechnungsgesellschaft in a BaFin-regulated environment, covering backend, middleware, frontend and Windows clients.
-                            <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
-                                <li><strong>Deletion concepts:</strong> Designed and implemented data deletion tooling and retention logic for BaFin-supervised banking systems.</li>
-                                <li><strong>Live DB migration:</strong> Planned and executed live migration of the productive banking database with minimal downtime.</li>
-                                <li>Ongoing full-stack implementation, maintenance and interface integration in the bank backend.</li>
-                            </ul>
+                            <span class="lang-en">
+                                Responsible for the banking platform of ZAB-Abrechnungsgesellschaft in a BaFin-regulated environment, covering backend, middleware, frontend and Windows clients.
+                                <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                    <li><strong>Deletion concepts:</strong> Designed and implemented data deletion tooling and retention logic for BaFin-supervised banking systems.</li>
+                                    <li><strong>Live DB migration:</strong> Planned and executed live migration of the productive banking database with minimal downtime.</li>
+                                    <li>Ongoing full-stack implementation, maintenance and interface integration in the bank backend.</li>
+                                </ul>
+                            </span>
+                            <span class="lang-de hidden">
+                                Verantwortlich für die Bankensoftware der ZAB-Abrechnungsgesellschaft im BaFin-regulierten Umfeld – Backend, Middleware, Frontend und Windows-Clients.
+                                <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                    <li><strong>Löschkonzepte:</strong> Konzeption und Implementierung von Lösch-Tools und Aufbewahrungslogik für BaFin-überwachte Banksysteme.</li>
+                                    <li><strong>Live-DB-Migration:</strong> Planung und Durchführung der Live-Migration der produktiven Bankdatenbank mit minimaler Downtime.</li>
+                                    <li>Laufende Full-Stack-Entwicklung, Wartung und Schnittstellen-Integration im Bank-Backend.</li>
+                                </ul>
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Item 3: wirsindhandwerk -->
+                <!-- wirsindhandwerk -->
                 <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
                     <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
                         <i class="fa-solid fa-code text-sm"></i>
                     </div>
                     <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
                         <div class="flex justify-between items-baseline mb-2">
-                            <h3 class="font-bold text-primary">Core Developer</h3>
+                            <h3 class="font-bold text-primary">
+                                <span class="lang-en">Core Developer</span>
+                                <span class="lang-de hidden">Core Developer</span>
+                            </h3>
                         </div>
                         <div class="text-sm font-semibold text-secondary mb-3">@ wirsindhandwerk.de</div>
                         <div class="text-sm text-secondary leading-relaxed">
-                            CyberLago partner platform. Full-stack engineer on the core team, taking the central web platform from first MVP to productive use by craft businesses.
-                            <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
-                                <li>Implemented complex search and discovery UX, including facets and widgets, using React and Preact.</li>
-                                <li>Integrated backend services and refined platform architecture for scale and performance.</li>
-                            </ul>
+                            <span class="lang-en">
+                                CyberLago partner platform. Full-stack engineer on the core team, taking the central web platform from first MVP to productive use by craft businesses.
+                                <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                    <li>Implemented complex search and discovery UX, including facets and widgets, using React and Preact.</li>
+                                    <li>Integrated backend services and refined platform architecture for scale and performance.</li>
+                                </ul>
+                            </span>
+                            <span class="lang-de hidden">
+                                CyberLago-Partnerplattform. Full-Stack-Entwickler im Kernteam – von den ersten MVP-Versionen bis zum produktiven Einsatz bei Handwerksbetrieben.
+                                <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                    <li>Umsetzung komplexer Such- und Discovery-UX (Facetten, Widgets) mit React und Preact.</li>
+                                    <li>Integration von Backend-Services und Optimierung der Plattformarchitektur für Skalierung und Performance.</li>
+                                </ul>
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Item 4: Bosch -->
+                <!-- Bosch -->
                 <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
                     <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
                         <i class="fa-solid fa-car text-sm"></i>
                     </div>
                     <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
                         <div class="flex justify-between items-baseline mb-2">
-                            <h3 class="font-bold text-primary">Android Engineer (Contract)</h3>
+                            <h3 class="font-bold text-primary">
+                                <span class="lang-en">Android Engineer (Contract)</span>
+                                <span class="lang-de hidden">Android Engineer (Contract)</span>
+                            </h3>
                         </div>
                         <div class="text-sm font-semibold text-secondary mb-3">@ Bosch Automotive</div>
                         <div class="text-sm text-secondary leading-relaxed">
-                            Development of an Android-based in-car communication and information solution for the automotive sector.
+                            <span class="lang-en">
+                                Development of an Android-based in-car communication and information solution for the automotive sector.
+                            </span>
+                            <span class="lang-de hidden">
+                                Entwicklung einer Android-basierten In-Car-Kommunikations- und Informationslösung für den Automotive-Bereich.
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -314,7 +458,7 @@
         </div>
     </section>
 
-    <!-- Skills & Education Grid -->
+    <!-- Skills & Education -->
     <section id="skills" class="py-20 bg-bg border-t border-gray-200">
         <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -323,13 +467,18 @@
                 <div class="lg:col-span-2">
                     <div class="flex items-center mb-8">
                         <div class="bg-primary h-8 w-1 mr-4 rounded-full"></div>
-                        <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Technical Skills</h2>
+                        <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">
+                            <span class="lang-en">Technical Skills</span>
+                            <span class="lang-de hidden">Technische Skills</span>
+                        </h2>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
                             <h3 class="font-bold text-primary mb-3">
-                                <i class="fa-solid fa-terminal mr-2 text-accent"></i>Languages
+                                <i class="fa-solid fa-terminal mr-2 text-accent"></i>
+                                <span class="lang-en">Languages</span>
+                                <span class="lang-de hidden">Sprachen</span>
                             </h3>
                             <div class="text-sm text-secondary space-y-1">
                                 <div class="flex justify-between"><span>C, C++</span></div>
@@ -342,7 +491,9 @@
 
                         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
                             <h3 class="font-bold text-primary mb-3">
-                                <i class="fa-brands fa-react mr-2 text-accent"></i>Frameworks &amp; Web
+                                <i class="fa-brands fa-react mr-2 text-accent"></i>
+                                <span class="lang-en">Frameworks &amp; Web</span>
+                                <span class="lang-de hidden">Frameworks &amp; Web</span>
                             </h3>
                             <div class="text-sm text-secondary space-y-1">
                                 <div>React, Preact</div>
@@ -354,7 +505,9 @@
 
                         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 md:col-span-2">
                             <h3 class="font-bold text-primary mb-3">
-                                <i class="fa-solid fa-server mr-2 text-accent"></i>Systems &amp; Domain Expertise
+                                <i class="fa-solid fa-server mr-2 text-accent"></i>
+                                <span class="lang-en">Systems &amp; Domain Expertise</span>
+                                <span class="lang-de hidden">System- &amp; Domain-Expertise</span>
                             </h3>
                             <div class="flex flex-wrap gap-2">
                                 <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">Regulatory Tech (BaFin)</span>
@@ -372,15 +525,24 @@
                 <div>
                     <div class="flex items-center mb-8">
                         <div class="bg-primary h-8 w-1 mr-4 rounded-full"></div>
-                        <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Education</h2>
+                        <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">
+                            <span class="lang-en">Education</span>
+                            <span class="lang-de hidden">Ausbildung</span>
+                        </h2>
                     </div>
                     <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 h-full">
                         <i class="fa-solid fa-graduation-cap text-3xl text-gray-300 mb-4"></i>
                         <h3 class="font-bold text-primary text-lg">B.Sc. Software Engineering</h3>
                         <p class="text-accent font-medium mt-1">HTWG Konstanz</p>
                         <p class="text-sm text-muted mt-4">
-                            Formal training in software architecture, algorithms and engineering principles,
-                            followed by more than 15 years of hands-on full-stack experience.
+                            <span class="lang-en">
+                                Formal training in software architecture, algorithms and engineering principles,
+                                followed by more than 15 years of hands-on full-stack experience.
+                            </span>
+                            <span class="lang-de hidden">
+                                Fundierte Ausbildung in Softwarearchitektur, Algorithmen und Engineering-Prinzipien –
+                                ergänzt durch über 15 Jahre praktische Full-Stack-Erfahrung.
+                            </span>
                         </p>
                     </div>
                 </div>
@@ -395,12 +557,18 @@
             <div class="flex flex-col md:flex-row justify-between items-center">
                 <div class="mb-4 md:mb-0">
                     <span class="text-xl font-bold text-white tracking-tight">C.H.H.</span>
-                    <p class="mt-2 text-sm">Christian Heinrich Hohlfeld • Senior Engineer</p>
+                    <p class="mt-2 text-sm">
+                        <span class="lang-en">Christian Heinrich Hohlfeld • Senior Engineer</span>
+                        <span class="lang-de hidden">Christian Heinrich Hohlfeld • Senior Engineer</span>
+                    </p>
                 </div>
                 <div class="flex space-x-6 text-sm">
                     <a href="mailto:chris.hohlfeld@gmail.com" class="hover:text-white transition-colors">chris.hohlfeld@gmail.com</a>
                     <span>•</span>
-                    <span>Konstanz, Germany</span>
+                    <span>
+                        <span class="lang-en">Konstanz, Germany</span>
+                        <span class="lang-de hidden">Konstanz, Deutschland</span>
+                    </span>
                 </div>
             </div>
             <div class="mt-8 pt-8 border-t border-gray-800 text-center text-xs text-gray-600">
@@ -437,24 +605,29 @@
             });
         });
 
-        // Language-aware 2-sentence bio + meta/OG description
-        const bios = {
+        // Language switching
+        const langSelect = document.getElementById('lang-switch');
+
+        const metaDescriptions = {
             en: "Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking (ZAB-Abrechnungsgesellschaft) and automotive (Bosch) to startup platforms and public-sector digitalization (WOBAK, servicetrail.de, voxelshaper.com, HDR on Zenodo). AI is my tool – my kryptonite.",
             de: "Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) mit über 15 Jahren Full-Stack-Erfahrung von BaFin-regulierter Bankensoftware (ZAB-Abrechnungsgesellschaft) und Automotive (Bosch) bis hin zu Startup-Plattformen und öffentlicher Digitalisierung (WOBAK, servicetrail.de, voxelshaper.com, HDR auf Zenodo). AI ist mein Werkzeug – mein Kryptonit."
         };
 
-        const metaDescriptions = {
-            en: bios.en,
-            de: bios.de
-        };
-
-        const bioEl = document.getElementById('bio-text');
-        const langSelect = document.getElementById('lang-switch');
-
         function applyLanguage(lang) {
-            if (!bios[lang]) lang = 'en';
-            bioEl.textContent = bios[lang];
+            if (lang !== 'de') lang = 'en';
 
+            // HTML lang attribute
+            document.documentElement.setAttribute('lang', lang);
+
+            // Toggle language spans
+            document.querySelectorAll('.lang-en').forEach(el => {
+                el.classList.toggle('hidden', lang !== 'en');
+            });
+            document.querySelectorAll('.lang-de').forEach(el => {
+                el.classList.toggle('hidden', lang !== 'de');
+            });
+
+            // Update meta descriptions
             const metaDesc = document.querySelector('meta[name="description"]');
             if (metaDesc) {
                 metaDesc.setAttribute('content', metaDescriptions[lang]);
@@ -463,9 +636,12 @@
             if (ogDesc) {
                 ogDesc.setAttribute('content', metaDescriptions[lang]);
             }
+
+            // Update title if you ever want localized titles
+            // (for now keep EN title for scouts)
         }
 
-        // Detect browser language for initial setting
+        // Initial language from browser
         const userLang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
         const initialLang = userLang.startsWith('de') ? 'de' : 'en';
         langSelect.value = initialLang;
