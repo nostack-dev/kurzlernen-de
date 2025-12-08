@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Dynamic meta description will be updated via JS, this is just initial default (EN) -->
+    <meta name="description" content="Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking and automotive to startup platforms and public-sector digitalization. AI is my tool – my kryptonite.">
+
+    <title>Christian Heinrich Hohlfeld | Senior Engineer</title>
+
+    <!-- Open Graph (optional but nice) -->
+    <meta property="og:title" content="Christian Heinrich Hohlfeld | Senior Engineer">
+    <meta property="og:description" content="Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking and automotive to startup platforms and public-sector digitalization. AI is my tool – my kryptonite.">
+    <meta property="og:type" content="website">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#111827',    // Gray 900
+                        secondary: '#374151',  // Gray 700
+                        muted: '#6B7280',      // Gray 500
+                        accent: '#2563EB',     // Engineering Blue
+                        bg: '#F9FAFB',         // Gray 50
+                        surface: '#FFFFFF',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+        }
+    </style>
+</head>
+<body class="font-sans text-secondary antialiased bg-bg selection:bg-accent selection:text-white">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass-nav transition-all duration-300">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex-shrink-0 flex items-center">
+                    <a href="#" class="font-bold text-xl text-primary tracking-tight">C.H.H.</a>
+                </div>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex space-x-8">
+                    <a href="#deep-tech" class="text-sm font-medium text-secondary hover:text-accent transition-colors">Deep Tech</a>
+                    <a href="#experience" class="text-sm font-medium text-secondary hover:text-accent transition-colors">Experience</a>
+                    <a href="#skills" class="text-sm font-medium text-secondary hover:text-accent transition-colors">Skills</a>
+                    <a href="mailto:chris.hohlfeld@gmail.com" class="text-sm font-medium px-4 py-2 rounded bg-primary text-white hover:bg-accent transition-colors">Contact</a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-primary hover:text-accent p-2">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Panel -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-b border-gray-200 absolute w-full shadow-lg">
+            <div class="px-4 py-4 space-y-3">
+                <a href="#deep-tech" class="block text-base font-medium text-secondary hover:text-accent">Deep Tech</a>
+                <a href="#experience" class="block text-base font-medium text-secondary hover:text-accent">Experience</a>
+                <a href="#skills" class="block text-base font-medium text-secondary hover:text-accent">Skills</a>
+                <a href="mailto:chris.hohlfeld@gmail.com" class="block text-base font-medium text-accent">Contact via Email</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="pt-32 pb-16 md:pt-40 md:pb-24 bg-white border-b border-gray-200">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl">
+                <div class="flex flex-wrap gap-3 text-sm font-medium text-muted mb-6">
+                    <span class="flex items-center"><i class="fa-solid fa-location-dot mr-2 text-accent"></i> Konstanz, Germany</span>
+                    <span class="hidden sm:inline text-gray-300">•</span>
+                    <span>Born 1983</span>
+                </div>
+
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold text-primary mb-4 tracking-tight">
+                    Christian Heinrich Hohlfeld
+                </h1>
+                <p class="text-xl md:text-2xl text-accent font-medium mb-6">
+                    Senior Software Engineer &amp; Architect, B.Sc. Software Engineering
+                </p>
+
+                <!-- Language-aware 2-sentence bio -->
+                <p id="bio-text" class="text-lg text-secondary leading-relaxed max-w-2xl"></p>
+
+                <div class="mt-4 flex items-center gap-3 text-sm text-muted">
+                    <span class="font-semibold text-secondary">Language / Sprache:</span>
+                    <select id="lang-switch" class="border border-gray-300 rounded-md px-3 py-1 bg-white text-secondary text-sm focus:outline-none focus:ring-1 focus:ring-accent">
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
+
+                <div class="mt-10 flex gap-4">
+                    <a href="mailto:chris.hohlfeld@gmail.com" class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary hover:bg-accent transition-colors shadow-sm">
+                        <i class="fa-regular fa-envelope mr-2"></i> Get in touch
+                    </a>
+                    <a href="#deep-tech" class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-secondary bg-white hover:bg-gray-50 transition-colors">
+                        View Engineering Projects
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Deep Tech Section -->
+    <section id="deep-tech" class="py-20 bg-bg">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center mb-12">
+                <div class="bg-accent h-8 w-1 mr-4 rounded-full"></div>
+                <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Deep Tech &amp; Engineering Projects</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                <!-- HDR -->
+                <div class="bg-white rounded-lg border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-xl font-bold text-primary">Hohlfeld Data Representation (HDR)</h3>
+                        <i class="fa-solid fa-wave-square text-accent text-xl"></i>
+                    </div>
+                    <p class="text-secondary mb-6 text-sm leading-relaxed">
+                        Research work published on Zenodo introducing a rigorous mathematical framework for
+                        <strong>deterministic signal reconstruction</strong> and proportional mapping.
+                        <em class="block mt-2 text-muted">
+                            Key achievement: A method for 100% deterministic stability in noise interpretation,
+                            avoiding purely stochastic ambiguity.
+                        </em>
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Signal Processing</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Applied Math</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Algorithm Design</span>
+                    </div>
+                </div>
+
+                <!-- Voxelshaper -->
+                <div class="bg-white rounded-lg border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-xl font-bold text-primary">Voxelshaper.com</h3>
+                        <i class="fa-solid fa-cubes text-accent text-xl"></i>
+                    </div>
+                    <p class="text-secondary mb-6 text-sm leading-relaxed">
+                        Founder and developer of a browser-based CAD and slicer engine.
+                        Implements volumetric voxel geometry directly in WebGL with an integrated slicing pipeline.
+                        <em class="block mt-2 text-muted">
+                            Capabilities: Real-time slicing, export to 3MF/STL and native G-code generation for Bambu Lab printers.
+                        </em>
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">WebGL</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Computational Geometry</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">G-code</span>
+                    </div>
+                </div>
+
+                <!-- RNN -->
+                <div class="bg-white rounded-lg border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-xl font-bold text-primary">Custom O(m) RNN Architecture</h3>
+                        <i class="fa-solid fa-network-wired text-accent text-xl"></i>
+                    </div>
+                    <p class="text-secondary mb-6 text-sm leading-relaxed">
+                        Implementation of a Recurrent Neural Network stack from scratch in Node.js, including
+                        a specialized phoneme-compression layer and an autonomous discovery worker.
+                        <em class="block mt-2 text-muted">
+                            Built to understand AI at implementation level, without relying on heavy frameworks.
+                        </em>
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Node.js</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Machine Learning</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">System Architecture</span>
+                    </div>
+                </div>
+
+                <!-- Mobile/Game Engineering -->
+                <div class="bg-white rounded-lg border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-xl font-bold text-primary">Mobile &amp; Game Engineering</h3>
+                        <i class="fa-solid fa-gamepad text-accent text-xl"></i>
+                    </div>
+                    <div class="text-secondary mb-6 text-sm leading-relaxed">
+                        <ul class="list-disc pl-4 space-y-2">
+                            <li><strong>MMA News App:</strong> Built the first dedicated MMA news app on Android, pioneering the segment.</li>
+                            <li><strong>Alien Star Racing:</strong> C++/Cocos2d-x hill-climb style game, ranked among the top 10 titles in the official Microsoft Windows Game Cocos Contest.</li>
+                        </ul>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">C++</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Android</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded border border-gray-200">Cocos2d-x</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Professional Experience -->
+    <section id="experience" class="py-20 bg-white border-t border-gray-200">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center mb-12">
+                <div class="bg-primary h-8 w-1 mr-4 rounded-full"></div>
+                <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Professional Experience</h2>
+            </div>
+
+            <div class="space-y-12 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
+
+                <!-- Item 1: WOBAK -->
+                <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 group-[.is-active]:bg-accent group-[.is-active]:text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
+                        <i class="fa-solid fa-shield-halved text-sm"></i>
+                    </div>
+                    <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-baseline mb-2">
+                            <h3 class="font-bold text-primary">Lead Data Protection &amp; Digitalization</h3>
+                            <span class="text-xs font-mono text-accent bg-blue-50 px-2 py-1 rounded">Current</span>
+                        </div>
+                        <div class="text-sm font-semibold text-secondary mb-3">@ WOBAK Konstanz</div>
+                        <div class="text-sm text-secondary leading-relaxed">
+                            Responsible for data protection and consulting on digitalization initiatives, with a leading role in the internal digitalization group.
+                            <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                <li>Architecture and implementation of <strong>servicetrail.de</strong> as an internal service and documentation platform.</li>
+                                <li>GDPR-compliant data handling and infrastructure concepts for a municipal housing company.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 2: INES CH / ZAB -->
+                <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
+                        <i class="fa-solid fa-building-columns text-sm"></i>
+                    </div>
+                    <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-baseline mb-2">
+                            <h3 class="font-bold text-primary">Senior Full-Stack Engineer</h3>
+                        </div>
+                        <div class="text-sm font-semibold text-secondary mb-3">@ INES CH / ZAB-Abrechnungsgesellschaft</div>
+                        <div class="text-sm text-secondary leading-relaxed">
+                            Responsible for the banking platform of ZAB-Abrechnungsgesellschaft in a BaFin-regulated environment, covering backend, middleware, frontend and Windows clients.
+                            <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                <li><strong>Deletion concepts:</strong> Designed and implemented data deletion tooling and retention logic for BaFin-supervised banking systems.</li>
+                                <li><strong>Live DB migration:</strong> Planned and executed live migration of the productive banking database with minimal downtime.</li>
+                                <li>Ongoing full-stack implementation, maintenance and interface integration in the bank backend.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 3: wirsindhandwerk -->
+                <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
+                        <i class="fa-solid fa-code text-sm"></i>
+                    </div>
+                    <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-baseline mb-2">
+                            <h3 class="font-bold text-primary">Core Developer</h3>
+                        </div>
+                        <div class="text-sm font-semibold text-secondary mb-3">@ wirsindhandwerk.de</div>
+                        <div class="text-sm text-secondary leading-relaxed">
+                            CyberLago partner platform. Full-stack engineer on the core team, taking the central web platform from first MVP to productive use by craft businesses.
+                            <ul class="list-disc pl-4 mt-2 space-y-1 text-muted">
+                                <li>Implemented complex search and discovery UX, including facets and widgets, using React and Preact.</li>
+                                <li>Integrated backend services and refined platform architecture for scale and performance.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 4: Bosch -->
+                <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-slate-500">
+                        <i class="fa-solid fa-car text-sm"></i>
+                    </div>
+                    <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-bg p-6 rounded-lg border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-baseline mb-2">
+                            <h3 class="font-bold text-primary">Android Engineer (Contract)</h3>
+                        </div>
+                        <div class="text-sm font-semibold text-secondary mb-3">@ Bosch Automotive</div>
+                        <div class="text-sm text-secondary leading-relaxed">
+                            Development of an Android-based in-car communication and information solution for the automotive sector.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills & Education Grid -->
+    <section id="skills" class="py-20 bg-bg border-t border-gray-200">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                <!-- Skills -->
+                <div class="lg:col-span-2">
+                    <div class="flex items-center mb-8">
+                        <div class="bg-primary h-8 w-1 mr-4 rounded-full"></div>
+                        <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Technical Skills</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                            <h3 class="font-bold text-primary mb-3">
+                                <i class="fa-solid fa-terminal mr-2 text-accent"></i>Languages
+                            </h3>
+                            <div class="text-sm text-secondary space-y-1">
+                                <div class="flex justify-between"><span>C, C++</span></div>
+                                <div class="flex justify-between"><span>C#</span></div>
+                                <div class="flex justify-between"><span>Java, Kotlin</span></div>
+                                <div class="flex justify-between"><span>JavaScript (ES6+), Node.js</span></div>
+                                <div class="flex justify-between"><span>SQL</span></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                            <h3 class="font-bold text-primary mb-3">
+                                <i class="fa-brands fa-react mr-2 text-accent"></i>Frameworks &amp; Web
+                            </h3>
+                            <div class="text-sm text-secondary space-y-1">
+                                <div>React, Preact</div>
+                                <div>Spring Boot</div>
+                                <div>WebGL / Three.js context</div>
+                                <div>Cocos2d-x</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 md:col-span-2">
+                            <h3 class="font-bold text-primary mb-3">
+                                <i class="fa-solid fa-server mr-2 text-accent"></i>Systems &amp; Domain Expertise
+                            </h3>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">Regulatory Tech (BaFin)</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">Data Deletion Architectures</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">GDPR / Data Sovereignty</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">Critical DB Migration</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">Signal Analysis</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">3D / Voxel Slicing</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Education -->
+                <div>
+                    <div class="flex items-center mb-8">
+                        <div class="bg-primary h-8 w-1 mr-4 rounded-full"></div>
+                        <h2 class="text-2xl font-bold text-primary uppercase tracking-wide">Education</h2>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 h-full">
+                        <i class="fa-solid fa-graduation-cap text-3xl text-gray-300 mb-4"></i>
+                        <h3 class="font-bold text-primary text-lg">B.Sc. Software Engineering</h3>
+                        <p class="text-accent font-medium mt-1">HTWG Konstanz</p>
+                        <p class="text-sm text-muted mt-4">
+                            Formal training in software architecture, algorithms and engineering principles,
+                            followed by more than 15 years of hands-on full-stack experience.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-primary text-gray-400 py-12 border-t border-gray-800">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center md:text-left">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <span class="text-xl font-bold text-white tracking-tight">C.H.H.</span>
+                    <p class="mt-2 text-sm">Christian Heinrich Hohlfeld • Senior Engineer</p>
+                </div>
+                <div class="flex space-x-6 text-sm">
+                    <a href="mailto:chris.hohlfeld@gmail.com" class="hover:text-white transition-colors">chris.hohlfeld@gmail.com</a>
+                    <span>•</span>
+                    <span>Konstanz, Germany</span>
+                </div>
+            </div>
+            <div class="mt-8 pt-8 border-t border-gray-800 text-center text-xs text-gray-600">
+                © <script>document.write(new Date().getFullYear())</script> Christian Heinrich Hohlfeld. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Mobile menu toggle
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+
+        btn.addEventListener('click', () => {
+            menu.classList.toggle('hidden');
+        });
+
+        // Smooth scroll correction for fixed header
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                menu.classList.add('hidden');
+                const target = document.querySelector(this.getAttribute('href'));
+                if (!target) return;
+                const headerOffset = 80;
+                const elementPosition = target.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: "smooth"
+                });
+            });
+        });
+
+        // Language-aware 2-sentence bio + meta/OG description
+        const bios = {
+            en: "Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) with 15+ years of full-stack experience from BaFin-regulated banking (ZAB-Abrechnungsgesellschaft) and automotive (Bosch) to startup platforms and public-sector digitalization (WOBAK, servicetrail.de, voxelshaper.com, HDR on Zenodo). AI is my tool – my kryptonite.",
+            de: "Senior Software Engineer (B.Sc. Software Engineering, HTWG Konstanz) mit über 15 Jahren Full-Stack-Erfahrung von BaFin-regulierter Bankensoftware (ZAB-Abrechnungsgesellschaft) und Automotive (Bosch) bis hin zu Startup-Plattformen und öffentlicher Digitalisierung (WOBAK, servicetrail.de, voxelshaper.com, HDR auf Zenodo). AI ist mein Werkzeug – mein Kryptonit."
+        };
+
+        const metaDescriptions = {
+            en: bios.en,
+            de: bios.de
+        };
+
+        const bioEl = document.getElementById('bio-text');
+        const langSelect = document.getElementById('lang-switch');
+
+        function applyLanguage(lang) {
+            if (!bios[lang]) lang = 'en';
+            bioEl.textContent = bios[lang];
+
+            const metaDesc = document.querySelector('meta[name="description"]');
+            if (metaDesc) {
+                metaDesc.setAttribute('content', metaDescriptions[lang]);
+            }
+            const ogDesc = document.querySelector('meta[property="og:description"]');
+            if (ogDesc) {
+                ogDesc.setAttribute('content', metaDescriptions[lang]);
+            }
+        }
+
+        // Detect browser language for initial setting
+        const userLang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+        const initialLang = userLang.startsWith('de') ? 'de' : 'en';
+        langSelect.value = initialLang;
+        applyLanguage(initialLang);
+
+        langSelect.addEventListener('change', (e) => {
+            applyLanguage(e.target.value);
+        });
+    </script>
+</body>
+</html>
