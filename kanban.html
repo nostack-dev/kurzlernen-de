@@ -1,0 +1,1078 @@
+<html lang="de" data-theme="corporate"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mogul | Christian Heinrich Hohlfeld</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    
+    <style>
+        :root {
+            --m3-easing: cubic-bezier(0.2, 0, 0, 1);
+            --m3-duration: 400ms;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body { 
+            background-color: #f8fafc; 
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+            transition: background-color var(--m3-duration) var(--m3-easing);
+        }
+
+        body.remote-session { background-color: #f1f3ff; }
+
+        /* App Layout Container für Squeeze-Effekt */
+        .app-container {
+            display: flex;
+            width: 100vw;
+            height: calc(100vh - 64px);
+            overflow: hidden;
+            transition: all var(--m3-duration) var(--m3-easing);
+        }
+
+        .main-content {
+            flex: 1;
+            height: 100%;
+            overflow-y: auto;
+            transition: all var(--m3-duration) var(--m3-easing);
+            padding: 1rem;
+            position: relative;
+        }
+
+        /* Side Chat Drawer (YouTube Style Squeeze) */
+        #chat-drawer {
+            width: 0;
+            height: 100%;
+            background: white;
+            border-left: 0 solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            transition: width var(--m3-duration) var(--m3-easing), border-width var(--m3-duration) var(--m3-easing);
+            overflow: hidden;
+            z-index: 50;
+        }
+
+        body.chat-open #chat-drawer {
+            width: 380px;
+            border-left-width: 1px;
+        }
+
+        body.chat-fullscreen #chat-drawer {
+            position: fixed;
+            top: 64px;
+            right: 0;
+            width: 100vw;
+            max-width: 100vw;
+            height: calc(100vh - 64px);
+        }
+
+        @media (max-width: 768px) {
+            body.chat-open #chat-drawer {
+                position: fixed;
+                top: 64px;
+                right: 0;
+                width: 100vw;
+                height: calc(100vh - 64px);
+            }
+        }
+
+        /* Task Card Styling */
+        .task-card {
+            cursor: grab;
+            user-select: none;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 1.25rem;
+            padding: 1.25rem;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+        }
+        .task-card:hover { border-color: oklch(var(--p) / 0.4); transform: translateY(-4px); box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.08); }
+        .task-card:focus-visible { outline: 2px solid oklch(var(--p)); outline-offset: 4px; }
+        .task-card.selected { border-color: oklch(var(--p)); box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.12); transform: scale(1.02); z-index: 10; }
+        .task-card.dragging { opacity: 0.2; transform: scale(0.9); }
+
+        .kanban-column {
+            background-color: rgba(241, 245, 249, 0.6);
+            padding: 1rem;
+            border-radius: 1.5rem;
+            min-height: 300px;
+            transition: background-color 300ms ease, border-color 200ms ease;
+            border: 2px solid transparent;
+        }
+
+        .column-header {
+            font-weight: 800;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding: 0 0.5rem;
+        }
+
+        .chat-messages-container { flex: 1; overflow-y: auto; background: #fdfdfd; padding: 1.5rem; display: flex; flex-direction: column; }
+        .chat-inner-width { max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
+
+        .chat-message {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            max-width: 80%;
+        }
+        .chat-message.self { align-self: flex-end; align-items: flex-end; }
+        .chat-message.other { align-self: flex-start; align-items: flex-start; }
+
+        .chat-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 1.25rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .chat-message.self .chat-bubble { background: oklch(var(--p)); color: white; border-bottom-right-radius: 0.25rem; }
+        .chat-message.other .chat-bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 0.25rem; }
+
+        .chat-meta {
+            font-size: 0.65rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        #media-picker {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 10px);
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            border-radius: 1.5rem;
+            padding: 0.75rem;
+            width: 280px;
+            z-index: 2100;
+        }
+        #media-picker.open { display: block; }
+        .emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; max-height: 200px; overflow-y: auto; padding: 0.25rem; }
+        .emoji-btn { font-size: 1.4rem; padding: 0.4rem; border-radius: 0.75rem; cursor: pointer; text-align: center; }
+        .emoji-btn:hover { background: #f1f5f9; }
+
+        .notification-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #ef4444;
+            color: white;
+            font-size: 0.6rem;
+            font-weight: 900;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            visibility: hidden;
+            transform: scale(0);
+            transition: transform 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .notification-badge.show { visibility: visible; transform: scale(1); }
+
+        #empty-state-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 400px;
+            z-index: 10;
+            display: none;
+        }
+
+        .dropdown-visible .dropdown-content {
+            visibility: visible !important;
+            opacity: 1 !important;
+            transform: translateY(0) !important;
+            pointer-events: auto !important;
+        }
+
+        .chat-locked { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
+        .emoji-grid::-webkit-scrollbar { width: 4px; }
+        .emoji-grid::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .particle { position: fixed; width: 4px; height: 4px; border-radius: 50%; pointer-events: none; z-index: 3000; }
+    </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.bottom-3{bottom:0.75rem}.bottom-8{bottom:2rem}.left-1\/2{left:50%}.right-3{right:0.75rem}.top-0{top:0px}.z-\[1000\]{z-index:1000}.z-\[100\]{z-index:100}.z-\[1500\]{z-index:1500}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mb-8{margin-bottom:2rem}.mt-10{margin-top:2.5rem}.mt-2{margin-top:0.5rem}.mt-4{margin-top:1rem}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-16{height:4rem}.h-2\.5{height:0.625rem}.h-20{height:5rem}.h-3{height:0.75rem}.h-32{height:8rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-6{height:1.5rem}.h-8{height:2rem}.h-full{height:100%}.min-h-screen{min-height:100vh}.w-16{width:4rem}.w-2\.5{width:0.625rem}.w-3{width:0.75rem}.w-4{width:1rem}.w-5{width:1.25rem}.w-64{width:16rem}.w-72{width:18rem}.w-8{width:2rem}.w-full{width:100%}.w-px{width:1px}.max-w-\[100px\]{max-width:100px}.max-w-sm{max-width:24rem}.max-w-xl{max-width:36rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.flex-shrink-0{flex-shrink:0}.shrink-0{flex-shrink:0}.-translate-x-1\/2{--tw-translate-x:-50%;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.rotate-180{--tw-rotate:180deg;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-end{align-items:flex-end}.items-center{align-items:center}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-4{gap:1rem}.gap-6{gap:1.5rem}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.space-y-6 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.5rem * var(--tw-space-y-reverse))}.overflow-visible{overflow:visible}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-\[2\.5rem\]{border-radius:2.5rem}.rounded-\[2rem\]{border-radius:2rem}.rounded-\[3rem\]{border-radius:3rem}.rounded-full{border-radius:9999px}.rounded-xl{border-radius:0.75rem}.rounded-lg{border-radius:0.5rem}.border{border-width:1px}.border-b{border-bottom-width:1px}.border-t{border-top-width:1px}.border-none{border-style:none}.border-amber-100{--tw-border-opacity:1;border-color:rgb(254 243 199 / var(--tw-border-opacity, 1))}.border-slate-100{--tw-border-opacity:1;border-color:rgb(241 245 249 / var(--tw-border-opacity, 1))}.border-slate-200{--tw-border-opacity:1;border-color:rgb(226 232 240 / var(--tw-border-opacity, 1))}.bg-amber-50{--tw-bg-opacity:1;background-color:rgb(255 251 235 / var(--tw-bg-opacity, 1))}.bg-indigo-50{--tw-bg-opacity:1;background-color:rgb(238 242 255 / var(--tw-bg-opacity, 1))}.bg-slate-300{--tw-bg-opacity:1;background-color:rgb(203 213 225 / var(--tw-bg-opacity, 1))}.bg-slate-50{--tw-bg-opacity:1;background-color:rgb(248 250 252 / var(--tw-bg-opacity, 1))}.bg-slate-700{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-white\/80{background-color:rgb(255 255 255 / 0.8)}.p-0{padding:0px}.p-10{padding:2.5rem}.p-2{padding:0.5rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-8{padding:2rem}.p-1{padding:0.25rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.pt-3{padding-top:0.75rem}.pt-4{padding-top:1rem}.text-center{text-align:center}.font-mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-\[10px\]{font-size:10px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-black{font-weight:900}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.tracking-\[0\.2em\]{letter-spacing:0.2em}.tracking-tight{letter-spacing:-0.025em}.tracking-widest{letter-spacing:0.1em}.text-amber-500{--tw-text-opacity:1;color:rgb(245 158 11 / var(--tw-text-opacity, 1))}.text-amber-700{--tw-text-opacity:1;color:rgb(180 83 9 / var(--tw-text-opacity, 1))}.text-indigo-700{--tw-text-opacity:1;color:rgb(67 56 202 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-slate-600{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.text-slate-900{--tw-text-opacity:1;color:rgb(15 23 42 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.opacity-40{opacity:0.4}.opacity-0{opacity:0}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.backdrop-blur-xl{--tw-backdrop-blur:blur(24px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition-colors{transition-property:color, background-color, border-color, fill, stroke, -webkit-text-decoration-color;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, -webkit-text-decoration-color;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-200{transition-duration:200ms}.hover\:bg-slate-100:hover{--tw-bg-opacity:1;background-color:rgb(241 245 249 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-100\/50:hover{background-color:rgb(241 245 249 / 0.5)}.focus\:ring-0:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.focus\:ring-2:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.group:hover .group-hover\:opacity-100{opacity:1}@media (min-width: 768px){.md\:h-40{height:10rem}.md\:max-w-\[200px\]{max-width:200px}.md\:gap-3{gap:0.75rem}.md\:p-10{padding:2.5rem}.md\:px-8{padding-left:2rem;padding-right:2rem}.md\:text-xl{font-size:1.25rem;line-height:1.75rem}}@media (min-width: 1024px){.lg\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}}</style></head>
+<body class="min-h-screen remote-session">
+
+    <header class="navbar bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-[1000] px-4 md:px-8 h-16">
+        <div class="flex-1 gap-4 items-center">
+            <div class="flex flex-col">
+                <h1 class="text-xl font-black tracking-tight text-slate-900 leading-none">Mogul</h1>
+                <span class="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em]">Christian Heinrich Hohlfeld</span>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <div class="dropdown" id="project-dropdown">
+                    <button id="project-selector-btn" class="btn btn-ghost btn-sm btn-minimal flex items-center gap-2 bg-slate-50 border border-slate-100 hover:bg-slate-100 px-3" tabindex="1">
+                        <span id="active-project-name" class="max-w-[100px] md:max-w-[200px] truncate">fasdf</span>
+                        <svg class="w-3 h-3 opacity-40 transition-transform duration-200" id="project-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="m19.5 8.25-7.5 7.5-7.5-7.5"></path></svg>
+                    </button>
+                    <ul id="project-list" class="dropdown-content z-[100] menu p-2 shadow-2xl bg-white border border-slate-100 rounded-2xl w-64 mt-2"><li>
+                    <div class="flex justify-between items-center group bg-slate-50 font-bold gap-2">
+                        <a class="flex-1 project-item-text cursor-pointer py-2 px-3 rounded-lg hover:bg-slate-100/50" title="fasdf" tabindex="0">fasdf</a>
+                        <button class="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-error transition-all btn-del-p">✕</button>
+                    </div></li><li>
+                    <div class="flex justify-between items-center group  gap-2">
+                        <a class="flex-1 project-item-text cursor-pointer py-2 px-3 rounded-lg hover:bg-slate-100/50" title="fsdfsdf" tabindex="0">fsdfsdf</a>
+                        <button class="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-error transition-all btn-del-p">✕</button>
+                    </div></li><li><a class="font-bold cursor-pointer p-3 rounded-xl text-primary">+ Neues Board</a></li></ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex-none gap-2 md:gap-3 flex-wrap justify-end">
+            <button id="chat-toggle-btn" class="btn btn-ghost btn-circle btn-sm relative" aria-label="Chat öffnen" tabindex="2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                <div id="chat-unread-badge" class="notification-badge">2</div>
+            </button>
+
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-full border border-amber-100" title="Erfolg von Christian Heinrich Hohlfeld">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor"><path d="M20 7h-1.209c-.277-2.23-1.147-4.032-2.731-5.111L14.773 3.16c1.071.729 1.704 1.956 1.953 3.84H7.274c.249-1.884.882-3.111 1.953-3.84L7.94 1.889C6.356 2.968 5.486 4.77 5.209 7H4c-1.103 0-2 .897-2 2v2c0 1.103.897 2 2 2h1.258c.451 3.238 3.125 5.792 6.34 5.975V21H8v2h8v-2h-3.598v-2.025c3.215-.183 5.889-2.737 6.34-5.975H20c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z"></path></svg>
+                <span id="lifetime-counter" class="text-xs font-black text-amber-700">1</span>
+            </div>
+
+            <div class="dropdown dropdown-end" id="sync-dropdown">
+                <button id="sync-menu-btn" class="btn btn-ghost btn-sm btn-minimal flex items-center gap-2 px-3 bg-slate-50 border border-slate-100" tabindex="3">
+                    <span id="global-sync-status" class="status-dot bg-success animate-pulse"></span>
+                    <span class="text-[10px] font-extrabold text-slate-500 uppercase" id="sync-status-label">Hosting</span>
+                    <svg class="w-2.5 h-2.5 opacity-40 transition-transform duration-200" id="sync-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="m19.5 8.25-7.5 7.5-7.5-7.5"></path></svg>
+                </button>
+                <div class="dropdown-content z-[100] card card-compact w-72 p-6 shadow-2xl bg-white border border-slate-100 mt-4 rounded-[2rem]">
+                    <div class="card-body p-0">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-sm">P2P Synchronisation</h3>
+                            <span id="p2p-info" class="badge badge-sm badge-ghost text-[9px] uppercase">Ready</span>
+                        </div>
+                        <div id="sync-setup-ui" class="space-y-4 hidden">
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <label class="text-[9px] font-bold uppercase text-slate-400 block mb-1">Deine Session ID</label>
+                                <div class="flex gap-2 items-center">
+                                    <input type="text" id="my-id-display" readonly="" class="bg-transparent border-none text-xs font-mono flex-1 p-0 text-slate-600 truncate" value="...">
+                                    <button id="copy-id-btn" class="btn btn-xs btn-primary btn-minimal" tabindex="7">Kopie</button>
+                                </div>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <label class="text-[9px] font-bold uppercase text-slate-400 block mb-1">Session beitreten</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="partner-id-input" placeholder="ID..." class="bg-transparent border-none text-xs flex-1 p-0 outline-none" tabindex="8">
+                                    <button id="connect-btn" class="btn btn-xs btn-primary btn-minimal" tabindex="9">Join</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="active-session-ui" class="space-y-4">
+                            <div id="session-role-indicator" class="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold text-center">Live: Host</div>
+                            
+                            <div id="host-controls" class="border-t pt-3 border-slate-100">
+                                <div class="flex items-center justify-between px-2">
+                                    <span class="text-[10px] font-bold uppercase text-slate-400">Clients alles erlauben</span>
+                                    <input type="checkbox" id="allow-all-toggle" class="toggle toggle-primary toggle-sm" tabindex="11">
+                                </div>
+                            </div>
+
+                            <button id="disconnect-btn" class="btn btn-sm btn-block btn-ghost text-error btn-minimal text-xs" tabindex="12">Sitzung beenden</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="add-task-btn" class="btn btn-primary btn-sm px-4 btn-minimal shadow-lg shadow-primary/20" tabindex="4">
+                <span>+ Aufgabe</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <main class="main-content">
+            <div id="selection-toolbar" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-[1500] flex items-center gap-4 bg-slate-900 text-white px-6 py-3 rounded-3xl shadow-2xl">
+                <span class="text-sm font-bold"><span id="delete-count-badge">0</span> ausgewählt</span>
+                <div class="h-6 w-px bg-slate-700"></div>
+                <button id="delete-selected-btn" class="btn btn-ghost btn-sm btn-circle text-error" aria-label="Ausgewählte löschen" tabindex="100"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+            </div>
+
+            <div id="empty-state-wrapper" style="display: none;">
+                <div class="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 text-center max-w-sm w-full">
+                    <div class="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 4.5v15m7.5-7.5h-15"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-bold mb-2">Kein Board aktiv</h2>
+                    <p class="text-slate-400 mb-8 text-xs leading-relaxed">Erstellen Sie ein Board für Christian Heinrich Hohlfeld.</p>
+                    <button id="cta-create-project-btn-main" class="btn btn-primary btn-block btn-minimal shadow-xl shadow-primary/20" tabindex="5">Board erstellen</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full" id="kanban-board" style="display: grid;">
+                <div class="kanban-column" data-bucket="open">
+                    <div class="column-header"><span>Offen</span><span id="count-open" class="badge-count">0</span></div>
+                    <div class="task-list flex flex-col gap-4" id="bucket-open"></div>
+                </div>
+                <div class="kanban-column" data-bucket="in_progress">
+                    <div class="column-header"><span>In Arbeit</span><span id="count-in_progress" class="badge-count">0</span></div>
+                    <div class="task-list flex flex-col gap-4" id="bucket-in_progress"></div>
+                </div>
+                <div class="kanban-column" data-bucket="done">
+                    <div class="column-header"><span>Erledigt</span><span id="count-done" class="badge-count">0</span></div>
+                    <div class="task-list flex flex-col gap-4" id="bucket-done"></div>
+                </div>
+            </div>
+        </main>
+
+        <aside id="chat-drawer">
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-white h-20 shrink-0">
+                <div class="flex items-center gap-3">
+                    <h3 class="font-black text-lg">Chat</h3>
+                    <button id="chat-fullscreen-btn" class="btn btn-ghost btn-xs btn-circle" title="Vollbild" tabindex="201">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                    </button>
+                </div>
+                <button id="chat-close-btn" class="btn btn-ghost btn-sm btn-circle" aria-label="Schließen" tabindex="202">✕</button>
+            </div>
+            <div class="chat-messages-container" id="chat-messages-container">
+                <div id="chat-messages-inner" class="chat-inner-width">
+                <div class="chat-message other">
+                    <span class="chat-meta">Client-FNXN7 • 17:12</span>
+                    <div class="chat-bubble">hi</div>
+                </div>
+                <div class="chat-message other">
+                    <span class="chat-meta">Client-FNXN7 • 17:12</span>
+                    <div class="chat-bubble">huzhu</div>
+                </div>
+                <div class="chat-message self">
+                    <span class="chat-meta">Ich • 17:12</span>
+                    <div class="chat-bubble">was</div>
+                </div>
+                <div class="chat-message self">
+                    <span class="chat-meta">Ich • 17:12</span>
+                    <div class="chat-bubble">asdfasdf</div>
+                </div>
+                <div class="chat-message self">
+                    <span class="chat-meta">Ich • 17:12</span>
+                    <div class="chat-bubble">🍕🍕🍕✅✅✅</div>
+                </div>
+                <div class="chat-message other">
+                    <span class="chat-meta">Client-FNXN7 • 17:12</span>
+                    <div class="chat-bubble">🙌🔥🔥</div>
+                </div>
+                <div class="chat-message self">
+                    <span class="chat-meta">Ich • 17:13</span>
+                    <div class="chat-bubble">fwefwef</div>
+                </div>
+                <div class="chat-message self">
+                    <span class="chat-meta">Ich • 17:13</span>
+                    <div class="chat-bubble">:D</div>
+                </div></div>
+            </div>
+            <div class="p-4 border-t border-slate-100 bg-white relative shrink-0" id="chat-input-area">
+                <div id="media-picker" class="">
+                    <div class="emoji-grid" id="emoji-picker-grid"><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '😀'; document.getElementById('chat-input').focus();">😀</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '😂'; document.getElementById('chat-input').focus();">😂</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '😍'; document.getElementById('chat-input').focus();">😍</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🤔'; document.getElementById('chat-input').focus();">🤔</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '👍'; document.getElementById('chat-input').focus();">👍</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '👏'; document.getElementById('chat-input').focus();">👏</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🙌'; document.getElementById('chat-input').focus();">🙌</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🔥'; document.getElementById('chat-input').focus();">🔥</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '✨'; document.getElementById('chat-input').focus();">✨</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '✅'; document.getElementById('chat-input').focus();">✅</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🚀'; document.getElementById('chat-input').focus();">🚀</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🎯'; document.getElementById('chat-input').focus();">🎯</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '💡'; document.getElementById('chat-input').focus();">💡</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '📅'; document.getElementById('chat-input').focus();">📅</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🎉'; document.getElementById('chat-input').focus();">🎉</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '💻'; document.getElementById('chat-input').focus();">💻</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🍕'; document.getElementById('chat-input').focus();">🍕</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '☕'; document.getElementById('chat-input').focus();">☕</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '❤️'; document.getElementById('chat-input').focus();">❤️</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '❌'; document.getElementById('chat-input').focus();">❌</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '👋'; document.getElementById('chat-input').focus();">👋</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '💯'; document.getElementById('chat-input').focus();">💯</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🌈'; document.getElementById('chat-input').focus();">🌈</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🌙'; document.getElementById('chat-input').focus();">🌙</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '☀️'; document.getElementById('chat-input').focus();">☀️</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '⭐'; document.getElementById('chat-input').focus();">⭐</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🎈'; document.getElementById('chat-input').focus();">🎈</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🎁'; document.getElementById('chat-input').focus();">🎁</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '🏆'; document.getElementById('chat-input').focus();">🏆</div><div class="emoji-btn" onclick="document.getElementById('chat-input').value += '💎'; document.getElementById('chat-input').focus();">💎</div></div>
+                </div>
+                <div class="flex items-end gap-2 chat-inner-width">
+                    <div class="flex-1 relative">
+                        <textarea id="chat-input" rows="1" placeholder="Nachricht..." class="textarea textarea-bordered bg-slate-50 border-slate-200 rounded-2xl w-full text-sm focus:ring-0 resize-none py-3" tabindex="200"></textarea>
+                        <button type="button" id="media-toggle-btn" class="absolute right-3 bottom-3 text-slate-400 hover:text-primary transition-colors" tabindex="203">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>
+                    </div>
+                    <button id="chat-send-btn" class="btn btn-primary btn-circle shadow-lg flex-shrink-0" tabindex="204">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M5 12h14m-7-7 7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modals -->
+    <dialog id="task_modal" class="modal">
+        <div class="modal-box max-w-xl rounded-[2.5rem] p-6 md:p-10 shadow-2xl border border-slate-100 overflow-visible">
+            <form id="task-detail-form" class="space-y-6">
+                <input type="hidden" id="task-id-input">
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-bold text-slate-400 uppercase text-[10px]">Titel</span></label>
+                    <input type="text" id="task-title-input" required="" class="input input-lg bg-slate-50 border-none rounded-2xl text-lg md:text-xl font-black focus:ring-2 focus:ring-primary/20" tabindex="300">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-bold text-slate-400 uppercase text-[10px]">Fälligkeit</span></label>
+                        <input type="date" id="task-due-input" class="bg-slate-50 border-none rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/20" tabindex="301">
+                    </div>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-bold text-slate-400 uppercase text-[10px]">Beschreibung</span></label>
+                    <textarea id="task-details-input" class="textarea bg-slate-50 border-none rounded-2xl h-32 md:h-40 text-sm leading-relaxed focus:ring-2 focus:ring-primary/20" tabindex="302"></textarea>
+                </div>
+                <div class="modal-action flex justify-between items-center pt-4">
+                    <button type="button" id="delete-task-btn" class="btn btn-ghost text-error btn-minimal text-xs" tabindex="304">Löschen</button>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-ghost btn-minimal btn-sm" onclick="task_modal.close()" tabindex="305">Abbr.</button>
+                        <button type="submit" class="btn btn-primary px-6 btn-sm btn-minimal shadow-xl shadow-primary/20" tabindex="303">Sichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog id="project_modal" class="modal">
+        <div class="modal-box rounded-[2.5rem] p-8 shadow-2xl">
+            <h3 class="font-black text-2xl mb-6">Neues Board erstellen</h3>
+            <form id="project-form" class="space-y-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text font-bold text-slate-400 uppercase text-[10px]">Board Name</span></label>
+                    <input type="text" id="project-name-input" required="" placeholder="Name eingeben..." class="input bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-primary/20" tabindex="400">
+                </div>
+                <div class="modal-action gap-2">
+                    <button type="button" class="btn btn-ghost btn-minimal" onclick="project_modal.close()" tabindex="402">Abbrechen</button>
+                    <button type="submit" id="project-submit-btn" class="btn btn-primary btn-minimal px-8" tabindex="401">Erstellen</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog id="confirm_modal" class="modal">
+        <div class="modal-box rounded-[2.5rem] p-8 shadow-2xl">
+            <h3 class="font-black text-xl mb-3" id="confirm-title">Board Anfrage</h3>
+            <p class="text-slate-500 mb-8 text-sm" id="confirm-text">Client möchte Board "fasdf" erstellen.</p>
+            <div class="modal-action gap-3">
+                <button class="btn btn-ghost btn-minimal flex-1" onclick="confirm_modal.close()" tabindex="502">Abbrechen</button>
+                <button id="confirm-action-btn" class="btn btn-error btn-minimal flex-1 text-white" tabindex="501">Zulassen</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+    /**
+     * Mogul Kanban Professional
+     * Dedicated to Christian Heinrich Hohlfeld
+     * Architecture: Dynamic Tab-Scoped Storage, Bilateral Handshake, Strict Host Sovereignty.
+     */
+    
+    // --- IDENTITY & ISOLATION ---
+    if (!sessionStorage.getItem('mogul_tab_instance_id')) {
+        sessionStorage.setItem('mogul_tab_instance_id', Math.random().toString(36).substr(2, 6).toUpperCase());
+    }
+    const STABLE_ID = sessionStorage.getItem('mogul_tab_instance_id');
+    const getStorageKey = (suffix) => `mogul_v2_${STABLE_ID}_${suffix}`;
+
+    // --- STATE ---
+    const DATA_KEY = getStorageKey('data');
+    const STATS_KEY = getStorageKey('stats');
+    const SESSION_KEY = getStorageKey('session');
+    const BUCKETS = ['open', 'in_progress', 'done'];
+    const STANDARD_EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '👏', '🙌', '🔥', '✨', '✅', '🚀', '🎯', '💡', '📅', '🎉', '💻', '🍕', '☕', '❤️', '❌', '👋', '💯', '🌈', '🌙', '☀️', '⭐', '🎈', '🎁', '🏆', '💎'];
+
+    let mogulData = { activeProjectId: null, projects: [], allowAllClients: false };
+    let lifetimeFinished = 0;
+    let selectedTaskIds = new Set();
+    let draggedTaskId = null;
+    let peer = null;
+    let connections = [];
+    let sessionRole = null; 
+    let backupLocalData = null; 
+    let unreadCount = 0;
+
+    const generateUID = () => 'uid-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    
+    // SAFE DATA ACCESSORS
+    const getActiveProject = () => {
+        if (!mogulData || !Array.isArray(mogulData.projects)) return null;
+        return mogulData.projects.find(p => p.id === mogulData.activeProjectId);
+    };
+
+    const getShortId = (id) => id ? id.toString().slice(0, 5).toUpperCase() : '????';
+
+    // --- HELPERS ---
+    function playSound(type) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ctx.state === 'suspended') ctx.resume();
+            const now = ctx.currentTime;
+            const playTone = (f, d, v = 0.05) => {
+                const o = ctx.createOscillator(); const g = ctx.createGain();
+                o.connect(g).connect(ctx.destination);
+                o.frequency.setValueAtTime(f, now);
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(v, now + 0.01);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + d);
+                o.start(now); o.stop(now + d + 0.1);
+            };
+            switch(type) {
+                case 'add': playTone(800, 0.1); break;
+                case 'save': playTone(1000, 0.1); break;
+                case 'completion': playTone(523, 0.2); setTimeout(()=>playTone(659, 0.2), 100); break;
+                case 'delete': playTone(300, 0.2); break;
+                case 'msg': playTone(1100, 0.05); break;
+            }
+        } catch(e) {}
+    }
+
+    function spawnParticles(x, y) {
+        const colors = ['#fbbf24', '#3b82f6', '#10b981', '#f472b6'];
+        for (let i = 0; i < 15; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle'; p.style.left = x + 'px'; p.style.top = y + 'px';
+            p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            document.body.appendChild(p);
+            const a = Math.random() * Math.PI * 2; const d = 50 + Math.random() * 70;
+            p.animate([{ transform: 'translate(0, 0) scale(1)', opacity: 1 }, { transform: `translate(${Math.cos(a)*d}px, ${Math.sin(a)*d}px) scale(0)`, opacity: 0 }], {
+                duration: 800, easing: 'cubic-bezier(0, .5, .5, 1)'
+            }).onfinish = () => p.remove();
+        }
+    }
+
+    /**
+     * Stellt sicher, dass das Datenobjekt niemals korrupt oder unvollständig ist.
+     */
+    function sanitizeDataStructure(data) {
+        if (!data || typeof data !== 'object') data = {};
+        if (!Array.isArray(data.projects)) data.projects = [];
+        if (!data.activeProjectId && data.projects.length > 0) data.activeProjectId = data.projects[0].id;
+        if (data.allowAllClients === undefined) data.allowAllClients = false;
+        return data;
+    }
+
+    function saveState(broadcast = true) {
+        if (sessionRole === 'guest') return; 
+
+        localStorage.setItem(DATA_KEY, JSON.stringify(mogulData));
+        localStorage.setItem(STATS_KEY, lifetimeFinished.toString());
+
+        if (broadcast && sessionRole === 'host' && connections.length > 0) {
+            connections.forEach(c => c.open && c.send({
+                type: 'SYNC_DATA',
+                data: mogulData,
+                lifetime: lifetimeFinished
+            }));
+        }
+        
+        const sState = { role: sessionRole, hostId: sessionRole === 'guest' ? (connections[0]?.peer || null) : (peer?.id || null) };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(sState));
+    }
+
+    function loadInitialState() {
+        const stored = localStorage.getItem(DATA_KEY);
+        const stats = localStorage.getItem(STATS_KEY);
+        lifetimeFinished = parseInt(stats) || 0;
+
+        if (stored) {
+            mogulData = sanitizeDataStructure(JSON.parse(stored));
+        } else {
+            const dId = generateUID();
+            mogulData = { activeProjectId: dId, projects: [{ id: dId, name: 'Mein Board', tasks: [], messages: [] }], allowAllClients: false };
+        }
+        updateLifetimeCounter(0);
+        renderAll();
+        
+        const ss = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+        if (ss.role === 'guest' && ss.hostId) {
+            setTimeout(() => {
+                sessionRole = 'guest';
+                backupLocalData = JSON.parse(localStorage.getItem(DATA_KEY) || '{}');
+                setupConnection(peer.connect(ss.hostId, { metadata: { type: 'RESUME_REQUEST' } }));
+            }, 1000);
+        } else if (ss.role === 'host') {
+             sessionRole = 'host';
+             updateSyncUI('connected');
+        }
+    }
+
+    function updateLifetimeCounter(diff) {
+        lifetimeFinished = Math.max(0, lifetimeFinished + diff);
+        const el = document.getElementById('lifetime-counter');
+        if (diff > 0) {
+            el.classList.add('pop-achievement');
+            setTimeout(() => el.classList.remove('pop-achievement'), 600);
+            const rect = el.getBoundingClientRect();
+            spawnParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        }
+        el.textContent = lifetimeFinished;
+        if (sessionRole !== 'guest') localStorage.setItem(STATS_KEY, lifetimeFinished.toString());
+    }
+
+    // --- P2P ---
+    function initP2P() {
+        peer = new Peer(STABLE_ID);
+        
+        peer.on('open', id => {
+            document.getElementById('my-id-display').value = id;
+            document.getElementById('p2p-info').textContent = 'Ready';
+            document.getElementById('global-sync-status').className = 'status-dot bg-info';
+            const s = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+            if (s.role === 'host') { sessionRole = 'host'; updateSyncUI('connected'); }
+        });
+
+        peer.on('connection', conn => {
+            // Alte Verbindungen säubern (Rejoin fix)
+            connections = connections.filter(c => {
+                if (c.peer === conn.peer) { c.close(); return false; }
+                return true;
+            });
+
+            if (conn.metadata?.type === 'RESUME_REQUEST') {
+                showConfirm("Verbindung wiederherstellen?", `Ein Client möchte die Sitzung wieder aufnehmen. Zulassen?`, "Ja, verbinden", () => {
+                    sessionRole = 'host';
+                    setupConnection(conn);
+                });
+            } else {
+                sessionRole = 'host';
+                setupConnection(conn);
+            }
+        });
+        
+        peer.on('error', (err) => {
+            console.error('Peer error:', err);
+            document.getElementById('p2p-info').textContent = 'Error';
+            document.getElementById('global-sync-status').className = 'status-dot bg-error';
+        });
+    }
+
+    function setupConnection(conn) {
+        conn.on('open', () => {
+            if (!connections.find(c => c.peer === conn.peer)) connections.push(conn);
+            updateSyncUI('connected');
+            if (sessionRole !== 'guest') saveState(true);
+            if (sessionRole === 'host') conn.send({ type: 'SYNC_DATA', data: mogulData, lifetime: lifetimeFinished });
+        });
+
+        conn.on('data', payload => {
+            if (!payload) return;
+            if (sessionRole === 'host' && payload.type === 'CMD') handleGuestCommand(payload);
+            
+            if (sessionRole === 'guest' && payload.type === 'SYNC_DATA') {
+                mogulData = sanitizeDataStructure(payload.data);
+                lifetimeFinished = payload.lifetime;
+                renderAll();
+            }
+            if (payload.type === 'CHAT_MESSAGE') {
+                const p = getActiveProject();
+                if (p) {
+                    if (!p.messages) p.messages = [];
+                    p.messages.push(payload.message);
+                    if (!document.body.classList.contains('chat-open')) { unreadCount++; updateUnreadBadge(); }
+                    playSound('msg'); renderChat();
+                    if (sessionRole === 'host') saveState();
+                }
+            }
+        });
+
+        conn.on('close', () => {
+            connections = connections.filter(c => c.peer !== conn.peer);
+            if (connections.length === 0) resetToLocal();
+        });
+    }
+
+    function handleGuestCommand(payload) {
+        const project = getActiveProject();
+        switch(payload.cmd) {
+            case 'MOVE': applyMoveTask(payload.taskId, payload.bucket); break;
+            case 'DELETE': applyDeleteTask(payload.taskId); break;
+            case 'CREATE':
+                if (project) project.tasks.push({ id: payload.taskId, title: 'Neue Aufgabe', bucket: 'open', order: Date.now() });
+                break;
+            case 'UPDATE':
+                if (project) { const t = project.tasks.find(x => x.id === payload.taskId); if(t) Object.assign(t, payload.updates); }
+                break;
+            case 'REQUEST_BOARD':
+                const doCr = () => {
+                    const nid = generateUID();
+                    mogulData.projects.push({ id: nid, name: payload.name, tasks: [], messages: [] });
+                    mogulData.activeProjectId = nid;
+                    saveState(); renderAll();
+                };
+                if (mogulData.allowAllClients) doCr();
+                else showConfirm("Board Anfrage", `Client möchte Board "${payload.name}" erstellen.`, "Zulassen", doCr);
+                break;
+            case 'REQUEST_DELETE_BOARD':
+                const bDl = mogulData.projects.find(x => x.id === payload.boardId);
+                const doDl = () => applyDeleteBoard(payload.boardId);
+                if (mogulData.allowAllClients) doDl();
+                else if (bDl) showConfirm("Board Löschen", `Client möchte "${bDl.name}" löschen.`, "Ja, löschen", doDl);
+                break;
+            case 'REQUEST_SWITCH_BOARD':
+                const bSw = mogulData.projects.find(x => x.id === payload.boardId);
+                const doSw = () => { mogulData.activeProjectId = payload.boardId; saveState(); renderAll(); };
+                if (mogulData.allowAllClients) doSw();
+                else if (bSw) showConfirm("Board Wechseln", `Client möchte zu "${bSw.name}" wechseln. Für alle umschalten?`, "Umschalten", doSw);
+                break;
+        }
+        saveState();
+        renderTasks();
+    }
+
+    function updateSyncUI(status) {
+        const dot = document.getElementById('global-sync-status'), label = document.getElementById('sync-status-label'),
+              setup = document.getElementById('sync-setup-ui'), active = document.getElementById('active-session-ui'),
+              roleInd = document.getElementById('session-role-indicator'), hCtrls = document.getElementById('host-controls');
+
+        if (status === 'connected') {
+            dot.className = "status-dot bg-success animate-pulse";
+            label.textContent = sessionRole === 'host' ? "Hosting" : "Guest";
+            setup.classList.add('hidden');
+            active.classList.remove('hidden');
+            roleInd.textContent = sessionRole === 'host' ? `Live: Host` : `Live: Client (${getShortId(peer?.id)})`;
+            hCtrls.classList.toggle('hidden', sessionRole !== 'host');
+            document.getElementById('allow-all-toggle').checked = mogulData.allowAllClients || false;
+            document.body.classList.add('remote-session');
+        } else {
+            dot.className = "status-dot bg-info";
+            label.textContent = "Lokal";
+            setup.classList.remove('hidden');
+            active.classList.add('hidden');
+            hCtrls.classList.add('hidden');
+            document.body.classList.remove('remote-session');
+        }
+    }
+
+    function resetToLocal() {
+        sessionRole = null;
+        // KONSISTENZ: RAM leeren, lokale Daten aus Speicher wiederherstellen
+        if (backupLocalData) { mogulData = sanitizeDataStructure(backupLocalData); backupLocalData = null; }
+        else {
+            const originalData = localStorage.getItem(DATA_KEY);
+            if (originalData) mogulData = sanitizeDataStructure(JSON.parse(originalData));
+        }
+        localStorage.removeItem(SESSION_KEY);
+        updateSyncUI('ready');
+        renderAll();
+    }
+
+    function updateUnreadBadge() {
+        const b = document.getElementById('chat-unread-badge');
+        if (unreadCount > 0) { b.textContent = unreadCount > 9 ? '9+' : unreadCount; b.classList.add('show'); }
+        else { b.classList.remove('show'); }
+    }
+
+    // --- KANBAN ---
+    function applyMoveTask(id, target) {
+        const p = getActiveProject(), t = p?.tasks.find(x => x.id === id);
+        if (!t || t.bucket === target) return;
+        const oldB = t.bucket; t.bucket = target; t.order = Date.now(); 
+        if (target === 'done' && oldB !== 'done') { updateLifetimeCounter(1); playSound('completion'); }
+        else if (oldB === 'done' && target !== 'done') { updateLifetimeCounter(-1); }
+    }
+
+    function applyDeleteTask(id) {
+        const p = getActiveProject(); if (!p) return;
+        const t = p.tasks.find(x => x.id === id);
+        if (t && t.bucket === 'done') updateLifetimeCounter(-1);
+        p.tasks = p.tasks.filter(x => x.id !== id);
+        selectedTaskIds.delete(id);
+    }
+
+    function applyDeleteBoard(boardId) {
+        const isActive = mogulData.activeProjectId === boardId;
+        mogulData.projects = mogulData.projects.filter(x => x.id !== boardId);
+        if (isActive) mogulData.activeProjectId = mogulData.projects[0]?.id || null;
+        toggleChat(false);
+        saveState(); renderAll(); playSound('delete');
+    }
+
+    function moveTask(id, target) {
+        if (sessionRole === 'guest') sendGuestCommand({ cmd: 'MOVE', taskId: id, bucket: target });
+        else { applyMoveTask(id, target); saveState(); renderTasks(); }
+    }
+
+    function sendGuestCommand(cmdObj) { connections.forEach(c => c.open && c.send({ type: 'CMD', ...cmdObj })); }
+
+    // --- RENDER LOGIC ---
+    function renderAll() { renderProjectList(); renderTasks(); renderChat(); }
+
+    function renderProjectList() {
+        const list = document.getElementById('project-list');
+        if (!list) return;
+        list.innerHTML = '';
+        const isGuest = sessionRole === 'guest', allowAll = mogulData.allowAllClients;
+
+        if (mogulData.projects) {
+            mogulData.projects.forEach(p => {
+                const li = document.createElement('li'), isActive = p.id === mogulData.activeProjectId;
+                li.innerHTML = `
+                    <div class="flex justify-between items-center group ${isActive ? 'bg-slate-50 font-bold' : ''} gap-2">
+                        <a class="flex-1 project-item-text cursor-pointer py-2 px-3 rounded-lg hover:bg-slate-100/50" title="${p.name}" tabindex="0">${p.name}</a>
+                        <button class="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-error transition-all btn-del-p">✕</button>
+                    </div>`;
+                li.querySelector('a').onclick = () => {
+                    if (isGuest) {
+                        if (isActive) { toggleDropdown('project-dropdown', false); return; }
+                        if (allowAll) { sendGuestCommand({ cmd: 'REQUEST_SWITCH_BOARD', boardId: p.id }); toggleDropdown('project-dropdown', false); }
+                        else showConfirm("Board Wechseln", `Host anfragen, zu "${p.name}" zu wechseln?`, "Anfragen", () => {
+                            sendGuestCommand({ cmd: 'REQUEST_SWITCH_BOARD', boardId: p.id });
+                            toggleDropdown('project-dropdown', false);
+                        });
+                    } else {
+                        mogulData.activeProjectId = p.id; selectedTaskIds.clear();
+                        toggleDropdown('project-dropdown', false); renderAll(); saveState();
+                    }
+                };
+                li.querySelector('.btn-del-p').onclick = (e) => {
+                    e.stopPropagation();
+                    if (isGuest) {
+                        if (allowAll) sendGuestCommand({ cmd: 'REQUEST_DELETE_BOARD', boardId: p.id });
+                        else showConfirm("Löschen?", `Den Host bitten, "${p.name}" zu löschen?`, "Anfragen", () => {
+                            sendGuestCommand({ cmd: 'REQUEST_DELETE_BOARD', boardId: p.id });
+                            toggleDropdown('project-dropdown', false);
+                        });
+                    } else {
+                        showConfirm("Board löschen", `"${p.name}" permanent entfernen?`, "Löschen", () => {
+                            applyDeleteBoard(p.id); toggleDropdown('project-dropdown', false);
+                        });
+                    }
+                };
+                list.appendChild(li);
+            });
+        }
+
+        const addBtn = document.createElement('li');
+        const bText = (isGuest && !allowAll) ? 'Board anfragen' : 'Neues Board';
+        addBtn.innerHTML = `<a class="font-bold cursor-pointer p-3 rounded-xl ${isGuest && !allowAll ? 'text-indigo-600' : 'text-primary'}">+ ${bText}</a>`;
+        addBtn.onclick = () => { project_modal.showModal(); setTimeout(()=>document.getElementById('project-name-input').focus(), 50); toggleDropdown('project-dropdown', false); };
+        list.appendChild(addBtn);
+
+        const current = getActiveProject();
+        document.getElementById('active-project-name').textContent = current ? current.name : "Board wählen";
+    }
+
+    function toggleDropdown(id, force) {
+        const dropdown = document.getElementById(id), isP = id === 'project-dropdown', chev = document.getElementById(isP ? 'project-chevron' : 'sync-chevron');
+        const isOpen = dropdown.classList.contains('dropdown-visible'), should = force !== undefined ? force : !isOpen;
+        document.querySelectorAll('.dropdown').forEach(d => {
+            d.classList.remove('dropdown-visible');
+            const c = document.getElementById(d.id === 'project-dropdown' ? 'project-chevron' : 'sync-chevron');
+            if(c) c.classList.remove('rotate-180');
+        });
+        if (should) { dropdown.classList.add('dropdown-visible'); if (chev) chev.classList.add('rotate-180'); }
+    }
+
+    function toggleChat(force) {
+        const isOpen = document.body.classList.contains('chat-open'), should = force !== undefined ? force : !isOpen;
+        if (should) {
+            document.body.classList.add('chat-open');
+            unreadCount = 0; updateUnreadBadge();
+            setTimeout(() => document.getElementById('chat-input').focus(), 450);
+            const sc = document.getElementById('chat-messages-container'); sc.scrollTop = sc.scrollHeight;
+        } else {
+            document.body.classList.remove('chat-open'); document.body.classList.remove('chat-fullscreen');
+        }
+    }
+
+    function renderTasks() {
+        const p = getActiveProject(), board = document.getElementById('kanban-board'), cta = document.getElementById('empty-state-wrapper'), chatArea = document.getElementById('chat-input-area');
+        if (!p) {
+            if (board) board.style.display = 'none';
+            if (cta) cta.style.display = 'flex';
+            if (chatArea) chatArea.classList.add('chat-locked');
+            return;
+        }
+        if (board) board.style.display = 'grid';
+        if (cta) cta.style.display = 'none';
+        if (chatArea) chatArea.classList.remove('chat-locked');
+        
+        BUCKETS.forEach(b => {
+            const con = document.getElementById(`bucket-${b}`); 
+            if (con) {
+                con.innerHTML = '';
+                const tks = p.tasks.filter(t => t.bucket === b).sort((a,b) => a.order - b.order);
+                tks.forEach(t => con.appendChild(createTaskCard(t)));
+                document.getElementById(`count-${b}`).textContent = tks.length;
+            }
+        });
+        document.getElementById('selection-toolbar').classList.toggle('hidden', selectedTaskIds.size === 0);
+        document.getElementById('delete-count-badge').textContent = selectedTaskIds.size;
+    }
+
+    function createTaskCard(task) {
+        const card = document.createElement('div'), isS = selectedTaskIds.has(task.id), isO = task.due && new Date(task.due) < new Date() && task.bucket !== 'done';
+        card.className = `task-card ${isS ? 'selected' : ''} ${task.bucket === 'done' ? 'completed' : ''} group`;
+        card.setAttribute('draggable', true); card.setAttribute('tabindex', '0'); card.dataset.taskId = task.id;
+        const dueH = task.due ? `<div class="mt-4 flex items-center gap-1.5 text-[10px] font-bold ${isO ? 'text-error' : 'text-slate-400'}"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>${new Date(task.due).toLocaleDateString('de-DE')}</div>` : '';
+        card.innerHTML = `<div class="task-title line-clamp-2 text-slate-800 font-bold">${task.title}</div><div class="task-details line-clamp-2 text-xs text-slate-500 mt-1">${task.details || '...'}</div>${dueH}<div class="flex justify-end gap-1 mt-3 pt-3 border-t border-slate-50 opacity-0 group-hover:opacity-100 transition-opacity">${getActionButtons(task)}</div>`;
+        card.onclick = (e) => {
+            if (e.target.closest('button')) return;
+            if (e.ctrlKey || e.metaKey) { if (selectedTaskIds.has(task.id)) selectedTaskIds.delete(task.id); else selectedTaskIds.add(task.id); }
+            else openTaskModal(task.id);
+            renderTasks();
+        };
+        card.onkeydown = (e) => { if(e.key === 'Enter') openTaskModal(task.id); };
+        card.ondragstart = () => { draggedTaskId = task.id; card.classList.add('dragging'); };
+        card.ondragend = () => { card.classList.remove('dragging'); draggedTaskId = null; };
+        return card;
+    }
+
+    function getActionButtons(t) {
+        const b = "btn btn-ghost btn-xs btn-circle";
+        if (t.bucket === 'open') return `<button onclick="moveTask('${t.id}', 'in_progress')" class="${b} text-primary" aria-label="In Arbeit"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="3" d="M13 5l7 7-7 7M5 12h14"/></svg></button>`;
+        if (t.bucket === 'in_progress') return `<button onclick="moveTask('${t.id}', 'open')" class="${b} text-slate-400" aria-label="Zurück"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="3" d="M11 19l-7-7 7-7m8 7H5"/></svg></button><button onclick="moveTask('${t.id}', 'done')" class="${b} text-success" aria-label="Abschließen"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="4" d="M5 13l4 4L19 7"/></svg></button>`;
+        return `<button onclick="moveTask('${t.id}', 'in_progress')" class="${b} text-warning" aria-label="Aktivieren"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>`;
+    }
+
+    function renderChat() {
+        const p = getActiveProject(), con = document.getElementById('chat-messages-inner');
+        if (!p || !p.messages || p.messages.length === 0) { con.innerHTML = `<p class="text-center text-slate-300 text-[10px] mt-10 uppercase tracking-widest font-bold">Keine Nachrichten</p>`; return; }
+        
+        con.innerHTML = p.messages.map(m => {
+            const isMe = m.senderId === STABLE_ID;
+            return `
+                <div class="chat-message ${isMe ? 'self' : 'other'}">
+                    <span class="chat-meta">${isMe ? "Ich" : m.senderName} • ${m.time}</span>
+                    <div class="chat-bubble">${m.text}</div>
+                </div>`;
+        }).join('');
+        const sc = document.getElementById('chat-messages-container'); if(sc) sc.scrollTop = sc.scrollHeight;
+    }
+
+    function sendChatMessage(text) {
+        if (!text.trim()) return;
+        const p = getActiveProject(); if (!p) return;
+        const myN = sessionRole === 'host' ? `Host-${getShortId(peer?.id)}` : `Client-${getShortId(peer?.id)}`;
+        const msg = { senderId: STABLE_ID, senderName: myN, text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+        
+        if (sessionRole === 'host' || !sessionRole) {
+            if (!p.messages) p.messages = []; p.messages.push(msg);
+            connections.forEach(c => c.open && c.send({ type: 'CHAT_MESSAGE', message: msg })); saveState();
+        } else {
+            // Client sendet an Host zur Verteilung
+            connections.forEach(c => c.open && c.send({ type: 'CHAT_MESSAGE', message: msg }));
+        }
+        renderChat();
+        const ci = document.getElementById('chat-input'); if(ci) ci.value = '';
+    }
+
+    function openTaskModal(id) {
+        const t = getActiveProject()?.tasks.find(x => x.id === id); if (!t) return;
+        document.getElementById('task-id-input').value = t.id;
+        document.getElementById('task-title-input').value = t.title;
+        document.getElementById('task-details-input').value = t.details || '';
+        document.getElementById('task-due-input').value = t.due || '';
+        task_modal.showModal();
+        setTimeout(() => document.getElementById('task-title-input').focus(), 50);
+    }
+
+    function showConfirm(title, text, actionText, callback) {
+        document.getElementById('confirm-title').textContent = title;
+        document.getElementById('confirm-text').textContent = text;
+        const b = document.getElementById('confirm-action-btn');
+        b.textContent = actionText;
+        b.onclick = () => { callback(); confirm_modal.close(); };
+        confirm_modal.showModal();
+        setTimeout(() => b.focus(), 50);
+    }
+
+    // --- BOOT ---
+    window.onload = () => {
+        initP2P(); loadInitialState();
+        
+        document.getElementById('project-selector-btn').onclick = (e) => { e.stopPropagation(); toggleDropdown('project-dropdown'); };
+        document.getElementById('sync-menu-btn').onclick = (e) => { e.stopPropagation(); toggleDropdown('sync-dropdown'); };
+        
+        document.getElementById('allow-all-toggle').onchange = (e) => {
+            if (sessionRole === 'host') { mogulData.allowAllClients = e.target.checked; saveState(true); renderProjectList(); }
+        };
+
+        window.addEventListener('mousedown', (e) => {
+            if (!e.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown').forEach(d => {
+                    d.classList.remove('dropdown-visible');
+                    const c = document.getElementById(d.id === 'project-dropdown' ? 'project-chevron' : 'sync-chevron');
+                    if(c) c.classList.remove('rotate-180');
+                });
+            }
+            if (!e.target.closest('#chat-drawer') && !e.target.closest('#chat-toggle-btn') && !e.target.closest('.modal')) {
+                if (document.body.classList.contains('chat-open')) toggleChat(false);
+            }
+            if (!e.target.closest('.task-card') && !e.target.closest('#selection-toolbar') && !e.target.closest('.modal') && !e.target.closest('.dropdown') && !e.target.closest('#chat-drawer')) {
+                if (selectedTaskIds.size > 0) { selectedTaskIds.clear(); renderTasks(); }
+            }
+        });
+
+        document.getElementById('add-task-btn').onclick = () => {
+            const p = getActiveProject(); if (!p) return;
+            const nid = generateUID();
+            if (sessionRole === 'guest') sendGuestCommand({ cmd: 'CREATE', taskId: nid });
+            else { p.tasks.push({ id: nid, title: 'Neue Aufgabe', bucket: 'open', order: Date.now() }); saveState(); renderTasks(); }
+            playSound('add'); setTimeout(() => openTaskModal(nid), 50);
+        };
+
+        document.getElementById('task-detail-form').onsubmit = (e) => {
+            e.preventDefault(); const id = document.getElementById('task-id-input').value;
+            const up = { title: document.getElementById('task-title-input').value, details: document.getElementById('task-details-input').value, due: document.getElementById('task-due-input').value };
+            if (sessionRole === 'guest') sendGuestCommand({ cmd: 'UPDATE', taskId: id, updates: up });
+            else { const t = getActiveProject()?.tasks.find(x => x.id === id); if(t) Object.assign(t, up); saveState(); renderTasks(); }
+            playSound('save'); task_modal.close();
+        };
+
+        document.getElementById('delete-task-btn').onclick = () => {
+            showConfirm("Löschen?", "Aufgabe permanent entfernen?", "Löschen", () => {
+                const id = document.getElementById('task-id-input').value;
+                if (sessionRole === 'guest') sendGuestCommand({ cmd: 'DELETE', taskId: id });
+                else { applyDeleteTask(id); saveState(); renderTasks(); }
+                playSound('delete'); task_modal.close();
+            });
+        };
+
+        document.getElementById('delete-selected-btn').onclick = () => {
+            const count = selectedTaskIds.size;
+            showConfirm("Löschen", `${count} Aufgaben entfernen?`, "Ja, löschen", () => {
+                selectedTaskIds.forEach(id => { if (sessionRole === 'guest') sendGuestCommand({ cmd: 'DELETE', taskId: id }); else applyDeleteTask(id); });
+                selectedTaskIds.clear(); saveState(); renderTasks(); playSound('delete');
+            });
+        };
+
+        document.getElementById('project-form').onsubmit = (e) => {
+            e.preventDefault(); const name = document.getElementById('project-name-input').value;
+            if (sessionRole === 'guest') sendGuestCommand({ cmd: 'REQUEST_BOARD', name: name });
+            else {
+                const nid = generateUID();
+                mogulData.projects.push({ id: nid, name: name, tasks: [], messages: [] });
+                mogulData.activeProjectId = nid; saveState(); renderAll();
+            }
+            project_modal.close(); document.getElementById('project-name-input').value = '';
+        };
+
+        document.getElementById('cta-create-project-btn-main').onclick = () => { project_modal.showModal(); setTimeout(() => document.getElementById('project-name-input').focus(), 50); };
+        document.getElementById('connect-btn').onclick = () => { 
+            const pid = document.getElementById('partner-id-input').value.trim(); 
+            if(!pid) return; sessionRole = 'guest'; 
+            backupLocalData = JSON.parse(localStorage.getItem(DATA_KEY) || '{}'); 
+            setupConnection(peer.connect(pid)); 
+            document.getElementById('partner-id-input').value = ''; 
+        };
+        document.getElementById('copy-id-btn').onclick = (e) => { e.stopPropagation(); const i = document.getElementById('my-id-display'); i.select(); document.execCommand('copy'); const b = document.getElementById('copy-id-btn'); b.textContent = "Kopiert!"; setTimeout(() => b.textContent = "Kopie", 2000); };
+        document.getElementById('disconnect-btn').onclick = () => { connections.forEach(c => c.close()); resetToLocal(); };
+
+        document.getElementById('chat-toggle-btn').onclick = (e) => { e.stopPropagation(); toggleChat(); };
+        document.getElementById('chat-close-btn').onclick = () => toggleChat(false);
+        document.getElementById('chat-fullscreen-btn').onclick = () => document.body.classList.toggle('chat-fullscreen');
+        document.getElementById('media-toggle-btn').onclick = (e) => { e.stopPropagation(); document.getElementById('media-picker').classList.toggle('open'); };
+        document.getElementById('chat-send-btn').onclick = () => sendChatMessage(document.getElementById('chat-input').value);
+        
+        document.getElementById('chat-input').addEventListener('keydown', (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(document.getElementById('chat-input').value); } });
+        document.getElementById('emoji-picker-grid').innerHTML = STANDARD_EMOJIS.map(e => `<div class="emoji-btn" onclick="document.getElementById('chat-input').value += '${e}'; document.getElementById('chat-input').focus();">${e}</div>`).join('');
+
+        document.querySelectorAll('.kanban-column').forEach(col => {
+            col.ondragover = (e) => { e.preventDefault(); col.classList.add('drag-over'); };
+            col.ondragleave = () => col.classList.remove('drag-over');
+            col.ondrop = (e) => { e.preventDefault(); col.classList.remove('drag-over'); if (draggedTaskId) moveTask(draggedTaskId, col.dataset.bucket); };
+        });
+    };
+    </script>
+
+</body></html>
