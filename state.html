@@ -492,7 +492,6 @@
   <div class="topbar">
     <div class="brand">State Blueprint</div>
     <button id="btnNew">New</button>
-    <button id="btnAdd">+ State</button>
     <button id="btnSave">Export HTML</button>
     <button id="btnLoad">Load</button>
     <button id="btnUndo" title="Undo">Undo</button>
@@ -531,7 +530,7 @@
       <div id="selectRect" class="select-rect"></div>
       <div class="help">
         <b>Navigation:</b> Mousewheel zoom · right/middle drag pan · Space+drag pan<br>
-        <b>Edit:</b> + State or double-click empty canvas · drag blue dot to another node · click node/edge
+        <b>Edit:</b> double-click empty canvas · drag blue dot to another node or empty canvas · click node/edge
       </div>
     </main>
 
@@ -1662,10 +1661,6 @@
       });
       if (!ok) return;
       loadEditorModel(blankModel(), true);
-    };
-    document.getElementById("btnAdd").onclick = () => {
-      const p = viewportCenterWorld();
-      addStateAt(p.x, p.y);
     };
     document.getElementById("btnSave").onclick = saveBlueprintFile;
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
