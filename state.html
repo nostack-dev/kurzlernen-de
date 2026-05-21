@@ -492,8 +492,9 @@
   <div class="topbar">
     <div class="brand">State Blueprint</div>
     <button id="btnNew">New</button>
-    <button id="btnSave">Export HTML</button>
+    <button id="btnSave">Save</button>
     <button id="btnLoad">Load</button>
+    <button id="btnExport">Export HTML</button>
     <button id="btnUndo" title="Undo">Undo</button>
     <button id="btnRedo" title="Redo">Redo</button>
     <button id="btnFit">Fit</button>
@@ -502,7 +503,7 @@
     <button id="btnReset" class="danger">Demo reset</button>
     <div class="status" id="runtimeState">app: —</div>
   </div>
-  <input id="fileLoad" type="file" accept="application/json,.json,text/html,.html" hidden>
+  <input id="fileLoad" type="file" accept="application/json,.json,.state.json" hidden>
   <div id="modalBackdrop" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
@@ -549,6 +550,8 @@
 
   <script>
     const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
+    const DEFINITION_KIND = "state-blueprint-definition";
+    const DEFINITION_SCHEMA_VERSION = 2;
     const APP_HTML = "\u003c!doctype html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\n  \u003cmeta charset=\"utf-8\" /\u003e\n  \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /\u003e\n  \u003ctitle\u003eGenerated State App\u003c/title\u003e\n  \u003cstyle\u003e\n    :root {\n      --bg: #f7f8fb;\n      --card: #ffffff;\n      --text: #111827;\n      --muted: #6b7280;\n      --line: #e5e7eb;\n      --primary: #2563eb;\n      --primary2: #1d4ed8;\n    }\n\n    * { box-sizing: border-box; }\n\n    html, body {\n      margin: 0;\n      min-height: 100%;\n      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      background: var(--bg);\n      color: var(--text);\n    }\n\n    body {\n      display: grid;\n      place-items: start center;\n      padding: 22px;\n    }\n\n    .app { width: min(620px, 100%); }\n\n    .top {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 12px;\n    }\n\n    .title {\n      font-size: 14px;\n      font-weight: 900;\n      color: var(--muted);\n      text-transform: uppercase;\n      letter-spacing: .08em;\n    }\n\n    .state-pill {\n      border: 1px solid var(--line);\n      border-radius: 999px;\n      padding: 6px 10px;\n      background: white;\n      color: var(--muted);\n      font-size: 12px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n    }\n\n    .screen {\n      background: var(--card);\n      border: 1px solid var(--line);\n      border-radius: 22px;\n      box-shadow: 0 20px 50px rgba(15,23,42,.08);\n      padding: 28px;\n    }\n\n    h1 {\n      margin: 0 0 8px;\n      font-size: clamp(28px, 5vw, 48px);\n      letter-spacing: -.04em;\n    }\n\n    .body {\n      color: var(--muted);\n      line-height: 1.55;\n      min-height: 44px;\n      margin-bottom: 24px;\n      font-size: 16px;\n    }\n\n    .controls {\n      margin: 18px 0;\n      padding: 14px;\n      background: #f9fafb;\n      border: 1px solid var(--line);\n      border-radius: 16px;\n    }\n\n    .controls h2 {\n      margin: 0 0 8px;\n      font-size: 13px;\n      color: var(--muted);\n      text-transform: uppercase;\n      letter-spacing: .08em;\n    }\n\n    .field {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 7px 0;\n      border-top: 1px solid #edf0f4;\n    }\n\n    .field:first-of-type { border-top: 0; }\n    .field label { font-weight: 700; }\n    input[type=\"text\"].typed-input { width: 130px; padding: 7px; border: 1px solid #cbd5e1; border-radius: 9px; }\n    input.invalid { border-color: #fb7185; outline: 2px solid rgba(251,113,133,.18); }\n    input[type=\"checkbox\"] { transform: scale(1.2); }\n\n    .actions {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 10px;\n      margin-top: 18px;\n    }\n\n    .action {\n      display: flex;\n      flex-direction: column;\n      align-items: flex-start;\n      gap: 5px;\n      max-width: 100%;\n    }\n\n    .condition-note {\n      max-width: min(320px, 100%);\n      color: var(--muted);\n      font-size: 12px;\n      line-height: 1.25;\n      overflow-wrap: anywhere;\n    }\n\n    .condition-note code {\n      color: #111827;\n      background: #eef2ff;\n      border: 1px solid #dbe4ff;\n      border-radius: 6px;\n      padding: 1px 5px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 11px;\n    }\n\n    button {\n      border: 0;\n      border-radius: 999px;\n      padding: 12px 16px;\n      background: var(--primary);\n      color: white;\n      font-weight: 900;\n      cursor: pointer;\n    }\n\n    button:hover { background: var(--primary2); }\n    button:disabled {\n      cursor: not-allowed;\n      background: #cbd5e1;\n      color: #64748b;\n    }\n\n    .empty {\n      padding: 18px;\n      border: 1px dashed #cbd5e1;\n      border-radius: 16px;\n      color: var(--muted);\n    }\n\n    .log {\n      margin-top: 14px;\n      color: var(--muted);\n      font-size: 12px;\n      max-height: 110px;\n      overflow: auto;\n    }\n  \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n  \u003cmain class=\"app\"\u003e\n    \u003cdiv class=\"top\"\u003e\n      \u003cdiv class=\"title\" id=\"appName\"\u003eGenerated App\u003c/div\u003e\n      \u003cdiv class=\"state-pill\" id=\"statePill\"\u003e—\u003c/div\u003e\n    \u003c/div\u003e\n    \u003csection class=\"screen\" id=\"screen\"\u003e\u003c/section\u003e\n    \u003cdiv class=\"log\" id=\"log\"\u003e\u003c/div\u003e\n  \u003c/main\u003e\n\n  \u003cscript\u003e\n    const STORAGE_KEY = \"stateBlueprintHotLinked.model.v2\";\n\n    let model = loadModel() || demoModel();\n    let current = model.initial;\n    let context = defaultContext(model);\n    let logLines = [];\n    let transitionToNotify = null;\n\n    function demoModel() {\n      return {\n        version: 2,\n        name: \"Login \u0026 Email Verification\",\n        initial: \"landing\",\n        states: [\n          { id: \"landing\", title: \"Welcome\", body: \"Existing users sign in. New users create an account.\", x: 80, y: 180 },\n          { id: \"login_form\", title: \"Login\", body: \"Email and password form.\", x: 330, y: 80 },\n          { id: \"signup_form\", title: \"Sign up\", body: \"Collect email, password, and terms acceptance.\", x: 330, y: 300 },\n          { id: \"verify_email\", title: \"Verify email\", body: \"User clicks the confirmation link from their inbox.\", x: 600, y: 300 },\n          { id: \"dashboard\", title: \"Dashboard\", body: \"Authenticated app area.\", x: 865, y: 180 },\n          { id: \"error\", title: \"Error\", body: \"Show a clear error and let the user retry.\", x: 600, y: 80 }\n        ],\n        transitions: [\n          { id: \"t_login\", from: \"landing\", to: \"login_form\", label: \"Log in\", condition: \"\" },\n          { id: \"t_signup\", from: \"landing\", to: \"signup_form\", label: \"Create account\", condition: \"\" },\n          { id: \"t_login_success\", from: \"login_form\", to: \"dashboard\", label: \"Submit login\", condition: \"email == \\\"user@example.com\\\" \u0026\u0026 password == \\\"secret123\\\"\" },\n          { id: \"t_login_fail\", from: \"login_form\", to: \"error\", label: \"Fail\", condition: \"\" },\n          { id: \"t_signup_submit\", from: \"signup_form\", to: \"verify_email\", label: \"Submit signup\", condition: \"accepted_terms \u0026\u0026 email == \\\"user@example.com\\\"\" },\n          { id: \"t_signup_fail\", from: \"signup_form\", to: \"error\", label: \"Fail\", condition: \"\" },\n          { id: \"t_verify\", from: \"verify_email\", to: \"dashboard\", label: \"Confirm email\", condition: \"email_verified\" },\n          { id: \"t_verify_fail\", from: \"verify_email\", to: \"error\", label: \"Fail\", condition: \"\" },\n          { id: \"t_retry\", from: \"error\", to: \"landing\", label: \"Retry\", condition: \"\" },\n          { id: \"t_logout\", from: \"dashboard\", to: \"landing\", label: \"Log out\", condition: \"\" }\n        ]\n      };\n    }\n\n    function loadModel() {\n      try {\n        const text = localStorage.getItem(STORAGE_KEY);\n        return text ? normalizeModel(JSON.parse(text)) : null;\n      } catch (_) { return null; }\n    }\n\n    function saveModel() {\n      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(model)); } catch (_) {}\n    }\n\n    function normalizeModel(m) {\n      m.version = 2;\n      m.name = m.name || \"Generated App\";\n      m.states = Array.isArray(m.states) ? m.states : [];\n      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];\n      if (!m.states.length) m.states.push({ id: \"start\", title: \"Start\", body: \"\" });\n      const ids = new Set(m.states.map(s =\u003e s.id));\n      m.transitions = m.transitions.filter(t =\u003e ids.has(t.from) \u0026\u0026 ids.has(t.to));\n      for (const t of m.transitions) {\n        t.id = t.id || Math.random().toString(36).slice(2, 9);\n        t.label = t.label || t.event || \"Next\";\n        t.condition = t.condition || \"\";\n      }\n      if (!ids.has(m.initial)) m.initial = m.states[0].id;\n      return m;\n    }\n\n    function findState(id) { return model.states.find(s =\u003e s.id === id); }\n    function stateById(id) { return findState(id) || model.states[0]; }\n    function outgoing(id) { return model.transitions.filter(t =\u003e t.from === id); }\n\n    function defaultContext(m) {\n      const vars = inferVariables(m);\n      const out = {};\n      for (const v of vars) out[v.name] = defaultValueFor(v);\n      return out;\n    }\n\n    function inferVariables(m) {\n      const map = new Map();\n      const upsert = (name, patch) =\u003e {\n        if ([\"true\", \"false\", \"and\", \"or\", \"null\", \"undefined\", \"always\"].includes(String(name).toLowerCase())) return;\n        const prev = map.get(name) || { name, type: \"boolean\" };\n        map.set(name, { ...prev, ...patch });\n      };\n      for (const t of m.transitions || []) {\n        const c = String(t.condition || \"\");\n        const names = c.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];\n        for (const name of names) {\n          upsert(name, {});\n        }\n        for (const numeric of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(-?\\d+(?:\\.\\d+)?)/g)) {\n          const raw = numeric[3];\n          const decimalPlaces = raw.includes(\".\") ? raw.split(\".\")[1].length : 0;\n          const nextDecimalPlaces = Math.max(map.get(numeric[1])?.decimalPlaces || 0, decimalPlaces);\n          upsert(numeric[1], {\n            type: \"number\",\n            kind: nextDecimalPlaces ? \"float\" : \"int\",\n            decimalPlaces: nextDecimalPlaces\n          });\n        }\n        for (const quoted of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=)\\s*(['\"])(.*?)\\3/g)) {\n          upsert(quoted[1], { type: \"text\" });\n        }\n      }\n      return [...map.values()].sort((a, b) =\u003e a.name.localeCompare(b.name));\n    }\n\n    function defaultValueFor(v) {\n      if (v.type === \"number\") return \"0\";\n      if (v.type === \"text\") return \"\";\n      return false;\n    }\n\n    function variableMap() {\n      return new Map(inferVariables(model).map(v =\u003e [v.name, v]));\n    }\n\n    function sanitizeContext(vars = inferVariables(model)) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function ensureContext(vars) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function sanitizeValue(value, v) {\n      if (value === null || value === undefined) return defaultValueFor(v);\n      if (v.type === \"number\") return sanitizeNumericInput(String(value), v, { fallback: defaultValueFor(v) });\n      if (v.type === \"text\") return String(value);\n      return Boolean(value);\n    }\n\n    function sanitizeNumericInput(value, v, opts = {}) {\n      const fallback = opts.fallback ?? \"\";\n      let raw = String(value ?? \"\").trim().replace(\",\", \".\");\n      if (v.kind === \"int\") raw = raw.replace(/[^\\d]/g, \"\");\n      else raw = raw.replace(/[^\\d.]/g, \"\").replace(/(\\..*)\\./g, \"$1\");\n      if (raw === \"\") return fallback;\n      return raw;\n    }\n\n    function isValidValue(value, v) {\n      if (value === null || value === undefined) return false;\n      if (v.type === \"number\") {\n        const raw = String(value);\n        if (v.kind === \"int\") return /^\\d+$/.test(raw);\n        return /^\\d+(?:\\.\\d+)?$/.test(raw);\n      }\n      if (v.type === \"text\") return value !== null \u0026\u0026 value !== undefined;\n      return typeof value === \"boolean\";\n    }\n\n    function strictNumber(value) {\n      if (value === null || value === undefined) return null;\n      const raw = String(value).trim();\n      if (!/^\\d+(?:\\.\\d+)?$/.test(raw)) return null;\n      const n = Number(raw);\n      return Number.isFinite(n) ? n : null;\n    }\n\n    function coerceValue(text) {\n      const raw = String(text).trim().replace(/^[\"']|[\"']$/g, \"\");\n      if (raw === \"true\") return true;\n      if (raw === \"false\") return false;\n      if (raw === \"null\" || raw === \"undefined\") return Symbol.for(\"invalid\");\n      if (/^-?\\d+(\\.\\d+)?$/.test(raw)) return Number(raw);\n      return raw;\n    }\n\n    function testAtom(atom) {\n      atom = atom.trim();\n      if (!atom || atom === \"true\") return true;\n      if (atom === \"false\") return false;\n\n      if (atom.startsWith(\"!\")) {\n        const name = atom.slice(1).trim();\n        if (context[name] === null || context[name] === undefined) return false;\n        return !Boolean(context[name]);\n      }\n\n      const m = atom.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(.+)$/);\n      if (!m) {\n        const v = variableMap().get(atom);\n        if (v \u0026\u0026 !isValidValue(context[atom], v)) return false;\n        return Boolean(context[atom]);\n      }\n\n      const left = context[m[1]];\n      const op = m[2];\n      const right = coerceValue(m[3]);\n      const vars = variableMap();\n      const v = vars.get(m[1]);\n      if (left === null || left === undefined || right === Symbol.for(\"invalid\")) return false;\n      if (v \u0026\u0026 !isValidValue(left, v)) return false;\n\n      if ([\"\u003e=\", \"\u003c=\", \"\u003e\", \"\u003c\"].includes(op)) {\n        const l = strictNumber(left);\n        const r = typeof right === \"number\" \u0026\u0026 Number.isFinite(right) \u0026\u0026 right \u003e= 0 ? right : null;\n        if (l === null || r === null) return false;\n        if (op === \"\u003e=\") return l \u003e= r;\n        if (op === \"\u003c=\") return l \u003c= r;\n        if (op === \"\u003e\") return l \u003e r;\n        if (op === \"\u003c\") return l \u003c r;\n      }\n      if (typeof right === \"number\") {\n        const l = strictNumber(left);\n        if (l === null || right \u003c 0) return false;\n        return op === \"==\" ? l === right : l !== right;\n      }\n      if (typeof right === \"boolean\") {\n        const l = Boolean(left);\n        return op === \"==\" ? l === right : l !== right;\n      }\n      return op === \"==\" ? String(left) === String(right) : String(left) !== String(right);\n      return false;\n    }\n\n    function conditionOk(condition) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return true;\n      return c.split(\"||\").some(orPart =\u003e orPart.split(\"\u0026\u0026\").every(testAtom));\n    }\n\n    function looksLikeFailure(text) {\n      return /(^|[_\\s-])(fail|failure|error|invalid|reject|denied|blocked)([_\\s-]|$)/i.test(String(text || \"\"));\n    }\n\n    function isFailureTransition(t) {\n      const to = findState(t.to);\n      return looksLikeFailure(t.id) || looksLikeFailure(t.label) || looksLikeFailure(t.to) || looksLikeFailure(to?.title);\n    }\n\n    function failureTransition(fromId, attemptedId) {\n      return outgoing(fromId).find(t =\u003e t.id !== attemptedId \u0026\u0026 isFailureTransition(t));\n    }\n\n    function actionableTransitions(transitions) {\n      return transitions.filter(t =\u003e !isFailureTransition(t));\n    }\n\n    function log(text) {\n      logLines.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);\n      logLines = logLines.slice(0, 6);\n    }\n\n    function notifyRuntime() {\n      const payload = {\n        type: \"STATE_BLUEPRINT_RUNTIME_STATE\",\n        current,\n        transitionId: transitionToNotify?.id || null,\n        from: transitionToNotify?.from || null,\n        to: current,\n        label: transitionToNotify?.label || null,\n        context: JSON.parse(JSON.stringify(context))\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n      transitionToNotify = null;\n    }\n\n    function render() {\n      normalizeModel(model);\n      if (!findState(current)) current = model.initial;\n      const s = stateById(current);\n      const transitions = outgoing(s.id);\n      const actionTransitions = actionableTransitions(transitions);\n      const vars = inferVariables({ transitions: actionTransitions });\n      ensureContext(vars);\n\n      document.getElementById(\"appName\").textContent = model.name || \"Generated App\";\n      document.getElementById(\"statePill\").textContent = s.id;\n\n      const screen = document.getElementById(\"screen\");\n      screen.innerHTML = \"\";\n\n      const h1 = document.createElement(\"h1\");\n      h1.textContent = s.title || s.id;\n      screen.appendChild(h1);\n\n      const body = document.createElement(\"div\");\n      body.className = \"body\";\n      body.textContent = s.body || \"This screen is generated from the current state.\";\n      screen.appendChild(body);\n\n      if (vars.length) {\n        const controls = document.createElement(\"div\");\n        controls.className = \"controls\";\n        controls.innerHTML = `\u003ch2\u003eCondition inputs\u003c/h2\u003e`;\n        for (const v of vars) {\n          if (!(v.name in context)) context[v.name] = defaultValueFor(v);\n          const row = document.createElement(\"div\");\n          row.className = \"field\";\n          const label = document.createElement(\"label\");\n          label.textContent = v.name;\n          const input = document.createElement(\"input\");\n          if (v.type === \"number\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.inputMode = v.kind === \"int\" ? \"numeric\" : \"decimal\";\n            input.value = context[v.name];\n            input.oninput = () =\u003e {\n              context[v.name] = sanitizeNumericInput(input.value, v);\n              input.value = context[v.name];\n              input.classList.toggle(\"invalid\", !isValidValue(context[v.name], v));\n              updateActionButtons();\n              notifyRuntime();\n            };\n          } else if (v.type === \"text\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.value = context[v.name];\n            input.oninput = () =\u003e {\n              context[v.name] = String(input.value ?? \"\");\n              updateActionButtons();\n              notifyRuntime();\n            };\n          } else {\n            input.type = \"checkbox\";\n            input.checked = Boolean(context[v.name]);\n            input.onchange = () =\u003e { context[v.name] = input.checked; updateActionButtons(); notifyRuntime(); };\n          }\n          row.append(label, input);\n          controls.appendChild(row);\n        }\n        screen.appendChild(controls);\n      }\n\n      const actions = document.createElement(\"div\");\n      actions.className = \"actions\";\n      for (const t of actionTransitions) {\n        const action = document.createElement(\"div\");\n        action.className = \"action\";\n        const button = document.createElement(\"button\");\n        button.dataset.transitionId = t.id;\n        button.textContent = t.label || \"Next\";\n        button.onclick = () =\u003e {\n          const ok = conditionOk(t.condition);\n          if (ok) {\n            log(`${s.id} --${t.label || \"next\"}--\u003e ${t.to}`);\n            current = t.to;\n            transitionToNotify = t;\n          } else {\n            const failTransition = failureTransition(s.id, t.id);\n            if (!failTransition) {\n              log(`${s.id} --${t.label || \"next\"} blocked`);\n              render();\n              return;\n            }\n            const failState = stateById(failTransition.to);\n            log(`${s.id} --${t.label || \"next\"} failed--\u003e ${failState.id}`);\n            current = failState.id;\n            transitionToNotify = failTransition;\n          }\n          render();\n        };\n        action.appendChild(button);\n        const condition = String(t.condition || \"\").trim();\n        if (condition \u0026\u0026 condition.toLowerCase() !== \"always\") {\n          const note = document.createElement(\"div\");\n          note.className = \"condition-note\";\n          note.append(\"needs \");\n          const code = document.createElement(\"code\");\n          code.textContent = condition;\n          note.appendChild(code);\n          action.appendChild(note);\n        }\n        actions.appendChild(action);\n      }\n      if (!transitions.length) {\n        const empty = document.createElement(\"div\");\n        empty.className = \"empty\";\n        empty.textContent = \"No outgoing transitions. This is an end state.\";\n        screen.appendChild(empty);\n      }\n      screen.appendChild(actions);\n\n      document.getElementById(\"log\").textContent = logLines.join(\"\\n\");\n      notifyRuntime();\n    }\n\n    function updateActionButtons() {\n      for (const button of document.querySelectorAll(\"[data-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === button.dataset.transitionId);\n        if (t) button.disabled = false;\n      }\n    }\n\n    function escapeHtml(text) {\n      return String(text).replace(/[\u0026\u003c\u003e\"]/g, ch =\u003e ({\"\u0026\":\"\u0026amp;\",\"\u003c\":\"\u0026lt;\",\"\u003e\":\"\u0026gt;\",\"\\\"\":\"\u0026quot;\"}[ch]));\n    }\n\n    window.addEventListener(\"message\", evt =\u003e {\n      const data = evt.data || {};\n      if (data.type !== \"STATE_BLUEPRINT_MODEL\") return;\n      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));\n      saveModel();\n      const oldContext = context;\n      context = defaultContext(model);\n      for (const k of Object.keys(context)) {\n        if (k in oldContext) context[k] = oldContext[k] ?? context[k];\n      }\n      if (data.reset || !findState(current)) {\n        current = model.initial;\n        logLines = [];\n        transitionToNotify = null;\n      }\n      render();\n    });\n\n    window.addEventListener(\"storage\", evt =\u003e {\n      if (evt.key !== STORAGE_KEY || !evt.newValue) return;\n      try {\n        model = normalizeModel(JSON.parse(evt.newValue));\n        if (!findState(current)) current = model.initial;\n        render();\n      } catch (_) {}\n    });\n\n    document.addEventListener(\"keydown\", evt =\u003e {\n      const mod = evt.ctrlKey || evt.metaKey;\n      if (!mod) return;\n      const key = evt.key.toLowerCase();\n      if (key !== \"s\" \u0026\u0026 key !== \"o\") return;\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) return;\n      evt.preventDefault();\n      evt.stopImmediatePropagation();\n      const payload = {\n        type: \"STATE_BLUEPRINT_SHORTCUT\",\n        action: key === \"s\" ? \"save\" : \"load\"\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n    }, { capture: true });\n\n    render();\n  \u003c/script\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n";
     const APP_URL = URL.createObjectURL(new Blob([APP_HTML], { type: "text/html" }));
     const WORLD_MIN_X = -10000;
@@ -813,15 +816,140 @@
       restoreHistorySnapshot(next);
     }
 
-    function exportPayload() {
-      return {
+    function definitionPayload() {
+      const definition = {
+        kind: DEFINITION_KIND,
+        schemaVersion: DEFINITION_SCHEMA_VERSION,
         app: "State Blueprint",
-        version: 2,
         savedAt: new Date().toISOString(),
         model: JSON.parse(modelSnapshot()),
-        camera: { ...camera },
-        previewCollapsed
+        camera: {
+          x: Number(camera.x),
+          y: Number(camera.y),
+          scale: Number(camera.scale)
+        },
+        previewCollapsed: Boolean(previewCollapsed)
       };
+      return validateBlueprintDefinition(definition);
+    }
+
+    function isPlainObject(value) {
+      return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function assertPlainObject(value, path) {
+      if (!isPlainObject(value)) throw new Error(`${path} must be an object.`);
+    }
+
+    function assertString(value, path, { allowEmpty = false } = {}) {
+      if (typeof value !== "string") throw new Error(`${path} must be a string.`);
+      if (!allowEmpty && !value.trim()) throw new Error(`${path} must not be empty.`);
+      return value;
+    }
+
+    function assertFiniteNumber(value, path) {
+      if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${path} must be a finite number.`);
+      return value;
+    }
+
+    function assertNoNullish(value, path = "definition") {
+      if (value === null || value === undefined) throw new Error(`${path} must not be null or undefined.`);
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => assertNoNullish(item, `${path}[${index}]`));
+        return;
+      }
+      if (!isPlainObject(value)) return;
+      for (const [key, item] of Object.entries(value)) {
+        assertNoNullish(item, `${path}.${key}`);
+      }
+    }
+
+    function validateModelDefinition(source) {
+      assertPlainObject(source, "definition.model");
+      if (source.version !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.model.version must be 2.");
+      assertString(source.name, "definition.model.name");
+      assertString(source.initial, "definition.model.initial");
+      if (!Array.isArray(source.states) || !source.states.length) throw new Error("definition.model.states must be a non-empty array.");
+      if (!Array.isArray(source.transitions)) throw new Error("definition.model.transitions must be an array.");
+
+      const ids = new Set();
+      const states = source.states.map((state, index) => {
+        const path = `definition.model.states[${index}]`;
+        assertPlainObject(state, path);
+        const id = assertString(state.id, `${path}.id`);
+        if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
+        ids.add(id);
+        return {
+          id,
+          title: assertString(state.title, `${path}.title`),
+          body: assertString(state.body, `${path}.body`, { allowEmpty: true }),
+          x: assertFiniteNumber(state.x, `${path}.x`),
+          y: assertFiniteNumber(state.y, `${path}.y`)
+        };
+      });
+
+      if (!ids.has(source.initial)) throw new Error("definition.model.initial must reference an existing state.");
+
+      const transitionIds = new Set();
+      const transitions = source.transitions.map((transition, index) => {
+        const path = `definition.model.transitions[${index}]`;
+        assertPlainObject(transition, path);
+        const id = assertString(transition.id, `${path}.id`);
+        if (transitionIds.has(id)) throw new Error(`${path}.id must be unique.`);
+        transitionIds.add(id);
+        const from = assertString(transition.from, `${path}.from`);
+        const to = assertString(transition.to, `${path}.to`);
+        if (!ids.has(from)) throw new Error(`${path}.from must reference an existing state.`);
+        if (!ids.has(to)) throw new Error(`${path}.to must reference an existing state.`);
+        return {
+          id,
+          from,
+          to,
+          label: assertString(transition.label, `${path}.label`),
+          condition: assertString(transition.condition, `${path}.condition`, { allowEmpty: true })
+        };
+      });
+
+      return {
+        version: DEFINITION_SCHEMA_VERSION,
+        name: source.name,
+        initial: source.initial,
+        states,
+        transitions
+      };
+    }
+
+    function validateBlueprintDefinition(data) {
+      assertNoNullish(data);
+      assertPlainObject(data, "definition");
+      if (data.kind !== DEFINITION_KIND) throw new Error(`definition.kind must be "${DEFINITION_KIND}".`);
+      if (data.schemaVersion !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.schemaVersion must be 2.");
+      assertString(data.app, "definition.app");
+      assertString(data.savedAt, "definition.savedAt");
+
+      const validated = {
+        kind: DEFINITION_KIND,
+        schemaVersion: DEFINITION_SCHEMA_VERSION,
+        app: data.app,
+        savedAt: data.savedAt,
+        model: validateModelDefinition(data.model),
+        camera: { x: 32, y: 32, scale: 1 },
+        previewCollapsed: false
+      };
+
+      if ("camera" in data) {
+        assertPlainObject(data.camera, "definition.camera");
+        validated.camera = {
+          x: assertFiniteNumber(data.camera.x, "definition.camera.x"),
+          y: assertFiniteNumber(data.camera.y, "definition.camera.y"),
+          scale: clamp(assertFiniteNumber(data.camera.scale, "definition.camera.scale"), 0.25, 2.4)
+        };
+      }
+      if ("previewCollapsed" in data) {
+        if (typeof data.previewCollapsed !== "boolean") throw new Error("definition.previewCollapsed must be a boolean.");
+        validated.previewCollapsed = data.previewCollapsed;
+      }
+      return validated;
     }
 
     function jsLiteral(value) {
@@ -858,11 +986,32 @@
       return html;
     }
 
-    async function saveBlueprintFile() {
+    function downloadTextFile(text, filename, type) {
+      const blob = new Blob([text], { type });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    function saveDefinitionFile() {
       persistModel(false);
       saveCamera();
       savePreviewCollapsed();
-      const payload = exportPayload();
+      const definition = definitionPayload();
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const text = JSON.stringify(definition, null, 2) + "\n";
+      downloadTextFile(text, `${normalizeId(model.name || "state-app")}-${stamp}.state.json`, "application/json");
+    }
+
+    async function exportHtmlFile() {
+      persistModel(false);
+      saveCamera();
+      savePreviewCollapsed();
+      const payload = definitionPayload();
       let text;
       try {
         const appHtml = typeof APP_HTML === "string" ? APP_HTML : await (await fetch(APP_URL, { cache: "no-store" })).text();
@@ -871,15 +1020,8 @@
         await modalAlert(err?.message || "Could not export standalone app.", "Export failed");
         return;
       }
-      const blob = new Blob([text], { type: "text/html" });
-      const a = document.createElement("a");
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${normalizeId(model.name || "state-app")}-${stamp}.html`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      downloadTextFile(text, `${normalizeId(model.name || "state-app")}-${stamp}.html`, "text/html");
     }
 
     function requestLoadBlueprintFile() {
@@ -887,18 +1029,11 @@
       fileLoadEl.click();
     }
 
-    function importBlueprintData(data) {
-      const source = data?.model || data;
-      if (!source || !Array.isArray(source.states)) throw new Error("Invalid blueprint file");
-      model = normalizeModel(JSON.parse(JSON.stringify(source)));
-      if (data?.camera && Number.isFinite(data.camera.x) && Number.isFinite(data.camera.y) && Number.isFinite(data.camera.scale)) {
-        camera = {
-          x: data.camera.x,
-          y: data.camera.y,
-          scale: clamp(data.camera.scale, 0.25, 2.4)
-        };
-      }
-      if (typeof data?.previewCollapsed === "boolean") previewCollapsed = data.previewCollapsed;
+    function importBlueprintDefinition(definition) {
+      const data = validateBlueprintDefinition(definition);
+      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));
+      camera = { ...data.camera };
+      previewCollapsed = data.previewCollapsed;
       selected = null;
       dragging = null;
       connecting = null;
@@ -916,13 +1051,14 @@
       syncToApp(true);
     }
 
-    function parseBlueprintFileText(text) {
+    function parseBlueprintDefinitionText(text) {
+      let data;
       try {
-        return JSON.parse(text);
-      } catch (_) {}
-      const embedded = text.match(/const\s+EXPORTED_STATE_BLUEPRINT\s*=\s*([\s\S]*?);\n\s*const\s+EXPORTED_STATE_BLUEPRINT_SAVED_AT/);
-      if (!embedded) throw new Error("Invalid blueprint file");
-      return JSON.parse(embedded[1]);
+        data = JSON.parse(text);
+      } catch (_) {
+        throw new Error("Load expects a formal .state.json definition. Use Export HTML only for the runnable app.");
+      }
+      return validateBlueprintDefinition(data);
     }
 
     function loadBlueprintFile(file) {
@@ -930,9 +1066,9 @@
       const reader = new FileReader();
       reader.onload = async () => {
         try {
-          importBlueprintData(parseBlueprintFileText(String(reader.result || "")));
+          importBlueprintDefinition(parseBlueprintDefinitionText(String(reader.result || "")));
         } catch (err) {
-          await modalAlert(err?.message || "Could not load blueprint file.", "Load failed");
+          await modalAlert(err?.message || "Could not load blueprint definition.", "Load failed");
         }
       };
       reader.readAsText(file);
@@ -1555,7 +1691,7 @@
       if (mod && evt.key.toLowerCase() === "s") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
-        saveBlueprintFile();
+        saveDefinitionFile();
         return;
       }
       if (mod && evt.key.toLowerCase() === "o") {
@@ -1617,7 +1753,7 @@
     window.addEventListener("message", evt => {
       const data = evt.data || {};
       if (data.type === "STATE_BLUEPRINT_SHORTCUT") {
-        if (data.action === "save") saveBlueprintFile();
+        if (data.action === "save") saveDefinitionFile();
         if (data.action === "load") requestLoadBlueprintFile();
         return;
       }
@@ -1662,8 +1798,9 @@
       if (!ok) return;
       loadEditorModel(blankModel(), true);
     };
-    document.getElementById("btnSave").onclick = saveBlueprintFile;
+    document.getElementById("btnSave").onclick = saveDefinitionFile;
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
+    document.getElementById("btnExport").onclick = exportHtmlFile;
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
     document.getElementById("btnUndo").onclick = undoModel;
     document.getElementById("btnRedo").onclick = redoModel;
