@@ -1568,51 +1568,19 @@
     function nodeCenter(s, side) {
       if (side === "out") return { x: s.x + 168, y: s.y + 43 };
       if (side === "in") return { x: s.x, y: s.y + 43 };
-      if (side === "left") return { x: s.x, y: s.y + 43 };
-      if (side === "right") return { x: s.x + 168, y: s.y + 43 };
-      if (side === "top") return { x: s.x + 84, y: s.y };
-      if (side === "bottom") return { x: s.x + 84, y: s.y + 86 };
       return { x: s.x + 84, y: s.y + 43 };
     }
 
-    function sideVector(side) {
-      if (side === "left") return { x: -1, y: 0 };
-      if (side === "right") return { x: 1, y: 0 };
-      if (side === "top") return { x: 0, y: -1 };
-      if (side === "bottom") return { x: 0, y: 1 };
-      return { x: 1, y: 0 };
-    }
-
-    function edgeAnchors(from, to) {
-      const a = nodeCenter(from);
-      const b = nodeCenter(to);
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      if (Math.abs(dx) >= Math.abs(dy) * 0.8) {
-        return dx >= 0
-          ? { from: "right", to: "left" }
-          : { from: "left", to: "right" };
-      }
-      return dy >= 0
-        ? { from: "bottom", to: "top" }
-        : { from: "top", to: "bottom" };
-    }
-
     function edgePath(from, to) {
-      const anchors = edgeAnchors(from, to);
-      const a = nodeCenter(from, anchors.from);
-      const b = nodeCenter(to, anchors.to);
-      const av = sideVector(anchors.from);
-      const bv = sideVector(anchors.to);
-      const distance = Math.hypot(b.x - a.x, b.y - a.y);
-      const pull = clamp(distance * 0.38, 56, 170);
-      return `M ${a.x} ${a.y} C ${a.x + av.x * pull} ${a.y + av.y * pull}, ${b.x + bv.x * pull} ${b.y + bv.y * pull}, ${b.x} ${b.y}`;
+      const a = nodeCenter(from, "out");
+      const b = nodeCenter(to, "in");
+      const dx = Math.max(70, Math.abs(b.x - a.x) * 0.45);
+      return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
     }
 
     function midPoint(from, to) {
-      const anchors = edgeAnchors(from, to);
-      const a = nodeCenter(from, anchors.from);
-      const b = nodeCenter(to, anchors.to);
+      const a = nodeCenter(from, "out");
+      const b = nodeCenter(to, "in");
       return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 10 };
     }
 
