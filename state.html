@@ -725,7 +725,7 @@
     <button id="btnNew">New</button>
     <button id="btnSave">Save</button>
     <button id="btnLoad">Load</button>
-    <button id="btnImportCode">Import Code</button>
+    <button id="btnImportCode" title="Projektordner analysieren und als State-Draft importieren">Code -> States</button>
     <button id="btnExport">Export HTML</button>
     <button id="btnUndo" title="Undo">Undo</button>
     <button id="btnRedo" title="Redo">Redo</button>
@@ -1332,7 +1332,13 @@
       reader.readAsText(file);
     }
 
-    function requestCodeImportFolder() {
+    async function requestCodeImportFolder() {
+      const ok = await modalConfirm(
+        "Waehle gleich deinen Projektordner.\n\nDas Tool macht daraus einen Draft:\nRoutes werden States.\nLinks, Router-Navigation und Forms werden Transitions.\nDer aktuelle Canvas wird erst nach der Analyse und deiner Bestaetigung ersetzt.",
+        "Code -> States",
+        { confirmText: "Ordner waehlen" }
+      );
+      if (!ok) return;
       codeImportEl.value = "";
       codeImportEl.click();
     }
@@ -1340,7 +1346,7 @@
     async function importCodeFolder(files) {
       const usable = selectCodeFiles(files);
       if (!usable.length) {
-        await modalAlert("No supported code files found. Pick a web app folder with HTML, JS, TS, JSX or TSX files.", "Import Code");
+        await modalAlert("Keine passenden Web-Code-Dateien gefunden. Waehle einen Projektordner mit HTML, JS, TS, JSX, TSX, Vue oder Svelte.", "Code -> States");
         return;
       }
       try {
@@ -1350,13 +1356,13 @@
         })));
         const draft = analyzeCodeStateMachine(sources);
         if (!draft.model.states.length) {
-          await modalAlert("No routes, links or form flows were found. The importer only creates clear draft states.", "Import Code");
+          await modalAlert("Keine klaren Routes, Links oder Form-Flows gefunden. Der Import erzeugt nur sichere Draft-States, keinen geratenen Pfad-Brei.", "Code -> States");
           return;
         }
         const ok = await modalConfirm(
-          `Import draft from ${draft.filesUsed} files?\n${draft.model.states.length} states, ${draft.model.transitions.length} transitions.\nLimited to core routes, links, forms and router navigation.`,
-          "Import Code",
-          { confirmText: "Import draft" }
+          `Draft gefunden:\n${draft.model.states.length} States\n${draft.model.transitions.length} Transitions\n${draft.filesUsed} Dateien gelesen\n\nImport ersetzt den aktuellen Canvas. Speichern vorher bleibt ueber Save moeglich.`,
+          "Code -> States",
+          { confirmText: "Draft importieren" }
         );
         if (!ok) return;
         loadEditorModel(draft.model, true);
