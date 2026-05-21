@@ -207,13 +207,15 @@
       position: absolute;
       width: 168px;
       min-height: 86px;
-      border: 1px solid #2f6798;
-      background: linear-gradient(180deg, var(--node2), var(--node));
-      border-radius: 14px;
-      box-shadow: 0 12px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.06);
+      border: 1px solid #5f8dbc;
+      background: #12345a;
+      border-radius: 10px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.1);
       cursor: grab;
       user-select: none;
       pointer-events: auto;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
     }
 
     .node:active { cursor: grabbing; }
@@ -222,13 +224,15 @@
       border-color: var(--runtime);
       outline: 3px solid rgba(34,197,94,.72);
       outline-offset: 3px;
-      box-shadow: 0 0 0 8px rgba(34,197,94,.12), 0 18px 42px rgba(0,0,0,.45);
+      box-shadow: 0 0 0 6px rgba(34,197,94,.14), 0 10px 24px rgba(0,0,0,.34);
     }
 
     .node .title {
       padding: 10px 36px 3px 12px;
       font-weight: 900;
       color: white;
+      font-size: 14px;
+      line-height: 1.18;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -236,9 +240,9 @@
 
     .node .body {
       padding: 0 12px 12px;
-      color: #a9c8ee;
+      color: #d8e9ff;
       font-size: 12px;
-      line-height: 1.25;
+      line-height: 1.32;
       max-height: 36px;
       overflow: hidden;
     }
@@ -913,10 +917,12 @@
     }
 
     function applyCamera() {
-      worldEl.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`;
+      const tx = Math.round(camera.x);
+      const ty = Math.round(camera.y);
+      worldEl.style.transform = `translate(${tx}px, ${ty}px) scale(${camera.scale})`;
       const grid = 24 * camera.scale;
       mapEl.style.backgroundSize = `${grid}px ${grid}px, ${grid}px ${grid}px, 100% 100%, 100% 100%`;
-      mapEl.style.backgroundPosition = `${camera.x % grid}px ${camera.y % grid}px, ${camera.x % grid}px ${camera.y % grid}px, 0 0, 0 0`;
+      mapEl.style.backgroundPosition = `${tx % grid}px ${ty % grid}px, ${tx % grid}px ${ty % grid}px, 0 0, 0 0`;
       saveCamera();
     }
 
@@ -954,7 +960,7 @@
       const w = Math.max(1, maxX - minX);
       const h = Math.max(1, maxY - minY);
       const pad = 120;
-      const scale = clamp(Math.min(r.width / (w + pad * 2), r.height / (h + pad * 2)), 0.25, 1.35);
+      const scale = clamp(Math.min(r.width / (w + pad * 2), r.height / (h + pad * 2)), 0.25, 1);
       camera.scale = scale;
       camera.x = Math.round((r.width - w * scale) / 2 - minX * scale);
       camera.y = Math.round((r.height - h * scale) / 2 - minY * scale);
