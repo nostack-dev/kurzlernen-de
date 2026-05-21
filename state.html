@@ -1361,7 +1361,6 @@
 
     function crispScale(value) {
       const scale = clamp(value, 0.25, 2.4);
-      if (Math.abs(scale - 1) < 0.08) return 1;
       return Math.round(scale * 100) / 100;
     }
 
