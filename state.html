@@ -297,6 +297,29 @@
       cursor: default;
     }
 
+    .input-port::before {
+      content: "";
+      position: absolute;
+      left: -14px;
+      top: -14px;
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+    }
+
+    .node.drop-target {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(56,189,248,.2), 0 10px 24px rgba(0,0,0,.34);
+    }
+
+    .node.drop-target .input-port {
+      width: 22px;
+      height: 22px;
+      left: -12px;
+      background: var(--accent);
+      box-shadow: 0 0 0 7px rgba(56,189,248,.24), 0 0 18px rgba(56,189,248,.75);
+    }
+
     .preview {
       min-width: 0;
       border-left: 1px solid #18314d;
@@ -789,6 +812,7 @@
     let selected = null;
     let dragging = null;
     let connecting = null;
+    let connectingTargetId = null;
     let panning = null;
     let boxSelecting = null;
     let isSpaceDown = false;
@@ -1010,6 +1034,7 @@
       historyCurrent = modelSnapshot();
       selected = null;
       connecting = null;
+      connectingTargetId = null;
       dragging = null;
       boxSelecting = null;
       hidePopover();
@@ -1258,6 +1283,7 @@
       selected = null;
       dragging = null;
       connecting = null;
+      connectingTargetId = null;
       boxSelecting = null;
       currentAppState = null;
       lastAppTransitionId = null;
@@ -1400,6 +1426,7 @@
       activePointerId = null;
       dragging = null;
       connecting = null;
+      connectingTargetId = null;
       panning = null;
       boxSelecting = null;
       mapEl.classList.remove("connecting", "panning");
@@ -1434,6 +1461,21 @@
       for (let i = model.states.length - 1; i >= 0; i--) {
         const s = model.states[i];
         if (p.x >= s.x && p.x <= s.x + 168 && p.y >= s.y && p.y <= s.y + 86) return s;
+      }
+      return null;
+    }
+
+    function connectionTargetAtWorldPoint(p) {
+      for (let i = model.states.length - 1; i >= 0; i--) {
+        const s = model.states[i];
+        if (connecting?.from === s.id) continue;
+        const nearInput =
+          p.x >= s.x - 34 &&
+          p.x <= s.x + 32 &&
+          p.y >= s.y + 8 &&
+          p.y <= s.y + 78;
+        const insideNode = p.x >= s.x && p.x <= s.x + 168 && p.y >= s.y && p.y <= s.y + 86;
+        if (nearInput || insideNode) return s;
       }
       return null;
     }
@@ -1574,6 +1616,7 @@
       evt.stopPropagation();
       const p = screenToWorld(evt);
       connecting = { from: s.id, to: p };
+      connectingTargetId = null;
       mapEl.classList.add("connecting");
       hidePopover();
       draw();
@@ -1654,7 +1697,8 @@
       if (connecting) {
         const from = byId(connecting.from);
         const a = nodeCenter(from, "out");
-        const b = connecting.to;
+        const target = connectingTargetId ? byId(connectingTargetId) : null;
+        const b = target ? nodeCenter(target, "in") : connecting.to;
         const dx = Math.max(60, Math.abs(b.x - a.x) * 0.4);
         wiresEl.appendChild(svgEl("path", {
           d: `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`,
@@ -1668,6 +1712,7 @@
         if (s.id === model.initial) classes.push("initial");
         if (nodeSelection.has(s.id)) classes.push("selected");
         if (currentAppState === s.id) classes.push("active");
+        if (connectingTargetId === s.id) classes.push("drop-target");
         el.className = classes.join(" ");
         el.style.left = s.x + "px";
         el.style.top = s.y + "px";
@@ -1942,6 +1987,9 @@
       }
       if (connecting) {
         connecting.to = screenToWorld(evt);
+        const target = connectionTargetAtWorldPoint(connecting.to);
+        const nextTargetId = target?.id || null;
+        if (nextTargetId !== connectingTargetId) connectingTargetId = nextTargetId;
         scheduleDraw();
       }
     }
@@ -1980,7 +2028,7 @@
       }
       if (connecting) {
         const dropPoint = screenToWorld(evt);
-        const targetNode = nodeAtWorldPoint(dropPoint);
+        const targetNode = connectionTargetAtWorldPoint(dropPoint);
         const targetId = targetNode?.id;
         if (targetId && targetId !== connecting.from) {
           const t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "" };
@@ -1988,6 +2036,7 @@
           selected = { type: "edge", id: t.id };
           saveModel();
           connecting = null;
+          connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
           showEdgePopover(t, evt.clientX, evt.clientY);
@@ -2001,12 +2050,14 @@
           selected = { type: "node", id: s.id };
           saveModel();
           connecting = null;
+          connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
           showNodePopover(s, evt.clientX, evt.clientY);
           return;
         }
         connecting = null;
+        connectingTargetId = null;
         mapEl.classList.remove("connecting");
         draw();
       }
@@ -2089,6 +2140,7 @@
       activePointerId = null;
       dragging = null;
       connecting = null;
+      connectingTargetId = null;
       panning = null;
       boxSelecting = null;
       mapEl.classList.remove("connecting", "panning");
@@ -2187,6 +2239,7 @@
       selected = null;
       dragging = null;
       connecting = null;
+      connectingTargetId = null;
       boxSelecting = null;
       currentAppState = null;
       lastAppTransitionId = null;
