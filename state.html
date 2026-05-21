@@ -725,6 +725,7 @@
     <button id="btnNew">New</button>
     <button id="btnSave">Save</button>
     <button id="btnLoad">Load</button>
+    <button id="btnImportCode">Import Code</button>
     <button id="btnExport">Export HTML</button>
     <button id="btnUndo" title="Undo">Undo</button>
     <button id="btnRedo" title="Redo">Redo</button>
@@ -735,6 +736,7 @@
     <div class="status" id="runtimeState">app: —</div>
   </div>
   <input id="fileLoad" type="file" accept="application/json,.json,.state.json" hidden>
+  <input id="codeImport" type="file" webkitdirectory multiple hidden>
   <div id="modalBackdrop" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
@@ -809,6 +811,7 @@
     const btnTogglePreview = document.getElementById("btnTogglePreview");
     const runtimeStateEl = document.getElementById("runtimeState");
     const fileLoadEl = document.getElementById("fileLoad");
+    const codeImportEl = document.getElementById("codeImport");
     const modalBackdropEl = document.getElementById("modalBackdrop");
     const modalTitleEl = document.getElementById("modalTitle");
     const modalMessageEl = document.getElementById("modalMessage");
@@ -1328,6 +1331,259 @@
         }
       };
       reader.readAsText(file);
+    }
+
+    function requestCodeImportFolder() {
+      codeImportEl.value = "";
+      codeImportEl.click();
+    }
+
+    async function importCodeFolder(files) {
+      const usable = selectCodeFiles(files);
+      if (!usable.length) {
+        await modalAlert("No supported code files found. Pick a web app folder with HTML, JS, TS, JSX or TSX files.", "Import Code");
+        return;
+      }
+      try {
+        const sources = await Promise.all(usable.map(async file => ({
+          path: file.webkitRelativePath || file.name,
+          text: await file.text()
+        })));
+        const draft = analyzeCodeStateMachine(sources);
+        if (!draft.model.states.length) {
+          await modalAlert("No routes, links or form flows were found. The importer only creates clear draft states.", "Import Code");
+          return;
+        }
+        const ok = await modalConfirm(
+          `Import draft from ${draft.filesUsed} files?\n${draft.model.states.length} states, ${draft.model.transitions.length} transitions.\nLimited to core routes, links, forms and router navigation.`,
+          "Import Code",
+          { confirmText: "Import draft" }
+        );
+        if (!ok) return;
+        loadEditorModel(draft.model, true);
+      } catch (err) {
+        await modalAlert(err?.message || "Could not import code.", "Import failed");
+      }
+    }
+
+    function selectCodeFiles(files) {
+      const ignored = /(^|\/)(node_modules|dist|build|coverage|\.git|\.next|\.nuxt|vendor|storybook-static)(\/|$)/i;
+      const codeExt = /\.(html?|mjs|cjs|js|jsx|ts|tsx|vue|svelte)$/i;
+      return [...files]
+        .filter(file => {
+          const path = (file.webkitRelativePath || file.name).replace(/\\/g, "/");
+          return codeExt.test(path) && !ignored.test(path) && file.size <= 350000;
+        })
+        .sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name))
+        .slice(0, 160);
+    }
+
+    function analyzeCodeStateMachine(sources) {
+      const stateMap = new Map();
+      const transitionMap = new Map();
+      const routeByFile = new Map();
+
+      const ensureState = (route, confidence = "sure") => {
+        const key = normalizeRoute(route);
+        if (!key) return null;
+        if (!stateMap.has(key)) {
+          stateMap.set(key, {
+            id: routeToId(key),
+            title: routeToTitle(key),
+            body: `${confidence}: inferred from code import`,
+            route: key,
+            confidence
+          });
+        }
+        return stateMap.get(key);
+      };
+
+      const addTransition = (fromRoute, toRoute, label, condition = "") => {
+        const from = ensureState(fromRoute);
+        const to = ensureState(toRoute, "maybe");
+        if (!from || !to || from.id === to.id) return;
+        const outgoingCount = [...transitionMap.values()].filter(t => t.from === from.id).length;
+        if (outgoingCount >= 5) return;
+        const key = `${from.id}->${to.id}:${label}:${condition}`;
+        if (transitionMap.has(key)) return;
+        transitionMap.set(key, {
+          id: uid("t"),
+          from: from.id,
+          to: to.id,
+          label,
+          condition,
+          failTo: ""
+        });
+      };
+
+      for (const source of sources) {
+        const route = routeFromFilePath(source.path);
+        if (!route) continue;
+        routeByFile.set(source.path, route);
+        ensureState(route);
+      }
+
+      for (const source of sources) {
+        const fromRoute = routeByFile.get(source.path);
+        if (!fromRoute) continue;
+        const text = stripComments(source.text);
+        const inputs = inferFormInputNames(text).slice(0, 4);
+        const formCondition = inputs.length ? inputs.join(" && ") : "";
+
+        const targets = extractNavigationTargets(text);
+        const formScreen = looksLikeFormScreen(text);
+        for (const target of targets) {
+          const formRouter = formScreen && target.kind === "router" && Boolean(formCondition);
+          const navLabel = target.label === "Navigate" && target.route === "/login" && /logout|signout|sign-out/i.test(text) ? "Logout" : target.label;
+          addTransition(fromRoute, target.route, formRouter ? "Submit" : navLabel, target.kind === "submit" || formRouter ? formCondition : "");
+        }
+
+        if (formScreen && !targets.some(t => t.kind === "submit" || (t.kind === "router" && formCondition))) {
+          const likelyTarget = inferFormTarget(fromRoute, text);
+          if (likelyTarget) addTransition(fromRoute, likelyTarget, "Submit", formCondition);
+        }
+
+        const guardTarget = inferGuardTarget(text);
+        if (guardTarget) addTransition(fromRoute, guardTarget, "Auth guard", "!user");
+      }
+
+      if (!stateMap.size) {
+        const targets = new Set();
+        for (const source of sources) {
+          for (const target of extractNavigationTargets(stripComments(source.text))) targets.add(target.route);
+        }
+        for (const route of [...targets].slice(0, 12)) ensureState(route, "maybe");
+      }
+
+      const states = [...stateMap.values()].slice(0, 24);
+      const ids = new Set(states.map(s => s.id));
+      const transitions = [...transitionMap.values()].filter(t => ids.has(t.from) && ids.has(t.to)).slice(0, 60);
+      autoLayoutStates(states, transitions);
+      return {
+        filesUsed: sources.length,
+        model: {
+          version: 2,
+          name: "Code State Draft",
+          initial: states.find(s => s.route === "/")?.id || states[0]?.id || "start",
+          states: states.map(({ id, title, body, x, y }) => ({ id, title, body, x, y })),
+          transitions
+        }
+      };
+    }
+
+    function routeFromFilePath(path) {
+      const clean = String(path || "").replace(/\\/g, "/");
+      if (/(^|\/)app\/(?:page|route)\.(tsx?|jsx?|mjs|cjs)$/i.test(clean)) return "/";
+      const appMatch = clean.match(/(?:^|\/)app\/(.+?)\/(?:page|route)\.(tsx?|jsx?|mjs|cjs)$/i);
+      if (appMatch) return routeFromSegments(appMatch[1].split("/"));
+      const pagesMatch = clean.match(/(?:^|\/)pages\/(.+?)\.(tsx?|jsx?|mjs|cjs|html?)$/i);
+      if (pagesMatch && !pagesMatch[1].startsWith("_")) return routeFromSegments(pagesMatch[1].split("/"));
+      const htmlMatch = clean.match(/(?:^|\/)([^/]+)\.html?$/i);
+      if (htmlMatch) return htmlMatch[1].toLowerCase() === "index" ? "/" : "/" + htmlMatch[1];
+      return null;
+    }
+
+    function routeFromSegments(segments) {
+      const clean = segments
+        .filter(segment => segment && segment !== "index" && !segment.startsWith("(") && !segment.startsWith("_"))
+        .map(segment => segment.replace(/\[(?:\.\.\.)?(.+?)\]/g, ":$1").replace(/^\$/, ":"));
+      return clean.length ? "/" + clean.join("/") : "/";
+    }
+
+    function normalizeRoute(route) {
+      let clean = String(route || "").trim().replace(/^['"`]|['"`]$/g, "");
+      if (!clean || clean.startsWith("#") || /^(https?:|mailto:|tel:|javascript:)/i.test(clean)) return "";
+      clean = clean.split(/[?#]/)[0];
+      if (!clean.startsWith("/")) clean = "/" + clean;
+      clean = clean.replace(/\/+/g, "/").replace(/\/$/, "") || "/";
+      const parts = clean.split("/").filter(Boolean).map(part => part.replace(/^\[?([:$])?(.+?)\]?$/, (_, sigil, name) => sigil ? ":" + name : part));
+      const capped = parts.slice(0, 2);
+      if (parts.length > 2 && capped[1] && !capped[1].startsWith(":")) capped[1] = capped[1];
+      return capped.length ? "/" + capped.join("/") : "/";
+    }
+
+    function routeToId(route) {
+      return normalizeId(route === "/" ? "home" : route.replace(/[/:]+/g, "_").replace(/^_+/, ""));
+    }
+
+    function routeToTitle(route) {
+      if (route === "/") return "Home";
+      return route.split("/").filter(Boolean).map(part => {
+        const clean = part.startsWith(":") ? "Detail" : part.replace(/[-_]+/g, " ");
+        return clean.charAt(0).toUpperCase() + clean.slice(1);
+      }).join(" / ");
+    }
+
+    function stripComments(text) {
+      return String(text || "")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    }
+
+    function extractNavigationTargets(text) {
+      const targets = [];
+      const push = (route, label, kind = "link") => {
+        const normalized = normalizeRoute(route);
+        if (normalized) targets.push({ route: normalized, label, kind });
+      };
+      for (const m of text.matchAll(/\b(?:href|to|action)\s*=\s*["']([^"']+)["']/g)) {
+        push(m[1], m[0].startsWith("action") ? "Submit" : routeToTitle(normalizeRoute(m[1])), m[0].startsWith("action") ? "submit" : "link");
+      }
+      for (const m of text.matchAll(/\b(?:router\.)?push\s*\(\s*["']([^"']+)["']\s*\)|\bnavigate\s*\(\s*["']([^"']+)["']\s*\)|\bredirect\s*\(\s*["']([^"']+)["']\s*\)/g)) {
+        push(m[1] || m[2] || m[3], "Navigate", "router");
+      }
+      for (const m of text.matchAll(/\b(?:location\.href|window\.location)\s*=\s*["']([^"']+)["']/g)) {
+        push(m[1], "Navigate", "router");
+      }
+      return targets.filter((target, index, all) =>
+        all.findIndex(item => item.route === target.route && item.label === target.label && item.kind === target.kind) === index
+      ).slice(0, 8);
+    }
+
+    function inferFormInputNames(text) {
+      const names = new Set();
+      for (const m of text.matchAll(/\b(?:name|id)\s*=\s*["']([a-zA-Z_][a-zA-Z0-9_-]*)["']/g)) {
+        const name = m[1].replace(/-/g, "_");
+        if (!/^(button|submit|search|query|csrf|token)$/i.test(name)) names.add(name);
+      }
+      for (const m of text.matchAll(/\bregister\s*\(\s*["']([a-zA-Z_][a-zA-Z0-9_-]*)["']/g)) {
+        names.add(m[1].replace(/-/g, "_"));
+      }
+      return [...names];
+    }
+
+    function looksLikeFormScreen(text) {
+      return /<form\b|onSubmit|handleSubmit|type\s*=\s*["']submit["']/i.test(text);
+    }
+
+    function inferFormTarget(fromRoute, text) {
+      const lower = `${fromRoute}\n${text}`.toLowerCase();
+      if (/login|signin|sign-in/.test(lower) && /dashboard|account|app|home/.test(lower)) return "/dashboard";
+      if (/register|signup|sign-up/.test(lower)) return "/login";
+      if (/checkout/.test(lower)) return "/checkout/complete";
+      if (/forgot|reset/.test(lower)) return "/login";
+      return "";
+    }
+
+    function inferGuardTarget(text) {
+      if (/(!user|!session|!isAuthenticated|isAuthenticated\s*===\s*false)/.test(text) && /login|signin|sign-in/.test(text)) return "/login";
+      return "";
+    }
+
+    function autoLayoutStates(states, transitions) {
+      const incoming = new Map(states.map(s => [s.id, 0]));
+      for (const t of transitions) incoming.set(t.to, (incoming.get(t.to) || 0) + 1);
+      const ordered = [...states].sort((a, b) => {
+        if (a.route === "/") return -1;
+        if (b.route === "/") return 1;
+        return (incoming.get(a.id) || 0) - (incoming.get(b.id) || 0) || a.title.localeCompare(b.title);
+      });
+      ordered.forEach((state, index) => {
+        const col = index % 4;
+        const row = Math.floor(index / 4);
+        state.x = 90 + col * 290;
+        state.y = 100 + row * 210;
+      });
     }
 
     function scheduleSync(reset) {
@@ -2315,8 +2571,10 @@
     };
     document.getElementById("btnSave").onclick = saveDefinitionFile;
     document.getElementById("btnLoad").onclick = requestLoadBlueprintFile;
+    document.getElementById("btnImportCode").onclick = requestCodeImportFolder;
     document.getElementById("btnExport").onclick = exportHtmlFile;
     fileLoadEl.onchange = () => loadBlueprintFile(fileLoadEl.files?.[0]);
+    codeImportEl.onchange = () => importCodeFolder(codeImportEl.files || []);
     document.getElementById("btnUndo").onclick = undoModel;
     document.getElementById("btnRedo").onclick = redoModel;
     document.getElementById("btnFit").onclick = fitView;
