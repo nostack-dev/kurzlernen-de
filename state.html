@@ -808,6 +808,8 @@
     let lastCanvasTap = null;
     let touchPointers = new Map();
     let pinchZoom = null;
+    let cameraSaveTimer = null;
+    let drawFrame = 0;
 
     function demoModel() {
       return {
@@ -935,6 +937,11 @@
 
     function saveCamera() {
       try { localStorage.setItem(STORAGE_KEY + ".camera", JSON.stringify(camera)); } catch (_) {}
+    }
+
+    function scheduleCameraSave() {
+      clearTimeout(cameraSaveTimer);
+      cameraSaveTimer = setTimeout(saveCamera, 140);
     }
 
     function loadPreviewCollapsed() {
@@ -1471,7 +1478,7 @@
       mapEl.style.backgroundSize = `${grid}px ${grid}px, ${grid}px ${grid}px, 100% 100%, 100% 100%`;
       mapEl.style.backgroundPosition = `${tx % grid}px ${ty % grid}px, ${tx % grid}px ${ty % grid}px, 0 0, 0 0`;
       if (zoomLevelEl) zoomLevelEl.textContent = `${Math.round(camera.scale * 100)}%`;
-      saveCamera();
+      scheduleCameraSave();
     }
 
     function crispScale(value) {
@@ -1578,6 +1585,10 @@
     }
 
     function draw() {
+      if (drawFrame) {
+        cancelAnimationFrame(drawFrame);
+        drawFrame = 0;
+      }
       normalizeModel(model);
       const nodeSelection = selectedNodeIds();
       nodesEl.innerHTML = "";
@@ -1700,6 +1711,14 @@
 
         nodesEl.appendChild(el);
       }
+    }
+
+    function scheduleDraw() {
+      if (drawFrame) return;
+      drawFrame = requestAnimationFrame(() => {
+        drawFrame = 0;
+        draw();
+      });
     }
 
     function svgEl(name, attrs) {
@@ -1895,7 +1914,7 @@
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
           selected = ids.length > 1 ? { type: "nodes", ids } : ids.length === 1 ? { type: "node", id: ids[0] } : null;
-          draw();
+          scheduleDraw();
         }
         return;
       }
@@ -1912,12 +1931,12 @@
         const p = screenToWorld(evt);
         s.x = Math.round(clamp(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - 168));
         s.y = Math.round(clamp(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - 86));
-        draw();
+        scheduleDraw();
         return;
       }
       if (connecting) {
         connecting.to = screenToWorld(evt);
-        draw();
+        scheduleDraw();
       }
     }
 
