@@ -474,6 +474,21 @@
       padding: 4px 8px;
       font-size: 11px;
     }
+    .list-item-editor {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .list-item-editor button {
+      min-height: 40px;
+      padding: 6px 9px;
+    }
+    .component-add-item {
+      width: 100%;
+      margin-top: 7px;
+      min-height: 34px;
+    }
     .condition-preview {
       margin: -2px 0 10px;
       color: #bfdbfe;
@@ -2125,6 +2140,9 @@
       if (!list) return;
       s.components = normalizeComponents(s.components);
       list.innerHTML = "";
+      const saveComponentText = component => {
+        saveModel("state:component:" + component.id);
+      };
       for (const component of s.components) {
         const item = document.createElement("div");
         item.className = "component-editor";
@@ -2145,20 +2163,71 @@
         head.append(label, remove);
         item.appendChild(head);
         if (component.type !== "divider") {
-          const field = document.createElement("div");
-          field.className = "field";
-          const fieldLabel = document.createElement("label");
-          fieldLabel.textContent = component.type === "image" ? "Alt text" : component.type === "link" ? "Label" : "Text";
-          const input = component.type === "heading" || component.type === "link" || component.type === "image" ? document.createElement("input") : document.createElement("textarea");
-          input.value = component.text || "";
-          input.oninput = () => {
-            component.text = input.value;
-            saveModel("state:component:" + component.id);
-            draw();
-          };
-          input.onblur = () => { lastHistoryKey = null; };
-          field.append(fieldLabel, input);
-          item.appendChild(field);
+          if (component.type === "list") {
+            const field = document.createElement("div");
+            field.className = "field";
+            const fieldLabel = document.createElement("label");
+            fieldLabel.textContent = "Items";
+            field.appendChild(fieldLabel);
+            const items = component.text.split(/\r?\n/);
+            const normalizedItems = items.length ? items : [""];
+            const writeItems = nextItems => {
+              component.text = nextItems.join("\n");
+              saveComponentText(component);
+            };
+            normalizedItems.forEach((value, index) => {
+              const row = document.createElement("div");
+              row.className = "list-item-editor";
+              const input = document.createElement("input");
+              input.value = value;
+              input.placeholder = "List item";
+              input.oninput = () => {
+                const next = component.text.split(/\r?\n/);
+                while (next.length <= index) next.push("");
+                next[index] = input.value;
+                writeItems(next);
+              };
+              input.onblur = () => { lastHistoryKey = null; draw(); };
+              const del = document.createElement("button");
+              del.type = "button";
+              del.className = "danger";
+              del.textContent = "-";
+              del.onclick = () => {
+                const next = component.text.split(/\r?\n/);
+                next.splice(index, 1);
+                writeItems(next.length ? next : [""]);
+                renderComponentEditors(s);
+              };
+              row.append(input, del);
+              field.appendChild(row);
+            });
+            const add = document.createElement("button");
+            add.type = "button";
+            add.className = "component-add-item";
+            add.textContent = "+ Item";
+            add.onclick = () => {
+              const next = component.text ? component.text.split(/\r?\n/) : [];
+              next.push("");
+              writeItems(next);
+              renderComponentEditors(s);
+            };
+            field.appendChild(add);
+            item.appendChild(field);
+          } else {
+            const field = document.createElement("div");
+            field.className = "field";
+            const fieldLabel = document.createElement("label");
+            fieldLabel.textContent = component.type === "image" ? "Alt text" : component.type === "link" ? "Label" : "Text";
+            const input = component.type === "heading" || component.type === "link" || component.type === "image" ? document.createElement("input") : document.createElement("textarea");
+            input.value = component.text || "";
+            input.oninput = () => {
+              component.text = input.value;
+              saveComponentText(component);
+            };
+            input.onblur = () => { lastHistoryKey = null; draw(); };
+            field.append(fieldLabel, input);
+            item.appendChild(field);
+          }
         }
         if (component.type === "image" || component.type === "link") {
           const field = document.createElement("div");
@@ -2171,9 +2240,8 @@
           input.oninput = () => {
             component.url = input.value;
             saveModel("state:component:" + component.id);
-            draw();
           };
-          input.onblur = () => { lastHistoryKey = null; };
+          input.onblur = () => { lastHistoryKey = null; draw(); };
           field.append(fieldLabel, input);
           item.appendChild(field);
         }
