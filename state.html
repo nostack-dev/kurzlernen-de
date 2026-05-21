@@ -35,17 +35,18 @@
 
     body {
       display: grid;
-      grid-template-rows: 56px 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
     }
 
     .topbar {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
       padding: 8px 10px;
       background: #050b14;
       border-bottom: 1px solid #18314d;
-      white-space: nowrap;
+      min-width: 0;
       -webkit-overflow-scrolling: touch;
     }
 
@@ -56,6 +57,7 @@
     }
 
     button {
+      flex: 0 0 auto;
       border: 1px solid #275078;
       color: var(--text);
       background: #0d1d31;
@@ -637,7 +639,11 @@
       .workspace.preview-collapsed { grid-template-columns: 1fr; grid-template-rows: 1fr 42px; }
       .preview { border-left: 0; border-top: 1px solid #18314d; }
       .status { display: none; }
-      .topbar { overflow-x: auto; }
+      .topbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
     }
 
     @media (max-width: 720px) {
