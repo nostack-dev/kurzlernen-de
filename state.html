@@ -1362,6 +1362,20 @@
       return target === mapEl || target === worldEl || target === wiresEl || target === nodesEl;
     }
 
+    function isTouchUiTarget(target) {
+      return Boolean(target?.closest?.(".zoom-controls, .popover, input, textarea, select, button"));
+    }
+
+    function captureTouchPointer(evt) {
+      try { mapEl.setPointerCapture(evt.pointerId); } catch (_) {}
+    }
+
+    function releaseTouchPointer(evt) {
+      try {
+        if (mapEl.hasPointerCapture?.(evt.pointerId)) mapEl.releasePointerCapture(evt.pointerId);
+      } catch (_) {}
+    }
+
     function rememberTouchPointer(evt) {
       if (!isTouchPointer(evt)) return;
       touchPointers.set(evt.pointerId, { x: evt.clientX, y: evt.clientY });
@@ -1391,6 +1405,15 @@
       mapEl.classList.remove("connecting", "panning");
       updateSelectRect();
       hidePopover();
+    }
+
+    function trackTouchStart(evt) {
+      if (!isTouchPointer(evt) || isTouchUiTarget(evt.target)) return;
+      evt.preventDefault();
+      captureTouchPointer(evt);
+      rememberTouchPointer(evt);
+      lastTouchAt = Date.now();
+      if (touchPointers.size >= 2) beginPinchZoom();
     }
 
     function updatePinchZoom() {
@@ -1671,12 +1694,8 @@
         el.addEventListener("pointerdown", evt => {
           if (!isTouchPointer(evt) || evt.target.classList.contains("port")) return;
           evt.preventDefault();
-          rememberTouchPointer(evt);
           lastTouchAt = Date.now();
-          if (touchPointers.size >= 2) {
-            beginPinchZoom();
-            return;
-          }
+          if (pinchZoom) return;
           activePointerId = evt.pointerId;
           startNodeDrag(evt, s);
         });
@@ -1690,12 +1709,8 @@
         el.querySelector(".port").addEventListener("pointerdown", evt => {
           if (!isTouchPointer(evt)) return;
           evt.preventDefault();
-          rememberTouchPointer(evt);
           lastTouchAt = Date.now();
-          if (touchPointers.size >= 2) {
-            beginPinchZoom();
-            return;
-          }
+          if (pinchZoom) return;
           activePointerId = evt.pointerId;
           startConnection(evt, s);
         });
@@ -2021,15 +2036,13 @@
       }
     });
 
+    mapEl.addEventListener("pointerdown", trackTouchStart, { capture: true, passive: false });
+
     mapEl.addEventListener("pointerdown", evt => {
       if (!isTouchPointer(evt) || !isEmptyCanvasTarget(evt.target)) return;
       evt.preventDefault();
-      rememberTouchPointer(evt);
       lastTouchAt = Date.now();
-      if (touchPointers.size >= 2) {
-        beginPinchZoom();
-        return;
-      }
+      if (pinchZoom) return;
       activePointerId = evt.pointerId;
       const recentTap = lastCanvasTap &&
         Date.now() - lastCanvasTap.time < 360 &&
@@ -2065,11 +2078,13 @@
         activePointerId = null;
       }
       forgetTouchPointer(evt);
+      releaseTouchPointer(evt);
     }, { passive: false });
 
     window.addEventListener("pointercancel", evt => {
       if (!isTouchPointer(evt)) return;
       forgetTouchPointer(evt);
+      releaseTouchPointer(evt);
       if (evt.pointerId !== activePointerId) return;
       activePointerId = null;
       dragging = null;
