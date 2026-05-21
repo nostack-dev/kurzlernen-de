@@ -561,6 +561,40 @@
       display: none;
     }
 
+    .selection-actions {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      z-index: 24;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid rgba(148,163,184,.24);
+      border-radius: 999px;
+      background: rgba(3,7,18,.82);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 14px 34px rgba(0,0,0,.34);
+      transform: translateX(-50%);
+    }
+
+    .selection-actions.visible { display: flex; }
+
+    .selection-count {
+      min-width: 64px;
+      padding: 0 8px;
+      color: #dbeafe;
+      font-size: 12px;
+      font-weight: 850;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .selection-actions button {
+      min-height: 36px;
+      padding: 7px 12px;
+    }
+
     @media (max-width: 900px) {
       .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 45vh; }
       .workspace.preview-collapsed { grid-template-columns: 1fr; grid-template-rows: 1fr 42px; }
@@ -690,6 +724,18 @@
         padding: 7px;
       }
 
+      .selection-actions {
+        left: max(10px, env(safe-area-inset-left));
+        right: max(10px, env(safe-area-inset-right));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        justify-content: center;
+        transform: none;
+      }
+
+      .selection-actions.visible + .zoom-controls {
+        bottom: calc(76px + env(safe-area-inset-bottom));
+      }
+
       .zoom-controls button {
         width: 44px;
         height: 44px;
@@ -766,6 +812,11 @@
         <b>Navigation:</b> Mousewheel zoom · right/middle drag pan · Space+drag pan<br>
         <b>Edit:</b> double-click empty canvas · drag blue dot to another node or empty canvas · click node/edge
       </div>
+      <div id="selectionActions" class="selection-actions" hidden>
+        <span id="selectionCount" class="selection-count"></span>
+        <button id="btnSelectionCopy" type="button">Copy</button>
+        <button id="btnSelectionDelete" type="button" class="danger">Delete</button>
+      </div>
       <div class="zoom-controls" aria-label="Zoom controls">
         <button id="btnZoomOut" type="button" title="Zoom out" aria-label="Zoom out">−</button>
         <button id="btnZoomReset" class="zoom-reset" type="button" title="Reset zoom" aria-label="Reset zoom"><span id="zoomLevel" class="zoom-level">100%</span></button>
@@ -806,6 +857,10 @@
     const nodesEl = document.getElementById("nodes");
     const popoverEl = document.getElementById("popover");
     const selectRectEl = document.getElementById("selectRect");
+    const selectionActionsEl = document.getElementById("selectionActions");
+    const selectionCountEl = document.getElementById("selectionCount");
+    const btnSelectionCopy = document.getElementById("btnSelectionCopy");
+    const btnSelectionDelete = document.getElementById("btnSelectionDelete");
     const frameEl = document.getElementById("appFrame");
     const syncStateEl = document.getElementById("syncState");
     const btnTogglePreview = document.getElementById("btnTogglePreview");
@@ -843,6 +898,8 @@
     let lastCanvasTap = null;
     let touchPointers = new Map();
     let pinchZoom = null;
+    let longPressTimer = null;
+    let pendingCanvasTouch = null;
     let cameraSaveTimer = null;
     let drawFrame = 0;
 
@@ -1691,6 +1748,8 @@
     function beginPinchZoom() {
       const distance = distanceBetweenTouches();
       if (!distance) return;
+      clearLongPress();
+      pendingCanvasTouch = null;
       pinchZoom = { distance, scale: camera.scale };
       activePointerId = null;
       dragging = null;
@@ -1701,6 +1760,53 @@
       mapEl.classList.remove("connecting", "panning");
       updateSelectRect();
       hidePopover();
+    }
+
+    function startPendingCanvasTouch(evt) {
+      clearLongPress();
+      pendingCanvasTouch = {
+        pointerId: evt.pointerId,
+        clientX: evt.clientX,
+        clientY: evt.clientY,
+        moved: false,
+        longPressed: false
+      };
+      longPressTimer = setTimeout(() => {
+        if (!pendingCanvasTouch || pendingCanvasTouch.pointerId !== evt.pointerId || pinchZoom || touchPointers.size > 1) return;
+        pendingCanvasTouch.longPressed = true;
+        panning = null;
+        mapEl.classList.remove("panning");
+        startBoxSelect(eventFromPoint(pendingCanvasTouch, evt));
+      }, 430);
+    }
+
+    function finishPendingCanvasTap(evt) {
+      if (!pendingCanvasTouch) return false;
+      const pending = pendingCanvasTouch;
+      clearLongPress();
+      pendingCanvasTouch = null;
+      if (pending.moved || pending.longPressed) return false;
+      const recentTap = lastCanvasTap &&
+        Date.now() - lastCanvasTap.time < 360 &&
+        Math.hypot(evt.clientX - lastCanvasTap.x, evt.clientY - lastCanvasTap.y) < 28;
+      if (recentTap) {
+        lastCanvasTap = null;
+        const p = screenToWorld(evt);
+        addStateAt(p.x, p.y, evt.clientX, evt.clientY);
+      } else {
+        lastCanvasTap = { time: Date.now(), x: evt.clientX, y: evt.clientY };
+      }
+      return true;
+    }
+
+    function updatePendingCanvasTouch(evt) {
+      if (!pendingCanvasTouch || pendingCanvasTouch.pointerId !== evt.pointerId || boxSelecting) return false;
+      const distance = Math.hypot(evt.clientX - pendingCanvasTouch.clientX, evt.clientY - pendingCanvasTouch.clientY);
+      if (distance <= 10) return true;
+      pendingCanvasTouch.moved = true;
+      clearLongPress();
+      if (!panning) startPanning(eventFromPoint(pendingCanvasTouch, evt));
+      return false;
     }
 
     function trackTouchStart(evt) {
@@ -1724,6 +1830,75 @@
       if (selected?.type === "node") return new Set([selected.id]);
       if (selected?.type === "nodes") return new Set(selected.ids || []);
       return new Set();
+    }
+
+    function selectedNodeIdList() {
+      return [...selectedNodeIds()].filter(id => byId(id));
+    }
+
+    function updateSelectionActions() {
+      const ids = selected?.type === "nodes" ? selectedNodeIdList() : [];
+      const visible = ids.length > 0 && popoverEl.hidden;
+      selectionActionsEl.hidden = !visible;
+      selectionActionsEl.classList.toggle("visible", visible);
+      if (visible) selectionCountEl.textContent = ids.length === 1 ? "1 state" : `${ids.length} states`;
+    }
+
+    function clearLongPress() {
+      if (longPressTimer) clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+
+    function eventFromPoint(point, evt) {
+      return {
+        clientX: point.clientX,
+        clientY: point.clientY,
+        button: 0,
+        preventDefault() { evt?.preventDefault?.(); },
+        stopPropagation() { evt?.stopPropagation?.(); }
+      };
+    }
+
+    function deleteSelectedNodes() {
+      const ids = selectedNodeIdList();
+      if (!ids.length || model.states.length - ids.length < 1) return;
+      const removeSet = new Set(ids);
+      model.states = model.states.filter(n => !removeSet.has(n.id));
+      model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to));
+      if (removeSet.has(model.initial)) model.initial = model.states[0].id;
+      selected = null;
+      hidePopover();
+      saveModel();
+      draw();
+    }
+
+    function copySelectedNodes() {
+      const ids = selectedNodeIdList();
+      if (!ids.length) return;
+      const selectedSet = new Set(ids);
+      const idMap = new Map();
+      const copies = [];
+      for (const original of model.states.filter(s => selectedSet.has(s.id))) {
+        const copy = makeState(original.x + 42, original.y + 42, `${original.title || original.id} Copy`);
+        copy.body = original.body || "";
+        idMap.set(original.id, copy.id);
+        copies.push(copy);
+      }
+      const copiedTransitions = model.transitions
+        .filter(t => idMap.has(t.from) && idMap.has(t.to))
+        .map(t => ({
+          id: uid("t"),
+          from: idMap.get(t.from),
+          to: idMap.get(t.to),
+          label: t.label || "Next",
+          condition: t.condition || ""
+        }));
+      model.states.push(...copies);
+      model.transitions.push(...copiedTransitions);
+      selected = { type: "nodes", ids: copies.map(s => s.id) };
+      hidePopover();
+      saveModel();
+      draw();
     }
 
     function nodeAtWorldPoint(p) {
@@ -2031,6 +2206,7 @@
 
         nodesEl.appendChild(el);
       }
+      updateSelectionActions();
     }
 
     function scheduleDraw() {
@@ -2209,6 +2385,7 @@
     function hidePopover() {
       popoverEl.hidden = true;
       popoverEl.innerHTML = "";
+      updateSelectionActions();
     }
 
     function isEditableTarget(target) {
@@ -2269,7 +2446,7 @@
         updateSelectRect();
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
-          selected = ids.length > 1 ? { type: "nodes", ids } : ids.length === 1 ? { type: "node", id: ids[0] } : null;
+          selected = ids.length ? { type: "nodes", ids } : null;
           scheduleDraw();
         }
         return;
@@ -2303,7 +2480,7 @@
       if (boxSelecting) {
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
-          selected = ids.length > 1 ? { type: "nodes", ids } : ids.length === 1 ? { type: "node", id: ids[0] } : null;
+          selected = ids.length ? { type: "nodes", ids } : null;
         } else {
           selected = null;
         }
@@ -2400,17 +2577,7 @@
       lastTouchAt = Date.now();
       if (pinchZoom) return;
       activePointerId = evt.pointerId;
-      const recentTap = lastCanvasTap &&
-        Date.now() - lastCanvasTap.time < 360 &&
-        Math.hypot(evt.clientX - lastCanvasTap.x, evt.clientY - lastCanvasTap.y) < 28;
-      if (recentTap) {
-        lastCanvasTap = null;
-        const p = screenToWorld(evt);
-        addStateAt(p.x, p.y, evt.clientX, evt.clientY);
-        return;
-      }
-      lastCanvasTap = { time: Date.now(), x: evt.clientX, y: evt.clientY };
-      startPanning(evt);
+      startPendingCanvasTouch(evt);
     }, { passive: false });
 
     window.addEventListener("mousemove", handleCanvasMove);
@@ -2423,6 +2590,7 @@
       rememberTouchPointer(evt);
       if (updatePinchZoom()) return;
       if (evt.pointerId !== activePointerId) return;
+      if (updatePendingCanvasTouch(evt)) return;
       handleCanvasMove(evt);
     }, { passive: false });
 
@@ -2430,15 +2598,19 @@
       if (!isTouchPointer(evt)) return;
       evt.preventDefault();
       if (evt.pointerId === activePointerId) {
-        handleCanvasEnd(evt);
+        if (!finishPendingCanvasTap(evt)) handleCanvasEnd(evt);
         activePointerId = null;
       }
+      clearLongPress();
+      pendingCanvasTouch = null;
       forgetTouchPointer(evt);
       releaseTouchPointer(evt);
     }, { passive: false });
 
     window.addEventListener("pointercancel", evt => {
       if (!isTouchPointer(evt)) return;
+      clearLongPress();
+      pendingCanvasTouch = null;
       forgetTouchPointer(evt);
       releaseTouchPointer(evt);
       if (evt.pointerId !== activePointerId) return;
@@ -2574,6 +2746,8 @@
     codeImportEl.onchange = () => importCodeFolder(codeImportEl.files || []);
     document.getElementById("btnUndo").onclick = undoModel;
     document.getElementById("btnRedo").onclick = redoModel;
+    btnSelectionCopy.onclick = copySelectedNodes;
+    btnSelectionDelete.onclick = deleteSelectedNodes;
     document.getElementById("btnFit").onclick = fitView;
     document.getElementById("btnResetView").onclick = resetView;
     document.getElementById("btnZoomIn").onclick = () => zoomByFactor(1.12);
