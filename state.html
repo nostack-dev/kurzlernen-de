@@ -116,7 +116,6 @@
       width: 5000px;
       height: 4000px;
       transform-origin: 0 0;
-      will-change: transform;
     }
 
     #wires {
@@ -214,8 +213,8 @@
       cursor: grab;
       user-select: none;
       pointer-events: auto;
-      -webkit-font-smoothing: antialiased;
-      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: auto;
+      text-rendering: optimizeLegibility;
     }
 
     .node:active { cursor: grabbing; }
@@ -1193,6 +1192,7 @@
     }
 
     function applyCamera() {
+      camera.scale = crispScale(camera.scale);
       const tx = Math.round(camera.x);
       const ty = Math.round(camera.y);
       worldEl.style.transform = `translate(${tx}px, ${ty}px) scale(${camera.scale})`;
@@ -1202,12 +1202,18 @@
       saveCamera();
     }
 
+    function crispScale(value) {
+      const scale = clamp(value, 0.25, 2.4);
+      if (Math.abs(scale - 1) < 0.08) return 1;
+      return Math.round(scale * 100) / 100;
+    }
+
     function zoomAtViewportCenter(nextScale) {
       const r = mapEl.getBoundingClientRect();
       const clientX = r.left + r.width / 2;
       const clientY = r.top + r.height / 2;
       const before = screenToWorldXY(clientX, clientY);
-      camera.scale = clamp(nextScale, 0.25, 2.4);
+      camera.scale = crispScale(nextScale);
       camera.x = clientX - r.left - before.x * camera.scale;
       camera.y = clientY - r.top - before.y * camera.scale;
       applyCamera();
@@ -1236,7 +1242,8 @@
       const w = Math.max(1, maxX - minX);
       const h = Math.max(1, maxY - minY);
       const pad = 120;
-      const scale = clamp(Math.min(r.width / (w + pad * 2), r.height / (h + pad * 2)), 0.25, 1);
+      const rawScale = Math.min(r.width / (w + pad * 2), r.height / (h + pad * 2));
+      const scale = rawScale >= 0.92 ? 1 : crispScale(rawScale);
       camera.scale = scale;
       camera.x = Math.round((r.width - w * scale) / 2 - minX * scale);
       camera.y = Math.round((r.height - h * scale) / 2 - minY * scale);
