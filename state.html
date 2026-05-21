@@ -399,6 +399,59 @@
     .row button { flex: 1; }
     .small { font-size: 12px; color: var(--muted); line-height: 1.35; }
 
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(2, 6, 23, .68);
+    }
+
+    .modal-backdrop[hidden] { display: none; }
+
+    .modal {
+      width: min(420px, 100%);
+      border: 1px solid #315f8c;
+      border-radius: 16px;
+      background: #071321;
+      box-shadow: 0 24px 70px rgba(0,0,0,.58);
+      padding: 18px;
+    }
+
+    .modal h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    .modal p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .modal-actions .primary {
+      border-color: var(--accent);
+      background: #123152;
+    }
+
+    .modal-actions .danger {
+      border-color: var(--danger);
+      color: #fecdd3;
+      background: #331120;
+    }
+
     .help {
       position: absolute;
       left: 14px;
@@ -452,6 +505,16 @@
     <div class="status" id="runtimeState">app: —</div>
   </div>
   <input id="fileLoad" type="file" accept="application/json,.json,text/html,.html" hidden>
+  <div id="modalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle"></h2>
+      <p id="modalMessage"></p>
+      <div class="modal-actions">
+        <button id="modalCancel" type="button"></button>
+        <button id="modalConfirm" type="button" class="primary"></button>
+      </div>
+    </div>
+  </div>
 
   <div class="workspace" id="workspace">
     <main id="map" class="map">
@@ -508,6 +571,11 @@
     const btnTogglePreview = document.getElementById("btnTogglePreview");
     const runtimeStateEl = document.getElementById("runtimeState");
     const fileLoadEl = document.getElementById("fileLoad");
+    const modalBackdropEl = document.getElementById("modalBackdrop");
+    const modalTitleEl = document.getElementById("modalTitle");
+    const modalMessageEl = document.getElementById("modalMessage");
+    const modalCancelEl = document.getElementById("modalCancel");
+    const modalConfirmEl = document.getElementById("modalConfirm");
 
     let appWindow = null;
     let selected = null;
@@ -573,6 +641,61 @@
     }
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+    let modalResolve = null;
+
+    function closeModal(value) {
+      if (!modalResolve) return;
+      const resolve = modalResolve;
+      modalResolve = null;
+      modalBackdropEl.hidden = true;
+      resolve(value);
+    }
+
+    function showModal({ title, message, confirmText = "OK", cancelText = null, danger = false }) {
+      if (modalResolve) closeModal(false);
+      modalTitleEl.textContent = title || "Hinweis";
+      modalMessageEl.textContent = message || "";
+      modalConfirmEl.textContent = confirmText;
+      modalConfirmEl.classList.toggle("danger", Boolean(danger));
+      modalCancelEl.hidden = !cancelText;
+      modalCancelEl.textContent = cancelText || "";
+      modalBackdropEl.hidden = false;
+      return new Promise(resolve => {
+        modalResolve = resolve;
+        requestAnimationFrame(() => modalConfirmEl.focus());
+      });
+    }
+
+    function modalAlert(message, title = "Hinweis") {
+      return showModal({ title, message, confirmText: "OK" });
+    }
+
+    function modalConfirm(message, title = "Bestätigen", opts = {}) {
+      return showModal({
+        title,
+        message,
+        confirmText: opts.confirmText || "OK",
+        cancelText: opts.cancelText || "Abbrechen",
+        danger: opts.danger
+      });
+    }
+
+    modalConfirmEl.onclick = () => closeModal(true);
+    modalCancelEl.onclick = () => closeModal(false);
+    modalBackdropEl.addEventListener("mousedown", evt => {
+      if (evt.target === modalBackdropEl) closeModal(false);
+    });
+    modalBackdropEl.addEventListener("keydown", evt => {
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        closeModal(false);
+      }
+      if (evt.key === "Enter") {
+        evt.preventDefault();
+        closeModal(true);
+      }
+    });
 
     function loadModel() {
       try {
@@ -746,7 +869,7 @@
         const appHtml = typeof APP_HTML === "string" ? APP_HTML : await (await fetch(APP_URL, { cache: "no-store" })).text();
         text = buildStandaloneAppHtml(appHtml, payload);
       } catch (err) {
-        alert(err?.message || "Could not export standalone app.");
+        await modalAlert(err?.message || "Could not export standalone app.", "Export failed");
         return;
       }
       const blob = new Blob([text], { type: "text/html" });
@@ -806,11 +929,11 @@
     function loadBlueprintFile(file) {
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           importBlueprintData(parseBlueprintFileText(String(reader.result || "")));
         } catch (err) {
-          alert(err?.message || "Could not load blueprint file.");
+          await modalAlert(err?.message || "Could not load blueprint file.", "Load failed");
         }
       };
       reader.readAsText(file);
@@ -1532,8 +1655,12 @@
       syncToApp(true);
     }
 
-    document.getElementById("btnNew").onclick = () => {
-      if (!confirm("Canvas wirklich neu und leer starten?")) return;
+    document.getElementById("btnNew").onclick = async () => {
+      const ok = await modalConfirm("Canvas wirklich neu und leer starten?", "New canvas", {
+        confirmText: "Neu starten",
+        danger: true
+      });
+      if (!ok) return;
       loadEditorModel(blankModel(), true);
     };
     document.getElementById("btnAdd").onclick = () => {
@@ -1552,8 +1679,12 @@
       appWindow = window.open(APP_URL, "state_blueprint_app", "width=480,height=760");
       setTimeout(() => syncToApp(true), 300);
     };
-    document.getElementById("btnReset").onclick = () => {
-      if (!confirm("Demo-Modell wirklich resetten?")) return;
+    document.getElementById("btnReset").onclick = async () => {
+      const ok = await modalConfirm("Demo-Modell wirklich resetten?", "Demo reset", {
+        confirmText: "Reset",
+        danger: true
+      });
+      if (!ok) return;
       loadEditorModel(demoModel(), true);
     };
     btnTogglePreview.onclick = () => {
