@@ -32,6 +32,10 @@ async function savedModel(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
 }
 
+async function worldTransform(page) {
+  return page.locator("#world").evaluate(el => getComputedStyle(el).transform);
+}
+
 async function assertVisibleInViewport(page, selector) {
   const box = await page.locator(selector).boundingBox();
   if (!box) throw new Error(`${selector} is not visible`);
@@ -182,6 +186,55 @@ test.describe("State Blueprint tool", () => {
       const model = await savedModel(page);
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login")?.to;
     }).toBe("register");
+  });
+
+  test("pans with trackpad-style wheel and keeps zoom on Ctrl-wheel", async ({ page }) => {
+    await openTool(page);
+    const mapBox = await page.locator("#map").boundingBox();
+    await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2);
+    const beforePan = await worldTransform(page);
+
+    await page.mouse.wheel(120, 80);
+    await expect.poll(() => worldTransform(page)).not.toBe(beforePan);
+
+    const afterPan = await worldTransform(page);
+    const zoomBefore = await page.locator("#zoomLevel").innerText();
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -180);
+    await page.keyboard.up("Control");
+
+    await expect.poll(() => page.locator("#zoomLevel").innerText()).not.toBe(zoomBefore);
+    expect(await worldTransform(page)).not.toBe(afterPan);
+  });
+
+  test("empty-canvas drag pans immediately; long-press enables rectangle select", async ({ page }) => {
+    await openTool(page);
+    const nodeBox = await page.locator('[data-id="auth_start"]').boundingBox();
+    const start = { x: nodeBox.x - 24, y: nodeBox.y - 24 };
+    const end = { x: nodeBox.x + nodeBox.width + 24, y: nodeBox.y + nodeBox.height + 24 };
+    const beforeDrag = await worldTransform(page);
+
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 80, start.y + 30, { steps: 6 });
+    await page.mouse.up();
+
+    await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
+    await expect(page.locator("#selectionActions")).toBeHidden();
+
+    await page.getByRole("button", { name: "Fit" }).click();
+    const nodeBoxAfterFit = await page.locator('[data-id="auth_start"]').boundingBox();
+    const selectStart = { x: nodeBoxAfterFit.x - 24, y: nodeBoxAfterFit.y - 24 };
+    const selectEnd = { x: nodeBoxAfterFit.x + nodeBoxAfterFit.width + 24, y: nodeBoxAfterFit.y + nodeBoxAfterFit.height + 24 };
+
+    await page.mouse.move(selectStart.x, selectStart.y);
+    await page.mouse.down();
+    await page.waitForTimeout(410);
+    await page.mouse.move(selectEnd.x, selectEnd.y, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.locator("#selectionActions")).toBeVisible();
+    await expect(page.locator("#selectionCount")).toContainText("state");
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {

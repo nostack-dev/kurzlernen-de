@@ -951,8 +951,8 @@
       <div id="popover" class="popover" hidden></div>
       <div id="selectRect" class="select-rect"></div>
       <div class="help">
-        <b>Navigation:</b> Mousewheel zoom · right/middle drag pan · Space+drag pan<br>
-        <b>Edit:</b> double-click empty canvas · double-click node or use gear · drag blue dot to connect · Alt-drag edge to reroute
+        <b>Navigation:</b> two-finger scroll pan · Ctrl+wheel zoom · drag empty canvas pan<br>
+        <b>Edit:</b> hold empty canvas for select · double-click node or use gear · drag blue dot to connect · drag arrowhead to reroute
       </div>
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
@@ -1042,6 +1042,7 @@
     let pinchZoom = null;
     let longPressTimer = null;
     let pendingCanvasTouch = null;
+    let pendingCanvasMouse = null;
     let pendingEdgeTouch = null;
     let suppressEdgeClickUntil = 0;
     let cameraSaveTimer = null;
@@ -1677,6 +1678,7 @@
       if (!distance) return;
       clearLongPress();
       pendingCanvasTouch = null;
+      pendingCanvasMouse = null;
       pendingEdgeTouch = null;
       pinchZoom = { distance, scale: camera.scale };
       activePointerId = null;
@@ -1685,6 +1687,7 @@
       connectingTargetId = null;
       panning = null;
       boxSelecting = null;
+      pendingCanvasMouse = null;
       mapEl.classList.remove("connecting", "panning");
       updateSelectRect();
       hidePopover();
@@ -1706,6 +1709,46 @@
         mapEl.classList.remove("panning");
         startBoxSelect(eventFromPoint(pendingCanvasTouch, evt));
       }, 430);
+    }
+
+    function startPendingCanvasMouse(evt) {
+      clearLongPress();
+      evt.preventDefault();
+      evt.stopPropagation();
+      pendingCanvasMouse = {
+        clientX: evt.clientX,
+        clientY: evt.clientY,
+        moved: false
+      };
+      longPressTimer = setTimeout(() => {
+        if (!pendingCanvasMouse || pendingCanvasMouse.moved) return;
+        pendingCanvasMouse = null;
+        panning = null;
+        mapEl.classList.remove("panning");
+        startBoxSelect(evt);
+      }, 360);
+    }
+
+    function updatePendingCanvasMouse(evt) {
+      if (!pendingCanvasMouse || boxSelecting) return false;
+      const distance = Math.hypot(evt.clientX - pendingCanvasMouse.clientX, evt.clientY - pendingCanvasMouse.clientY);
+      if (distance <= 7) return true;
+      const start = pendingCanvasMouse;
+      pendingCanvasMouse = null;
+      start.moved = true;
+      clearLongPress();
+      startPanning(eventFromPoint(start, evt));
+      handleCanvasMove(evt);
+      return true;
+    }
+
+    function finishPendingCanvasMouse() {
+      if (!pendingCanvasMouse) return false;
+      pendingCanvasMouse = null;
+      clearLongPress();
+      selected = null;
+      draw();
+      return true;
     }
 
     function startPendingEdgeTouch(evt, t) {
@@ -2849,8 +2892,14 @@
     mapEl.addEventListener("wheel", evt => {
       if (evt.target?.closest?.(".popover")) return;
       evt.preventDefault();
-      const factor = Math.exp(-clamp(evt.deltaY, -120, 120) * 0.00075);
-      zoomByFactor(factor);
+      if (evt.ctrlKey || evt.metaKey) {
+        const factor = Math.exp(-clamp(evt.deltaY, -120, 120) * 0.00075);
+        zoomByFactor(factor);
+        return;
+      }
+      camera.x -= evt.deltaX;
+      camera.y -= evt.deltaY;
+      applyCamera();
     }, { passive: false });
 
     popoverEl.addEventListener("wheel", evt => {
@@ -2869,7 +2918,7 @@
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
-        startBoxSelect(evt);
+        startPendingCanvasMouse(evt);
       }
     });
 
@@ -2884,9 +2933,15 @@
       startPendingCanvasTouch(evt);
     }, { passive: false });
 
-    window.addEventListener("mousemove", handleCanvasMove);
+    window.addEventListener("mousemove", evt => {
+      if (updatePendingCanvasMouse(evt)) return;
+      handleCanvasMove(evt);
+    });
 
-    window.addEventListener("mouseup", handleCanvasEnd);
+    window.addEventListener("mouseup", evt => {
+      if (finishPendingCanvasMouse()) return;
+      handleCanvasEnd(evt);
+    });
 
     window.addEventListener("pointermove", evt => {
       if (!isTouchPointer(evt)) return;
