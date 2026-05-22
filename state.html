@@ -2698,7 +2698,7 @@
             Math.hypot(evt.clientX - lastNodeClick.x, evt.clientY - lastNodeClick.y) < 18;
           selected = { type: "node", id: s.id };
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
-          draw();
+          startAppAtState(s.id);
           if (isDoubleClick) {
             lastNodeClick = null;
             showNodePopover(s, evt.clientX, evt.clientY);
