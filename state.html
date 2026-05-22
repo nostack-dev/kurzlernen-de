@@ -1001,6 +1001,7 @@
     let activePointerId = null;
     let lastTouchAt = 0;
     let lastCanvasTap = null;
+    let lastNodeClick = null;
     let touchPointers = new Map();
     let pinchZoom = null;
     let longPressTimer = null;
@@ -2117,15 +2118,6 @@
           startNodeDrag(evt, s);
         });
 
-        el.addEventListener("dblclick", evt => {
-          if (evt.target.closest(".port, .node-edit")) return;
-          evt.preventDefault();
-          evt.stopPropagation();
-          selected = { type: "node", id: s.id };
-          draw();
-          showNodePopover(s, evt.clientX, evt.clientY);
-        });
-
         el.querySelector(".port").addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
           if (evt.button !== 0) return;
@@ -2628,11 +2620,25 @@
         dragging = null;
         lastHistoryKey = null;
         if (wasClick && s) {
+          const now = Date.now();
+          const isDoubleClick =
+            lastNodeClick &&
+            lastNodeClick.id === s.id &&
+            now - lastNodeClick.time < 420 &&
+            Math.hypot(evt.clientX - lastNodeClick.x, evt.clientY - lastNodeClick.y) < 18;
           selected = { type: "node", id: s.id };
+          lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
           draw();
+          if (isDoubleClick) {
+            lastNodeClick = null;
+            showNodePopover(s, evt.clientX, evt.clientY);
+          }
           return;
         }
-        if (didMove) saveModel("state:drag:" + dragId);
+        if (didMove) {
+          lastNodeClick = null;
+          saveModel("state:drag:" + dragId);
+        }
       }
       if (connecting) {
         const dropPoint = screenToWorld(evt);
