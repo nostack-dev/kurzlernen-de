@@ -916,7 +916,7 @@
       <div id="selectRect" class="select-rect"></div>
       <div class="help">
         <b>Navigation:</b> Mousewheel zoom · right/middle drag pan · Space+drag pan<br>
-        <b>Edit:</b> double-click empty canvas · drag blue dot to another node or empty canvas · use gear on nodes · click edge
+        <b>Edit:</b> double-click empty canvas · double-click node or use gear · drag blue dot to connect · click edge
       </div>
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
@@ -2115,6 +2115,15 @@
           if (pinchZoom) return;
           activePointerId = evt.pointerId;
           startNodeDrag(evt, s);
+        });
+
+        el.addEventListener("dblclick", evt => {
+          if (evt.target.closest(".port, .node-edit")) return;
+          evt.preventDefault();
+          evt.stopPropagation();
+          selected = { type: "node", id: s.id };
+          draw();
+          showNodePopover(s, evt.clientX, evt.clientY);
         });
 
         el.querySelector(".port").addEventListener("mousedown", evt => {
