@@ -94,12 +94,13 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(520px, 1fr) 390px;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
       min-height: 0;
+      min-width: 0;
     }
 
     .workspace.preview-collapsed {
-      grid-template-columns: minmax(520px, 1fr) 44px;
+      grid-template-columns: minmax(0, 1fr) 86px;
     }
 
     .map {
@@ -189,7 +190,7 @@
     .hit {
       fill: none;
       stroke: transparent;
-      stroke-width: 18;
+      stroke-width: 24;
       cursor: pointer;
       pointer-events: stroke;
     }
@@ -386,23 +387,32 @@
       color: #bfdbfe;
       font-size: 13px;
       font-weight: 800;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .preview-title-text {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .preview-title-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: flex-end;
+      gap: 6px;
       margin-left: auto;
+      min-width: 0;
+      flex: 0 0 auto;
     }
 
     .preview-toggle {
-      width: 28px;
-      height: 28px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      min-height: 34px;
       border-radius: 8px;
       padding: 0;
       display: grid;
@@ -418,6 +428,7 @@
     .workspace.preview-collapsed .preview-title {
       justify-content: center;
       padding: 0;
+      overflow: visible;
     }
 
     .workspace.preview-collapsed .preview-title-text,
@@ -428,6 +439,7 @@
 
     .workspace.preview-collapsed .preview-title-actions {
       margin-left: 0;
+      gap: 4px;
     }
 
     iframe {
@@ -916,7 +928,7 @@
       <div id="selectRect" class="select-rect"></div>
       <div class="help">
         <b>Navigation:</b> Mousewheel zoom · right/middle drag pan · Space+drag pan<br>
-        <b>Edit:</b> double-click empty canvas · double-click node or use gear · drag blue dot to connect · click edge
+        <b>Edit:</b> double-click empty canvas · double-click node or use gear · drag blue dot to connect · Alt-drag edge to reroute
       </div>
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
@@ -1006,6 +1018,8 @@
     let pinchZoom = null;
     let longPressTimer = null;
     let pendingCanvasTouch = null;
+    let pendingEdgeTouch = null;
+    let suppressEdgeClickUntil = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
 
@@ -1639,6 +1653,7 @@
       if (!distance) return;
       clearLongPress();
       pendingCanvasTouch = null;
+      pendingEdgeTouch = null;
       pinchZoom = { distance, scale: camera.scale };
       activePointerId = null;
       dragging = null;
@@ -1667,6 +1682,40 @@
         mapEl.classList.remove("panning");
         startBoxSelect(eventFromPoint(pendingCanvasTouch, evt));
       }, 430);
+    }
+
+    function startPendingEdgeTouch(evt, t) {
+      clearLongPress();
+      pendingEdgeTouch = {
+        pointerId: evt.pointerId,
+        transitionId: t.id,
+        clientX: evt.clientX,
+        clientY: evt.clientY
+      };
+      longPressTimer = setTimeout(() => {
+        if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId || pinchZoom || touchPointers.size > 1) return;
+        const edge = model.transitions.find(item => item.id === pendingEdgeTouch.transitionId);
+        pendingEdgeTouch = null;
+        if (edge) startEdgeRewire(eventFromPoint({ clientX: evt.clientX, clientY: evt.clientY }, evt), edge);
+      }, 430);
+    }
+
+    function updatePendingEdgeTouch(evt) {
+      if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId) return false;
+      const distance = Math.hypot(evt.clientX - pendingEdgeTouch.clientX, evt.clientY - pendingEdgeTouch.clientY);
+      if (distance <= 10) return true;
+      pendingEdgeTouch = null;
+      clearLongPress();
+      return false;
+    }
+
+    function finishPendingEdgeTouch(evt) {
+      if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId) return false;
+      const edgeId = pendingEdgeTouch.transitionId;
+      pendingEdgeTouch = null;
+      clearLongPress();
+      if (Date.now() >= suppressEdgeClickUntil) selectEdge(edgeId, evt.clientX, evt.clientY);
+      return true;
     }
 
     function finishPendingCanvasTap(evt) {
@@ -1967,6 +2016,20 @@
       draw();
     }
 
+    function startEdgeRewire(evt, t) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const from = byId(t.from);
+      if (!from) return;
+      connecting = { from: t.from, to: screenToWorld(evt), edgeId: t.id };
+      connectingTargetId = null;
+      selected = { type: "edge", id: t.id };
+      suppressEdgeClickUntil = Date.now() + 650;
+      mapEl.classList.add("connecting");
+      hidePopover();
+      draw();
+    }
+
     function nodeCenter(s, side) {
       if (side === "out") return { x: s.x + 168, y: s.y + 43 };
       if (side === "in") return { x: s.x, y: s.y + 43 };
@@ -1991,6 +2054,27 @@
       return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 10 };
     }
 
+    function attachEdgeInteractions(el, t) {
+      el.addEventListener("mousedown", evt => {
+        if (evt.button === 0 && evt.altKey) startEdgeRewire(evt, t);
+      });
+      el.addEventListener("pointerdown", evt => {
+        if (!isTouchPointer(evt)) return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        lastTouchAt = Date.now();
+        activePointerId = evt.pointerId;
+        startPendingEdgeTouch(evt, t);
+      });
+      el.addEventListener("click", evt => {
+        evt.stopPropagation();
+        if (Date.now() < suppressEdgeClickUntil) return;
+        selectEdge(t.id, evt.clientX, evt.clientY);
+      });
+      el.addEventListener("mouseenter", () => setEdgeHover(t.id, true));
+      el.addEventListener("mouseleave", () => setEdgeHover(t.id, false));
+    }
+
     function draw() {
       if (drawFrame) {
         cancelAnimationFrame(drawFrame);
@@ -2003,18 +2087,14 @@
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
       for (const t of model.transitions) {
+        if (connecting?.edgeId === t.id) continue;
         const from = byId(t.from);
         const to = byId(t.to);
         if (!from || !to) continue;
         const pathD = edgePath(from, to);
 
         const hit = svgEl("path", { d: pathD, class: "hit", "data-edge-id": t.id });
-        hit.addEventListener("click", evt => {
-          evt.stopPropagation();
-          selectEdge(t.id, evt.clientX, evt.clientY);
-        });
-        hit.addEventListener("mouseenter", () => setEdgeHover(t.id, true));
-        hit.addEventListener("mouseleave", () => setEdgeHover(t.id, false));
+        attachEdgeInteractions(hit, t);
         wiresEl.appendChild(hit);
 
         const classes = ["edge"];
@@ -2022,12 +2102,7 @@
         if (hoveredEdgeId === t.id) classes.push("hovered");
         if (lastAppTransitionId === t.id) classes.push("runtime");
         const path = svgEl("path", { d: pathD, class: classes.join(" "), "marker-end": "url(#arrow)", "data-edge-id": t.id });
-        path.addEventListener("click", evt => {
-          evt.stopPropagation();
-          selectEdge(t.id, evt.clientX, evt.clientY);
-        });
-        path.addEventListener("mouseenter", () => setEdgeHover(t.id, true));
-        path.addEventListener("mouseleave", () => setEdgeHover(t.id, false));
+        attachEdgeInteractions(path, t);
         wiresEl.appendChild(path);
 
         const m = midPoint(from, to);
@@ -2035,12 +2110,7 @@
         if (hoveredEdgeId === t.id) labelClasses.push("hovered");
         const label = svgEl("text", { x: m.x, y: m.y, class: labelClasses.join(" "), "text-anchor": "middle", "data-edge-id": t.id });
         label.textContent = t.label + (t.condition ? `  [${t.condition}]` : "");
-        label.addEventListener("click", evt => {
-          evt.stopPropagation();
-          selectEdge(t.id, evt.clientX, evt.clientY);
-        });
-        label.addEventListener("mouseenter", () => setEdgeHover(t.id, true));
-        label.addEventListener("mouseleave", () => setEdgeHover(t.id, false));
+        attachEdgeInteractions(label, t);
         wiresEl.appendChild(label);
       }
 
@@ -2645,8 +2715,13 @@
         const targetNode = connectingTargetId ? byId(connectingTargetId) : connectionTargetAtWorldPoint(dropPoint);
         const targetId = targetNode?.id;
         if (targetId && targetId !== connecting.from) {
-          const t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "" };
-          model.transitions.push(t);
+          let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
+          if (t) {
+            t.to = targetId;
+          } else {
+            t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "" };
+            model.transitions.push(t);
+          }
           selected = { type: "edge", id: t.id };
           saveModel();
           connecting = null;
@@ -2665,9 +2740,14 @@
         }
         if (!targetId) {
           const s = makeState(dropPoint.x - 84, dropPoint.y - 43, nextStateTitle());
-          const t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "" };
+          let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
+          if (t) {
+            t.to = s.id;
+          } else {
+            t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "" };
+            model.transitions.push(t);
+          }
           model.states.push(s);
-          model.transitions.push(t);
           selected = { type: "node", id: s.id };
           saveModel();
           connecting = null;
@@ -2734,6 +2814,7 @@
       rememberTouchPointer(evt);
       if (updatePinchZoom()) return;
       if (evt.pointerId !== activePointerId) return;
+      if (updatePendingEdgeTouch(evt)) return;
       if (updatePendingCanvasTouch(evt)) return;
       handleCanvasMove(evt);
     }, { passive: false });
@@ -2742,11 +2823,18 @@
       if (!isTouchPointer(evt)) return;
       evt.preventDefault();
       if (evt.pointerId === activePointerId) {
+        if (finishPendingEdgeTouch(evt)) {
+          activePointerId = null;
+          forgetTouchPointer(evt);
+          releaseTouchPointer(evt);
+          return;
+        }
         if (!finishPendingCanvasTap(evt)) handleCanvasEnd(evt);
         activePointerId = null;
       }
       clearLongPress();
       pendingCanvasTouch = null;
+      pendingEdgeTouch = null;
       forgetTouchPointer(evt);
       releaseTouchPointer(evt);
     }, { passive: false });
@@ -2755,6 +2843,7 @@
       if (!isTouchPointer(evt)) return;
       clearLongPress();
       pendingCanvasTouch = null;
+      pendingEdgeTouch = null;
       forgetTouchPointer(evt);
       releaseTouchPointer(evt);
       if (evt.pointerId !== activePointerId) return;
