@@ -94,17 +94,19 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
+      grid-template-columns: minmax(360px, 1fr) clamp(320px, 30vw, 420px);
       min-height: 0;
       min-width: 0;
+      transition: grid-template-columns .18s ease, grid-template-rows .18s ease;
     }
 
     .workspace.preview-collapsed {
-      grid-template-columns: minmax(0, 1fr) 86px;
+      grid-template-columns: minmax(360px, 1fr) 86px;
     }
 
     .map {
       position: relative;
+      min-width: 0;
       overflow: hidden;
       background:
         linear-gradient(to right, rgba(56,189,248,.08) 1px, transparent 1px),
@@ -371,10 +373,12 @@
 
     .preview {
       min-width: 0;
+      max-width: 100%;
       border-left: 1px solid #18314d;
       display: grid;
       grid-template-rows: 42px 1fr;
       background: #030712;
+      overflow: hidden;
     }
 
     .preview-title {
@@ -711,7 +715,7 @@
       padding: 7px 12px;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1100px) {
       .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 45vh; }
       .workspace.preview-collapsed { grid-template-columns: 1fr; grid-template-rows: 1fr 42px; }
       .preview { border-left: 0; border-top: 1px solid #18314d; }
@@ -753,7 +757,7 @@
 
       .workspace {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(0, 1fr) minmax(280px, 44dvh);
+        grid-template-rows: minmax(0, 1fr) minmax(230px, 38dvh);
       }
 
       .workspace.preview-collapsed {
@@ -1959,6 +1963,21 @@
       };
     }
 
+    function keepViewportCenteredOn(worldPoint) {
+      const r = mapEl.getBoundingClientRect();
+      camera.x = Math.round(r.width / 2 - worldPoint.x * camera.scale);
+      camera.y = Math.round(r.height / 2 - worldPoint.y * camera.scale);
+      applyCamera();
+    }
+
+    function togglePreviewCollapsed() {
+      const center = viewportCenterWorld();
+      previewCollapsed = !previewCollapsed;
+      applyPreviewCollapsed();
+      requestAnimationFrame(() => keepViewportCenteredOn(center));
+      setTimeout(() => keepViewportCenteredOn(center), 210);
+    }
+
     function resetView() {
       camera = { x: 32, y: 32, scale: 1 };
       applyCamera();
@@ -3005,8 +3024,7 @@
       loadEditorModel(demoModel(), true);
     };
     btnTogglePreview.onclick = () => {
-      previewCollapsed = !previewCollapsed;
-      applyPreviewCollapsed();
+      togglePreviewCollapsed();
     };
 
     frameEl.addEventListener("load", () => syncToApp(true));
