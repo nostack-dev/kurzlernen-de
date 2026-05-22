@@ -65,6 +65,8 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"]').dblclick();
     await expect(page.locator("#popover")).toBeVisible();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
+    await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.locator("#pTitle").fill("Sign in");
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
@@ -98,6 +100,30 @@ test.describe("State Blueprint tool", () => {
 
     await expect(app.locator("#statePill")).toHaveText("logged_in");
     await expect(app.getByRole("heading", { name: "Logged in" })).toBeVisible();
+  });
+
+  test("focuses first runtime input, preserves default tab order, and submits positive action with Enter", async ({ page }) => {
+    await openTool(page);
+    const app = appFrame(page);
+
+    await page.locator('[data-id="login"]').click();
+    await expect(app.locator("#statePill")).toHaveText("login");
+
+    const email = app.locator(".field").filter({ hasText: "email" }).locator("input");
+    const password = app.locator(".field").filter({ hasText: "password" }).locator("input");
+    const primaryButton = app.getByRole("button", { name: "Einloggen" });
+
+    await expect.poll(() => email.evaluate(el => document.activeElement === el)).toBe(true);
+    await expect(email).toHaveAttribute("tabindex", "0");
+    await expect(password).toHaveAttribute("tabindex", "0");
+    await expect(primaryButton).toHaveAttribute("tabindex", "0");
+    await expect(primaryButton).toHaveAttribute("data-default-action", "true");
+
+    await email.fill("user@example.com");
+    await password.fill("secret123");
+    await password.press("Enter");
+
+    await expect(app.locator("#statePill")).toHaveText("logged_in");
   });
 
   test("creates a new state by dragging a transition to empty canvas", async ({ page }) => {
