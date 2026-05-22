@@ -147,7 +147,8 @@
 
     #wires .edge,
     #wires .edge-label,
-    #wires .hit {
+    #wires .hit,
+    #wires .edge-tip-hit {
       pointer-events: auto;
     }
 
@@ -195,6 +196,25 @@
       stroke-width: 24;
       cursor: pointer;
       pointer-events: stroke;
+    }
+
+    .edge-tip-hit {
+      fill: rgba(56,189,248,.01);
+      stroke: transparent;
+      stroke-width: 2;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .edge-tip-hit:hover,
+    .edge-tip-hit.hovered {
+      fill: rgba(56,189,248,.12);
+      stroke: var(--accent);
+      filter: drop-shadow(0 0 8px rgba(56,189,248,.45));
+    }
+
+    .edge-tip-hit:active {
+      cursor: grabbing;
     }
 
     .edge-label {
@@ -1875,7 +1895,7 @@
     }
 
     function isEdgeDropTarget(evt) {
-      return Boolean(evt.target?.closest?.("[data-edge-id], .edge, .hit, .edge-label"));
+      return Boolean(evt.target?.closest?.("[data-edge-id], .edge, .hit, .edge-label, .edge-tip-hit"));
     }
 
     function updateSelectRect() {
@@ -2056,10 +2076,33 @@
     }
 
     function edgePath(from, to) {
+      const { a, b, c1, c2 } = edgeAnchors(from, to);
+      return `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`;
+    }
+
+    function edgeAnchors(from, to) {
       const a = nodeCenter(from, "out");
       const b = nodeCenter(to, "in");
       const dx = Math.max(70, Math.abs(b.x - a.x) * 0.45);
-      return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
+      return {
+        a,
+        b,
+        c1: { x: a.x + dx, y: a.y },
+        c2: { x: b.x - dx, y: b.y }
+      };
+    }
+
+    function cubicPoint(a, c1, c2, b, t) {
+      const m = 1 - t;
+      return {
+        x: m ** 3 * a.x + 3 * m ** 2 * t * c1.x + 3 * m * t ** 2 * c2.x + t ** 3 * b.x,
+        y: m ** 3 * a.y + 3 * m ** 2 * t * c1.y + 3 * m * t ** 2 * c2.y + t ** 3 * b.y
+      };
+    }
+
+    function edgeTipHandlePoint(from, to) {
+      const { a, b, c1, c2 } = edgeAnchors(from, to);
+      return cubicPoint(a, c1, c2, b, 0.8);
     }
 
     function statePreviewText(s) {
@@ -2073,12 +2116,12 @@
       return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 10 };
     }
 
-    function attachEdgeInteractions(el, t) {
+    function attachEdgeInteractions(el, t, canRewire = false) {
       el.addEventListener("mousedown", evt => {
-        if (evt.button === 0 && evt.altKey) startEdgeRewire(evt, t);
+        if (canRewire && evt.button === 0) startEdgeRewire(evt, t);
       });
       el.addEventListener("pointerdown", evt => {
-        if (!isTouchPointer(evt)) return;
+        if (!canRewire || !isTouchPointer(evt)) return;
         evt.preventDefault();
         evt.stopPropagation();
         lastTouchAt = Date.now();
@@ -2102,7 +2145,8 @@
       normalizeModel(model);
       const nodeSelection = selectedNodeIds();
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.hit,.edge-label,.temp-edge").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.hit,.edge-label,.edge-tip-hit,.temp-edge").forEach(el => el.remove());
+      const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
       for (const t of model.transitions) {
@@ -2131,7 +2175,24 @@
         label.textContent = t.label + (t.condition ? `  [${t.condition}]` : "");
         attachEdgeInteractions(label, t);
         wiresEl.appendChild(label);
+
+        const tip = edgeTipHandlePoint(from, to);
+        const tipClasses = ["edge-tip-hit"];
+        if (selected?.type === "edge" && selected.id === t.id) tipClasses.push("hovered");
+        if (hoveredEdgeId === t.id) tipClasses.push("hovered");
+        const tipHit = svgEl("circle", {
+          cx: tip.x,
+          cy: tip.y,
+          r: 13,
+          class: tipClasses.join(" "),
+          "data-edge-id": t.id,
+          "data-edge-tip": "to"
+        });
+        attachEdgeInteractions(tipHit, t, true);
+        edgeTipHits.push(tipHit);
       }
+
+      for (const tipHit of edgeTipHits) wiresEl.appendChild(tipHit);
 
       if (connecting) {
         const from = byId(connecting.from);

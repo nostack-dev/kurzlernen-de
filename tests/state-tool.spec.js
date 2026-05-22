@@ -112,7 +112,31 @@ test.describe("State Blueprint tool", () => {
     expect(model.transitions.some(t => t.from === "auth_start" && /^state_\d+$/.test(t.to))).toBeTruthy();
   });
 
-  test("reroutes an existing transition with Alt-drag", async ({ page }) => {
+  test("reroutes an existing transition from the arrowhead with Alt-drag", async ({ page }) => {
+    await openTool(page);
+    const loginEdgeId = await page.evaluate(key => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
+    }, STORAGE_KEY);
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
+    await expect(arrowTip).toBeVisible();
+    const start = await centerOf(arrowTip);
+    const end = await centerOf(page.locator('[data-id="register"] .input-port'));
+
+    await page.keyboard.down("Alt");
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.find(t => t.from === "auth_start" && t.label === "Login")?.to;
+    }).toBe("register");
+  });
+
+  test("does not reroute when Alt-drag starts from the line body", async ({ page }) => {
     await openTool(page);
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
     await expect(label).toHaveCount(1);
@@ -125,6 +149,34 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.move(end.x, end.y, { steps: 12 });
     await page.mouse.up();
     await page.keyboard.up("Alt");
+
+    const model = await savedModel(page);
+    expect(model.transitions.find(t => t.from === "auth_start" && t.label === "Login")?.to).toBe("login");
+  });
+
+  test("reroutes from the arrowhead with mobile long-press", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 820 });
+    await openTool(page);
+    const loginEdgeId = await page.evaluate(key => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
+    }, STORAGE_KEY);
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
+    await expect(arrowTip).toBeVisible();
+    const start = await centerOf(arrowTip);
+    const end = await centerOf(page.locator('[data-id="register"] .input-port'));
+
+    await arrowTip.dispatchEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      pointerType: "touch",
+      pointerId: 77,
+      clientX: start.x,
+      clientY: start.y
+    });
+    await page.waitForTimeout(460);
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await page.mouse.up();
 
     await expect.poll(async () => {
       const model = await savedModel(page);
