@@ -46,6 +46,31 @@ async function assertVisibleInViewport(page, selector) {
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
 }
 
+async function emptyCanvasPoint(page) {
+  const point = await page.evaluate(() => {
+    const map = document.querySelector("#map");
+    const rect = map.getBoundingClientRect();
+    const popover = document.querySelector("#popover");
+    const popoverRect = popover && !popover.hidden ? popover.getBoundingClientRect() : null;
+    for (let y = rect.top + 100; y < rect.top + rect.height - 120; y += 38) {
+      for (let x = rect.left + 80; x < rect.left + rect.width - 80; x += 46) {
+        if (popoverRect &&
+          x >= popoverRect.left - 36 &&
+          x <= popoverRect.right + 36 &&
+          y >= popoverRect.top - 36 &&
+          y <= popoverRect.bottom + 36) continue;
+        const el = document.elementFromPoint(x, y);
+        if (!el || !map.contains(el)) continue;
+        if (el.closest(".popover, .node, .edge, .hit, .edge-label, .edge-tip-hit, .zoom-controls, .help, .selection-actions")) continue;
+        return { x, y };
+      }
+    }
+    return null;
+  });
+  if (!point) throw new Error("Could not find an empty canvas point");
+  return point;
+}
+
 test.describe("State Blueprint tool", () => {
   test("loads the default model and starts preview from a selected state", async ({ page }) => {
     await openTool(page);
@@ -80,6 +105,40 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="register"]')).toBeVisible();
     await page.locator('[data-id="register"] .node-edit').click();
     await expect(page.locator("#pTitle")).toHaveValue("Register");
+  });
+
+  test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').dblclick();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.locator("#pTitle").fill("Sign in");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Control+KeyZ");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
+    await expect(page.locator("#popover")).toBeHidden();
+
+    await page.keyboard.press("Control+KeyY");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+  });
+
+  test("keeps state editor focus and tab order predictable", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').dblclick();
+    await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pBody")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pAddHeading")).toHaveAttribute("tabindex", "0");
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pBody").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pAddHeading").evaluate(el => document.activeElement === el)).toBe(true);
   });
 
   test("validates transition conditions and advances only on matching typed inputs", async ({ page }) => {
@@ -164,6 +223,85 @@ test.describe("State Blueprint tool", () => {
       const model = await savedModel(page);
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login")?.to;
     }).toBe("register");
+    await expect(page.locator("#popover")).toBeHidden();
+  });
+
+  test("closes edit popovers on outside click", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').dblclick();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    let point = await emptyCanvasPoint(page);
+    await page.mouse.click(point.x, point.y);
+    await expect(page.locator("#popover")).toBeHidden();
+
+    const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
+    await expect(label).toHaveCount(1);
+    await label.click();
+    await expect(page.locator("#pLabel")).toBeVisible();
+    point = await emptyCanvasPoint(page);
+    await page.mouse.click(point.x, point.y);
+    await expect(page.locator("#popover")).toBeHidden();
+  });
+
+  test("closes focused state edit popover with Escape", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').dblclick();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#popover")).toBeHidden();
+  });
+
+  test("closes state popover on empty-canvas single tap", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    await openTool(page);
+
+    await page.locator('[data-id="login"] .node-edit').tap();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    const point = await emptyCanvasPoint(page);
+    await page.touchscreen.tap(point.x, point.y);
+    await expect(page.locator("#popover")).toBeHidden();
+    await context.close();
+  });
+
+  test("adds list items reliably without nested component scrolling", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').dblclick();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await page.locator("#pAddList").click();
+
+    const listEditor = page.locator(".component-editor").filter({ hasText: "List" });
+    const itemInputs = listEditor.locator(".list-item-editor input");
+    await expect(itemInputs).toHaveCount(2);
+
+    await listEditor.locator(".component-add-item").click();
+    await expect(itemInputs).toHaveCount(3);
+    await expect.poll(() => itemInputs.last().evaluate(el => document.activeElement === el)).toBe(true);
+
+    await itemInputs.last().fill("Remember me option");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const login = model.states.find(state => state.id === "login");
+      return login.components.find(component => component.type === "list")?.text || "";
+    }).toContain("Remember me option");
+
+    await expect(page.locator("#pComponents")).toHaveCSS("overflow", "visible");
+    await expect(page.locator("#pComponents")).toHaveCSS("scrollbar-width", "none");
+    await expect(page.locator("#popover")).toHaveCSS("scrollbar-color", "rgb(49, 95, 140) rgb(7, 19, 33)");
+    await expect.poll(async () => {
+      const box = await page.locator("#popover").boundingBox();
+      return Math.round(box?.width || 0);
+    }).toBeGreaterThanOrEqual(380);
   });
 
   test("does not reroute when Alt-drag starts from the line body", async ({ page }) => {
