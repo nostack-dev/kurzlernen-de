@@ -252,12 +252,41 @@
     }
 
     .node .body {
-      padding: 0 12px 12px;
+      padding: 0 42px 12px 12px;
       color: #d8e9ff;
       font-size: 12px;
       line-height: 1.32;
       max-height: 36px;
       overflow: hidden;
+    }
+
+    .node-edit {
+      position: absolute;
+      right: 7px;
+      bottom: 7px;
+      width: 28px;
+      height: 28px;
+      min-height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 999px;
+      padding: 0;
+      background: rgba(15,23,42,.72);
+      color: #e0f2fe;
+      font-size: 15px;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(0,0,0,.22);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .node-edit:hover,
+    .node-edit:focus-visible {
+      background: var(--accent);
+      color: #04111d;
+      outline: none;
+      transform: translateY(-1px);
     }
 
     .badge, .live-badge {
@@ -887,7 +916,7 @@
       <div id="selectRect" class="select-rect"></div>
       <div class="help">
         <b>Navigation:</b> Mousewheel zoom · right/middle drag pan · Space+drag pan<br>
-        <b>Edit:</b> double-click empty canvas · drag blue dot to another node or empty canvas · click node/edge
+        <b>Edit:</b> double-click empty canvas · drag blue dot to another node or empty canvas · use gear on nodes · click edge
       </div>
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
@@ -2045,20 +2074,42 @@
           <div class="live-badge">LIVE</div>
           <div class="title"></div>
           <div class="body"></div>
+          <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
         `;
         el.querySelector(".title").textContent = s.title || s.id;
         el.querySelector(".body").textContent = statePreviewText(s);
+        const editButton = el.querySelector(".node-edit");
+        editButton.addEventListener("mousedown", evt => {
+          evt.stopPropagation();
+        });
+        editButton.addEventListener("pointerdown", evt => {
+          evt.stopPropagation();
+          if (!isTouchPointer(evt)) return;
+          evt.preventDefault();
+          lastTouchAt = Date.now();
+          selected = { type: "node", id: s.id };
+          draw();
+          showNodePopover(s, evt.clientX, evt.clientY);
+        });
+        editButton.addEventListener("click", evt => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          if (Date.now() - lastTouchAt < 700) return;
+          selected = { type: "node", id: s.id };
+          draw();
+          showNodePopover(s, evt.clientX, evt.clientY);
+        });
 
         el.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
-          if (evt.target.classList.contains("port")) return;
+          if (evt.target.closest(".port, .node-edit")) return;
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
           startNodeDrag(evt, s);
         });
 
         el.addEventListener("pointerdown", evt => {
-          if (!isTouchPointer(evt) || evt.target.classList.contains("port")) return;
+          if (!isTouchPointer(evt) || evt.target.closest(".port, .node-edit")) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
           if (pinchZoom) return;
@@ -2570,7 +2621,6 @@
         if (wasClick && s) {
           selected = { type: "node", id: s.id };
           draw();
-          showNodePopover(s, evt.clientX, evt.clientY);
           return;
         }
         if (didMove) saveModel("state:drag:" + dragId);
