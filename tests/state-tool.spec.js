@@ -39,6 +39,16 @@ async function centerOf(locator) {
   };
 }
 
+async function visibleBox(locator) {
+  let box = null;
+  await expect(locator).toBeVisible();
+  await expect.poll(async () => {
+    box = await locator.boundingBox();
+    return Boolean(box && box.width && box.height);
+  }).toBe(true);
+  return box;
+}
+
 async function savedModel(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
 }
@@ -101,6 +111,10 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pTitle").fill("Collect details");
     await page.locator("#pBody").fill("Tell us who should receive the short lesson.");
     await page.locator("#pData").fill('{"userName":"Ada","profile":{"tier":"starter"}}');
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "start").data.profile?.tier;
+    }).toBe("starter");
 
     await page.getByRole("button", { name: "+ Heading" }).click();
     await componentEditor(page, "Heading").locator("input").fill("Welcome {{userName}}");
@@ -113,6 +127,10 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "+ Link" }).click();
     await componentEditor(page, "Link").locator("input").nth(0).fill("Example docs for {{userName}}");
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/docs");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "start").components.find(component => component.type === "link")?.url;
+    }).toBe("https://example.com/docs");
     await page.getByRole("button", { name: "+ Note" }).click();
     await componentEditor(page, "Note").locator("textarea").fill("Stored from state.data: {{userName}}");
     await page.keyboard.press("Escape");
@@ -257,6 +275,10 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').dblclick();
     await page.locator("#pData").fill('{"userName":"Ada"}');
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login").data.userName;
+    }).toBe("Ada");
     await page.locator("#pData").fill('{"userName":');
     await expect(page.locator("#pDataPreview")).toContainText("Unexpected end of JSON input");
 
@@ -278,6 +300,10 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').dblclick();
     await page.locator("#pData").fill('{"userName":"Ada"}');
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login").data.userName;
+    }).toBe("Ada");
     await page.getByRole("button", { name: "+ Note" }).click();
     await componentEditor(page, "Note").locator("textarea").fill("Manual note for {{userName}}");
 
@@ -290,6 +316,95 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Escape");
     await page.locator('[data-id="login"]').click();
     await expect(appFrame(page).getByText("Manual note for Ada")).toBeVisible();
+  });
+
+  test("persists every state component field across reopening and renders them in the app", async ({ page }) => {
+    await openTool(page);
+    const imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=";
+
+    await page.locator('[data-id="login"]').dblclick();
+    await page.locator("#pData").fill('{"userName":"Ada"}');
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login").data.userName;
+    }).toBe("Ada");
+
+    await page.getByRole("button", { name: "+ Heading" }).click();
+    await componentEditor(page, "Heading").locator("input").fill("Account heading {{userName}}");
+
+    await page.getByRole("button", { name: "+ Text" }).click();
+    await componentEditor(page, "Text").locator("textarea").fill("Body paragraph for {{userName}}");
+
+    await page.getByRole("button", { name: "+ Image" }).click();
+    await componentEditor(page, "Image").locator("input").nth(0).fill("Chart for {{userName}}");
+    await componentEditor(page, "Image").locator("input").nth(1).fill(imageUrl);
+
+    await page.getByRole("button", { name: "+ List" }).click();
+    const listEditor = componentEditor(page, "List");
+    await listEditor.locator(".list-item-editor input").nth(0).fill("First step for {{userName}}");
+    await listEditor.locator(".list-item-editor input").nth(1).fill("Second step");
+    await listEditor.locator(".component-add-item").click();
+    await expect(listEditor.locator(".list-item-editor input")).toHaveCount(3);
+    await listEditor.locator(".list-item-editor input").nth(2).fill("Third persisted step");
+
+    await page.getByRole("button", { name: "+ Link" }).click();
+    await componentEditor(page, "Link").locator("input").nth(0).fill("Docs for {{userName}}");
+    await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/{{userName}}/docs");
+
+    await page.getByRole("button", { name: "+ Note" }).click();
+    await componentEditor(page, "Note").locator("textarea").fill("Note survives for {{userName}}");
+
+    await page.getByRole("button", { name: "+ Divider" }).click();
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const login = model.states.find(state => state.id === "login");
+      return login.components.map(component => ({
+        type: component.type,
+        text: component.text,
+        url: component.url
+      }));
+    }).toEqual([
+      { type: "heading", text: "Account heading {{userName}}", url: "" },
+      { type: "text", text: "Body paragraph for {{userName}}", url: "" },
+      { type: "image", text: "Chart for {{userName}}", url: imageUrl },
+      { type: "list", text: "First step for {{userName}}\nSecond step\nThird persisted step", url: "" },
+      { type: "link", text: "Docs for {{userName}}", url: "https://example.com/{{userName}}/docs" },
+      { type: "note", text: "Note survives for {{userName}}", url: "" },
+      { type: "divider", text: "", url: "" }
+    ]);
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#popover")).toBeHidden();
+    await page.locator('[data-id="login"]').dblclick();
+
+    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{userName}}");
+    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for {{userName}}");
+    await expect(componentEditor(page, "Image").locator("input").nth(0)).toHaveValue("Chart for {{userName}}");
+    await expect(componentEditor(page, "Image").locator("input").nth(1)).toHaveValue(imageUrl);
+    await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(3);
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for {{userName}}");
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(1)).toHaveValue("Second step");
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(2)).toHaveValue("Third persisted step");
+    await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for {{userName}}");
+    await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/{{userName}}/docs");
+    await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for {{userName}}");
+    await expect(componentEditor(page, "Divider")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await page.locator('[data-id="login"]').click();
+
+    const app = appFrame(page);
+    await expect(app.getByRole("heading", { name: "Account heading Ada" })).toBeVisible();
+    await expect(app.getByText("Body paragraph for Ada")).toBeVisible();
+    await expect(app.locator(".component-image")).toHaveAttribute("alt", "Chart for Ada");
+    await expect(app.locator(".component-image")).toHaveAttribute("src", imageUrl);
+    await expect(app.getByText("First step for Ada")).toBeVisible();
+    await expect(app.getByText("Second step")).toBeVisible();
+    await expect(app.getByText("Third persisted step")).toBeVisible();
+    await expect(app.getByRole("link", { name: "Docs for Ada" })).toHaveAttribute("href", "https://example.com/Ada/docs");
+    await expect(app.getByText("Note survives for Ada")).toBeVisible();
+    await expect(app.locator('[role="separator"]')).toHaveCount(1);
   });
 
   test("preserves runtime inputs while editing the current state and clears them only on reset", async ({ page }) => {
@@ -351,6 +466,34 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="register"]')).toBeVisible();
     await page.locator('[data-id="register"] .node-edit').click();
     await expect(page.locator("#pTitle")).toHaveValue("Register");
+  });
+
+  test("sizes each node to fit its title instead of truncating with ellipsis", async ({ page }) => {
+    await openTool(page);
+    const longTitle = "Collect detailed learner preferences before recommending lessons";
+
+    const registerBefore = await visibleBox(page.locator('[data-id="register"]'));
+    await page.locator('[data-id="login"] .node-edit').click();
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+    await page.locator("#pTitle").fill(longTitle);
+    await expect(page.locator("#pTitle")).toHaveValue(longTitle);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login").title;
+    }).toBe(longTitle);
+
+    const login = page.locator('[data-id="login"]');
+    await expect(login.locator(".title")).toHaveText(longTitle);
+    await expect(login.locator(".title")).toHaveCSS("text-overflow", "clip");
+
+    const loginBox = await visibleBox(login);
+    expect(loginBox.width).toBeGreaterThan(registerBefore.width + 160);
+
+    const output = await centerOf(login.locator(".port"));
+    expect(Math.abs(output.x - (loginBox.x + loginBox.width))).toBeLessThan(3);
+
+    await page.getByRole("button", { name: "Fit" }).click();
+    await assertVisibleInViewport(page, '[data-id="login"]');
   });
 
   test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {
@@ -451,6 +594,60 @@ test.describe("State Blueprint tool", () => {
     expect(model.transitions.some(t => t.from === "auth_start" && /^state_\d+$/.test(t.to))).toBeTruthy();
   });
 
+  test("creates a clean self-loop by dragging a state's output back to its own input", async ({ page }) => {
+    await openTool(page);
+    await page.getByRole("button", { name: "New" }).click();
+    await page.getByRole("button", { name: "Neu starten" }).click();
+
+    const output = await centerOf(page.locator('[data-id="start"] .port'));
+    const input = await centerOf(page.locator('[data-id="start"] .input-port'));
+
+    await page.mouse.move(output.x, output.y);
+    await page.mouse.down();
+    await page.mouse.move(output.x + 90, output.y - 120, { steps: 6 });
+    await page.mouse.move(input.x, input.y, { steps: 10 });
+    await page.mouse.up();
+
+    await expect(page.locator(".node")).toHaveCount(1);
+    const model = await savedModel(page);
+    expect(model.transitions).toHaveLength(1);
+    expect(model.transitions[0]).toMatchObject({ from: "start", to: "start" });
+
+    const edge = page.locator(`.edge[data-edge-id="${model.transitions[0].id}"]`);
+    await expect(edge).toBeVisible();
+    const labelY = Number(await page.locator(`.edge-label[data-edge-id="${model.transitions[0].id}"]`).getAttribute("y"));
+    const path = await edge.getAttribute("d");
+    const numbers = path.match(/-?\d+(?:\.\d+)?/g).map(Number);
+    const yValues = numbers.filter((_, index) => index % 2 === 1);
+    expect(Math.min(...yValues)).toBeLessThan(model.states[0].y);
+    expect(labelY).toBeLessThan(model.states[0].y);
+
+    await page.keyboard.press("Escape");
+    await page.locator('[data-id="start"]').click();
+    await appFrame(page).getByRole("button", { name: "Next" }).click();
+    await expect(appFrame(page).locator("#statePill")).toHaveText("start");
+  });
+
+  test("cancels self-loop drag when released on the source body instead of input", async ({ page }) => {
+    await openTool(page);
+    await page.getByRole("button", { name: "New" }).click();
+    await page.getByRole("button", { name: "Neu starten" }).click();
+
+    const output = await centerOf(page.locator('[data-id="start"] .port'));
+    const body = await centerOf(page.locator('[data-id="start"] .body'));
+
+    await page.mouse.move(output.x, output.y);
+    await page.mouse.down();
+    await page.mouse.move(body.x, body.y, { steps: 10 });
+    await page.mouse.up();
+
+    const model = await savedModel(page);
+    expect(model.states).toHaveLength(1);
+    expect(model.transitions).toHaveLength(0);
+    await expect(page.locator(".node")).toHaveCount(1);
+    await expect(page.locator(".edge")).toHaveCount(0);
+  });
+
   test("reroutes an existing transition from the arrowhead with Alt-drag", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
@@ -474,6 +671,35 @@ test.describe("State Blueprint tool", () => {
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login")?.to;
     }).toBe("register");
     await expect(page.locator("#popover")).toBeHidden();
+  });
+
+  test("reroutes an existing transition into a self-loop from the arrowhead", async ({ page }) => {
+    await openTool(page);
+    const loginEdgeId = await page.evaluate(key => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
+    }, STORAGE_KEY);
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
+    const start = await centerOf(arrowTip);
+    const ownInput = await centerOf(page.locator('[data-id="auth_start"] .input-port'));
+
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 80, start.y - 120, { steps: 6 });
+    await page.mouse.move(ownInput.x, ownInput.y, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.find(t => t.id === loginEdgeId)?.to;
+    }).toBe("auth_start");
+
+    const edge = page.locator(`.edge[data-edge-id="${loginEdgeId}"]`);
+    const path = await edge.getAttribute("d");
+    const yValues = path.match(/-?\d+(?:\.\d+)?/g).map(Number).filter((_, index) => index % 2 === 1);
+    const model = await savedModel(page);
+    const authStart = model.states.find(state => state.id === "auth_start");
+    expect(Math.min(...yValues)).toBeLessThan(authStart.y);
   });
 
   test("closes edit popovers on outside click", async ({ page }) => {
@@ -602,23 +828,52 @@ test.describe("State Blueprint tool", () => {
     }).toBe("register");
   });
 
-  test("pans with trackpad-style wheel and keeps zoom on Ctrl-wheel", async ({ page }) => {
+  test("reroutes to a self-loop with mobile long-press", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 820 });
+    await openTool(page);
+    const loginEdgeId = await page.evaluate(key => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
+    }, STORAGE_KEY);
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
+    const start = await centerOf(arrowTip);
+    const ownInput = await centerOf(page.locator('[data-id="auth_start"] .input-port'));
+
+    await arrowTip.dispatchEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      pointerType: "touch",
+      pointerId: 88,
+      clientX: start.x,
+      clientY: start.y
+    });
+    await page.waitForTimeout(460);
+    await page.mouse.move(start.x + 80, start.y - 120, { steps: 6 });
+    await page.mouse.move(ownInput.x, ownInput.y, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.find(t => t.id === loginEdgeId)?.to;
+    }).toBe("auth_start");
+  });
+
+  test("ignores unmodified wheel navigation and zooms with Ctrl-wheel", async ({ page }) => {
     await openTool(page);
     const mapBox = await page.locator("#map").boundingBox();
     await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2);
-    const beforePan = await worldTransform(page);
+    const beforeWheel = await worldTransform(page);
 
     await page.mouse.wheel(120, 80);
-    await expect.poll(() => worldTransform(page)).not.toBe(beforePan);
+    await expect.poll(() => worldTransform(page)).toBe(beforeWheel);
 
-    const afterPan = await worldTransform(page);
     const zoomBefore = await page.locator("#zoomLevel").innerText();
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -180);
     await page.keyboard.up("Control");
 
     await expect.poll(() => page.locator("#zoomLevel").innerText()).not.toBe(zoomBefore);
-    expect(await worldTransform(page)).not.toBe(afterPan);
+    expect(await worldTransform(page)).not.toBe(beforeWheel);
   });
 
   test("accumulates tiny desktop pinch wheel deltas reliably", async ({ page }) => {

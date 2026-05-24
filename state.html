@@ -241,7 +241,7 @@
 
     .node {
       position: absolute;
-      width: 168px;
+      min-width: 168px;
       min-height: 86px;
       border: 1px solid #5f8dbc;
       background: #12345a;
@@ -269,8 +269,6 @@
       color: white;
       font-size: 14px;
       line-height: 1.18;
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
@@ -366,12 +364,12 @@
       border-radius: 999px;
     }
 
-    .map.connecting .node:not(.connect-source) .input-port {
+    .map.connecting .node .input-port {
       background: #dbeafe;
       box-shadow: 0 0 0 8px rgba(56,189,248,.13);
     }
 
-    .map.connecting .node:not(.connect-source) .input-port::before {
+    .map.connecting .node .input-port::before {
       background: rgba(56,189,248,.06);
       outline: 1px dashed rgba(56,189,248,.34);
       outline-offset: -8px;
@@ -979,7 +977,7 @@
       <div id="popover" class="popover" hidden></div>
       <div id="selectRect" class="select-rect"></div>
       <div class="help">
-        <b>Navigation:</b> two-finger scroll pan · Ctrl+wheel zoom · drag empty canvas pan<br>
+        <b>Navigation:</b> drag empty canvas pan · Ctrl/Cmd+wheel zoom<br>
         <b>Edit:</b> hold empty canvas for select · double-click node or use gear · drag blue dot to connect · drag arrowhead to reroute
       </div>
       <div id="selectionActions" class="selection-actions" hidden>
@@ -1019,6 +1017,10 @@
     const WORLD_MAX_Y = 16000;
     const WORLD_W = WORLD_MAX_X - WORLD_MIN_X;
     const WORLD_H = WORLD_MAX_Y - WORLD_MIN_Y;
+    const NODE_MIN_W = 168;
+    const NODE_MAX_W = 720;
+    const NODE_H = 86;
+    const NODE_TITLE_EXTRA_W = 58;
 
     const workspaceEl = document.getElementById("workspace");
     const mapEl = document.getElementById("map");
@@ -1959,10 +1961,26 @@
       draw();
     }
 
+    let titleMeasureContext = null;
+    function measuredTextWidth(text) {
+      try {
+        titleMeasureContext = titleMeasureContext || document.createElement("canvas").getContext("2d");
+        titleMeasureContext.font = '900 14px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        return titleMeasureContext.measureText(String(text || "")).width;
+      } catch (_) {
+        return String(text || "").length * 8;
+      }
+    }
+
+    function nodeWidth(s) {
+      const title = String(s?.title || s?.id || "State");
+      return Math.round(clamp(Math.ceil(measuredTextWidth(title)) + NODE_TITLE_EXTRA_W, NODE_MIN_W, NODE_MAX_W));
+    }
+
     function nodeAtWorldPoint(p) {
       for (let i = model.states.length - 1; i >= 0; i--) {
         const s = model.states[i];
-        if (p.x >= s.x && p.x <= s.x + 168 && p.y >= s.y && p.y <= s.y + 86) return s;
+        if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + NODE_H) return s;
       }
       return null;
     }
@@ -1972,7 +1990,6 @@
       let bestScore = Infinity;
       for (let i = model.states.length - 1; i >= 0; i--) {
         const s = model.states[i];
-        if (connecting?.from === s.id) continue;
         const input = nodeCenter(s, "in");
         const dist = Math.hypot(p.x - input.x, p.y - input.y);
         const nearInput =
@@ -1980,7 +1997,12 @@
           p.x <= s.x + 54 &&
           p.y >= s.y - 8 &&
           p.y <= s.y + 96;
-        const insideNode = p.x >= s.x && p.x <= s.x + 168 && p.y >= s.y && p.y <= s.y + 86;
+        const insideNode =
+          s.id !== connecting?.from &&
+          p.x >= s.x &&
+          p.x <= s.x + nodeWidth(s) &&
+          p.y >= s.y &&
+          p.y <= s.y + NODE_H;
         if ((nearInput || insideNode) && dist < bestScore) {
           best = s;
           bestScore = dist;
@@ -2019,7 +2041,7 @@
       const minY = Math.min(a.y, b.y);
       const maxY = Math.max(a.y, b.y);
       return model.states
-        .filter(s => s.x < maxX && s.x + 168 > minX && s.y < maxY && s.y + 86 > minY)
+        .filter(s => s.x < maxX && s.x + nodeWidth(s) > minX && s.y < maxY && s.y + NODE_H > minY)
         .map(s => s.id);
     }
 
@@ -2058,12 +2080,14 @@
       return Math.round(clampScale(value) * 100) / 100;
     }
 
-    function normalizeWheelDelta(evt) {
+    function wheelDeltaPixels(evt) {
       const modeScale = evt.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : evt.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 240 : 1;
-      return {
-        x: evt.deltaX * modeScale,
-        y: evt.deltaY * modeScale
-      };
+      return evt.deltaY * modeScale;
+    }
+
+    function wheelZoomFactor(evt) {
+      const deltaY = clamp(wheelDeltaPixels(evt), -640, 640);
+      return Math.pow(2, -deltaY / 420);
     }
 
     function zoomAtClientPoint(clientX, clientY, nextScale) {
@@ -2121,8 +2145,8 @@
       const r = mapEl.getBoundingClientRect();
       const minX = Math.min(...model.states.map(s => s.x));
       const minY = Math.min(...model.states.map(s => s.y));
-      const maxX = Math.max(...model.states.map(s => s.x + 168));
-      const maxY = Math.max(...model.states.map(s => s.y + 86));
+      const maxX = Math.max(...model.states.map(s => s.x + nodeWidth(s)));
+      const maxY = Math.max(...model.states.map(s => s.y + NODE_H));
       const w = Math.max(1, maxX - minX);
       const h = Math.max(1, maxY - minY);
       const pad = 120;
@@ -2183,9 +2207,11 @@
     }
 
     function nodeCenter(s, side) {
-      if (side === "out") return { x: s.x + 168, y: s.y + 43 };
-      if (side === "in") return { x: s.x, y: s.y + 43 };
-      return { x: s.x + 84, y: s.y + 43 };
+      const width = nodeWidth(s);
+      const centerY = s.y + NODE_H / 2;
+      if (side === "out") return { x: s.x + width, y: centerY };
+      if (side === "in") return { x: s.x, y: centerY };
+      return { x: s.x + width / 2, y: centerY };
     }
 
     function edgePath(from, to) {
@@ -2196,6 +2222,16 @@
     function edgeAnchors(from, to) {
       const a = nodeCenter(from, "out");
       const b = nodeCenter(to, "in");
+      if (from.id === to.id) {
+        const loopHeight = 120;
+        const loopReach = 80;
+        return {
+          a,
+          b,
+          c1: { x: a.x + loopReach, y: from.y - loopHeight },
+          c2: { x: b.x - loopReach, y: from.y - loopHeight }
+        };
+      }
       const dx = Math.max(70, Math.abs(b.x - a.x) * 0.45);
       return {
         a,
@@ -2224,9 +2260,9 @@
     }
 
     function midPoint(from, to) {
-      const a = nodeCenter(from, "out");
-      const b = nodeCenter(to, "in");
-      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 10 };
+      const { a, b, c1, c2 } = edgeAnchors(from, to);
+      const point = cubicPoint(a, c1, c2, b, 0.5);
+      return { x: point.x, y: point.y - 10 };
     }
 
     function attachEdgeInteractions(el, t, canRewire = false) {
@@ -2309,14 +2345,18 @@
 
       if (connecting) {
         const from = byId(connecting.from);
-        const a = nodeCenter(from, "out");
         const target = connectingTargetId ? byId(connectingTargetId) : null;
-        const b = target ? nodeCenter(target, "in") : connecting.to;
-        const dx = Math.max(60, Math.abs(b.x - a.x) * 0.4);
-        wiresEl.appendChild(svgEl("path", {
-          d: `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`,
-          class: "temp-edge"
-        }));
+        if (target) {
+          wiresEl.appendChild(svgEl("path", { d: edgePath(from, target), class: "temp-edge" }));
+        } else {
+          const a = nodeCenter(from, "out");
+          const b = connecting.to;
+          const dx = Math.max(60, Math.abs(b.x - a.x) * 0.4);
+          wiresEl.appendChild(svgEl("path", {
+            d: `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`,
+            class: "temp-edge"
+          }));
+        }
       }
 
       for (const s of model.states) {
@@ -2330,6 +2370,7 @@
         el.className = classes.join(" ");
         el.style.left = s.x + "px";
         el.style.top = s.y + "px";
+        el.style.width = nodeWidth(s) + "px";
         el.dataset.id = s.id;
         el.innerHTML = `
           <div class="input-port"></div>
@@ -2459,7 +2500,11 @@
       const firstInput = popoverEl.querySelector("input, textarea, select");
       if (firstInput) {
         const focusFirst = () => {
-          if (!popoverEl.hidden && document.contains(firstInput)) firstInput.focus({ preventScroll: true });
+          const active = document.activeElement;
+          const popoverAlreadyFocused = active && active !== document.body && popoverEl.contains(active);
+          if (!popoverEl.hidden && document.contains(firstInput) && !popoverAlreadyFocused) {
+            firstInput.focus({ preventScroll: true });
+          }
         };
         requestAnimationFrame(focusFirst);
         setTimeout(focusFirst, 80);
@@ -2943,19 +2988,23 @@
       let i = 2;
       const ids = new Set(model.states.map(s => s.id));
       while (ids.has(id)) id = base + "_" + i++;
-      return {
+      const state = {
         id,
         title,
         body: "Generated screen",
         components: [],
         data: {},
-        x: Math.round(clamp(x, WORLD_MIN_X, WORLD_MAX_X - 168)),
-        y: Math.round(clamp(y, WORLD_MIN_Y, WORLD_MAX_Y - 86))
+        x,
+        y
       };
+      state.x = Math.round(clamp(x, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state)));
+      state.y = Math.round(clamp(y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H));
+      return state;
     }
 
     function addStateAt(x, y, showAtX, showAtY) {
-      const s = makeState(x - 84, y - 43, nextStateTitle());
+      const title = nextStateTitle();
+      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title);
       model.states.push(s);
       selected = { type: "node", id: s.id };
       saveModel();
@@ -2987,8 +3036,8 @@
         if (!s) return;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
-        s.x = Math.round(clamp(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - 168));
-        s.y = Math.round(clamp(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - 86));
+        s.x = Math.round(clamp(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s)));
+        s.y = Math.round(clamp(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H));
         scheduleDraw();
         return;
       }
@@ -3051,7 +3100,7 @@
         const targetNode = connectingTargetId ? byId(connectingTargetId) : connectionTargetAtWorldPoint(dropPoint);
         const targetId = targetNode?.id;
         const wasRewire = Boolean(connecting.edgeId);
-        if (targetId && targetId !== connecting.from) {
+        if (targetId) {
           let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
           if (t) {
             t.to = targetId;
@@ -3075,8 +3124,16 @@
           draw();
           return;
         }
+        if (nodeAtWorldPoint(dropPoint)) {
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          return;
+        }
         if (!targetId) {
-          const s = makeState(dropPoint.x - 84, dropPoint.y - 43, nextStateTitle());
+          const title = nextStateTitle();
+          const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
           let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
           if (t) {
             t.to = s.id;
@@ -3109,16 +3166,11 @@
 
     mapEl.addEventListener("wheel", evt => {
       if (evt.target?.closest?.(".popover")) return;
-      evt.preventDefault();
-      const delta = normalizeWheelDelta(evt);
       if (evt.ctrlKey || evt.metaKey) {
-        const factor = Math.exp(-clamp(delta.y, -240, 240) * 0.0015);
-        zoomByFactor(factor, evt.clientX, evt.clientY);
+        evt.preventDefault();
+        zoomByFactor(wheelZoomFactor(evt), evt.clientX, evt.clientY);
         return;
       }
-      camera.x -= delta.x;
-      camera.y -= delta.y;
-      applyCamera();
     }, { passive: false });
 
     popoverEl.addEventListener("wheel", evt => {
