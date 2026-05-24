@@ -274,6 +274,8 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').dblclick();
+    await expect(page.locator("#pData")).toBeVisible();
+    await page.locator("#pData").click();
     await page.locator("#pData").fill('{"userName":"Ada"}');
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -933,6 +935,50 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator("#selectionActions")).toBeVisible();
     await expect(page.locator("#selectionCount")).toContainText("state");
+  });
+
+  test("shift-click toggles mixed selections and undo redo restores empty-canvas deselection", async ({ page }) => {
+    await openTool(page);
+    const loginEdgeId = await page.evaluate(key => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
+    }, STORAGE_KEY);
+    const login = page.locator('[data-id="login"]');
+    const register = page.locator('[data-id="register"]');
+    const loginEdge = page.locator(`.edge[data-edge-id="${loginEdgeId}"]`);
+
+    await login.click();
+    await expect(login).toHaveClass(/selected/);
+    await expect(register).not.toHaveClass(/selected/);
+
+    await register.click({ modifiers: ["Shift"] });
+    await expect(login).toHaveClass(/selected/);
+    await expect(register).toHaveClass(/selected/);
+    await expect(page.locator("#selectionActions")).toBeVisible();
+    await expect(page.locator("#selectionCount")).toContainText("2 states");
+
+    await login.click({ modifiers: ["Shift"] });
+    await expect(login).not.toHaveClass(/selected/);
+    await expect(register).toHaveClass(/selected/);
+
+    await page.locator(`.edge-label[data-edge-id="${loginEdgeId}"]`).click({ modifiers: ["Shift"] });
+    await expect(register).toHaveClass(/selected/);
+    await expect(loginEdge).toHaveClass(/selected/);
+    await expect(page.locator("#popover")).toBeHidden();
+
+    const empty = await emptyCanvasPoint(page);
+    await page.mouse.click(empty.x, empty.y);
+    await expect(register).not.toHaveClass(/selected/);
+    await expect(loginEdge).not.toHaveClass(/selected/);
+    await expect(page.locator("#selectionActions")).toBeHidden();
+
+    await page.keyboard.press("Control+KeyZ");
+    await expect(register).toHaveClass(/selected/);
+    await expect(loginEdge).toHaveClass(/selected/);
+
+    await page.keyboard.press("Control+KeyY");
+    await expect(register).not.toHaveClass(/selected/);
+    await expect(loginEdge).not.toHaveClass(/selected/);
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {

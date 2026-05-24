@@ -14,6 +14,7 @@
       --muted: #8eb2dc;
       --accent: #38bdf8;
       --accent2: #a78bfa;
+      --selected: #f59e0b;
       --danger: #fb7185;
       --ok: #34d399;
       --node: #102642;
@@ -164,7 +165,11 @@
       stroke-width: 2.2;
     }
 
-    .edge.selected { stroke: var(--accent2); stroke-width: 3.5; }
+    .edge.selected {
+      stroke: var(--selected);
+      stroke-width: 3.7;
+      filter: drop-shadow(0 0 8px rgba(245,158,11,.34));
+    }
     .edge.hovered {
       stroke: var(--accent);
       stroke-width: 3.4;
@@ -232,6 +237,10 @@
       fill: #ffffff;
       stroke-width: 6px;
     }
+    .edge-label.selected {
+      fill: #fde68a;
+      stroke-width: 6px;
+    }
     .hit:hover + .edge + .edge-label,
     .edge:hover + .edge-label,
     .edge-label:hover {
@@ -255,12 +264,25 @@
     }
 
     .node:active { cursor: grabbing; }
-    .node.selected { outline: 2px solid var(--accent2); outline-offset: 2px; }
+    .node.selected {
+      border-color: var(--selected);
+      outline: 2px solid var(--selected);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 5px rgba(245,158,11,.16), 0 8px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.1);
+    }
     .node.active {
       border-color: var(--runtime);
       outline: 3px solid rgba(34,197,94,.72);
       outline-offset: 3px;
       box-shadow: 0 0 0 6px rgba(34,197,94,.14), 0 10px 24px rgba(0,0,0,.34);
+    }
+    .node.active.selected {
+      border-color: var(--selected);
+      outline: 2px solid var(--selected);
+      box-shadow:
+        0 0 0 5px rgba(245,158,11,.22),
+        0 0 0 10px rgba(34,197,94,.16),
+        0 10px 24px rgba(0,0,0,.34);
     }
 
     .node .title {
@@ -1232,6 +1254,39 @@
       return JSON.stringify(model);
     }
 
+    function normalizeSelection(value = selected) {
+      if (!value || typeof value !== "object") return null;
+      const stateIds = new Set(model.states.map(s => s.id));
+      const edgeIds = new Set(model.transitions.map(t => t.id));
+      if (value.type === "node" && stateIds.has(value.id)) return { type: "node", id: value.id };
+      if (value.type === "edge" && edgeIds.has(value.id)) return { type: "edge", id: value.id };
+      if (value.type === "nodes") {
+        const ids = [...new Set(value.ids || [])].filter(id => stateIds.has(id));
+        return ids.length ? { type: "nodes", ids } : null;
+      }
+      if (value.type === "items") {
+        const nodes = [...new Set(value.nodes || [])].filter(id => stateIds.has(id));
+        const edges = [...new Set(value.edges || [])].filter(id => edgeIds.has(id));
+        return selectionFromParts(nodes, edges);
+      }
+      return null;
+    }
+
+    function editorSnapshot() {
+      return JSON.stringify({
+        model: JSON.parse(modelSnapshot()),
+        selected: normalizeSelection()
+      });
+    }
+
+    function parseEditorSnapshot(snapshot) {
+      const data = JSON.parse(snapshot);
+      if (data && typeof data === "object" && "model" in data) {
+        return { model: data.model, selected: data.selected || null };
+      }
+      return { model: data, selected: null };
+    }
+
     function persistModel(sync = true) {
       localStorage.setItem(STORAGE_KEY, modelSnapshot());
       if (sync) scheduleSync(false);
@@ -1245,17 +1300,18 @@
     }
 
     function initHistory() {
-      historyCurrent = modelSnapshot();
+      historyCurrent = editorSnapshot();
       undoStack = [];
       redoStack = [];
       lastHistoryKey = null;
       updateHistoryButtons();
     }
 
-    function saveModel(historyKey = null) {
-      const next = modelSnapshot();
+    function saveEditorState(historyKey = null, sync = true) {
+      selected = normalizeSelection();
+      const next = editorSnapshot();
       if (next === historyCurrent) {
-        persistModel();
+        persistModel(sync);
         return;
       }
       if (!historyCurrent) {
@@ -1269,14 +1325,23 @@
       redoStack = [];
       historyCurrent = next;
       lastHistoryKey = historyKey;
-      persistModel();
+      persistModel(sync);
       updateHistoryButtons();
     }
 
+    function saveModel(historyKey = null) {
+      saveEditorState(historyKey, true);
+    }
+
+    function saveSelection(historyKey = null) {
+      saveEditorState(historyKey, false);
+    }
+
     function restoreHistorySnapshot(snapshot) {
-      model = normalizeModel(JSON.parse(snapshot));
-      historyCurrent = modelSnapshot();
-      selected = null;
+      const restored = parseEditorSnapshot(snapshot);
+      model = normalizeModel(restored.model);
+      selected = normalizeSelection(restored.selected);
+      historyCurrent = editorSnapshot();
       connecting = null;
       connectingTargetId = null;
       dragging = null;
@@ -1290,7 +1355,7 @@
 
     function undoModel() {
       if (!undoStack.length) return;
-      const current = modelSnapshot();
+      const current = editorSnapshot();
       const previous = undoStack.pop();
       redoStack.push(current);
       lastHistoryKey = null;
@@ -1299,7 +1364,7 @@
 
     function redoModel() {
       if (!redoStack.length) return;
-      const current = modelSnapshot();
+      const current = editorSnapshot();
       const next = redoStack.pop();
       undoStack.push(current);
       lastHistoryKey = null;
@@ -1742,6 +1807,7 @@
 
     function startPendingCanvasTouch(evt) {
       clearLongPress();
+      clearSelection("selection:canvas");
       pendingCanvasTouch = {
         pointerId: evt.pointerId,
         clientX: evt.clientX,
@@ -1762,6 +1828,7 @@
       clearLongPress();
       evt.preventDefault();
       evt.stopPropagation();
+      clearSelection("selection:canvas");
       pendingCanvasMouse = {
         clientX: evt.clientX,
         clientY: evt.clientY,
@@ -1793,9 +1860,6 @@
       if (!pendingCanvasMouse) return false;
       pendingCanvasMouse = null;
       clearLongPress();
-      selected = null;
-      hidePopover();
-      draw();
       return true;
     }
 
@@ -1848,8 +1912,7 @@
         addStateAt(p.x, p.y, evt.clientX, evt.clientY);
       } else {
         lastCanvasTap = { time: Date.now(), x: evt.clientX, y: evt.clientY };
-        selected = null;
-        hidePopover();
+        saveSelection("selection:canvas");
         draw();
       }
       return true;
@@ -1886,6 +1949,13 @@
     function selectedNodeIds() {
       if (selected?.type === "node") return new Set([selected.id]);
       if (selected?.type === "nodes") return new Set(selected.ids || []);
+      if (selected?.type === "items") return new Set(selected.nodes || []);
+      return new Set();
+    }
+
+    function selectedEdgeIds() {
+      if (selected?.type === "edge") return new Set([selected.id]);
+      if (selected?.type === "items") return new Set(selected.edges || []);
       return new Set();
     }
 
@@ -1893,9 +1963,46 @@
       return [...selectedNodeIds()].filter(id => byId(id));
     }
 
+    function selectedEdgeIdList() {
+      return [...selectedEdgeIds()].filter(id => model.transitions.some(t => t.id === id));
+    }
+
+    function selectionFromParts(nodes, edges) {
+      const nodeIds = [...new Set(nodes || [])].filter(id => byId(id));
+      const edgeIds = [...new Set(edges || [])].filter(id => model.transitions.some(t => t.id === id));
+      if (nodeIds.length === 1 && edgeIds.length === 0) return { type: "node", id: nodeIds[0] };
+      if (nodeIds.length > 1 && edgeIds.length === 0) return { type: "nodes", ids: nodeIds };
+      if (nodeIds.length === 0 && edgeIds.length === 1) return { type: "edge", id: edgeIds[0] };
+      if (nodeIds.length || edgeIds.length) return { type: "items", nodes: nodeIds, edges: edgeIds };
+      return null;
+    }
+
+    function setSingleSelection(kind, id, historyKey = null) {
+      selected = kind === "node" ? { type: "node", id } : { type: "edge", id };
+      saveSelection(historyKey);
+    }
+
+    function toggleSelection(kind, id) {
+      const nodes = selectedNodeIdList();
+      const edges = selectedEdgeIdList();
+      const list = kind === "node" ? nodes : edges;
+      const index = list.indexOf(id);
+      if (index >= 0) list.splice(index, 1);
+      else list.push(id);
+      selected = selectionFromParts(nodes, edges);
+      saveSelection();
+    }
+
+    function clearSelection(historyKey = null) {
+      selected = null;
+      hidePopover();
+      saveSelection(historyKey);
+      draw();
+    }
+
     function updateSelectionActions() {
-      const ids = selected?.type === "nodes" ? selectedNodeIdList() : [];
-      const visible = ids.length > 0 && popoverEl.hidden;
+      const ids = selectedNodeIdList();
+      const visible = ids.length > 0 && (selected?.type === "nodes" || selected?.type === "items") && popoverEl.hidden;
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
       if (visible) selectionCountEl.textContent = ids.length === 1 ? "1 state" : `${ids.length} states`;
@@ -2168,10 +2275,11 @@
 
     function startNodeDrag(evt, s) {
       evt.stopPropagation();
-      selected = { type: "node", id: s.id };
+      if (!evt.shiftKey) selected = { type: "node", id: s.id };
       const p = screenToWorld(evt);
       dragging = {
         id: s.id,
+        shiftKey: Boolean(evt.shiftKey),
         dx: p.x - s.x,
         dy: p.y - s.y,
         startClientX: evt.clientX,
@@ -2280,6 +2388,12 @@
       el.addEventListener("click", evt => {
         evt.stopPropagation();
         if (Date.now() < suppressEdgeClickUntil) return;
+        if (evt.shiftKey) {
+          toggleSelection("edge", t.id);
+          hidePopover();
+          draw();
+          return;
+        }
         selectEdge(t.id, evt.clientX, evt.clientY);
       });
       el.addEventListener("mouseenter", () => setEdgeHover(t.id, true));
@@ -2293,6 +2407,7 @@
       }
       normalizeModel(model);
       const nodeSelection = selectedNodeIds();
+      const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
       wiresEl.querySelectorAll(".edge,.hit,.edge-label,.edge-tip-hit,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
@@ -2310,7 +2425,7 @@
         wiresEl.appendChild(hit);
 
         const classes = ["edge"];
-        if (selected?.type === "edge" && selected.id === t.id) classes.push("selected");
+        if (edgeSelection.has(t.id)) classes.push("selected");
         if (hoveredEdgeId === t.id) classes.push("hovered");
         if (lastAppTransitionId === t.id) classes.push("runtime");
         const path = svgEl("path", { d: pathD, class: classes.join(" "), "marker-end": "url(#arrow)", "data-edge-id": t.id });
@@ -2319,6 +2434,7 @@
 
         const m = midPoint(from, to);
         const labelClasses = ["edge-label"];
+        if (edgeSelection.has(t.id)) labelClasses.push("selected");
         if (hoveredEdgeId === t.id) labelClasses.push("hovered");
         const label = svgEl("text", { x: m.x, y: m.y, class: labelClasses.join(" "), "text-anchor": "middle", "data-edge-id": t.id });
         label.textContent = t.label + (t.condition ? `  [${t.condition}]` : "");
@@ -2327,7 +2443,7 @@
 
         const tip = edgeTipHandlePoint(from, to);
         const tipClasses = ["edge-tip-hit"];
-        if (selected?.type === "edge" && selected.id === t.id) tipClasses.push("hovered");
+        if (edgeSelection.has(t.id)) tipClasses.push("hovered");
         if (hoveredEdgeId === t.id) tipClasses.push("hovered");
         const tipHit = svgEl("circle", {
           cx: tip.x,
@@ -2392,7 +2508,7 @@
           if (!isTouchPointer(evt)) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
-          selected = { type: "node", id: s.id };
+          setSingleSelection("node", s.id);
           draw();
           showNodePopover(s, evt.clientX, evt.clientY);
         });
@@ -2400,7 +2516,7 @@
           evt.preventDefault();
           evt.stopPropagation();
           if (Date.now() - lastTouchAt < 700) return;
-          selected = { type: "node", id: s.id };
+          setSingleSelection("node", s.id);
           draw();
           showNodePopover(s, evt.clientX, evt.clientY);
         });
@@ -2462,9 +2578,9 @@
     }
 
     function selectEdge(id, x, y) {
-      selected = { type: "edge", id };
       const edge = model.transitions.find(t => t.id === id);
       if (!edge) return;
+      setSingleSelection("edge", id);
       showEdgePopover(edge, x, y);
       draw();
     }
@@ -3060,6 +3176,7 @@
         }
         boxSelecting = null;
         updateSelectRect();
+        saveSelection("selection:canvas");
         draw();
         return;
       }
@@ -3072,16 +3189,24 @@
         const wasClick = !dragging.moved && Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) <= 4;
         const didMove = dragging.moved;
         const dragId = dragging.id;
+        const shiftClick = dragging.shiftKey;
         dragging = null;
         lastHistoryKey = null;
         if (wasClick && s) {
+          if (shiftClick) {
+            lastNodeClick = null;
+            toggleSelection("node", s.id);
+            hidePopover();
+            draw();
+            return;
+          }
           const now = Date.now();
           const isDoubleClick =
             lastNodeClick &&
             lastNodeClick.id === s.id &&
             now - lastNodeClick.time < 420 &&
             Math.hypot(evt.clientX - lastNodeClick.x, evt.clientY - lastNodeClick.y) < 18;
-          selected = { type: "node", id: s.id };
+          setSingleSelection("node", s.id);
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
           startAppAtState(s.id);
           if (isDoubleClick) {
@@ -3306,14 +3431,23 @@
         evt.preventDefault();
       }
       if ((evt.key === "Delete" || evt.key === "Backspace") && selected) {
-        if (selected.type === "node" || selected.type === "nodes") {
-          const ids = selected.type === "node" ? [selected.id] : selected.ids || [];
+        if (selected.type === "node" || selected.type === "nodes" || selected.type === "items") {
+          const ids = selectedNodeIdList();
+          const edgeIds = selectedEdgeIdList();
           const removable = ids.filter(id => byId(id));
           if (removable.length && model.states.length - removable.length >= 1) {
             const removeSet = new Set(removable);
+            const removeEdges = new Set(edgeIds);
             model.states = model.states.filter(n => !removeSet.has(n.id));
-            model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to));
+            model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to) && !removeEdges.has(t.id));
             if (removeSet.has(model.initial)) model.initial = model.states[0].id;
+            selected = null;
+            hidePopover();
+            saveModel();
+            draw();
+          } else if (!removable.length && edgeIds.length) {
+            const removeEdges = new Set(edgeIds);
+            model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
             selected = null;
             hidePopover();
             saveModel();
