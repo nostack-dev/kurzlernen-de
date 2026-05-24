@@ -3424,7 +3424,6 @@
         <div class="small">State id: <b>${escapeHtml(s.id)}</b></div>
         <div class="row" style="margin-top:10px">
           <button id="pInitial">Set initial</button>
-          <button id="pStartHere">Start here</button>
           <button id="pDuplicate">Duplicate</button>
         </div>
         <div class="row" style="margin-top:8px">
@@ -3481,10 +3480,6 @@
         model.initial = s.id;
         saveModel();
         draw();
-      };
-      root.querySelector("#pStartHere").onclick = () => {
-        selected = { type: "node", id: s.id };
-        startAppAtState(s.id);
       };
       root.querySelector("#pDuplicate").onclick = () => {
         const copy = makeState(s.x + GRID_SIZE * 2, s.y + GRID_SIZE * 5, (s.title || s.id) + " Copy");

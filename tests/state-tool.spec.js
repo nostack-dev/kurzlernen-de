@@ -777,19 +777,19 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByRole("heading", { name: "Logged in" })).toBeVisible();
   });
 
-  test("start-here focuses first runtime input, preserves default tab order, and submits positive action with Enter", async ({ page }) => {
+  test("selecting a state starts preview and keeps runtime tab order and Enter submit usable", async ({ page }) => {
     await openTool(page);
     const app = appFrame(page);
 
     await page.locator('[data-id="login"]').click();
-    await page.locator("#pStartHere").click();
     await expect(app.locator("#statePill")).toHaveText("login");
+    await expect(page.locator("#pStartHere")).toHaveCount(0);
 
     const email = app.locator(".field").filter({ hasText: "email" }).locator("input");
     const password = app.locator(".field").filter({ hasText: "password" }).locator("input");
     const primaryButton = app.getByRole("button", { name: "Einloggen" });
 
-    await expect.poll(() => email.evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(email).toHaveAttribute("tabindex", "0");
     await expect(password).toHaveAttribute("tabindex", "0");
     await expect(primaryButton).toHaveAttribute("tabindex", "0");
