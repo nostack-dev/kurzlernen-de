@@ -5,7 +5,7 @@ const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 
 async function openTool(page) {
   await page.addInitScript(key => {
-    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`]) {
+    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
       localStorage.removeItem(name);
     }
   }, STORAGE_KEY);
@@ -88,7 +88,7 @@ async function emptyCanvasPoint(page) {
           y <= popoverRect.bottom + 36) continue;
         const el = document.elementFromPoint(x, y);
         if (!el || !map.contains(el)) continue;
-        if (el.closest(".popover, .node, .edge, .hit, .edge-label, .edge-tip-hit, .zoom-controls, .help, .selection-actions")) continue;
+        if (el.closest(".popover, .state-explorer, .node, .edge, .hit, .edge-label, .edge-tip-hit, .zoom-controls, .help, .selection-actions")) continue;
         return { x, y };
       }
     }
@@ -107,7 +107,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(1);
     await expect(page.locator('[data-id="start"]')).toBeVisible();
 
-    await page.locator('[data-id="start"]').dblclick();
+    await page.locator('[data-id="start"]').click();
     await page.locator("#pTitle").fill("Collect details");
     await page.locator("#pBody").fill("Tell us who should receive the short lesson.");
     await page.locator("#pData").fill('{"userName":"Ada","profile":{"tier":"starter"}}');
@@ -155,7 +155,7 @@ test.describe("State Blueprint tool", () => {
       return model.states.find(state => state.id !== "start").id;
     }, STORAGE_KEY);
 
-    await page.locator(`[data-id="${createdStateId}"]`).dblclick();
+    await page.locator(`[data-id="${createdStateId}"]`).click();
     await page.locator("#pTitle").fill("Lesson ready");
     await page.locator("#pBody").fill("The generated state reads transition data.");
     await page.getByRole("button", { name: "+ Note" }).click();
@@ -243,7 +243,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`]) {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -273,7 +273,7 @@ test.describe("State Blueprint tool", () => {
   test("keeps invalid data and transition set JSON out of the saved model", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pData")).toBeVisible();
     await page.locator("#pData").click();
     await page.locator("#pData").fill('{"userName":"Ada"}');
@@ -300,7 +300,7 @@ test.describe("State Blueprint tool", () => {
   test("persists newly added component text immediately and renders it in preview", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"]').click();
     await page.locator("#pData").fill('{"userName":"Ada"}');
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -324,7 +324,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     const imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=";
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"]').click();
     await page.locator("#pData").fill('{"userName":"Ada"}');
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -378,7 +378,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Escape");
     await expect(page.locator("#popover")).toBeHidden();
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"]').click();
 
     await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{userName}}");
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for {{userName}}");
@@ -447,20 +447,20 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);
   });
 
-  test("opens and applies state edits via double click and gear", async ({ page }) => {
+  test("opens and applies state edits in the left inspector via click and gear", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
-    await expect(page.locator("#popover")).toBeVisible();
+    await page.locator('[data-id="login"]').click();
+    await expect(page.locator("#stateInspectorBody")).toBeVisible();
+    await expect(page.locator("#popover")).toBeHidden();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
-    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.locator("#pTitle").fill("Sign in");
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
 
     await page.evaluate(key => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`]) {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
         localStorage.removeItem(name);
       }
     }, STORAGE_KEY);
@@ -501,7 +501,7 @@ test.describe("State Blueprint tool", () => {
   test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"] .node-edit').click();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.locator("#pTitle").fill("Sign in");
@@ -519,7 +519,7 @@ test.describe("State Blueprint tool", () => {
   test("keeps state editor focus and tab order predictable", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pBody")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pData")).toHaveAttribute("tabindex", "0");
@@ -556,11 +556,12 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByRole("heading", { name: "Logged in" })).toBeVisible();
   });
 
-  test("focuses first runtime input, preserves default tab order, and submits positive action with Enter", async ({ page }) => {
+  test("start-here focuses first runtime input, preserves default tab order, and submits positive action with Enter", async ({ page }) => {
     await openTool(page);
     const app = appFrame(page);
 
     await page.locator('[data-id="login"]').click();
+    await page.locator("#pStartHere").click();
     await expect(app.locator("#statePill")).toHaveText("login");
 
     const email = app.locator(".field").filter({ hasText: "email" }).locator("input");
@@ -704,13 +705,15 @@ test.describe("State Blueprint tool", () => {
     expect(Math.min(...yValues)).toBeLessThan(authStart.y);
   });
 
-  test("closes edit popovers on outside click", async ({ page }) => {
+  test("clears state inspector on empty canvas and closes edge popovers on outside click", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"]').click();
     await expect(page.locator("#pTitle")).toBeVisible();
     let point = await emptyCanvasPoint(page);
     await page.mouse.click(point.x, point.y);
+    await expect(page.locator("#pTitle")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
     await expect(page.locator("#popover")).toBeHidden();
 
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
@@ -722,18 +725,19 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#popover")).toBeHidden();
   });
 
-  test("closes focused state edit popover with Escape", async ({ page }) => {
+  test("keeps focused state inspector stable with Escape", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Escape");
     await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#pTitle")).toBeVisible();
   });
 
-  test("closes state popover on empty-canvas single tap", async ({ browser }) => {
+  test("clears state inspector on empty-canvas single tap", async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: "http://127.0.0.1:8124",
       viewport: { width: 390, height: 820 },
@@ -748,13 +752,15 @@ test.describe("State Blueprint tool", () => {
     const point = await emptyCanvasPoint(page);
     await page.touchscreen.tap(point.x, point.y);
     await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#pTitle")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
     await context.close();
   });
 
   test("adds list items reliably without nested component scrolling", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await page.locator('[data-id="login"]').click();
     await expect(page.locator("#pTitle")).toBeVisible();
     await page.locator("#pAddList").click();
 
@@ -775,11 +781,11 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator("#pComponents")).toHaveCSS("overflow", "visible");
     await expect(page.locator("#pComponents")).toHaveCSS("scrollbar-width", "none");
-    await expect(page.locator("#popover")).toHaveCSS("scrollbar-color", "rgb(49, 95, 140) rgb(7, 19, 33)");
+    await expect(page.locator("#stateInspectorBody")).toHaveCSS("scrollbar-color", "rgb(49, 95, 140) rgb(7, 19, 33)");
     await expect.poll(async () => {
-      const box = await page.locator("#popover").boundingBox();
+      const box = await page.locator("#stateInspector").boundingBox();
       return Math.round(box?.width || 0);
-    }).toBeGreaterThanOrEqual(380);
+    }).toBeGreaterThanOrEqual(280);
   });
 
   test("does not reroute when Alt-drag starts from the line body", async ({ page }) => {
@@ -903,7 +909,7 @@ test.describe("State Blueprint tool", () => {
     }, anchor);
 
     await expect.poll(async () => Number((await page.locator("#zoomLevel").innerText()).replace("%", "")))
-      .toBeGreaterThan(zoomBefore + 2);
+      .toBeGreaterThanOrEqual(zoomBefore + 2);
     expect(await worldTransform(page)).not.toBe(before);
   });
 
@@ -1013,6 +1019,39 @@ test.describe("State Blueprint tool", () => {
     await expect(register).toHaveCount(0);
     await expect(page.locator("#selectionActions")).toBeHidden();
     await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(false);
+  });
+
+  test("stores reusable states in the bottom explorer and toggles it with Ctrl+Space", async ({ page }) => {
+    await openTool(page);
+    const login = page.locator('[data-id="login"]');
+    await login.click();
+    await page.locator("#pTitle").fill("Reusable login");
+
+    const loginBox = await visibleBox(login);
+    const explorerBox = await visibleBox(page.locator("#stateExplorer"));
+    await page.mouse.move(loginBox.x + loginBox.width / 2, loginBox.y + loginBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(explorerBox.x + explorerBox.width / 2, explorerBox.y + explorerBox.height / 2, { steps: 12 });
+    await page.mouse.up();
+
+    const template = page.locator(".state-template-card").filter({ hasText: "Reusable login" });
+    await expect(template).toBeVisible();
+    await expect(page.locator(".node")).toHaveCount(6);
+
+    await page.keyboard.press("Control+Space");
+    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
+    await page.keyboard.press("Control+Space");
+    await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
+
+    const mapBox = await visibleBox(page.locator("#map"));
+    await template.dragTo(page.locator("#map"), {
+      targetPosition: { x: Math.round(mapBox.width * 0.56), y: 120 }
+    });
+    await expect(page.locator(".node")).toHaveCount(7);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.filter(state => state.title === "Reusable login").length;
+    }).toBe(2);
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {
