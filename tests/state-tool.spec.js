@@ -111,6 +111,16 @@ async function dragNodeToStateExplorer(page, node) {
   await page.mouse.up();
 }
 
+async function dragTransition(page, output, input, via = null) {
+  const start = await centerOf(output);
+  const end = await centerOf(input);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  if (via) await page.mouse.move(via.x, via.y, { steps: 8 });
+  await page.mouse.move(end.x, end.y, { steps: 12 });
+  await page.mouse.up();
+}
+
 test.describe("State Blueprint tool", () => {
   test("creates a complete state machine from the UI with data, templates, conditions, sets, preview, and export", async ({ page }) => {
     await openTool(page);
@@ -684,6 +694,66 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).locator("#statePill")).toHaveText("start");
   });
 
+  test("prevents duplicate transitions for the same source and target", async ({ page }) => {
+    await openTool(page);
+    const before = await savedModel(page);
+    expect(before.transitions.filter(t => t.from === "auth_start" && t.to === "login")).toHaveLength(1);
+
+    await dragTransition(
+      page,
+      page.locator('[data-id="auth_start"] .port'),
+      page.locator('[data-id="login"] .input-port')
+    );
+
+    await expect(page.locator(".edge")).toHaveCount(before.transitions.length);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        total: model.transitions.length,
+        authToLogin: model.transitions.filter(t => t.from === "auth_start" && t.to === "login").length
+      };
+    }).toEqual({ total: before.transitions.length, authToLogin: 1 });
+
+    await page.keyboard.press("Escape");
+    const loginEdgeId = before.transitions.find(t => t.from === "auth_start" && t.to === "login").id;
+    const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
+    const start = await centerOf(arrowTip);
+    const duplicateTarget = await centerOf(page.locator('[data-id="register"] .input-port'));
+    await page.keyboard.down("Alt");
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(duplicateTarget.x, duplicateTarget.y, { steps: 12 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        total: model.transitions.length,
+        loginTarget: model.transitions.find(t => t.id === loginEdgeId)?.to,
+        authToRegister: model.transitions.filter(t => t.from === "auth_start" && t.to === "register").length
+      };
+    }).toEqual({ total: before.transitions.length, loginTarget: "login", authToRegister: 1 });
+
+    await page.getByRole("button", { name: "New" }).click();
+    await page.getByRole("button", { name: "Neu starten" }).click();
+    const output = page.locator('[data-id="start"] .port');
+    const input = page.locator('[data-id="start"] .input-port');
+    const outputCenter = await centerOf(output);
+
+    await dragTransition(page, output, input, { x: outputCenter.x + 90, y: outputCenter.y - 120 });
+    await page.keyboard.press("Escape");
+    await dragTransition(page, output, input, { x: outputCenter.x + 90, y: outputCenter.y - 120 });
+
+    await expect(page.locator(".edge")).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        total: model.transitions.length,
+        selfLoops: model.transitions.filter(t => t.from === "start" && t.to === "start").length
+      };
+    }).toEqual({ total: 1, selfLoops: 1 });
+  });
+
   test("cancels self-loop drag when released on the source body instead of input", async ({ page }) => {
     await openTool(page);
     await page.getByRole("button", { name: "New" }).click();
@@ -713,7 +783,7 @@ test.describe("State Blueprint tool", () => {
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
     await expect(arrowTip).toBeVisible();
     const start = await centerOf(arrowTip);
-    const end = await centerOf(page.locator('[data-id="register"] .input-port'));
+    const end = await centerOf(page.locator('[data-id="error"] .input-port'));
 
     await page.keyboard.down("Alt");
     await page.mouse.move(start.x, start.y);
@@ -725,7 +795,7 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login")?.to;
-    }).toBe("register");
+    }).toBe("error");
     await expect(page.locator("#popover")).toBeHidden();
   });
 
@@ -862,7 +932,7 @@ test.describe("State Blueprint tool", () => {
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
     await expect(label).toHaveCount(1);
     const start = await centerOf(label);
-    const end = await centerOf(page.locator('[data-id="register"] .input-port'));
+    const end = await centerOf(page.locator('[data-id="error"] .input-port'));
 
     await page.keyboard.down("Alt");
     await page.mouse.move(start.x, start.y);
@@ -878,6 +948,11 @@ test.describe("State Blueprint tool", () => {
   test("reroutes from the arrowhead with mobile long-press", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 820 });
     await openTool(page);
+    await page.evaluate(() => {
+      model.transitions = model.transitions.filter(t => !(t.from === "auth_start" && t.to === "register"));
+      saveModel();
+      draw();
+    });
     const loginEdgeId = await page.evaluate(key => {
       const model = JSON.parse(localStorage.getItem(key));
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;

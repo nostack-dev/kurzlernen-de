@@ -1784,6 +1784,7 @@
       if (!ids.has(source.initial)) throw new Error("definition.model.initial must reference an existing state.");
 
       const transitionIds = new Set();
+      const transitionPairs = new Set();
       const transitions = source.transitions.map((transition, index) => {
         const path = `definition.model.transitions[${index}]`;
         assertPlainObject(transition, path);
@@ -1794,6 +1795,9 @@
         const to = assertString(transition.to, `${path}.to`);
         if (!ids.has(from)) throw new Error(`${path}.from must reference an existing state.`);
         if (!ids.has(to)) throw new Error(`${path}.to must reference an existing state.`);
+        const pair = transitionKey(from, to);
+        if (transitionPairs.has(pair)) throw new Error(`${path} duplicates an existing transition from ${from} to ${to}.`);
+        transitionPairs.add(pair);
         return {
           id,
           from,
@@ -2035,7 +2039,14 @@
         s.y = Number.isFinite(s.y) ? s.y : 100;
       }
       const ids = new Set(m.states.map(s => s.id));
-      m.transitions = m.transitions.filter(t => ids.has(t.from) && ids.has(t.to));
+      const pairs = new Set();
+      m.transitions = m.transitions.filter(t => {
+        if (!ids.has(t.from) || !ids.has(t.to)) return false;
+        const pair = transitionKey(t.from, t.to);
+        if (pairs.has(pair)) return false;
+        pairs.add(pair);
+        return true;
+      });
       for (const t of m.transitions) {
         t.id = t.id || uid("t");
         t.label = t.label || t.event || "Next";
@@ -2048,6 +2059,14 @@
     }
 
     function byId(id) { return model.states.find(s => s.id === id); }
+
+    function transitionKey(from, to) {
+      return `${from}\u0000${to}`;
+    }
+
+    function transitionBetween(from, to, excludeId = null) {
+      return model.transitions.find(t => t.from === from && t.to === to && t.id !== excludeId);
+    }
 
     function screenToWorldXY(clientX, clientY) {
       const r = mapEl.getBoundingClientRect();
@@ -3671,7 +3690,19 @@
         const wasRewire = Boolean(connecting.edgeId);
         if (targetId) {
           let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
-          if (t) {
+          const duplicate = transitionBetween(connecting.from, targetId, t?.id || null);
+          if (duplicate) {
+            if (t) {
+              selected = { type: "edge", id: t.id };
+              saveModel();
+              connecting = null;
+              connectingTargetId = null;
+              mapEl.classList.remove("connecting");
+              draw();
+              return;
+            }
+            t = duplicate;
+          } else if (t) {
             t.to = targetId;
           } else {
             t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "", set: {} };
@@ -3704,7 +3735,11 @@
           const title = nextStateTitle();
           const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
           let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
-          if (t) {
+          const duplicate = transitionBetween(connecting.from, s.id, t?.id || null);
+          if (duplicate) {
+            if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+            t = duplicate;
+          } else if (t) {
             t.to = s.id;
           } else {
             t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "", set: {} };
