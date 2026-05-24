@@ -1164,6 +1164,62 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#selectionCount")).toContainText("state");
   });
 
+  test("keeps selected state context while panning the canvas and clears only on empty click", async ({ page }) => {
+    await openTool(page);
+    const login = page.locator('[data-id="login"]');
+    await login.click();
+    await expect(login).toHaveClass(/selected/);
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+    const beforeDrag = await worldTransform(page);
+
+    const point = await emptyCanvasPoint(page);
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    await page.mouse.move(point.x + 90, point.y + 35, { steps: 6 });
+    await page.mouse.up();
+
+    await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
+    await expect(login).toHaveClass(/selected/);
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+
+    const clickPoint = await emptyCanvasPoint(page);
+    await page.mouse.click(clickPoint.x, clickPoint.y);
+    await expect(login).not.toHaveClass(/selected/);
+    await expect(page.locator("#pTitle")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+  });
+
+  test("keeps selected transition context while panning the canvas and clears only on empty click", async ({ page }) => {
+    await openTool(page);
+    const loginEdgeId = await savedModel(page).then(model =>
+      model.transitions.find(t => t.from === "auth_start" && t.to === "login").id
+    );
+    const edge = page.locator(`.edge[data-edge-id="${loginEdgeId}"]`);
+    const label = page.locator(`.edge-label[data-edge-id="${loginEdgeId}"]`);
+    await label.click();
+    await expect(edge).toHaveClass(/selected/);
+    await expect(label).toHaveClass(/selected/);
+    await expect(page.locator("#pLabel")).toBeVisible();
+    const beforeDrag = await worldTransform(page);
+
+    const point = await emptyCanvasPoint(page);
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    await page.mouse.move(point.x - 80, point.y + 45, { steps: 6 });
+    await page.mouse.up();
+
+    await expect.poll(() => worldTransform(page)).not.toBe(beforeDrag);
+    await expect(edge).toHaveClass(/selected/);
+    await expect(page.locator("#pLabel")).toBeVisible();
+
+    const clickPoint = await emptyCanvasPoint(page);
+    await page.mouse.click(clickPoint.x, clickPoint.y);
+    await expect(edge).not.toHaveClass(/selected/);
+    await expect(page.locator("#popover")).toBeHidden();
+  });
+
   test("cancels rectangle select when the mouse leaves the browser or window focus is lost", async ({ page }) => {
     await openTool(page);
     await page.getByRole("button", { name: "Fit" }).click();

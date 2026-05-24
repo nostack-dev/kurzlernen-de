@@ -2139,7 +2139,6 @@
 
     function startPendingCanvasTouch(evt) {
       clearLongPress();
-      clearSelection("selection:canvas");
       pendingCanvasTouch = {
         pointerId: evt.pointerId,
         clientX: evt.clientX,
@@ -2160,7 +2159,6 @@
       clearLongPress();
       evt.preventDefault();
       evt.stopPropagation();
-      clearSelection("selection:canvas");
       pendingCanvasMouse = {
         clientX: evt.clientX,
         clientY: evt.clientY,
@@ -2192,6 +2190,7 @@
       if (!pendingCanvasMouse) return false;
       pendingCanvasMouse = null;
       clearLongPress();
+      clearSelection("selection:canvas");
       return true;
     }
 
@@ -2259,8 +2258,7 @@
         addStateAt(p.x, p.y, evt.clientX, evt.clientY);
       } else {
         lastCanvasTap = { time: Date.now(), x: evt.clientX, y: evt.clientY };
-        saveSelection("selection:canvas");
-        draw();
+        clearSelection("selection:canvas");
       }
       return true;
     }
@@ -2277,7 +2275,7 @@
 
     function trackTouchStart(evt) {
       if (!isTouchPointer(evt) || isTouchUiTarget(evt.target)) return;
-      if (!popoverEl.hidden && !popoverEl.contains(evt.target)) hidePopover();
+      if (!popoverEl.hidden && !popoverEl.contains(evt.target) && !isEmptyCanvasTarget(evt.target)) hidePopover();
       evt.preventDefault();
       captureTouchPointer(evt);
       rememberTouchPointer(evt);
@@ -2643,7 +2641,6 @@
       evt.stopPropagation();
       panning = { startX: evt.clientX, startY: evt.clientY, cameraX: camera.x, cameraY: camera.y };
       mapEl.classList.add("panning");
-      hidePopover();
     }
 
     function startNodeDrag(evt, s) {
@@ -3470,6 +3467,7 @@
     function closePopoverOnOutsidePointer(evt) {
       if (popoverEl.hidden) return;
       if (evt.target === popoverEl || popoverEl.contains(evt.target)) return;
+      if (isEmptyCanvasTarget(evt.target)) return;
       hidePopover();
     }
 
@@ -3845,7 +3843,7 @@
 
     mapEl.addEventListener("mousedown", evt => {
       if (Date.now() - lastTouchAt < 700) return;
-      if (!popoverEl.hidden && !popoverEl.contains(evt.target)) hidePopover();
+      if (!popoverEl.hidden && !popoverEl.contains(evt.target) && !isEmptyCanvasTarget(evt.target)) hidePopover();
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
