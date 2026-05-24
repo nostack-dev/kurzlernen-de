@@ -53,6 +53,10 @@ async function savedModel(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
 }
 
+async function savedStateTemplates(page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(`${key}.stateExplorer`) || "[]"), STORAGE_KEY);
+}
+
 function componentEditor(page, title) {
   return page.locator(".component-editor").filter({
     has: page.locator(".component-editor-head span").filter({ hasText: new RegExp(`^${title}$`) })
@@ -96,6 +100,15 @@ async function emptyCanvasPoint(page) {
   });
   if (!point) throw new Error("Could not find an empty canvas point");
   return point;
+}
+
+async function dragNodeToStateExplorer(page, node) {
+  const nodeBox = await visibleBox(node);
+  const explorerBox = await visibleBox(page.locator("#stateExplorer"));
+  await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(explorerBox.x + explorerBox.width / 2, explorerBox.y + explorerBox.height / 2, { steps: 14 });
+  await page.mouse.up();
 }
 
 test.describe("State Blueprint tool", () => {
@@ -447,26 +460,66 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);
   });
 
-  test("opens and applies state edits in the left inspector via click and gear", async ({ page }) => {
+  test("opens state edits in the left inspector without stealing canvas-click focus", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
     await expect(page.locator("#stateInspectorBody")).toBeVisible();
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Login");
     await expect(page.locator("#popover")).toBeHidden();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect(page.locator('[data-id="login"]')).toHaveClass(/selected/);
+    await expect(appFrame(page).locator("#statePill")).toHaveText("login");
 
     await page.locator("#pTitle").fill("Sign in");
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Sign in");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login").title;
+    }).toBe("Sign in");
 
-    await page.evaluate(key => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
-        localStorage.removeItem(name);
-      }
-    }, STORAGE_KEY);
-    await page.reload();
-    await expect(page.locator('[data-id="register"]')).toBeVisible();
-    await page.locator('[data-id="register"] .node-edit').click();
+    const reloaded = await page.context().newPage();
+    await reloaded.goto("/state.html");
+    await expect(reloaded.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await reloaded.locator('[data-id="login"] .node-edit').click();
+    await expect(reloaded.locator("#pTitle")).toHaveValue("Sign in");
+    await expect.poll(() => reloaded.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect(reloaded.locator("#popover")).toBeHidden();
+    await reloaded.close();
+  });
+
+  test("keeps inspector collapsible, selected-state aware, and separate from edge popovers", async ({ page }) => {
+    await openTool(page);
+
+    const mapBefore = await visibleBox(page.locator("#map"));
+    await page.locator('[data-id="login"]').click();
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+
+    await page.locator("#btnToggleInspector").click();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-label", "Expand state inspector");
+    await expect(page.locator("#pTitle")).toBeHidden();
+    const mapCollapsed = await visibleBox(page.locator("#map"));
+    expect(mapCollapsed.width).toBeGreaterThan(mapBefore.width + 60);
+
+    await page.locator("#btnToggleInspector").click();
+    await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+
+    const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
+    await expect(label).toHaveCount(1);
+    await label.click();
+    await expect(page.locator("#pLabel")).toBeVisible();
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#popover")).toBeHidden();
+    await page.locator('[data-id="register"]').click();
+    await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Register");
     await expect(page.locator("#pTitle")).toHaveValue("Register");
   });
 
@@ -735,6 +788,22 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("#popover")).toBeHidden();
     await expect(page.locator("#pTitle")).toBeVisible();
+  });
+
+  test("toggles the state explorer with Ctrl+Space without breaking focused editing", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"] .node-edit').click();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Control+Space");
+    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect(page.locator("#pTitle")).toHaveValue("Login");
+
+    await page.keyboard.press("Control+Space");
+    await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
   });
 
   test("clears state inspector on empty-canvas single tap", async ({ browser }) => {
@@ -1021,37 +1090,111 @@ test.describe("State Blueprint tool", () => {
     await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(false);
   });
 
-  test("stores reusable states in the bottom explorer and toggles it with Ctrl+Space", async ({ page }) => {
+  test("stores reusable states in the bottom explorer without moving or duplicating the source node", async ({ page }) => {
     await openTool(page);
     const login = page.locator('[data-id="login"]');
+    const originalBox = await visibleBox(login);
+
+    await page.locator("#btnToggleStateExplorer").click();
+    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
+
     await login.click();
     await page.locator("#pTitle").fill("Reusable login");
+    await page.locator("#pBody").fill("A reusable sign-in screen");
+    await page.locator("#pData").fill('{"role":"member"}');
 
-    const loginBox = await visibleBox(login);
-    const explorerBox = await visibleBox(page.locator("#stateExplorer"));
-    await page.mouse.move(loginBox.x + loginBox.width / 2, loginBox.y + loginBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(explorerBox.x + explorerBox.width / 2, explorerBox.y + explorerBox.height / 2, { steps: 12 });
-    await page.mouse.up();
+    await dragNodeToStateExplorer(page, login);
 
     const template = page.locator(".state-template-card").filter({ hasText: "Reusable login" });
     await expect(template).toBeVisible();
+    await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
     await expect(page.locator(".node")).toHaveCount(6);
+    await expect(login).toBeVisible();
+    const afterDropBox = await visibleBox(login);
+    expect(Math.abs(afterDropBox.x - originalBox.x)).toBeLessThan(2);
+    expect(Math.abs(afterDropBox.y - originalBox.y)).toBeLessThan(2);
+
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      return templates.map(template => ({
+        title: template.title,
+        body: template.body,
+        role: template.data?.role
+      }));
+    }).toEqual([{ title: "Reusable login", body: "A reusable sign-in screen", role: "member" }]);
+
+    await dragNodeToStateExplorer(page, login);
+    await expect(page.locator(".state-template-card")).toHaveCount(1);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(1);
 
     await page.keyboard.press("Control+Space");
     await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
     await page.keyboard.press("Control+Space");
     await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
+  });
 
-    const mapBox = await visibleBox(page.locator("#map"));
-    await template.dragTo(page.locator("#map"), {
+  test("reuses state explorer presets as stable snapshots across reload, drag, and double click", async ({ page }) => {
+    await openTool(page);
+    const login = page.locator('[data-id="login"]');
+
+    await login.click();
+    await page.locator("#pTitle").fill("Reusable login");
+    await page.locator("#pBody").fill("Welcome {{role}}");
+    await page.locator("#pData").fill('{"role":"member"}');
+    await page.getByRole("button", { name: "+ Heading" }).click();
+    await componentEditor(page, "Heading").locator("input").fill("Preset heading {{role}}");
+    await page.getByRole("button", { name: "+ Link" }).click();
+    await componentEditor(page, "Link").locator("input").nth(0).fill("Preset docs");
+    await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/preset");
+    await dragNodeToStateExplorer(page, login);
+    await expect(page.locator(".state-template-card").filter({ hasText: "Reusable login" })).toBeVisible();
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(1);
+
+    const workPage = await page.context().newPage();
+    await workPage.goto("/state.html");
+    await expect(workPage.locator('[data-id="login"]')).toBeVisible();
+    const template = workPage.locator(".state-template-card").filter({ hasText: "Reusable login" });
+    await expect(template).toBeVisible();
+
+    const mapBox = await visibleBox(workPage.locator("#map"));
+    await template.dragTo(workPage.locator("#map"), {
       targetPosition: { x: Math.round(mapBox.width * 0.56), y: 120 }
     });
-    await expect(page.locator(".node")).toHaveCount(7);
+    await expect(workPage.locator(".node")).toHaveCount(7);
+    await expect(workPage.locator("#stateInspectorTitle")).toHaveText("Reusable login");
+    await expect(workPage.locator("#pTitle")).toHaveValue("Reusable login");
+    await expect(workPage.locator("#pBody")).toHaveValue("Welcome {{role}}");
+    await expect(workPage.locator("#pData")).toHaveValue(/"role": "member"/);
+    await expect(componentEditor(workPage, "Heading").locator("input")).toHaveValue("Preset heading {{role}}");
+    await expect(componentEditor(workPage, "Link").locator("input").nth(1)).toHaveValue("https://example.com/preset");
+    await expect(appFrame(workPage).getByRole("heading", { name: "Preset heading member" })).toBeVisible();
+    await expect(appFrame(workPage).getByRole("link", { name: "Preset docs" })).toHaveAttribute("href", "https://example.com/preset");
+
+    const createdId = await workPage.locator(".node.selected").getAttribute("data-id");
+    await workPage.locator("#pBody").fill("Edited instance only");
     await expect.poll(async () => {
-      const model = await savedModel(page);
-      return model.states.filter(state => state.title === "Reusable login").length;
-    }).toBe(2);
+      const templates = await savedStateTemplates(workPage);
+      return templates[0].body;
+    }).toBe("Welcome {{role}}");
+
+    await template.dblclick();
+    await expect(workPage.locator(".node")).toHaveCount(8);
+    await expect(workPage.locator("#pBody")).toHaveValue("Welcome {{role}}");
+
+    await expect.poll(async () => {
+      const model = await savedModel(workPage);
+      const reusableStates = model.states.filter(state => state.title === "Reusable login");
+      return {
+        count: reusableStates.length,
+        editedBody: model.states.find(state => state.id === createdId)?.body,
+        snapshotBodies: reusableStates.map(state => state.body).sort()
+      };
+    }).toEqual({
+      count: 3,
+      editedBody: "Edited instance only",
+      snapshotBodies: ["Edited instance only", "Welcome {{role}}", "Welcome {{role}}"]
+    });
+    await workPage.close();
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {
