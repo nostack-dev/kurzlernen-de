@@ -981,6 +981,40 @@ test.describe("State Blueprint tool", () => {
     await expect(loginEdge).not.toHaveClass(/selected/);
   });
 
+  test("keeps undo redo state clean when deleting and restoring selected states", async ({ page }) => {
+    await openTool(page);
+    const login = page.locator('[data-id="login"]');
+    const register = page.locator('[data-id="register"]');
+
+    await login.click();
+    await register.click({ modifiers: ["Shift"] });
+    await expect(login).toHaveClass(/selected/);
+    await expect(register).toHaveClass(/selected/);
+    await expect(page.locator("#selectionActions")).toBeVisible();
+    await expect(page.locator("#selectionCount")).toContainText("2 states");
+
+    await page.keyboard.press("Delete");
+    await expect(login).toHaveCount(0);
+    await expect(register).toHaveCount(0);
+    await expect(page.locator("#selectionActions")).toBeHidden();
+    await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(false);
+
+    await page.keyboard.press("Control+KeyZ");
+    await expect(login).toBeVisible();
+    await expect(register).toBeVisible();
+    await expect(login).toHaveClass(/selected/);
+    await expect(register).toHaveClass(/selected/);
+    await expect(page.locator("#selectionActions")).toBeVisible();
+    await expect(page.locator("#selectionCount")).toContainText("2 states");
+    await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(true);
+
+    await page.keyboard.press("Control+KeyY");
+    await expect(login).toHaveCount(0);
+    await expect(register).toHaveCount(0);
+    await expect(page.locator("#selectionActions")).toBeHidden();
+    await expect(savedModel(page).then(model => model.states.some(state => state.id === "login"))).resolves.toBe(false);
+  });
+
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {
     await openTool(page);
 
