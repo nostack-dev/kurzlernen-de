@@ -470,7 +470,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);
   });
 
-  test("opens state edits in the left inspector without stealing canvas-click focus", async ({ page }) => {
+  test("opens state edits in the left inspector with focused input and Enter commit close", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
@@ -479,7 +479,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#popover")).toBeHidden();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
-    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(page.locator('[data-id="login"]')).toHaveClass(/selected/);
     await expect(appFrame(page).locator("#statePill")).toHaveText("login");
 
@@ -490,6 +490,11 @@ test.describe("State Blueprint tool", () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "login").title;
     }).toBe("Sign in");
+
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#pTitle")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
 
     const reloaded = await page.context().newPage();
     await reloaded.goto("/state.html");
@@ -597,6 +602,36 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pAddHeading").evaluate(el => document.activeElement === el)).toBe(true);
+  });
+
+  test("keeps transition editor focus, tab order, and Enter commit close predictable", async ({ page }) => {
+    await openTool(page);
+
+    const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
+    await expect(label).toHaveCount(1);
+    await label.click();
+
+    await expect(page.locator("#pLabel")).toBeVisible();
+    await expect(page.locator("#pLabel")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pCond")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pSet")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pFlip")).toHaveAttribute("tabindex", "0");
+    await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pCond").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Shift+Tab");
+    await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
+    await page.locator("#pLabel").fill("Sign in action");
+    await page.keyboard.press("Enter");
+
+    await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("svg text.edge-label").filter({ hasText: "Sign in action" })).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.find(transition => transition.from === "auth_start" && transition.to === "login")?.label;
+    }).toBe("Sign in action");
   });
 
   test("validates transition conditions and advances only on matching typed inputs", async ({ page }) => {

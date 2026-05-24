@@ -2946,9 +2946,18 @@
       popoverEl.style.top = localY + "px";
     }
 
-    function setupEditorAccessibility(root = popoverEl, focusFirstInput = true) {
+    function setupEditorAccessibility(root = popoverEl, focusFirstInput = true, opts = {}) {
       const focusables = [...root.querySelectorAll("input, textarea, select, button")];
       focusables.forEach(el => { el.tabIndex = 0; });
+      root.onkeydown = evt => {
+        if (evt.key !== "Enter" || evt.isComposing || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return;
+        const target = evt.target;
+        if (!target?.matches?.("input:not([type='button']):not([type='submit']):not([type='checkbox']):not([type='radio']), select")) return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        lastHistoryKey = null;
+        opts.onCommit?.();
+      };
       const firstInput = root.querySelector("input, textarea, select");
       if (firstInput && focusFirstInput) {
         const focusFirst = () => {
@@ -2965,7 +2974,7 @@
     }
 
     function setupPopoverAccessibility() {
-      setupEditorAccessibility(popoverEl);
+      setupEditorAccessibility(popoverEl, true, { onCommit: hidePopover });
     }
 
     function defaultComponentText(type) {
@@ -3316,7 +3325,7 @@
         saveModel();
         draw();
       };
-      setupEditorAccessibility(root, opts.focus !== false);
+      setupEditorAccessibility(root, opts.focus !== false, { onCommit: showEmptyInspector });
     }
 
     function conditionInputSummary(condition) {
@@ -3573,7 +3582,7 @@
           selected = { type: "node", id: s.id };
           saveModel();
           draw();
-          showNodePopover(s, { focus: false });
+          showNodePopover(s);
           startAppAtState(s.id);
         });
         stateExplorerListEl.appendChild(card);
@@ -3667,8 +3676,8 @@
           const now = Date.now();
           setSingleSelection("node", s.id);
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
-          showNodePopover(s, { focus: false });
           startAppAtState(s.id);
+          showNodePopover(s);
           return;
         }
         if (didMove) {
