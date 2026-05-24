@@ -2356,6 +2356,30 @@
       if (visible) selectionCountEl.textContent = ids.length === 1 ? "1 state" : `${ids.length} states`;
     }
 
+    function deleteSelectedItems() {
+      if (!selected) return false;
+      const ids = selectedNodeIdList();
+      const edgeIds = selectedEdgeIdList();
+      const removable = ids.filter(id => byId(id));
+      const removeNodes = removable.length && model.states.length - removable.length >= 1;
+      const removeEdges = new Set(edgeIds);
+      if (!removeNodes && !removeEdges.size) return false;
+      if (removeNodes) {
+        const removeSet = new Set(removable);
+        model.states = model.states.filter(n => !removeSet.has(n.id));
+        model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to) && !removeEdges.has(t.id));
+        if (removeSet.has(model.initial)) model.initial = model.states[0].id;
+      } else {
+        model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
+      }
+      selected = null;
+      hidePopover();
+      showEmptyInspector();
+      saveModel();
+      draw();
+      return true;
+    }
+
     function clearLongPress() {
       if (longPressTimer) clearTimeout(longPressTimer);
       longPressTimer = null;
@@ -3950,45 +3974,20 @@
         requestLoadBlueprintFile();
         return;
       }
+      if (evt.key === "Delete" && selected && deleteSelectedItems()) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        return;
+      }
       if (isEditableTarget(evt.target)) return;
       if (evt.code === "Space") {
         isSpaceDown = true;
         mapEl.classList.add("panning");
         evt.preventDefault();
       }
-      if ((evt.key === "Delete" || evt.key === "Backspace") && selected) {
-        if (selected.type === "node" || selected.type === "nodes" || selected.type === "items") {
-          const ids = selectedNodeIdList();
-          const edgeIds = selectedEdgeIdList();
-          const removable = ids.filter(id => byId(id));
-          if (removable.length && model.states.length - removable.length >= 1) {
-            const removeSet = new Set(removable);
-            const removeEdges = new Set(edgeIds);
-            model.states = model.states.filter(n => !removeSet.has(n.id));
-            model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to) && !removeEdges.has(t.id));
-            if (removeSet.has(model.initial)) model.initial = model.states[0].id;
-            selected = null;
-            hidePopover();
-            showEmptyInspector();
-            saveModel();
-            draw();
-          } else if (!removable.length && edgeIds.length) {
-            const removeEdges = new Set(edgeIds);
-            model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
-            selected = null;
-            hidePopover();
-            showEmptyInspector();
-            saveModel();
-            draw();
-          }
-        } else if (selected.type === "edge") {
-          model.transitions = model.transitions.filter(t => t.id !== selected.id);
-          selected = null;
-          hidePopover();
-          showEmptyInspector();
-          saveModel();
-          draw();
-        }
+      if (evt.key === "Backspace" && selected && deleteSelectedItems()) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
       }
     }
 

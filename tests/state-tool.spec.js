@@ -634,6 +634,48 @@ test.describe("State Blueprint tool", () => {
     }).toBe("Sign in action");
   });
 
+  test("highlights clicked states and transitions and deletes selection with Delete even when editors are focused", async ({ page }) => {
+    await openTool(page);
+    const loginEdgeId = await savedModel(page).then(model =>
+      model.transitions.find(t => t.from === "auth_start" && t.to === "login").id
+    );
+    const loginEdge = page.locator(`.edge[data-edge-id="${loginEdgeId}"]`);
+    const loginLabel = page.locator(`.edge-label[data-edge-id="${loginEdgeId}"]`);
+
+    await loginLabel.click();
+    await expect(loginEdge).toHaveClass(/selected/);
+    await expect(loginLabel).toHaveClass(/selected/);
+    await expect(page.locator("#pLabel")).toBeVisible();
+    await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Delete");
+    await expect(page.locator("#popover")).toBeHidden();
+    await expect(loginEdge).toHaveCount(0);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.some(t => t.id === loginEdgeId);
+    }).toBe(false);
+
+    await openTool(page);
+    const login = page.locator('[data-id="login"]');
+    await login.click();
+    await expect(login).toHaveClass(/selected/);
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Delete");
+    await expect(login).toHaveCount(0);
+    await expect(page.locator("#pTitle")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        hasLogin: model.states.some(state => state.id === "login"),
+        linkedToLogin: model.transitions.some(t => t.from === "login" || t.to === "login")
+      };
+    }).toEqual({ hasLogin: false, linkedToLogin: false });
+  });
+
   test("validates transition conditions and advances only on matching typed inputs", async ({ page }) => {
     await openTool(page);
     const app = appFrame(page);
