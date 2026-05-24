@@ -1457,6 +1457,77 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
   });
 
+  test("keeps canvas state drags above the explorer drop surface", async ({ page }) => {
+    await openTool(page);
+    const login = page.locator('[data-id="login"]');
+    const nodeBox = await visibleBox(login);
+    const explorerBox = await visibleBox(page.locator("#stateExplorer"));
+
+    await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(explorerBox.x + explorerBox.width / 2, explorerBox.y + explorerBox.height / 2, { steps: 12 });
+
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+    await expect(page.locator("#stateExplorer")).toHaveClass(/drag-over/);
+    await expect.poll(() => page.locator("#world").evaluate(el => Number(getComputedStyle(el).zIndex))).toBeGreaterThan(
+      await page.locator("#stateExplorer").evaluate(el => Number(getComputedStyle(el).zIndex))
+    );
+
+    await page.mouse.up();
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+    await expect(page.locator(".state-template-card")).toHaveCount(1);
+  });
+
+  test("adds, edits, updates, uses, and deletes state explorer presets", async ({ page }) => {
+    await openTool(page);
+
+    await page.getByRole("button", { name: "+ Add preset" }).click();
+    const preset = page.locator(".state-template-card").first();
+    await expect(preset).toHaveClass(/editing/);
+    await expect(preset.locator(".template-title-input")).toBeFocused();
+
+    await preset.locator(".template-title-input").fill("Quick lesson");
+    await preset.locator(".template-body-input").fill("Hello {{role}}");
+    await preset.locator(".template-data-input").fill('{"role":"mentor"}');
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      return templates[0];
+    }).toMatchObject({ title: "Quick lesson", body: "Hello {{role}}", data: { role: "mentor" } });
+
+    await preset.getByRole("button", { name: "Use" }).click();
+    await expect(page.locator(".node")).toHaveCount(7);
+    await expect(page.locator("#pTitle")).toHaveValue("Quick lesson");
+    await expect(appFrame(page).getByText("Hello mentor")).toBeVisible();
+
+    await page.locator('[data-id="login"]').click();
+    await page.locator("#pTitle").fill("Updated reusable login");
+    await page.locator("#pBody").fill("Updated body {{role}}");
+    await page.getByRole("button", { name: "+ Heading" }).click();
+    await componentEditor(page, "Heading").locator("input").fill("Updated heading {{role}}");
+
+    await preset.getByRole("button", { name: "Update" }).click();
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      return {
+        title: templates[0].title,
+        body: templates[0].body,
+        heading: templates[0].components.find(component => component.type === "heading")?.text
+      };
+    }).toEqual({
+      title: "Updated reusable login",
+      body: "Updated body {{role}}",
+      heading: "Updated heading {{role}}"
+    });
+
+    await preset.getByRole("button", { name: "Use" }).click();
+    await expect(page.locator("#pTitle")).toHaveValue("Updated reusable login");
+    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Updated heading {{role}}");
+
+    await preset.getByRole("button", { name: "Delete" }).click();
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
+  });
+
   test("reuses state explorer presets as stable snapshots across reload, drag, and double click", async ({ page }) => {
     await openTool(page);
     const login = page.locator('[data-id="login"]');
