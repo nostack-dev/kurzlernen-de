@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
+const GRID_SIZE = 24;
 
 async function openTool(page) {
   await page.addInitScript(key => {
@@ -20,19 +21,7 @@ function appFrame(page) {
 }
 
 async function centerOf(locator) {
-  await expect(locator).toBeVisible();
-  const box = await locator.boundingBox();
-  if (!box) {
-    const rect = await locator.evaluate(el => {
-      const bounds = el.getBoundingClientRect();
-      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
-    });
-    if (!rect.width || !rect.height) throw new Error("Expected visible element with a bounding box");
-    return {
-      x: rect.x + rect.width / 2,
-      y: rect.y + rect.height / 2
-    };
-  }
+  const box = await visibleBox(locator);
   return {
     x: box.x + box.width / 2,
     y: box.y + box.height / 2
@@ -119,6 +108,52 @@ async function dragTransition(page, output, input, via = null) {
   if (via) await page.mouse.move(via.x, via.y, { steps: 8 });
   await page.mouse.move(end.x, end.y, { steps: 12 });
   await page.mouse.up();
+}
+
+async function gridGeometryReport(page) {
+  return page.evaluate(gridSize => {
+    const numberList = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    const pointsFromPath = value => {
+      const numbers = numberList(value);
+      const points = [];
+      for (let i = 0; i < numbers.length; i += 2) points.push({ x: numbers[i], y: numbers[i + 1] });
+      return points;
+    };
+    const onGrid = value => Math.abs(value / gridSize - Math.round(value / gridSize)) < 0.001;
+    return {
+      nodes: [...document.querySelectorAll(".node")].map(node => {
+        const style = getComputedStyle(node);
+        const left = Number.parseFloat(node.style.left);
+        const top = Number.parseFloat(node.style.top);
+        const width = Number.parseFloat(node.style.width);
+        const height = Number.parseFloat(node.style.height || style.height);
+        return {
+          id: node.dataset.id,
+          left,
+          top,
+          width,
+          height,
+          output: { x: left + width, y: top + height / 2 },
+          input: { x: left, y: top + height / 2 }
+        };
+      }),
+      paths: [...document.querySelectorAll(".edge")].map(edge => {
+        const d = edge.getAttribute("d") || "";
+        const points = pointsFromPath(d);
+        return {
+          id: edge.dataset.edgeId,
+          d,
+          points,
+          usesOnlyGridLines: /^M -?\d+(?:\.\d+)? -?\d+(?:\.\d+)?(?: L -?\d+(?:\.\d+)? -?\d+(?:\.\d+)?)*$/.test(d),
+          allPointsOnGrid: points.every(point => onGrid(point.x) && onGrid(point.y)),
+          allSegmentsOrthogonal: points.slice(1).every((point, index) => {
+            const previous = points[index];
+            return point.x === previous.x || point.y === previous.y;
+          })
+        };
+      })
+    };
+  }, GRID_SIZE);
 }
 
 test.describe("State Blueprint tool", () => {
@@ -564,6 +599,52 @@ test.describe("State Blueprint tool", () => {
 
     await page.getByRole("button", { name: "Fit" }).click();
     await assertVisibleInViewport(page, '[data-id="login"]');
+  });
+
+  test("snaps nodes, ports, and transition paths exactly to the canvas grid", async ({ page }) => {
+    await openTool(page);
+
+    const assertGridGeometry = async () => {
+      const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
+      const nodes = new Map(report.nodes.map(node => [node.id, node]));
+
+      for (const node of report.nodes) {
+        for (const value of [node.left, node.top, node.width, node.height, node.input.x, node.input.y, node.output.x, node.output.y]) {
+          expect(value % GRID_SIZE).toBe(0);
+        }
+      }
+
+      for (const path of report.paths) {
+        const transition = model.transitions.find(item => item.id === path.id);
+        expect(transition).toBeTruthy();
+        const from = nodes.get(transition.from);
+        const to = nodes.get(transition.to);
+        const first = path.points[0];
+        const last = path.points[path.points.length - 1];
+
+        expect(path.usesOnlyGridLines).toBe(true);
+        expect(path.allPointsOnGrid).toBe(true);
+        expect(path.allSegmentsOrthogonal).toBe(true);
+        expect(first).toEqual(from.output);
+        expect(last).toEqual(to.input);
+      }
+    };
+
+    await assertGridGeometry();
+
+    const login = page.locator('[data-id="login"]');
+    const box = await visibleBox(login);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 37, box.y + box.height / 2 + 29, { steps: 8 });
+    await page.mouse.up();
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const state = model.states.find(item => item.id === "login");
+      return [state.x % GRID_SIZE, state.y % GRID_SIZE];
+    }).toEqual([0, 0]);
+    await assertGridGeometry();
   });
 
   test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {
@@ -1136,9 +1217,7 @@ test.describe("State Blueprint tool", () => {
 
   test("empty-canvas drag pans immediately; long-press enables rectangle select", async ({ page }) => {
     await openTool(page);
-    const nodeBox = await page.locator('[data-id="auth_start"]').boundingBox();
-    const start = { x: nodeBox.x - 24, y: nodeBox.y - 24 };
-    const end = { x: nodeBox.x + nodeBox.width + 24, y: nodeBox.y + nodeBox.height + 24 };
+    const start = await emptyCanvasPoint(page);
     const beforeDrag = await worldTransform(page);
 
     await page.mouse.move(start.x, start.y);
@@ -1151,8 +1230,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.getByRole("button", { name: "Fit" }).click();
     const nodeBoxAfterFit = await page.locator('[data-id="auth_start"]').boundingBox();
-    const selectStart = { x: nodeBoxAfterFit.x - 24, y: nodeBoxAfterFit.y - 24 };
-    const selectEnd = { x: nodeBoxAfterFit.x + nodeBoxAfterFit.width + 24, y: nodeBoxAfterFit.y + nodeBoxAfterFit.height + 24 };
+    const selectStart = await emptyCanvasPoint(page);
+    const selectEnd = { x: nodeBoxAfterFit.x + nodeBoxAfterFit.width / 2, y: nodeBoxAfterFit.y + nodeBoxAfterFit.height / 2 };
 
     await page.mouse.move(selectStart.x, selectStart.y);
     await page.mouse.down();
@@ -1226,8 +1305,8 @@ test.describe("State Blueprint tool", () => {
 
     const startSelection = async () => {
       const nodeBox = await page.locator('[data-id="auth_start"]').boundingBox();
-      const selectStart = { x: nodeBox.x - 24, y: nodeBox.y - 24 };
-      const selectEnd = { x: nodeBox.x + nodeBox.width + 24, y: nodeBox.y + nodeBox.height + 24 };
+      const selectStart = await emptyCanvasPoint(page);
+      const selectEnd = { x: nodeBox.x + nodeBox.width / 2, y: nodeBox.y + nodeBox.height / 2 };
       await page.mouse.move(selectStart.x, selectStart.y);
       await page.mouse.down();
       await page.waitForTimeout(410);

@@ -326,7 +326,7 @@
     .node {
       position: absolute;
       min-width: 168px;
-      min-height: 86px;
+      min-height: 96px;
       border: 1px solid #5f8dbc;
       background: #12345a;
       border-radius: 10px;
@@ -1296,7 +1296,8 @@
     const WORLD_H = WORLD_MAX_Y - WORLD_MIN_Y;
     const NODE_MIN_W = 168;
     const NODE_MAX_W = 720;
-    const NODE_H = 86;
+    const GRID_SIZE = 24;
+    const NODE_H = 96;
     const NODE_TITLE_EXTRA_W = 58;
 
     const workspaceEl = document.getElementById("workspace");
@@ -1412,6 +1413,29 @@
     }
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+    function snapToGrid(value) {
+      return Math.round(value / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function ceilToGrid(value) {
+      return Math.ceil(value / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function floorToGrid(value) {
+      return Math.floor(value / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function snapClampToGrid(value, min, max) {
+      const gridMin = ceilToGrid(min);
+      const gridMax = floorToGrid(max);
+      if (gridMin > gridMax) return clamp(snapToGrid(value), min, max);
+      return clamp(snapToGrid(value), gridMin, gridMax);
+    }
+
+    function snapPointToGrid(point) {
+      return { x: snapToGrid(point.x), y: snapToGrid(point.y) };
+    }
 
     let modalResolve = null;
 
@@ -2035,8 +2059,8 @@
         s.body = s.body || "";
         s.components = normalizeComponents(s.components);
         s.data = normalizeDataObject(s.data);
-        s.x = Number.isFinite(s.x) ? s.x : 100;
-        s.y = Number.isFinite(s.y) ? s.y : 100;
+        s.x = snapClampToGrid(Number.isFinite(s.x) ? s.x : 100, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
+        s.y = snapClampToGrid(Number.isFinite(s.y) ? s.y : 100, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       }
       const ids = new Set(m.states.map(s => s.id));
       const pairs = new Set();
@@ -2414,7 +2438,7 @@
       const idMap = new Map();
       const copies = [];
       for (const original of model.states.filter(s => selectedSet.has(s.id))) {
-        const copy = makeState(original.x + 42, original.y + 42, `${original.title || original.id} Copy`);
+        const copy = makeState(original.x + GRID_SIZE * 2, original.y + GRID_SIZE * 2, `${original.title || original.id} Copy`);
         copy.body = original.body || "";
         copy.components = cloneComponents(original.components);
         copy.data = normalizeDataObject(original.data);
@@ -2452,7 +2476,7 @@
 
     function nodeWidth(s) {
       const title = String(s?.title || s?.id || "State");
-      return Math.round(clamp(Math.ceil(measuredTextWidth(title)) + NODE_TITLE_EXTRA_W, NODE_MIN_W, NODE_MAX_W));
+      return snapClampToGrid(Math.ceil(measuredTextWidth(title)) + NODE_TITLE_EXTRA_W, NODE_MIN_W, NODE_MAX_W);
     }
 
     function nodeAtWorldPoint(p) {
@@ -2695,43 +2719,87 @@
     }
 
     function edgePath(from, to) {
-      const { a, b, c1, c2 } = edgeAnchors(from, to);
-      return `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`;
+      return pathFromPoints(edgeRoutePoints(from, to));
     }
 
-    function edgeAnchors(from, to) {
+    function pathFromPoints(points) {
+      const compact = [];
+      for (const point of points.map(snapPointToGrid)) {
+        const previous = compact[compact.length - 1];
+        if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
+      }
+      return compact.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+    }
+
+    function edgeRoutePoints(from, to) {
       const a = nodeCenter(from, "out");
       const b = nodeCenter(to, "in");
       if (from.id === to.id) {
-        const loopHeight = 120;
-        const loopReach = 80;
-        return {
+        const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
+        return [
           a,
-          b,
-          c1: { x: a.x + loopReach, y: from.y - loopHeight },
-          c2: { x: b.x - loopReach, y: from.y - loopHeight }
-        };
+          { x: a.x + GRID_SIZE * 2, y: a.y },
+          { x: a.x + GRID_SIZE * 2, y: loopTop },
+          { x: b.x - GRID_SIZE * 2, y: loopTop },
+          { x: b.x - GRID_SIZE * 2, y: b.y },
+          b
+        ];
       }
-      const dx = Math.max(70, Math.abs(b.x - a.x) * 0.45);
-      return {
+
+      const canRouteBetweenNodes = b.x - a.x >= GRID_SIZE * 4;
+      if (canRouteBetweenNodes) {
+        const midX = snapToGrid((a.x + b.x) / 2);
+        return [
+          a,
+          { x: midX, y: a.y },
+          { x: midX, y: b.y },
+          b
+        ];
+      }
+
+      const laneY = snapToGrid(Math.min(from.y, to.y) - GRID_SIZE * 2);
+      return [
         a,
-        b,
-        c1: { x: a.x + dx, y: a.y },
-        c2: { x: b.x - dx, y: b.y }
-      };
+        { x: a.x + GRID_SIZE * 2, y: a.y },
+        { x: a.x + GRID_SIZE * 2, y: laneY },
+        { x: b.x - GRID_SIZE * 2, y: laneY },
+        { x: b.x - GRID_SIZE * 2, y: b.y },
+        b
+      ];
     }
 
-    function cubicPoint(a, c1, c2, b, t) {
-      const m = 1 - t;
-      return {
-        x: m ** 3 * a.x + 3 * m ** 2 * t * c1.x + 3 * m * t ** 2 * c2.x + t ** 3 * b.x,
-        y: m ** 3 * a.y + 3 * m ** 2 * t * c1.y + 3 * m * t ** 2 * c2.y + t ** 3 * b.y
-      };
+    function polylinePoint(points, ratio) {
+      const compact = points.map(snapPointToGrid).filter((point, index, list) => {
+        const previous = list[index - 1];
+        return !previous || previous.x !== point.x || previous.y !== point.y;
+      });
+      const lengths = [];
+      let total = 0;
+      for (let i = 1; i < compact.length; i++) {
+        const length = Math.hypot(compact[i].x - compact[i - 1].x, compact[i].y - compact[i - 1].y);
+        lengths.push(length);
+        total += length;
+      }
+      if (!total) return compact[0] || { x: 0, y: 0 };
+      let remaining = total * clamp(ratio, 0, 1);
+      for (let i = 1; i < compact.length; i++) {
+        const length = lengths[i - 1];
+        if (remaining <= length) {
+          const start = compact[i - 1];
+          const end = compact[i];
+          const t = length ? remaining / length : 0;
+          return snapPointToGrid({
+            x: start.x + (end.x - start.x) * t,
+            y: start.y + (end.y - start.y) * t
+          });
+        }
+        remaining -= length;
+      }
+      return compact[compact.length - 1];
     }
 
     function edgeTipHandlePoint(from, to) {
-      const { a, b, c1, c2 } = edgeAnchors(from, to);
-      return cubicPoint(a, c1, c2, b, 0.8);
+      return polylinePoint(edgeRoutePoints(from, to), 0.82);
     }
 
     function statePreviewText(s) {
@@ -2740,8 +2808,7 @@
     }
 
     function midPoint(from, to) {
-      const { a, b, c1, c2 } = edgeAnchors(from, to);
-      const point = cubicPoint(a, c1, c2, b, 0.5);
+      const point = polylinePoint(edgeRoutePoints(from, to), 0.5);
       return { x: point.x, y: point.y - 10 };
     }
 
@@ -2838,10 +2905,14 @@
           wiresEl.appendChild(svgEl("path", { d: edgePath(from, target), class: "temp-edge" }));
         } else {
           const a = nodeCenter(from, "out");
-          const b = connecting.to;
-          const dx = Math.max(60, Math.abs(b.x - a.x) * 0.4);
+          const b = snapPointToGrid(connecting.to);
           wiresEl.appendChild(svgEl("path", {
-            d: `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`,
+            d: pathFromPoints([
+              a,
+              { x: a.x + GRID_SIZE * 2, y: a.y },
+              { x: a.x + GRID_SIZE * 2, y: b.y },
+              b
+            ]),
             class: "temp-edge"
           }));
         }
@@ -2859,6 +2930,7 @@
         el.style.left = s.x + "px";
         el.style.top = s.y + "px";
         el.style.width = nodeWidth(s) + "px";
+        el.style.height = NODE_H + "px";
         el.dataset.id = s.id;
         el.innerHTML = `
           <div class="input-port"></div>
@@ -3340,7 +3412,7 @@
         startAppAtState(s.id);
       };
       root.querySelector("#pDuplicate").onclick = () => {
-        const copy = makeState(s.x + 34, s.y + 112, (s.title || s.id) + " Copy");
+        const copy = makeState(s.x + GRID_SIZE * 2, s.y + GRID_SIZE * 5, (s.title || s.id) + " Copy");
         copy.body = s.body || "";
         copy.components = cloneComponents(s.components);
         copy.data = normalizeDataObject(s.data);
@@ -3535,8 +3607,8 @@
         x,
         y
       };
-      state.x = Math.round(clamp(x, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state)));
-      state.y = Math.round(clamp(y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H));
+      state.x = snapClampToGrid(x, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state));
+      state.y = snapClampToGrid(y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       return state;
     }
 
@@ -3660,8 +3732,8 @@
         if (!s) return;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
-        s.x = Math.round(clamp(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s)));
-        s.y = Math.round(clamp(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H));
+        s.x = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
+        s.y = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
         scheduleDraw();
         return;
       }
