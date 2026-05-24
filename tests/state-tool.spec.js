@@ -1122,6 +1122,43 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#selectionCount")).toContainText("state");
   });
 
+  test("cancels rectangle select when the mouse leaves the browser or window focus is lost", async ({ page }) => {
+    await openTool(page);
+    await page.getByRole("button", { name: "Fit" }).click();
+
+    const startSelection = async () => {
+      const nodeBox = await page.locator('[data-id="auth_start"]').boundingBox();
+      const selectStart = { x: nodeBox.x - 24, y: nodeBox.y - 24 };
+      const selectEnd = { x: nodeBox.x + nodeBox.width + 24, y: nodeBox.y + nodeBox.height + 24 };
+      await page.mouse.move(selectStart.x, selectStart.y);
+      await page.mouse.down();
+      await page.waitForTimeout(410);
+      await page.mouse.move(selectEnd.x, selectEnd.y, { steps: 8 });
+      await expect(page.locator("#selectRect")).toHaveCSS("display", "block");
+      await expect(page.locator("#selectionActions")).toBeVisible();
+    };
+
+    await startSelection();
+    await page.evaluate(() => {
+      document.dispatchEvent(new MouseEvent("mouseout", {
+        bubbles: true,
+        buttons: 1,
+        relatedTarget: null
+      }));
+    });
+    await expect(page.locator("#selectRect")).toHaveCSS("display", "none");
+    await expect(page.locator("#selectionActions")).toBeHidden();
+    await page.mouse.move(20, 20);
+    await expect(page.locator("#selectRect")).toHaveCSS("display", "none");
+    await page.mouse.up();
+
+    await startSelection();
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await expect(page.locator("#selectRect")).toHaveCSS("display", "none");
+    await expect(page.locator("#selectionActions")).toBeHidden();
+    await page.mouse.up();
+  });
+
   test("shift-click toggles mixed selections and undo redo restores empty-canvas deselection", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
