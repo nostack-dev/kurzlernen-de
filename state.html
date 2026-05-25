@@ -2293,6 +2293,15 @@
       return true;
     }
 
+    function cancelStaleDesktopMouseGesture(evt) {
+      if (Date.now() - lastTouchAt < 700) return false;
+      if (activePointerId !== null || pendingCanvasTouch || pendingEdgeTouch || touchPointers.size) return false;
+      if (evt.buttons !== 0) return false;
+      const hasDesktopGesture = Boolean(pendingCanvasMouse || boxSelecting || dragging || connecting || panning);
+      if (!hasDesktopGesture) return false;
+      return cancelActiveCanvasGesture();
+    }
+
     function startPendingEdgeTouch(evt, t) {
       clearLongPress();
       pendingEdgeTouch = {
@@ -4618,6 +4627,7 @@
     }, { passive: false });
 
     window.addEventListener("mousemove", evt => {
+      if (cancelStaleDesktopMouseGesture(evt)) return;
       if (updatePendingCanvasMouse(evt)) return;
       handleCanvasMove(evt);
     });

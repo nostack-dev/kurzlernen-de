@@ -98,6 +98,18 @@ async function emptyCanvasPoint(page) {
   return point;
 }
 
+async function dispatchLostDesktopMouseRelease(page, point = { x: 18, y: 18 }) {
+  await page.evaluate(({ x, y }) => {
+    window.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      buttons: 0
+    }));
+  }, point);
+}
+
 async function dragNodeToStateExplorer(page, node) {
   const nodeBox = await visibleBox(node);
   const explorerBox = await visibleBox(page.locator("#stateExplorer"));
@@ -1768,6 +1780,55 @@ test.describe("State Blueprint tool", () => {
     }));
 
     await dragNode("register", () => page.evaluate(() => window.dispatchEvent(new Event("blur"))));
+  });
+
+  test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
+    await openTool(page);
+
+    const login = page.locator('[data-id="login"]');
+    const loginBox = await visibleBox(login);
+    await page.mouse.move(loginBox.x + loginBox.width / 2, loginBox.y + loginBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(loginBox.x + loginBox.width / 2 + 72, loginBox.y + loginBox.height / 2 + 48, { steps: 8 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+    await dispatchLostDesktopMouseRelease(page);
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+    await expect(page.locator("#stateExplorer")).not.toHaveClass(/drag-over/);
+    const dragStoppedAt = await savedModel(page).then(model => {
+      const state = model.states.find(item => item.id === "login");
+      return { x: state.x, y: state.y };
+    });
+    await page.mouse.move(loginBox.x + loginBox.width / 2 + 190, loginBox.y + loginBox.height / 2 + 130, { steps: 8 });
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const state = model.states.find(item => item.id === "login");
+      return { x: state.x, y: state.y };
+    }).toEqual(dragStoppedAt);
+    await page.mouse.up();
+
+    const panStart = await emptyCanvasPoint(page);
+    await page.mouse.move(panStart.x, panStart.y);
+    await page.mouse.down();
+    await page.mouse.move(panStart.x - 82, panStart.y + 44, { steps: 6 });
+    await expect(page.locator("#map")).toHaveClass(/panning/);
+    const transformAtCancel = await worldTransform(page);
+    await dispatchLostDesktopMouseRelease(page);
+    await expect(page.locator("#map")).not.toHaveClass(/panning/);
+    await page.mouse.move(panStart.x - 168, panStart.y + 88, { steps: 6 });
+    await expect.poll(() => worldTransform(page)).toBe(transformAtCancel);
+    await page.mouse.up();
+
+    const transitionsBefore = await savedModel(page).then(model => model.transitions.length);
+    const output = await centerOf(page.locator('[data-id="auth_start"] .port'));
+    await page.mouse.move(output.x, output.y);
+    await page.mouse.down();
+    await page.mouse.move(output.x + 96, output.y + 42, { steps: 6 });
+    await expect(page.locator("#map")).toHaveClass(/connecting/);
+    await dispatchLostDesktopMouseRelease(page);
+    await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+    await page.mouse.move(output.x + 220, output.y + 120, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => savedModel(page).then(model => model.transitions.length)).toBe(transitionsBefore);
   });
 
   test("shift-click toggles mixed selections and undo redo restores empty-canvas deselection", async ({ page }) => {
