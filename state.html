@@ -985,8 +985,8 @@
     }
 
     .state-template-card.editing {
-      flex-basis: 292px;
-      cursor: default;
+      border-color: var(--selected);
+      box-shadow: 0 0 0 3px rgba(245,158,11,.16);
     }
 
     .state-template-card:active {
@@ -1025,52 +1025,30 @@
       font-size: 11px;
     }
 
-    .template-editor {
-      display: grid;
-      gap: 6px;
-      margin-top: 5px;
-    }
-
-    .template-editor label {
-      display: grid;
-      gap: 3px;
-      color: var(--muted);
-      font-size: 10px;
-      font-weight: 850;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-
-    .template-editor input,
-    .template-editor textarea {
-      width: 100%;
-      min-height: 30px;
-      border-radius: 8px;
-      font-size: 12px;
-    }
-
-    .template-editor textarea {
-      min-height: 48px;
-      resize: vertical;
-    }
-
-    .template-status {
-      min-height: 16px;
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.25;
-    }
-
-    .template-status.error {
-      color: #fecdd3;
-    }
-
     .state-template-empty {
       display: flex;
       align-items: center;
       color: var(--muted);
       font-size: 12px;
       white-space: nowrap;
+    }
+
+    .template-mode-note {
+      display: grid;
+      gap: 4px;
+      margin: 0 0 10px;
+      padding: 10px;
+      border: 1px solid rgba(245,158,11,.34);
+      border-radius: 12px;
+      background: rgba(245,158,11,.09);
+      color: #fde68a;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .template-mode-note strong {
+      color: #fff7ed;
+      font-size: 13px;
     }
 
     @media (max-width: 1100px) {
@@ -1461,7 +1439,6 @@
     let pendingCanvasMouse = null;
     let pendingEdgeTouch = null;
     let suppressEdgeClickUntil = 0;
-    let componentActionHandledAt = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
 
@@ -3648,72 +3625,26 @@
       });
     }
 
-    function selectedStateForPopover() {
-      return selected?.type === "node" ? byId(selected.id) : null;
-    }
-
-    function editorRootForTarget(target) {
-      return target?.closest?.(".state-editor-root, .popover") || null;
-    }
-
-    function addListItemByComponentId(componentId) {
-      const s = selectedStateForPopover();
-      if (!s) return;
-      s.components = normalizeComponents(s.components);
-      const component = s.components.find(item => item.id === componentId && item.type === "list");
-      if (!component) return;
-      const next = component.text ? component.text.split(/\r?\n/) : [];
-      next.push("");
-      component.text = next.join("\n");
-      saveModel("state:component:" + component.id);
-      draw();
-      renderComponentEditors(s, { componentId: component.id, listIndex: next.length - 1 });
-    }
-
-    function updateListItemByComponentId(componentId, index, value) {
-      const s = selectedStateForPopover();
-      if (!s) return;
-      s.components = normalizeComponents(s.components);
-      const component = s.components.find(item => item.id === componentId && item.type === "list");
-      if (!component) return;
-      const next = component.text.split(/\r?\n/);
-      while (next.length <= index) next.push("");
-      next[index] = value;
-      component.text = next.join("\n");
-      saveModel("state:component:" + component.id);
-      draw();
-    }
-
-    function handleComponentAction(evt) {
-      const addButton = evt.target?.closest?.("[data-list-add]");
-      const root = editorRootForTarget(evt.target);
-      if (!addButton || !root) return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      if (evt.type === "click" && Date.now() - componentActionHandledAt < 350) return;
-      componentActionHandledAt = Date.now();
-      addListItemByComponentId(addButton.dataset.listAdd);
-    }
-
-    function handleComponentInput(evt) {
-      const input = evt.target?.closest?.("[data-list-input]");
-      if (!input || !editorRootForTarget(evt.target)) return;
-      updateListItemByComponentId(input.dataset.listInput, Number(input.dataset.listIndex), input.value);
-    }
-
-    function renderComponentEditors(s, focusRequest = null, root = stateInspectorBodyEl) {
+    function renderComponentEditors(s, focusRequest = null, root = stateInspectorBodyEl, options = {}) {
       const list = root.querySelector("#pComponents");
       if (!list) return;
       s.components = normalizeComponents(s.components);
       list.innerHTML = "";
+      const persistOwner = options.persistOwner || (historyKey => {
+        saveModel(historyKey);
+        draw();
+      });
+      const rerender = request => renderComponentEditors(s, request, root, options);
       const saveComponent = component => {
-        const liveState = byId(s.id);
-        const liveComponent = liveState?.components?.find(item => item.id === component.id);
-        if (liveComponent) {
-          liveComponent.text = component.text || "";
-          liveComponent.url = component.url || "";
+        if (!options.skipLiveStateSync) {
+          const liveState = byId(s.id);
+          const liveComponent = liveState?.components?.find(item => item.id === component.id);
+          if (liveComponent) {
+            liveComponent.text = component.text || "";
+            liveComponent.url = component.url || "";
+          }
         }
-        saveModel("state:component:" + component.id);
+        persistOwner("state:component:" + component.id);
       };
       for (const component of s.components) {
         const item = document.createElement("div");
@@ -3728,9 +3659,8 @@
         remove.textContent = "Delete";
         bindImmediateButton(remove, () => {
           s.components = s.components.filter(item => item.id !== component.id);
-          saveModel("state:components:" + s.id);
-          draw();
-          renderComponentEditors(s, null, root);
+          persistOwner("state:components:" + s.id);
+          rerender(null);
         });
         head.append(label, remove);
         item.appendChild(head);
@@ -3753,9 +3683,14 @@
               const input = document.createElement("input");
               input.value = value;
               input.placeholder = "List item";
-              input.dataset.listInput = component.id;
               input.dataset.componentId = component.id;
               input.dataset.listIndex = String(index);
+              input.oninput = () => {
+                const next = component.text ? component.text.split(/\r?\n/) : [];
+                while (next.length <= index) next.push("");
+                next[index] = input.value;
+                writeItems(next);
+              };
               input.onblur = () => { lastHistoryKey = null; draw(); };
               const del = document.createElement("button");
               del.type = "button";
@@ -3765,7 +3700,7 @@
                 const next = component.text.split(/\r?\n/);
                 next.splice(index, 1);
                 writeItems(next.length ? next : [""]);
-                renderComponentEditors(s, { componentId: component.id, listIndex: Math.max(0, index - 1) }, root);
+                rerender({ componentId: component.id, listIndex: Math.max(0, index - 1) });
               });
               row.append(input, del);
               field.appendChild(row);
@@ -3774,7 +3709,12 @@
             add.type = "button";
             add.className = "component-add-item";
             add.textContent = "+ Item";
-            add.dataset.listAdd = component.id;
+            bindImmediateButton(add, () => {
+              const next = component.text ? component.text.split(/\r?\n/) : [];
+              next.push("");
+              writeItems(next);
+              rerender({ componentId: component.id, listIndex: next.length - 1 });
+            });
             field.appendChild(add);
             item.appendChild(field);
           } else {
@@ -3827,6 +3767,8 @@
 
     function showEmptyInspector() {
       inspectorStateId = null;
+      const wasEditingTemplate = Boolean(editingTemplateId);
+      editingTemplateId = null;
       stateInspectorTitleEl.textContent = "State Inspector";
       stateInspectorBodyEl.innerHTML = `
         <div class="inspector-empty">
@@ -3835,6 +3777,7 @@
           <span>Drag a state into the bottom explorer to save it as a reusable preset.</span>
         </div>
       `;
+      if (wasEditingTemplate) renderStateExplorer();
     }
 
     function refreshInspectorForSelection() {
@@ -3845,12 +3788,15 @@
 
     function showNodePopover(s, opts = {}) {
       const root = stateInspectorBodyEl;
+      const wasEditingTemplate = Boolean(editingTemplateId);
+      editingTemplateId = null;
       inspectorCollapsed = false;
       applyInspectorCollapsed();
       inspectorStateId = s.id;
       stateInspectorTitleEl.textContent = s.title || s.id;
       popoverEl.hidden = true;
       popoverEl.innerHTML = "";
+      if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
         <h3>State / Screen</h3>
         <div class="field"><label>Title</label><input id="pTitle"></div>
@@ -3950,6 +3896,107 @@
         saveModel();
         draw();
       };
+      setupEditorAccessibility(root, opts.focus !== false, {
+        onCommit: showEmptyInspector,
+        selectFirstInput: Boolean(opts.selectTitle)
+      });
+    }
+
+    function showTemplateInspector(template, opts = {}) {
+      const root = stateInspectorBodyEl;
+      if (!template) return showEmptyInspector();
+      selected = null;
+      hidePopover();
+      draw();
+      inspectorCollapsed = false;
+      applyInspectorCollapsed();
+      inspectorStateId = null;
+      editingTemplateId = template.id;
+      stateInspectorTitleEl.textContent = "Template: " + (template.title || "State preset");
+      root.innerHTML = `
+        <h3>Reusable State Template</h3>
+        <div class="template-mode-note">
+          <strong>Template properties</strong>
+          <span>Edits here change the reusable preset only. Existing canvas states stay unchanged; new states created from this preset use this snapshot.</span>
+        </div>
+        <div class="field"><label>Template title</label><input id="pTitle"></div>
+        <div class="field"><label>Screen text</label><textarea id="pBody"></textarea></div>
+        <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+        <div id="pDataPreview" class="condition-preview empty"></div>
+        <div class="small">Template components</div>
+        <div class="component-toolbar">
+          <button id="pAddHeading" type="button">+ Heading</button>
+          <button id="pAddText" type="button">+ Text</button>
+          <button id="pAddImage" type="button">+ Image</button>
+          <button id="pAddList" type="button">+ List</button>
+          <button id="pAddLink" type="button">+ Link</button>
+          <button id="pAddNote" type="button">+ Note</button>
+          <button id="pAddDivider" type="button">+ Divider</button>
+        </div>
+        <div id="pComponents" class="component-list"></div>
+        <div class="small">Template id: <b>${escapeHtml(template.id)}</b></div>
+        <div class="row" style="margin-top:10px">
+          <button id="pTemplateUse">Use on canvas</button>
+          <button id="pTemplateDelete" class="danger">Delete template</button>
+        </div>
+      `;
+      const title = root.querySelector("#pTitle");
+      const body = root.querySelector("#pBody");
+      const data = root.querySelector("#pData");
+      const dataPreview = root.querySelector("#pDataPreview");
+      const persistTemplate = () => {
+        saveStateTemplates();
+        renderStateExplorer();
+      };
+      title.value = template.title || "";
+      body.value = template.body || "";
+      data.value = JSON.stringify(normalizeDataObject(template.data), null, 2);
+      const updateDataPreview = () => {
+        try {
+          const parsed = JSON.parse(data.value || "{}");
+          if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
+          template.data = normalizeDataObject(parsed);
+          dataPreview.textContent = Object.keys(template.data).length ? "Template data saved. Use {{key}} in text fields." : "No data defaults.";
+          dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
+          persistTemplate();
+        } catch (err) {
+          dataPreview.textContent = err.message || "Invalid JSON.";
+          dataPreview.classList.remove("empty");
+        }
+      };
+      title.oninput = () => {
+        template.title = title.value || "State preset";
+        stateInspectorTitleEl.textContent = "Template: " + template.title;
+        persistTemplate();
+      };
+      body.oninput = () => {
+        template.body = body.value;
+        persistTemplate();
+      };
+      data.oninput = updateDataPreview;
+      updateDataPreview();
+      title.onblur = body.onblur = data.onblur = () => { lastHistoryKey = null; };
+      const componentOptions = {
+        persistOwner: () => persistTemplate(),
+        skipLiveStateSync: true
+      };
+      renderComponentEditors(template, null, root, componentOptions);
+      const addComponent = type => {
+        template.components = normalizeComponents(template.components);
+        template.components.push({ id: uid("c"), type, text: defaultComponentText(type), url: defaultComponentUrl(type) });
+        persistTemplate();
+        showTemplateInspector(template, opts);
+      };
+      root.querySelector("#pAddHeading").onclick = () => addComponent("heading");
+      root.querySelector("#pAddText").onclick = () => addComponent("text");
+      root.querySelector("#pAddImage").onclick = () => addComponent("image");
+      root.querySelector("#pAddList").onclick = () => addComponent("list");
+      root.querySelector("#pAddLink").onclick = () => addComponent("link");
+      root.querySelector("#pAddNote").onclick = () => addComponent("note");
+      root.querySelector("#pAddDivider").onclick = () => addComponent("divider");
+      root.querySelector("#pTemplateUse").onclick = () => addTemplateAtViewport(template);
+      root.querySelector("#pTemplateDelete").onclick = () => deleteStateTemplate(template.id);
+      renderStateExplorer();
       setupEditorAccessibility(root, opts.focus !== false, {
         onCommit: showEmptyInspector,
         selectFirstInput: Boolean(opts.selectTitle)
@@ -4165,7 +4212,7 @@
       saveStateTemplates();
       applyStateExplorerCollapsed();
       renderStateExplorer();
-      requestAnimationFrame(() => stateExplorerListEl.querySelector(`[data-template-id="${template.id}"] input`)?.focus());
+      showTemplateInspector(template, { selectTitle: true });
     }
 
     function addStateTemplateFromState(s) {
@@ -4192,13 +4239,16 @@
       editingTemplateId = templateId;
       saveStateTemplates();
       renderStateExplorer();
+      showTemplateInspector(stateTemplates.find(template => template.id === templateId), { focus: false });
     }
 
     function deleteStateTemplate(templateId) {
       stateTemplates = stateTemplates.filter(template => template.id !== templateId);
-      if (editingTemplateId === templateId) editingTemplateId = null;
+      const deletedActiveTemplate = editingTemplateId === templateId;
+      if (deletedActiveTemplate) editingTemplateId = null;
       saveStateTemplates();
       renderStateExplorer();
+      if (deletedActiveTemplate) showEmptyInspector();
     }
 
     function addTemplateAtViewport(template) {
@@ -4276,8 +4326,7 @@
         };
         card.querySelector(".template-edit").onclick = evt => {
           evt.stopPropagation();
-          editingTemplateId = editingTemplateId === template.id ? null : template.id;
-          renderStateExplorer();
+          showTemplateInspector(template, { selectTitle: true });
         };
         card.querySelector(".template-update").onclick = evt => {
           evt.stopPropagation();
@@ -4287,55 +4336,7 @@
           evt.stopPropagation();
           deleteStateTemplate(template.id);
         };
-        if (editingTemplateId === template.id) {
-          const editor = document.createElement("div");
-          editor.className = "template-editor";
-          editor.innerHTML = `
-            <label>Title<input class="template-title-input"></label>
-            <label>Body<textarea class="template-body-input"></textarea></label>
-            <label>Data JSON<textarea class="template-data-input" spellcheck="false"></textarea></label>
-            <div class="template-status"></div>
-          `;
-          const titleInput = editor.querySelector(".template-title-input");
-          const bodyInput = editor.querySelector(".template-body-input");
-          const dataInput = editor.querySelector(".template-data-input");
-          const status = editor.querySelector(".template-status");
-          titleInput.value = template.title || "";
-          bodyInput.value = template.body || "";
-          dataInput.value = JSON.stringify(normalizeDataObject(template.data), null, 2);
-          editor.addEventListener("mousedown", stopAction);
-          editor.addEventListener("pointerdown", stopAction);
-          editor.addEventListener("click", stopAction);
-          titleInput.oninput = () => {
-            template.title = titleInput.value || "State preset";
-            card.querySelector(".template-title").textContent = template.title;
-            saveStateTemplates();
-          };
-          bodyInput.oninput = () => {
-            template.body = bodyInput.value;
-            card.querySelector(".template-body").textContent = template.body || normalizeComponents(template.components).find(c => c.text)?.text || "Ready-to-use state";
-            saveStateTemplates();
-          };
-          dataInput.oninput = () => {
-            try {
-              const parsed = JSON.parse(dataInput.value || "{}");
-              if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
-              template.data = normalizeDataObject(parsed);
-              status.textContent = "Saved.";
-              status.classList.remove("error");
-              saveStateTemplates();
-            } catch (err) {
-              status.textContent = err.message || "Invalid JSON.";
-              status.classList.add("error");
-            }
-          };
-          card.appendChild(editor);
-        }
         card.addEventListener("dragstart", evt => {
-          if (editingTemplateId === template.id) {
-            evt.preventDefault();
-            return;
-          }
           evt.dataTransfer.effectAllowed = "copy";
           evt.dataTransfer.setData("text/state-template-id", template.id);
         });
@@ -4534,12 +4535,6 @@
 
     document.addEventListener("contextmenu", evt => evt.preventDefault());
     document.addEventListener("pointerdown", closePopoverOnOutsidePointer, { capture: true });
-    popoverEl.addEventListener("pointerdown", handleComponentAction, { capture: true });
-    popoverEl.addEventListener("click", handleComponentAction, { capture: true });
-    popoverEl.addEventListener("input", handleComponentInput, { capture: true });
-    stateInspectorBodyEl.addEventListener("pointerdown", handleComponentAction, { capture: true });
-    stateInspectorBodyEl.addEventListener("click", handleComponentAction, { capture: true });
-    stateInspectorBodyEl.addEventListener("input", handleComponentInput, { capture: true });
 
     mapEl.addEventListener("wheel", evt => {
       if (evt.target?.closest?.(".popover, .state-explorer")) return;

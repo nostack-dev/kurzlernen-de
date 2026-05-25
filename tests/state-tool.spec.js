@@ -1827,20 +1827,38 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "+ Add preset" }).click();
     const preset = page.locator(".state-template-card").first();
     await expect(preset).toHaveClass(/editing/);
-    await expect(preset.locator(".template-title-input")).toBeFocused();
+    await expect(preset.locator(".template-title-input")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: State preset 1");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Reusable State Template");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Existing canvas states stay unchanged");
+    await expect(page.locator("#pTitle")).toBeFocused();
 
-    await preset.locator(".template-title-input").fill("Quick lesson");
-    await preset.locator(".template-body-input").fill("Hello {{role}}");
-    await preset.locator(".template-data-input").fill('{"role":"mentor"}');
+    await page.locator("#pTitle").fill("Quick lesson");
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: Quick lesson");
+    await page.locator("#pBody").fill("Hello {{role}}");
+    await page.locator("#pData").fill('{"role":"mentor"}');
+    await page.getByRole("button", { name: "+ Heading" }).click();
+    await componentEditor(page, "Heading").locator("input").fill("Template heading {{role}}");
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
-      return templates[0];
-    }).toMatchObject({ title: "Quick lesson", body: "Hello {{role}}", data: { role: "mentor" } });
+      return {
+        title: templates[0].title,
+        body: templates[0].body,
+        data: templates[0].data,
+        heading: templates[0].components.find(component => component.type === "heading")?.text
+      };
+    }).toEqual({
+      title: "Quick lesson",
+      body: "Hello {{role}}",
+      data: { role: "mentor" },
+      heading: "Template heading {{role}}"
+    });
 
     await preset.getByRole("button", { name: "Use" }).click();
     await expect(page.locator(".node")).toHaveCount(7);
     await expect(page.locator("#pTitle")).toHaveValue("Quick lesson");
-    await expect(appFrame(page).getByText("Hello mentor")).toBeVisible();
+    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Template heading {{role}}");
+    await expect(appFrame(page).getByRole("heading", { name: "Template heading mentor" })).toBeVisible();
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pTitle").fill("Updated reusable login");
@@ -1853,6 +1871,7 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Heading").locator("input").fill("Updated heading {{role}}");
 
     await preset.getByRole("button", { name: "Update" }).click();
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: Updated reusable login");
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
       return {
@@ -1865,6 +1884,10 @@ test.describe("State Blueprint tool", () => {
       body: "Updated body {{role}}",
       heading: "Updated heading {{role}}"
     });
+
+    await preset.getByRole("button", { name: "Edit" }).click();
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: Updated reusable login");
+    await expect(page.locator("#pBody")).toHaveValue("Updated body {{role}}");
 
     await preset.getByRole("button", { name: "Use" }).click();
     await expect(page.locator("#pTitle")).toHaveValue("Updated reusable login");
