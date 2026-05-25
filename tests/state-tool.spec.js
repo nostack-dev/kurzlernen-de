@@ -980,6 +980,37 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ hasLogin: false, linkedToLogin: false });
   });
 
+  test("highlights hovered transitions with their own cable color", async ({ page }) => {
+    await openTool(page);
+    const registerEdgeId = await savedModel(page).then(model =>
+      model.transitions.find(t => t.from === "auth_start" && t.to === "register").id
+    );
+    const edge = page.locator(`.edge[data-edge-id="${registerEdgeId}"]`);
+    const label = page.locator(`.edge-label[data-edge-id="${registerEdgeId}"]`);
+    const pin = page.locator(`.edge-pin[data-edge-id="${registerEdgeId}"]`).first();
+    const tip = page.locator(`.edge-tip-hit[data-edge-id="${registerEdgeId}"]`);
+    const accent = await page.locator("body").evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
+    const accentRgb = await page.evaluate(color => {
+      const probe = document.createElement("span");
+      probe.style.color = color;
+      document.body.appendChild(probe);
+      const rgb = getComputedStyle(probe).color;
+      probe.remove();
+      return rgb;
+    }, accent);
+    const cableColor = await edge.evaluate(el => getComputedStyle(el).stroke);
+
+    expect(cableColor).not.toBe(accentRgb);
+
+    await label.hover();
+    await expect(edge).toHaveClass(/hovered/);
+    await expect(label).toHaveClass(/hovered/);
+    await expect.poll(() => edge.evaluate(el => getComputedStyle(el).stroke)).toBe(cableColor);
+    await expect.poll(() => label.evaluate(el => getComputedStyle(el).fill)).toBe(cableColor);
+    await expect.poll(() => pin.evaluate(el => getComputedStyle(el).stroke)).toBe(cableColor);
+    await expect.poll(() => tip.evaluate(el => getComputedStyle(el).stroke)).toBe(cableColor);
+  });
+
   test("validates transition conditions and advances only on matching typed inputs", async ({ page }) => {
     await openTool(page);
     const app = appFrame(page);

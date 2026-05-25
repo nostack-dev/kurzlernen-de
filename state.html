@@ -262,15 +262,15 @@
       filter: drop-shadow(0 0 8px rgba(245,158,11,.34));
     }
     .edge.hovered {
-      stroke: var(--accent);
+      stroke: var(--edge-color, #5f8dbc);
       stroke-width: 3.4;
-      filter: drop-shadow(0 0 8px rgba(56,189,248,.5));
+      filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
     }
     .hit:hover + .edge,
     .edge:hover {
-      stroke: var(--accent);
+      stroke: var(--edge-color, #5f8dbc);
       stroke-width: 3.4;
-      filter: drop-shadow(0 0 8px rgba(56,189,248,.5));
+      filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
     }
     .edge.runtime { stroke: var(--runtime); stroke-width: 4; animation: edgePulse .85s ease-out; }
 
@@ -290,9 +290,9 @@
 
     .edge-pin.hovered {
       fill: var(--edge-color, #5f8dbc);
-      stroke: var(--accent);
+      stroke: var(--edge-color, #5f8dbc);
       stroke-width: 3;
-      filter: drop-shadow(0 0 8px rgba(56,189,248,.45));
+      filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
     }
 
     @keyframes edgePulse {
@@ -325,9 +325,9 @@
 
     .edge-tip-hit:hover,
     .edge-tip-hit.hovered {
-      fill: rgba(56,189,248,.12);
-      stroke: var(--accent);
-      filter: drop-shadow(0 0 8px rgba(56,189,248,.45));
+      fill: color-mix(in srgb, var(--edge-color, #5f8dbc) 22%, transparent);
+      stroke: var(--edge-color, #5f8dbc);
+      filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
     }
 
     .edge-tip-hit:active {
@@ -346,7 +346,7 @@
     }
 
     .edge-label.hovered {
-      fill: #ffffff;
+      fill: var(--edge-color, #ffffff);
       stroke-width: 6px;
     }
     .edge-label.selected {
@@ -356,7 +356,7 @@
     .hit:hover + .edge + .edge-label,
     .edge:hover + .edge-label,
     .edge-label:hover {
-      fill: #ffffff;
+      fill: var(--edge-color, #ffffff);
       stroke-width: 6px;
     }
 
@@ -3343,7 +3343,7 @@
         const pathD = pathFromPoints(routePoints);
         const edgeStyle = `--edge-color: ${edgeColor(t)}`;
 
-        const hit = svgEl("path", { d: pathD, class: "hit", "data-edge-id": t.id });
+        const hit = svgEl("path", { d: pathD, class: "hit", style: edgeStyle, "data-edge-id": t.id });
         attachEdgeInteractions(hit, t);
         appendEdgeHit(hit);
 
@@ -3359,7 +3359,7 @@
         const labelClasses = ["edge-label"];
         if (edgeSelection.has(t.id)) labelClasses.push("selected");
         if (hoveredEdgeId === t.id) labelClasses.push("hovered");
-        const label = svgEl("text", { x: m.x, y: m.y, class: labelClasses.join(" "), "text-anchor": "middle", "data-edge-id": t.id });
+        const label = svgEl("text", { x: m.x, y: m.y, class: labelClasses.join(" "), style: edgeStyle, "text-anchor": "middle", "data-edge-id": t.id });
         label.textContent = t.label + (t.condition ? `  [${t.condition}]` : "");
         attachEdgeInteractions(label, t);
         wiresEl.appendChild(label);
@@ -3397,6 +3397,7 @@
           cy: tip.y,
           r: 13,
           class: tipClasses.join(" "),
+          style: edgeStyle,
           "data-edge-id": t.id,
           "data-edge-tip": "to"
         });
