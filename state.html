@@ -377,6 +377,106 @@
       font-weight: 850;
     }
 
+    .layer-boundary {
+      position: absolute;
+      top: 50%;
+      display: grid;
+      gap: 7px;
+      min-width: 132px;
+      max-width: 188px;
+      padding: 9px;
+      border: 1px solid rgba(125,211,252,.34);
+      border-radius: 16px;
+      background: rgba(3,7,18,.9);
+      box-shadow: 0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .layer-boundary-input {
+      left: -72px;
+      justify-items: start;
+    }
+
+    .layer-boundary-output {
+      right: -72px;
+      justify-items: end;
+      text-align: right;
+    }
+
+    .layer-boundary-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #e0f2fe;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .layer-boundary-plug {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #07111f;
+      border-radius: 999px;
+      background: #38bdf8;
+      box-shadow: 0 0 0 4px rgba(56,189,248,.18);
+    }
+
+    .layer-boundary-output .layer-boundary-plug {
+      background: #f59e0b;
+      box-shadow: 0 0 0 4px rgba(245,158,11,.18);
+    }
+
+    .layer-boundary-count {
+      color: #93c5fd;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .layer-boundary-list {
+      display: grid;
+      gap: 5px;
+      width: 100%;
+    }
+
+    .layer-boundary-wire {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      color: #dbeafe;
+      font-size: 11px;
+      font-weight: 850;
+      line-height: 1.2;
+    }
+
+    .layer-boundary-output .layer-boundary-wire {
+      justify-content: flex-end;
+    }
+
+    .layer-boundary-dot {
+      flex: 0 0 auto;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #07111f;
+      border-radius: 999px;
+      background: var(--edge-color, #38bdf8);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #38bdf8) 22%, transparent);
+    }
+
+    .layer-boundary-wire span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .layer-boundary-empty {
+      opacity: .66;
+    }
+
     .map.dragging-state #world {
       z-index: 25;
     }
@@ -1457,8 +1557,10 @@
             <div class="layer-frame-header">
               <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
               <span id="layerFrameLabel" class="layer-frame-label"></span>
-              <span class="layer-frame-hint">wires stay inside</span>
+              <span class="layer-frame-hint">flow in/out</span>
             </div>
+            <div id="layerBoundaryInput" class="layer-boundary layer-boundary-input" data-layer-boundary="input"></div>
+            <div id="layerBoundaryOutput" class="layer-boundary layer-boundary-output" data-layer-boundary="output"></div>
           </div>
           <svg id="wires" viewBox="0 0 5000 4000">
             <defs>
@@ -1533,6 +1635,8 @@
     const layerFrameEl = document.getElementById("layerFrame");
     const layerBackEl = document.getElementById("layerBack");
     const layerFrameLabelEl = document.getElementById("layerFrameLabel");
+    const layerBoundaryInputEl = document.getElementById("layerBoundaryInput");
+    const layerBoundaryOutputEl = document.getElementById("layerBoundaryOutput");
     const worldEl = document.getElementById("world");
     const wiresEl = document.getElementById("wires");
     const nodesEl = document.getElementById("nodes");
@@ -2638,8 +2742,12 @@
       return Boolean(from && to && stateParentId(from) === stateParentId(to) && stateParentId(from) === (layerId || null));
     }
 
+    function transitionsInLayer(layerId = currentLayerId) {
+      return model.transitions.filter(transition => transitionInLayer(transition, layerId));
+    }
+
     function visibleTransitions() {
-      return model.transitions.filter(transition => transitionInLayer(transition));
+      return transitionsInLayer(currentLayerId);
     }
 
     function childStateCount(parentId) {
@@ -3472,8 +3580,8 @@
       return { x: s.x + width / 2, y: centerY };
     }
 
-    function edgeColor(transition) {
-      const index = Math.max(0, visibleTransitions().findIndex(item => item.id === transition?.id));
+    function edgeColor(transition, layerId = currentLayerId) {
+      const index = Math.max(0, transitionsInLayer(layerId).findIndex(item => item.id === transition?.id));
       const hue = (195 + index * 137.508) % 360;
       return `hsl(${hue.toFixed(1)} 84% 62%)`;
     }
@@ -3956,10 +4064,59 @@
       layerNavEl.hidden = true;
     }
 
+    function parentBoundaryTransitions(parent, side) {
+      if (!parent) return [];
+      const parentLayerId = parent.parentId || null;
+      return transitionsInLayer(parentLayerId)
+        .filter(transition => side === "input" ? transition.to === parent.id : transition.from === parent.id)
+        .sort((a, b) => {
+          const aOther = byId(side === "input" ? a.from : a.to);
+          const bOther = byId(side === "input" ? b.from : b.to);
+          return (aOther?.y ?? 0) - (bOther?.y ?? 0) ||
+            (aOther?.x ?? 0) - (bOther?.x ?? 0) ||
+            String(a.label || "").localeCompare(String(b.label || "")) ||
+            String(a.id || "").localeCompare(String(b.id || ""));
+        });
+    }
+
+    function boundaryWireLabel(transition, side) {
+      const other = byId(side === "input" ? transition.from : transition.to);
+      const name = other?.title || other?.id || "outside";
+      return side === "input" ? `from ${name}` : `to ${name}`;
+    }
+
+    function renderLayerBoundary(el, label, transitions, side, parentLayerId) {
+      el.classList.toggle("layer-boundary-empty", transitions.length === 0);
+      const count = transitions.length === 1 ? "1 wire" : `${transitions.length} wires`;
+      const titleMarkup = side === "input"
+        ? `<span class="layer-boundary-plug" aria-hidden="true"></span><span>${label}</span>`
+        : `<span>${label}</span><span class="layer-boundary-plug" aria-hidden="true"></span>`;
+      const wires = transitions.length
+        ? transitions.map(transition => `
+            <div class="layer-boundary-wire" data-edge-id="${escapeHtml(transition.id)}" style="--edge-color: ${edgeColor(transition, parentLayerId)}">
+              <span class="layer-boundary-dot" data-edge-id="${escapeHtml(transition.id)}" aria-hidden="true"></span>
+              <span title="${escapeHtml(boundaryWireLabel(transition, side))}">${escapeHtml(boundaryWireLabel(transition, side))}</span>
+            </div>
+          `).join("")
+        : `<div class="layer-boundary-wire"><span class="layer-boundary-dot" aria-hidden="true"></span><span>not connected yet</span></div>`;
+      el.innerHTML = `
+        <div class="layer-boundary-title">${titleMarkup}</div>
+        <div class="layer-boundary-count">${count}</div>
+        <div class="layer-boundary-list">${wires}</div>
+      `;
+    }
+
+    function renderLayerBoundaries(parent) {
+      const parentLayerId = parent?.parentId || null;
+      renderLayerBoundary(layerBoundaryInputEl, "Input", parentBoundaryTransitions(parent, "input"), "input", parentLayerId);
+      renderLayerBoundary(layerBoundaryOutputEl, "Output", parentBoundaryTransitions(parent, "output"), "output", parentLayerId);
+    }
+
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
       if (!parent) {
         layerFrameEl.style.display = "none";
+        renderLayerBoundaries(null);
         return;
       }
       const pad = GRID_SIZE * 3;
@@ -3974,6 +4131,7 @@
       layerFrameEl.style.width = snapToGrid(maxX - minX + pad * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + pad * 2) + "px";
       layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
+      renderLayerBoundaries(parent);
     }
 
     function draw() {

@@ -489,6 +489,50 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(1);
   });
 
+  test("mirrors parent input and output wiring inside the opened state canvas", async ({ page }) => {
+    await openTool(page);
+
+    const wiring = await page.evaluate(key => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return {
+        inputIds: model.transitions.filter(transition => transition.to === "login").map(transition => transition.id),
+        outputIds: model.transitions.filter(transition => transition.from === "login").map(transition => transition.id)
+      };
+    }, STORAGE_KEY);
+    expect(wiring.inputIds).toHaveLength(2);
+    expect(wiring.outputIds).toHaveLength(2);
+
+    const rootColors = await page.evaluate(ids => {
+      return Object.fromEntries(ids.map(id => [
+        id,
+        getComputedStyle(document.querySelector(`.edge[data-edge-id="${id}"]`)).stroke
+      ]));
+    }, [...wiring.inputIds, ...wiring.outputIds]);
+
+    await page.locator('[data-id="login"]').click();
+    await page.locator("#pEnterLayer").click();
+
+    await expect(page.locator("#layerBoundaryInput")).toBeVisible();
+    await expect(page.locator("#layerBoundaryOutput")).toBeVisible();
+    await expect(page.locator("#layerBoundaryInput .layer-boundary-count")).toHaveText("2 wires");
+    await expect(page.locator("#layerBoundaryOutput .layer-boundary-count")).toHaveText("2 wires");
+    await expect(page.locator("#layerBoundaryInput")).toContainText("from Auth start");
+    await expect(page.locator("#layerBoundaryInput")).toContainText("from Logged out");
+    await expect(page.locator("#layerBoundaryOutput")).toContainText("to Logged in");
+    await expect(page.locator("#layerBoundaryOutput")).toContainText("to Error");
+
+    for (const id of wiring.inputIds) {
+      const dot = page.locator(`#layerBoundaryInput .layer-boundary-dot[data-edge-id="${id}"]`);
+      await expect(dot).toHaveCount(1);
+      await expect.poll(() => dot.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(rootColors[id]);
+    }
+    for (const id of wiring.outputIds) {
+      const dot = page.locator(`#layerBoundaryOutput .layer-boundary-dot[data-edge-id="${id}"]`);
+      await expect(dot).toHaveCount(1);
+      await expect.poll(() => dot.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(rootColors[id]);
+    }
+  });
+
   test("keeps transition wires scoped to the opened state canvas", async ({ page }) => {
     await openTool(page);
     const rootEdgeCount = await page.locator(".edge").count();
