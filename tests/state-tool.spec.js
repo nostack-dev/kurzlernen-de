@@ -179,14 +179,23 @@ async function gridGeometryReport(page) {
       paths: [...document.querySelectorAll(".edge")].map(edge => {
         const d = edge.getAttribute("d") || "";
         const points = pointsFromPath(d);
-        const verticalSegments = points.slice(1).map((point, index) => {
+        const segments = points.slice(1).map((point, index) => {
           const previous = points[index];
-          if (point.x !== previous.x || point.y === previous.y) return null;
+          const vertical = point.x === previous.x && point.y !== previous.y;
+          const horizontal = point.y === previous.y && point.x !== previous.x;
+          if (!vertical && !horizontal) return null;
           return {
             id: edge.dataset.edgeId,
-            x: point.x,
-            y1: Math.min(previous.y, point.y),
-            y2: Math.max(previous.y, point.y)
+            orientation: vertical ? "vertical" : "horizontal",
+            coordinate: vertical ? point.x : point.y,
+            min: vertical ? Math.min(previous.y, point.y) : Math.min(previous.x, point.x),
+            max: vertical ? Math.max(previous.y, point.y) : Math.max(previous.x, point.x),
+            x: vertical ? point.x : null,
+            y: horizontal ? point.y : null,
+            y1: vertical ? Math.min(previous.y, point.y) : null,
+            y2: vertical ? Math.max(previous.y, point.y) : null,
+            x1: horizontal ? Math.min(previous.x, point.x) : null,
+            x2: horizontal ? Math.max(previous.x, point.x) : null
           };
         }).filter(Boolean);
         return {
@@ -194,7 +203,9 @@ async function gridGeometryReport(page) {
           d,
           points,
           stroke: getComputedStyle(edge).stroke,
-          verticalSegments,
+          segments,
+          verticalSegments: segments.filter(segment => segment.orientation === "vertical"),
+          horizontalSegments: segments.filter(segment => segment.orientation === "horizontal"),
           usesOnlyGridLines: /^M -?\d+(?:\.\d+)? -?\d+(?:\.\d+)?(?: L -?\d+(?:\.\d+)? -?\d+(?:\.\d+)?)*$/.test(d),
           allPointsOnGrid: points.every(point => onGrid(point.x) && onGrid(point.y)),
           allSegmentsOrthogonal: points.slice(1).every((point, index) => {
@@ -763,7 +774,7 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
-  test("separates overlapping vertical cable lanes and colors each path", async ({ page }) => {
+  test("separates overlapping horizontal and vertical cable lanes and colors each path", async ({ page }) => {
     const crossingModel = {
       version: 2,
       name: "Cable management",
@@ -772,11 +783,16 @@ test.describe("State Blueprint tool", () => {
         { id: "a", title: "A", body: "Upper left", x: 96, y: 96 },
         { id: "b", title: "B", body: "Upper right", x: 600, y: 96 },
         { id: "c", title: "C", body: "Lower left", x: 96, y: 288 },
-        { id: "d", title: "D", body: "Lower right", x: 600, y: 288 }
+        { id: "d", title: "D", body: "Lower right", x: 600, y: 288 },
+        { id: "s", title: "S", body: "Shared source", x: 96, y: 528 },
+        { id: "t1", title: "T1", body: "First target", x: 600, y: 720 },
+        { id: "t2", title: "T2", body: "Second target", x: 600, y: 768 }
       ],
       transitions: [
         { id: "a_to_d", from: "a", to: "d", label: "A to D", condition: "" },
-        { id: "c_to_b", from: "c", to: "b", label: "C to B", condition: "" }
+        { id: "c_to_b", from: "c", to: "b", label: "C to B", condition: "" },
+        { id: "s_to_t1", from: "s", to: "t1", label: "S to T1", condition: "" },
+        { id: "s_to_t2", from: "s", to: "t2", label: "S to T2", condition: "" }
       ]
     };
     await page.addInitScript(({ key, model }) => {
@@ -786,25 +802,37 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.stateExplorer`);
     }, { key: STORAGE_KEY, model: crossingModel });
     await page.goto("/state.html");
-    await expect(page.locator(".node")).toHaveCount(4);
+    await expect(page.locator(".node")).toHaveCount(7);
 
     const report = await gridGeometryReport(page);
     const paths = new Map(report.paths.map(path => [path.id, path]));
     const diagonalDown = paths.get("a_to_d");
     const diagonalUp = paths.get("c_to_b");
+    const sharedSourceFirst = paths.get("s_to_t1");
+    const sharedSourceSecond = paths.get("s_to_t2");
 
     expect(diagonalDown.stroke).not.toBe(diagonalUp.stroke);
     expect(report.pins.filter(pin => pin.id === "a_to_d").map(pin => pin.stroke)).toEqual([diagonalDown.stroke, diagonalDown.stroke]);
     expect(report.pins.filter(pin => pin.id === "c_to_b").map(pin => pin.stroke)).toEqual([diagonalUp.stroke, diagonalUp.stroke]);
 
-    const verticals = report.paths.flatMap(path => path.verticalSegments);
-    expect(verticals).toHaveLength(2);
-    for (let i = 0; i < verticals.length; i++) {
-      for (let j = i + 1; j < verticals.length; j++) {
-        const a = verticals[i];
-        const b = verticals[j];
-        const overlaps = Math.max(a.y1, b.y1) < Math.min(a.y2, b.y2);
-        expect(a.x === b.x && overlaps).toBe(false);
+    const longestHorizontal = path => path.horizontalSegments
+      .slice()
+      .sort((a, b) => (b.max - b.min) - (a.max - a.min))[0];
+    expect(longestHorizontal(diagonalDown).coordinate).not.toBe(longestHorizontal(diagonalUp).coordinate);
+
+    const firstVertical = path => path.verticalSegments
+      .slice()
+      .sort((a, b) => a.coordinate - b.coordinate)[0];
+    expect(firstVertical(sharedSourceFirst).coordinate).not.toBe(firstVertical(sharedSourceSecond).coordinate);
+
+    const segments = report.paths.flatMap(path => path.segments.map(segment => ({ ...segment, pathId: path.id })));
+    for (let i = 0; i < segments.length; i++) {
+      for (let j = i + 1; j < segments.length; j++) {
+        const a = segments[i];
+        const b = segments[j];
+        if (a.pathId === b.pathId || a.orientation !== b.orientation || a.coordinate !== b.coordinate) continue;
+        const overlaps = Math.max(a.min, b.min) < Math.min(a.max, b.max);
+        expect(overlaps).toBe(false);
       }
     }
   });

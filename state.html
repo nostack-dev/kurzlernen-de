@@ -2926,11 +2926,20 @@
 
       const canRouteBetweenNodes = b.x - a.x >= GRID_SIZE * 4;
       if (canRouteBetweenNodes) {
-        const midX = snapToGrid((a.x + b.x) / 2);
+        const outX = a.x + GRID_SIZE * 2;
+        const inX = b.x - GRID_SIZE * 2;
+        let laneY = snapToGrid((a.y + b.y) / 2);
+        if (laneY === a.y || laneY === b.y) {
+          const direction = b.y >= a.y ? 1 : -1;
+          laneY = snapToGrid(a.y + direction * GRID_SIZE * 2);
+          if (laneY === b.y) laneY = snapToGrid(laneY + direction * GRID_SIZE * 2);
+        }
         return [
           a,
-          { x: midX, y: a.y },
-          { x: midX, y: b.y },
+          { x: outX, y: a.y },
+          { x: outX, y: laneY },
+          { x: inX, y: laneY },
+          { x: inX, y: b.y },
           b
         ];
       }
@@ -2946,25 +2955,32 @@
       ];
     }
 
-    function verticalRouteSegments(points) {
+    function routeSegments(points) {
       const compact = points.map(snapPointToGrid);
       const segments = [];
       for (let i = 1; i < compact.length; i++) {
         const a = compact[i - 1];
         const b = compact[i];
-        if (a.x !== b.x || a.y === b.y) continue;
+        if (a.x === b.x && a.y === b.y) continue;
+        const vertical = a.x === b.x;
+        const horizontal = a.y === b.y;
+        if (!vertical && !horizontal) continue;
         segments.push({
           index: i,
-          x: a.x,
-          y1: Math.min(a.y, b.y),
-          y2: Math.max(a.y, b.y)
+          orientation: vertical ? "vertical" : "horizontal",
+          coordinate: vertical ? a.x : a.y,
+          min: vertical ? Math.min(a.y, b.y) : Math.min(a.x, b.x),
+          max: vertical ? Math.max(a.y, b.y) : Math.max(a.x, b.x),
+          laneable: i > 1 && i < compact.length - 1
         });
       }
       return segments;
     }
 
-    function verticalSegmentsOverlap(a, b) {
-      return Math.max(a.y1, b.y1) < Math.min(a.y2, b.y2);
+    function routeSegmentsOverlap(a, b) {
+      return a.orientation === b.orientation &&
+        a.coordinate === b.coordinate &&
+        Math.max(a.min, b.min) < Math.min(a.max, b.max);
     }
 
     function laneSlot(index) {
@@ -2972,31 +2988,63 @@
       return index % 2 ? Math.ceil(index / 2) : -index / 2;
     }
 
-    function verticalLaneX(transition, segment) {
-      if (!transition) return segment.x;
+    function horizontalLaneCoordinate(transition, segment) {
+      if (!transition || !segment.laneable) return segment.coordinate;
       const candidates = model.transitions.filter(item => {
         const from = byId(item.from);
         const to = byId(item.to);
         if (!from || !to) return false;
-        return verticalRouteSegments(baseEdgeRoutePoints(from, to, item)).some(candidate =>
-          candidate.x === segment.x && verticalSegmentsOverlap(candidate, segment)
+        return routeSegments(baseEdgeRoutePoints(from, to, item)).some(candidate =>
+          candidate.laneable && candidate.orientation === "horizontal" && routeSegmentsOverlap(candidate, segment)
         );
       });
-      if (candidates.length <= 1) return segment.x;
+      if (candidates.length <= 1) return segment.coordinate;
       const index = Math.max(0, candidates.findIndex(item => item.id === transition.id));
-      return segment.x + laneSlot(index) * GRID_SIZE;
+      return segment.coordinate + laneSlot(index) * GRID_SIZE;
+    }
+
+    function applyHorizontalLanes(points, transition) {
+      const routed = points.map(point => ({ ...point }));
+      for (const segment of routeSegments(points)) {
+        if (segment.orientation !== "horizontal") continue;
+        const y = horizontalLaneCoordinate(transition, segment);
+        routed[segment.index - 1].y = y;
+        routed[segment.index].y = y;
+      }
+      return routed;
+    }
+
+    function verticalLaneCoordinate(transition, segment) {
+      if (!transition || !segment.laneable) return segment.coordinate;
+      const candidates = model.transitions.filter(item => {
+        const from = byId(item.from);
+        const to = byId(item.to);
+        if (!from || !to) return false;
+        const candidatePoints = applyHorizontalLanes(baseEdgeRoutePoints(from, to, item), item);
+        return routeSegments(candidatePoints).some(candidate =>
+          candidate.laneable && candidate.orientation === "vertical" && routeSegmentsOverlap(candidate, segment)
+        );
+      });
+      if (candidates.length <= 1) return segment.coordinate;
+      const index = Math.max(0, candidates.findIndex(item => item.id === transition.id));
+      return segment.coordinate + laneSlot(index) * GRID_SIZE;
+    }
+
+    function applyVerticalLanes(points, transition) {
+      const routed = points.map(point => ({ ...point }));
+      for (const segment of routeSegments(points)) {
+        if (segment.orientation !== "vertical") continue;
+        const x = verticalLaneCoordinate(transition, segment);
+        routed[segment.index - 1].x = x;
+        routed[segment.index].x = x;
+      }
+      return routed;
     }
 
     function edgeRoutePoints(from, to, transition = null) {
       const points = baseEdgeRoutePoints(from, to, transition);
       if (!transition) return points;
-      const routed = points.map(point => ({ ...point }));
-      for (const segment of verticalRouteSegments(points)) {
-        const x = verticalLaneX(transition, segment);
-        routed[segment.index - 1].x = x;
-        routed[segment.index].x = x;
-      }
-      return routed;
+      return applyVerticalLanes(applyHorizontalLanes(points, transition), transition);
     }
 
     function polylinePoint(points, ratio) {
@@ -3070,6 +3118,11 @@
       el.addEventListener("mouseleave", () => setEdgeHover(t.id, false));
     }
 
+    function appendEdgeHit(hit) {
+      const defs = wiresEl.querySelector("defs");
+      wiresEl.insertBefore(hit, defs?.nextSibling || wiresEl.firstChild);
+    }
+
     function draw() {
       if (drawFrame) {
         cancelAnimationFrame(drawFrame);
@@ -3094,7 +3147,7 @@
 
         const hit = svgEl("path", { d: pathD, class: "hit", "data-edge-id": t.id });
         attachEdgeInteractions(hit, t);
-        wiresEl.appendChild(hit);
+        appendEdgeHit(hit);
 
         const classes = ["edge"];
         if (edgeSelection.has(t.id)) classes.push("selected");
