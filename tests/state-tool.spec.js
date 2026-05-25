@@ -450,16 +450,17 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ body: "", text: "Legacy preset body" });
   });
 
-  test("navigates into nested state layers and keeps child states inside their parent", async ({ page }) => {
+  test("navigates into nested state canvases and keeps child states inside their parent", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
     await expect(page.locator("#pAddInside")).toBeVisible();
     await page.locator("#pAddInside").click();
 
-    await expect(page.locator("#layerNav")).toContainText("Root");
-    await expect(page.locator("#layerNav")).toContainText("Login");
+    await expect(page.locator("#layerNav")).toBeHidden();
     await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerBack")).toBeVisible();
     await expect(page.locator(".node")).toHaveCount(1);
 
     const childId = await page.locator(".node").getAttribute("data-id");
@@ -477,17 +478,56 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({ childParent: "login", rootCount: 6, childCount: 1 });
 
-    await page.keyboard.press("Alt+ArrowLeft");
-    await expect(page.locator("#layerNav")).toContainText("Root layer");
-    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 inside");
+    await page.locator("#layerBack").click();
+    await expect(page.locator("#layerFrame")).toBeHidden();
+    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
     await expect(page.locator(".node")).toHaveCount(6);
 
-    await page.locator('[data-id="login"] .node-enter').click();
+    await page.locator('[data-id="login"] .node-open').click();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
     await expect(page.locator(".node")).toHaveCount(1);
   });
 
-  test("drops state explorer presets into a state's inner layer", async ({ page }) => {
+  test("keeps transition wires scoped to the opened state canvas", async ({ page }) => {
+    await openTool(page);
+    const rootEdgeCount = await page.locator(".edge").count();
+
+    await page.locator('[data-id="login"]').click();
+    await page.locator("#pAddInside").click();
+    const firstChildId = await page.locator(".node").getAttribute("data-id");
+    const firstPort = await centerOf(page.locator(`[data-id="${firstChildId}"] .port`));
+    const map = await page.locator("#map").boundingBox();
+    const drop = {
+      x: Math.min(map.x + map.width - 180, firstPort.x + 280),
+      y: Math.min(map.y + map.height - 220, firstPort.y + 100)
+    };
+
+    await page.mouse.move(firstPort.x, firstPort.y);
+    await page.mouse.down();
+    await page.mouse.move(drop.x, drop.y, { steps: 10 });
+    await page.mouse.up();
+
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator(".node")).toHaveCount(2);
+    await expect(page.locator(".edge")).toHaveCount(1);
+    const innerEdgeId = await page.evaluate(({ key, from }) => {
+      const model = JSON.parse(localStorage.getItem(key));
+      return model.transitions.find(transition => transition.from === from)?.id || "";
+    }, { key: STORAGE_KEY, from: firstChildId });
+    expect(innerEdgeId).toBeTruthy();
+
+    await page.locator("#layerBack").click();
+    await expect(page.locator("#layerFrame")).toBeHidden();
+    await expect(page.locator(".edge")).toHaveCount(rootEdgeCount);
+    await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(0);
+
+    await page.locator('[data-id="login"] .node-open').click();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(1);
+  });
+
+  test("drops state explorer presets into a state's inner canvas", async ({ page }) => {
     await openTool(page);
 
     await addComponentState(page, "Text");
@@ -507,7 +547,8 @@ test.describe("State Blueprint tool", () => {
     await preset.dispatchEvent("dragstart", { dataTransfer });
     await page.locator("#pInnerDropZone").dispatchEvent("drop", { dataTransfer });
 
-    await expect(page.locator("#layerNav")).toContainText("Login");
+    await expect(page.locator("#layerNav")).toBeHidden();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(".node")).toHaveCount(1);
     await expect(page.locator(".node .title")).toHaveText("Inner lesson");
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Nested preset text");
@@ -521,12 +562,12 @@ test.describe("State Blueprint tool", () => {
       };
     }).toEqual({ parentId: "login", text: "Nested preset text" });
 
-    await page.getByRole("button", { name: "Root" }).click();
-    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 inside");
+    await page.locator("#layerBack").click();
+    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
     await expect(page.locator(".node")).toHaveCount(6);
   });
 
-  test("preserves inner state layers when a state is saved to and reused from the explorer", async ({ page }) => {
+  test("preserves inner state canvases when a state is saved to and reused from the explorer", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
@@ -549,8 +590,8 @@ test.describe("State Blueprint tool", () => {
 
     await preset.getByRole("button", { name: "Use" }).click();
     const reusedId = await page.locator(".node.selected").getAttribute("data-id");
-    await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 inside");
-    await page.locator(`[data-id="${reusedId}"] .node-enter`).click();
+    await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 state");
+    await page.locator(`[data-id="${reusedId}"] .node-open`).click();
     await expect(page.locator(".node")).toHaveCount(1);
     await expect(nodeByTitle(page, "Text")).toBeVisible();
     await nodeByTitle(page, "Text").click();

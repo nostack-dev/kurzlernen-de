@@ -290,53 +290,7 @@
       opacity: .38;
     }
 
-    .layer-nav {
-      position: absolute;
-      z-index: 35;
-      top: 12px;
-      left: 12px;
-      right: 12px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      pointer-events: none;
-    }
-
-    .layer-nav-inner {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      max-width: min(760px, 100%);
-      padding: 7px;
-      border: 1px solid rgba(56,189,248,.24);
-      border-radius: 999px;
-      background: rgba(5,11,20,.84);
-      box-shadow: 0 12px 32px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04);
-      backdrop-filter: blur(10px);
-      pointer-events: auto;
-    }
-
-    .layer-nav button,
-    .layer-nav-current {
-      min-height: 30px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 900;
-    }
-
-    .layer-nav-current {
-      color: #fde68a;
-      background: rgba(245,158,11,.13);
-      border: 1px solid rgba(245,158,11,.28);
-    }
-
-    .layer-nav-sep {
-      color: #7dd3fc;
-      font-size: 12px;
-      font-weight: 950;
-    }
+    .layer-nav { display: none; }
 
     .map-canvas,
     .map-scene {
@@ -374,7 +328,7 @@
     .layer-frame {
       position: absolute;
       display: none;
-      z-index: 0;
+      z-index: 3;
       pointer-events: none;
       border: 2px dashed rgba(245,158,11,.62);
       border-radius: 22px;
@@ -384,10 +338,27 @@
       box-shadow: inset 0 0 0 1px rgba(245,158,11,.18), 0 20px 50px rgba(0,0,0,.18);
     }
 
-    .layer-frame-label {
+    .layer-frame-header {
       position: absolute;
       left: 18px;
-      top: -17px;
+      top: -22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .layer-back {
+      min-height: 34px;
+      padding: 7px 12px;
+      border-color: rgba(125,211,252,.42);
+      background: #071321;
+      color: #bae6fd;
+      box-shadow: 0 10px 24px rgba(0,0,0,.3);
+    }
+
+    .layer-frame-label,
+    .layer-frame-hint {
       padding: 5px 10px;
       border: 1px solid rgba(245,158,11,.42);
       border-radius: 999px;
@@ -396,6 +367,14 @@
       font-size: 12px;
       font-weight: 950;
       white-space: nowrap;
+    }
+
+    .layer-frame-hint {
+      border-color: rgba(125,211,252,.26);
+      color: #bae6fd;
+      background: rgba(7,19,33,.9);
+      font-size: 11px;
+      font-weight: 850;
     }
 
     .map.dragging-state #world {
@@ -582,7 +561,7 @@
     }
 
     .node .title {
-      padding: 10px 36px 3px 12px;
+      padding: 10px 72px 3px 12px;
       font-weight: 900;
       color: white;
       font-size: 14px;
@@ -620,11 +599,18 @@
       touch-action: manipulation;
     }
 
-    .node-enter {
+    .node-layer-actions {
       position: absolute;
-      right: 41px;
-      bottom: 7px;
-      width: 28px;
+      right: 7px;
+      top: 7px;
+      display: flex;
+      gap: 5px;
+      z-index: 3;
+    }
+
+    .node-open,
+    .node-enter {
+      min-width: 52px;
       height: 28px;
       min-height: 28px;
       display: none;
@@ -643,6 +629,8 @@
 
     .node-edit:hover,
     .node-edit:focus-visible,
+    .node-open:hover,
+    .node-open:focus-visible,
     .node-enter:hover,
     .node-enter:focus-visible {
       background: var(--accent);
@@ -667,6 +655,7 @@
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
     .node.has-children .layer-badge,
+    .node.has-children .node-open,
     .node.has-children .node-enter { display: grid; }
 
     .port {
@@ -1460,11 +1449,17 @@
       </div>
     </aside>
     <main id="map" class="map">
-      <div id="layerNav" class="layer-nav" aria-label="State layer navigation"></div>
+      <div id="layerNav" class="layer-nav" aria-hidden="true"></div>
       <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world">
-          <div id="layerFrame" class="layer-frame"><span id="layerFrameLabel" class="layer-frame-label"></span></div>
+          <div id="layerFrame" class="layer-frame">
+            <div class="layer-frame-header">
+              <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
+              <span id="layerFrameLabel" class="layer-frame-label"></span>
+              <span class="layer-frame-hint">wires stay inside</span>
+            </div>
+          </div>
           <svg id="wires" viewBox="0 0 5000 4000">
             <defs>
               <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
@@ -1524,7 +1519,7 @@
     const NODE_MAX_W = 720;
     const GRID_SIZE = 24;
     const NODE_H = 96;
-    const NODE_TITLE_EXTRA_W = 58;
+    const NODE_TITLE_EXTRA_W = 104;
 
     const workspaceEl = document.getElementById("workspace");
     const stateInspectorEl = document.getElementById("stateInspector");
@@ -1536,6 +1531,7 @@
     const mapSceneEl = document.getElementById("mapScene");
     const layerNavEl = document.getElementById("layerNav");
     const layerFrameEl = document.getElementById("layerFrame");
+    const layerBackEl = document.getElementById("layerBack");
     const layerFrameLabelEl = document.getElementById("layerFrameLabel");
     const worldEl = document.getElementById("world");
     const wiresEl = document.getElementById("wires");
@@ -1724,6 +1720,19 @@
         evt.preventDefault();
         closeModal(true);
       }
+    });
+
+    layerBackEl.addEventListener("mousedown", evt => evt.stopPropagation());
+    layerBackEl.addEventListener("pointerdown", evt => {
+      evt.stopPropagation();
+      if (!isTouchPointer(evt)) return;
+      evt.preventDefault();
+      exitCurrentLayer();
+    });
+    layerBackEl.addEventListener("click", evt => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      exitCurrentLayer();
     });
 
     function loadModel() {
@@ -2185,7 +2194,7 @@
         if (!ids.has(to)) throw new Error(`${path}.to must reference an existing state.`);
         const fromState = states.find(state => state.id === from);
         const toState = states.find(state => state.id === to);
-        if ((fromState?.parentId || null) !== (toState?.parentId || null)) throw new Error(`${path} must stay inside one state layer.`);
+        if ((fromState?.parentId || null) !== (toState?.parentId || null)) throw new Error(`${path} must stay inside one canvas.`);
         const pair = transitionKey(from, to);
         if (transitionPairs.has(pair)) throw new Error(`${path} duplicates an existing transition from ${from} to ${to}.`);
         transitionPairs.add(pair);
@@ -3943,25 +3952,8 @@
     }
 
     function renderLayerNavigation() {
-      const path = stateLayerPath();
-      const items = [`<button type="button" data-layer-id="">Root</button>`];
-      for (const state of path) {
-        items.push(`<span class="layer-nav-sep">/</span>`);
-        items.push(`<button type="button" data-layer-id="${escapeHtml(state.id)}">${escapeHtml(state.title || state.id)}</button>`);
-      }
-      const currentLabel = path.length ? (path[path.length - 1].title || path[path.length - 1].id) : "Root";
-      layerNavEl.innerHTML = `
-        <div class="layer-nav-inner">
-          ${items.join("")}
-          <span class="layer-nav-current">${escapeHtml(currentLabel)} layer</span>
-        </div>
-      `;
-      layerNavEl.querySelectorAll("button[data-layer-id]").forEach(button => {
-        button.onclick = evt => {
-          evt.preventDefault();
-          navigateToLayer(button.dataset.layerId || null);
-        };
-      });
+      layerNavEl.innerHTML = "";
+      layerNavEl.hidden = true;
     }
 
     function updateLayerFrame(states) {
@@ -3981,7 +3973,7 @@
       layerFrameEl.style.top = snapToGrid(minY - pad) + "px";
       layerFrameEl.style.width = snapToGrid(maxX - minX + pad * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + pad * 2) + "px";
-      layerFrameLabelEl.textContent = `${parent.title || parent.id} state bounds`;
+      layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
     }
 
     function draw() {
@@ -4120,13 +4112,15 @@
           <div class="layer-badge"></div>
           <div class="title"></div>
           <div class="body"></div>
-          <button class="node-enter" type="button" title="Enter inner state layer" aria-label="Enter inner state layer">IN</button>
+          <div class="node-layer-actions">
+            <button class="node-open node-enter" type="button" title="Open this state canvas" aria-label="Open this state canvas">Open</button>
+          </div>
           <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
         `;
         el.querySelector(".title").textContent = s.title || s.id;
         el.querySelector(".body").textContent = statePreviewText(s);
-        el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 inside" : `${innerCount} inside`;
-        const enterButton = el.querySelector(".node-enter");
+        el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 state" : `${innerCount} states`;
+        const enterButton = el.querySelector(".node-open");
         enterButton.addEventListener("mousedown", evt => evt.stopPropagation());
         enterButton.addEventListener("pointerdown", evt => {
           evt.stopPropagation();
@@ -4163,14 +4157,14 @@
 
         el.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
-          if (evt.target.closest(".port, .node-edit, .node-enter")) return;
+          if (evt.target.closest(".port, .node-edit, .node-open, .node-enter")) return;
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
           startNodeDrag(evt, s);
         });
 
         el.addEventListener("pointerdown", evt => {
-          if (!isTouchPointer(evt) || evt.target.closest(".port, .node-edit, .node-enter")) return;
+          if (!isTouchPointer(evt) || evt.target.closest(".port, .node-edit, .node-open, .node-enter")) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
           if (pinchZoom) return;
@@ -4497,8 +4491,8 @@
       stateInspectorBodyEl.innerHTML = `
         <div class="inspector-empty">
           <strong>No state selected</strong>
-          <span>Click a state or transition in this layer to edit it here. Shift-click keeps building a multi-selection.</span>
-          <span>Use the breadcrumb above the canvas to move in and out of nested state layers.</span>
+          <span>Click a state or transition in this canvas to edit it here. Shift-click keeps building a multi-selection.</span>
+          <span>Open a state from its node. Use Back on the canvas frame to return.</span>
           <span>Drag a state into the bottom explorer to save it as a reusable preset.</span>
         </div>
       `;
@@ -4532,13 +4526,13 @@
         <div id="pComponents" class="component-list"></div>
         <div class="inner-state-panel">
           <div class="inner-state-panel-title">
-            <span>Child states / components</span>
+            <span>Inside this state</span>
             <span id="pInnerCount"></span>
           </div>
-          <div id="pInnerDropZone" class="inner-state-dropzone">Drop any State Explorer preset here. Text, Heading, Image, List, Link, Note, and Divider are states too.</div>
+          <div id="pInnerDropZone" class="inner-state-dropzone">Drop a State Explorer preset here to place it inside this state. Components are states too.</div>
           <div class="row">
-            <button id="pEnterLayer" type="button">Enter layer</button>
-            <button id="pAddInside" type="button">+ Blank child state</button>
+            <button id="pEnterLayer" type="button">Open canvas</button>
+            <button id="pAddInside" type="button">+ State inside</button>
           </div>
         </div>
         <div class="small">State id: <b>${escapeHtml(s.id)}</b></div>
