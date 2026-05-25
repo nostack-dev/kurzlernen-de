@@ -655,7 +655,7 @@ test.describe("State Blueprint tool", () => {
     await reloaded.close();
   });
 
-  test("keeps inspector collapsible, selected-state aware, and separate from edge popovers", async ({ page }) => {
+  test("keeps inspector collapsible and switches between state and transition properties", async ({ page }) => {
     await openTool(page);
 
     const mapBefore = await visibleBox(page.locator("#map"));
@@ -677,7 +677,10 @@ test.describe("State Blueprint tool", () => {
     await expect(label).toHaveCount(1);
     await label.click();
     await expect(page.locator("#pLabel")).toBeVisible();
-    await expect(page.locator("#pTitle")).toHaveValue("Login");
+    await expect(page.locator("#pTitle")).toHaveCount(0);
+    await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#stateInspector")).toHaveClass(/transition-inspector/);
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Transition: Login");
 
     await page.keyboard.press("Escape");
     await expect(page.locator("#popover")).toBeHidden();
@@ -986,6 +989,8 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Enter");
 
     await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#pLabel")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
     await expect(page.locator("svg text.edge-label").filter({ hasText: "Sign in action" })).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -1009,6 +1014,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Delete");
     await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#pLabel")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
     await expect(loginEdge).toHaveCount(0);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -1369,7 +1376,7 @@ test.describe("State Blueprint tool", () => {
     expect(Math.min(...yValues)).toBeLessThan(authStart.y);
   });
 
-  test("clears state inspector on empty canvas and closes edge popovers on outside click", async ({ page }) => {
+  test("clears properties inspector on empty canvas clicks", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
@@ -1387,6 +1394,8 @@ test.describe("State Blueprint tool", () => {
     point = await emptyCanvasPoint(page);
     await page.mouse.click(point.x, point.y);
     await expect(page.locator("#popover")).toBeHidden();
+    await expect(page.locator("#pLabel")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
   });
 
   test("keeps focused state inspector stable with Escape", async ({ page }) => {

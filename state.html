@@ -130,6 +130,13 @@
         #050b14;
     }
 
+    .inspector.transition-inspector {
+      border-right-color: rgba(56,189,248,.42);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(56,189,248,.12), transparent 28%),
+        #050b14;
+    }
+
     .inspector-title {
       display: flex;
       align-items: center;
@@ -145,6 +152,11 @@
     .inspector.template-inspector .inspector-title {
       border-bottom-color: rgba(245,158,11,.34);
       color: #fde68a;
+    }
+
+    .inspector.transition-inspector .inspector-title {
+      border-bottom-color: rgba(56,189,248,.34);
+      color: #bae6fd;
     }
 
     .inspector-title-text {
@@ -1359,6 +1371,7 @@
     let stateTemplateDrag = null;
     let editingTemplateId = null;
     let inspectorStateId = null;
+    let inspectorEdgeId = null;
     let undoStack = [];
     let redoStack = [];
     let historyCurrent = null;
@@ -3320,6 +3333,7 @@
         if (evt.shiftKey) {
           toggleSelection("edge", t.id);
           hidePopover();
+          refreshInspectorForSelection();
           draw();
           return;
         }
@@ -3549,33 +3563,8 @@
       const edge = model.transitions.find(t => t.id === id);
       if (!edge) return;
       setSingleSelection("edge", id);
-      showEdgePopover(edge, x, y);
       draw();
-    }
-
-    function placePopover(x, y) {
-      if (window.matchMedia?.("(max-width: 720px)")?.matches) {
-        popoverEl.hidden = false;
-        popoverEl.style.left = "";
-        popoverEl.style.top = "";
-        return;
-      }
-      const r = mapEl.getBoundingClientRect();
-      popoverEl.style.left = "12px";
-      popoverEl.style.top = "12px";
-      popoverEl.hidden = false;
-      const popW = popoverEl.offsetWidth || 292;
-      const popH = popoverEl.offsetHeight || 235;
-      const clickX = x - r.left;
-      const clickY = y - r.top;
-      let localX = clickX + 12;
-      let localY = clickY + 12;
-      if (localX + popW > r.width - 12) localX = clickX - popW - 12;
-      if (localY + popH > r.height - 12) localY = clickY - popH - 12;
-      localX = clamp(localX, 12, Math.max(12, r.width - popW - 12));
-      localY = clamp(localY, 12, Math.max(12, r.height - popH - 12));
-      popoverEl.style.left = localX + "px";
-      popoverEl.style.top = localY + "px";
+      showEdgeInspector(edge);
     }
 
     function setupEditorAccessibility(root = popoverEl, focusFirstInput = true, opts = {}) {
@@ -3604,10 +3593,6 @@
         requestAnimationFrame(focusFirst);
         setTimeout(focusFirst, 80);
       }
-    }
-
-    function setupPopoverAccessibility() {
-      setupEditorAccessibility(popoverEl, true, { onCommit: hidePopover });
     }
 
     function defaultComponentText(type) {
@@ -3793,14 +3778,15 @@
 
     function showEmptyInspector() {
       inspectorStateId = null;
+      inspectorEdgeId = null;
       const wasEditingTemplate = Boolean(editingTemplateId);
       editingTemplateId = null;
-      stateInspectorEl.classList.remove("template-inspector");
+      stateInspectorEl.classList.remove("template-inspector", "transition-inspector");
       stateInspectorTitleEl.textContent = "State Inspector";
       stateInspectorBodyEl.innerHTML = `
         <div class="inspector-empty">
           <strong>No state selected</strong>
-          <span>Click a state to edit it here. Shift-click keeps building a multi-selection.</span>
+          <span>Click a state or transition to edit it here. Shift-click keeps building a multi-selection.</span>
           <span>Drag a state into the bottom explorer to save it as a reusable preset.</span>
         </div>
       `;
@@ -3809,7 +3795,9 @@
 
     function refreshInspectorForSelection() {
       const state = selected?.type === "node" ? byId(selected.id) : null;
+      const edge = selected?.type === "edge" ? model.transitions.find(t => t.id === selected.id) : null;
       if (state) showNodePopover(state, { focus: false });
+      else if (edge) showEdgeInspector(edge, { focus: false });
       else showEmptyInspector();
     }
 
@@ -3817,7 +3805,8 @@
       const root = stateInspectorBodyEl;
       const wasEditingTemplate = Boolean(editingTemplateId);
       editingTemplateId = null;
-      stateInspectorEl.classList.remove("template-inspector");
+      inspectorEdgeId = null;
+      stateInspectorEl.classList.remove("template-inspector", "transition-inspector");
       inspectorCollapsed = false;
       applyInspectorCollapsed();
       inspectorStateId = s.id;
@@ -3939,7 +3928,9 @@
       inspectorCollapsed = false;
       applyInspectorCollapsed();
       inspectorStateId = null;
+      inspectorEdgeId = null;
       editingTemplateId = template.id;
+      stateInspectorEl.classList.remove("transition-inspector");
       stateInspectorEl.classList.add("template-inspector");
       stateInspectorTitleEl.textContent = "Template: " + (template.title || "State preset");
       root.innerHTML = `
@@ -4060,10 +4051,23 @@
       return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    function showEdgePopover(t, x, y) {
+    function showEdgeInspector(t, opts = {}) {
+      const root = stateInspectorBodyEl;
       const from = byId(t.from);
       const to = byId(t.to);
-      popoverEl.innerHTML = `
+      const wasEditingTemplate = Boolean(editingTemplateId);
+      editingTemplateId = null;
+      inspectorStateId = null;
+      inspectorEdgeId = t.id;
+      inspectorCollapsed = false;
+      applyInspectorCollapsed();
+      stateInspectorEl.classList.remove("template-inspector");
+      stateInspectorEl.classList.add("transition-inspector");
+      stateInspectorTitleEl.textContent = "Transition: " + (t.label || "Next");
+      popoverEl.hidden = true;
+      popoverEl.innerHTML = "";
+      if (wasEditingTemplate) renderStateExplorer();
+      root.innerHTML = `
         <h3>Transition / Button</h3>
         <div class="small"><b>${escapeHtml(from?.title || t.from)}</b> → <b>${escapeHtml(to?.title || t.to)}</b></div>
         <div class="field"><label>Button label</label><input id="pLabel"></div>
@@ -4077,12 +4081,11 @@
           <button id="pDelete" class="danger">Delete</button>
         </div>
       `;
-      placePopover(x, y);
-      const label = popoverEl.querySelector("#pLabel");
-      const cond = popoverEl.querySelector("#pCond");
-      const condPreview = popoverEl.querySelector("#pCondPreview");
-      const set = popoverEl.querySelector("#pSet");
-      const setPreview = popoverEl.querySelector("#pSetPreview");
+      const label = root.querySelector("#pLabel");
+      const cond = root.querySelector("#pCond");
+      const condPreview = root.querySelector("#pCondPreview");
+      const set = root.querySelector("#pSet");
+      const setPreview = root.querySelector("#pSetPreview");
       label.value = t.label || "Next";
       cond.value = t.condition || "";
       set.value = JSON.stringify(normalizeDataObject(t.set), null, 2);
@@ -4106,24 +4109,29 @@
       };
       updateConditionPreview();
       updateSetPreview();
-      label.oninput = () => { t.label = label.value || "Next"; saveModel("edge:label:" + t.id); draw(); };
+      label.oninput = () => {
+        t.label = label.value || "Next";
+        stateInspectorTitleEl.textContent = "Transition: " + (t.label || "Next");
+        saveModel("edge:label:" + t.id);
+        draw();
+      };
       cond.oninput = () => { t.condition = cond.value; updateConditionPreview(); saveModel("edge:condition:" + t.id); draw(); };
       set.oninput = updateSetPreview;
       label.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
-      popoverEl.querySelector("#pFlip").onclick = () => {
+      root.querySelector("#pFlip").onclick = () => {
         const tmp = t.from; t.from = t.to; t.to = tmp;
         saveModel();
         draw();
-        showEdgePopover(t, x, y);
+        showEdgeInspector(t, opts);
       };
-      popoverEl.querySelector("#pDelete").onclick = () => {
+      root.querySelector("#pDelete").onclick = () => {
         model.transitions = model.transitions.filter(e => e.id !== t.id);
         selected = null;
-        hidePopover();
+        showEmptyInspector();
         saveModel();
         draw();
       };
-      setupPopoverAccessibility();
+      setupEditorAccessibility(root, opts.focus !== false, { onCommit: showEmptyInspector });
     }
 
     function hidePopover() {
@@ -4513,7 +4521,7 @@
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
-          if (!wasRewire) showEdgePopover(t, evt.clientX, evt.clientY);
+          showEdgeInspector(t, { focus: !wasRewire });
           return;
         }
         if (isEdgeDropTarget(evt)) {
