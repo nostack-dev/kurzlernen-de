@@ -2230,7 +2230,7 @@
       panning = null;
       boxSelecting = null;
       pendingCanvasMouse = null;
-      mapEl.classList.remove("connecting", "panning");
+      mapEl.classList.remove("connecting", "panning", "dragging-state");
       updateSelectRect();
       hidePopover();
     }
@@ -2304,6 +2304,45 @@
       }
       updateSelectRect();
       draw();
+      return true;
+    }
+
+    function cancelActiveCanvasGesture() {
+      const dragToSave = dragging?.moved ? dragging.id : null;
+      const hadSelectionBox = Boolean(boxSelecting);
+      const hadGesture = Boolean(
+        pendingCanvasMouse ||
+        pendingCanvasTouch ||
+        pendingEdgeTouch ||
+        boxSelecting ||
+        dragging ||
+        connecting ||
+        panning
+      );
+      if (!hadGesture) return false;
+      clearLongPress();
+      pendingCanvasMouse = null;
+      pendingCanvasTouch = null;
+      pendingEdgeTouch = null;
+      activePointerId = null;
+      dragging = null;
+      connecting = null;
+      connectingTargetId = null;
+      panning = null;
+      pinchZoom = null;
+      if (hadSelectionBox) {
+        boxSelecting = null;
+        selected = null;
+      }
+      mapEl.classList.remove("connecting", "panning", "dragging-state");
+      stateExplorerEl.classList.remove("drag-over");
+      updateSelectRect();
+      if (hadSelectionBox) {
+        saveSelection("selection:canvas");
+        draw();
+      }
+      else if (dragToSave) saveModel("state:drag:" + dragToSave);
+      else draw();
       return true;
     }
 
@@ -4145,14 +4184,12 @@
     });
 
     window.addEventListener("blur", () => {
-      cancelCanvasMouseSelection();
-      mapEl.classList.remove("dragging-state");
-      stateExplorerEl.classList.remove("drag-over");
+      cancelActiveCanvasGesture();
     });
 
     document.addEventListener("mouseout", evt => {
       if (evt.relatedTarget || evt.buttons !== 1) return;
-      cancelCanvasMouseSelection();
+      cancelActiveCanvasGesture();
     });
 
     window.addEventListener("pointermove", evt => {
@@ -4194,15 +4231,7 @@
       forgetTouchPointer(evt);
       releaseTouchPointer(evt);
       if (evt.pointerId !== activePointerId) return;
-      activePointerId = null;
-      dragging = null;
-      connecting = null;
-      connectingTargetId = null;
-      panning = null;
-      boxSelecting = null;
-      mapEl.classList.remove("connecting", "panning");
-      updateSelectRect();
-      draw();
+      cancelActiveCanvasGesture();
     });
 
     function handleKeyDown(evt) {

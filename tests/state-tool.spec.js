@@ -1336,6 +1336,49 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.up();
   });
 
+  test("cancels node dragging when the mouse leaves the browser or window focus is lost", async ({ page }) => {
+    await openTool(page);
+    const dragNode = async (id, cancelInPage) => {
+      const node = page.locator(`[data-id="${id}"]`);
+      const box = await visibleBox(node);
+      const before = await savedModel(page).then(model => {
+        const state = model.states.find(item => item.id === id);
+        return { x: state.x, y: state.y };
+      });
+
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 72, box.y + box.height / 2 + 48, { steps: 8 });
+      await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+      await cancelInPage();
+      await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+      await expect(page.locator("#stateExplorer")).not.toHaveClass(/drag-over/);
+      const cancelled = await savedModel(page).then(model => {
+        const state = model.states.find(item => item.id === id);
+        return { x: state.x, y: state.y };
+      });
+      expect(cancelled.x !== before.x || cancelled.y !== before.y).toBe(true);
+
+      await page.mouse.move(box.x + box.width / 2 + 180, box.y + box.height / 2 + 120, { steps: 8 });
+      await expect.poll(async () => {
+        const model = await savedModel(page);
+        const state = model.states.find(item => item.id === id);
+        return { x: state.x, y: state.y };
+      }).toEqual(cancelled);
+      await page.mouse.up();
+    };
+
+    await dragNode("login", () => page.evaluate(() => {
+      document.dispatchEvent(new MouseEvent("mouseout", {
+        bubbles: true,
+        buttons: 1,
+        relatedTarget: null
+      }));
+    }));
+
+    await dragNode("register", () => page.evaluate(() => window.dispatchEvent(new Event("blur"))));
+  });
+
   test("shift-click toggles mixed selections and undo redo restores empty-canvas deselection", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
@@ -1501,6 +1544,10 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pTitle").fill("Updated reusable login");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login")?.title;
+    }).toBe("Updated reusable login");
     await page.locator("#pBody").fill("Updated body {{role}}");
     await page.getByRole("button", { name: "+ Heading" }).click();
     await componentEditor(page, "Heading").locator("input").fill("Updated heading {{role}}");
