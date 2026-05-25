@@ -1829,6 +1829,7 @@ test.describe("State Blueprint tool", () => {
     await expect(preset).toHaveClass(/editing/);
     await expect(preset.locator(".template-title-input")).toHaveCount(0);
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: State preset 1");
+    await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
     await expect(page.locator("#stateInspectorBody")).toContainText("Reusable State Template");
     await expect(page.locator("#stateInspectorBody")).toContainText("Existing canvas states stay unchanged");
     await expect(page.locator("#pTitle")).toBeFocused();
@@ -1885,8 +1886,10 @@ test.describe("State Blueprint tool", () => {
       heading: "Updated heading {{role}}"
     });
 
-    await preset.getByRole("button", { name: "Edit" }).click();
+    await expect(preset.getByRole("button", { name: "Edit" })).toHaveCount(0);
+    await preset.click();
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: Updated reusable login");
+    await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
     await expect(page.locator("#pBody")).toHaveValue("Updated body {{role}}");
 
     await preset.getByRole("button", { name: "Use" }).click();

@@ -123,6 +123,13 @@
       overflow: hidden;
     }
 
+    .inspector.template-inspector {
+      border-right-color: rgba(245,158,11,.42);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(245,158,11,.12), transparent 28%),
+        #050b14;
+    }
+
     .inspector-title {
       display: flex;
       align-items: center;
@@ -133,6 +140,11 @@
       color: #bfdbfe;
       font-size: 13px;
       font-weight: 900;
+    }
+
+    .inspector.template-inspector .inspector-title {
+      border-bottom-color: rgba(245,158,11,.34);
+      color: #fde68a;
     }
 
     .inspector-title-text {
@@ -3769,6 +3781,7 @@
       inspectorStateId = null;
       const wasEditingTemplate = Boolean(editingTemplateId);
       editingTemplateId = null;
+      stateInspectorEl.classList.remove("template-inspector");
       stateInspectorTitleEl.textContent = "State Inspector";
       stateInspectorBodyEl.innerHTML = `
         <div class="inspector-empty">
@@ -3790,6 +3803,7 @@
       const root = stateInspectorBodyEl;
       const wasEditingTemplate = Boolean(editingTemplateId);
       editingTemplateId = null;
+      stateInspectorEl.classList.remove("template-inspector");
       inspectorCollapsed = false;
       applyInspectorCollapsed();
       inspectorStateId = s.id;
@@ -3912,6 +3926,7 @@
       applyInspectorCollapsed();
       inspectorStateId = null;
       editingTemplateId = template.id;
+      stateInspectorEl.classList.add("template-inspector");
       stateInspectorTitleEl.textContent = "Template: " + (template.title || "State preset");
       root.innerHTML = `
         <h3>Reusable State Template</h3>
@@ -4308,7 +4323,6 @@
           <div class="template-body"></div>
           <div class="template-actions">
             <button class="template-use" type="button">Use</button>
-            <button class="template-edit" type="button">Edit</button>
             <button class="template-update" type="button">Update</button>
             <button class="template-delete danger" type="button">Delete</button>
           </div>
@@ -4324,10 +4338,6 @@
           evt.stopPropagation();
           addTemplateAtViewport(template);
         };
-        card.querySelector(".template-edit").onclick = evt => {
-          evt.stopPropagation();
-          showTemplateInspector(template, { selectTitle: true });
-        };
         card.querySelector(".template-update").onclick = evt => {
           evt.stopPropagation();
           updateTemplateFromSelectedState(template.id);
@@ -4336,6 +4346,10 @@
           evt.stopPropagation();
           deleteStateTemplate(template.id);
         };
+        card.addEventListener("click", evt => {
+          if (evt.target.closest("button, input, textarea")) return;
+          showTemplateInspector(template, { focus: false });
+        });
         card.addEventListener("dragstart", evt => {
           evt.dataTransfer.effectAllowed = "copy";
           evt.dataTransfer.setData("text/state-template-id", template.id);
