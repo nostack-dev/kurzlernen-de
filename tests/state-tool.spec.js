@@ -219,10 +219,26 @@ async function gridGeometryReport(page) {
         side: pin.dataset.edgePin,
         x: Number.parseFloat(pin.getAttribute("cx")),
         y: Number.parseFloat(pin.getAttribute("cy")),
+        fill: getComputedStyle(pin).fill,
         stroke: getComputedStyle(pin).stroke
       }))
     };
   }, GRID_SIZE);
+}
+
+function segmentIntersectsNode(segment, node) {
+  const x1 = node.left;
+  const x2 = node.left + node.width;
+  const y1 = node.top;
+  const y2 = node.top + node.height;
+  if (segment.orientation === "horizontal") {
+    return segment.coordinate > y1 &&
+      segment.coordinate < y2 &&
+      Math.max(segment.min, x1) < Math.min(segment.max, x2);
+  }
+  return segment.coordinate > x1 &&
+    segment.coordinate < x2 &&
+    Math.max(segment.min, y1) < Math.min(segment.max, y2);
 }
 
 test.describe("State Blueprint tool", () => {
@@ -812,8 +828,8 @@ test.describe("State Blueprint tool", () => {
     const sharedSourceSecond = paths.get("s_to_t2");
 
     expect(diagonalDown.stroke).not.toBe(diagonalUp.stroke);
-    expect(report.pins.filter(pin => pin.id === "a_to_d").map(pin => pin.stroke)).toEqual([diagonalDown.stroke, diagonalDown.stroke]);
-    expect(report.pins.filter(pin => pin.id === "c_to_b").map(pin => pin.stroke)).toEqual([diagonalUp.stroke, diagonalUp.stroke]);
+    expect(report.pins.filter(pin => pin.id === "a_to_d").map(pin => pin.fill)).toEqual([diagonalDown.stroke, diagonalDown.stroke]);
+    expect(report.pins.filter(pin => pin.id === "c_to_b").map(pin => pin.fill)).toEqual([diagonalUp.stroke, diagonalUp.stroke]);
 
     const longestHorizontal = path => path.horizontalSegments
       .slice()
@@ -835,6 +851,49 @@ test.describe("State Blueprint tool", () => {
         expect(overlaps).toBe(false);
       }
     }
+  });
+
+  test("routes transition cables around state bounding boxes", async ({ page }) => {
+    const obstacleModel = {
+      version: 2,
+      name: "Obstacle routing",
+      initial: "left",
+      states: [
+        { id: "left", title: "Left", body: "", x: 96, y: 96 },
+        { id: "middle", title: "Middle obstacle", body: "A state in the way", x: 384, y: 144 },
+        { id: "right", title: "Right", body: "", x: 696, y: 96 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Around", condition: "" }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+    }, { key: STORAGE_KEY, model: obstacleModel });
+    await page.goto("/state.html");
+    await expect(page.locator(".node")).toHaveCount(3);
+
+    const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
+    const transition = model.transitions.find(item => item.id === "left_to_right");
+    const route = report.paths.find(path => path.id === "left_to_right");
+    const obstacle = report.nodes.find(node => node.id === "middle");
+    expect(transition).toBeTruthy();
+    expect(route).toBeTruthy();
+    expect(obstacle).toBeTruthy();
+    expect(route.allPointsOnGrid).toBe(true);
+    expect(route.allSegmentsOrthogonal).toBe(true);
+
+    for (const node of report.nodes.filter(item => item.id !== transition.from && item.id !== transition.to)) {
+      for (const segment of route.segments) {
+        expect(segmentIntersectsNode(segment, node)).toBe(false);
+      }
+    }
+
+    const bypassesObstacle = route.points.some(point => point.y < obstacle.top || point.y > obstacle.top + obstacle.height);
+    expect(bypassesObstacle).toBe(true);
   });
 
   test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {

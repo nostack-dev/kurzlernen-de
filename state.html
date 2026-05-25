@@ -263,20 +263,21 @@
     .edge.runtime { stroke: var(--runtime); stroke-width: 4; animation: edgePulse .85s ease-out; }
 
     .edge-pin {
-      fill: #07111f;
-      stroke: var(--edge-color, #5f8dbc);
-      stroke-width: 2.4;
+      fill: var(--edge-color, #5f8dbc);
+      stroke: #07111f;
+      stroke-width: 2.2;
       pointer-events: none;
       filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
     }
 
     .edge-pin.selected {
-      fill: #2a1e09;
+      fill: var(--edge-color, #5f8dbc);
       stroke: var(--selected);
       stroke-width: 3;
     }
 
     .edge-pin.hovered {
+      fill: var(--edge-color, #5f8dbc);
       stroke: var(--accent);
       stroke-width: 3;
       filter: drop-shadow(0 0 8px rgba(56,189,248,.45));
@@ -2872,6 +2873,27 @@
       return compact.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
     }
 
+    function compactRoutePoints(points) {
+      const compact = [];
+      for (const point of points.map(snapPointToGrid)) {
+        const previous = compact[compact.length - 1];
+        if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
+      }
+      const straightened = [];
+      for (const point of compact) {
+        const previous = straightened[straightened.length - 1];
+        const beforePrevious = straightened[straightened.length - 2];
+        if (previous && beforePrevious &&
+          ((beforePrevious.x === previous.x && previous.x === point.x) ||
+            (beforePrevious.y === previous.y && previous.y === point.y))) {
+          straightened[straightened.length - 1] = point;
+        } else {
+          straightened.push(point);
+        }
+      }
+      return straightened;
+    }
+
     function edgeLaneSortValue(transition, side) {
       const neighbor = byId(side === "out" ? transition.to : transition.from);
       return {
@@ -2909,7 +2931,7 @@
       return nodeCenter(state, side);
     }
 
-    function baseEdgeRoutePoints(from, to, transition = null) {
+    function doglegRoutePoints(from, to, transition = null) {
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
       if (from.id === to.id) {
@@ -2955,6 +2977,132 @@
       ];
     }
 
+    function segmentIntersectsBox(a, b, box) {
+      if (a.x === b.x) {
+        if (a.x <= box.x1 || a.x >= box.x2) return false;
+        return Math.max(Math.min(a.y, b.y), box.y1) < Math.min(Math.max(a.y, b.y), box.y2);
+      }
+      if (a.y === b.y) {
+        if (a.y <= box.y1 || a.y >= box.y2) return false;
+        return Math.max(Math.min(a.x, b.x), box.x1) < Math.min(Math.max(a.x, b.x), box.x2);
+      }
+      return false;
+    }
+
+    function stateBox(state, margin = 0) {
+      return {
+        id: state.id,
+        x1: state.x - margin,
+        y1: state.y - margin,
+        x2: state.x + nodeWidth(state) + margin,
+        y2: state.y + NODE_H + margin
+      };
+    }
+
+    function routeBlockingBoxes(transition, margin = 0) {
+      return model.states
+        .filter(state => state.id !== transition?.from && state.id !== transition?.to)
+        .map(state => stateBox(state, margin));
+    }
+
+    function routeIntersectsBlockingState(points, transition, margin = 0) {
+      const boxes = routeBlockingBoxes(transition, margin);
+      for (let i = 1; i < points.length; i++) {
+        const a = snapPointToGrid(points[i - 1]);
+        const b = snapPointToGrid(points[i]);
+        if (boxes.some(box => segmentIntersectsBox(a, b, box))) return true;
+      }
+      return false;
+    }
+
+    function pointInBox(point, box) {
+      return point.x > box.x1 && point.x < box.x2 && point.y > box.y1 && point.y < box.y2;
+    }
+
+    function routeSearchBounds(start, goal) {
+      const boxes = model.states.map(state => stateBox(state, GRID_SIZE * 6));
+      const xs = [start.x, goal.x];
+      const ys = [start.y, goal.y];
+      for (const box of boxes) {
+        xs.push(box.x1, box.x2);
+        ys.push(box.y1, box.y2);
+      }
+      return {
+        minX: snapToGrid(Math.max(WORLD_MIN_X, Math.min(...xs) - GRID_SIZE * 4)),
+        maxX: snapToGrid(Math.min(WORLD_MAX_X, Math.max(...xs) + GRID_SIZE * 4)),
+        minY: snapToGrid(Math.max(WORLD_MIN_Y, Math.min(...ys) - GRID_SIZE * 4)),
+        maxY: snapToGrid(Math.min(WORLD_MAX_Y, Math.max(...ys) + GRID_SIZE * 4))
+      };
+    }
+
+    function obstacleAvoidingRoutePoints(from, to, transition = null) {
+      const start = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const goal = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const bounds = routeSearchBounds(start, goal);
+      const obstacles = model.states.map(state =>
+        stateBox(state, state.id === from.id || state.id === to.id ? 0 : GRID_SIZE)
+      );
+      const key = point => `${point.x},${point.y}`;
+      const startKey = key(start);
+      const goalKey = key(goal);
+      const blocked = point => {
+        const pointKey = key(point);
+        if (pointKey === startKey || pointKey === goalKey) return false;
+        return obstacles.some(box => pointInBox(point, box));
+      };
+      const heuristic = point => Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y);
+      const open = [start];
+      const cameFrom = new Map();
+      const gScore = new Map([[startKey, 0]]);
+      const fScore = new Map([[startKey, heuristic(start)]]);
+      const closed = new Set();
+
+      for (let guard = 0; open.length && guard < 24000; guard++) {
+        let bestIndex = 0;
+        for (let i = 1; i < open.length; i++) {
+          if ((fScore.get(key(open[i])) ?? Infinity) < (fScore.get(key(open[bestIndex])) ?? Infinity)) bestIndex = i;
+        }
+        const current = open.splice(bestIndex, 1)[0];
+        const currentKey = key(current);
+        if (currentKey === goalKey) {
+          const path = [current];
+          let walkKey = currentKey;
+          while (cameFrom.has(walkKey)) {
+            const previous = cameFrom.get(walkKey);
+            path.unshift(previous);
+            walkKey = key(previous);
+          }
+          return compactRoutePoints(path);
+        }
+        closed.add(currentKey);
+        const neighbors = [
+          { x: current.x + GRID_SIZE, y: current.y },
+          { x: current.x - GRID_SIZE, y: current.y },
+          { x: current.x, y: current.y + GRID_SIZE },
+          { x: current.x, y: current.y - GRID_SIZE }
+        ];
+        for (const neighbor of neighbors) {
+          if (neighbor.x < bounds.minX || neighbor.x > bounds.maxX || neighbor.y < bounds.minY || neighbor.y > bounds.maxY) continue;
+          if (blocked(neighbor)) continue;
+          const neighborKey = key(neighbor);
+          if (closed.has(neighborKey)) continue;
+          const tentative = (gScore.get(currentKey) ?? Infinity) + GRID_SIZE;
+          if (tentative >= (gScore.get(neighborKey) ?? Infinity)) continue;
+          cameFrom.set(neighborKey, current);
+          gScore.set(neighborKey, tentative);
+          fScore.set(neighborKey, tentative + heuristic(neighbor));
+          if (!open.some(point => key(point) === neighborKey)) open.push(neighbor);
+        }
+      }
+      return null;
+    }
+
+    function baseEdgeRoutePoints(from, to, transition = null) {
+      const dogleg = doglegRoutePoints(from, to, transition);
+      if (!routeIntersectsBlockingState(dogleg, transition || { from: from.id, to: to.id })) return dogleg;
+      return obstacleAvoidingRoutePoints(from, to, transition) || dogleg;
+    }
+
     function routeSegments(points) {
       const compact = points.map(snapPointToGrid);
       const segments = [];
@@ -2988,63 +3136,125 @@
       return index % 2 ? Math.ceil(index / 2) : -index / 2;
     }
 
-    function horizontalLaneCoordinate(transition, segment) {
-      if (!transition || !segment.laneable) return segment.coordinate;
-      const candidates = model.transitions.filter(item => {
-        const from = byId(item.from);
-        const to = byId(item.to);
-        if (!from || !to) return false;
-        return routeSegments(baseEdgeRoutePoints(from, to, item)).some(candidate =>
-          candidate.laneable && candidate.orientation === "horizontal" && routeSegmentsOverlap(candidate, segment)
-        );
-      });
-      if (candidates.length <= 1) return segment.coordinate;
-      const index = Math.max(0, candidates.findIndex(item => item.id === transition.id));
-      return segment.coordinate + laneSlot(index) * GRID_SIZE;
+    let edgeRouteCache = null;
+
+    function edgeOrder(transitionId) {
+      const index = model.transitions.findIndex(item => item.id === transitionId);
+      return index < 0 ? Number.MAX_SAFE_INTEGER : index;
     }
 
-    function applyHorizontalLanes(points, transition) {
+    function routeSegmentRecords(routes) {
+      const records = [];
+      for (const [transitionId, points] of routes) {
+        for (const segment of routeSegments(points)) {
+          records.push({ ...segment, transitionId });
+        }
+      }
+      return records;
+    }
+
+    function overlappingRouteGroups(routes) {
+      const buckets = new Map();
+      for (const segment of routeSegmentRecords(routes)) {
+        if (!segment.laneable) continue;
+        const key = `${segment.orientation}:${segment.coordinate}`;
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(segment);
+      }
+
+      const groups = [];
+      for (const bucket of buckets.values()) {
+        const sorted = bucket
+          .slice()
+          .sort((a, b) => a.min - b.min || a.max - b.max || edgeOrder(a.transitionId) - edgeOrder(b.transitionId));
+        let group = [];
+        let groupMax = -Infinity;
+        for (const segment of sorted) {
+          if (!group.length || segment.min < groupMax) {
+            group.push(segment);
+            groupMax = Math.max(groupMax, segment.max);
+          } else {
+            if (new Set(group.map(item => item.transitionId)).size > 1) groups.push(group);
+            group = [segment];
+            groupMax = segment.max;
+          }
+        }
+        if (new Set(group.map(item => item.transitionId)).size > 1) groups.push(group);
+      }
+      return groups;
+    }
+
+    function applySegmentLane(points, segment, coordinate) {
       const routed = points.map(point => ({ ...point }));
-      for (const segment of routeSegments(points)) {
-        if (segment.orientation !== "horizontal") continue;
-        const y = horizontalLaneCoordinate(transition, segment);
-        routed[segment.index - 1].y = y;
-        routed[segment.index].y = y;
+      if (segment.orientation === "vertical") {
+        routed[segment.index - 1].x = coordinate;
+        routed[segment.index].x = coordinate;
+      } else {
+        routed[segment.index - 1].y = coordinate;
+        routed[segment.index].y = coordinate;
       }
       return routed;
     }
 
-    function verticalLaneCoordinate(transition, segment) {
-      if (!transition || !segment.laneable) return segment.coordinate;
-      const candidates = model.transitions.filter(item => {
-        const from = byId(item.from);
-        const to = byId(item.to);
-        if (!from || !to) return false;
-        const candidatePoints = applyHorizontalLanes(baseEdgeRoutePoints(from, to, item), item);
-        return routeSegments(candidatePoints).some(candidate =>
-          candidate.laneable && candidate.orientation === "vertical" && routeSegmentsOverlap(candidate, segment)
-        );
-      });
-      if (candidates.length <= 1) return segment.coordinate;
-      const index = Math.max(0, candidates.findIndex(item => item.id === transition.id));
-      return segment.coordinate + laneSlot(index) * GRID_SIZE;
+    function safeLaneCoordinate(points, segment, slotIndex) {
+      const transition = model.transitions.find(item => item.id === segment.transitionId);
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const coordinate = segment.coordinate + laneSlot(slotIndex + attempt) * GRID_SIZE;
+        const candidate = applySegmentLane(points, segment, coordinate);
+        if (!routeIntersectsBlockingState(candidate, transition, GRID_SIZE / 2)) return coordinate;
+      }
+      return segment.coordinate + laneSlot(slotIndex) * GRID_SIZE;
     }
 
-    function applyVerticalLanes(points, transition) {
-      const routed = points.map(point => ({ ...point }));
-      for (const segment of routeSegments(points)) {
-        if (segment.orientation !== "vertical") continue;
-        const x = verticalLaneCoordinate(transition, segment);
-        routed[segment.index - 1].x = x;
-        routed[segment.index].x = x;
+    function resolveRouteOverlaps(routes) {
+      let current = new Map([...routes].map(([id, points]) => [id, points.map(point => ({ ...point }))]));
+      for (let pass = 0; pass < 8; pass++) {
+        const groups = overlappingRouteGroups(current);
+        if (!groups.length) break;
+        const adjustments = new Map();
+        for (const group of groups) {
+          const ordered = group
+            .slice()
+            .sort((a, b) => edgeOrder(a.transitionId) - edgeOrder(b.transitionId) || a.index - b.index);
+          const hasFixedLane = ordered.some(segment => !segment.laneable);
+          ordered.forEach((segment, index) => {
+            if (!segment.laneable) return;
+            const slotIndex = hasFixedLane ? index + 1 : index;
+            const coordinate = safeLaneCoordinate(current.get(segment.transitionId), segment, slotIndex);
+            adjustments.set(`${segment.transitionId}:${segment.index}`, { segment, coordinate });
+          });
+        }
+        if (!adjustments.size) break;
+        current = new Map(current);
+        for (const { segment, coordinate } of adjustments.values()) {
+          current.set(segment.transitionId, applySegmentLane(current.get(segment.transitionId), segment, coordinate));
+        }
       }
-      return routed;
+      for (const [id, points] of current) {
+        const transition = model.transitions.find(item => item.id === id);
+        if (!transition || !routeIntersectsBlockingState(points, transition)) continue;
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition) : null;
+        if (rerouted) current.set(id, rerouted);
+      }
+      return current;
+    }
+
+    function buildEdgeRouteCache() {
+      const routes = new Map();
+      for (const transition of model.transitions) {
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        if (from && to) routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
+      }
+      return resolveRouteOverlaps(routes);
     }
 
     function edgeRoutePoints(from, to, transition = null) {
-      const points = baseEdgeRoutePoints(from, to, transition);
-      if (!transition) return points;
-      return applyVerticalLanes(applyHorizontalLanes(points, transition), transition);
+      if (!transition) return baseEdgeRoutePoints(from, to, transition);
+      if (!edgeRouteCache) edgeRouteCache = buildEdgeRouteCache();
+      return edgeRouteCache.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
     }
 
     function polylinePoint(points, ratio) {
@@ -3129,6 +3339,7 @@
         drawFrame = 0;
       }
       normalizeModel(model);
+      edgeRouteCache = buildEdgeRouteCache();
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
