@@ -816,24 +816,6 @@
       background: #331120;
     }
 
-    .help {
-      position: absolute;
-      left: 14px;
-      bottom: 14px;
-      z-index: 10;
-      color: rgba(229,240,255,.68);
-      background: rgba(3,7,18,.55);
-      border: 1px solid rgba(148,163,184,.18);
-      backdrop-filter: blur(6px);
-      border-radius: 12px;
-      padding: 9px 11px;
-      font-size: 12px;
-      line-height: 1.4;
-      pointer-events: none;
-    }
-
-    .help b { color: white; }
-
     .zoom-controls {
       position: absolute;
       right: 14px;
@@ -1241,15 +1223,6 @@
         gap: 10px;
       }
 
-      .help {
-        left: 10px;
-        right: 10px;
-        bottom: 10px;
-        padding: 8px 10px;
-        font-size: 11px;
-        display: none;
-      }
-
       .zoom-controls {
         right: max(10px, env(safe-area-inset-right));
         top: max(10px, env(safe-area-inset-top));
@@ -1351,10 +1324,6 @@
       </div>
       <div id="popover" class="popover" hidden></div>
       <div id="selectRect" class="select-rect"></div>
-      <div class="help">
-        <b>Navigation:</b> drag empty canvas pan · Ctrl/Cmd+wheel zoom<br>
-        <b>Edit:</b> click node to inspect · hold empty canvas for select · drag blue dot to connect · drag arrowhead to reroute
-      </div>
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
         <button id="btnSelectionCopy" type="button">Copy</button>

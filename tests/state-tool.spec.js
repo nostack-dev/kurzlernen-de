@@ -2073,6 +2073,7 @@ test.describe("State Blueprint tool", () => {
   test("keeps zoom controls clear of the state explorer", async ({ page }) => {
     await openTool(page);
 
+    await expect(page.locator(".help")).toHaveCount(0);
     await assertVisibleInViewport(page, ".zoom-controls");
     await assertNoOverlap(page, ".zoom-controls", "#stateExplorer");
     await assertNoOverlap(page, ".zoom-controls", "#btnToggleStateExplorer");
