@@ -290,6 +290,54 @@
       opacity: .38;
     }
 
+    .layer-nav {
+      position: absolute;
+      z-index: 35;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .layer-nav-inner {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-width: min(760px, 100%);
+      padding: 7px;
+      border: 1px solid rgba(56,189,248,.24);
+      border-radius: 999px;
+      background: rgba(5,11,20,.84);
+      box-shadow: 0 12px 32px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04);
+      backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    .layer-nav button,
+    .layer-nav-current {
+      min-height: 30px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .layer-nav-current {
+      color: #fde68a;
+      background: rgba(245,158,11,.13);
+      border: 1px solid rgba(245,158,11,.28);
+    }
+
+    .layer-nav-sep {
+      color: #7dd3fc;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
     .map-canvas,
     .map-scene {
       position: absolute;
@@ -323,6 +371,33 @@
       transform-origin: 0 0;
     }
 
+    .layer-frame {
+      position: absolute;
+      display: none;
+      z-index: 0;
+      pointer-events: none;
+      border: 2px dashed rgba(245,158,11,.62);
+      border-radius: 22px;
+      background:
+        linear-gradient(135deg, rgba(245,158,11,.08), transparent 42%),
+        rgba(2,6,23,.1);
+      box-shadow: inset 0 0 0 1px rgba(245,158,11,.18), 0 20px 50px rgba(0,0,0,.18);
+    }
+
+    .layer-frame-label {
+      position: absolute;
+      left: 18px;
+      top: -17px;
+      padding: 5px 10px;
+      border: 1px solid rgba(245,158,11,.42);
+      border-radius: 999px;
+      background: #071321;
+      color: #fde68a;
+      font-size: 12px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
     .map.dragging-state #world {
       z-index: 25;
     }
@@ -333,6 +408,7 @@
       top: 0;
       width: 5000px;
       height: 4000px;
+      z-index: 1;
       pointer-events: none;
       overflow: visible;
     }
@@ -347,6 +423,7 @@
     #nodes {
       position: absolute;
       inset: 0;
+      z-index: 2;
       pointer-events: none;
     }
 
@@ -497,6 +574,13 @@
         0 10px 24px rgba(0,0,0,.34);
     }
 
+    .node.inner-drop-target {
+      border-color: #fde68a;
+      outline: 2px dashed rgba(245,158,11,.88);
+      outline-offset: 5px;
+      box-shadow: 0 0 0 7px rgba(245,158,11,.18), 0 10px 24px rgba(0,0,0,.34);
+    }
+
     .node .title {
       padding: 10px 36px 3px 12px;
       font-weight: 900;
@@ -536,15 +620,38 @@
       touch-action: manipulation;
     }
 
+    .node-enter {
+      position: absolute;
+      right: 41px;
+      bottom: 7px;
+      width: 28px;
+      height: 28px;
+      min-height: 28px;
+      display: none;
+      place-items: center;
+      border: 1px solid rgba(245,158,11,.36);
+      border-radius: 999px;
+      padding: 0;
+      background: rgba(245,158,11,.14);
+      color: #fde68a;
+      font-size: 11px;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(0,0,0,.22);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
     .node-edit:hover,
-    .node-edit:focus-visible {
+    .node-edit:focus-visible,
+    .node-enter:hover,
+    .node-enter:focus-visible {
       background: var(--accent);
       color: #04111d;
       outline: none;
       transform: translateY(-1px);
     }
 
-    .badge, .live-badge {
+    .badge, .live-badge, .layer-badge {
       position: absolute;
       right: 8px;
       border-radius: 999px;
@@ -556,8 +663,11 @@
 
     .badge { top: 8px; color: #04111d; background: var(--ok); }
     .live-badge { top: 31px; color: #052e16; background: #86efac; }
+    .layer-badge { left: 10px; right: auto; bottom: 8px; color: #451a03; background: #fde68a; }
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
+    .node.has-children .layer-badge,
+    .node.has-children .node-enter { display: grid; }
 
     .port {
       position: absolute;
@@ -797,6 +907,46 @@
     }
     .condition-preview.empty { color: var(--muted); }
 
+    .inner-state-panel {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0 12px;
+      padding: 10px;
+      border: 1px solid rgba(245,158,11,.28);
+      border-radius: 13px;
+      background: rgba(245,158,11,.07);
+    }
+
+    .inner-state-panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #fde68a;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .inner-state-dropzone {
+      display: grid;
+      place-items: center;
+      min-height: 58px;
+      padding: 10px;
+      border: 1px dashed rgba(245,158,11,.5);
+      border-radius: 12px;
+      color: #fcd34d;
+      background: rgba(5,11,20,.36);
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .inner-state-dropzone.drag-over {
+      border-color: #fde68a;
+      background: rgba(245,158,11,.16);
+      box-shadow: 0 0 0 4px rgba(245,158,11,.12);
+    }
+
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -978,7 +1128,32 @@
       display: none;
     }
 
-    .state-template-card {
+    .state-explorer-section {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .state-explorer-label {
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      min-width: 34px;
+      border: 1px solid #1d3956;
+      border-radius: 12px;
+      background: #06111f;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+
+    .state-template-card,
+    .component-preset-card {
       flex: 0 0 214px;
       display: grid;
       gap: 5px;
@@ -993,16 +1168,26 @@
       user-select: none;
     }
 
+    .component-preset-card {
+      flex-basis: 164px;
+      border-color: #365b7a;
+      background:
+        linear-gradient(135deg, rgba(56,189,248,.12), transparent 42%),
+        #071827;
+    }
+
     .state-template-card.editing {
       border-color: var(--selected);
       box-shadow: 0 0 0 3px rgba(245,158,11,.16);
     }
 
-    .state-template-card:active {
+    .state-template-card:active,
+    .component-preset-card:active {
       cursor: grabbing;
     }
 
-    .state-template-card .template-title {
+    .state-template-card .template-title,
+    .component-preset-card .template-title {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1010,7 +1195,8 @@
       font-weight: 900;
     }
 
-    .state-template-card .template-body {
+    .state-template-card .template-body,
+    .component-preset-card .template-body {
       display: -webkit-box;
       overflow: hidden;
       -webkit-line-clamp: 2;
@@ -1037,9 +1223,20 @@
     .state-template-empty {
       display: flex;
       align-items: center;
+      min-width: 210px;
       color: var(--muted);
       font-size: 12px;
       white-space: nowrap;
+    }
+
+    .component-empty {
+      border: 1px dashed #244766;
+      border-radius: 12px;
+      padding: 10px;
+      color: var(--muted);
+      background: #06111f;
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     .template-mode-note {
@@ -1263,9 +1460,11 @@
       </div>
     </aside>
     <main id="map" class="map">
+      <div id="layerNav" class="layer-nav" aria-label="State layer navigation"></div>
       <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world">
+          <div id="layerFrame" class="layer-frame"><span id="layerFrameLabel" class="layer-frame-label"></span></div>
           <svg id="wires" viewBox="0 0 5000 4000">
             <defs>
               <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
@@ -1313,7 +1512,7 @@
     const DEFINITION_SCHEMA_VERSION = 2;
     const COMPONENT_EXPORT_KIND = "state-blueprint-component";
     const COMPONENT_EXPORT_SCHEMA_VERSION = 1;
-    const APP_HTML = "\u003c!doctype html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\n  \u003cmeta charset=\"utf-8\" /\u003e\n  \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\" /\u003e\n  \u003ctitle\u003eGenerated State App\u003c/title\u003e\n  \u003clink rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23020617'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23f59e0b'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E\" /\u003e\n  \u003cstyle\u003e\n    :root {\n      color-scheme: dark;\n      --bg: #020617;\n      --card: #06111f;\n      --card2: #081827;\n      --text: #e5f0ff;\n      --muted: #9fb3c8;\n      --line: #1d3956;\n      --line-strong: #315f8c;\n      --primary: #38bdf8;\n      --primary2: #0ea5e9;\n      --primary-text: #03101f;\n      --accent: #f59e0b;\n      --danger: #fb7185;\n      --danger-bg: #331120;\n      --success: #34d399;\n    }\n\n    * { box-sizing: border-box; }\n\n    html, body {\n      margin: 0;\n      min-height: 100%;\n      overflow: auto;\n      -webkit-overflow-scrolling: touch;\n      font-family: \"Atkinson Hyperlegible\", \"Aptos\", \"Segoe UI Variable\", \"Trebuchet MS\", sans-serif;\n      background-color: var(--bg);\n      background-image:\n        radial-gradient(circle at 14% -10%, rgba(56,189,248,.22), transparent 34%),\n        radial-gradient(circle at 90% 8%, rgba(245,158,11,.14), transparent 30%),\n        linear-gradient(180deg, #07111f 0%, var(--bg) 58%, #01040b 100%);\n      color: var(--text);\n    }\n\n    body {\n      display: grid;\n      place-items: start center;\n      padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));\n    }\n\n    .app { width: min(640px, 100%); }\n\n    .top {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n    }\n\n    .title {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n      color: #bfdbfe;\n      font-size: 13px;\n      font-weight: 950;\n      text-transform: uppercase;\n      letter-spacing: .1em;\n    }\n\n    .state-pill {\n      flex: 0 0 auto;\n      border: 1px solid rgba(56,189,248,.34);\n      border-radius: 999px;\n      padding: 6px 11px;\n      background-color: #071321;\n      color: #7dd3fc;\n      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 30px rgba(2,6,23,.28);\n      font-size: 12px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-weight: 850;\n    }\n\n    .screen {\n      position: relative;\n      overflow: hidden;\n      background-color: var(--card);\n      background-image:\n        linear-gradient(135deg, rgba(56,189,248,.08), transparent 38%),\n        linear-gradient(180deg, rgba(255,255,255,.035), transparent 26%);\n      border: 1px solid var(--line);\n      border-radius: 24px;\n      box-shadow: 0 22px 70px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.04);\n      padding: 30px;\n    }\n\n    .screen.validation-failed {\n      border-color: rgba(251,113,133,.8);\n      box-shadow: 0 0 0 4px rgba(251,113,133,.14), 0 22px 70px rgba(0,0,0,.44);\n    }\n\n    h1 {\n      margin: 0 0 10px;\n      color: #f8fbff;\n      font-size: clamp(30px, 5vw, 50px);\n      line-height: .98;\n      letter-spacing: -.045em;\n    }\n\n    .body {\n      color: var(--muted);\n      line-height: 1.62;\n      min-height: 44px;\n      margin-bottom: 24px;\n      font-size: 16px;\n    }\n\n    .component-stack {\n      display: grid;\n      gap: 12px;\n      margin-bottom: 22px;\n    }\n\n    .component-heading {\n      margin: 4px 0 0;\n      color: #f8fbff;\n      font-size: 22px;\n      line-height: 1.2;\n      font-weight: 950;\n    }\n\n    .component-text {\n      color: var(--muted);\n      font-size: 16px;\n      line-height: 1.62;\n      white-space: pre-wrap;\n    }\n\n    .component-note {\n      padding: 12px 13px;\n      border: 1px solid rgba(245,158,11,.42);\n      border-radius: 14px;\n      background-color: rgba(245,158,11,.1);\n      color: #fde68a;\n      font-size: 14px;\n      font-weight: 750;\n      line-height: 1.45;\n      white-space: pre-wrap;\n    }\n\n    .component-image {\n      display: block;\n      width: 100%;\n      max-height: 280px;\n      object-fit: cover;\n      border-radius: 16px;\n      border: 1px solid var(--line-strong);\n      background-color: #020617;\n      box-shadow: 0 16px 36px rgba(0,0,0,.3);\n    }\n\n    .component-list-block {\n      margin: 0;\n      padding-left: 22px;\n      color: var(--text);\n      line-height: 1.6;\n    }\n\n    .component-list-block li + li { margin-top: 4px; }\n\n    .component-link {\n      display: inline-flex;\n      width: fit-content;\n      max-width: 100%;\n      align-items: center;\n      min-height: 40px;\n      color: #7dd3fc;\n      font-weight: 900;\n      text-decoration: none;\n      overflow-wrap: anywhere;\n    }\n\n    .component-link:hover {\n      color: #bae6fd;\n      text-decoration: underline;\n    }\n\n    .component-divider {\n      height: 1px;\n      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);\n    }\n\n    .controls {\n      margin: 18px 0;\n      padding: 14px;\n      background-color: rgba(8,24,39,.86);\n      border: 1px solid var(--line);\n      border-radius: 16px;\n    }\n\n    .controls h2 {\n      margin: 0 0 8px;\n      color: #bfdbfe;\n      font-size: 12px;\n      text-transform: uppercase;\n      letter-spacing: .09em;\n    }\n\n    .field {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 8px 0;\n      border-top: 1px solid rgba(49,95,140,.32);\n    }\n\n    .field:first-of-type { border-top: 0; }\n    .field .field-label {\n      color: var(--text);\n      font-weight: 850;\n    }\n\n    input[type=\"text\"].typed-input {\n      width: 140px;\n      min-height: 42px;\n      padding: 8px 10px;\n      border: 1px solid var(--line-strong);\n      border-radius: 10px;\n      background-color: #020b16;\n      color: var(--text);\n      caret-color: var(--primary);\n      font: inherit;\n    }\n\n    input[type=\"text\"].typed-input:focus-visible {\n      outline: 3px solid rgba(56,189,248,.22);\n      border-color: var(--primary);\n    }\n\n    input.invalid {\n      border-color: var(--danger);\n      outline: 3px solid rgba(251,113,133,.2);\n    }\n\n    .switch {\n      display: inline-flex;\n      align-items: center;\n      justify-content: flex-end;\n      gap: 9px;\n      min-width: 104px;\n      min-height: 44px;\n      cursor: pointer;\n      user-select: none;\n      touch-action: manipulation;\n    }\n\n    .switch input {\n      position: absolute;\n      inline-size: 1px;\n      block-size: 1px;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .switch-track {\n      position: relative;\n      width: 52px;\n      height: 30px;\n      flex: 0 0 auto;\n      border: 1px solid var(--line-strong);\n      border-radius: 999px;\n      background-color: #102033;\n      transition: background-color .16s ease, border-color .16s ease;\n    }\n\n    .switch-track::after {\n      content: \"\";\n      position: absolute;\n      left: 3px;\n      top: 3px;\n      width: 22px;\n      height: 22px;\n      border-radius: 999px;\n      background: #dbeafe;\n      box-shadow: 0 2px 7px rgba(0,0,0,.3);\n      transition: transform .16s ease, background .16s ease;\n    }\n\n    .switch input:checked + .switch-track {\n      border-color: var(--primary);\n      background-color: var(--primary);\n    }\n\n    .switch input:checked + .switch-track::after {\n      transform: translateX(22px);\n      background: #03101f;\n    }\n\n    .switch input:focus-visible + .switch-track {\n      outline: 3px solid rgba(56,189,248,.24);\n      outline-offset: 2px;\n    }\n\n    .switch-value {\n      min-width: 24px;\n      color: var(--muted);\n      font-size: 13px;\n      font-weight: 850;\n      text-align: left;\n    }\n\n    .actions {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 10px;\n      margin-top: 18px;\n    }\n\n    .action {\n      display: flex;\n      flex-direction: column;\n      align-items: flex-start;\n      gap: 5px;\n      max-width: 100%;\n    }\n\n    .condition-note {\n      max-width: min(320px, 100%);\n      color: var(--muted);\n      font-size: 12px;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid button {\n      background-color: var(--danger);\n      background-image: linear-gradient(135deg, var(--danger), #e11d48);\n      color: #fff7f9;\n      box-shadow: 0 0 0 3px rgba(251,113,133,.18);\n    }\n\n    .condition-feedback {\n      display: none;\n      max-width: min(320px, 100%);\n      color: #fecdd3;\n      font-size: 12px;\n      font-weight: 850;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid .condition-feedback { display: block; }\n\n    .runtime-validation {\n      margin: 0 0 18px;\n      padding: 12px 13px;\n      border: 1px solid rgba(251,113,133,.72);\n      border-radius: 14px;\n      background-color: rgba(51,17,32,.88);\n      color: #fecdd3;\n      font-size: 13px;\n      font-weight: 850;\n      line-height: 1.4;\n    }\n\n    .runtime-validation code {\n      display: inline-block;\n      margin-top: 4px;\n      padding: 2px 6px;\n      border-radius: 7px;\n      background: rgba(251,113,133,.14);\n      color: #fff1f2;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 12px;\n      overflow-wrap: anywhere;\n    }\n\n    .condition-note code {\n      color: #e0f2fe;\n      background: rgba(56,189,248,.12);\n      border: 1px solid rgba(56,189,248,.26);\n      border-radius: 7px;\n      padding: 1px 5px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 11px;\n    }\n\n    button {\n      border: 1px solid rgba(125,211,252,.28);\n      border-radius: 999px;\n      padding: 12px 16px;\n      background-color: var(--primary);\n      background-image: linear-gradient(135deg, var(--primary), var(--primary2));\n      color: var(--primary-text);\n      box-shadow: 0 12px 30px rgba(14,165,233,.2);\n      font-weight: 950;\n      cursor: pointer;\n      min-height: 44px;\n      touch-action: manipulation;\n    }\n\n    button:hover {\n      border-color: rgba(186,230,253,.62);\n      background-color: var(--primary2);\n      background-image: linear-gradient(135deg, #7dd3fc, var(--primary2));\n    }\n\n    button:focus-visible {\n      outline: 3px solid rgba(56,189,248,.28);\n      outline-offset: 3px;\n    }\n\n    button:disabled {\n      cursor: not-allowed;\n      background-color: #172033;\n      background-image: none;\n      color: #64748b;\n      box-shadow: none;\n      border-color: #26334a;\n    }\n\n    .empty {\n      padding: 18px;\n      border: 1px dashed var(--line-strong);\n      border-radius: 16px;\n      background-color: rgba(8,24,39,.48);\n      color: var(--muted);\n    }\n\n    .log {\n      margin-top: 14px;\n      color: var(--muted);\n      font-size: 12px;\n      max-height: 110px;\n      overflow: auto;\n      white-space: pre-wrap;\n    }\n\n    @media (max-width: 560px) {\n      body {\n        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));\n      }\n\n      .top { align-items: flex-start; }\n\n      .screen {\n        border-radius: 18px;\n        padding: 20px;\n      }\n\n      h1 { font-size: 30px; }\n\n      .field {\n        align-items: stretch;\n        flex-direction: column;\n        gap: 8px;\n      }\n\n      input[type=\"text\"].typed-input {\n        width: 100%;\n        min-height: 44px;\n        font-size: 16px;\n      }\n\n      .switch {\n        justify-content: space-between;\n        width: 100%;\n        min-height: 48px;\n        padding: 2px 0;\n      }\n\n      .actions {\n        flex-direction: column;\n        align-items: stretch;\n      }\n\n      .action,\n      button { width: 100%; }\n    }\n  \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n  \u003cmain class=\"app\"\u003e\n    \u003cdiv class=\"top\"\u003e\n      \u003cdiv class=\"title\" id=\"appName\"\u003eGenerated App\u003c/div\u003e\n      \u003cdiv class=\"state-pill\" id=\"statePill\"\u003e—\u003c/div\u003e\n    \u003c/div\u003e\n    \u003csection class=\"screen\" id=\"screen\"\u003e\u003c/section\u003e\n    \u003cdiv class=\"log\" id=\"log\"\u003e\u003c/div\u003e\n  \u003c/main\u003e\n\n  \u003cscript\u003e\n    const STORAGE_KEY = \"stateBlueprintHotLinked.model.v2\";\n\n    let model = loadModel() || demoModel();\n    let current = model.initial;\n    let context = defaultContext(model);\n    let logLines = [];\n    let transitionToNotify = null;\n    let blockedTransitionId = null;\n    let runtimeValidation = null;\n    let suppressNextFocus = false;\n\n    function demoModel() {\n      return {\n        version: 2,\n        name: \"Standard Auth Flow\",\n        initial: \"auth_start\",\n        states: [\n          { id: \"auth_start\", title: \"Auth start\", body: \"User chooses login or registration.\", x: 90, y: 210 },\n          { id: \"login\", title: \"Login\", body: \"Email and password are entered.\", x: 360, y: 100 },\n          { id: \"register\", title: \"Register\", body: \"Create a new account with email and accepted terms.\", x: 360, y: 320 },\n          { id: \"error\", title: \"Error\", body: \"Invalid credentials or registration data.\", x: 630, y: 320 },\n          { id: \"logged_in\", title: \"Logged in\", body: \"Authenticated app area.\", x: 900, y: 100 },\n          { id: \"logged_out\", title: \"Logged out\", body: \"Session ended. User can return to login.\", x: 900, y: 320 }\n        ],\n        transitions: [\n          { id: \"t_start_login\", from: \"auth_start\", to: \"login\", label: \"Login\", condition: \"\" },\n          { id: \"t_start_register\", from: \"auth_start\", to: \"register\", label: \"Registrieren\", condition: \"\" },\n          { id: \"t_login_success\", from: \"login\", to: \"logged_in\", label: \"Einloggen\", condition: \"email == \\\"user@example.com\\\" \u0026\u0026 password == \\\"secret123\\\"\" },\n          { id: \"t_login_error\", from: \"login\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_register_success\", from: \"register\", to: \"logged_in\", label: \"Account erstellen\", condition: \"email == \\\"new@example.com\\\" \u0026\u0026 accepted_terms\" },\n          { id: \"t_register_error\", from: \"register\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_logout\", from: \"logged_in\", to: \"logged_out\", label: \"Logout\", condition: \"\" },\n          { id: \"t_logged_out_login\", from: \"logged_out\", to: \"login\", label: \"Wieder einloggen\", condition: \"\" },\n          { id: \"t_error_back\", from: \"error\", to: \"auth_start\", label: \"Zurück\", condition: \"\" }\n        ]\n      };\n    }\n\n    function loadModel() {\n      try {\n        const text = localStorage.getItem(STORAGE_KEY);\n        return text ? normalizeModel(JSON.parse(text)) : null;\n      } catch (_) { return null; }\n    }\n\n    function saveModel() {\n      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(model)); } catch (_) {}\n    }\n\n\n    function normalizeModel(m) {\n      m.version = 2;\n      m.name = m.name || \"Generated App\";\n      m.states = Array.isArray(m.states) ? m.states : [];\n      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];\n      if (!m.states.length) m.states.push({ id: \"start\", title: \"Start\", body: \"\" });\n      for (const s of m.states) {\n        s.components = normalizeComponents(s.components);\n        s.data = normalizeDataObject(s.data);\n      }\n      const ids = new Set(m.states.map(s =\u003e s.id));\n      m.transitions = m.transitions.filter(t =\u003e ids.has(t.from) \u0026\u0026 ids.has(t.to));\n      for (const t of m.transitions) {\n        t.id = t.id || Math.random().toString(36).slice(2, 9);\n        t.label = t.label || t.event || \"Next\";\n        t.condition = t.condition || \"\";\n        t.set = normalizeDataObject(t.set);\n      }\n      if (!ids.has(m.initial)) m.initial = m.states[0].id;\n      return m;\n    }\n\n    function normalizeComponents(components) {\n      const allowed = new Set([\"heading\", \"text\", \"image\", \"list\", \"link\", \"note\", \"divider\"]);\n      return (Array.isArray(components) ? components : [])\n        .filter(component =\u003e component \u0026\u0026 typeof component === \"object\" \u0026\u0026 allowed.has(component.type))\n        .slice(0, 24)\n        .map(component =\u003e ({\n          id: String(component.id || Math.random().toString(36).slice(2, 9)),\n          type: component.type,\n          text: String(component.text || \"\"),\n          url: String(component.url || \"\")\n        }));\n    }\n\n    function isPlainDataObject(value) {\n      return Boolean(value) \u0026\u0026 typeof value === \"object\" \u0026\u0026 !Array.isArray(value);\n    }\n\n    function normalizeDataObject(value) {\n      if (!isPlainDataObject(value)) return {};\n      return JSON.parse(JSON.stringify(value));\n    }\n\n    function readContextPath(path) {\n      const parts = String(path || \"\").split(\".\").filter(Boolean);\n      let value = context;\n      for (const part of parts) {\n        if (value === null || value === undefined || typeof value !== \"object\" || !(part in value)) return \"\";\n        value = value[part];\n      }\n      if (value === null || value === undefined) return \"\";\n      if (Array.isArray(value)) return value.join(\", \");\n      if (typeof value === \"object\") return JSON.stringify(value);\n      return String(value);\n    }\n\n    function renderTemplate(text) {\n      return String(text || \"\").replace(/\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\}/g, (_, path) =\u003e readContextPath(path));\n    }\n\n\n    function applyStateDataDefaults(state) {\n      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {\n        if (!(key in context)) context[key] = value;\n      }\n    }\n\n    function applyTransitionSet(transition) {\n      Object.assign(context, normalizeDataObject(transition.set));\n    }\n\n    function findState(id) { return model.states.find(s =\u003e s.id === id); }\n    function stateById(id) { return findState(id) || model.states[0]; }\n    function outgoing(id) { return model.transitions.filter(t =\u003e t.from === id); }\n\n    function defaultContext(m) {\n      const vars = inferVariables(m);\n      const out = {};\n      for (const v of vars) out[v.name] = defaultValueFor(v);\n      return out;\n    }\n\n    function inferVariables(m) {\n      const map = new Map();\n      const upsert = (name, patch) =\u003e {\n        if ([\"true\", \"false\", \"and\", \"or\", \"null\", \"undefined\", \"always\"].includes(String(name).toLowerCase())) return;\n        const prev = map.get(name) || { name, type: \"boolean\" };\n        map.set(name, { ...prev, ...patch });\n      };\n      for (const t of m.transitions || []) {\n        const c = String(t.condition || \"\");\n        const searchable = c.replace(/([\"'])(?:\\\\.|(?!\\1)[\\s\\S])*?\\1/g, \"\");\n        const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];\n        for (const name of names) {\n          upsert(name, {});\n        }\n        for (const numeric of searchable.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(-?\\d+(?:\\.\\d+)?)/g)) {\n          const raw = numeric[3];\n          const decimalPlaces = raw.includes(\".\") ? raw.split(\".\")[1].length : 0;\n          const nextDecimalPlaces = Math.max(map.get(numeric[1])?.decimalPlaces || 0, decimalPlaces);\n          upsert(numeric[1], {\n            type: \"number\",\n            kind: nextDecimalPlaces ? \"float\" : \"int\",\n            decimalPlaces: nextDecimalPlaces\n          });\n        }\n        for (const quoted of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=)\\s*(['\"])(.*?)\\3/g)) {\n          upsert(quoted[1], { type: \"text\" });\n        }\n      }\n      return [...map.values()].sort((a, b) =\u003e a.name.localeCompare(b.name));\n    }\n\n    function defaultValueFor(v) {\n      if (v.type === \"number\") return \"0\";\n      if (v.type === \"text\") return \"\";\n      return false;\n    }\n\n    function variableMap() {\n      return new Map(inferVariables(model).map(v =\u003e [v.name, v]));\n    }\n\n    function sanitizeContext(vars = inferVariables(model)) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function ensureContext(vars) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function sanitizeValue(value, v) {\n      if (value === null || value === undefined) return defaultValueFor(v);\n      if (v.type === \"number\") return sanitizeNumericInput(String(value), v, { fallback: defaultValueFor(v) });\n      if (v.type === \"text\") return String(value);\n      return Boolean(value);\n    }\n\n    function sanitizeNumericInput(value, v, opts = {}) {\n      const fallback = opts.fallback ?? \"\";\n      let raw = String(value ?? \"\").trim().replace(\",\", \".\");\n      if (v.kind === \"int\") raw = raw.replace(/[^\\d]/g, \"\");\n      else raw = raw.replace(/[^\\d.]/g, \"\").replace(/(\\..*)\\./g, \"$1\");\n      if (raw === \"\") return fallback;\n      return raw;\n    }\n\n    function isValidValue(value, v) {\n      if (value === null || value === undefined) return false;\n      if (v.type === \"number\") {\n        const raw = String(value);\n        if (v.kind === \"int\") return /^\\d+$/.test(raw);\n        return /^\\d+(?:\\.\\d+)?$/.test(raw);\n      }\n      if (v.type === \"text\") return value !== null \u0026\u0026 value !== undefined;\n      return typeof value === \"boolean\";\n    }\n\n    function strictNumber(value) {\n      if (value === null || value === undefined) return null;\n      const raw = String(value).trim();\n      if (!/^\\d+(?:\\.\\d+)?$/.test(raw)) return null;\n      const n = Number(raw);\n      return Number.isFinite(n) ? n : null;\n    }\n\n    function coerceValue(text) {\n      const raw = String(text).trim().replace(/^[\"']|[\"']$/g, \"\");\n      if (raw === \"true\") return true;\n      if (raw === \"false\") return false;\n      if (raw === \"null\" || raw === \"undefined\") return Symbol.for(\"invalid\");\n      if (/^-?\\d+(\\.\\d+)?$/.test(raw)) return Number(raw);\n      return raw;\n    }\n\n    function testAtom(atom) {\n      atom = atom.trim();\n      if (!atom || atom === \"true\") return true;\n      if (atom === \"false\") return false;\n\n      if (atom.startsWith(\"!\")) {\n        const name = atom.slice(1).trim();\n        if (context[name] === null || context[name] === undefined) return false;\n        return !Boolean(context[name]);\n      }\n\n      const m = atom.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(.+)$/);\n      if (!m) {\n        const v = variableMap().get(atom);\n        if (v \u0026\u0026 !isValidValue(context[atom], v)) return false;\n        return Boolean(context[atom]);\n      }\n\n      const left = context[m[1]];\n      const op = m[2];\n      const right = coerceValue(m[3]);\n      const vars = variableMap();\n      const v = vars.get(m[1]);\n      if (left === null || left === undefined || right === Symbol.for(\"invalid\")) return false;\n      if (v \u0026\u0026 !isValidValue(left, v)) return false;\n\n      if ([\"\u003e=\", \"\u003c=\", \"\u003e\", \"\u003c\"].includes(op)) {\n        const l = strictNumber(left);\n        const r = typeof right === \"number\" \u0026\u0026 Number.isFinite(right) \u0026\u0026 right \u003e= 0 ? right : null;\n        if (l === null || r === null) return false;\n        if (op === \"\u003e=\") return l \u003e= r;\n        if (op === \"\u003c=\") return l \u003c= r;\n        if (op === \"\u003e\") return l \u003e r;\n        if (op === \"\u003c\") return l \u003c r;\n      }\n      if (typeof right === \"number\") {\n        const l = strictNumber(left);\n        if (l === null || right \u003c 0) return false;\n        return op === \"==\" ? l === right : l !== right;\n      }\n      if (typeof right === \"boolean\") {\n        const l = Boolean(left);\n        return op === \"==\" ? l === right : l !== right;\n      }\n      return op === \"==\" ? String(left) === String(right) : String(left) !== String(right);\n      return false;\n    }\n\n    function conditionOk(condition) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return true;\n      return c.split(\"||\").some(orPart =\u003e orPart.split(\"\u0026\u0026\").every(testAtom));\n    }\n\n    function log(text) {\n      logLines.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);\n      logLines = logLines.slice(0, 6);\n    }\n\n    function refreshBlockedValidation() {\n      if (!blockedTransitionId) return;\n      const transition = model.transitions.find(t =\u003e t.id === blockedTransitionId);\n      if (!transition || conditionOk(transition.condition)) blockedTransitionId = null;\n      for (const action of document.querySelectorAll(\"[data-action-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === action.dataset.actionTransitionId);\n        action.classList.toggle(\"invalid\", Boolean(t \u0026\u0026 t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)));\n      }\n    }\n\n    function notifyRuntime() {\n      const payload = {\n        type: \"STATE_BLUEPRINT_RUNTIME_STATE\",\n        current,\n        transitionId: transitionToNotify?.id || null,\n        from: transitionToNotify?.from || null,\n        to: current,\n        label: transitionToNotify?.label || null,\n        context: JSON.parse(JSON.stringify(context))\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n      transitionToNotify = null;\n    }\n\n    function renderComponents(screen, state) {\n      const components = normalizeComponents(state.components);\n      if (!components.length) {\n        const body = document.createElement(\"div\");\n        body.className = \"body\";\n        body.textContent = renderTemplate(state.body || \"This screen is generated from the current state.\");\n        screen.appendChild(body);\n        return;\n      }\n      const stack = document.createElement(\"div\");\n      stack.className = \"component-stack\";\n      for (const component of components) {\n        let el;\n        if (component.type === \"heading\") {\n          el = document.createElement(\"h2\");\n          el.className = \"component-heading\";\n          el.textContent = renderTemplate(component.text || \"Section\");\n        } else if (component.type === \"image\") {\n          const src = safeComponentUrl(renderTemplate(component.url));\n          if (!src) continue;\n          el = document.createElement(\"img\");\n          el.className = \"component-image\";\n          el.src = src;\n          el.alt = renderTemplate(component.text || \"\");\n          el.loading = \"lazy\";\n        } else if (component.type === \"list\") {\n          const items = renderTemplate(component.text || \"\").split(/\\r?\\n/).map(item =\u003e item.trim()).filter(Boolean);\n          if (!items.length) continue;\n          el = document.createElement(\"ul\");\n          el.className = \"component-list-block\";\n          for (const item of items) {\n            const li = document.createElement(\"li\");\n            li.textContent = item;\n            el.appendChild(li);\n          }\n        } else if (component.type === \"link\") {\n          const href = safeComponentUrl(renderTemplate(component.url));\n          if (!href) continue;\n          el = document.createElement(\"a\");\n          el.className = \"component-link\";\n          el.href = href;\n          el.target = \"_blank\";\n          el.rel = \"noopener noreferrer\";\n          el.textContent = renderTemplate(component.text || href);\n        } else if (component.type === \"note\") {\n          el = document.createElement(\"div\");\n          el.className = \"component-note\";\n          el.textContent = renderTemplate(component.text || \"\");\n        } else if (component.type === \"divider\") {\n          el = document.createElement(\"div\");\n          el.className = \"component-divider\";\n          el.setAttribute(\"role\", \"separator\");\n        } else {\n          el = document.createElement(\"div\");\n          el.className = \"component-text\";\n          el.textContent = renderTemplate(component.text || \"\");\n        }\n        stack.appendChild(el);\n      }\n      screen.appendChild(stack);\n    }\n\n    function safeComponentUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      if (/^https?:\\/\\//i.test(raw)) return raw;\n      if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;\n      return \"\";\n    }\n\n    function isNegativeTransition(t) {\n      return /\\b(error|fail|fehler|zurück|back|cancel|abbruch)\\b/i.test(String(t.label || \"\"));\n    }\n\n    function defaultTransitionId(transitions) {\n      return (transitions.find(t =\u003e !isNegativeTransition(t)) || transitions[0])?.id || \"\";\n    }\n\n    function activateDefaultAction() {\n      const button = document.querySelector('[data-default-action=\"true\"]');\n      if (button \u0026\u0026 !button.disabled) button.click();\n    }\n\n    function submitOnEnter(evt) {\n      if (evt.key !== \"Enter\" || evt.isComposing || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return;\n      evt.preventDefault();\n      activateDefaultAction();\n    }\n\n    function applyTabOrderAndFocus(screen) {\n      const focusables = [...screen.querySelectorAll(\"input, button, a[href]\")];\n      focusables.forEach(el =\u003e { el.tabIndex = 0; });\n      if (suppressNextFocus) {\n        suppressNextFocus = false;\n        return;\n      }\n      const firstInput = screen.querySelector(\"input:not([type='hidden'])\");\n      const fallback = screen.querySelector('[data-default-action=\"true\"]');\n      const target = firstInput || fallback;\n      if (target) requestAnimationFrame(() =\u003e target.focus({ preventScroll: true }));\n    }\n\n    function render() {\n      normalizeModel(model);\n      if (!findState(current)) current = model.initial;\n      const s = stateById(current);\n      applyStateDataDefaults(s);\n      const transitions = outgoing(s.id);\n      const actionTransitions = transitions;\n      const defaultActionId = defaultTransitionId(actionTransitions);\n      if (blockedTransitionId \u0026\u0026 !actionTransitions.some(t =\u003e t.id === blockedTransitionId)) blockedTransitionId = null;\n      const vars = inferVariables({ transitions: actionTransitions });\n      ensureContext(vars);\n\n      document.getElementById(\"appName\").textContent = model.name || \"Generated App\";\n      document.getElementById(\"statePill\").textContent = s.id;\n\n      const screen = document.getElementById(\"screen\");\n      screen.className = \"screen\";\n      const activeValidation = runtimeValidation?.stateId === s.id ? runtimeValidation : null;\n      if (activeValidation) screen.classList.add(\"validation-failed\");\n      screen.innerHTML = \"\";\n\n      const h1 = document.createElement(\"h1\");\n      h1.textContent = renderTemplate(s.title || s.id);\n      screen.appendChild(h1);\n\n      renderComponents(screen, s);\n\n      if (activeValidation) {\n        const validation = document.createElement(\"div\");\n        validation.className = \"runtime-validation\";\n        validation.setAttribute(\"role\", \"alert\");\n        validation.append(`Condition not met for \"${activeValidation.label}\".`);\n        if (activeValidation.condition) {\n          validation.append(document.createElement(\"br\"));\n          validation.append(\"Expected \");\n          const code = document.createElement(\"code\");\n          code.textContent = activeValidation.condition;\n          validation.appendChild(code);\n        }\n        screen.appendChild(validation);\n      }\n\n      if (vars.length) {\n        const controls = document.createElement(\"div\");\n        controls.className = \"controls\";\n        controls.innerHTML = `\u003ch2\u003eCondition inputs\u003c/h2\u003e`;\n        for (const v of vars) {\n          if (!(v.name in context)) context[v.name] = defaultValueFor(v);\n          const row = document.createElement(\"div\");\n          row.className = \"field\";\n          const label = document.createElement(\"label\");\n          label.className = \"field-label\";\n          label.textContent = v.name;\n          const input = document.createElement(\"input\");\n          let control = input;\n          if (v.type === \"number\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.inputMode = v.kind === \"int\" ? \"numeric\" : \"decimal\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = sanitizeNumericInput(input.value, v);\n              input.value = context[v.name];\n              input.classList.toggle(\"invalid\", !isValidValue(context[v.name], v));\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else if (v.type === \"text\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = String(input.value ?? \"\");\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else {\n            input.type = \"checkbox\";\n            input.checked = Boolean(context[v.name]);\n            const toggle = document.createElement(\"label\");\n            toggle.className = \"switch\";\n            const track = document.createElement(\"span\");\n            track.className = \"switch-track\";\n            const value = document.createElement(\"span\");\n            value.className = \"switch-value\";\n            const updateValue = () =\u003e { value.textContent = input.checked ? \"On\" : \"Off\"; };\n            input.onchange = () =\u003e {\n              context[v.name] = input.checked;\n              updateValue();\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n            updateValue();\n            toggle.append(input, track, value);\n            control = toggle;\n          }\n          row.append(label, control);\n          controls.appendChild(row);\n        }\n        screen.appendChild(controls);\n      }\n\n      const actions = document.createElement(\"div\");\n      actions.className = \"actions\";\n      for (const t of actionTransitions) {\n        const action = document.createElement(\"div\");\n        action.className = \"action\";\n        action.dataset.actionTransitionId = t.id;\n        if (t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)) action.classList.add(\"invalid\");\n        const button = document.createElement(\"button\");\n        button.dataset.transitionId = t.id;\n        if (t.id === defaultActionId) button.dataset.defaultAction = \"true\";\n        button.textContent = t.label || \"Next\";\n        button.onclick = () =\u003e {\n          const ok = conditionOk(t.condition);\n          if (ok) {\n            blockedTransitionId = null;\n            runtimeValidation = null;\n            applyTransitionSet(t);\n            log(`${s.id} --${t.label || \"next\"}--\u003e ${t.to}`);\n            current = t.to;\n            transitionToNotify = t;\n          } else {\n            blockedTransitionId = t.id;\n            log(`${s.id} --${t.label || \"next\"} blocked`);\n            render();\n            return;\n          }\n          render();\n        };\n        action.appendChild(button);\n        const condition = String(t.condition || \"\").trim();\n        if (condition \u0026\u0026 condition.toLowerCase() !== \"always\") {\n          const note = document.createElement(\"div\");\n          note.className = \"condition-note\";\n          note.append(\"needs \");\n          const code = document.createElement(\"code\");\n          code.textContent = condition;\n          note.appendChild(code);\n          action.appendChild(note);\n        }\n        const feedback = document.createElement(\"div\");\n        feedback.className = \"condition-feedback\";\n        feedback.textContent = \"Condition not met. Check the inputs above.\";\n        action.appendChild(feedback);\n        actions.appendChild(action);\n      }\n      if (!transitions.length) {\n        const empty = document.createElement(\"div\");\n        empty.className = \"empty\";\n        empty.textContent = \"No outgoing transitions. This is an end state.\";\n        screen.appendChild(empty);\n      }\n      screen.appendChild(actions);\n      applyTabOrderAndFocus(screen);\n\n      document.getElementById(\"log\").textContent = logLines.join(\"\\n\");\n      notifyRuntime();\n    }\n\n    function updateActionButtons() {\n      for (const button of document.querySelectorAll(\"[data-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === button.dataset.transitionId);\n        if (t) button.disabled = false;\n      }\n    }\n\n    function escapeHtml(text) {\n      return String(text).replace(/[\u0026\u003c\u003e\"]/g, ch =\u003e ({\"\u0026\":\"\u0026amp;\",\"\u003c\":\"\u0026lt;\",\"\u003e\":\"\u0026gt;\",\"\\\"\":\"\u0026quot;\"}[ch]));\n    }\n\n    window.addEventListener(\"message\", evt =\u003e {\n      const data = evt.data || {};\n      if (data.type !== \"STATE_BLUEPRINT_MODEL\") return;\n      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));\n      suppressNextFocus = Boolean(data.preserveFocus);\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) saveModel();\n      const oldContext = context;\n      context = { ...defaultContext(model), ...oldContext };\n      if (data.reset) context = defaultContext(model);\n      const requestedStart = typeof data.startStateId === \"string\" \u0026\u0026 findState(data.startStateId) ? data.startStateId : null;\n      if (requestedStart || data.reset || !findState(current)) {\n        current = requestedStart || model.initial;\n        logLines = [];\n        transitionToNotify = null;\n        blockedTransitionId = null;\n        runtimeValidation = null;\n      }\n      render();\n    });\n\n    window.addEventListener(\"storage\", evt =\u003e {\n      if (evt.key !== STORAGE_KEY || !evt.newValue) return;\n      try {\n        model = normalizeModel(JSON.parse(evt.newValue));\n        suppressNextFocus = true;\n        if (!findState(current)) current = model.initial;\n        render();\n      } catch (_) {}\n    });\n\n\n    document.addEventListener(\"keydown\", evt =\u003e {\n      const mod = evt.ctrlKey || evt.metaKey;\n      if (!mod) return;\n      const key = evt.key.toLowerCase();\n      if (key !== \"s\" \u0026\u0026 key !== \"o\") return;\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) return;\n      evt.preventDefault();\n      evt.stopImmediatePropagation();\n      const payload = {\n        type: \"STATE_BLUEPRINT_SHORTCUT\",\n        action: key === \"s\" ? \"save\" : \"load\"\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n    }, { capture: true });\n\n    render();\n  \u003c/script\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n";
+    const APP_HTML = "\u003c!doctype html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\n  \u003cmeta charset=\"utf-8\" /\u003e\n  \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\" /\u003e\n  \u003ctitle\u003eGenerated State App\u003c/title\u003e\n  \u003clink rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23020617'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23f59e0b'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E\" /\u003e\n  \u003cstyle\u003e\n    :root {\n      color-scheme: dark;\n      --bg: #020617;\n      --card: #06111f;\n      --card2: #081827;\n      --text: #e5f0ff;\n      --muted: #9fb3c8;\n      --line: #1d3956;\n      --line-strong: #315f8c;\n      --primary: #38bdf8;\n      --primary2: #0ea5e9;\n      --primary-text: #03101f;\n      --accent: #f59e0b;\n      --danger: #fb7185;\n      --danger-bg: #331120;\n      --success: #34d399;\n    }\n\n    * { box-sizing: border-box; }\n\n    html, body {\n      margin: 0;\n      min-height: 100%;\n      overflow: auto;\n      -webkit-overflow-scrolling: touch;\n      font-family: \"Atkinson Hyperlegible\", \"Aptos\", \"Segoe UI Variable\", \"Trebuchet MS\", sans-serif;\n      background-color: var(--bg);\n      background-image:\n        radial-gradient(circle at 14% -10%, rgba(56,189,248,.22), transparent 34%),\n        radial-gradient(circle at 90% 8%, rgba(245,158,11,.14), transparent 30%),\n        linear-gradient(180deg, #07111f 0%, var(--bg) 58%, #01040b 100%);\n      color: var(--text);\n    }\n\n    body {\n      display: grid;\n      place-items: start center;\n      padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));\n    }\n\n    .app { width: min(640px, 100%); }\n\n    .top {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n    }\n\n    .title {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n      color: #bfdbfe;\n      font-size: 13px;\n      font-weight: 950;\n      text-transform: uppercase;\n      letter-spacing: .1em;\n    }\n\n    .state-pill {\n      flex: 0 0 auto;\n      border: 1px solid rgba(56,189,248,.34);\n      border-radius: 999px;\n      padding: 6px 11px;\n      background-color: #071321;\n      color: #7dd3fc;\n      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 30px rgba(2,6,23,.28);\n      font-size: 12px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-weight: 850;\n    }\n\n    .screen {\n      position: relative;\n      overflow: hidden;\n      background-color: var(--card);\n      background-image:\n        linear-gradient(135deg, rgba(56,189,248,.08), transparent 38%),\n        linear-gradient(180deg, rgba(255,255,255,.035), transparent 26%);\n      border: 1px solid var(--line);\n      border-radius: 24px;\n      box-shadow: 0 22px 70px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.04);\n      padding: 30px;\n    }\n\n    .screen.validation-failed {\n      border-color: rgba(251,113,133,.8);\n      box-shadow: 0 0 0 4px rgba(251,113,133,.14), 0 22px 70px rgba(0,0,0,.44);\n    }\n\n    h1 {\n      margin: 0 0 10px;\n      color: #f8fbff;\n      font-size: clamp(30px, 5vw, 50px);\n      line-height: .98;\n      letter-spacing: -.045em;\n    }\n\n    .body {\n      color: var(--muted);\n      line-height: 1.62;\n      min-height: 44px;\n      margin-bottom: 24px;\n      font-size: 16px;\n    }\n\n    .component-stack {\n      display: grid;\n      gap: 12px;\n      margin-bottom: 22px;\n    }\n\n    .component-heading {\n      margin: 4px 0 0;\n      color: #f8fbff;\n      font-size: 22px;\n      line-height: 1.2;\n      font-weight: 950;\n    }\n\n    .component-text {\n      color: var(--muted);\n      font-size: 16px;\n      line-height: 1.62;\n      white-space: pre-wrap;\n    }\n\n    .component-note {\n      padding: 12px 13px;\n      border: 1px solid rgba(245,158,11,.42);\n      border-radius: 14px;\n      background-color: rgba(245,158,11,.1);\n      color: #fde68a;\n      font-size: 14px;\n      font-weight: 750;\n      line-height: 1.45;\n      white-space: pre-wrap;\n    }\n\n    .component-image {\n      display: block;\n      width: 100%;\n      max-height: 280px;\n      object-fit: cover;\n      border-radius: 16px;\n      border: 1px solid var(--line-strong);\n      background-color: #020617;\n      box-shadow: 0 16px 36px rgba(0,0,0,.3);\n    }\n\n    .component-list-block {\n      margin: 0;\n      padding-left: 22px;\n      color: var(--text);\n      line-height: 1.6;\n    }\n\n    .component-list-block li + li { margin-top: 4px; }\n\n    .component-link {\n      display: inline-flex;\n      width: fit-content;\n      max-width: 100%;\n      align-items: center;\n      min-height: 40px;\n      color: #7dd3fc;\n      font-weight: 900;\n      text-decoration: none;\n      overflow-wrap: anywhere;\n    }\n\n    .component-link:hover {\n      color: #bae6fd;\n      text-decoration: underline;\n    }\n\n    .component-divider {\n      height: 1px;\n      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);\n    }\n\n    .controls {\n      margin: 18px 0;\n      padding: 14px;\n      background-color: rgba(8,24,39,.86);\n      border: 1px solid var(--line);\n      border-radius: 16px;\n    }\n\n    .controls h2 {\n      margin: 0 0 8px;\n      color: #bfdbfe;\n      font-size: 12px;\n      text-transform: uppercase;\n      letter-spacing: .09em;\n    }\n\n    .field {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 8px 0;\n      border-top: 1px solid rgba(49,95,140,.32);\n    }\n\n    .field:first-of-type { border-top: 0; }\n    .field .field-label {\n      color: var(--text);\n      font-weight: 850;\n    }\n\n    input[type=\"text\"].typed-input {\n      width: 140px;\n      min-height: 42px;\n      padding: 8px 10px;\n      border: 1px solid var(--line-strong);\n      border-radius: 10px;\n      background-color: #020b16;\n      color: var(--text);\n      caret-color: var(--primary);\n      font: inherit;\n    }\n\n    input[type=\"text\"].typed-input:focus-visible {\n      outline: 3px solid rgba(56,189,248,.22);\n      border-color: var(--primary);\n    }\n\n    input.invalid {\n      border-color: var(--danger);\n      outline: 3px solid rgba(251,113,133,.2);\n    }\n\n    .switch {\n      display: inline-flex;\n      align-items: center;\n      justify-content: flex-end;\n      gap: 9px;\n      min-width: 104px;\n      min-height: 44px;\n      cursor: pointer;\n      user-select: none;\n      touch-action: manipulation;\n    }\n\n    .switch input {\n      position: absolute;\n      inline-size: 1px;\n      block-size: 1px;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .switch-track {\n      position: relative;\n      width: 52px;\n      height: 30px;\n      flex: 0 0 auto;\n      border: 1px solid var(--line-strong);\n      border-radius: 999px;\n      background-color: #102033;\n      transition: background-color .16s ease, border-color .16s ease;\n    }\n\n    .switch-track::after {\n      content: \"\";\n      position: absolute;\n      left: 3px;\n      top: 3px;\n      width: 22px;\n      height: 22px;\n      border-radius: 999px;\n      background: #dbeafe;\n      box-shadow: 0 2px 7px rgba(0,0,0,.3);\n      transition: transform .16s ease, background .16s ease;\n    }\n\n    .switch input:checked + .switch-track {\n      border-color: var(--primary);\n      background-color: var(--primary);\n    }\n\n    .switch input:checked + .switch-track::after {\n      transform: translateX(22px);\n      background: #03101f;\n    }\n\n    .switch input:focus-visible + .switch-track {\n      outline: 3px solid rgba(56,189,248,.24);\n      outline-offset: 2px;\n    }\n\n    .switch-value {\n      min-width: 24px;\n      color: var(--muted);\n      font-size: 13px;\n      font-weight: 850;\n      text-align: left;\n    }\n\n    .actions {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 10px;\n      margin-top: 18px;\n    }\n\n    .action {\n      display: flex;\n      flex-direction: column;\n      align-items: flex-start;\n      gap: 5px;\n      max-width: 100%;\n    }\n\n    .condition-note {\n      max-width: min(320px, 100%);\n      color: var(--muted);\n      font-size: 12px;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid button {\n      background-color: var(--danger);\n      background-image: linear-gradient(135deg, var(--danger), #e11d48);\n      color: #fff7f9;\n      box-shadow: 0 0 0 3px rgba(251,113,133,.18);\n    }\n\n    .condition-feedback {\n      display: none;\n      max-width: min(320px, 100%);\n      color: #fecdd3;\n      font-size: 12px;\n      font-weight: 850;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid .condition-feedback { display: block; }\n\n    .runtime-validation {\n      margin: 0 0 18px;\n      padding: 12px 13px;\n      border: 1px solid rgba(251,113,133,.72);\n      border-radius: 14px;\n      background-color: rgba(51,17,32,.88);\n      color: #fecdd3;\n      font-size: 13px;\n      font-weight: 850;\n      line-height: 1.4;\n    }\n\n    .runtime-validation code {\n      display: inline-block;\n      margin-top: 4px;\n      padding: 2px 6px;\n      border-radius: 7px;\n      background: rgba(251,113,133,.14);\n      color: #fff1f2;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 12px;\n      overflow-wrap: anywhere;\n    }\n\n    .condition-note code {\n      color: #e0f2fe;\n      background: rgba(56,189,248,.12);\n      border: 1px solid rgba(56,189,248,.26);\n      border-radius: 7px;\n      padding: 1px 5px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 11px;\n    }\n\n    button {\n      border: 1px solid rgba(125,211,252,.28);\n      border-radius: 999px;\n      padding: 12px 16px;\n      background-color: var(--primary);\n      background-image: linear-gradient(135deg, var(--primary), var(--primary2));\n      color: var(--primary-text);\n      box-shadow: 0 12px 30px rgba(14,165,233,.2);\n      font-weight: 950;\n      cursor: pointer;\n      min-height: 44px;\n      touch-action: manipulation;\n    }\n\n    button:hover {\n      border-color: rgba(186,230,253,.62);\n      background-color: var(--primary2);\n      background-image: linear-gradient(135deg, #7dd3fc, var(--primary2));\n    }\n\n    button:focus-visible {\n      outline: 3px solid rgba(56,189,248,.28);\n      outline-offset: 3px;\n    }\n\n    button:disabled {\n      cursor: not-allowed;\n      background-color: #172033;\n      background-image: none;\n      color: #64748b;\n      box-shadow: none;\n      border-color: #26334a;\n    }\n\n    .empty {\n      padding: 18px;\n      border: 1px dashed var(--line-strong);\n      border-radius: 16px;\n      background-color: rgba(8,24,39,.48);\n      color: var(--muted);\n    }\n\n    .log {\n      margin-top: 14px;\n      color: var(--muted);\n      font-size: 12px;\n      max-height: 110px;\n      overflow: auto;\n      white-space: pre-wrap;\n    }\n\n    @media (max-width: 560px) {\n      body {\n        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));\n      }\n\n      .top { align-items: flex-start; }\n\n      .screen {\n        border-radius: 18px;\n        padding: 20px;\n      }\n\n      h1 { font-size: 30px; }\n\n      .field {\n        align-items: stretch;\n        flex-direction: column;\n        gap: 8px;\n      }\n\n      input[type=\"text\"].typed-input {\n        width: 100%;\n        min-height: 44px;\n        font-size: 16px;\n      }\n\n      .switch {\n        justify-content: space-between;\n        width: 100%;\n        min-height: 48px;\n        padding: 2px 0;\n      }\n\n      .actions {\n        flex-direction: column;\n        align-items: stretch;\n      }\n\n      .action,\n      button { width: 100%; }\n    }\n  \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n  \u003cmain class=\"app\"\u003e\n    \u003cdiv class=\"top\"\u003e\n      \u003cdiv class=\"title\" id=\"appName\"\u003eGenerated App\u003c/div\u003e\n      \u003cdiv class=\"state-pill\" id=\"statePill\"\u003e—\u003c/div\u003e\n    \u003c/div\u003e\n    \u003csection class=\"screen\" id=\"screen\"\u003e\u003c/section\u003e\n    \u003cdiv class=\"log\" id=\"log\"\u003e\u003c/div\u003e\n  \u003c/main\u003e\n\n  \u003cscript\u003e\n    const STORAGE_KEY = \"stateBlueprintHotLinked.model.v2\";\n\n    let model = loadModel() || demoModel();\n    let current = model.initial;\n    let context = defaultContext(model);\n    let logLines = [];\n    let transitionToNotify = null;\n    let blockedTransitionId = null;\n    let runtimeValidation = null;\n    let suppressNextFocus = false;\n\n    function demoModel() {\n      return {\n        version: 2,\n        name: \"Standard Auth Flow\",\n        initial: \"auth_start\",\n        states: [\n          { id: \"auth_start\", title: \"Auth start\", body: \"User chooses login or registration.\", x: 90, y: 210 },\n          { id: \"login\", title: \"Login\", body: \"Email and password are entered.\", x: 360, y: 100 },\n          { id: \"register\", title: \"Register\", body: \"Create a new account with email and accepted terms.\", x: 360, y: 320 },\n          { id: \"error\", title: \"Error\", body: \"Invalid credentials or registration data.\", x: 630, y: 320 },\n          { id: \"logged_in\", title: \"Logged in\", body: \"Authenticated app area.\", x: 900, y: 100 },\n          { id: \"logged_out\", title: \"Logged out\", body: \"Session ended. User can return to login.\", x: 900, y: 320 }\n        ],\n        transitions: [\n          { id: \"t_start_login\", from: \"auth_start\", to: \"login\", label: \"Login\", condition: \"\" },\n          { id: \"t_start_register\", from: \"auth_start\", to: \"register\", label: \"Registrieren\", condition: \"\" },\n          { id: \"t_login_success\", from: \"login\", to: \"logged_in\", label: \"Einloggen\", condition: \"email == \\\"user@example.com\\\" \u0026\u0026 password == \\\"secret123\\\"\" },\n          { id: \"t_login_error\", from: \"login\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_register_success\", from: \"register\", to: \"logged_in\", label: \"Account erstellen\", condition: \"email == \\\"new@example.com\\\" \u0026\u0026 accepted_terms\" },\n          { id: \"t_register_error\", from: \"register\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_logout\", from: \"logged_in\", to: \"logged_out\", label: \"Logout\", condition: \"\" },\n          { id: \"t_logged_out_login\", from: \"logged_out\", to: \"login\", label: \"Wieder einloggen\", condition: \"\" },\n          { id: \"t_error_back\", from: \"error\", to: \"auth_start\", label: \"Zurück\", condition: \"\" }\n        ]\n      };\n    }\n\n    function loadModel() {\n      try {\n        const text = localStorage.getItem(STORAGE_KEY);\n        return text ? normalizeModel(JSON.parse(text)) : null;\n      } catch (_) { return null; }\n    }\n\n    function saveModel() {\n      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(model)); } catch (_) {}\n    }\n\n\n    function normalizeModel(m) {\n      m.version = 2;\n      m.name = m.name || \"Generated App\";\n      m.states = Array.isArray(m.states) ? m.states : [];\n      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];\n      if (!m.states.length) m.states.push({ id: \"start\", title: \"Start\", body: \"\" });\n      for (const s of m.states) {\n        s.components = normalizeComponents(s.components);\n        s.data = normalizeDataObject(s.data);\n      }\n      const ids = new Set(m.states.map(s =\u003e s.id));\n      for (const s of m.states) {\n        s.parentId = typeof s.parentId === \"string\" \u0026\u0026 ids.has(s.parentId) \u0026\u0026 s.parentId !== s.id ? s.parentId : null;\n      }\n      m.transitions = m.transitions.filter(t =\u003e {\n        if (!ids.has(t.from) || !ids.has(t.to)) return false;\n        const from = m.states.find(s =\u003e s.id === t.from);\n        const to = m.states.find(s =\u003e s.id === t.to);\n        return (from?.parentId || null) === (to?.parentId || null);\n      });\n      for (const t of m.transitions) {\n        t.id = t.id || Math.random().toString(36).slice(2, 9);\n        t.label = t.label || t.event || \"Next\";\n        t.condition = t.condition || \"\";\n        t.set = normalizeDataObject(t.set);\n      }\n      if (!ids.has(m.initial)) m.initial = m.states.find(s =\u003e !s.parentId)?.id || m.states[0].id;\n      return m;\n    }\n\n    function normalizeComponents(components) {\n      const allowed = new Set([\"heading\", \"text\", \"image\", \"list\", \"link\", \"note\", \"divider\"]);\n      return (Array.isArray(components) ? components : [])\n        .filter(component =\u003e component \u0026\u0026 typeof component === \"object\" \u0026\u0026 allowed.has(component.type))\n        .slice(0, 24)\n        .map(component =\u003e ({\n          id: String(component.id || Math.random().toString(36).slice(2, 9)),\n          type: component.type,\n          text: String(component.text || \"\"),\n          url: String(component.url || \"\")\n        }));\n    }\n\n    function isPlainDataObject(value) {\n      return Boolean(value) \u0026\u0026 typeof value === \"object\" \u0026\u0026 !Array.isArray(value);\n    }\n\n    function normalizeDataObject(value) {\n      if (!isPlainDataObject(value)) return {};\n      return JSON.parse(JSON.stringify(value));\n    }\n\n    function readContextPath(path) {\n      const parts = String(path || \"\").split(\".\").filter(Boolean);\n      let value = context;\n      for (const part of parts) {\n        if (value === null || value === undefined || typeof value !== \"object\" || !(part in value)) return \"\";\n        value = value[part];\n      }\n      if (value === null || value === undefined) return \"\";\n      if (Array.isArray(value)) return value.join(\", \");\n      if (typeof value === \"object\") return JSON.stringify(value);\n      return String(value);\n    }\n\n    function renderTemplate(text) {\n      return String(text || \"\").replace(/\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\}/g, (_, path) =\u003e readContextPath(path));\n    }\n\n\n    function childStates(parentId) {\n      return model.states\n        .filter(state =\u003e (state.parentId || null) === parentId)\n        .sort((a, b) =\u003e (a.y - b.y) || (a.x - b.x) || String(a.id).localeCompare(String(b.id)));\n    }\n\n    function applyStateDataDefaults(state) {\n      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {\n        if (!(key in context)) context[key] = value;\n      }\n    }\n\n    function applyNestedStateDataDefaults(state, seen = new Set()) {\n      if (!state || seen.has(state.id)) return;\n      seen.add(state.id);\n      applyStateDataDefaults(state);\n      for (const child of childStates(state.id)) applyNestedStateDataDefaults(child, seen);\n    }\n\n    function applyTransitionSet(transition) {\n      Object.assign(context, normalizeDataObject(transition.set));\n    }\n\n    function findState(id) { return model.states.find(s =\u003e s.id === id); }\n    function stateById(id) { return findState(id) || model.states[0]; }\n    function outgoing(id) { return model.transitions.filter(t =\u003e t.from === id); }\n\n    function defaultContext(m) {\n      const vars = inferVariables(m);\n      const out = {};\n      for (const v of vars) out[v.name] = defaultValueFor(v);\n      return out;\n    }\n\n    function inferVariables(m) {\n      const map = new Map();\n      const upsert = (name, patch) =\u003e {\n        if ([\"true\", \"false\", \"and\", \"or\", \"null\", \"undefined\", \"always\"].includes(String(name).toLowerCase())) return;\n        const prev = map.get(name) || { name, type: \"boolean\" };\n        map.set(name, { ...prev, ...patch });\n      };\n      for (const t of m.transitions || []) {\n        const c = String(t.condition || \"\");\n        const searchable = c.replace(/([\"'])(?:\\\\.|(?!\\1)[\\s\\S])*?\\1/g, \"\");\n        const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];\n        for (const name of names) {\n          upsert(name, {});\n        }\n        for (const numeric of searchable.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(-?\\d+(?:\\.\\d+)?)/g)) {\n          const raw = numeric[3];\n          const decimalPlaces = raw.includes(\".\") ? raw.split(\".\")[1].length : 0;\n          const nextDecimalPlaces = Math.max(map.get(numeric[1])?.decimalPlaces || 0, decimalPlaces);\n          upsert(numeric[1], {\n            type: \"number\",\n            kind: nextDecimalPlaces ? \"float\" : \"int\",\n            decimalPlaces: nextDecimalPlaces\n          });\n        }\n        for (const quoted of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=)\\s*(['\"])(.*?)\\3/g)) {\n          upsert(quoted[1], { type: \"text\" });\n        }\n      }\n      return [...map.values()].sort((a, b) =\u003e a.name.localeCompare(b.name));\n    }\n\n    function defaultValueFor(v) {\n      if (v.type === \"number\") return \"0\";\n      if (v.type === \"text\") return \"\";\n      return false;\n    }\n\n    function variableMap() {\n      return new Map(inferVariables(model).map(v =\u003e [v.name, v]));\n    }\n\n    function sanitizeContext(vars = inferVariables(model)) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function ensureContext(vars) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function sanitizeValue(value, v) {\n      if (value === null || value === undefined) return defaultValueFor(v);\n      if (v.type === \"number\") return sanitizeNumericInput(String(value), v, { fallback: defaultValueFor(v) });\n      if (v.type === \"text\") return String(value);\n      return Boolean(value);\n    }\n\n    function sanitizeNumericInput(value, v, opts = {}) {\n      const fallback = opts.fallback ?? \"\";\n      let raw = String(value ?? \"\").trim().replace(\",\", \".\");\n      if (v.kind === \"int\") raw = raw.replace(/[^\\d]/g, \"\");\n      else raw = raw.replace(/[^\\d.]/g, \"\").replace(/(\\..*)\\./g, \"$1\");\n      if (raw === \"\") return fallback;\n      return raw;\n    }\n\n    function isValidValue(value, v) {\n      if (value === null || value === undefined) return false;\n      if (v.type === \"number\") {\n        const raw = String(value);\n        if (v.kind === \"int\") return /^\\d+$/.test(raw);\n        return /^\\d+(?:\\.\\d+)?$/.test(raw);\n      }\n      if (v.type === \"text\") return value !== null \u0026\u0026 value !== undefined;\n      return typeof value === \"boolean\";\n    }\n\n    function strictNumber(value) {\n      if (value === null || value === undefined) return null;\n      const raw = String(value).trim();\n      if (!/^\\d+(?:\\.\\d+)?$/.test(raw)) return null;\n      const n = Number(raw);\n      return Number.isFinite(n) ? n : null;\n    }\n\n    function coerceValue(text) {\n      const raw = String(text).trim().replace(/^[\"']|[\"']$/g, \"\");\n      if (raw === \"true\") return true;\n      if (raw === \"false\") return false;\n      if (raw === \"null\" || raw === \"undefined\") return Symbol.for(\"invalid\");\n      if (/^-?\\d+(\\.\\d+)?$/.test(raw)) return Number(raw);\n      return raw;\n    }\n\n    function testAtom(atom) {\n      atom = atom.trim();\n      if (!atom || atom === \"true\") return true;\n      if (atom === \"false\") return false;\n\n      if (atom.startsWith(\"!\")) {\n        const name = atom.slice(1).trim();\n        if (context[name] === null || context[name] === undefined) return false;\n        return !Boolean(context[name]);\n      }\n\n      const m = atom.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(.+)$/);\n      if (!m) {\n        const v = variableMap().get(atom);\n        if (v \u0026\u0026 !isValidValue(context[atom], v)) return false;\n        return Boolean(context[atom]);\n      }\n\n      const left = context[m[1]];\n      const op = m[2];\n      const right = coerceValue(m[3]);\n      const vars = variableMap();\n      const v = vars.get(m[1]);\n      if (left === null || left === undefined || right === Symbol.for(\"invalid\")) return false;\n      if (v \u0026\u0026 !isValidValue(left, v)) return false;\n\n      if ([\"\u003e=\", \"\u003c=\", \"\u003e\", \"\u003c\"].includes(op)) {\n        const l = strictNumber(left);\n        const r = typeof right === \"number\" \u0026\u0026 Number.isFinite(right) \u0026\u0026 right \u003e= 0 ? right : null;\n        if (l === null || r === null) return false;\n        if (op === \"\u003e=\") return l \u003e= r;\n        if (op === \"\u003c=\") return l \u003c= r;\n        if (op === \"\u003e\") return l \u003e r;\n        if (op === \"\u003c\") return l \u003c r;\n      }\n      if (typeof right === \"number\") {\n        const l = strictNumber(left);\n        if (l === null || right \u003c 0) return false;\n        return op === \"==\" ? l === right : l !== right;\n      }\n      if (typeof right === \"boolean\") {\n        const l = Boolean(left);\n        return op === \"==\" ? l === right : l !== right;\n      }\n      return op === \"==\" ? String(left) === String(right) : String(left) !== String(right);\n      return false;\n    }\n\n    function conditionOk(condition) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return true;\n      return c.split(\"||\").some(orPart =\u003e orPart.split(\"\u0026\u0026\").every(testAtom));\n    }\n\n    function log(text) {\n      logLines.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);\n      logLines = logLines.slice(0, 6);\n    }\n\n    function refreshBlockedValidation() {\n      if (!blockedTransitionId) return;\n      const transition = model.transitions.find(t =\u003e t.id === blockedTransitionId);\n      if (!transition || conditionOk(transition.condition)) blockedTransitionId = null;\n      for (const action of document.querySelectorAll(\"[data-action-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === action.dataset.actionTransitionId);\n        action.classList.toggle(\"invalid\", Boolean(t \u0026\u0026 t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)));\n      }\n    }\n\n    function notifyRuntime() {\n      const payload = {\n        type: \"STATE_BLUEPRINT_RUNTIME_STATE\",\n        current,\n        transitionId: transitionToNotify?.id || null,\n        from: transitionToNotify?.from || null,\n        to: current,\n        label: transitionToNotify?.label || null,\n        context: JSON.parse(JSON.stringify(context))\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n      transitionToNotify = null;\n    }\n\n    function appendComponentElements(stack, components) {\n      let rendered = 0;\n      for (const component of normalizeComponents(components)) {\n        let el;\n        if (component.type === \"heading\") {\n          el = document.createElement(\"h2\");\n          el.className = \"component-heading\";\n          el.textContent = renderTemplate(component.text || \"Section\");\n        } else if (component.type === \"image\") {\n          const src = safeComponentUrl(renderTemplate(component.url));\n          if (!src) continue;\n          el = document.createElement(\"img\");\n          el.className = \"component-image\";\n          el.src = src;\n          el.alt = renderTemplate(component.text || \"\");\n          el.loading = \"lazy\";\n        } else if (component.type === \"list\") {\n          const items = renderTemplate(component.text || \"\").split(/\\r?\\n/).map(item =\u003e item.trim()).filter(Boolean);\n          if (!items.length) continue;\n          el = document.createElement(\"ul\");\n          el.className = \"component-list-block\";\n          for (const item of items) {\n            const li = document.createElement(\"li\");\n            li.textContent = item;\n            el.appendChild(li);\n          }\n        } else if (component.type === \"link\") {\n          const href = safeComponentUrl(renderTemplate(component.url));\n          if (!href) continue;\n          el = document.createElement(\"a\");\n          el.className = \"component-link\";\n          el.href = href;\n          el.target = \"_blank\";\n          el.rel = \"noopener noreferrer\";\n          el.textContent = renderTemplate(component.text || href);\n        } else if (component.type === \"note\") {\n          el = document.createElement(\"div\");\n          el.className = \"component-note\";\n          el.textContent = renderTemplate(component.text || \"\");\n        } else if (component.type === \"divider\") {\n          el = document.createElement(\"div\");\n          el.className = \"component-divider\";\n          el.setAttribute(\"role\", \"separator\");\n        } else {\n          el = document.createElement(\"div\");\n          el.className = \"component-text\";\n          el.textContent = renderTemplate(component.text || \"\");\n        }\n        stack.appendChild(el);\n        rendered += 1;\n      }\n      return rendered;\n    }\n\n    function renderComponents(screen, state, seen = new Set(), nested = false) {\n      if (!state || seen.has(state.id)) return 0;\n      seen.add(state.id);\n      const stack = document.createElement(\"div\");\n      stack.className = \"component-stack\";\n      let rendered = appendComponentElements(stack, state.components);\n      for (const child of childStates(state.id)) {\n        rendered += renderComponents(stack, child, seen, true);\n      }\n      if (rendered) {\n        screen.appendChild(stack);\n        return rendered;\n      }\n      const body = document.createElement(\"div\");\n      body.className = nested ? \"component-text\" : \"body\";\n      body.textContent = renderTemplate(state.body || (nested ? (state.title || state.id) : \"This screen is generated from the current state.\"));\n      screen.appendChild(body);\n      return 1;\n    }\n\n    function safeComponentUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      if (/^https?:\\/\\//i.test(raw)) return raw;\n      if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;\n      return \"\";\n    }\n\n    function isNegativeTransition(t) {\n      return /\\b(error|fail|fehler|zurück|back|cancel|abbruch)\\b/i.test(String(t.label || \"\"));\n    }\n\n    function defaultTransitionId(transitions) {\n      return (transitions.find(t =\u003e !isNegativeTransition(t)) || transitions[0])?.id || \"\";\n    }\n\n    function activateDefaultAction() {\n      const button = document.querySelector('[data-default-action=\"true\"]');\n      if (button \u0026\u0026 !button.disabled) button.click();\n    }\n\n    function submitOnEnter(evt) {\n      if (evt.key !== \"Enter\" || evt.isComposing || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return;\n      evt.preventDefault();\n      activateDefaultAction();\n    }\n\n    function applyTabOrderAndFocus(screen) {\n      const focusables = [...screen.querySelectorAll(\"input, button, a[href]\")];\n      focusables.forEach(el =\u003e { el.tabIndex = 0; });\n      if (suppressNextFocus) {\n        suppressNextFocus = false;\n        return;\n      }\n      const firstInput = screen.querySelector(\"input:not([type='hidden'])\");\n      const fallback = screen.querySelector('[data-default-action=\"true\"]');\n      const target = firstInput || fallback;\n      if (target) requestAnimationFrame(() =\u003e target.focus({ preventScroll: true }));\n    }\n\n    function render() {\n      normalizeModel(model);\n      if (!findState(current)) current = model.initial;\n      const s = stateById(current);\n      applyNestedStateDataDefaults(s);\n      const transitions = outgoing(s.id);\n      const actionTransitions = transitions;\n      const defaultActionId = defaultTransitionId(actionTransitions);\n      if (blockedTransitionId \u0026\u0026 !actionTransitions.some(t =\u003e t.id === blockedTransitionId)) blockedTransitionId = null;\n      const vars = inferVariables({ transitions: actionTransitions });\n      ensureContext(vars);\n\n      document.getElementById(\"appName\").textContent = model.name || \"Generated App\";\n      document.getElementById(\"statePill\").textContent = s.id;\n\n      const screen = document.getElementById(\"screen\");\n      screen.className = \"screen\";\n      const activeValidation = runtimeValidation?.stateId === s.id ? runtimeValidation : null;\n      if (activeValidation) screen.classList.add(\"validation-failed\");\n      screen.innerHTML = \"\";\n\n      const h1 = document.createElement(\"h1\");\n      h1.textContent = renderTemplate(s.title || s.id);\n      screen.appendChild(h1);\n\n      renderComponents(screen, s);\n\n      if (activeValidation) {\n        const validation = document.createElement(\"div\");\n        validation.className = \"runtime-validation\";\n        validation.setAttribute(\"role\", \"alert\");\n        validation.append(`Condition not met for \"${activeValidation.label}\".`);\n        if (activeValidation.condition) {\n          validation.append(document.createElement(\"br\"));\n          validation.append(\"Expected \");\n          const code = document.createElement(\"code\");\n          code.textContent = activeValidation.condition;\n          validation.appendChild(code);\n        }\n        screen.appendChild(validation);\n      }\n\n      if (vars.length) {\n        const controls = document.createElement(\"div\");\n        controls.className = \"controls\";\n        controls.innerHTML = `\u003ch2\u003eCondition inputs\u003c/h2\u003e`;\n        for (const v of vars) {\n          if (!(v.name in context)) context[v.name] = defaultValueFor(v);\n          const row = document.createElement(\"div\");\n          row.className = \"field\";\n          const label = document.createElement(\"label\");\n          label.className = \"field-label\";\n          label.textContent = v.name;\n          const input = document.createElement(\"input\");\n          let control = input;\n          if (v.type === \"number\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.inputMode = v.kind === \"int\" ? \"numeric\" : \"decimal\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = sanitizeNumericInput(input.value, v);\n              input.value = context[v.name];\n              input.classList.toggle(\"invalid\", !isValidValue(context[v.name], v));\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else if (v.type === \"text\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = String(input.value ?? \"\");\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else {\n            input.type = \"checkbox\";\n            input.checked = Boolean(context[v.name]);\n            const toggle = document.createElement(\"label\");\n            toggle.className = \"switch\";\n            const track = document.createElement(\"span\");\n            track.className = \"switch-track\";\n            const value = document.createElement(\"span\");\n            value.className = \"switch-value\";\n            const updateValue = () =\u003e { value.textContent = input.checked ? \"On\" : \"Off\"; };\n            input.onchange = () =\u003e {\n              context[v.name] = input.checked;\n              updateValue();\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n            updateValue();\n            toggle.append(input, track, value);\n            control = toggle;\n          }\n          row.append(label, control);\n          controls.appendChild(row);\n        }\n        screen.appendChild(controls);\n      }\n\n      const actions = document.createElement(\"div\");\n      actions.className = \"actions\";\n      for (const t of actionTransitions) {\n        const action = document.createElement(\"div\");\n        action.className = \"action\";\n        action.dataset.actionTransitionId = t.id;\n        if (t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)) action.classList.add(\"invalid\");\n        const button = document.createElement(\"button\");\n        button.dataset.transitionId = t.id;\n        if (t.id === defaultActionId) button.dataset.defaultAction = \"true\";\n        button.textContent = t.label || \"Next\";\n        button.onclick = () =\u003e {\n          const ok = conditionOk(t.condition);\n          if (ok) {\n            blockedTransitionId = null;\n            runtimeValidation = null;\n            applyTransitionSet(t);\n            log(`${s.id} --${t.label || \"next\"}--\u003e ${t.to}`);\n            current = t.to;\n            transitionToNotify = t;\n          } else {\n            blockedTransitionId = t.id;\n            log(`${s.id} --${t.label || \"next\"} blocked`);\n            render();\n            return;\n          }\n          render();\n        };\n        action.appendChild(button);\n        const condition = String(t.condition || \"\").trim();\n        if (condition \u0026\u0026 condition.toLowerCase() !== \"always\") {\n          const note = document.createElement(\"div\");\n          note.className = \"condition-note\";\n          note.append(\"needs \");\n          const code = document.createElement(\"code\");\n          code.textContent = condition;\n          note.appendChild(code);\n          action.appendChild(note);\n        }\n        const feedback = document.createElement(\"div\");\n        feedback.className = \"condition-feedback\";\n        feedback.textContent = \"Condition not met. Check the inputs above.\";\n        action.appendChild(feedback);\n        actions.appendChild(action);\n      }\n      if (!transitions.length) {\n        const empty = document.createElement(\"div\");\n        empty.className = \"empty\";\n        empty.textContent = \"No outgoing transitions. This is an end state.\";\n        screen.appendChild(empty);\n      }\n      screen.appendChild(actions);\n      applyTabOrderAndFocus(screen);\n\n      document.getElementById(\"log\").textContent = logLines.join(\"\\n\");\n      notifyRuntime();\n    }\n\n    function updateActionButtons() {\n      for (const button of document.querySelectorAll(\"[data-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === button.dataset.transitionId);\n        if (t) button.disabled = false;\n      }\n    }\n\n    function escapeHtml(text) {\n      return String(text).replace(/[\u0026\u003c\u003e\"]/g, ch =\u003e ({\"\u0026\":\"\u0026amp;\",\"\u003c\":\"\u0026lt;\",\"\u003e\":\"\u0026gt;\",\"\\\"\":\"\u0026quot;\"}[ch]));\n    }\n\n    window.addEventListener(\"message\", evt =\u003e {\n      const data = evt.data || {};\n      if (data.type !== \"STATE_BLUEPRINT_MODEL\") return;\n      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));\n      suppressNextFocus = Boolean(data.preserveFocus);\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) saveModel();\n      const oldContext = context;\n      context = { ...defaultContext(model), ...oldContext };\n      if (data.reset) context = defaultContext(model);\n      const requestedStart = typeof data.startStateId === \"string\" \u0026\u0026 findState(data.startStateId) ? data.startStateId : null;\n      if (requestedStart || data.reset || !findState(current)) {\n        current = requestedStart || model.initial;\n        logLines = [];\n        transitionToNotify = null;\n        blockedTransitionId = null;\n        runtimeValidation = null;\n      }\n      render();\n    });\n\n    window.addEventListener(\"storage\", evt =\u003e {\n      if (evt.key !== STORAGE_KEY || !evt.newValue) return;\n      try {\n        model = normalizeModel(JSON.parse(evt.newValue));\n        suppressNextFocus = true;\n        if (!findState(current)) current = model.initial;\n        render();\n      } catch (_) {}\n    });\n\n\n    document.addEventListener(\"keydown\", evt =\u003e {\n      const mod = evt.ctrlKey || evt.metaKey;\n      if (!mod) return;\n      const key = evt.key.toLowerCase();\n      if (key !== \"s\" \u0026\u0026 key !== \"o\") return;\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) return;\n      evt.preventDefault();\n      evt.stopImmediatePropagation();\n      const payload = {\n        type: \"STATE_BLUEPRINT_SHORTCUT\",\n        action: key === \"s\" ? \"save\" : \"load\"\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n    }, { capture: true });\n\n    render();\n  \u003c/script\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n";
     const APP_URL = URL.createObjectURL(new Blob([APP_HTML], { type: "text/html" }));
     const WORLD_MIN_X = -10000;
     const WORLD_MIN_Y = -8000;
@@ -1335,6 +1534,9 @@
     const mapEl = document.getElementById("map");
     const mapCanvasEl = document.getElementById("mapCanvas");
     const mapSceneEl = document.getElementById("mapScene");
+    const layerNavEl = document.getElementById("layerNav");
+    const layerFrameEl = document.getElementById("layerFrame");
+    const layerFrameLabelEl = document.getElementById("layerFrameLabel");
     const worldEl = document.getElementById("world");
     const wiresEl = document.getElementById("wires");
     const nodesEl = document.getElementById("nodes");
@@ -1372,6 +1574,7 @@
     let lastAppTransitionId = null;
     let hoveredEdgeId = null;
     let htmlCanvasRenderer = null;
+    let currentLayerId = null;
     let model = loadModel() || demoModel();
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     let previewCollapsed = loadPreviewCollapsed();
@@ -1559,6 +1762,42 @@
       try { localStorage.setItem(STORAGE_KEY + ".previewCollapsed", String(previewCollapsed)); } catch (_) {}
     }
 
+    function snapshotTemplateStates(item) {
+      return (Array.isArray(item?.states) ? item.states : [])
+        .filter(state => state && typeof state === "object")
+        .slice(0, 120)
+        .map(state => {
+          const x = Number(state.x);
+          const y = Number(state.y);
+          const snapshot = {
+            id: String(state.id || uid("state")),
+            title: String(state.title || state.id || "State"),
+            body: "",
+            components: migrateBodyToComponents(state.body, state.components || []),
+            data: normalizeDataObject(state.data),
+            x: Number.isFinite(x) ? x : 120,
+            y: Number.isFinite(y) ? y : 120
+          };
+          if (typeof state.parentId === "string" && state.parentId) snapshot.parentId = state.parentId;
+          return snapshot;
+        });
+    }
+
+    function snapshotTemplateTransitions(item) {
+      return (Array.isArray(item?.transitions) ? item.transitions : [])
+        .filter(transition => transition && typeof transition === "object")
+        .slice(0, 160)
+        .map(transition => ({
+          id: String(transition.id || uid("t")),
+          from: String(transition.from || ""),
+          to: String(transition.to || ""),
+          label: String(transition.label || "Next"),
+          condition: String(transition.condition || ""),
+          set: normalizeDataObject(transition.set)
+        }))
+        .filter(transition => transition.from && transition.to);
+    }
+
     function snapshotStateTemplates(templates = stateTemplates) {
       return (Array.isArray(templates) ? templates : [])
         .filter(item => item && typeof item === "object")
@@ -1568,7 +1807,10 @@
           title: String(item.title || "State preset"),
           body: "",
           components: migrateBodyToComponents(item.body, item.components || []),
-          data: normalizeDataObject(item.data)
+          data: normalizeDataObject(item.data),
+          rootStateId: String(item.rootStateId || item.sourceStateId || item.id || ""),
+          states: snapshotTemplateStates(item),
+          transitions: snapshotTemplateTransitions(item)
         }));
     }
 
@@ -1598,7 +1840,10 @@
           title: String(item.title || "State preset"),
           body: "",
           components: migrateBodyToComponents(item.body, item.components || []),
-          data: normalizeDataObject(item.data)
+          data: normalizeDataObject(item.data),
+          rootStateId: String(item.rootStateId || item.sourceStateId || item.id || ""),
+          states: snapshotTemplateStates(item),
+          transitions: snapshotTemplateTransitions(item)
         }));
     }
 
@@ -1656,19 +1901,37 @@
       return JSON.stringify(model);
     }
 
+    function modelDefinitionSnapshot() {
+      normalizeModel(model);
+      return {
+        version: DEFINITION_SCHEMA_VERSION,
+        name: String(model.name || "State App"),
+        initial: String(model.initial || model.states[0]?.id || "start"),
+        states: model.states.map(stateExportSnapshot),
+        transitions: model.transitions.map(t => ({
+          id: String(t.id),
+          from: String(t.from),
+          to: String(t.to),
+          label: String(t.label || "Next"),
+          condition: String(t.condition || ""),
+          set: normalizeDataObject(t.set)
+        }))
+      };
+    }
+
     function normalizeSelection(value = selected) {
       if (!value || typeof value !== "object") return null;
       const stateIds = new Set(model.states.map(s => s.id));
       const edgeIds = new Set(model.transitions.map(t => t.id));
-      if (value.type === "node" && stateIds.has(value.id)) return { type: "node", id: value.id };
-      if (value.type === "edge" && edgeIds.has(value.id)) return { type: "edge", id: value.id };
+      if (value.type === "node" && stateIds.has(value.id) && isCurrentLayerState(value.id)) return { type: "node", id: value.id };
+      if (value.type === "edge" && edgeIds.has(value.id) && transitionInLayer(model.transitions.find(t => t.id === value.id))) return { type: "edge", id: value.id };
       if (value.type === "nodes") {
-        const ids = [...new Set(value.ids || [])].filter(id => stateIds.has(id));
+        const ids = [...new Set(value.ids || [])].filter(id => stateIds.has(id) && isCurrentLayerState(id));
         return ids.length ? { type: "nodes", ids } : null;
       }
       if (value.type === "items") {
-        const nodes = [...new Set(value.nodes || [])].filter(id => stateIds.has(id));
-        const edges = [...new Set(value.edges || [])].filter(id => edgeIds.has(id));
+        const nodes = [...new Set(value.nodes || [])].filter(id => stateIds.has(id) && isCurrentLayerState(id));
+        const edges = [...new Set(value.edges || [])].filter(id => edgeIds.has(id) && transitionInLayer(model.transitions.find(t => t.id === id)));
         return selectionFromParts(nodes, edges);
       }
       return null;
@@ -1678,6 +1941,7 @@
       return JSON.stringify({
         model: JSON.parse(modelSnapshot()),
         selected: normalizeSelection(),
+        currentLayerId,
         stateTemplates: snapshotStateTemplates(),
         editingTemplateId: editingTemplateId && stateTemplates.some(template => template.id === editingTemplateId) ? editingTemplateId : null
       });
@@ -1691,6 +1955,7 @@
         return {
           model: data.model,
           selected: data.selected || null,
+          currentLayerId: data.currentLayerId || null,
           stateTemplates: templates,
           editingTemplateId: templateIds.has(data.editingTemplateId) ? data.editingTemplateId : null
         };
@@ -1698,6 +1963,7 @@
       return {
         model: data,
         selected: null,
+        currentLayerId: null,
         stateTemplates: snapshotStateTemplates(),
         editingTemplateId: null
       };
@@ -1758,6 +2024,7 @@
     function restoreHistorySnapshot(snapshot) {
       const restored = parseEditorSnapshot(snapshot);
       model = normalizeModel(restored.model);
+      currentLayerId = byId(restored.currentLayerId) ? restored.currentLayerId : null;
       selected = normalizeSelection(restored.selected);
       stateTemplates = snapshotStateTemplates(restored.stateTemplates);
       editingTemplateId = restored.editingTemplateId;
@@ -1801,7 +2068,7 @@
         schemaVersion: DEFINITION_SCHEMA_VERSION,
         app: "State Blueprint",
         savedAt: new Date().toISOString(),
-        model: JSON.parse(modelSnapshot()),
+        model: modelDefinitionSnapshot(),
         stateTemplates: snapshotStateTemplates(),
         camera: {
           x: Number(camera.x),
@@ -1884,18 +2151,25 @@
         if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
         ids.add(id);
         const body = "body" in state ? assertString(state.body, `${path}.body`, { allowEmpty: true }) : "";
+        const parentId = "parentId" in state ? assertString(state.parentId, `${path}.parentId`, { allowEmpty: true }) : "";
         return {
           id,
           title: assertString(state.title, `${path}.title`),
           body: "",
           components: migrateBodyToComponents(body, validateComponents(state.components, `${path}.components`)),
           data: validateDataObject(state.data, `${path}.data`),
+          parentId: parentId || null,
           x: assertFiniteNumber(state.x, `${path}.x`),
           y: assertFiniteNumber(state.y, `${path}.y`)
         };
       });
 
       if (!ids.has(source.initial)) throw new Error("definition.model.initial must reference an existing state.");
+      for (const state of states) {
+        if (state.parentId && (!ids.has(state.parentId) || state.parentId === state.id)) {
+          throw new Error(`definition.model.states.${state.id}.parentId must reference another state.`);
+        }
+      }
 
       const transitionIds = new Set();
       const transitionPairs = new Set();
@@ -1909,6 +2183,9 @@
         const to = assertString(transition.to, `${path}.to`);
         if (!ids.has(from)) throw new Error(`${path}.from must reference an existing state.`);
         if (!ids.has(to)) throw new Error(`${path}.to must reference an existing state.`);
+        const fromState = states.find(state => state.id === from);
+        const toState = states.find(state => state.id === to);
+        if ((fromState?.parentId || null) !== (toState?.parentId || null)) throw new Error(`${path} must stay inside one state layer.`);
         const pair = transitionKey(from, to);
         if (transitionPairs.has(pair)) throw new Error(`${path} duplicates an existing transition from ${from} to ${to}.`);
         transitionPairs.add(pair);
@@ -1937,13 +2214,57 @@
       return value.slice(0, 40).map((template, index) => {
         const itemPath = `${path}[${index}]`;
         assertPlainObject(template, itemPath);
+        const id = assertString(template.id, `${itemPath}.id`);
         const body = "body" in template ? assertString(template.body, `${itemPath}.body`, { allowEmpty: true }) : "";
+        const rootStateId = "rootStateId" in template ? assertString(template.rootStateId, `${itemPath}.rootStateId`, { allowEmpty: true }) : id;
+        const stateIds = new Set([rootStateId || id]);
+        const states = (Array.isArray(template.states) ? template.states : []).slice(0, 120).map((state, stateIndex) => {
+          const statePath = `${itemPath}.states[${stateIndex}]`;
+          assertPlainObject(state, statePath);
+          const stateId = assertString(state.id, `${statePath}.id`);
+          if (stateIds.has(stateId)) throw new Error(`${statePath}.id must be unique inside the preset.`);
+          stateIds.add(stateId);
+          const stateBody = "body" in state ? assertString(state.body, `${statePath}.body`, { allowEmpty: true }) : "";
+          const parentId = "parentId" in state ? assertString(state.parentId, `${statePath}.parentId`, { allowEmpty: true }) : "";
+          return {
+            id: stateId,
+            title: assertString(state.title, `${statePath}.title`),
+            body: "",
+            components: migrateBodyToComponents(stateBody, validateComponents(state.components, `${statePath}.components`)),
+            data: validateDataObject(state.data, `${statePath}.data`),
+            parentId: parentId || rootStateId || id,
+            x: assertFiniteNumber(state.x, `${statePath}.x`),
+            y: assertFiniteNumber(state.y, `${statePath}.y`)
+          };
+        });
+        for (const state of states) {
+          if (!stateIds.has(state.parentId)) throw new Error(`${itemPath}.states.${state.id}.parentId must reference another preset state.`);
+        }
+        const transitions = (Array.isArray(template.transitions) ? template.transitions : []).slice(0, 160).map((transition, transitionIndex) => {
+          const transitionPath = `${itemPath}.transitions[${transitionIndex}]`;
+          assertPlainObject(transition, transitionPath);
+          const from = assertString(transition.from, `${transitionPath}.from`);
+          const to = assertString(transition.to, `${transitionPath}.to`);
+          if (!stateIds.has(from)) throw new Error(`${transitionPath}.from must reference a preset state.`);
+          if (!stateIds.has(to)) throw new Error(`${transitionPath}.to must reference a preset state.`);
+          return {
+            id: assertString(transition.id, `${transitionPath}.id`),
+            from,
+            to,
+            label: assertString(transition.label, `${transitionPath}.label`),
+            condition: assertString(transition.condition, `${transitionPath}.condition`, { allowEmpty: true }),
+            set: validateDataObject(transition.set, `${transitionPath}.set`)
+          };
+        });
         return {
-          id: assertString(template.id, `${itemPath}.id`),
+          id,
           title: assertString(template.title, `${itemPath}.title`),
           body: "",
           components: migrateBodyToComponents(body, validateComponents(template.components, `${itemPath}.components`)),
-          data: validateDataObject(template.data, `${itemPath}.data`)
+          data: validateDataObject(template.data, `${itemPath}.data`),
+          rootStateId: rootStateId || id,
+          states,
+          transitions
         };
       });
     }
@@ -2028,7 +2349,7 @@
     }
 
     function stateExportSnapshot(s) {
-      return {
+      const snapshot = {
         id: String(s.id),
         title: String(s.title || s.id),
         body: "",
@@ -2036,6 +2357,19 @@
         data: normalizeDataObject(s.data),
         x: Number(s.x || 0),
         y: Number(s.y || 0)
+      };
+      if (s.parentId) snapshot.parentId = String(s.parentId);
+      return snapshot;
+    }
+
+    function transitionExportSnapshot(t) {
+      return {
+        id: String(t.id || uid("t")),
+        from: String(t.from || ""),
+        to: String(t.to || ""),
+        label: String(t.label || "Next"),
+        condition: String(t.condition || ""),
+        set: normalizeDataObject(t.set)
       };
     }
 
@@ -2120,6 +2454,7 @@
       connecting = null;
       connectingTargetId = null;
       boxSelecting = null;
+      currentLayerId = null;
       currentAppState = null;
       lastAppTransitionId = null;
       hoveredEdgeId = null;
@@ -2231,9 +2566,27 @@
         s.y = snapClampToGrid(Number.isFinite(s.y) ? s.y : 100, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       }
       const ids = new Set(m.states.map(s => s.id));
+      for (const s of m.states) {
+        s.parentId = typeof s.parentId === "string" && ids.has(s.parentId) && s.parentId !== s.id ? s.parentId : null;
+      }
+      for (const s of m.states) {
+        const seenParents = new Set([s.id]);
+        let parent = byModelId(m, s.parentId);
+        while (parent) {
+          if (seenParents.has(parent.id)) {
+            s.parentId = null;
+            break;
+          }
+          seenParents.add(parent.id);
+          parent = byModelId(m, parent.parentId);
+        }
+      }
       const pairs = new Set();
       m.transitions = m.transitions.filter(t => {
         if (!ids.has(t.from) || !ids.has(t.to)) return false;
+        const fromState = byModelId(m, t.from);
+        const toState = byModelId(m, t.to);
+        if (stateParentId(fromState) !== stateParentId(toState)) return false;
         const pair = transitionKey(t.from, t.to);
         if (pairs.has(pair)) return false;
         pairs.add(pair);
@@ -2247,10 +2600,111 @@
       }
       if (!ids.has(m.initial)) m.initial = m.states[0].id;
       if (currentAppState && !ids.has(currentAppState)) currentAppState = null;
+      if (currentLayerId && !ids.has(currentLayerId)) currentLayerId = null;
       return m;
     }
 
+    function byModelId(sourceModel, id) {
+      return sourceModel?.states?.find?.(s => s.id === id) || null;
+    }
+
     function byId(id) { return model.states.find(s => s.id === id); }
+
+    function stateParentId(state) {
+      return state?.parentId || null;
+    }
+
+    function statesInLayer(layerId = currentLayerId) {
+      const id = layerId || null;
+      return model.states.filter(state => stateParentId(state) === id);
+    }
+
+    function visibleStates() {
+      return statesInLayer(currentLayerId);
+    }
+
+    function transitionInLayer(transition, layerId = currentLayerId) {
+      const from = byId(transition?.from);
+      const to = byId(transition?.to);
+      return Boolean(from && to && stateParentId(from) === stateParentId(to) && stateParentId(from) === (layerId || null));
+    }
+
+    function visibleTransitions() {
+      return model.transitions.filter(transition => transitionInLayer(transition));
+    }
+
+    function childStateCount(parentId) {
+      return statesInLayer(parentId).length;
+    }
+
+    function descendantStateIds(parentIds) {
+      const pending = [...parentIds];
+      const out = new Set(parentIds);
+      while (pending.length) {
+        const parentId = pending.pop();
+        for (const child of statesInLayer(parentId)) {
+          if (out.has(child.id)) continue;
+          out.add(child.id);
+          pending.push(child.id);
+        }
+      }
+      return out;
+    }
+
+    function removeStatesById(ids) {
+      const removeSet = descendantStateIds(ids);
+      if (!removeSet.size || model.states.length - removeSet.size < 1) return false;
+      const currentLayerRemoved = currentLayerId && removeSet.has(currentLayerId);
+      const currentParent = byId(currentLayerId)?.parentId || null;
+      model.states = model.states.filter(state => !removeSet.has(state.id));
+      model.transitions = model.transitions.filter(transition => !removeSet.has(transition.from) && !removeSet.has(transition.to));
+      if (removeSet.has(model.initial)) model.initial = statesInLayer(null)[0]?.id || model.states[0]?.id || "";
+      if (currentLayerRemoved) currentLayerId = currentParent && byId(currentParent) ? currentParent : null;
+      return true;
+    }
+
+    function stateLayerPath(layerId = currentLayerId) {
+      const path = [];
+      let state = byId(layerId);
+      const guard = new Set();
+      while (state && !guard.has(state.id)) {
+        path.unshift(state);
+        guard.add(state.id);
+        state = byId(state.parentId);
+      }
+      return path;
+    }
+
+    function isCurrentLayerState(id) {
+      const state = byId(id);
+      return Boolean(state && stateParentId(state) === (currentLayerId || null));
+    }
+
+    function navigateToLayer(layerId, historyKey = "layer:navigate") {
+      const nextLayerId = layerId && byId(layerId) ? layerId : null;
+      if (currentLayerId === nextLayerId) return;
+      currentLayerId = nextLayerId;
+      selected = null;
+      connecting = null;
+      connectingTargetId = null;
+      dragging = null;
+      boxSelecting = null;
+      showEmptyInspector();
+      updateSelectRect();
+      saveSelection(historyKey + ":" + (nextLayerId || "root"));
+      fitView();
+      draw();
+    }
+
+    function enterStateLayer(stateId) {
+      if (!byId(stateId)) return;
+      navigateToLayer(stateId, "layer:enter");
+    }
+
+    function exitCurrentLayer() {
+      const parent = byId(currentLayerId)?.parentId || null;
+      navigateToLayer(parent, "layer:exit");
+    }
 
     function transitionKey(from, to) {
       return `${from}\u0000${to}`;
@@ -2543,16 +2997,16 @@
     }
 
     function selectedNodeIdList() {
-      return [...selectedNodeIds()].filter(id => byId(id));
+      return [...selectedNodeIds()].filter(id => byId(id) && isCurrentLayerState(id));
     }
 
     function selectedEdgeIdList() {
-      return [...selectedEdgeIds()].filter(id => model.transitions.some(t => t.id === id));
+      return [...selectedEdgeIds()].filter(id => model.transitions.some(t => t.id === id && transitionInLayer(t)));
     }
 
     function selectionFromParts(nodes, edges) {
-      const nodeIds = [...new Set(nodes || [])].filter(id => byId(id));
-      const edgeIds = [...new Set(edges || [])].filter(id => model.transitions.some(t => t.id === id));
+      const nodeIds = [...new Set(nodes || [])].filter(id => byId(id) && isCurrentLayerState(id));
+      const edgeIds = [...new Set(edges || [])].filter(id => model.transitions.some(t => t.id === id && transitionInLayer(t)));
       if (nodeIds.length === 1 && edgeIds.length === 0) return { type: "node", id: nodeIds[0] };
       if (nodeIds.length > 1 && edgeIds.length === 0) return { type: "nodes", ids: nodeIds };
       if (nodeIds.length === 0 && edgeIds.length === 1) return { type: "edge", id: edgeIds[0] };
@@ -2596,15 +3050,12 @@
       const ids = selectedNodeIdList();
       const edgeIds = selectedEdgeIdList();
       const removable = ids.filter(id => byId(id));
-      const removeNodes = removable.length && model.states.length - removable.length >= 1;
       const removeEdges = new Set(edgeIds);
-      if (!removeNodes && !removeEdges.size) return false;
-      if (removeNodes) {
-        const removeSet = new Set(removable);
-        model.states = model.states.filter(n => !removeSet.has(n.id));
-        model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to) && !removeEdges.has(t.id));
-        if (removeSet.has(model.initial)) model.initial = model.states[0].id;
-      } else {
+      const removedNodes = removable.length ? removeStatesById(removable) : false;
+      if (!removedNodes && !removeEdges.size) return false;
+      if (!removedNodes) {
+        model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
+      } else if (removeEdges.size) {
         model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
       }
       selected = null;
@@ -2631,11 +3082,7 @@
 
     function deleteSelectedNodes() {
       const ids = selectedNodeIdList();
-      if (!ids.length || model.states.length - ids.length < 1) return;
-      const removeSet = new Set(ids);
-      model.states = model.states.filter(n => !removeSet.has(n.id));
-      model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to));
-      if (removeSet.has(model.initial)) model.initial = model.states[0].id;
+      if (!ids.length || !removeStatesById(ids)) return;
       selected = null;
       showEmptyInspector();
       saveModel();
@@ -2689,8 +3136,9 @@
     }
 
     function nodeAtWorldPoint(p) {
-      for (let i = model.states.length - 1; i >= 0; i--) {
-        const s = model.states[i];
+      const states = visibleStates();
+      for (let i = states.length - 1; i >= 0; i--) {
+        const s = states[i];
         if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + NODE_H) return s;
       }
       return null;
@@ -2699,8 +3147,9 @@
     function connectionTargetAtWorldPoint(p) {
       let best = null;
       let bestScore = Infinity;
-      for (let i = model.states.length - 1; i >= 0; i--) {
-        const s = model.states[i];
+      const states = visibleStates();
+      for (let i = states.length - 1; i >= 0; i--) {
+        const s = states[i];
         const input = nodeCenter(s, "in");
         const dist = Math.hypot(p.x - input.x, p.y - input.y);
         const nearInput =
@@ -2751,7 +3200,7 @@
       const maxX = Math.max(a.x, b.x);
       const minY = Math.min(a.y, b.y);
       const maxY = Math.max(a.y, b.y);
-      return model.states
+      return visibleStates()
         .filter(s => s.x < maxX && s.x + nodeWidth(s) > minX && s.y < maxY && s.y + NODE_H > minY)
         .map(s => s.id);
     }
@@ -2940,12 +3389,13 @@
     }
 
     function fitView() {
-      if (!model.states.length) return resetView();
+      const states = visibleStates();
+      if (!states.length) return resetView();
       const r = mapEl.getBoundingClientRect();
-      const minX = Math.min(...model.states.map(s => s.x));
-      const minY = Math.min(...model.states.map(s => s.y));
-      const maxX = Math.max(...model.states.map(s => s.x + nodeWidth(s)));
-      const maxY = Math.max(...model.states.map(s => s.y + NODE_H));
+      const minX = Math.min(...states.map(s => s.x));
+      const minY = Math.min(...states.map(s => s.y));
+      const maxX = Math.max(...states.map(s => s.x + nodeWidth(s)));
+      const maxY = Math.max(...states.map(s => s.y + NODE_H));
       const w = Math.max(1, maxX - minX);
       const h = Math.max(1, maxY - minY);
       const pad = 120;
@@ -3014,7 +3464,7 @@
     }
 
     function edgeColor(transition) {
-      const index = Math.max(0, model.transitions.findIndex(item => item.id === transition?.id));
+      const index = Math.max(0, visibleTransitions().findIndex(item => item.id === transition?.id));
       const hue = (195 + index * 137.508) % 360;
       return `hsl(${hue.toFixed(1)} 84% 62%)`;
     }
@@ -3073,7 +3523,7 @@
     }
 
     function orderedPortTransitions(stateId, side) {
-      return model.transitions
+      return visibleTransitions()
         .filter(transition => side === "out" ? transition.from === stateId : transition.to === stateId)
         .slice()
         .sort((a, b) => compareEdgeLane(a, b, side));
@@ -3159,7 +3609,7 @@
     }
 
     function routeBlockingBoxes(transition, margin = 0) {
-      return model.states
+      return visibleStates()
         .filter(state => state.id !== transition?.from && state.id !== transition?.to)
         .map(state => stateBox(state, margin));
     }
@@ -3179,7 +3629,7 @@
     }
 
     function routeSearchBounds(start, goal) {
-      const boxes = model.states.map(state => stateBox(state, GRID_SIZE * 6));
+      const boxes = visibleStates().map(state => stateBox(state, GRID_SIZE * 6));
       const xs = [start.x, goal.x];
       const ys = [start.y, goal.y];
       for (const box of boxes) {
@@ -3198,7 +3648,7 @@
       const start = snapPointToGrid(edgePortPoint(from, "out", transition));
       const goal = snapPointToGrid(edgePortPoint(to, "in", transition));
       const bounds = routeSearchBounds(start, goal);
-      const obstacles = model.states.map(state =>
+      const obstacles = visibleStates().map(state =>
         stateBox(state, state.id === from.id || state.id === to.id ? 0 : GRID_SIZE)
       );
       const key = point => `${point.x},${point.y}`;
@@ -3402,7 +3852,7 @@
 
     function buildEdgeRouteCache() {
       const routes = new Map();
-      for (const transition of model.transitions) {
+      for (const transition of visibleTransitions()) {
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (from && to) routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
@@ -3492,12 +3942,59 @@
       wiresEl.insertBefore(hit, defs?.nextSibling || wiresEl.firstChild);
     }
 
+    function renderLayerNavigation() {
+      const path = stateLayerPath();
+      const items = [`<button type="button" data-layer-id="">Root</button>`];
+      for (const state of path) {
+        items.push(`<span class="layer-nav-sep">/</span>`);
+        items.push(`<button type="button" data-layer-id="${escapeHtml(state.id)}">${escapeHtml(state.title || state.id)}</button>`);
+      }
+      const currentLabel = path.length ? (path[path.length - 1].title || path[path.length - 1].id) : "Root";
+      layerNavEl.innerHTML = `
+        <div class="layer-nav-inner">
+          ${items.join("")}
+          <span class="layer-nav-current">${escapeHtml(currentLabel)} layer</span>
+        </div>
+      `;
+      layerNavEl.querySelectorAll("button[data-layer-id]").forEach(button => {
+        button.onclick = evt => {
+          evt.preventDefault();
+          navigateToLayer(button.dataset.layerId || null);
+        };
+      });
+    }
+
+    function updateLayerFrame(states) {
+      const parent = byId(currentLayerId);
+      if (!parent) {
+        layerFrameEl.style.display = "none";
+        return;
+      }
+      const pad = GRID_SIZE * 3;
+      const fallbackCenter = viewportCenterWorld();
+      const minX = states.length ? Math.min(...states.map(state => state.x)) : fallbackCenter.x - GRID_SIZE * 8;
+      const minY = states.length ? Math.min(...states.map(state => state.y)) : fallbackCenter.y - GRID_SIZE * 5;
+      const maxX = states.length ? Math.max(...states.map(state => state.x + nodeWidth(state))) : fallbackCenter.x + GRID_SIZE * 8;
+      const maxY = states.length ? Math.max(...states.map(state => state.y + NODE_H)) : fallbackCenter.y + GRID_SIZE * 5;
+      layerFrameEl.style.display = "block";
+      layerFrameEl.style.left = snapToGrid(minX - pad) + "px";
+      layerFrameEl.style.top = snapToGrid(minY - pad) + "px";
+      layerFrameEl.style.width = snapToGrid(maxX - minX + pad * 2) + "px";
+      layerFrameEl.style.height = snapToGrid(maxY - minY + pad * 2) + "px";
+      layerFrameLabelEl.textContent = `${parent.title || parent.id} state bounds`;
+    }
+
     function draw() {
       if (drawFrame) {
         cancelAnimationFrame(drawFrame);
         drawFrame = 0;
       }
       normalizeModel(model);
+      selected = normalizeSelection();
+      const states = visibleStates();
+      const transitions = visibleTransitions();
+      renderLayerNavigation();
+      updateLayerFrame(states);
       edgeRouteCache = buildEdgeRouteCache();
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
@@ -3506,7 +4003,7 @@
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
-      for (const t of model.transitions) {
+      for (const t of transitions) {
         if (connecting?.edgeId === t.id) continue;
         const from = byId(t.from);
         const to = byId(t.to);
@@ -3599,7 +4096,7 @@
         }
       }
 
-      for (const s of model.states) {
+      for (const s of states) {
         const el = document.createElement("div");
         const classes = ["node"];
         if (s.id === model.initial) classes.push("initial");
@@ -3607,6 +4104,8 @@
         if (nodeSelection.has(s.id)) classes.push("selected");
         if (currentAppState === s.id) classes.push("active");
         if (connectingTargetId === s.id) classes.push("drop-target");
+        const innerCount = childStateCount(s.id);
+        if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
         el.style.left = s.x + "px";
         el.style.top = s.y + "px";
@@ -3618,12 +4117,28 @@
           <div class="port" title="drag to connect"></div>
           <div class="badge">INITIAL</div>
           <div class="live-badge">LIVE</div>
+          <div class="layer-badge"></div>
           <div class="title"></div>
           <div class="body"></div>
+          <button class="node-enter" type="button" title="Enter inner state layer" aria-label="Enter inner state layer">IN</button>
           <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
         `;
         el.querySelector(".title").textContent = s.title || s.id;
         el.querySelector(".body").textContent = statePreviewText(s);
+        el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 inside" : `${innerCount} inside`;
+        const enterButton = el.querySelector(".node-enter");
+        enterButton.addEventListener("mousedown", evt => evt.stopPropagation());
+        enterButton.addEventListener("pointerdown", evt => {
+          evt.stopPropagation();
+          if (!isTouchPointer(evt)) return;
+          evt.preventDefault();
+          enterStateLayer(s.id);
+        });
+        enterButton.addEventListener("click", evt => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          enterStateLayer(s.id);
+        });
         const editButton = el.querySelector(".node-edit");
         editButton.addEventListener("mousedown", evt => {
           evt.stopPropagation();
@@ -3648,19 +4163,43 @@
 
         el.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
-          if (evt.target.closest(".port, .node-edit")) return;
+          if (evt.target.closest(".port, .node-edit, .node-enter")) return;
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
           startNodeDrag(evt, s);
         });
 
         el.addEventListener("pointerdown", evt => {
-          if (!isTouchPointer(evt) || evt.target.closest(".port, .node-edit")) return;
+          if (!isTouchPointer(evt) || evt.target.closest(".port, .node-edit, .node-enter")) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
           if (pinchZoom) return;
           activePointerId = evt.pointerId;
           startNodeDrag(evt, s);
+        });
+
+        el.addEventListener("dblclick", evt => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          enterStateLayer(s.id);
+        });
+
+        el.addEventListener("dragover", evt => {
+          if (!evt.dataTransfer.types.includes("text/state-template-id")) return;
+          evt.preventDefault();
+          evt.dataTransfer.dropEffect = "copy";
+          el.classList.add("inner-drop-target");
+        });
+        el.addEventListener("dragleave", evt => {
+          if (!el.contains(evt.relatedTarget)) el.classList.remove("inner-drop-target");
+        });
+        el.addEventListener("drop", evt => {
+          const templateId = evt.dataTransfer.getData("text/state-template-id");
+          if (!templateId) return;
+          evt.preventDefault();
+          evt.stopPropagation();
+          el.classList.remove("inner-drop-target");
+          addTemplateInside(templateId, s.id, { enter: true });
         });
 
         el.querySelector(".port").addEventListener("mousedown", evt => {
@@ -3758,6 +4297,27 @@
       return "Text";
     }
 
+    function componentPresetTypes() {
+      return ["heading", "text", "image", "list", "link", "note", "divider"];
+    }
+
+    function builtinStateTemplates() {
+      return componentPresetTypes().map(type => ({
+        id: `builtin_component_${type}`,
+        title: componentTitle(type),
+        body: "",
+        components: [{ id: `builtin_${type}`, type, text: defaultComponentText(type), url: defaultComponentUrl(type) }],
+        data: {},
+        builtIn: true
+      }));
+    }
+
+    function templateById(templateId) {
+      return stateTemplates.find(item => item.id === templateId) ||
+        builtinStateTemplates().find(item => item.id === templateId) ||
+        null;
+    }
+
     function defaultComponentUrl(type) {
       if (type === "image") return "https://";
       if (type === "link") return "https://";
@@ -3801,6 +4361,13 @@
         }
         persistOwner("state:component:" + component.id);
       };
+      if (!s.components.length) {
+        const empty = document.createElement("div");
+        empty.className = "component-empty";
+        empty.textContent = "No direct content on this state. Use the State Explorer presets as child states when this state should contain Text, Heading, Image, List, Link, Note, or Divider.";
+        list.appendChild(empty);
+        return;
+      }
       for (const component of s.components) {
         const item = document.createElement("div");
         item.className = "component-editor";
@@ -3930,7 +4497,8 @@
       stateInspectorBodyEl.innerHTML = `
         <div class="inspector-empty">
           <strong>No state selected</strong>
-          <span>Click a state or transition to edit it here. Shift-click keeps building a multi-selection.</span>
+          <span>Click a state or transition in this layer to edit it here. Shift-click keeps building a multi-selection.</span>
+          <span>Use the breadcrumb above the canvas to move in and out of nested state layers.</span>
           <span>Drag a state into the bottom explorer to save it as a reusable preset.</span>
         </div>
       `;
@@ -3960,17 +4528,19 @@
         <div class="field"><label>Title</label><input id="pTitle"></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
-        <div class="small">Components</div>
-        <div class="component-toolbar">
-          <button id="pAddHeading" type="button">+ Heading</button>
-          <button id="pAddText" type="button">+ Text</button>
-          <button id="pAddImage" type="button">+ Image</button>
-          <button id="pAddList" type="button">+ List</button>
-          <button id="pAddLink" type="button">+ Link</button>
-          <button id="pAddNote" type="button">+ Note</button>
-          <button id="pAddDivider" type="button">+ Divider</button>
-        </div>
+        <div class="small">State content</div>
         <div id="pComponents" class="component-list"></div>
+        <div class="inner-state-panel">
+          <div class="inner-state-panel-title">
+            <span>Child states / components</span>
+            <span id="pInnerCount"></span>
+          </div>
+          <div id="pInnerDropZone" class="inner-state-dropzone">Drop any State Explorer preset here. Text, Heading, Image, List, Link, Note, and Divider are states too.</div>
+          <div class="row">
+            <button id="pEnterLayer" type="button">Enter layer</button>
+            <button id="pAddInside" type="button">+ Blank child state</button>
+          </div>
+        </div>
         <div class="small">State id: <b>${escapeHtml(s.id)}</b></div>
         <div class="row" style="margin-top:10px">
           <button id="pInitial">Set initial</button>
@@ -3986,6 +4556,24 @@
       const dataPreview = root.querySelector("#pDataPreview");
       title.value = s.title || "";
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
+      root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
+      const innerDropZone = root.querySelector("#pInnerDropZone");
+      innerDropZone.addEventListener("dragover", evt => {
+        if (!evt.dataTransfer.types.includes("text/state-template-id")) return;
+        evt.preventDefault();
+        evt.dataTransfer.dropEffect = "copy";
+        innerDropZone.classList.add("drag-over");
+      });
+      innerDropZone.addEventListener("dragleave", evt => {
+        if (!innerDropZone.contains(evt.relatedTarget)) innerDropZone.classList.remove("drag-over");
+      });
+      innerDropZone.addEventListener("drop", evt => {
+        const templateId = evt.dataTransfer.getData("text/state-template-id");
+        if (!templateId) return;
+        evt.preventDefault();
+        innerDropZone.classList.remove("drag-over");
+        addTemplateInside(templateId, s.id, { enter: true });
+      });
       const updateDataPreview = () => {
         try {
           const parsed = JSON.parse(data.value || "{}");
@@ -4010,20 +4598,8 @@
       updateDataPreview();
       title.onblur = data.onblur = () => { lastHistoryKey = null; };
       renderComponentEditors(s, null, root);
-      const addComponent = type => {
-        s.components = normalizeComponents(s.components);
-        s.components.push({ id: uid("c"), type, text: defaultComponentText(type), url: defaultComponentUrl(type) });
-        saveModel("state:components:" + s.id);
-        draw();
-        showNodeInspector(byId(s.id) || s, opts);
-      };
-      root.querySelector("#pAddHeading").onclick = () => addComponent("heading");
-      root.querySelector("#pAddText").onclick = () => addComponent("text");
-      root.querySelector("#pAddImage").onclick = () => addComponent("image");
-      root.querySelector("#pAddList").onclick = () => addComponent("list");
-      root.querySelector("#pAddLink").onclick = () => addComponent("link");
-      root.querySelector("#pAddNote").onclick = () => addComponent("note");
-      root.querySelector("#pAddDivider").onclick = () => addComponent("divider");
+      root.querySelector("#pEnterLayer").onclick = () => enterStateLayer(s.id);
+      root.querySelector("#pAddInside").onclick = () => addBlankStateInside(s.id, { selectTitle: true });
       root.querySelector("#pInitial").onclick = () => {
         model.initial = s.id;
         saveModel();
@@ -4041,10 +4617,7 @@
       };
       root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
       root.querySelector("#pDelete").onclick = () => {
-        if (model.states.length <= 1) return;
-        model.states = model.states.filter(n => n.id !== s.id);
-        model.transitions = model.transitions.filter(t => t.from !== s.id && t.to !== s.id);
-        if (model.initial === s.id) model.initial = model.states[0].id;
+        if (!removeStatesById([s.id])) return;
         selected = null;
         showEmptyInspector();
         saveModel();
@@ -4079,17 +4652,9 @@
         <div class="field"><label>Preset title</label><input id="pTitle"></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
-        <div class="small">Components</div>
-        <div class="component-toolbar">
-          <button id="pAddHeading" type="button">+ Heading</button>
-          <button id="pAddText" type="button">+ Text</button>
-          <button id="pAddImage" type="button">+ Image</button>
-          <button id="pAddList" type="button">+ List</button>
-          <button id="pAddLink" type="button">+ Link</button>
-          <button id="pAddNote" type="button">+ Note</button>
-          <button id="pAddDivider" type="button">+ Divider</button>
-        </div>
+        <div class="small">Preset state content</div>
         <div id="pComponents" class="component-list"></div>
+        <div class="component-empty">To compose reusable content, place State Explorer presets on the canvas, edit them as states, then drag the result back into the explorer.</div>
         <div class="small">Preset id: <b>${escapeHtml(template.id)}</b></div>
         <div class="row" style="margin-top:10px">
           <button id="pTemplateUse">Use on canvas</button>
@@ -4132,19 +4697,6 @@
         skipLiveStateSync: true
       };
       renderComponentEditors(template, null, root, componentOptions);
-      const addComponent = type => {
-        template.components = normalizeComponents(template.components);
-        template.components.push({ id: uid("c"), type, text: defaultComponentText(type), url: defaultComponentUrl(type) });
-        persistTemplate("template:components:" + template.id);
-        showTemplateInspector(template, opts);
-      };
-      root.querySelector("#pAddHeading").onclick = () => addComponent("heading");
-      root.querySelector("#pAddText").onclick = () => addComponent("text");
-      root.querySelector("#pAddImage").onclick = () => addComponent("image");
-      root.querySelector("#pAddList").onclick = () => addComponent("list");
-      root.querySelector("#pAddLink").onclick = () => addComponent("link");
-      root.querySelector("#pAddNote").onclick = () => addComponent("note");
-      root.querySelector("#pAddDivider").onclick = () => addComponent("divider");
       root.querySelector("#pTemplateUse").onclick = () => addTemplateAtViewport(template);
       root.querySelector("#pTemplateExport").onclick = () => exportTemplateComponentFile(template);
       root.querySelector("#pTemplateDelete").onclick = () => { void deleteStateTemplate(template.id); };
@@ -4313,7 +4865,7 @@
       return "State " + i;
     }
 
-    function makeState(x, y, title) {
+    function makeState(x, y, title, parentId = currentLayerId) {
       title = title || nextStateTitle();
       let base = normalizeId(title);
       let id = base;
@@ -4326,6 +4878,7 @@
         body: "",
         components: [],
         data: {},
+        parentId: parentId && byId(parentId) ? parentId : null,
         x,
         y
       };
@@ -4335,12 +4888,19 @@
     }
 
     function stateTemplateFromState(s) {
+      const ids = descendantStateIds([s.id]);
+      const childIds = [...ids].filter(id => id !== s.id);
       return {
         id: uid("tpl"),
+        rootStateId: s.id,
         title: s.title || s.id,
         body: "",
         components: cloneComponents(s.components),
-        data: normalizeDataObject(s.data)
+        data: normalizeDataObject(s.data),
+        states: childIds.map(id => byId(id)).filter(Boolean).map(stateExportSnapshot),
+        transitions: model.transitions
+          .filter(transition => ids.has(transition.from) && ids.has(transition.to))
+          .map(transitionExportSnapshot)
       };
     }
 
@@ -4374,10 +4934,12 @@
         template,
         ...stateTemplates.filter(item => normalizeId(item.title) !== normalizeId(template.title))
       ].slice(0, 40);
+      editingTemplateId = template.id;
       saveStateTemplates("template:add:" + template.id);
       stateExplorerCollapsed = false;
       applyStateExplorerCollapsed();
       renderStateExplorer();
+      showTemplateInspector(template, { focus: false });
     }
 
     function updateTemplateFromSelectedState(templateId) {
@@ -4415,34 +4977,131 @@
 
     function addTemplateAtViewport(template) {
       const center = viewportCenterWorld();
-      const s = makeStateFromTemplate(template, center.x - nodeWidth(template) / 2, center.y - NODE_H / 2);
-      model.states.push(s);
-      selected = { type: "node", id: s.id };
+      const instance = instantiateStateTemplate(template, center.x - nodeWidth(template) / 2, center.y - NODE_H / 2);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      selected = { type: "node", id: instance.root.id };
       saveModel();
       draw();
-      showNodeInspector(s, { forceOpen: true });
-      startAppAtState(s.id);
+      showNodeInspector(instance.root, { forceOpen: true });
+      startAppAtState(instance.root.id);
     }
 
-    function makeStateFromTemplate(template, x, y) {
-      const s = makeState(x, y, template.title || nextStateTitle());
+    function addTemplateToCurrentLayer(template) {
+      const position = currentLayerId
+        ? nextChildPosition(currentLayerId)
+        : viewportCenterWorld();
+      const x = currentLayerId ? position.x : position.x - nodeWidth(template) / 2;
+      const y = currentLayerId ? position.y : position.y - NODE_H / 2;
+      const instance = instantiateStateTemplate(template, x, y, currentLayerId);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      selected = { type: "node", id: instance.root.id };
+      saveModel("layer:add-template:" + (currentLayerId || "root"));
+      draw();
+      showNodeInspector(instance.root, { forceOpen: true });
+      if (currentLayerId) syncToApp(false);
+      else startAppAtState(instance.root.id);
+      if (currentLayerId) fitView();
+      return instance.root;
+    }
+
+    function makeStateFromTemplate(template, x, y, parentId = currentLayerId) {
+      const s = makeState(x, y, template.title || nextStateTitle(), parentId);
       s.body = "";
       s.components = cloneComponents(template.components);
       s.data = normalizeDataObject(template.data);
       return s;
     }
 
+    function instantiateStateTemplate(template, x, y, parentId = currentLayerId) {
+      const root = makeStateFromTemplate(template, x, y, parentId);
+      const rootSourceId = String(template.rootStateId || template.sourceStateId || template.id || root.id);
+      const idMap = new Map([[rootSourceId, root.id], [String(template.id || ""), root.id]]);
+      const states = [root];
+      for (const child of snapshotTemplateStates(template)) {
+        if (idMap.has(child.id)) continue;
+        const sourceParentId = child.parentId || rootSourceId;
+        const nextParentId = idMap.get(sourceParentId) || root.id;
+        const next = makeState(child.x, child.y, child.title || nextStateTitle(), nextParentId);
+        next.parentId = nextParentId;
+        next.body = "";
+        next.components = cloneComponents(child.components);
+        next.data = normalizeDataObject(child.data);
+        states.push(next);
+        idMap.set(child.id, next.id);
+      }
+      const transitions = snapshotTemplateTransitions(template)
+        .map(transition => {
+          const from = idMap.get(transition.from);
+          const to = idMap.get(transition.to);
+          if (!from || !to) return null;
+          return {
+            id: uid("t"),
+            from,
+            to,
+            label: transition.label || "Next",
+            condition: transition.condition || "",
+            set: normalizeDataObject(transition.set)
+          };
+        })
+        .filter(Boolean);
+      return { root, states, transitions };
+    }
+
+    function nextChildPosition(parentId) {
+      const count = childStateCount(parentId);
+      return {
+        x: snapToGrid(120 + (count % 3) * GRID_SIZE * 10),
+        y: snapToGrid(120 + Math.floor(count / 3) * GRID_SIZE * 6)
+      };
+    }
+
+    function addTemplateInside(templateId, parentId, opts = {}) {
+      const template = templateById(templateId);
+      const parent = byId(parentId);
+      if (!template || !parent) return null;
+      const position = nextChildPosition(parent.id);
+      const instance = instantiateStateTemplate(template, position.x, position.y, parent.id);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      currentLayerId = parent.id;
+      selected = { type: "node", id: instance.root.id };
+      saveModel("layer:add-child:" + parent.id);
+      draw();
+      showNodeInspector(instance.root, { forceOpen: true, selectTitle: Boolean(opts.selectTitle) });
+      syncToApp(false);
+      if (opts.fit !== false) fitView();
+      return instance.root;
+    }
+
+    function addBlankStateInside(parentId, opts = {}) {
+      const parent = byId(parentId);
+      if (!parent) return null;
+      const position = nextChildPosition(parent.id);
+      const s = makeState(position.x, position.y, nextStateTitle(), parent.id);
+      model.states.push(s);
+      currentLayerId = parent.id;
+      selected = { type: "node", id: s.id };
+      saveModel("layer:add-child:" + parent.id);
+      draw();
+      showNodeInspector(s, { forceOpen: true, selectTitle: opts.selectTitle !== false });
+      if (opts.fit !== false) fitView();
+      return s;
+    }
+
     function addTemplateAt(templateId, clientX, clientY) {
-      const template = stateTemplates.find(item => item.id === templateId);
+      const template = templateById(templateId);
       if (!template) return;
       const p = screenToWorldXY(clientX, clientY);
-      const s = makeStateFromTemplate(template, p.x - nodeWidth(template) / 2, p.y - NODE_H / 2);
-      model.states.push(s);
-      selected = { type: "node", id: s.id };
+      const instance = instantiateStateTemplate(template, p.x - nodeWidth(template) / 2, p.y - NODE_H / 2);
+      model.states.push(...instance.states);
+      model.transitions.push(...instance.transitions);
+      selected = { type: "node", id: instance.root.id };
       saveModel();
       draw();
-      showNodeInspector(s, { forceOpen: true });
-      startAppAtState(s.id);
+      showNodeInspector(instance.root, { forceOpen: true });
+      startAppAtState(instance.root.id);
     }
 
     function pointInElement(clientX, clientY, el) {
@@ -4452,19 +5111,77 @@
 
     function renderStateExplorer() {
       stateExplorerListEl.innerHTML = "";
+      const stopAction = evt => evt.stopPropagation();
+      const appendSection = (label, items) => {
+        const section = document.createElement("div");
+        section.className = "state-explorer-section";
+        const heading = document.createElement("div");
+        heading.className = "state-explorer-label";
+        heading.textContent = label;
+        section.appendChild(heading);
+        items.forEach(item => section.appendChild(item));
+        stateExplorerListEl.appendChild(section);
+      };
+      const wireDraggableTemplate = (card, template) => {
+        card.draggable = true;
+        card.dataset.templateId = template.id;
+        card.addEventListener("dragstart", evt => {
+          evt.dataTransfer.effectAllowed = "copy";
+          evt.dataTransfer.setData("text/state-template-id", template.id);
+        });
+      };
+      const componentCards = builtinStateTemplates().map(template => {
+        const card = document.createElement("div");
+        card.className = "component-preset-card";
+        card.innerHTML = `
+          <div class="template-title"></div>
+          <div class="template-body"></div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ ${escapeHtml(template.title)}</button>
+            <button class="template-inside" type="button">Inside</button>
+          </div>
+        `;
+        card.querySelector(".template-title").textContent = template.title;
+        card.querySelector(".template-body").textContent = `${template.title} state preset`;
+        card.querySelectorAll("button").forEach(button => {
+          button.addEventListener("mousedown", stopAction);
+          button.addEventListener("pointerdown", stopAction);
+        });
+        card.querySelector(".template-use").onclick = evt => {
+          evt.stopPropagation();
+          addTemplateToCurrentLayer(template);
+        };
+        const insideButton = card.querySelector(".template-inside");
+        insideButton.title = "Add inside the selected state";
+        insideButton.onclick = evt => {
+          evt.stopPropagation();
+          const target = selected?.type === "node" ? byId(selected.id) : null;
+          if (!target) {
+            void modalAlert("Select a state first, then add this preset inside it.", "No state selected");
+            return;
+          }
+          addTemplateInside(template.id, target.id, { enter: true });
+        };
+        card.addEventListener("dblclick", evt => {
+          if (evt.target.closest("button, input, textarea")) return;
+          addTemplateToCurrentLayer(template);
+        });
+        wireDraggableTemplate(card, template);
+        return card;
+      });
+      appendSection("Core", componentCards);
+
+      const userItems = [];
       if (!stateTemplates.length) {
         const empty = document.createElement("div");
         empty.className = "state-template-empty";
-        empty.textContent = "Drag a canvas state here, or use + Add preset.";
-        stateExplorerListEl.appendChild(empty);
-        return;
+        empty.textContent = "Drag a canvas state here, or use + Add preset for a custom state.";
+        userItems.push(empty);
       }
       for (const template of stateTemplates) {
         const card = document.createElement("div");
         card.className = "state-template-card";
         if (editingTemplateId === template.id) card.classList.add("editing");
-        card.draggable = true;
-        card.dataset.templateId = template.id;
         card.innerHTML = `
           <div class="template-title"></div>
           <div class="template-body"></div>
@@ -4476,7 +5193,6 @@
         `;
         card.querySelector(".template-title").textContent = template.title || "State preset";
         card.querySelector(".template-body").textContent = normalizeComponents(template.components).find(c => c.text)?.text || "Ready-to-use state";
-        const stopAction = evt => evt.stopPropagation();
         card.querySelectorAll("button").forEach(button => {
           button.addEventListener("mousedown", stopAction);
           button.addEventListener("pointerdown", stopAction);
@@ -4497,16 +5213,14 @@
           if (evt.target.closest("button, input, textarea")) return;
           showTemplateInspector(template, { focus: false, saveSelection: true });
         });
-        card.addEventListener("dragstart", evt => {
-          evt.dataTransfer.effectAllowed = "copy";
-          evt.dataTransfer.setData("text/state-template-id", template.id);
-        });
+        wireDraggableTemplate(card, template);
         card.addEventListener("dblclick", evt => {
           if (evt.target.closest("button, input, textarea")) return;
           addTemplateAtViewport(template);
         });
-        stateExplorerListEl.appendChild(card);
+        userItems.push(card);
       }
+      appendSection("Mine", userItems);
     }
 
     function addStateAt(x, y, showAtX, showAtY) {
@@ -4799,6 +5513,18 @@
     function handleKeyDown(evt) {
       const mod = evt.ctrlKey || evt.metaKey;
       const key = String(evt.key || "").toLowerCase();
+      if (evt.altKey && evt.key === "ArrowLeft") {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        exitCurrentLayer();
+        return;
+      }
+      if (evt.altKey && evt.key === "ArrowRight" && selected?.type === "node") {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        enterStateLayer(selected.id);
+        return;
+      }
       if (mod && evt.code === "Space") {
         evt.preventDefault();
         evt.stopImmediatePropagation();

@@ -52,6 +52,23 @@ function componentEditor(page, title) {
   });
 }
 
+function componentPreset(page, title) {
+  return page.locator(".component-preset-card").filter({
+    has: page.locator(".template-title").filter({ hasText: new RegExp(`^${title}$`) })
+  });
+}
+
+function nodeByTitle(page, title) {
+  return page.locator(".node").filter({
+    has: page.locator(".title").filter({ hasText: new RegExp(`^${title}$`) })
+  });
+}
+
+async function addComponentState(page, title) {
+  await componentPreset(page, title).getByRole("button", { name: `+ ${title}` }).click();
+  await expect(page.locator("#pTitle")).toHaveValue(title);
+}
+
 async function worldTransform(page) {
   return page.locator("#world").evaluate(el => getComputedStyle(el).transform);
 }
@@ -231,24 +248,26 @@ test.describe("State Blueprint tool", () => {
       return model.states.find(state => state.id === "start").data.profile?.tier;
     }).toBe("starter");
 
-    await page.getByRole("button", { name: "+ Heading" }).click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "Heading");
     await componentEditor(page, "Heading").locator("input").fill("Welcome {{userName}}");
-    await page.getByRole("button", { name: "+ Text" }).click();
+    await addComponentState(page, "Text");
     await componentEditor(page, "Text").locator("textarea").fill("Tier: {{profile.tier}}");
-    await page.getByRole("button", { name: "+ List" }).click();
+    await addComponentState(page, "List");
     const listInputs = componentEditor(page, "List").locator(".list-item-editor input");
     await listInputs.nth(0).fill("Confirm email");
     await listInputs.nth(1).fill("Accept terms");
-    await page.getByRole("button", { name: "+ Link" }).click();
+    await addComponentState(page, "Link");
     await componentEditor(page, "Link").locator("input").nth(0).fill("Example docs for {{userName}}");
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/docs");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.find(state => state.id === "start").components.find(component => component.type === "link")?.url;
+      const linkState = model.states.find(state => state.parentId === "start" && state.title === "Link");
+      return linkState?.components.find(component => component.type === "link")?.url;
     }).toBe("https://example.com/docs");
-    await page.getByRole("button", { name: "+ Note" }).click();
+    await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Stored from state.data: {{userName}}");
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("Alt+ArrowLeft");
 
     const startPort = await centerOf(page.locator('[data-id="start"] .port'));
     const map = await page.locator("#map").boundingBox();
@@ -266,14 +285,15 @@ test.describe("State Blueprint tool", () => {
 
     const createdStateId = await page.evaluate(key => {
       const model = JSON.parse(localStorage.getItem(key));
-      return model.states.find(state => state.id !== "start").id;
+      return model.states.find(state => !state.parentId && state.id !== "start").id;
     }, STORAGE_KEY);
 
     await page.locator(`[data-id="${createdStateId}"]`).click();
     await page.locator("#pTitle").fill("Lesson ready");
-    await page.getByRole("button", { name: "+ Note" }).click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Ready for {{userName}} as {{role}}");
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("Alt+ArrowLeft");
 
     const app = appFrame(page);
     await page.locator(`[data-id="${createdStateId}"]`).click();
@@ -303,8 +323,8 @@ test.describe("State Blueprint tool", () => {
     const transition = model.transitions.find(item => item.from === "start" && item.to === createdStateId);
     expect(start.data.userName).toBe("Ada");
     expect(start.data.profile.tier).toBe("starter");
-    expect(start.components.map(component => component.type)).toEqual(["heading", "text", "list", "link", "note"]);
-    expect(done.components[0].text).toBe("Ready for {{userName}} as {{role}}");
+    expect(model.states.filter(state => state.parentId === "start").map(state => state.components[0]?.type)).toEqual(["heading", "text", "list", "link", "note"]);
+    expect(model.states.find(state => state.parentId === done.id && state.title === "Note").components[0].text).toBe("Ready for {{userName}} as {{role}}");
     expect(transition.label).toBe("Submit");
     expect(transition.condition).toBe('email == "ada@example.com" && accepted_terms');
     expect(transition.set).toEqual({ userName: "Grace", role: "member" });
@@ -430,6 +450,117 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ body: "", text: "Legacy preset body" });
   });
 
+  test("navigates into nested state layers and keeps child states inside their parent", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').click();
+    await expect(page.locator("#pAddInside")).toBeVisible();
+    await page.locator("#pAddInside").click();
+
+    await expect(page.locator("#layerNav")).toContainText("Root");
+    await expect(page.locator("#layerNav")).toContainText("Login");
+    await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator(".node")).toHaveCount(1);
+
+    const childId = await page.locator(".node").getAttribute("data-id");
+    await expect(page.locator("#pTitle")).toBeFocused();
+    await page.locator("#pTitle").fill("Email step");
+    await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const child = model.states.find(state => state.id === childId);
+      return {
+        childParent: child?.parentId,
+        rootCount: model.states.filter(state => !state.parentId).length,
+        childCount: model.states.filter(state => state.parentId === "login").length
+      };
+    }).toEqual({ childParent: "login", rootCount: 6, childCount: 1 });
+
+    await page.keyboard.press("Alt+ArrowLeft");
+    await expect(page.locator("#layerNav")).toContainText("Root layer");
+    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 inside");
+    await expect(page.locator(".node")).toHaveCount(6);
+
+    await page.locator('[data-id="login"] .node-enter').click();
+    await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
+    await expect(page.locator(".node")).toHaveCount(1);
+  });
+
+  test("drops state explorer presets into a state's inner layer", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Text");
+    await page.locator("#pTitle").fill("Inner lesson");
+    await componentEditor(page, "Text").locator("textarea").fill("Nested preset text");
+    const sourceId = await page.locator(".node.selected").getAttribute("data-id");
+    await dragNodeToStateExplorer(page, page.locator(`[data-id="${sourceId}"]`));
+    await page.locator(`[data-id="${sourceId}"]`).click();
+    await page.keyboard.press("Delete");
+
+    const preset = page.locator(".state-template-card").filter({ hasText: "Inner lesson" });
+    await expect(preset).toBeVisible();
+
+    await page.locator('[data-id="login"]').click();
+    await expect(page.locator("#pInnerDropZone")).toBeVisible();
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await preset.dispatchEvent("dragstart", { dataTransfer });
+    await page.locator("#pInnerDropZone").dispatchEvent("drop", { dataTransfer });
+
+    await expect(page.locator("#layerNav")).toContainText("Login");
+    await expect(page.locator(".node")).toHaveCount(1);
+    await expect(page.locator(".node .title")).toHaveText("Inner lesson");
+    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Nested preset text");
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const child = model.states.find(state => state.title === "Inner lesson");
+      return {
+        parentId: child?.parentId,
+        text: child?.components.find(component => component.type === "text")?.text
+      };
+    }).toEqual({ parentId: "login", text: "Nested preset text" });
+
+    await page.getByRole("button", { name: "Root" }).click();
+    await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 inside");
+    await expect(page.locator(".node")).toHaveCount(6);
+  });
+
+  test("preserves inner state layers when a state is saved to and reused from the explorer", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "Text");
+    await componentEditor(page, "Text").locator("textarea").fill("Reusable nested child");
+    const originalChildId = await page.locator(".node.selected").getAttribute("data-id");
+    await page.keyboard.press("Alt+ArrowLeft");
+
+    await dragNodeToStateExplorer(page, page.locator('[data-id="login"]'));
+    const preset = page.locator(".state-template-card").filter({ hasText: "Login" });
+    await expect(preset).toBeVisible();
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      return {
+        childCount: templates[0]?.states?.length,
+        childText: templates[0]?.states?.find(state => state.id === originalChildId)?.components?.[0]?.text
+      };
+    }).toEqual({ childCount: 1, childText: "Reusable nested child" });
+
+    await preset.getByRole("button", { name: "Use" }).click();
+    const reusedId = await page.locator(".node.selected").getAttribute("data-id");
+    await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 inside");
+    await page.locator(`[data-id="${reusedId}"] .node-enter`).click();
+    await expect(page.locator(".node")).toHaveCount(1);
+    await expect(nodeByTitle(page, "Text")).toBeVisible();
+    await nodeByTitle(page, "Text").click();
+    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Reusable nested child");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.parentId === reusedId)?.components?.[0]?.text;
+    }).toBe("Reusable nested child");
+  });
+
   test("keeps invalid data and transition set JSON out of the saved model", async ({ page }) => {
     await openTool(page);
 
@@ -466,16 +597,17 @@ test.describe("State Blueprint tool", () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "login").data.userName;
     }).toBe("Ada");
-    await page.getByRole("button", { name: "+ Note" }).click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Manual note for {{userName}}");
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const login = model.states.find(state => state.id === "login");
-      return login.components.find(component => component.type === "note")?.text || "";
+      const note = model.states.find(state => state.parentId === "login" && state.title === "Note");
+      return note?.components.find(component => component.type === "note")?.text || "";
     }).toBe("Manual note for {{userName}}");
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
     await expect(appFrame(page).getByText("Manual note for Ada")).toBeVisible();
   });
@@ -491,16 +623,18 @@ test.describe("State Blueprint tool", () => {
       return model.states.find(state => state.id === "login").data.userName;
     }).toBe("Ada");
 
-    await page.getByRole("button", { name: "+ Heading" }).click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "Heading");
     await componentEditor(page, "Heading").locator("input").fill("Account heading {{userName}}");
 
+    await addComponentState(page, "Text");
     await componentEditor(page, "Text").locator("textarea").fill("Body paragraph for {{userName}}");
 
-    await page.getByRole("button", { name: "+ Image" }).click();
+    await addComponentState(page, "Image");
     await componentEditor(page, "Image").locator("input").nth(0).fill("Chart for {{userName}}");
     await componentEditor(page, "Image").locator("input").nth(1).fill(imageUrl);
 
-    await page.getByRole("button", { name: "+ List" }).click();
+    await addComponentState(page, "List");
     const listEditor = componentEditor(page, "List");
     await listEditor.locator(".list-item-editor input").nth(0).fill("First step for {{userName}}");
     await listEditor.locator(".list-item-editor input").nth(1).fill("Second step");
@@ -508,50 +642,58 @@ test.describe("State Blueprint tool", () => {
     await expect(listEditor.locator(".list-item-editor input")).toHaveCount(3);
     await listEditor.locator(".list-item-editor input").nth(2).fill("Third persisted step");
 
-    await page.getByRole("button", { name: "+ Link" }).click();
+    await addComponentState(page, "Link");
     await componentEditor(page, "Link").locator("input").nth(0).fill("Docs for {{userName}}");
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/{{userName}}/docs");
 
-    await page.getByRole("button", { name: "+ Note" }).click();
+    await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Note survives for {{userName}}");
 
-    await page.getByRole("button", { name: "+ Divider" }).click();
+    await addComponentState(page, "Divider");
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const login = model.states.find(state => state.id === "login");
-      return login.components.map(component => ({
-        type: component.type,
-        text: component.text,
-        url: component.url
+      return model.states.filter(state => state.parentId === "login").map(state => ({
+        title: state.title,
+        type: state.components[0]?.type,
+        text: state.components[0]?.text,
+        url: state.components[0]?.url
       }));
     }).toEqual([
-      { type: "text", text: "Body paragraph for {{userName}}", url: "" },
-      { type: "heading", text: "Account heading {{userName}}", url: "" },
-      { type: "image", text: "Chart for {{userName}}", url: imageUrl },
-      { type: "list", text: "First step for {{userName}}\nSecond step\nThird persisted step", url: "" },
-      { type: "link", text: "Docs for {{userName}}", url: "https://example.com/{{userName}}/docs" },
-      { type: "note", text: "Note survives for {{userName}}", url: "" },
-      { type: "divider", text: "", url: "" }
+      { title: "Heading", type: "heading", text: "Account heading {{userName}}", url: "" },
+      { title: "Text", type: "text", text: "Body paragraph for {{userName}}", url: "" },
+      { title: "Image", type: "image", text: "Chart for {{userName}}", url: imageUrl },
+      { title: "List", type: "list", text: "First step for {{userName}}\nSecond step\nThird persisted step", url: "" },
+      { title: "Link", type: "link", text: "Docs for {{userName}}", url: "https://example.com/{{userName}}/docs" },
+      { title: "Note", type: "note", text: "Note survives for {{userName}}", url: "" },
+      { title: "Divider", type: "divider", text: "", url: "" }
     ]);
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
+    await page.locator("#pEnterLayer").click();
 
+    await nodeByTitle(page, "Heading").click();
     await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{userName}}");
+    await nodeByTitle(page, "Text").click();
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Body paragraph for {{userName}}");
+    await nodeByTitle(page, "Image").click();
     await expect(componentEditor(page, "Image").locator("input").nth(0)).toHaveValue("Chart for {{userName}}");
     await expect(componentEditor(page, "Image").locator("input").nth(1)).toHaveValue(imageUrl);
+    await nodeByTitle(page, "List").click();
     await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(3);
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for {{userName}}");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(1)).toHaveValue("Second step");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(2)).toHaveValue("Third persisted step");
+    await nodeByTitle(page, "Link").click();
     await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for {{userName}}");
     await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/{{userName}}/docs");
+    await nodeByTitle(page, "Note").click();
     await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for {{userName}}");
+    await nodeByTitle(page, "Divider").click();
     await expect(componentEditor(page, "Divider")).toBeVisible();
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
 
     const app = appFrame(page);
@@ -578,8 +720,10 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pData")).toBeVisible();
     await page.locator("#pData").fill('{"helperText":"Resume safely"}');
-    await page.getByRole("button", { name: "+ Note" }).click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Helper: {{helperText}}");
+    await page.keyboard.press("Alt+ArrowLeft");
 
     await expect(app.getByText("Helper: Resume safely")).toBeVisible();
     await expect(app.locator(".field").filter({ hasText: "email" }).locator("input")).toHaveValue("draft@example.com");
@@ -1007,14 +1151,14 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pData")).toHaveAttribute("tabindex", "0");
-    await expect(page.locator("#pAddHeading")).toHaveAttribute("tabindex", "0");
+    await expect(componentEditor(page, "Text").getByRole("button", { name: "Delete" })).toHaveAttribute("tabindex", "0");
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pData").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
-    await expect.poll(() => page.locator("#pAddHeading").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => componentEditor(page, "Text").getByRole("button", { name: "Delete" }).evaluate(el => document.activeElement === el)).toBe(true);
   });
 
   test("keeps transition editor focus, tab order, and Enter commit close predictable", async ({ page }) => {
@@ -1494,7 +1638,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await expect(page.locator("#pTitle")).toBeVisible();
-    await page.locator("#pAddList").click();
+    await page.locator("#pEnterLayer").click();
+    await addComponentState(page, "List");
 
     const listEditor = page.locator(".component-editor").filter({ hasText: "List" });
     const itemInputs = listEditor.locator(".list-item-editor input");
@@ -1507,8 +1652,8 @@ test.describe("State Blueprint tool", () => {
     await itemInputs.last().fill("Remember me option");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      const login = model.states.find(state => state.id === "login");
-      return login.components.find(component => component.type === "list")?.text || "";
+      const list = model.states.find(state => state.parentId === "login" && state.title === "List");
+      return list?.components.find(component => component.type === "list")?.text || "";
     }).toContain("Remember me option");
 
     await expect(page.locator("#pComponents")).toHaveCSS("overflow", "visible");
@@ -2005,43 +2150,37 @@ test.describe("State Blueprint tool", () => {
   test("adds, edits, updates, uses, and deletes state explorer presets", async ({ page }) => {
     await openTool(page);
 
-    await page.getByRole("button", { name: "+ Add preset" }).click();
+    await addComponentState(page, "Text");
+    await page.locator("#pTitle").fill("Quick lesson");
+    await componentEditor(page, "Text").locator("textarea").fill("Hello {{role}}");
+    await page.locator("#pData").fill('{"role":"mentor"}');
+    const sourceId = await page.locator(".node.selected").getAttribute("data-id");
+    await dragNodeToStateExplorer(page, page.locator(`[data-id="${sourceId}"]`));
     const preset = page.locator(".state-template-card").first();
     await expect(preset).toHaveClass(/editing/);
     await expect(preset.locator(".template-title-input")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: State preset 1");
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Quick lesson");
     await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
     await expect(page.locator("#stateInspectorBody")).toContainText("Reusable State Component");
     await expect(page.locator("#stateInspectorBody")).toContainText("Existing canvas states stay unchanged");
-    await expect(page.locator("#pTitle")).toBeFocused();
-
-    await page.locator("#pTitle").fill("Quick lesson");
-    await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Quick lesson");
-    await page.getByRole("button", { name: "+ Text" }).click();
-    await componentEditor(page, "Text").locator("textarea").fill("Hello {{role}}");
-    await page.locator("#pData").fill('{"role":"mentor"}');
-    await page.getByRole("button", { name: "+ Heading" }).click();
-    await componentEditor(page, "Heading").locator("input").fill("Template heading {{role}}");
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
       return {
         title: templates[0].title,
         text: templates[0].components.find(component => component.type === "text")?.text,
-        data: templates[0].data,
-        heading: templates[0].components.find(component => component.type === "heading")?.text
+        data: templates[0].data
       };
     }).toEqual({
       title: "Quick lesson",
       text: "Hello {{role}}",
-      data: { role: "mentor" },
-      heading: "Template heading {{role}}"
+      data: { role: "mentor" }
     });
 
     await preset.getByRole("button", { name: "Use" }).click();
-    await expect(page.locator(".node")).toHaveCount(7);
+    await expect(page.locator(".node")).toHaveCount(8);
     await expect(page.locator("#pTitle")).toHaveValue("Quick lesson");
-    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Template heading {{role}}");
-    await expect(appFrame(page).getByRole("heading", { name: "Template heading mentor" })).toBeVisible();
+    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Hello {{role}}");
+    await expect(appFrame(page).getByText("Hello mentor")).toBeVisible();
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pTitle").fill("Updated reusable login");
@@ -2050,8 +2189,6 @@ test.describe("State Blueprint tool", () => {
       return model.states.find(state => state.id === "login")?.title;
     }).toBe("Updated reusable login");
     await componentEditor(page, "Text").locator("textarea").fill("Updated body {{role}}");
-    await page.getByRole("button", { name: "+ Heading" }).click();
-    await componentEditor(page, "Heading").locator("input").fill("Updated heading {{role}}");
 
     await preset.getByRole("button", { name: "Update" }).click();
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Updated reusable login");
@@ -2059,13 +2196,11 @@ test.describe("State Blueprint tool", () => {
       const templates = await savedStateTemplates(page);
       return {
         title: templates[0].title,
-        text: templates[0].components.find(component => component.type === "text")?.text,
-        heading: templates[0].components.find(component => component.type === "heading")?.text
+        text: templates[0].components.find(component => component.type === "text")?.text
       };
     }).toEqual({
       title: "Updated reusable login",
-      text: "Updated body {{role}}",
-      heading: "Updated heading {{role}}"
+      text: "Updated body {{role}}"
     });
 
     await expect(preset.getByRole("button", { name: "Edit" })).toHaveCount(0);
@@ -2076,7 +2211,7 @@ test.describe("State Blueprint tool", () => {
 
     await preset.getByRole("button", { name: "Use" }).click();
     await expect(page.locator("#pTitle")).toHaveValue("Updated reusable login");
-    await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Updated heading {{role}}");
+    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Updated body {{role}}");
 
     await preset.click();
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Updated reusable login");
@@ -2112,11 +2247,6 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pTitle").fill("Reusable login");
     await componentEditor(page, "Text").locator("textarea").fill("Welcome {{role}}");
     await page.locator("#pData").fill('{"role":"member"}');
-    await page.getByRole("button", { name: "+ Heading" }).click();
-    await componentEditor(page, "Heading").locator("input").fill("Preset heading {{role}}");
-    await page.getByRole("button", { name: "+ Link" }).click();
-    await componentEditor(page, "Link").locator("input").nth(0).fill("Preset docs");
-    await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/preset");
     await dragNodeToStateExplorer(page, login);
     await expect(page.locator(".state-template-card").filter({ hasText: "Reusable login" })).toBeVisible();
     await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(1);
@@ -2136,10 +2266,7 @@ test.describe("State Blueprint tool", () => {
     await expect(workPage.locator("#pTitle")).toHaveValue("Reusable login");
     await expect(componentEditor(workPage, "Text").locator("textarea")).toHaveValue("Welcome {{role}}");
     await expect(workPage.locator("#pData")).toHaveValue(/"role": "member"/);
-    await expect(componentEditor(workPage, "Heading").locator("input")).toHaveValue("Preset heading {{role}}");
-    await expect(componentEditor(workPage, "Link").locator("input").nth(1)).toHaveValue("https://example.com/preset");
-    await expect(appFrame(workPage).getByRole("heading", { name: "Preset heading member" })).toBeVisible();
-    await expect(appFrame(workPage).getByRole("link", { name: "Preset docs" })).toHaveAttribute("href", "https://example.com/preset");
+    await expect(appFrame(workPage).getByText("Welcome member")).toBeVisible();
 
     const createdId = await workPage.locator(".node.selected").getAttribute("data-id");
     await componentEditor(workPage, "Text").locator("textarea").fill("Edited instance only");
@@ -2182,10 +2309,11 @@ test.describe("State Blueprint tool", () => {
     expect(stateExport.component.state.id).toBe("login");
     expect(stateExport.component.state.title).toBe("Login");
 
-    await page.getByRole("button", { name: "+ Add preset" }).click();
+    await addComponentState(page, "Note");
     await page.locator("#pTitle").fill("Portable component");
-    await page.getByRole("button", { name: "+ Note" }).click();
     await componentEditor(page, "Note").locator("textarea").fill("Reusable note");
+    const portableId = await page.locator(".node.selected").getAttribute("data-id");
+    await dragNodeToStateExplorer(page, page.locator(`[data-id="${portableId}"]`));
 
     const presetDownload = page.waitForEvent("download");
     await page.locator("#pTemplateExport").click();
