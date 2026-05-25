@@ -2048,7 +2048,28 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toHaveValue("Updated reusable login");
     await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Updated heading {{role}}");
 
+    await preset.click();
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: Updated reusable login");
     await preset.getByRole("button", { name: "Delete" }).click();
+    const deleteDialog = page.getByRole("dialog", { name: "Delete preset" });
+    await expect(deleteDialog).toBeVisible();
+    await expect(page.locator("#modalMessage")).toContainText("Updated reusable login");
+    await deleteDialog.getByRole("button", { name: "Abbrechen" }).click();
+    await expect(deleteDialog).toBeHidden();
+    await expect(page.locator(".state-template-card")).toHaveCount(1);
+
+    await preset.getByRole("button", { name: "Delete" }).click();
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.getByRole("button", { name: "Delete preset" }).click();
+    await expect(page.locator(".state-template-card")).toHaveCount(0);
+    await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
+
+    await page.keyboard.press("Control+Z");
+    await expect(page.locator(".state-template-card")).toHaveCount(1);
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Template: Updated reusable login");
+    await expect.poll(async () => (await savedStateTemplates(page))[0]?.title).toBe("Updated reusable login");
+
+    await page.keyboard.press("Control+Y");
     await expect(page.locator(".state-template-card")).toHaveCount(0);
     await expect.poll(async () => (await savedStateTemplates(page)).length).toBe(0);
   });
@@ -2115,6 +2136,41 @@ test.describe("State Blueprint tool", () => {
       snapshotBodies: ["Edited instance only", "Welcome {{role}}", "Welcome {{role}}"]
     });
     await workPage.close();
+  });
+
+  test("exports individual state components, presets, and full definitions with presets", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').click();
+    const stateDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export component" }).click();
+    const stateExport = JSON.parse(fs.readFileSync(await (await stateDownload).path(), "utf8"));
+    expect(stateExport.kind).toBe("state-blueprint-component");
+    expect(stateExport.component.type).toBe("state");
+    expect(stateExport.component.state.id).toBe("login");
+    expect(stateExport.component.state.title).toBe("Login");
+
+    await page.getByRole("button", { name: "+ Add preset" }).click();
+    await page.locator("#pTitle").fill("Portable component");
+    await page.locator("#pBody").fill("Exported preset body");
+    await page.getByRole("button", { name: "+ Note" }).click();
+    await componentEditor(page, "Note").locator("textarea").fill("Reusable note");
+
+    const presetDownload = page.waitForEvent("download");
+    await page.locator("#pTemplateExport").click();
+    const presetExport = JSON.parse(fs.readFileSync(await (await presetDownload).path(), "utf8"));
+    expect(presetExport.kind).toBe("state-blueprint-component");
+    expect(presetExport.component.type).toBe("preset");
+    expect(presetExport.component.template.title).toBe("Portable component");
+    expect(presetExport.component.template.components[0].text).toBe("Reusable note");
+
+    const definitionDownload = page.waitForEvent("download");
+    await page.keyboard.press("Control+S");
+    const definition = JSON.parse(fs.readFileSync(await (await definitionDownload).path(), "utf8"));
+    expect(definition.kind).toBe("state-blueprint-definition");
+    expect(definition.stateTemplates).toHaveLength(1);
+    expect(definition.stateTemplates[0].title).toBe("Portable component");
+    expect(definition.stateTemplates[0].body).toBe("Exported preset body");
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {
