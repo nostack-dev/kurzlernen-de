@@ -57,7 +57,8 @@
       margin-right: 6px;
     }
 
-    button {
+    button,
+    .topbar-menu summary {
       flex: 0 0 auto;
       border: 1px solid #275078;
       color: var(--text);
@@ -72,12 +73,51 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    button:hover { border-color: var(--accent); }
+    button:hover,
+    .topbar-menu summary:hover { border-color: var(--accent); }
     button.danger:hover { border-color: var(--danger); color: #fecdd3; }
     button:disabled {
       opacity: .45;
       cursor: not-allowed;
       border-color: #1d3552;
+    }
+
+    .topbar-menu {
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .topbar-menu summary {
+      list-style: none;
+      user-select: none;
+    }
+
+    .topbar-menu summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .topbar-menu-panel {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 160;
+      display: grid;
+      gap: 7px;
+      min-width: 158px;
+      padding: 8px;
+      border: 1px solid #234766;
+      border-radius: 16px;
+      background: #071321;
+      box-shadow: 0 18px 50px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+
+    .topbar-menu:not([open]) .topbar-menu-panel {
+      display: none;
+    }
+
+    .topbar-menu-panel button {
+      width: 100%;
+      text-align: left;
     }
 
     .status {
@@ -665,48 +705,6 @@
       background: white;
     }
 
-    .popover {
-      position: absolute;
-      z-index: 30;
-      width: min(410px, calc(100vw - 24px));
-      max-height: calc(100% - 24px);
-      overflow: auto;
-      overscroll-behavior: contain;
-      scrollbar-color: #315f8c #071321;
-      scrollbar-width: thin;
-      padding: 12px;
-      background: #06111f;
-      border: 1px solid #335f8c;
-      border-radius: 14px;
-      box-shadow: 0 20px 50px rgba(0,0,0,.5);
-    }
-
-    .popover::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
-
-    .popover::-webkit-scrollbar-track {
-      background: #071321;
-      border-radius: 999px;
-    }
-
-    .popover::-webkit-scrollbar-thumb {
-      min-height: 44px;
-      border: 2px solid #071321;
-      border-radius: 999px;
-      background: #315f8c;
-    }
-
-    .popover::-webkit-scrollbar-thumb:hover {
-      background: #4d7fb2;
-    }
-
-    .popover::-webkit-scrollbar-corner {
-      background: transparent;
-    }
-
-    .popover h3 { margin: 0 0 10px; font-size: 14px; }
     .state-editor-root h3 { margin: 0 0 10px; font-size: 14px; }
     .field { margin: 8px 0; }
     .field label {
@@ -1173,23 +1171,6 @@
         border-width: 3px;
       }
 
-      .popover {
-        position: fixed;
-        left: max(10px, env(safe-area-inset-left));
-        right: max(10px, env(safe-area-inset-right));
-        bottom: max(10px, env(safe-area-inset-bottom));
-        top: auto;
-        width: auto;
-        max-height: min(62dvh, 520px);
-        padding: 14px;
-        border-radius: 18px;
-        box-shadow: 0 -20px 60px rgba(0,0,0,.62);
-      }
-
-      .popover h3 {
-        font-size: 16px;
-      }
-
       .state-explorer {
         left: 8px;
         right: 8px;
@@ -1245,9 +1226,14 @@
     <button id="btnUndo" title="Undo">Undo</button>
     <button id="btnRedo" title="Redo">Redo</button>
     <button id="btnFit">Fit</button>
-    <button id="btnResetView">Reset View</button>
     <button id="btnRun">Reset App</button>
-    <button id="btnReset" class="danger">Demo reset</button>
+    <details class="topbar-menu" id="topbarMore">
+      <summary>More</summary>
+      <div class="topbar-menu-panel">
+        <button id="btnResetView">Reset View</button>
+        <button id="btnReset" class="danger">Demo reset</button>
+      </div>
+    </details>
     <div class="status" id="runtimeState">app: —</div>
   </div>
   <input id="fileLoad" type="file" accept="application/json,.json,.state.json" hidden>
@@ -1290,7 +1276,6 @@
           <div id="nodes"></div>
         </div>
       </div>
-      <div id="popover" class="popover" hidden></div>
       <div id="selectRect" class="select-rect"></div>
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
@@ -1353,7 +1338,6 @@
     const worldEl = document.getElementById("world");
     const wiresEl = document.getElementById("wires");
     const nodesEl = document.getElementById("nodes");
-    const popoverEl = document.getElementById("popover");
     const selectRectEl = document.getElementById("selectRect");
     const selectionActionsEl = document.getElementById("selectionActions");
     const selectionCountEl = document.getElementById("selectionCount");
@@ -1422,12 +1406,12 @@
         name: "Standard Auth Flow",
         initial: "auth_start",
         states: [
-          { id: "auth_start", title: "Auth start", body: "User chooses login or registration.", x: 90, y: 210 },
-          { id: "login", title: "Login", body: "Email and password are entered.", x: 360, y: 100 },
-          { id: "register", title: "Register", body: "Create a new account with email and accepted terms.", x: 360, y: 320 },
-          { id: "error", title: "Error", body: "Invalid credentials or registration data.", x: 630, y: 320 },
-          { id: "logged_in", title: "Logged in", body: "Authenticated app area.", x: 900, y: 100 },
-          { id: "logged_out", title: "Logged out", body: "Session ended. User can return to login.", x: 900, y: 320 }
+          { id: "auth_start", title: "Auth start", body: "", components: [{ id: "c_auth_start", type: "text", text: "User chooses login or registration.", url: "" }], x: 90, y: 210 },
+          { id: "login", title: "Login", body: "", components: [{ id: "c_login", type: "text", text: "Email and password are entered.", url: "" }], x: 360, y: 100 },
+          { id: "register", title: "Register", body: "", components: [{ id: "c_register", type: "text", text: "Create a new account with email and accepted terms.", url: "" }], x: 360, y: 320 },
+          { id: "error", title: "Error", body: "", components: [{ id: "c_error", type: "text", text: "Invalid credentials or registration data.", url: "" }], x: 630, y: 320 },
+          { id: "logged_in", title: "Logged in", body: "", components: [{ id: "c_logged_in", type: "text", text: "Authenticated app area.", url: "" }], x: 900, y: 100 },
+          { id: "logged_out", title: "Logged out", body: "", components: [{ id: "c_logged_out", type: "text", text: "Session ended. User can return to login.", url: "" }], x: 900, y: 320 }
         ],
         transitions: [
           { id: uid("t"), from: "auth_start", to: "login", label: "Login", condition: "" },
@@ -1449,7 +1433,7 @@
         name: "Untitled Flow",
         initial: "start",
         states: [
-          { id: "start", title: "Start", body: "", x: 120, y: 160 }
+          { id: "start", title: "Start", body: "", components: [], x: 120, y: 160 }
         ],
         transitions: []
       };
@@ -1582,8 +1566,8 @@
         .map(item => ({
           id: String(item.id || uid("tpl")),
           title: String(item.title || "State preset"),
-          body: String(item.body || ""),
-          components: normalizeComponents(item.components || []),
+          body: "",
+          components: migrateBodyToComponents(item.body, item.components || []),
           data: normalizeDataObject(item.data)
         }));
     }
@@ -1612,8 +1596,8 @@
         .map(item => ({
           id: String(item.id || uid("tpl")),
           title: String(item.title || "State preset"),
-          body: String(item.body || ""),
-          components: cloneComponents(item.components || []),
+          body: "",
+          components: migrateBodyToComponents(item.body, item.components || []),
           data: normalizeDataObject(item.data)
         }));
     }
@@ -1782,7 +1766,6 @@
       connectingTargetId = null;
       dragging = null;
       boxSelecting = null;
-      hidePopover();
       updateSelectRect();
       persistModel();
       persistStateTemplates();
@@ -1900,11 +1883,12 @@
         const id = assertString(state.id, `${path}.id`);
         if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
         ids.add(id);
+        const body = "body" in state ? assertString(state.body, `${path}.body`, { allowEmpty: true }) : "";
         return {
           id,
           title: assertString(state.title, `${path}.title`),
-          body: assertString(state.body, `${path}.body`, { allowEmpty: true }),
-          components: validateComponents(state.components, `${path}.components`),
+          body: "",
+          components: migrateBodyToComponents(body, validateComponents(state.components, `${path}.components`)),
           data: validateDataObject(state.data, `${path}.data`),
           x: assertFiniteNumber(state.x, `${path}.x`),
           y: assertFiniteNumber(state.y, `${path}.y`)
@@ -1953,11 +1937,12 @@
       return value.slice(0, 40).map((template, index) => {
         const itemPath = `${path}[${index}]`;
         assertPlainObject(template, itemPath);
+        const body = "body" in template ? assertString(template.body, `${itemPath}.body`, { allowEmpty: true }) : "";
         return {
           id: assertString(template.id, `${itemPath}.id`),
           title: assertString(template.title, `${itemPath}.title`),
-          body: assertString(template.body, `${itemPath}.body`, { allowEmpty: true }),
-          components: validateComponents(template.components, `${itemPath}.components`),
+          body: "",
+          components: migrateBodyToComponents(body, validateComponents(template.components, `${itemPath}.components`)),
           data: validateDataObject(template.data, `${itemPath}.data`)
         };
       });
@@ -2046,7 +2031,7 @@
       return {
         id: String(s.id),
         title: String(s.title || s.id),
-        body: String(s.body || ""),
+        body: "",
         components: normalizeComponents(s.components || []),
         data: normalizeDataObject(s.data),
         x: Number(s.x || 0),
@@ -2138,7 +2123,6 @@
       currentAppState = null;
       lastAppTransitionId = null;
       hoveredEdgeId = null;
-      hidePopover();
       showEmptyInspector();
       updateSelectRect();
       initHistory();
@@ -2201,6 +2185,14 @@
         }));
     }
 
+    function migrateBodyToComponents(body, components) {
+      const text = String(body || "");
+      const normalized = normalizeComponents(components);
+      if (!text.trim()) return normalized;
+      if (normalized.some(component => component.type === "text" && component.text === text)) return normalized;
+      return [{ id: uid("c"), type: "text", text, url: "" }, ...normalized].slice(0, 24);
+    }
+
     function normalizeDataObject(value) {
       if (!isPlainObject(value)) return {};
       return JSON.parse(JSON.stringify(value));
@@ -2221,7 +2213,7 @@
       m.states = Array.isArray(m.states) ? m.states : [];
       m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
       if (!m.states.length) {
-        m.states.push({ id: "start", title: "Start", body: "First screen", x: 100, y: 100 });
+        m.states.push({ id: "start", title: "Start", body: "", components: [{ id: uid("c"), type: "text", text: "First screen", url: "" }], x: 100, y: 100 });
       }
       const used = new Set();
       for (const s of m.states) {
@@ -2232,8 +2224,8 @@
         used.add(id);
         s.id = id;
         s.title = s.title || s.id;
-        s.body = s.body || "";
-        s.components = normalizeComponents(s.components);
+        s.components = migrateBodyToComponents(s.body, s.components);
+        s.body = "";
         s.data = normalizeDataObject(s.data);
         s.x = snapClampToGrid(Number.isFinite(s.x) ? s.x : 100, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
         s.y = snapClampToGrid(Number.isFinite(s.y) ? s.y : 100, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
@@ -2287,7 +2279,7 @@
     }
 
     function isTouchUiTarget(target) {
-      return Boolean(target?.closest?.(".popover, .state-explorer, .inspector, input, textarea, select, button"));
+      return Boolean(target?.closest?.(".state-explorer, .inspector, input, textarea, select, button"));
     }
 
     function captureTouchPointer(evt) {
@@ -2334,7 +2326,6 @@
       pendingCanvasMouse = null;
       mapEl.classList.remove("connecting", "panning", "dragging-state");
       updateSelectRect();
-      hidePopover();
     }
 
     function startPendingCanvasTouch(evt) {
@@ -2523,7 +2514,6 @@
 
     function trackTouchStart(evt) {
       if (!isTouchPointer(evt) || isTouchUiTarget(evt.target)) return;
-      if (!popoverEl.hidden && !popoverEl.contains(evt.target) && !isEmptyCanvasTarget(evt.target)) hidePopover();
       evt.preventDefault();
       captureTouchPointer(evt);
       rememberTouchPointer(evt);
@@ -2588,7 +2578,6 @@
 
     function clearSelection(historyKey = null) {
       selected = null;
-      hidePopover();
       showEmptyInspector();
       saveSelection(historyKey);
       draw();
@@ -2596,7 +2585,7 @@
 
     function updateSelectionActions() {
       const ids = selectedNodeIdList();
-      const visible = ids.length > 0 && (selected?.type === "nodes" || selected?.type === "items") && popoverEl.hidden;
+      const visible = ids.length > 0 && (selected?.type === "nodes" || selected?.type === "items");
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
       if (visible) selectionCountEl.textContent = ids.length === 1 ? "1 state" : `${ids.length} states`;
@@ -2619,7 +2608,6 @@
         model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
       }
       selected = null;
-      hidePopover();
       showEmptyInspector();
       saveModel();
       draw();
@@ -2649,7 +2637,6 @@
       model.transitions = model.transitions.filter(t => !removeSet.has(t.from) && !removeSet.has(t.to));
       if (removeSet.has(model.initial)) model.initial = model.states[0].id;
       selected = null;
-      hidePopover();
       showEmptyInspector();
       saveModel();
       draw();
@@ -2663,7 +2650,6 @@
       const copies = [];
       for (const original of model.states.filter(s => selectedSet.has(s.id))) {
         const copy = makeState(original.x + GRID_SIZE * 2, original.y + GRID_SIZE * 2, `${original.title || original.id} Copy`);
-        copy.body = original.body || "";
         copy.components = cloneComponents(original.components);
         copy.data = normalizeDataObject(original.data);
         idMap.set(original.id, copy.id);
@@ -2682,7 +2668,6 @@
       model.states.push(...copies);
       model.transitions.push(...copiedTransitions);
       selected = { type: "nodes", ids: copies.map(s => s.id) };
-      hidePopover();
       saveModel();
       draw();
     }
@@ -2774,7 +2759,6 @@
     function startBoxSelect(evt) {
       evt.preventDefault();
       selected = null;
-      hidePopover();
       boxSelecting = {
         startX: evt.clientX,
         startY: evt.clientY,
@@ -2838,7 +2822,7 @@
       mapCanvasEl.hidden = true;
       mapCanvasEl.dataset.drawn = "false";
       mapSceneEl.style.transform = "";
-      if (mapSceneEl.parentElement !== mapEl) mapEl.insertBefore(mapSceneEl, popoverEl);
+      if (mapSceneEl.parentElement !== mapEl) mapEl.insertBefore(mapSceneEl, selectRectEl);
     }
 
     function drawMapCanvasFrame() {
@@ -2996,7 +2980,6 @@
         moved: false
       };
       mapEl.classList.add("dragging-state");
-      hidePopover();
       draw();
     }
 
@@ -3006,7 +2989,6 @@
       connecting = { from: s.id, to: p };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
-      hidePopover();
       draw();
     }
 
@@ -3020,7 +3002,6 @@
       selected = { type: "edge", id: t.id };
       suppressEdgeClickUntil = Date.now() + 650;
       mapEl.classList.add("connecting");
-      hidePopover();
       draw();
     }
 
@@ -3471,7 +3452,7 @@
 
     function statePreviewText(s) {
       const firstText = normalizeComponents(s.components).find(component => component.text.trim());
-      return firstText?.text || s.body || "";
+      return firstText?.text || "";
     }
 
     function midPoint(from, to, transition = null) {
@@ -3496,7 +3477,6 @@
         if (Date.now() < suppressEdgeClickUntil) return;
         if (evt.shiftKey) {
           toggleSelection("edge", t.id);
-          hidePopover();
           refreshInspectorForSelection();
           draw();
           return;
@@ -3655,7 +3635,7 @@
           lastTouchAt = Date.now();
           setSingleSelection("node", s.id);
           draw();
-          showNodePopover(s, { forceOpen: true });
+          showNodeInspector(s, { forceOpen: true });
         });
         editButton.addEventListener("click", evt => {
           evt.preventDefault();
@@ -3663,7 +3643,7 @@
           if (Date.now() - lastTouchAt < 700) return;
           setSingleSelection("node", s.id);
           draw();
-          showNodePopover(s, { forceOpen: true });
+          showNodeInspector(s, { forceOpen: true });
         });
 
         el.addEventListener("mousedown", evt => {
@@ -3731,7 +3711,7 @@
       showEdgeInspector(edge);
     }
 
-    function setupEditorAccessibility(root = popoverEl, focusFirstInput = true, opts = {}) {
+    function setupEditorAccessibility(root = stateInspectorBodyEl, focusFirstInput = true, opts = {}) {
       const focusables = [...root.querySelectorAll("input, textarea, select, button")];
       focusables.forEach(el => { el.tabIndex = 0; });
       root.onkeydown = evt => {
@@ -3748,7 +3728,7 @@
         const focusFirst = () => {
           const active = document.activeElement;
           const rootAlreadyFocused = active && active !== document.body && root.contains(active);
-          const rootVisible = root === popoverEl ? !popoverEl.hidden : !workspaceEl.classList.contains("inspector-collapsed");
+          const rootVisible = !workspaceEl.classList.contains("inspector-collapsed") || root !== stateInspectorBodyEl;
           if (rootVisible && document.contains(firstInput) && !rootAlreadyFocused) {
             firstInput.focus({ preventScroll: true });
             if (opts.selectFirstInput && typeof firstInput.select === "function") firstInput.select();
@@ -3960,12 +3940,12 @@
     function refreshInspectorForSelection() {
       const state = selected?.type === "node" ? byId(selected.id) : null;
       const edge = selected?.type === "edge" ? model.transitions.find(t => t.id === selected.id) : null;
-      if (state) showNodePopover(state, { focus: false });
+      if (state) showNodeInspector(state, { focus: false });
       else if (edge) showEdgeInspector(edge, { focus: false });
       else showEmptyInspector();
     }
 
-    function showNodePopover(s, opts = {}) {
+    function showNodeInspector(s, opts = {}) {
       const root = stateInspectorBodyEl;
       const wasEditingTemplate = Boolean(editingTemplateId);
       editingTemplateId = null;
@@ -3974,13 +3954,10 @@
       revealInspectorForProperties(opts);
       inspectorStateId = s.id;
       stateInspectorTitleEl.textContent = s.title || s.id;
-      popoverEl.hidden = true;
-      popoverEl.innerHTML = "";
       if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
-        <h3>State / Screen</h3>
+        <h3>State</h3>
         <div class="field"><label>Title</label><input id="pTitle"></div>
-        <div class="field"><label>Screen text</label><textarea id="pBody"></textarea></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="small">Components</div>
@@ -4005,11 +3982,9 @@
         </div>
       `;
       const title = root.querySelector("#pTitle");
-      const body = root.querySelector("#pBody");
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
       title.value = s.title || "";
-      body.value = s.body || "";
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       const updateDataPreview = () => {
         try {
@@ -4031,17 +4006,16 @@
         saveModel("state:title:" + s.id);
         draw();
       };
-      body.oninput = () => { s.body = body.value; saveModel("state:body:" + s.id); draw(); };
       data.oninput = updateDataPreview;
       updateDataPreview();
-      title.onblur = body.onblur = data.onblur = () => { lastHistoryKey = null; };
+      title.onblur = data.onblur = () => { lastHistoryKey = null; };
       renderComponentEditors(s, null, root);
       const addComponent = type => {
         s.components = normalizeComponents(s.components);
         s.components.push({ id: uid("c"), type, text: defaultComponentText(type), url: defaultComponentUrl(type) });
         saveModel("state:components:" + s.id);
         draw();
-        showNodePopover(byId(s.id) || s, opts);
+        showNodeInspector(byId(s.id) || s, opts);
       };
       root.querySelector("#pAddHeading").onclick = () => addComponent("heading");
       root.querySelector("#pAddText").onclick = () => addComponent("text");
@@ -4057,14 +4031,13 @@
       };
       root.querySelector("#pDuplicate").onclick = () => {
         const copy = makeState(s.x + GRID_SIZE * 2, s.y + GRID_SIZE * 5, (s.title || s.id) + " Copy");
-        copy.body = s.body || "";
         copy.components = cloneComponents(s.components);
         copy.data = normalizeDataObject(s.data);
         model.states.push(copy);
         selected = { type: "node", id: copy.id };
         saveModel();
         draw();
-        showNodePopover(copy, { forceOpen: true });
+        showNodeInspector(copy, { forceOpen: true });
       };
       root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
       root.querySelector("#pDelete").onclick = () => {
@@ -4073,7 +4046,6 @@
         model.transitions = model.transitions.filter(t => t.from !== s.id && t.to !== s.id);
         if (model.initial === s.id) model.initial = model.states[0].id;
         selected = null;
-        hidePopover();
         showEmptyInspector();
         saveModel();
         draw();
@@ -4088,7 +4060,6 @@
       const root = stateInspectorBodyEl;
       if (!template) return showEmptyInspector();
       selected = null;
-      hidePopover();
       draw();
       inspectorCollapsed = false;
       applyInspectorCollapsed();
@@ -4098,15 +4069,14 @@
       if (opts.saveSelection) saveSelection("template:select:" + template.id);
       stateInspectorEl.classList.remove("transition-inspector");
       stateInspectorEl.classList.add("template-inspector");
-      stateInspectorTitleEl.textContent = "Template: " + (template.title || "State preset");
+      stateInspectorTitleEl.textContent = "Preset: " + (template.title || "State preset");
       root.innerHTML = `
-        <h3>Reusable State Template</h3>
+        <h3>Reusable State Component</h3>
         <div class="template-mode-note">
-          <strong>Template properties</strong>
+          <strong>Preset properties</strong>
           <span>Edits here change the reusable preset only. Existing canvas states stay unchanged; new states created from this preset use this snapshot.</span>
         </div>
-        <div class="field"><label>Template title</label><input id="pTitle"></div>
-        <div class="field"><label>Screen text</label><textarea id="pBody"></textarea></div>
+        <div class="field"><label>Preset title</label><input id="pTitle"></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="small">Components</div>
@@ -4120,7 +4090,7 @@
           <button id="pAddDivider" type="button">+ Divider</button>
         </div>
         <div id="pComponents" class="component-list"></div>
-        <div class="small">Template id: <b>${escapeHtml(template.id)}</b></div>
+        <div class="small">Preset id: <b>${escapeHtml(template.id)}</b></div>
         <div class="row" style="margin-top:10px">
           <button id="pTemplateUse">Use on canvas</button>
           <button id="pTemplateExport">Export component</button>
@@ -4128,7 +4098,6 @@
         </div>
       `;
       const title = root.querySelector("#pTitle");
-      const body = root.querySelector("#pBody");
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
       const persistTemplate = (historyKey = "template:" + template.id) => {
@@ -4136,14 +4105,13 @@
         renderStateExplorer();
       };
       title.value = template.title || "";
-      body.value = template.body || "";
       data.value = JSON.stringify(normalizeDataObject(template.data), null, 2);
       const updateDataPreview = (persist = true) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
           template.data = normalizeDataObject(parsed);
-          dataPreview.textContent = Object.keys(template.data).length ? "Template data saved. Use {{key}} in text fields." : "No data defaults.";
+          dataPreview.textContent = Object.keys(template.data).length ? "Preset data saved. Use {{key}} in text fields." : "No data defaults.";
           dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
           if (persist) persistTemplate("template:data:" + template.id);
         } catch (err) {
@@ -4153,16 +4121,12 @@
       };
       title.oninput = () => {
         template.title = title.value || "State preset";
-        stateInspectorTitleEl.textContent = "Template: " + template.title;
+        stateInspectorTitleEl.textContent = "Preset: " + template.title;
         persistTemplate("template:title:" + template.id);
-      };
-      body.oninput = () => {
-        template.body = body.value;
-        persistTemplate("template:body:" + template.id);
       };
       data.oninput = () => updateDataPreview(true);
       updateDataPreview(false);
-      title.onblur = body.onblur = data.onblur = () => { lastHistoryKey = null; };
+      title.onblur = data.onblur = () => { lastHistoryKey = null; };
       const componentOptions = {
         persistOwner: historyKey => persistTemplate("template:" + template.id + ":" + (historyKey || "components")),
         skipLiveStateSync: true
@@ -4231,8 +4195,6 @@
       stateInspectorEl.classList.remove("template-inspector");
       stateInspectorEl.classList.add("transition-inspector");
       stateInspectorTitleEl.textContent = "Transition: " + (t.label || "Next");
-      popoverEl.hidden = true;
-      popoverEl.innerHTML = "";
       if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
         <h3>Transition / Button</h3>
@@ -4301,19 +4263,6 @@
       setupEditorAccessibility(root, opts.focus !== false, { onCommit: showEmptyInspector });
     }
 
-    function hidePopover() {
-      popoverEl.hidden = true;
-      popoverEl.innerHTML = "";
-      updateSelectionActions();
-    }
-
-    function closePopoverOnOutsidePointer(evt) {
-      if (popoverEl.hidden) return;
-      if (evt.target === popoverEl || popoverEl.contains(evt.target)) return;
-      if (isEmptyCanvasTarget(evt.target)) return;
-      hidePopover();
-    }
-
     function isEditableTarget(target) {
       return target?.closest?.("input, textarea, select, [contenteditable]");
     }
@@ -4374,7 +4323,7 @@
       const state = {
         id,
         title,
-        body: "Generated screen",
+        body: "",
         components: [],
         data: {},
         x,
@@ -4389,7 +4338,7 @@
       return {
         id: uid("tpl"),
         title: s.title || s.id,
-        body: s.body || "",
+        body: "",
         components: cloneComponents(s.components),
         data: normalizeDataObject(s.data)
       };
@@ -4471,13 +4420,13 @@
       selected = { type: "node", id: s.id };
       saveModel();
       draw();
-      showNodePopover(s, { forceOpen: true });
+      showNodeInspector(s, { forceOpen: true });
       startAppAtState(s.id);
     }
 
     function makeStateFromTemplate(template, x, y) {
       const s = makeState(x, y, template.title || nextStateTitle());
-      s.body = template.body || "";
+      s.body = "";
       s.components = cloneComponents(template.components);
       s.data = normalizeDataObject(template.data);
       return s;
@@ -4492,7 +4441,7 @@
       selected = { type: "node", id: s.id };
       saveModel();
       draw();
-      showNodePopover(s, { forceOpen: true });
+      showNodeInspector(s, { forceOpen: true });
       startAppAtState(s.id);
     }
 
@@ -4526,7 +4475,7 @@
           </div>
         `;
         card.querySelector(".template-title").textContent = template.title || "State preset";
-        card.querySelector(".template-body").textContent = template.body || normalizeComponents(template.components).find(c => c.text)?.text || "Ready-to-use state";
+        card.querySelector(".template-body").textContent = normalizeComponents(template.components).find(c => c.text)?.text || "Ready-to-use state";
         const stopAction = evt => evt.stopPropagation();
         card.querySelectorAll("button").forEach(button => {
           button.addEventListener("mousedown", stopAction);
@@ -4567,7 +4516,7 @@
       selected = { type: "node", id: s.id };
       saveModel();
       draw();
-      showNodePopover(s, { forceOpen: true, selectTitle: true });
+      showNodeInspector(s, { forceOpen: true, selectTitle: true });
     }
 
     function handleCanvasMove(evt) {
@@ -4643,7 +4592,6 @@
           if (shiftClick) {
             lastNodeClick = null;
             toggleSelection("node", s.id);
-            hidePopover();
             draw();
             return;
           }
@@ -4651,7 +4599,7 @@
           setSingleSelection("node", s.id);
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
           startAppAtState(s.id);
-          showNodePopover(s);
+          showNodeInspector(s);
           return;
         }
         if (didMove) {
@@ -4735,7 +4683,7 @@
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
-          if (!wasRewire) showNodePopover(s, { selectTitle: true, forceOpen: true });
+          if (!wasRewire) showNodeInspector(s, { selectTitle: true, forceOpen: true });
           return;
         }
         connecting = null;
@@ -4746,20 +4694,14 @@
     }
 
     document.addEventListener("contextmenu", evt => evt.preventDefault());
-    document.addEventListener("pointerdown", closePopoverOnOutsidePointer, { capture: true });
-
     mapEl.addEventListener("wheel", evt => {
-      if (evt.target?.closest?.(".popover, .state-explorer")) return;
+      if (evt.target?.closest?.(".state-explorer")) return;
       if (evt.ctrlKey || evt.metaKey) {
         evt.preventDefault();
         zoomByFactor(wheelZoomFactor(evt), evt.clientX, evt.clientY);
         return;
       }
     }, { passive: false });
-
-    popoverEl.addEventListener("wheel", evt => {
-      evt.stopPropagation();
-    }, { passive: true });
 
     stateInspectorEl.addEventListener("wheel", evt => {
       evt.stopPropagation();
@@ -4774,7 +4716,6 @@
 
     mapEl.addEventListener("mousedown", evt => {
       if (Date.now() - lastTouchAt < 700) return;
-      if (!popoverEl.hidden && !popoverEl.contains(evt.target) && !isEmptyCanvasTarget(evt.target)) hidePopover();
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
@@ -4858,12 +4799,6 @@
     function handleKeyDown(evt) {
       const mod = evt.ctrlKey || evt.metaKey;
       const key = String(evt.key || "").toLowerCase();
-      if (evt.key === "Escape" && !popoverEl.hidden) {
-        evt.preventDefault();
-        evt.stopImmediatePropagation();
-        hidePopover();
-        return;
-      }
       if (mod && evt.code === "Space") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
@@ -4964,7 +4899,6 @@
       currentAppState = null;
       lastAppTransitionId = null;
       hoveredEdgeId = null;
-      hidePopover();
       showEmptyInspector();
       updateSelectRect();
       initHistory();
@@ -5067,6 +5001,7 @@
     applyInspectorCollapsed();
     applyStateExplorerCollapsed();
     renderStateExplorer();
+    persistStateTemplates();
     applyCamera();
     initMapRenderer();
     persistModel();
