@@ -240,7 +240,7 @@
 
     .edge {
       fill: none;
-      stroke: #5f8dbc;
+      stroke: var(--edge-color, #5f8dbc);
       stroke-width: 2.2;
     }
 
@@ -264,7 +264,7 @@
 
     .edge-pin {
       fill: #07111f;
-      stroke: #5f8dbc;
+      stroke: var(--edge-color, #5f8dbc);
       stroke-width: 2.4;
       pointer-events: none;
       filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
@@ -1327,7 +1327,7 @@
         <svg id="wires" viewBox="0 0 5000 4000">
           <defs>
             <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-              <path d="M0,0 L0,12 L12,6 z" fill="#5f8dbc"></path>
+              <path d="M0,0 L0,12 L12,6 z" fill="context-stroke"></path>
             </marker>
           </defs>
         </svg>
@@ -2853,6 +2853,12 @@
       return { x: s.x + width / 2, y: centerY };
     }
 
+    function edgeColor(transition) {
+      const index = Math.max(0, model.transitions.findIndex(item => item.id === transition?.id));
+      const hue = (195 + index * 137.508) % 360;
+      return `hsl(${hue.toFixed(1)} 84% 62%)`;
+    }
+
     function edgePath(from, to, transition = null) {
       return pathFromPoints(edgeRoutePoints(from, to, transition));
     }
@@ -2903,7 +2909,7 @@
       return nodeCenter(state, side);
     }
 
-    function edgeRoutePoints(from, to, transition = null) {
+    function baseEdgeRoutePoints(from, to, transition = null) {
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
       if (from.id === to.id) {
@@ -2938,6 +2944,59 @@
         { x: b.x - GRID_SIZE * 2, y: b.y },
         b
       ];
+    }
+
+    function verticalRouteSegments(points) {
+      const compact = points.map(snapPointToGrid);
+      const segments = [];
+      for (let i = 1; i < compact.length; i++) {
+        const a = compact[i - 1];
+        const b = compact[i];
+        if (a.x !== b.x || a.y === b.y) continue;
+        segments.push({
+          index: i,
+          x: a.x,
+          y1: Math.min(a.y, b.y),
+          y2: Math.max(a.y, b.y)
+        });
+      }
+      return segments;
+    }
+
+    function verticalSegmentsOverlap(a, b) {
+      return Math.max(a.y1, b.y1) < Math.min(a.y2, b.y2);
+    }
+
+    function laneSlot(index) {
+      if (index <= 0) return 0;
+      return index % 2 ? Math.ceil(index / 2) : -index / 2;
+    }
+
+    function verticalLaneX(transition, segment) {
+      if (!transition) return segment.x;
+      const candidates = model.transitions.filter(item => {
+        const from = byId(item.from);
+        const to = byId(item.to);
+        if (!from || !to) return false;
+        return verticalRouteSegments(baseEdgeRoutePoints(from, to, item)).some(candidate =>
+          candidate.x === segment.x && verticalSegmentsOverlap(candidate, segment)
+        );
+      });
+      if (candidates.length <= 1) return segment.x;
+      const index = Math.max(0, candidates.findIndex(item => item.id === transition.id));
+      return segment.x + laneSlot(index) * GRID_SIZE;
+    }
+
+    function edgeRoutePoints(from, to, transition = null) {
+      const points = baseEdgeRoutePoints(from, to, transition);
+      if (!transition) return points;
+      const routed = points.map(point => ({ ...point }));
+      for (const segment of verticalRouteSegments(points)) {
+        const x = verticalLaneX(transition, segment);
+        routed[segment.index - 1].x = x;
+        routed[segment.index].x = x;
+      }
+      return routed;
     }
 
     function polylinePoint(points, ratio) {
@@ -3031,6 +3090,7 @@
         if (!from || !to) continue;
         const routePoints = edgeRoutePoints(from, to, t);
         const pathD = pathFromPoints(routePoints);
+        const edgeStyle = `--edge-color: ${edgeColor(t)}`;
 
         const hit = svgEl("path", { d: pathD, class: "hit", "data-edge-id": t.id });
         attachEdgeInteractions(hit, t);
@@ -3040,7 +3100,7 @@
         if (edgeSelection.has(t.id)) classes.push("selected");
         if (hoveredEdgeId === t.id) classes.push("hovered");
         if (lastAppTransitionId === t.id) classes.push("runtime");
-        const path = svgEl("path", { d: pathD, class: classes.join(" "), "marker-end": "url(#arrow)", "data-edge-id": t.id });
+        const path = svgEl("path", { d: pathD, class: classes.join(" "), style: edgeStyle, "marker-end": "url(#arrow)", "data-edge-id": t.id });
         attachEdgeInteractions(path, t);
         wiresEl.appendChild(path);
 
@@ -3063,6 +3123,7 @@
           cy: startPin.y,
           r: 5,
           class: pinClasses.join(" "),
+          style: edgeStyle,
           "data-edge-id": t.id,
           "data-edge-pin": "out"
         }));
@@ -3071,6 +3132,7 @@
           cy: endPin.y,
           r: 5,
           class: pinClasses.join(" "),
+          style: edgeStyle,
           "data-edge-id": t.id,
           "data-edge-pin": "in"
         }));

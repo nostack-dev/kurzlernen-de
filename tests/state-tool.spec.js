@@ -179,10 +179,22 @@ async function gridGeometryReport(page) {
       paths: [...document.querySelectorAll(".edge")].map(edge => {
         const d = edge.getAttribute("d") || "";
         const points = pointsFromPath(d);
+        const verticalSegments = points.slice(1).map((point, index) => {
+          const previous = points[index];
+          if (point.x !== previous.x || point.y === previous.y) return null;
+          return {
+            id: edge.dataset.edgeId,
+            x: point.x,
+            y1: Math.min(previous.y, point.y),
+            y2: Math.max(previous.y, point.y)
+          };
+        }).filter(Boolean);
         return {
           id: edge.dataset.edgeId,
           d,
           points,
+          stroke: getComputedStyle(edge).stroke,
+          verticalSegments,
           usesOnlyGridLines: /^M -?\d+(?:\.\d+)? -?\d+(?:\.\d+)?(?: L -?\d+(?:\.\d+)? -?\d+(?:\.\d+)?)*$/.test(d),
           allPointsOnGrid: points.every(point => onGrid(point.x) && onGrid(point.y)),
           allSegmentsOrthogonal: points.slice(1).every((point, index) => {
@@ -195,7 +207,8 @@ async function gridGeometryReport(page) {
         id: pin.dataset.edgeId,
         side: pin.dataset.edgePin,
         x: Number.parseFloat(pin.getAttribute("cx")),
-        y: Number.parseFloat(pin.getAttribute("cy"))
+        y: Number.parseFloat(pin.getAttribute("cy")),
+        stroke: getComputedStyle(pin).stroke
       }))
     };
   }, GRID_SIZE);
@@ -747,6 +760,52 @@ test.describe("State Blueprint tool", () => {
       item.to === "logged_in"
     )) {
       expect(report.pins.filter(pin => pin.id === transition.id)).toHaveLength(2);
+    }
+  });
+
+  test("separates overlapping vertical cable lanes and colors each path", async ({ page }) => {
+    const crossingModel = {
+      version: 2,
+      name: "Cable management",
+      initial: "a",
+      states: [
+        { id: "a", title: "A", body: "Upper left", x: 96, y: 96 },
+        { id: "b", title: "B", body: "Upper right", x: 600, y: 96 },
+        { id: "c", title: "C", body: "Lower left", x: 96, y: 288 },
+        { id: "d", title: "D", body: "Lower right", x: 600, y: 288 }
+      ],
+      transitions: [
+        { id: "a_to_d", from: "a", to: "d", label: "A to D", condition: "" },
+        { id: "c_to_b", from: "c", to: "b", label: "C to B", condition: "" }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+    }, { key: STORAGE_KEY, model: crossingModel });
+    await page.goto("/state.html");
+    await expect(page.locator(".node")).toHaveCount(4);
+
+    const report = await gridGeometryReport(page);
+    const paths = new Map(report.paths.map(path => [path.id, path]));
+    const diagonalDown = paths.get("a_to_d");
+    const diagonalUp = paths.get("c_to_b");
+
+    expect(diagonalDown.stroke).not.toBe(diagonalUp.stroke);
+    expect(report.pins.filter(pin => pin.id === "a_to_d").map(pin => pin.stroke)).toEqual([diagonalDown.stroke, diagonalDown.stroke]);
+    expect(report.pins.filter(pin => pin.id === "c_to_b").map(pin => pin.stroke)).toEqual([diagonalUp.stroke, diagonalUp.stroke]);
+
+    const verticals = report.paths.flatMap(path => path.verticalSegments);
+    expect(verticals).toHaveLength(2);
+    for (let i = 0; i < verticals.length; i++) {
+      for (let j = i + 1; j < verticals.length; j++) {
+        const a = verticals[i];
+        const b = verticals[j];
+        const overlaps = Math.max(a.y1, b.y1) < Math.min(a.y2, b.y2);
+        expect(a.x === b.x && overlaps).toBe(false);
+      }
     }
   });
 
