@@ -214,6 +214,30 @@
       opacity: .38;
     }
 
+    .map-canvas,
+    .map-scene {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .map-canvas {
+      z-index: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    .map-canvas[hidden] {
+      display: none;
+    }
+
+    .map-scene {
+      z-index: 1;
+      overflow: hidden;
+      transform-origin: 0 0;
+    }
+
     #world {
       position: absolute;
       left: 0;
@@ -1312,15 +1336,18 @@
       </div>
     </aside>
     <main id="map" class="map">
-      <div id="world">
-        <svg id="wires" viewBox="0 0 5000 4000">
-          <defs>
-            <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-              <path d="M0,0 L0,12 L12,6 z" fill="context-stroke"></path>
-            </marker>
-          </defs>
-        </svg>
-        <div id="nodes"></div>
+      <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
+      <div id="mapScene" class="map-scene">
+        <div id="world">
+          <svg id="wires" viewBox="0 0 5000 4000">
+            <defs>
+              <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,12 L12,6 z" fill="context-stroke"></path>
+              </marker>
+            </defs>
+          </svg>
+          <div id="nodes"></div>
+        </div>
       </div>
       <div id="popover" class="popover" hidden></div>
       <div id="selectRect" class="select-rect"></div>
@@ -1387,6 +1414,8 @@
     const stateInspectorBodyEl = document.getElementById("stateInspectorBody");
     const btnToggleInspector = document.getElementById("btnToggleInspector");
     const mapEl = document.getElementById("map");
+    const mapCanvasEl = document.getElementById("mapCanvas");
+    const mapSceneEl = document.getElementById("mapScene");
     const worldEl = document.getElementById("world");
     const wiresEl = document.getElementById("wires");
     const nodesEl = document.getElementById("nodes");
@@ -1425,6 +1454,7 @@
     let pendingAppStartStateId = null;
     let lastAppTransitionId = null;
     let hoveredEdgeId = null;
+    let htmlCanvasRenderer = null;
     let model = loadModel() || demoModel();
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     let previewCollapsed = loadPreviewCollapsed();
@@ -2190,7 +2220,7 @@
     }
 
     function isEmptyCanvasTarget(target) {
-      return target === mapEl || target === worldEl || target === wiresEl || target === nodesEl;
+      return target === mapEl || target === mapCanvasEl || target === mapSceneEl || target === worldEl || target === wiresEl || target === nodesEl;
     }
 
     function isTouchUiTarget(target) {
@@ -2694,6 +2724,7 @@
       mapEl.style.backgroundPosition = `${tx % grid}px ${ty % grid}px, ${tx % grid}px ${ty % grid}px, 0 0, 0 0`;
       if (zoomLevelEl) zoomLevelEl.textContent = `${Math.round(camera.scale * 100)}%`;
       scheduleCameraSave();
+      requestMapCanvasPaint();
     }
 
     function clampScale(value) {
@@ -2702,6 +2733,95 @@
 
     function crispScale(value) {
       return Math.round(clampScale(value) * 100) / 100;
+    }
+
+    function mapCanvasContext() {
+      if (!mapCanvasEl?.getContext) return null;
+      try {
+        return mapCanvasEl.getContext("2d", { alpha: true, desynchronized: true });
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function resizeMapCanvas() {
+      if (!htmlCanvasRenderer) return;
+      const rect = mapEl.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+      if (mapCanvasEl.width !== width) mapCanvasEl.width = width;
+      if (mapCanvasEl.height !== height) mapCanvasEl.height = height;
+      requestMapCanvasPaint();
+    }
+
+    function fallbackMapRenderer() {
+      if (htmlCanvasRenderer?.frame) cancelAnimationFrame(htmlCanvasRenderer.frame);
+      htmlCanvasRenderer?.resizeObserver?.disconnect();
+      if (htmlCanvasRenderer?.paintHandler) {
+        mapCanvasEl.removeEventListener("paint", htmlCanvasRenderer.paintHandler);
+      }
+      htmlCanvasRenderer = null;
+      mapEl.classList.remove("html-canvas-renderer");
+      mapEl.dataset.canvasRenderer = "dom";
+      mapCanvasEl.hidden = true;
+      mapCanvasEl.dataset.drawn = "false";
+      mapSceneEl.style.transform = "";
+      if (mapSceneEl.parentElement !== mapEl) mapEl.insertBefore(mapSceneEl, popoverEl);
+    }
+
+    function drawMapCanvasFrame() {
+      if (!htmlCanvasRenderer) return;
+      const ctx = htmlCanvasRenderer.ctx;
+      try {
+        if (typeof ctx.reset === "function") ctx.reset();
+        else if (typeof ctx.setTransform === "function") ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, mapCanvasEl.width, mapCanvasEl.height);
+        const transform = ctx.drawElementImage(mapSceneEl, 0, 0);
+        if (transform?.toString) mapSceneEl.style.transform = transform.toString();
+        mapCanvasEl.dataset.drawn = "true";
+      } catch (error) {
+        console.warn("HTML-in-Canvas renderer disabled; falling back to DOM/SVG.", error);
+        fallbackMapRenderer();
+      }
+    }
+
+    function requestMapCanvasPaint() {
+      if (!htmlCanvasRenderer || htmlCanvasRenderer.frame) return;
+      htmlCanvasRenderer.frame = requestAnimationFrame(() => {
+        if (!htmlCanvasRenderer) return;
+        htmlCanvasRenderer.frame = 0;
+        if (typeof mapCanvasEl.requestPaint === "function") mapCanvasEl.requestPaint();
+        else drawMapCanvasFrame();
+      });
+    }
+
+    function initMapRenderer() {
+      const ctx = mapCanvasContext();
+      if (!ctx || typeof ctx.drawElementImage !== "function") {
+        fallbackMapRenderer();
+        return;
+      }
+
+      const paintHandler = () => drawMapCanvasFrame();
+      htmlCanvasRenderer = {
+        ctx,
+        frame: 0,
+        paintHandler,
+        resizeObserver: null
+      };
+      mapCanvasEl.hidden = false;
+      mapCanvasEl.setAttribute("layoutsubtree", "");
+      mapCanvasEl.appendChild(mapSceneEl);
+      mapEl.classList.add("html-canvas-renderer");
+      mapEl.dataset.canvasRenderer = "html-in-canvas";
+      mapCanvasEl.addEventListener("paint", paintHandler);
+      if (typeof ResizeObserver === "function") {
+        htmlCanvasRenderer.resizeObserver = new ResizeObserver(resizeMapCanvas);
+        htmlCanvasRenderer.resizeObserver.observe(mapEl);
+      }
+      window.addEventListener("resize", resizeMapCanvas);
+      resizeMapCanvas();
     }
 
     function wheelDeltaPixels(evt) {
@@ -3509,6 +3629,7 @@
         nodesEl.appendChild(el);
       }
       updateSelectionActions();
+      requestMapCanvasPaint();
     }
 
     function scheduleDraw() {
@@ -4878,6 +4999,7 @@
     applyStateExplorerCollapsed();
     renderStateExplorer();
     applyCamera();
+    initMapRenderer();
     persistModel();
     draw();
     setTimeout(fitView, 50);

@@ -564,6 +564,67 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);
   });
 
+  test("keeps the DOM and SVG map renderer as the fallback path", async ({ page }) => {
+    await page.addInitScript(key => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+        localStorage.removeItem(name);
+      }
+      const nativeGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, options) {
+        const context = nativeGetContext.call(this, type, options);
+        if (this.id === "mapCanvas" && context) {
+          try {
+            Object.defineProperty(context, "drawElementImage", { value: undefined, configurable: true });
+          } catch (_) {}
+        }
+        return context;
+      };
+    }, STORAGE_KEY);
+
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "dom");
+    await expect(page.locator("#mapCanvas")).toBeHidden();
+    await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("map");
+  });
+
+  test("uses HTML-in-Canvas when drawElementImage is available", async ({ page }) => {
+    await page.addInitScript(key => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+        localStorage.removeItem(name);
+      }
+      const drawElementImage = function(element, x, y) {
+        window.__htmlInCanvasDraws = (window.__htmlInCanvasDraws || 0) + 1;
+        window.__htmlInCanvasLastDraw = { id: element.id, x, y };
+        return new DOMMatrix();
+      };
+      const nativeGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, options) {
+        const context = nativeGetContext.call(this, type, options);
+        if (this.id === "mapCanvas" && type === "2d" && context) {
+          try {
+            Object.defineProperty(context, "drawElementImage", { value: drawElementImage, configurable: true });
+          } catch (_) {
+            context.drawElementImage = drawElementImage;
+          }
+        }
+        return context;
+      };
+      HTMLCanvasElement.prototype.requestPaint = function() {
+        this.dispatchEvent(new Event("paint"));
+      };
+    }, STORAGE_KEY);
+
+    await page.goto("/state.html");
+    await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "html-in-canvas");
+    await expect(page.locator("#mapCanvas")).toBeVisible();
+    await expect(page.locator(".node")).toHaveCount(6);
+    await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("mapCanvas");
+    await expect.poll(() => page.evaluate(() => window.__htmlInCanvasDraws || 0)).toBeGreaterThan(0);
+    await expect(page.locator("#mapCanvas")).toHaveAttribute("data-drawn", "true");
+    await expect.poll(() => page.evaluate(() => window.__htmlInCanvasLastDraw)).toEqual({ id: "mapScene", x: 0, y: 0 });
+  });
+
   test("opens state edits in the left inspector with focused input and Enter commit close", async ({ page }) => {
     await openTool(page);
 
