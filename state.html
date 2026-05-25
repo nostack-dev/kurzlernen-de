@@ -262,6 +262,26 @@
     }
     .edge.runtime { stroke: var(--runtime); stroke-width: 4; animation: edgePulse .85s ease-out; }
 
+    .edge-pin {
+      fill: #07111f;
+      stroke: #5f8dbc;
+      stroke-width: 2.4;
+      pointer-events: none;
+      filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
+    }
+
+    .edge-pin.selected {
+      fill: #2a1e09;
+      stroke: var(--selected);
+      stroke-width: 3;
+    }
+
+    .edge-pin.hovered {
+      stroke: var(--accent);
+      stroke-width: 3;
+      filter: drop-shadow(0 0 8px rgba(56,189,248,.45));
+    }
+
     @keyframes edgePulse {
       0% { stroke-width: 8; filter: drop-shadow(0 0 10px rgba(34,197,94,.75)); }
       100% { stroke-width: 4; filter: none; }
@@ -2832,8 +2852,8 @@
       return { x: s.x + width / 2, y: centerY };
     }
 
-    function edgePath(from, to) {
-      return pathFromPoints(edgeRoutePoints(from, to));
+    function edgePath(from, to, transition = null) {
+      return pathFromPoints(edgeRoutePoints(from, to, transition));
     }
 
     function pathFromPoints(points) {
@@ -2845,9 +2865,46 @@
       return compact.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
     }
 
-    function edgeRoutePoints(from, to) {
-      const a = nodeCenter(from, "out");
-      const b = nodeCenter(to, "in");
+    function edgeLaneSortValue(transition, side) {
+      const neighbor = byId(side === "out" ? transition.to : transition.from);
+      return {
+        y: neighbor?.y ?? 0,
+        x: neighbor?.x ?? 0,
+        label: String(transition.label || ""),
+        id: String(transition.id || "")
+      };
+    }
+
+    function compareEdgeLane(a, b, side) {
+      const av = edgeLaneSortValue(a, side);
+      const bv = edgeLaneSortValue(b, side);
+      return av.y - bv.y ||
+        av.x - bv.x ||
+        av.label.localeCompare(bv.label) ||
+        av.id.localeCompare(bv.id);
+    }
+
+    function orderedPortTransitions(stateId, side) {
+      return model.transitions
+        .filter(transition => side === "out" ? transition.from === stateId : transition.to === stateId)
+        .slice()
+        .sort((a, b) => compareEdgeLane(a, b, side));
+    }
+
+    function edgePortPoint(state, side, transition = null) {
+      if (!transition) return nodeCenter(state, side);
+      const transitions = orderedPortTransitions(state.id, side);
+      const index = Math.max(0, transitions.findIndex(item => item.id === transition.id));
+      const slot = index - Math.floor((transitions.length - 1) / 2);
+      const y = snapToGrid(state.y + NODE_H / 2 + slot * GRID_SIZE);
+      if (side === "out") return { x: state.x + nodeWidth(state), y };
+      if (side === "in") return { x: state.x, y };
+      return nodeCenter(state, side);
+    }
+
+    function edgeRoutePoints(from, to, transition = null) {
+      const a = edgePortPoint(from, "out", transition);
+      const b = edgePortPoint(to, "in", transition);
       if (from.id === to.id) {
         const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
         return [
@@ -2912,8 +2969,8 @@
       return compact[compact.length - 1];
     }
 
-    function edgeTipHandlePoint(from, to) {
-      return polylinePoint(edgeRoutePoints(from, to), 0.82);
+    function edgeTipHandlePoint(from, to, transition = null) {
+      return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
     }
 
     function statePreviewText(s) {
@@ -2921,8 +2978,8 @@
       return firstText?.text || s.body || "";
     }
 
-    function midPoint(from, to) {
-      const point = polylinePoint(edgeRoutePoints(from, to), 0.5);
+    function midPoint(from, to, transition = null) {
+      const point = polylinePoint(edgeRoutePoints(from, to, transition), 0.5);
       return { x: point.x, y: point.y - 10 };
     }
 
@@ -2962,7 +3019,7 @@
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.hit,.edge-label,.edge-tip-hit,.temp-edge").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
@@ -2971,7 +3028,8 @@
         const from = byId(t.from);
         const to = byId(t.to);
         if (!from || !to) continue;
-        const pathD = edgePath(from, to);
+        const routePoints = edgeRoutePoints(from, to, t);
+        const pathD = pathFromPoints(routePoints);
 
         const hit = svgEl("path", { d: pathD, class: "hit", "data-edge-id": t.id });
         attachEdgeInteractions(hit, t);
@@ -2985,7 +3043,7 @@
         attachEdgeInteractions(path, t);
         wiresEl.appendChild(path);
 
-        const m = midPoint(from, to);
+        const m = midPoint(from, to, t);
         const labelClasses = ["edge-label"];
         if (edgeSelection.has(t.id)) labelClasses.push("selected");
         if (hoveredEdgeId === t.id) labelClasses.push("hovered");
@@ -2994,7 +3052,29 @@
         attachEdgeInteractions(label, t);
         wiresEl.appendChild(label);
 
-        const tip = edgeTipHandlePoint(from, to);
+        const pinClasses = ["edge-pin"];
+        if (edgeSelection.has(t.id)) pinClasses.push("selected");
+        if (hoveredEdgeId === t.id) pinClasses.push("hovered");
+        const startPin = routePoints[0];
+        const endPin = routePoints[routePoints.length - 1];
+        wiresEl.appendChild(svgEl("circle", {
+          cx: startPin.x,
+          cy: startPin.y,
+          r: 5,
+          class: pinClasses.join(" "),
+          "data-edge-id": t.id,
+          "data-edge-pin": "out"
+        }));
+        wiresEl.appendChild(svgEl("circle", {
+          cx: endPin.x,
+          cy: endPin.y,
+          r: 5,
+          class: pinClasses.join(" "),
+          "data-edge-id": t.id,
+          "data-edge-pin": "in"
+        }));
+
+        const tip = edgeTipHandlePoint(from, to, t);
         const tipClasses = ["edge-tip-hit"];
         if (edgeSelection.has(t.id)) tipClasses.push("hovered");
         if (hoveredEdgeId === t.id) tipClasses.push("hovered");

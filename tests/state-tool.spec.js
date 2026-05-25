@@ -151,7 +151,13 @@ async function gridGeometryReport(page) {
             return point.x === previous.x || point.y === previous.y;
           })
         };
-      })
+      }),
+      pins: [...document.querySelectorAll(".edge-pin")].map(pin => ({
+        id: pin.dataset.edgeId,
+        side: pin.dataset.edgePin,
+        x: Number.parseFloat(pin.getAttribute("cx")),
+        y: Number.parseFloat(pin.getAttribute("cy"))
+      }))
     };
   }, GRID_SIZE);
 }
@@ -621,12 +627,36 @@ test.describe("State Blueprint tool", () => {
         const to = nodes.get(transition.to);
         const first = path.points[0];
         const last = path.points[path.points.length - 1];
+        const outPin = report.pins.find(pin => pin.id === path.id && pin.side === "out");
+        const inPin = report.pins.find(pin => pin.id === path.id && pin.side === "in");
 
         expect(path.usesOnlyGridLines).toBe(true);
         expect(path.allPointsOnGrid).toBe(true);
         expect(path.allSegmentsOrthogonal).toBe(true);
-        expect(first).toEqual(from.output);
-        expect(last).toEqual(to.input);
+        expect(outPin).toBeTruthy();
+        expect(inPin).toBeTruthy();
+        expect(first).toEqual({ x: outPin.x, y: outPin.y });
+        expect(last).toEqual({ x: inPin.x, y: inPin.y });
+        expect(first.x).toBe(from.output.x);
+        expect(last.x).toBe(to.input.x);
+        expect(first.y % GRID_SIZE).toBe(0);
+        expect(last.y % GRID_SIZE).toBe(0);
+      }
+
+      for (const state of model.states) {
+        const outgoing = model.transitions.filter(transition => transition.from === state.id);
+        const incoming = model.transitions.filter(transition => transition.to === state.id);
+        const outStarts = outgoing
+          .map(transition => report.paths.find(path => path.id === transition.id)?.points[0])
+          .filter(Boolean)
+          .map(point => `${point.x},${point.y}`);
+        const inEnds = incoming
+          .map(transition => report.paths.find(path => path.id === transition.id)?.points.at(-1))
+          .filter(Boolean)
+          .map(point => `${point.x},${point.y}`);
+
+        expect(new Set(outStarts).size).toBe(outStarts.length);
+        expect(new Set(inEnds).size).toBe(inEnds.length);
       }
     };
 
@@ -645,6 +675,40 @@ test.describe("State Blueprint tool", () => {
       return [state.x % GRID_SIZE, state.y % GRID_SIZE];
     }).toEqual([0, 0]);
     await assertGridGeometry();
+  });
+
+  test("renders shared transition pins on distinct grid lanes", async ({ page }) => {
+    await openTool(page);
+
+    const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
+    const paths = new Map(report.paths.map(path => [path.id, path]));
+    const transitionPath = (from, to) => {
+      const transition = model.transitions.find(item => item.from === from && item.to === to);
+      expect(transition).toBeTruthy();
+      const path = paths.get(transition.id);
+      expect(path).toBeTruthy();
+      return path;
+    };
+    const startLogin = transitionPath("auth_start", "login");
+    const startRegister = transitionPath("auth_start", "register");
+    const loginSuccess = transitionPath("login", "logged_in");
+    const registerSuccess = transitionPath("register", "logged_in");
+
+    expect(startLogin.points[0].x).toBe(startRegister.points[0].x);
+    expect(startLogin.points[0].y).not.toBe(startRegister.points[0].y);
+    expect(startLogin.points[1].y).not.toBe(startRegister.points[1].y);
+
+    const loginEnd = loginSuccess.points.at(-1);
+    const registerEnd = registerSuccess.points.at(-1);
+    expect(loginEnd.x).toBe(registerEnd.x);
+    expect(loginEnd.y).not.toBe(registerEnd.y);
+
+    for (const transition of model.transitions.filter(item =>
+      item.from === "auth_start" ||
+      item.to === "logged_in"
+    )) {
+      expect(report.pins.filter(pin => pin.id === transition.id)).toHaveLength(2);
+    }
   });
 
   test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {
