@@ -1027,6 +1027,58 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("logged_in");
   });
 
+  test("generated app preview uses the dark theme with readable controls", async ({ page }) => {
+    await openTool(page);
+    const app = appFrame(page);
+
+    await page.locator('[data-id="login"]').click();
+    await expect(app.locator("#statePill")).toHaveText("login");
+
+    const theme = await app.locator("body").evaluate(body => {
+      const styleOf = selector => getComputedStyle(document.querySelector(selector));
+      const root = getComputedStyle(document.documentElement);
+      return {
+        colorScheme: root.colorScheme,
+        rootBg: root.getPropertyValue("--bg").trim(),
+        rootCard: root.getPropertyValue("--card").trim(),
+        rootPrimary: root.getPropertyValue("--primary").trim(),
+        fontFamily: root.fontFamily,
+        bodyBg: getComputedStyle(body).backgroundColor,
+        bodyColor: getComputedStyle(body).color,
+        screenBg: styleOf("#screen").backgroundColor,
+        screenBorder: styleOf("#screen").borderColor,
+        titleColor: styleOf("h1").color,
+        pillBg: styleOf("#statePill").backgroundColor,
+        pillColor: styleOf("#statePill").color,
+        buttonBg: styleOf("button").backgroundColor,
+        buttonColor: styleOf("button").color,
+        inputBg: styleOf(".typed-input").backgroundColor,
+        inputColor: styleOf(".typed-input").color,
+      };
+    });
+
+    expect(theme).toMatchObject({
+      colorScheme: "dark",
+      rootBg: "#020617",
+      rootCard: "#06111f",
+      rootPrimary: "#38bdf8",
+      bodyBg: "rgb(2, 6, 23)",
+      bodyColor: "rgb(229, 240, 255)",
+      screenBg: "rgb(6, 17, 31)",
+      screenBorder: "rgb(29, 57, 86)",
+      titleColor: "rgb(248, 251, 255)",
+      pillBg: "rgb(7, 19, 33)",
+      pillColor: "rgb(125, 211, 252)",
+      buttonBg: "rgb(56, 189, 248)",
+      buttonColor: "rgb(3, 16, 31)",
+      inputBg: "rgb(2, 11, 22)",
+      inputColor: "rgb(229, 240, 255)",
+    });
+    expect(theme.fontFamily).toContain("Atkinson Hyperlegible");
+    expect(theme.screenBg).not.toBe("rgb(255, 255, 255)");
+    expect(theme.pillBg).not.toBe("rgb(255, 255, 255)");
+  });
+
   test("creates a new state by dragging a transition to empty canvas", async ({ page }) => {
     await openTool(page);
     const start = await centerOf(page.locator('[data-id="auth_start"] .port'));
@@ -1963,6 +2015,12 @@ test.describe("State Blueprint tool", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("const IS_STANDALONE_EXPORT = true");
     expect(html).toContain("Standard Auth Flow");
+    expect(html).toContain("color-scheme: dark");
+    expect(html).toContain("--bg: #020617");
+    expect(html).toContain("--primary: #38bdf8");
+    expect(html).toContain("Atkinson Hyperlegible");
+    expect(html).not.toContain("--card: #ffffff");
+    expect(html).not.toContain("background: white");
     expect(html).not.toContain("speechRate");
     expect(html).not.toContain("Vorlesen");
     expect(html).not.toContain("SpeechSynthesis");
