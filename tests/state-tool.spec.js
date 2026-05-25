@@ -681,13 +681,27 @@ test.describe("State Blueprint tool", () => {
     const mapCollapsed = await visibleBox(page.locator("#map"));
     expect(mapCollapsed.width).toBeGreaterThan(mapBefore.width + 60);
 
+    await page.locator('[data-id="register"]').click();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#stateInspector")).toHaveClass(/inspector-pulse/);
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Register");
+    await expect(page.locator("#pTitle")).toBeHidden();
+
     await page.locator("#btnToggleInspector").click();
     await expect(page.locator(".workspace")).not.toHaveClass(/inspector-collapsed/);
-    await expect(page.locator("#pTitle")).toHaveValue("Login");
+    await expect(page.locator("#pTitle")).toHaveValue("Register");
 
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
     await expect(label).toHaveCount(1);
+    await page.locator("#btnToggleInspector").click();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
     await label.click();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator("#stateInspector")).toHaveClass(/transition-inspector/);
+    await expect(page.locator("#stateInspector")).toHaveClass(/inspector-pulse/);
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Transition: Login");
+    await expect(page.locator("#pLabel")).toBeHidden();
+    await page.locator("#btnToggleInspector").click();
     await expect(page.locator("#pLabel")).toBeVisible();
     await expect(page.locator("#pTitle")).toHaveCount(0);
     await expect(page.locator("#popover")).toBeHidden();

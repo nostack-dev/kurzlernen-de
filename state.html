@@ -204,6 +204,30 @@
       display: none;
     }
 
+    .workspace.inspector-collapsed .inspector.inspector-pulse {
+      animation: inspectorPulse .58s ease-out;
+    }
+
+    @keyframes inspectorPulse {
+      0% {
+        border-right-color: #18314d;
+        box-shadow: inset -1px 0 0 rgba(56,189,248,0);
+        background-color: #050b14;
+      }
+      42% {
+        border-right-color: rgba(56,189,248,.95);
+        box-shadow:
+          inset -4px 0 0 rgba(56,189,248,.82),
+          0 0 0 3px rgba(56,189,248,.18);
+        background-color: #07182a;
+      }
+      100% {
+        border-right-color: #18314d;
+        box-shadow: inset -1px 0 0 rgba(56,189,248,0);
+        background-color: #050b14;
+      }
+    }
+
     .map {
       position: relative;
       min-width: 0;
@@ -1615,6 +1639,25 @@
         applyCamera();
         draw();
       });
+    }
+
+    function pulseCollapsedInspector() {
+      if (!inspectorCollapsed) return;
+      stateInspectorEl.classList.remove("inspector-pulse");
+      void stateInspectorEl.offsetWidth;
+      stateInspectorEl.classList.add("inspector-pulse");
+    }
+
+    function revealInspectorForProperties(opts = {}) {
+      const forceOpen = opts.forceOpen === true;
+      if (!inspectorCollapsed || forceOpen) {
+        if (inspectorCollapsed) {
+          inspectorCollapsed = false;
+          applyInspectorCollapsed();
+        }
+        return;
+      }
+      pulseCollapsedInspector();
     }
 
     function applyStateExplorerCollapsed() {
@@ -3612,7 +3655,7 @@
           lastTouchAt = Date.now();
           setSingleSelection("node", s.id);
           draw();
-          showNodePopover(s, evt.clientX, evt.clientY);
+          showNodePopover(s, { forceOpen: true });
         });
         editButton.addEventListener("click", evt => {
           evt.preventDefault();
@@ -3620,7 +3663,7 @@
           if (Date.now() - lastTouchAt < 700) return;
           setSingleSelection("node", s.id);
           draw();
-          showNodePopover(s, evt.clientX, evt.clientY);
+          showNodePopover(s, { forceOpen: true });
         });
 
         el.addEventListener("mousedown", evt => {
@@ -3928,8 +3971,7 @@
       editingTemplateId = null;
       inspectorEdgeId = null;
       stateInspectorEl.classList.remove("template-inspector", "transition-inspector");
-      inspectorCollapsed = false;
-      applyInspectorCollapsed();
+      revealInspectorForProperties(opts);
       inspectorStateId = s.id;
       stateInspectorTitleEl.textContent = s.title || s.id;
       popoverEl.hidden = true;
@@ -4022,7 +4064,7 @@
         selected = { type: "node", id: copy.id };
         saveModel();
         draw();
-        showNodePopover(copy);
+        showNodePopover(copy, { forceOpen: true });
       };
       root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
       root.querySelector("#pDelete").onclick = () => {
@@ -4185,8 +4227,7 @@
       editingTemplateId = null;
       inspectorStateId = null;
       inspectorEdgeId = t.id;
-      inspectorCollapsed = false;
-      applyInspectorCollapsed();
+      revealInspectorForProperties(opts);
       stateInspectorEl.classList.remove("template-inspector");
       stateInspectorEl.classList.add("transition-inspector");
       stateInspectorTitleEl.textContent = "Transition: " + (t.label || "Next");
@@ -4430,7 +4471,7 @@
       selected = { type: "node", id: s.id };
       saveModel();
       draw();
-      showNodePopover(s);
+      showNodePopover(s, { forceOpen: true });
       startAppAtState(s.id);
     }
 
@@ -4451,7 +4492,7 @@
       selected = { type: "node", id: s.id };
       saveModel();
       draw();
-      showNodePopover(s);
+      showNodePopover(s, { forceOpen: true });
       startAppAtState(s.id);
     }
 
@@ -4526,7 +4567,7 @@
       selected = { type: "node", id: s.id };
       saveModel();
       draw();
-      showNodePopover(s, showAtX ?? mapEl.getBoundingClientRect().left + 120, showAtY ?? mapEl.getBoundingClientRect().top + 80);
+      showNodePopover(s, { forceOpen: true, selectTitle: true });
     }
 
     function handleCanvasMove(evt) {
@@ -4656,7 +4697,7 @@
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
-          showEdgeInspector(t, { focus: !wasRewire });
+          showEdgeInspector(t, { focus: !wasRewire, forceOpen: true });
           return;
         }
         if (isEdgeDropTarget(evt)) {
@@ -4694,7 +4735,7 @@
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
-          if (!wasRewire) showNodePopover(s, { selectTitle: true });
+          if (!wasRewire) showNodePopover(s, { selectTitle: true, forceOpen: true });
           return;
         }
         connecting = null;
