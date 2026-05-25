@@ -16,6 +16,45 @@ async function openTool(page) {
   await expect(appFrame(page).locator("#statePill")).toHaveText("auth_start");
 }
 
+async function installSpeechStub(page) {
+  await page.addInitScript(() => {
+    window.__spokenUtterances = [];
+    const FakeUtterance = class {
+      constructor(text) {
+        this.text = text;
+        this.rate = 1;
+        this.lang = "";
+        this.onend = null;
+        this.onerror = null;
+      }
+    };
+    const fakeSpeechSynthesis = {
+      cancel() {
+        this.speaking = false;
+      },
+      speak(utterance) {
+        this.speaking = true;
+        window.__spokenUtterances.push({
+          text: utterance.text,
+          rate: utterance.rate,
+          lang: utterance.lang
+        });
+        this.speaking = false;
+        setTimeout(() => utterance.onend?.(), 0);
+      },
+      speaking: false
+    };
+    Object.defineProperty(window, "SpeechSynthesisUtterance", {
+      configurable: true,
+      value: FakeUtterance
+    });
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: fakeSpeechSynthesis
+    });
+  });
+}
+
 function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
@@ -864,6 +903,37 @@ test.describe("State Blueprint tool", () => {
     await password.press("Enter");
 
     await expect(app.locator("#statePill")).toHaveText("logged_in");
+  });
+
+  test("reads the selected app state aloud at the user's playback speed", async ({ page }) => {
+    await installSpeechStub(page);
+    await openTool(page);
+    const frameHandle = await page.locator("#appFrame").elementHandle();
+    const frame = await frameHandle.contentFrame();
+
+    await expect(frame.locator("#readButton")).toBeVisible();
+    await expect(frame.locator("#speechRateValue")).toHaveText("1.0x");
+
+    await frame.locator("#speechRate").evaluate(input => {
+      input.value = "1.4";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await expect(frame.locator("#speechRateValue")).toHaveText("1.4x");
+
+    await page.locator('[data-id="login"]').click();
+    await expect(frame.locator("#statePill")).toHaveText("login");
+    await frame.locator("#readButton").click();
+
+    await expect.poll(() => frame.evaluate(() => window.__spokenUtterances.at(-1))).toMatchObject({
+      rate: 1.4,
+      text: expect.stringContaining("Login")
+    });
+    const spoken = await frame.evaluate(() => window.__spokenUtterances.at(-1));
+    expect(spoken.text).toContain("Email and password are entered.");
+    expect(spoken.text).not.toContain("Auth start");
+
+    await frame.evaluate(() => location.reload());
+    await expect(frame.locator("#speechRateValue")).toHaveText("1.4x");
   });
 
   test("creates a new state by dragging a transition to empty canvas", async ({ page }) => {
@@ -1742,5 +1812,7 @@ test.describe("State Blueprint tool", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("const IS_STANDALONE_EXPORT = true");
     expect(html).toContain("Standard Auth Flow");
+    expect(html).toContain("speechRate");
+    expect(html).toContain("Vorlesen");
   });
 });
