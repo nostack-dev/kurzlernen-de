@@ -1006,9 +1006,29 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.up();
 
     await expect(page.locator(".node")).toHaveCount(7);
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => ({
+      focused: document.activeElement === el,
+      selectionStart: el.selectionStart,
+      selectionEnd: el.selectionEnd,
+      value: el.value,
+      selectedAll: el.selectionStart === 0 && el.selectionEnd === el.value.length
+    }))).toMatchObject({
+      focused: true,
+      selectionStart: 0,
+      selectedAll: true,
+      value: expect.stringMatching(/^State \d+$/)
+    });
+
+    await page.keyboard.type("Steuern");
+
     const model = await savedModel(page);
     expect(model.states).toHaveLength(7);
-    expect(model.transitions.some(t => t.from === "auth_start" && /^state_\d+$/.test(t.to))).toBeTruthy();
+    const created = model.states.find(state => state.title === "Steuern");
+    expect(created).toBeTruthy();
+    expect(model.states.some(state => /^State \d+$/.test(state.title))).toBe(false);
+    expect(model.transitions.some(t => t.from === "auth_start" && t.to === created.id)).toBeTruthy();
+    await expect(page.locator(`[data-id="${created.id}"] .title`)).toHaveText("Steuern");
   });
 
   test("creates a clean self-loop by dragging a state's output back to its own input", async ({ page }) => {

@@ -3331,6 +3331,7 @@
           const rootVisible = root === popoverEl ? !popoverEl.hidden : !workspaceEl.classList.contains("inspector-collapsed");
           if (rootVisible && document.contains(firstInput) && !rootAlreadyFocused) {
             firstInput.focus({ preventScroll: true });
+            if (opts.selectFirstInput && typeof firstInput.select === "function") firstInput.select();
           }
         };
         requestAnimationFrame(focusFirst);
@@ -3685,7 +3686,10 @@
         saveModel();
         draw();
       };
-      setupEditorAccessibility(root, opts.focus !== false, { onCommit: showEmptyInspector });
+      setupEditorAccessibility(root, opts.focus !== false, {
+        onCommit: showEmptyInspector,
+        selectFirstInput: Boolean(opts.selectTitle)
+      });
     }
 
     function conditionInputSummary(condition) {
@@ -4254,7 +4258,7 @@
           connectingTargetId = null;
           mapEl.classList.remove("connecting");
           draw();
-          if (!wasRewire) showNodePopover(s, evt.clientX, evt.clientY);
+          if (!wasRewire) showNodePopover(s, { selectTitle: true });
           return;
         }
         connecting = null;
