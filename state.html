@@ -816,50 +816,6 @@
       background: #331120;
     }
 
-    .zoom-controls {
-      position: absolute;
-      right: 14px;
-      top: 14px;
-      bottom: auto;
-      z-index: 24;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px;
-      border: 1px solid rgba(148,163,184,.22);
-      border-radius: 999px;
-      background: rgba(3,7,18,.72);
-      backdrop-filter: blur(8px);
-      box-shadow: 0 12px 34px rgba(0,0,0,.28);
-    }
-
-    .zoom-controls button {
-      width: 36px;
-      height: 36px;
-      min-height: 36px;
-      padding: 0;
-      border-radius: 999px;
-      display: grid;
-      place-items: center;
-      font-size: 17px;
-      line-height: 1;
-    }
-
-    .zoom-controls .zoom-reset {
-      width: auto;
-      min-width: 62px;
-      padding: 0 10px;
-    }
-
-    .zoom-level {
-      min-width: 52px;
-      color: #dbeafe;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      text-align: center;
-      user-select: none;
-    }
-
     .select-rect {
       position: absolute;
       z-index: 18;
@@ -1223,36 +1179,12 @@
         gap: 10px;
       }
 
-      .zoom-controls {
-        right: max(10px, env(safe-area-inset-right));
-        top: max(10px, env(safe-area-inset-top));
-        bottom: auto;
-        padding: 7px;
-      }
-
       .selection-actions {
         left: max(10px, env(safe-area-inset-left));
         right: max(10px, env(safe-area-inset-right));
         bottom: max(12px, env(safe-area-inset-bottom));
         justify-content: center;
         transform: none;
-      }
-
-      .zoom-controls button {
-        width: 44px;
-        height: 44px;
-        min-height: 44px;
-        font-size: 20px;
-      }
-
-      .zoom-controls .zoom-reset {
-        width: auto;
-        min-width: 70px;
-      }
-
-      .zoom-level {
-        min-width: 58px;
-        font-size: 13px;
       }
 
       .modal-backdrop {
@@ -1338,11 +1270,6 @@
         </div>
         <div id="stateExplorerList" class="state-explorer-list"></div>
       </div>
-      <div class="zoom-controls" aria-label="Zoom controls">
-        <button id="btnZoomOut" type="button" title="Zoom out" aria-label="Zoom out">−</button>
-        <button id="btnZoomReset" class="zoom-reset" type="button" title="Reset zoom" aria-label="Reset zoom"><span id="zoomLevel" class="zoom-level">100%</span></button>
-        <button id="btnZoomIn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
-      </div>
     </main>
 
     <aside class="preview">
@@ -1408,7 +1335,6 @@
     const modalMessageEl = document.getElementById("modalMessage");
     const modalCancelEl = document.getElementById("modalCancel");
     const modalConfirmEl = document.getElementById("modalConfirm");
-    const zoomLevelEl = document.getElementById("zoomLevel");
 
     let appWindow = null;
     let selected = null;
@@ -2193,7 +2119,7 @@
     }
 
     function isTouchUiTarget(target) {
-      return Boolean(target?.closest?.(".zoom-controls, .popover, .state-explorer, .inspector, input, textarea, select, button"));
+      return Boolean(target?.closest?.(".popover, .state-explorer, .inspector, input, textarea, select, button"));
     }
 
     function captureTouchPointer(evt) {
@@ -2691,7 +2617,6 @@
       const grid = 24 * camera.scale;
       mapEl.style.backgroundSize = `${grid}px ${grid}px, ${grid}px ${grid}px, 100% 100%, 100% 100%`;
       mapEl.style.backgroundPosition = `${tx % grid}px ${ty % grid}px, ${tx % grid}px ${ty % grid}px, 0 0, 0 0`;
-      if (zoomLevelEl) zoomLevelEl.textContent = `${Math.round(camera.scale * 100)}%`;
       scheduleCameraSave();
       requestMapCanvasPaint();
     }
@@ -4886,16 +4811,6 @@
     };
     document.getElementById("btnFit").onclick = fitView;
     document.getElementById("btnResetView").onclick = resetView;
-    document.getElementById("btnZoomIn").onclick = () => zoomByFactor(1.12);
-    document.getElementById("btnZoomOut").onclick = () => zoomByFactor(1 / 1.12);
-    document.getElementById("btnZoomReset").onclick = () => {
-      const center = viewportCenterWorld();
-      camera.scale = 1;
-      const r = mapEl.getBoundingClientRect();
-      camera.x = Math.round(r.width / 2 - center.x);
-      camera.y = Math.round(r.height / 2 - center.y);
-      applyCamera();
-    };
     document.getElementById("btnRun").onclick = () => syncToApp(true);
     document.getElementById("btnOpen").onclick = () => {
       appWindow = window.open(APP_URL, "state_blueprint_app", "width=480,height=760");

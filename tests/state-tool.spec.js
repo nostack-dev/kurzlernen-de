@@ -56,6 +56,13 @@ async function worldTransform(page) {
   return page.locator("#world").evaluate(el => getComputedStyle(el).transform);
 }
 
+async function worldScale(page) {
+  return page.locator("#world").evaluate(el => {
+    const transform = getComputedStyle(el).transform;
+    return new DOMMatrixReadOnly(transform === "none" ? undefined : transform).a;
+  });
+}
+
 async function assertVisibleInViewport(page, selector) {
   const box = await page.locator(selector).boundingBox();
   if (!box) throw new Error(`${selector} is not visible`);
@@ -64,19 +71,6 @@ async function assertVisibleInViewport(page, selector) {
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
-}
-
-async function assertNoOverlap(page, firstSelector, secondSelector) {
-  const [first, second] = await Promise.all([
-    page.locator(firstSelector).boundingBox(),
-    page.locator(secondSelector).boundingBox()
-  ]);
-  if (!first) throw new Error(`${firstSelector} is not visible`);
-  if (!second) throw new Error(`${secondSelector} is not visible`);
-  const overlaps =
-    Math.max(first.x, second.x) < Math.min(first.x + first.width, second.x + second.width) &&
-    Math.max(first.y, second.y) < Math.min(first.y + first.height, second.y + second.height);
-  expect(overlaps).toBe(false);
 }
 
 async function emptyCanvasPoint(page) {
@@ -94,7 +88,7 @@ async function emptyCanvasPoint(page) {
           y <= popoverRect.bottom + 36) continue;
         const el = document.elementFromPoint(x, y);
         if (!el || !map.contains(el)) continue;
-        if (el.closest(".popover, .state-explorer, .node, .edge, .hit, .edge-label, .edge-tip-hit, .zoom-controls, .help, .selection-actions")) continue;
+        if (el.closest(".popover, .state-explorer, .node, .edge, .hit, .edge-label, .edge-tip-hit, .help, .selection-actions")) continue;
         return { x, y };
       }
     }
@@ -1566,12 +1560,12 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.wheel(120, 80);
     await expect.poll(() => worldTransform(page)).toBe(beforeWheel);
 
-    const zoomBefore = await page.locator("#zoomLevel").innerText();
+    const scaleBefore = await worldScale(page);
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -180);
     await page.keyboard.up("Control");
 
-    await expect.poll(() => page.locator("#zoomLevel").innerText()).not.toBe(zoomBefore);
+    await expect.poll(() => worldScale(page)).toBeGreaterThan(scaleBefore);
     expect(await worldTransform(page)).not.toBe(beforeWheel);
   });
 
@@ -1583,7 +1577,7 @@ test.describe("State Blueprint tool", () => {
       y: mapBox.y + mapBox.height * 0.48
     };
     const before = await worldTransform(page);
-    const zoomBefore = Number((await page.locator("#zoomLevel").innerText()).replace("%", ""));
+    const scaleBefore = await worldScale(page);
 
     await page.locator("#map").evaluate((map, point) => {
       for (let i = 0; i < 24; i++) {
@@ -1599,8 +1593,7 @@ test.describe("State Blueprint tool", () => {
       }
     }, anchor);
 
-    await expect.poll(async () => Number((await page.locator("#zoomLevel").innerText()).replace("%", "")))
-      .toBeGreaterThanOrEqual(zoomBefore + 2);
+    await expect.poll(() => worldScale(page)).toBeGreaterThanOrEqual(scaleBefore * 1.02);
     expect(await worldTransform(page)).not.toBe(before);
   });
 
@@ -2070,19 +2063,18 @@ test.describe("State Blueprint tool", () => {
     await assertVisibleInViewport(page, "#btnTogglePreview");
   });
 
-  test("keeps zoom controls clear of the state explorer", async ({ page }) => {
+  test("keeps the canvas free of helper and zoom overlays around the state explorer", async ({ page }) => {
     await openTool(page);
 
     await expect(page.locator(".help")).toHaveCount(0);
-    await assertVisibleInViewport(page, ".zoom-controls");
-    await assertNoOverlap(page, ".zoom-controls", "#stateExplorer");
-    await assertNoOverlap(page, ".zoom-controls", "#btnToggleStateExplorer");
+    await expect(page.locator(".zoom-controls")).toHaveCount(0);
+    await assertVisibleInViewport(page, "#stateExplorer");
+    await assertVisibleInViewport(page, "#btnToggleStateExplorer");
 
     await page.locator("#btnToggleStateExplorer").click();
     await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
-    await assertVisibleInViewport(page, ".zoom-controls");
-    await assertNoOverlap(page, ".zoom-controls", "#stateExplorer");
-    await assertNoOverlap(page, ".zoom-controls", "#btnToggleStateExplorer");
+    await assertVisibleInViewport(page, "#stateExplorer");
+    await assertVisibleInViewport(page, "#btnToggleStateExplorer");
   });
 
   test("downloads formal definitions and self-contained HTML exports", async ({ page }) => {
