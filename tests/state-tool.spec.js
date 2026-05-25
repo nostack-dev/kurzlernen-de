@@ -105,6 +105,19 @@ async function assertVisibleInViewport(page, selector) {
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
 }
 
+async function assertNoOverlap(page, firstSelector, secondSelector) {
+  const [first, second] = await Promise.all([
+    page.locator(firstSelector).boundingBox(),
+    page.locator(secondSelector).boundingBox()
+  ]);
+  if (!first) throw new Error(`${firstSelector} is not visible`);
+  if (!second) throw new Error(`${secondSelector} is not visible`);
+  const overlaps =
+    Math.max(first.x, second.x) < Math.min(first.x + first.width, second.x + second.width) &&
+    Math.max(first.y, second.y) < Math.min(first.y + first.height, second.y + second.height);
+  expect(overlaps).toBe(false);
+}
+
 async function emptyCanvasPoint(page) {
   const point = await page.evaluate(() => {
     const map = document.querySelector("#map");
@@ -1979,6 +1992,20 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#btnTogglePreview").click();
     await assertVisibleInViewport(page, "#btnOpen");
     await assertVisibleInViewport(page, "#btnTogglePreview");
+  });
+
+  test("keeps zoom controls clear of the state explorer", async ({ page }) => {
+    await openTool(page);
+
+    await assertVisibleInViewport(page, ".zoom-controls");
+    await assertNoOverlap(page, ".zoom-controls", "#stateExplorer");
+    await assertNoOverlap(page, ".zoom-controls", "#btnToggleStateExplorer");
+
+    await page.locator("#btnToggleStateExplorer").click();
+    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
+    await assertVisibleInViewport(page, ".zoom-controls");
+    await assertNoOverlap(page, ".zoom-controls", "#stateExplorer");
+    await assertNoOverlap(page, ".zoom-controls", "#btnToggleStateExplorer");
   });
 
   test("downloads formal definitions and self-contained HTML exports", async ({ page }) => {

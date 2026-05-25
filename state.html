@@ -813,8 +813,9 @@
     .zoom-controls {
       position: absolute;
       right: 14px;
-      bottom: 14px;
-      z-index: 20;
+      top: 14px;
+      bottom: auto;
+      z-index: 24;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -1226,8 +1227,9 @@
       }
 
       .zoom-controls {
-        right: 10px;
-        bottom: 10px;
+        right: max(10px, env(safe-area-inset-right));
+        top: max(10px, env(safe-area-inset-top));
+        bottom: auto;
         padding: 7px;
       }
 
@@ -1237,10 +1239,6 @@
         bottom: max(12px, env(safe-area-inset-bottom));
         justify-content: center;
         transform: none;
-      }
-
-      .selection-actions.visible + .zoom-controls {
-        bottom: calc(76px + env(safe-area-inset-bottom));
       }
 
       .zoom-controls button {
