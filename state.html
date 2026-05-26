@@ -1672,6 +1672,8 @@
   <script>
     const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
     const STATE_EXPLORER_KEY = STORAGE_KEY + ".stateExplorer";
+    const UI_STATE_KEY = STORAGE_KEY + ".ui";
+    const LEGACY_PREVIEW_COLLAPSED_KEY = STORAGE_KEY + ".previewCollapsed";
     const DEFINITION_KIND = "state-blueprint-definition";
     const DEFINITION_SCHEMA_VERSION = 2;
     const COMPONENT_EXPORT_KIND = "state-blueprint-component";
@@ -1746,10 +1748,11 @@
     let currentLayerId = null;
     let model = loadModel() || demoModel();
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
-    let previewCollapsed = loadPreviewCollapsed();
-    let inspectorCollapsed = false;
-    let mobileWorkspaceView = "canvas";
-    let stateExplorerCollapsed = false;
+    const uiState = loadUiState();
+    let previewCollapsed = uiState.previewCollapsed;
+    let inspectorCollapsed = uiState.inspectorCollapsed;
+    let mobileWorkspaceView = uiState.mobileWorkspaceView;
+    let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
     let stateTemplates = loadStateTemplates();
     let stateTemplateDrag = null;
     let editingTemplateId = null;
@@ -1933,16 +1936,53 @@
       cameraSaveTimer = setTimeout(saveCamera, 140);
     }
 
-    function loadPreviewCollapsed() {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY + ".previewCollapsed");
-        if (stored !== null) return stored === "true";
-        return window.matchMedia?.("(max-width: 720px)")?.matches || false;
-      } catch (_) { return false; }
+    function normalizeMobileWorkspaceView(view) {
+      return ["canvas", "edit", "app"].includes(view) ? view : "canvas";
     }
 
-    function savePreviewCollapsed() {
-      try { localStorage.setItem(STORAGE_KEY + ".previewCollapsed", String(previewCollapsed)); } catch (_) {}
+    function defaultPreviewCollapsed() {
+      try {
+        const legacy = localStorage.getItem(LEGACY_PREVIEW_COLLAPSED_KEY);
+        if (legacy !== null) return legacy === "true";
+      } catch (_) {}
+      return window.matchMedia?.("(max-width: 720px)")?.matches || false;
+    }
+
+    function loadUiState() {
+      const fallback = {
+        inspectorCollapsed: false,
+        previewCollapsed: defaultPreviewCollapsed(),
+        stateExplorerCollapsed: false,
+        mobileWorkspaceView: "canvas"
+      };
+      try {
+        const stored = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
+        if (!stored || typeof stored !== "object") return fallback;
+        return {
+          inspectorCollapsed: typeof stored.inspectorCollapsed === "boolean" ? stored.inspectorCollapsed : fallback.inspectorCollapsed,
+          previewCollapsed: typeof stored.previewCollapsed === "boolean" ? stored.previewCollapsed : fallback.previewCollapsed,
+          stateExplorerCollapsed: typeof stored.stateExplorerCollapsed === "boolean" ? stored.stateExplorerCollapsed : fallback.stateExplorerCollapsed,
+          mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView)
+        };
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function snapshotUiState() {
+      return {
+        inspectorCollapsed: Boolean(inspectorCollapsed),
+        previewCollapsed: Boolean(previewCollapsed),
+        stateExplorerCollapsed: Boolean(stateExplorerCollapsed),
+        mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView)
+      };
+    }
+
+    function saveUiState() {
+      try {
+        localStorage.setItem(UI_STATE_KEY, JSON.stringify(snapshotUiState()));
+        localStorage.setItem(LEGACY_PREVIEW_COLLAPSED_KEY, String(previewCollapsed));
+      } catch (_) {}
     }
 
     function snapshotTemplateStates(item) {
@@ -2015,6 +2055,7 @@
     }
 
     function applyMobileWorkspaceView() {
+      mobileWorkspaceView = normalizeMobileWorkspaceView(mobileWorkspaceView);
       workspaceEl.classList.toggle("mobile-canvas-active", mobileWorkspaceView === "canvas");
       workspaceEl.classList.toggle("mobile-edit-active", mobileWorkspaceView === "edit");
       workspaceEl.classList.toggle("mobile-app-active", mobileWorkspaceView === "app");
@@ -2023,6 +2064,7 @@
         button.classList.toggle("active", active);
         button.setAttribute("aria-pressed", String(active));
       });
+      saveUiState();
       requestAnimationFrame(() => {
         applyCamera();
         draw();
@@ -2030,7 +2072,7 @@
     }
 
     function setMobileWorkspaceView(view) {
-      if (!["canvas", "edit", "app"].includes(view)) return;
+      view = normalizeMobileWorkspaceView(view);
       mobileWorkspaceView = view;
       if (view === "edit" && inspectorCollapsed) {
         inspectorCollapsed = false;
@@ -2064,7 +2106,7 @@
       btnTogglePreview.textContent = previewCollapsed ? "<" : ">";
       btnTogglePreview.title = previewCollapsed ? "Expand app preview" : "Collapse app preview";
       btnTogglePreview.setAttribute("aria-label", btnTogglePreview.title);
-      savePreviewCollapsed();
+      saveUiState();
       requestAnimationFrame(() => {
         applyCamera();
         draw();
@@ -2076,6 +2118,7 @@
       btnToggleInspector.textContent = inspectorCollapsed ? ">" : "<";
       btnToggleInspector.title = inspectorCollapsed ? "Expand state inspector" : "Collapse state inspector";
       btnToggleInspector.setAttribute("aria-label", btnToggleInspector.title);
+      saveUiState();
       requestAnimationFrame(() => {
         applyCamera();
         draw();
@@ -2109,6 +2152,7 @@
       btnToggleStateExplorer.textContent = stateExplorerCollapsed ? "^" : "v";
       btnToggleStateExplorer.title = stateExplorerCollapsed ? "Expand state explorer" : "Collapse state explorer";
       btnToggleStateExplorer.setAttribute("aria-label", btnToggleStateExplorer.title);
+      saveUiState();
     }
 
     function modelSnapshot() {
@@ -2627,7 +2671,7 @@
       persistModel(false);
       persistStateTemplates();
       saveCamera();
-      savePreviewCollapsed();
+      saveUiState();
       const definition = definitionPayload();
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       const text = JSON.stringify(definition, null, 2) + "\n";
@@ -2638,7 +2682,7 @@
       persistModel(false);
       persistStateTemplates();
       saveCamera();
-      savePreviewCollapsed();
+      saveUiState();
       const payload = definitionPayload();
       let text;
       try {

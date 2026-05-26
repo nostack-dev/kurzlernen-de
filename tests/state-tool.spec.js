@@ -6,7 +6,7 @@ const GRID_SIZE = 24;
 
 async function openTool(page) {
   await page.addInitScript(key => {
-    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
   }, STORAGE_KEY);
@@ -44,6 +44,10 @@ async function savedModel(page) {
 
 async function savedStateTemplates(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(`${key}.stateExplorer`) || "[]"), STORAGE_KEY);
+}
+
+async function savedUiState(page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(`${key}.ui`) || "{}"), STORAGE_KEY);
 }
 
 function componentEditor(page, title) {
@@ -386,7 +390,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -428,7 +432,7 @@ test.describe("State Blueprint tool", () => {
     ];
 
     await page.addInitScript(({ key, model, templates }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -852,7 +856,7 @@ test.describe("State Blueprint tool", () => {
 
   test("keeps the DOM and SVG map renderer as the fallback path", async ({ page }) => {
     await page.addInitScript(key => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       const nativeGetContext = HTMLCanvasElement.prototype.getContext;
@@ -876,7 +880,7 @@ test.describe("State Blueprint tool", () => {
 
   test("uses HTML-in-Canvas when drawElementImage is available", async ({ page }) => {
     await page.addInitScript(key => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`]) {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       const drawElementImage = function(element, x, y) {
@@ -989,6 +993,33 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="register"]').click();
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Register");
     await expect(page.locator("#pTitle")).toHaveValue("Register");
+  });
+
+  test("persists desktop panel and explorer layout across reopening", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator("#btnToggleInspector").click();
+    await page.locator("#btnTogglePreview").click();
+    await page.locator("#btnToggleStateExplorer").click();
+    await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(page.locator(".workspace")).toHaveClass(/preview-collapsed/);
+    await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
+
+    const uiState = await savedUiState(page);
+    expect(uiState).toMatchObject({
+      inspectorCollapsed: true,
+      previewCollapsed: true,
+      stateExplorerCollapsed: true,
+      mobileWorkspaceView: "canvas"
+    });
+
+    const reopened = await page.context().newPage();
+    await reopened.goto("/state.html");
+    await expect(reopened.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(reopened.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+    await expect(reopened.locator(".workspace")).toHaveClass(/preview-collapsed/);
+    await expect(reopened.locator("#stateExplorer")).toHaveClass(/collapsed/);
+    await reopened.close();
   });
 
   test("sizes each node to fit its title instead of truncating with ellipsis", async ({ page }) => {
@@ -1149,6 +1180,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: crossingModel });
     await page.goto("/state.html");
     await expect(page.locator(".node")).toHaveCount(7);
@@ -1204,6 +1236,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: directModel });
     await page.goto("/state.html");
     await expect(page.locator(".node")).toHaveCount(2);
@@ -1240,6 +1273,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: obstacleModel });
     await page.goto("/state.html");
     await expect(page.locator(".node")).toHaveCount(3);
@@ -1805,6 +1839,35 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect(page.locator('[data-mobile-view="edit"]')).toHaveClass(/active/);
 
+    await context.close();
+  });
+
+  test("persists the selected mobile workspace view across reopening", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    await page.goto("/state.html");
+    await expect(page.locator("#mobileTabs")).toBeVisible();
+
+    await page.locator('[data-mobile-view="app"]').tap();
+    await expect(page.locator(".preview")).toBeVisible();
+    expect(await savedUiState(page)).toMatchObject({
+      mobileWorkspaceView: "app",
+      previewCollapsed: false
+    });
+
+    const reopened = await context.newPage();
+    await reopened.goto("/state.html");
+    await expect(reopened.locator("#mobileTabs")).toBeVisible();
+    await expect(reopened.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
+    await expect(reopened.locator(".preview")).toBeVisible();
+    await expect(reopened.locator("#map")).toBeHidden();
+    await expect(reopened.locator("#stateInspector")).toBeHidden();
+    await reopened.close();
     await context.close();
   });
 
