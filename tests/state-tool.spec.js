@@ -1609,13 +1609,23 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pSet")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pFlip")).toHaveAttribute("tabindex", "0");
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => page.locator("#pLabel").evaluate(el => ({
+      value: el.value,
+      selectionStart: el.selectionStart,
+      selectionEnd: el.selectionEnd
+    }))).toEqual({
+      value: "Login",
+      selectionStart: 0,
+      selectionEnd: 5
+    });
+    await page.keyboard.type("Sign in action");
+    await expect(page.locator("#pLabel")).toHaveValue("Sign in action");
 
     await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pCond").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Shift+Tab");
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
-    await page.locator("#pLabel").fill("Sign in action");
     await page.keyboard.press("Enter");
     await expect(page.locator("#pLabel")).toHaveCount(0);
     await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");

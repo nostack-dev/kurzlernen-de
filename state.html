@@ -5559,7 +5559,10 @@
         saveModel();
         draw();
       };
-      setupEditorAccessibility(root, opts.focus !== false, { onCommit: showEmptyInspector });
+      setupEditorAccessibility(root, opts.focus !== false, {
+        onCommit: showEmptyInspector,
+        selectFirstInput: true
+      });
     }
 
     function isEditableTarget(target) {
