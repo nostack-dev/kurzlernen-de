@@ -1358,21 +1358,10 @@
       gap: 8px;
     }
 
-    .state-explorer-label {
-      flex: 0 0 auto;
-      display: grid;
-      place-items: center;
-      min-width: 34px;
-      border: 1px solid #1d3956;
-      border-radius: 12px;
-      background: #06111f;
-      color: var(--muted);
-      font-size: 10px;
-      font-weight: 950;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
+    .state-explorer-section + .state-explorer-section {
+      margin-left: 4px;
+      padding-left: 12px;
+      border-left: 1px solid rgba(56,189,248,.16);
     }
 
     .state-template-card,
@@ -1391,12 +1380,30 @@
       user-select: none;
     }
 
-    .component-preset-card {
+    .component-preset-card,
+    .state-explorer-section.core .component-preset-card {
       flex-basis: 164px;
       border-color: #365b7a;
       background:
-        linear-gradient(135deg, rgba(56,189,248,.12), transparent 42%),
+        linear-gradient(135deg, rgba(56,189,248,.18), transparent 46%),
         #071827;
+    }
+
+    .state-template-card,
+    .state-explorer-section.user .state-template-card {
+      border-color: rgba(245,158,11,.46);
+      background:
+        linear-gradient(135deg, rgba(245,158,11,.16), transparent 48%),
+        #111827;
+    }
+
+    .state-explorer-section.user .state-template-empty {
+      min-width: 232px;
+      padding: 0 10px;
+      border: 1px dashed rgba(245,158,11,.34);
+      border-radius: 12px;
+      background: rgba(245,158,11,.06);
+      color: #fcd9a2;
     }
 
     .state-template-card.editing {
@@ -5892,13 +5899,10 @@
     function renderStateExplorer() {
       stateExplorerListEl.innerHTML = "";
       const stopAction = evt => evt.stopPropagation();
-      const appendSection = (label, items) => {
+      const appendSection = (kind, items) => {
         const section = document.createElement("div");
-        section.className = "state-explorer-section";
-        const heading = document.createElement("div");
-        heading.className = "state-explorer-label";
-        heading.textContent = label;
-        section.appendChild(heading);
+        section.className = `state-explorer-section ${kind}`;
+        section.dataset.templateGroup = kind;
         items.forEach(item => section.appendChild(item));
         stateExplorerListEl.appendChild(section);
       };
@@ -5913,6 +5917,7 @@
       const componentCards = builtinStateTemplates().map(template => {
         const card = document.createElement("div");
         card.className = "component-preset-card";
+        card.dataset.templateKind = "core";
         card.innerHTML = `
           <div class="template-title"></div>
           <div class="template-body"></div>
@@ -5949,7 +5954,7 @@
         wireDraggableTemplate(card, template);
         return card;
       });
-      appendSection("Core", componentCards);
+      appendSection("core", componentCards);
 
       const userItems = [];
       if (!stateTemplates.length) {
@@ -5961,6 +5966,7 @@
       for (const template of stateTemplates) {
         const card = document.createElement("div");
         card.className = "state-template-card";
+        card.dataset.templateKind = "user";
         if (editingTemplateId === template.id) card.classList.add("editing");
         card.innerHTML = `
           <div class="template-title"></div>
@@ -6000,7 +6006,7 @@
         });
         userItems.push(card);
       }
-      appendSection("Mine", userItems);
+      appendSection("user", userItems);
     }
 
     function addStateAt(x, y, showAtX, showAtY) {

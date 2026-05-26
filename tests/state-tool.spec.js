@@ -2849,6 +2849,16 @@ test.describe("State Blueprint tool", () => {
     await dragNodeToStateExplorer(page, page.locator(`[data-id="${sourceId}"]`));
     const preset = page.locator(".state-template-card").first();
     await expect(preset).toHaveClass(/editing/);
+    await expect(page.locator(".state-explorer-label")).toHaveCount(0);
+    await expect(componentPreset(page, "Text")).toHaveAttribute("data-template-kind", "core");
+    await expect(componentPreset(page, "Text").getByRole("button", { name: "Delete" })).toHaveCount(0);
+    await expect(preset).toHaveAttribute("data-template-kind", "user");
+    await expect(preset.getByRole("button", { name: "Delete" })).toBeVisible();
+    const cardColors = await page.evaluate(() => ({
+      coreBorder: getComputedStyle(document.querySelector(".component-preset-card")).borderColor,
+      userBorder: getComputedStyle(document.querySelector(".state-template-card")).borderColor
+    }));
+    expect(cardColors.coreBorder).not.toBe(cardColors.userBorder);
     await expect(preset.locator(".template-title-input")).toHaveCount(0);
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Quick lesson");
     await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
@@ -3046,6 +3056,10 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(".help")).toHaveCount(0);
     await expect(page.locator(".zoom-controls")).toHaveCount(0);
+    await expect(page.locator(".state-explorer-label")).toHaveCount(0);
+    await expect(page.locator('.state-explorer-section[data-template-group="core"]')).toBeVisible();
+    await expect(page.locator('.state-explorer-section[data-template-group="user"]')).toBeVisible();
+    await expect(componentPreset(page, "Text").getByRole("button", { name: "Delete" })).toHaveCount(0);
     await assertVisibleInViewport(page, "#stateExplorer");
     await assertVisibleInViewport(page, "#btnToggleStateExplorer");
     await expect(page.locator("#stateExplorerList")).toHaveCSS("scrollbar-color", "rgb(49, 95, 140) rgb(7, 19, 33)");
