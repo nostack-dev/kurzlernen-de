@@ -3907,6 +3907,14 @@
       return nodeCenter(state, side);
     }
 
+    function edgeApproachPoint(state, side, transition = null) {
+      const point = snapPointToGrid(edgePortPoint(state, side, transition));
+      const offset = GRID_SIZE * 2;
+      if (side === "out") return { x: point.x + offset, y: point.y };
+      if (side === "in") return { x: point.x - offset, y: point.y };
+      return point;
+    }
+
     function doglegRoutePoints(from, to, transition = null) {
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
@@ -4042,8 +4050,10 @@
     }
 
     function obstacleAvoidingRoutePoints(from, to, transition = null) {
-      const start = snapPointToGrid(edgePortPoint(from, "out", transition));
-      const goal = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const start = edgeApproachPoint(from, "out", transition);
+      const goal = edgeApproachPoint(to, "in", transition);
       const routeTransition = transition || { from: from.id, to: to.id };
       const bounds = routeSearchBounds(start, goal);
       const obstacles = visibleStates().map(state =>
@@ -4079,7 +4089,7 @@
             path.unshift(previous);
             walkKey = key(previous);
           }
-          const routed = compactRoutePoints(path);
+          const routed = compactRoutePoints([startPort, ...path, goalPort]);
           return routeIsClear(routed, routeTransition) ? routed : null;
         }
         closed.add(currentKey);
@@ -4209,14 +4219,32 @@
       return routed;
     }
 
+    function coordinateKeepsPortApproach(points, segment, coordinate) {
+      const compact = compactRoutePoints(points);
+      const first = compact[0];
+      const second = compact[1];
+      const beforeEnd = compact[compact.length - 2];
+      const end = compact[compact.length - 1];
+      if (segment.orientation !== "vertical") return true;
+      if (segment.index === 2 && first && second && first.y === second.y) {
+        return coordinate >= first.x + GRID_SIZE;
+      }
+      if (segment.index === compact.length - 2 && beforeEnd && end && beforeEnd.y === end.y) {
+        return coordinate <= end.x - GRID_SIZE;
+      }
+      return true;
+    }
+
     function safeLaneCoordinate(points, segment, slotIndex) {
       const transition = model.transitions.find(item => item.id === segment.transitionId);
       for (let attempt = 0; attempt < 12; attempt++) {
         const coordinate = segment.coordinate + laneSlot(slotIndex + attempt) * GRID_SIZE;
+        if (!coordinateKeepsPortApproach(points, segment, coordinate)) continue;
         const candidate = applySegmentLane(points, segment, coordinate);
         if (routeIsClear(candidate, transition)) return coordinate;
       }
-      return segment.coordinate + laneSlot(slotIndex) * GRID_SIZE;
+      const fallback = segment.coordinate + laneSlot(slotIndex) * GRID_SIZE;
+      return coordinateKeepsPortApproach(points, segment, fallback) ? fallback : segment.coordinate;
     }
 
     function resolveRouteOverlaps(routes) {

@@ -286,7 +286,8 @@ async function gridGeometryReport(page) {
         id: arrow.dataset.edgeId,
         fill: getComputedStyle(arrow).fill,
         stroke: getComputedStyle(arrow).stroke,
-        d: arrow.getAttribute("d") || ""
+        d: arrow.getAttribute("d") || "",
+        points: pointsFromPath(arrow.getAttribute("d") || "")
       }))
     };
   }, GRID_SIZE);
@@ -1259,6 +1260,32 @@ test.describe("State Blueprint tool", () => {
       item.to === "logged_in"
     )) {
       expect(report.pins.filter(pin => pin.id === transition.id)).toHaveLength(2);
+    }
+  });
+
+  test("keeps input arrowheads entering ports from the left after vertical detours", async ({ page }) => {
+    await openTool(page);
+
+    const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
+    const detouredIds = new Set(model.transitions
+      .filter(transition =>
+        (transition.from === "logged_out" && transition.to === "login") ||
+        (transition.from === "error" && transition.to === "auth_start")
+      )
+      .map(transition => transition.id));
+    const detouredPaths = report.paths.filter(path => detouredIds.has(path.id));
+
+    expect(detouredPaths).toHaveLength(2);
+    for (const path of detouredPaths) {
+      const end = path.points.at(-1);
+      const beforeEnd = path.points.at(-2);
+      const arrow = report.arrows.find(item => item.id === path.id);
+
+      expect(beforeEnd.y).toBe(end.y);
+      expect(beforeEnd.x).toBeLessThan(end.x);
+      expect(arrow).toBeTruthy();
+      expect(arrow.points[0]).toEqual(end);
+      expect(Math.max(...arrow.points.slice(1).map(point => point.x))).toBeLessThan(end.x);
     }
   });
 
