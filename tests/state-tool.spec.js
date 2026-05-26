@@ -226,6 +226,12 @@ async function gridGeometryReport(page) {
         y: Number.parseFloat(pin.getAttribute("cy")),
         fill: getComputedStyle(pin).fill,
         stroke: getComputedStyle(pin).stroke
+      })),
+      arrows: [...document.querySelectorAll(".edge-arrow")].map(arrow => ({
+        id: arrow.dataset.edgeId,
+        fill: getComputedStyle(arrow).fill,
+        stroke: getComputedStyle(arrow).stroke,
+        d: arrow.getAttribute("d") || ""
       }))
     };
   }, GRID_SIZE);
@@ -1195,6 +1201,8 @@ test.describe("State Blueprint tool", () => {
     expect(diagonalDown.stroke).not.toBe(diagonalUp.stroke);
     expect(report.pins.filter(pin => pin.id === "a_to_d").map(pin => pin.fill)).toEqual([diagonalDown.stroke, diagonalDown.stroke]);
     expect(report.pins.filter(pin => pin.id === "c_to_b").map(pin => pin.fill)).toEqual([diagonalUp.stroke, diagonalUp.stroke]);
+    expect(report.arrows.find(arrow => arrow.id === "a_to_d")?.fill).toBe(diagonalDown.stroke);
+    expect(report.arrows.find(arrow => arrow.id === "c_to_b")?.fill).toBe(diagonalUp.stroke);
 
     const longestHorizontal = path => path.horizontalSegments
       .slice()
@@ -1252,6 +1260,43 @@ test.describe("State Blueprint tool", () => {
     expect(route.points[0].y).toBe(route.points[1].y);
     expect(route.horizontalSegments).toHaveLength(1);
     expect(route.verticalSegments).toHaveLength(0);
+  });
+
+  test("uses a short forward bend instead of looping for slightly offset transitions", async ({ page }) => {
+    const nearDirectModel = {
+      version: 2,
+      name: "Short bend path",
+      initial: "left",
+      states: [
+        { id: "left", title: "Left", body: "", x: 96, y: 192 },
+        { id: "right", title: "Right", body: "", x: 504, y: 216 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Short", condition: "" }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+    }, { key: STORAGE_KEY, model: nearDirectModel });
+    await page.goto("/state.html");
+    await expect(page.locator(".node")).toHaveCount(2);
+
+    const report = await gridGeometryReport(page);
+    const route = report.paths.find(path => path.id === "left_to_right");
+    const nodes = new Map(report.nodes.map(node => [node.id, node]));
+    const startY = nodes.get("left").output.y;
+    const endY = nodes.get("right").input.y;
+
+    expect(route).toBeTruthy();
+    expect(route.points).toHaveLength(4);
+    expect(route.verticalSegments).toHaveLength(1);
+    expect(route.horizontalSegments).toHaveLength(2);
+    expect(route.points.every(point => point.y >= Math.min(startY, endY) && point.y <= Math.max(startY, endY))).toBe(true);
+    expect(report.arrows.find(arrow => arrow.id === "left_to_right")?.fill).toBe(route.stroke);
   });
 
   test("routes transition cables around state bounding boxes", async ({ page }) => {

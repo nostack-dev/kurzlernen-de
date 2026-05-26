@@ -533,6 +533,30 @@
     }
     .edge.runtime { stroke: var(--runtime); stroke-width: 4; animation: edgePulse .85s ease-out; }
 
+    .edge-arrow {
+      fill: var(--edge-color, #5f8dbc);
+      stroke: #07111f;
+      stroke-width: 1.4;
+      pointer-events: none;
+      filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
+    }
+
+    .edge-arrow.selected {
+      fill: var(--selected);
+      stroke: #07111f;
+      filter: drop-shadow(0 0 8px rgba(245,158,11,.34));
+    }
+
+    .edge-arrow.hovered {
+      fill: var(--edge-color, #5f8dbc);
+      stroke: #07111f;
+      filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
+    }
+
+    .edge-arrow.runtime {
+      fill: var(--runtime);
+    }
+
     .edge-pin {
       fill: var(--edge-color, #5f8dbc);
       stroke: #07111f;
@@ -3861,6 +3885,23 @@
       return routeIntersectsBlockingState(direct, transition || { from: from.id, to: to.id }, GRID_SIZE / 2) ? null : direct;
     }
 
+    function forwardBendRoutePoints(from, to, transition = null) {
+      if (from.id === to.id) return null;
+      const a = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const b = snapPointToGrid(edgePortPoint(to, "in", transition));
+      if (b.x - a.x < GRID_SIZE * 3) return null;
+      if (Math.abs(b.y - a.y) > GRID_SIZE * 3) return null;
+      const midX = snapToGrid((a.x + b.x) / 2);
+      if (midX <= a.x || midX >= b.x) return null;
+      const route = compactRoutePoints([
+        a,
+        { x: midX, y: a.y },
+        { x: midX, y: b.y },
+        b
+      ]);
+      return routeIntersectsBlockingState(route, transition || { from: from.id, to: to.id }, GRID_SIZE / 2) ? null : route;
+    }
+
     function segmentIntersectsBox(a, b, box) {
       if (a.x === b.x) {
         if (a.x <= box.x1 || a.x >= box.x2) return false;
@@ -3984,6 +4025,8 @@
     function baseEdgeRoutePoints(from, to, transition = null) {
       const direct = directRoutePoints(from, to, transition);
       if (direct) return direct;
+      const forwardBend = forwardBendRoutePoints(from, to, transition);
+      if (forwardBend) return forwardBend;
       const dogleg = doglegRoutePoints(from, to, transition);
       if (!routeIntersectsBlockingState(dogleg, transition || { from: from.id, to: to.id })) return dogleg;
       return obstacleAvoidingRoutePoints(from, to, transition) || dogleg;
@@ -4177,6 +4220,28 @@
       return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
     }
 
+    function arrowPathForPoints(points) {
+      const compact = compactRoutePoints(points);
+      if (compact.length < 2) return "";
+      const tip = compact[compact.length - 1];
+      let previous = compact[compact.length - 2];
+      for (let i = compact.length - 2; i >= 0; i--) {
+        if (compact[i].x !== tip.x || compact[i].y !== tip.y) {
+          previous = compact[i];
+          break;
+        }
+      }
+      const dx = Math.sign(tip.x - previous.x);
+      const dy = Math.sign(tip.y - previous.y);
+      const length = 13;
+      const wing = 6;
+      if (dx > 0) return `M ${tip.x} ${tip.y} L ${tip.x - length} ${tip.y - wing} L ${tip.x - length} ${tip.y + wing} Z`;
+      if (dx < 0) return `M ${tip.x} ${tip.y} L ${tip.x + length} ${tip.y - wing} L ${tip.x + length} ${tip.y + wing} Z`;
+      if (dy > 0) return `M ${tip.x} ${tip.y} L ${tip.x - wing} ${tip.y - length} L ${tip.x + wing} ${tip.y - length} Z`;
+      if (dy < 0) return `M ${tip.x} ${tip.y} L ${tip.x - wing} ${tip.y + length} L ${tip.x + wing} ${tip.y + length} Z`;
+      return "";
+    }
+
     function statePreviewText(s) {
       const firstText = normalizeComponents(s.components).find(component => component.text.trim());
       return firstText?.text || "";
@@ -4312,7 +4377,7 @@
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
@@ -4333,9 +4398,22 @@
         if (edgeSelection.has(t.id)) classes.push("selected");
         if (hoveredEdgeId === t.id) classes.push("hovered");
         if (lastAppTransitionId === t.id) classes.push("runtime");
-        const path = svgEl("path", { d: pathD, class: classes.join(" "), style: edgeStyle, "marker-end": "url(#arrow)", "data-edge-id": t.id });
+        const path = svgEl("path", { d: pathD, class: classes.join(" "), style: edgeStyle, "data-edge-id": t.id });
         attachEdgeInteractions(path, t);
         wiresEl.appendChild(path);
+
+        const arrowClasses = ["edge-arrow"];
+        if (edgeSelection.has(t.id)) arrowClasses.push("selected");
+        if (hoveredEdgeId === t.id) arrowClasses.push("hovered");
+        if (lastAppTransitionId === t.id) arrowClasses.push("runtime");
+        const arrowD = arrowPathForPoints(routePoints);
+        if (arrowD) wiresEl.appendChild(svgEl("path", {
+          d: arrowD,
+          class: arrowClasses.join(" "),
+          style: edgeStyle,
+          "data-edge-id": t.id,
+          "data-edge-arrow": "in"
+        }));
 
         const m = midPoint(from, to, t);
         const labelClasses = ["edge-label"];
