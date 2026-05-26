@@ -219,6 +219,21 @@ async function gridGeometryReport(page) {
           })
         };
       }),
+      layerFlows: [...document.querySelectorAll(".layer-flow-wire")].map(flow => {
+        const d = flow.getAttribute("d") || "";
+        return {
+          d,
+          points: pointsFromPath(d),
+          stroke: getComputedStyle(flow).stroke
+        };
+      }),
+      layerFlowPins: [...document.querySelectorAll(".layer-flow-pin")].map(pin => ({
+        type: pin.dataset.layerFlow,
+        stateId: pin.dataset.stateId || "",
+        x: Number.parseFloat(pin.getAttribute("cx")),
+        y: Number.parseFloat(pin.getAttribute("cy")),
+        fill: getComputedStyle(pin).fill
+      })),
       pins: [...document.querySelectorAll(".edge-pin")].map(pin => ({
         id: pin.dataset.edgeId,
         side: pin.dataset.edgePin,
@@ -517,6 +532,15 @@ test.describe("State Blueprint tool", () => {
         childCount: model.states.filter(state => state.parentId === "login").length
       };
     }).toEqual({ childParent: "login", rootCount: 6, childCount: 1 });
+    const childFlow = await gridGeometryReport(page);
+    const childNode = childFlow.nodes.find(node => node.id === childId);
+    expect(childFlow.layerFlows.length).toBeGreaterThan(0);
+    const childInputPin = childFlow.layerFlowPins.find(pin => pin.stateId === childId && pin.type === "state-input");
+    const childOutputPin = childFlow.layerFlowPins.find(pin => pin.stateId === childId && pin.type === "state-output");
+    expect(childInputPin).toBeTruthy();
+    expect(childOutputPin).toBeTruthy();
+    expect({ x: childInputPin.x, y: childInputPin.y }).toEqual(childNode.input);
+    expect({ x: childOutputPin.x, y: childOutputPin.y }).toEqual(childNode.output);
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeHidden();
@@ -560,6 +584,13 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerBoundaryInput")).toContainText("from Logged out");
     await expect(page.locator("#layerBoundaryOutput")).toContainText("to Logged in");
     await expect(page.locator("#layerBoundaryOutput")).toContainText("to Error");
+    const directFlow = await gridGeometryReport(page);
+    expect(directFlow.layerFlows).toHaveLength(2);
+    for (const flow of directFlow.layerFlows) {
+      expect(flow.points).toHaveLength(2);
+      expect(flow.points[0].x).toBeLessThan(flow.points[1].x);
+      expect(flow.points[0].y).toBe(flow.points[1].y);
+    }
 
     for (const id of wiring.inputIds) {
       const dot = page.locator(`#layerBoundaryInput .layer-boundary-dot[data-edge-id="${id}"]`);

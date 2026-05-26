@@ -480,6 +480,26 @@
       opacity: .66;
     }
 
+    .layer-flow-wire {
+      fill: none;
+      stroke: var(--edge-color, #38bdf8);
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 8 7;
+      opacity: .8;
+      pointer-events: none;
+      filter: drop-shadow(0 0 7px color-mix(in srgb, var(--edge-color, #38bdf8) 42%, transparent));
+    }
+
+    .layer-flow-pin {
+      fill: var(--edge-color, #38bdf8);
+      stroke: #07111f;
+      stroke-width: 2;
+      pointer-events: none;
+      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--edge-color, #38bdf8) 45%, transparent));
+    }
+
     .map.dragging-state #world {
       z-index: 25;
     }
@@ -4379,6 +4399,122 @@
       renderLayerBoundary(layerBoundaryOutputEl, "Output", parentBoundaryTransitions(parent, "output"), "output", parentLayerId);
     }
 
+    function layerFrameBox() {
+      const left = Number.parseFloat(layerFrameEl.style.left);
+      const top = Number.parseFloat(layerFrameEl.style.top);
+      const width = Number.parseFloat(layerFrameEl.style.width);
+      const height = Number.parseFloat(layerFrameEl.style.height);
+      if (![left, top, width, height].every(Number.isFinite)) return null;
+      return { left, top, width, height, right: left + width, bottom: top + height };
+    }
+
+    function layerFlowLaneCount(parent) {
+      if (!parent) return 0;
+      return Math.max(
+        1,
+        parentBoundaryTransitions(parent, "input").length,
+        parentBoundaryTransitions(parent, "output").length
+      );
+    }
+
+    function layerFlowColor(parent, laneIndex) {
+      const parentLayerId = parent?.parentId || null;
+      const inputs = parentBoundaryTransitions(parent, "input");
+      const outputs = parentBoundaryTransitions(parent, "output");
+      const source = inputs[laneIndex % inputs.length] || outputs[laneIndex % outputs.length] || null;
+      return source ? edgeColor(source, parentLayerId) : "#38bdf8";
+    }
+
+    function layerFlowBoundaryPoint(frame, side, laneIndex) {
+      const laneOffset = laneSlot(laneIndex) * GRID_SIZE;
+      return {
+        x: side === "input" ? snapToGrid(frame.left + GRID_SIZE * 2) : snapToGrid(frame.right - GRID_SIZE * 2),
+        y: snapToGrid(frame.top + frame.height / 2 + laneOffset)
+      };
+    }
+
+    function layerFlowStatePoint(state, side, laneIndex) {
+      const y = snapClampToGrid(
+        state.y + NODE_H / 2 + laneSlot(laneIndex) * GRID_SIZE,
+        state.y + GRID_SIZE,
+        state.y + NODE_H - GRID_SIZE
+      );
+      return {
+        x: side === "input" ? state.x : state.x + nodeWidth(state),
+        y
+      };
+    }
+
+    function appendFlowSegment(points, target) {
+      const start = points[points.length - 1];
+      if (!start) {
+        points.push(target);
+        return;
+      }
+      if (start.x === target.x || start.y === target.y) {
+        points.push(target);
+        return;
+      }
+      const midX = snapToGrid((start.x + target.x) / 2);
+      points.push({ x: midX, y: start.y }, { x: midX, y: target.y }, target);
+    }
+
+    function layerFlowPathPoints(frame, states, laneIndex) {
+      const orderedStates = states
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const points = [layerFlowBoundaryPoint(frame, "input", laneIndex)];
+      for (const state of orderedStates) {
+        appendFlowSegment(points, layerFlowStatePoint(state, "input", laneIndex));
+        appendFlowSegment(points, layerFlowStatePoint(state, "output", laneIndex));
+      }
+      appendFlowSegment(points, layerFlowBoundaryPoint(frame, "output", laneIndex));
+      return compactRoutePoints(points);
+    }
+
+    function layerFlowPlugPoints(frame, states, laneIndex) {
+      const orderedStates = states
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const plugs = [
+        { ...layerFlowBoundaryPoint(frame, "input", laneIndex), type: "input", stateId: "" }
+      ];
+      for (const state of orderedStates) {
+        plugs.push({ ...layerFlowStatePoint(state, "input", laneIndex), type: "state-input", stateId: state.id });
+        plugs.push({ ...layerFlowStatePoint(state, "output", laneIndex), type: "state-output", stateId: state.id });
+      }
+      plugs.push({ ...layerFlowBoundaryPoint(frame, "output", laneIndex), type: "output", stateId: "" });
+      return plugs;
+    }
+
+    function renderLayerFlowWires(states) {
+      const parent = byId(currentLayerId);
+      const frame = parent ? layerFrameBox() : null;
+      if (!parent || !frame) return;
+      const count = layerFlowLaneCount(parent);
+      for (let index = 0; index < count; index++) {
+        const points = layerFlowPathPoints(frame, states, index);
+        const style = `--edge-color: ${layerFlowColor(parent, index)}`;
+        wiresEl.appendChild(svgEl("path", {
+          d: pathFromPoints(points),
+          class: "layer-flow-wire",
+          style,
+          "data-layer-flow": "wire"
+        }));
+        for (const point of layerFlowPlugPoints(frame, states, index)) {
+          wiresEl.appendChild(svgEl("circle", {
+            cx: point.x,
+            cy: point.y,
+            r: point.stateId ? 4 : 5,
+            class: "layer-flow-pin",
+            style,
+            "data-layer-flow": point.type,
+            "data-state-id": point.stateId
+          }));
+        }
+      }
+    }
+
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
       const point = edgePortPoint(state, side, transition);
       const slot = document.createElement("div");
@@ -4449,9 +4585,10 @@
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge,.layer-flow-wire,.layer-flow-pin").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
+      renderLayerFlowWires(states);
 
       for (const t of transitions) {
         if (connecting?.edgeId === t.id) continue;
