@@ -510,24 +510,16 @@
       opacity: .66;
     }
 
-    .layer-flow-wire {
-      fill: none;
-      stroke: var(--edge-color, #38bdf8);
-      stroke-width: 2.4;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-dasharray: 8 7;
-      opacity: .8;
+    #wires .edge.layer-flow-edge {
       pointer-events: none;
-      filter: drop-shadow(0 0 7px color-mix(in srgb, var(--edge-color, #38bdf8) 42%, transparent));
+    }
+
+    #wires .edge-arrow.layer-flow-edge-arrow {
+      pointer-events: none;
     }
 
     .layer-flow-pin {
-      fill: var(--edge-color, #38bdf8);
-      stroke: #07111f;
-      stroke-width: 2;
       pointer-events: none;
-      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--edge-color, #38bdf8) 45%, transparent));
     }
 
     .map.dragging-state #world {
@@ -941,20 +933,11 @@
     }
 
     .layer-flow-slot {
-      position: absolute;
-      z-index: 8;
-      width: 10px;
-      height: 10px;
-      border: 2px solid #06121f;
-      border-radius: 999px;
-      background: var(--edge-color, #38bdf8);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #38bdf8) 22%, transparent);
-      transform: translateY(-50%);
       pointer-events: none;
     }
 
-    .layer-flow-slot-input { left: -5px; }
-    .layer-flow-slot-output { right: -5px; }
+    .layer-flow-slot-input { left: -6px; }
+    .layer-flow-slot-output { right: -6px; }
 
     .preview {
       min-width: 0;
@@ -4627,16 +4610,27 @@
         const style = `--edge-color: ${layerFlowColor(parent, index)}`;
         wiresEl.appendChild(svgEl("path", {
           d: pathFromPoints(points),
-          class: "layer-flow-wire",
+          class: "edge layer-flow-edge",
           style,
-          "data-layer-flow": "wire"
+          "data-layer-flow": "wire",
+          "data-layer-flow-index": String(index)
         }));
+        const arrowD = arrowPathForPoints(points);
+        if (arrowD) {
+          wiresEl.appendChild(svgEl("path", {
+            d: arrowD,
+            class: "edge-arrow layer-flow-edge-arrow",
+            style,
+            "data-layer-flow": "arrow",
+            "data-layer-flow-index": String(index)
+          }));
+        }
         for (const point of layerFlowPlugPoints(frame, states, index)) {
           wiresEl.appendChild(svgEl("circle", {
             cx: point.x,
             cy: point.y,
             r: point.stateId ? 4 : 5,
-            class: "layer-flow-pin",
+            class: "edge-pin layer-flow-pin",
             style,
             "data-layer-flow": point.type,
             "data-state-id": point.stateId
@@ -4678,7 +4672,7 @@
     function addLayerFlowSlot(nodeEl, state, laneIndex, side, parent) {
       const point = layerFlowStatePoint(state, side, laneIndex);
       const slot = document.createElement("div");
-      slot.className = `layer-flow-slot layer-flow-slot-${side}`;
+      slot.className = `port-slot port-slot-${side} layer-flow-slot layer-flow-slot-${side}`;
       slot.style.top = point.y - state.y + "px";
       slot.style.setProperty("--edge-color", layerFlowColor(parent, laneIndex));
       slot.dataset.layerFlowSlot = side === "input" ? "state-input" : "state-output";
@@ -4731,7 +4725,7 @@
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge,.layer-flow-wire,.layer-flow-pin").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
       renderLayerFlowWires(states);

@@ -183,7 +183,7 @@ async function gridGeometryReport(page) {
           input: { x: left, y: top + height / 2 }
         };
       }),
-      paths: [...document.querySelectorAll(".edge")].map(edge => {
+      paths: [...document.querySelectorAll(".edge[data-edge-id]")].map(edge => {
         const d = edge.getAttribute("d") || "";
         const points = pointsFromPath(d);
         const segments = points.slice(1).map((point, index) => {
@@ -221,22 +221,32 @@ async function gridGeometryReport(page) {
           })
         };
       }),
-      layerFlows: [...document.querySelectorAll(".layer-flow-wire")].map(flow => {
+      layerFlows: [...document.querySelectorAll('[data-layer-flow="wire"]')].map(flow => {
         const d = flow.getAttribute("d") || "";
         return {
           d,
+          className: flow.getAttribute("class") || "",
           points: pointsFromPath(d),
-          stroke: getComputedStyle(flow).stroke
+          stroke: getComputedStyle(flow).stroke,
+          strokeDasharray: getComputedStyle(flow).strokeDasharray
         };
       }),
+      layerFlowArrows: [...document.querySelectorAll('[data-layer-flow="arrow"]')].map(arrow => ({
+        className: arrow.getAttribute("class") || "",
+        fill: getComputedStyle(arrow).fill,
+        stroke: getComputedStyle(arrow).stroke,
+        d: arrow.getAttribute("d") || "",
+        points: pointsFromPath(arrow.getAttribute("d") || "")
+      })),
       layerFlowPins: [...document.querySelectorAll(".layer-flow-pin")].map(pin => ({
+        className: pin.getAttribute("class") || "",
         type: pin.dataset.layerFlow,
         stateId: pin.dataset.stateId || "",
         x: Number.parseFloat(pin.getAttribute("cx")),
         y: Number.parseFloat(pin.getAttribute("cy")),
         fill: getComputedStyle(pin).fill
       })),
-      pins: [...document.querySelectorAll(".edge-pin")].map(pin => ({
+      pins: [...document.querySelectorAll(".edge-pin[data-edge-id]")].map(pin => ({
         id: pin.dataset.edgeId,
         side: pin.dataset.edgePin,
         x: Number.parseFloat(pin.getAttribute("cx")),
@@ -272,6 +282,7 @@ async function gridGeometryReport(page) {
         const localY = Number.parseFloat(slot.style.top);
         const type = slot.dataset.layerFlowSlot;
         return {
+          className: slot.className,
           type,
           stateId: slot.dataset.stateId,
           laneIndex: Number.parseInt(slot.dataset.layerFlowIndex, 10),
@@ -282,7 +293,7 @@ async function gridGeometryReport(page) {
           width: Number.parseFloat(node.style.width || nodeStyle.width)
         };
       }),
-      arrows: [...document.querySelectorAll(".edge-arrow")].map(arrow => ({
+      arrows: [...document.querySelectorAll(".edge-arrow[data-edge-id]")].map(arrow => ({
         id: arrow.dataset.edgeId,
         fill: getComputedStyle(arrow).fill,
         stroke: getComputedStyle(arrow).stroke,
@@ -558,6 +569,9 @@ test.describe("State Blueprint tool", () => {
     const childFlow = await gridGeometryReport(page);
     const childNode = childFlow.nodes.find(node => node.id === childId);
     expect(childFlow.layerFlows.length).toBeGreaterThan(0);
+    expect(childFlow.layerFlows.every(flow => flow.className.includes("edge") && flow.className.includes("layer-flow-edge"))).toBe(true);
+    expect(childFlow.layerFlows.every(flow => flow.strokeDasharray === "none")).toBe(true);
+    expect(childFlow.layerFlowArrows.length).toBe(childFlow.layerFlows.length);
     const childInputPin = childFlow.layerFlowPins.find(pin => pin.stateId === childId && pin.type === "state-input");
     const childOutputPin = childFlow.layerFlowPins.find(pin => pin.stateId === childId && pin.type === "state-output");
     const childFlowSlots = childFlow.layerFlowSlots.filter(slot => slot.stateId === childId);
@@ -572,6 +586,10 @@ test.describe("State Blueprint tool", () => {
     expect(childNode.isolation).toBe("isolate");
     expect(childInputSlot).toBeTruthy();
     expect(childOutputSlot).toBeTruthy();
+    expect(childInputPin.className).toContain("edge-pin");
+    expect(childOutputPin.className).toContain("edge-pin");
+    expect(childInputSlot.className).toContain("port-slot");
+    expect(childOutputSlot.className).toContain("port-slot");
     expect({ x: childInputSlot.x, y: childInputSlot.y }).toEqual(childNode.input);
     expect({ x: childOutputSlot.x, y: childOutputSlot.y }).toEqual(childNode.output);
     expect(Math.min(...childFlowSlots.map(slot => slot.zIndex))).toBeGreaterThan(6);
@@ -618,13 +636,24 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerBoundaryInput")).toContainText("from Logged out");
     await expect(page.locator("#layerBoundaryOutput")).toContainText("to Logged in");
     await expect(page.locator("#layerBoundaryOutput")).toContainText("to Error");
+    await expect(page.locator(".layer-flow-wire")).toHaveCount(0);
     const directFlow = await gridGeometryReport(page);
     expect(directFlow.layerFlows).toHaveLength(2);
+    expect(directFlow.layerFlowArrows).toHaveLength(2);
     for (const flow of directFlow.layerFlows) {
+      expect(flow.className).toContain("edge");
+      expect(flow.className).toContain("layer-flow-edge");
+      expect(flow.strokeDasharray).toBe("none");
       expect(flow.points).toHaveLength(2);
       expect(flow.points[0].x).toBeLessThan(flow.points[1].x);
       expect(flow.points[0].y).toBe(flow.points[1].y);
     }
+    for (const arrow of directFlow.layerFlowArrows) {
+      expect(arrow.className).toContain("edge-arrow");
+      expect(arrow.className).toContain("layer-flow-edge-arrow");
+      expect(arrow.points.length).toBeGreaterThan(0);
+    }
+    expect(directFlow.layerFlowPins.every(pin => pin.className.includes("edge-pin"))).toBe(true);
 
     for (const id of wiring.inputIds) {
       const dot = page.locator(`#layerBoundaryInput .layer-boundary-dot[data-edge-id="${id}"]`);
@@ -644,7 +673,7 @@ test.describe("State Blueprint tool", () => {
 
   test("keeps transition wires scoped to the opened state canvas", async ({ page }) => {
     await openTool(page);
-    const rootEdgeCount = await page.locator(".edge").count();
+    const rootEdgeCount = await page.locator(".edge[data-edge-id]").count();
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pAddInside").click();
@@ -663,7 +692,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(".node")).toHaveCount(2);
-    await expect(page.locator(".edge")).toHaveCount(1);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(1);
     const innerEdgeId = await page.evaluate(({ key, from }) => {
       const model = JSON.parse(localStorage.getItem(key));
       return model.transitions.find(transition => transition.from === from)?.id || "";
@@ -672,7 +701,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeHidden();
-    await expect(page.locator(".edge")).toHaveCount(rootEdgeCount);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(rootEdgeCount);
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(0);
 
     await page.locator('[data-id="login"] .node-open').click();
@@ -1978,7 +2007,7 @@ test.describe("State Blueprint tool", () => {
       page.locator('[data-id="login"] .input-port')
     );
 
-    await expect(page.locator(".edge")).toHaveCount(before.transitions.length);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(before.transitions.length);
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2017,7 +2046,7 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.press("Escape");
     await dragTransition(page, output, input, { x: outputCenter.x + 90, y: outputCenter.y - 120 });
 
-    await expect(page.locator(".edge")).toHaveCount(1);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
       return {
@@ -2044,7 +2073,7 @@ test.describe("State Blueprint tool", () => {
     expect(model.states).toHaveLength(1);
     expect(model.transitions).toHaveLength(0);
     await expect(page.locator(".node")).toHaveCount(1);
-    await expect(page.locator(".edge")).toHaveCount(0);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(0);
   });
 
   test("reroutes an existing transition from the arrowhead with Alt-drag", async ({ page }) => {
@@ -2627,7 +2656,7 @@ test.describe("State Blueprint tool", () => {
       window.__stateBlueprintRouteMetrics = {};
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
-    await expect(page.locator(".edge")).toHaveCount(20);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(20);
     await expect(page.locator('[data-id="hub"] .port-slot')).toHaveCount(20);
 
     const hubBox = await visibleBox(page.locator('[data-id="hub"]'));
@@ -2645,7 +2674,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.mouse.up();
     await expect.poll(() => page.evaluate(() => window.__stateBlueprintRouteMetrics.finalRouteBuilds || 0)).toBeGreaterThan(0);
-    await expect(page.locator(".edge")).toHaveCount(20);
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(20);
   });
 
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
