@@ -1139,6 +1139,47 @@ test.describe("State Blueprint tool", () => {
     await assertVisibleInViewport(page, '[data-id="login"]');
   });
 
+  test("keeps state status badges away from the Open node action", async ({ page }) => {
+    await openTool(page);
+
+    const chrome = await page.locator('[data-id="auth_start"]').evaluate(node => {
+      const rectFor = selector => {
+        const el = node.querySelector(selector);
+        const style = el ? getComputedStyle(el) : null;
+        if (!el || style.display === "none") return null;
+        const rect = el.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom
+        };
+      };
+      const overlaps = (a, b) => Boolean(a && b &&
+        a.left < b.right &&
+        a.right > b.left &&
+        a.top < b.bottom &&
+        a.bottom > b.top
+      );
+      const open = rectFor(".node-open");
+      const initial = rectFor(".badge");
+      const live = rectFor(".live-badge");
+      return {
+        open,
+        initial,
+        live,
+        initialOverlapsOpen: overlaps(initial, open),
+        liveOverlapsOpen: overlaps(live, open)
+      };
+    });
+
+    expect(chrome.open).toBeTruthy();
+    expect(chrome.initial).toBeTruthy();
+    expect(chrome.initialOverlapsOpen).toBe(false);
+    expect(chrome.liveOverlapsOpen).toBe(false);
+    expect(chrome.initial.right).toBeLessThan(chrome.open.left);
+  });
+
   test("snaps nodes, ports, and transition paths exactly to the canvas grid", async ({ page }) => {
     await openTool(page);
 

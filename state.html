@@ -796,10 +796,12 @@
       padding: 3px 6px;
       font-weight: 950;
       display: none;
+      z-index: 7;
+      pointer-events: none;
     }
 
-    .badge { top: 8px; color: #04111d; background: var(--ok); }
-    .live-badge { top: 31px; color: #052e16; background: #86efac; }
+    .badge { left: 10px; right: auto; top: -11px; color: #04111d; background: var(--ok); }
+    .live-badge { left: 72px; right: auto; top: -11px; color: #052e16; background: #86efac; }
     .layer-badge { left: 10px; right: auto; bottom: 8px; color: #451a03; background: #fde68a; }
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
