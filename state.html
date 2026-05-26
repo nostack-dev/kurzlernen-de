@@ -1715,6 +1715,7 @@
     const GRID_SIZE = 24;
     const NODE_H = 96;
     const NODE_TITLE_EXTRA_W = 104;
+    const ROUTE_NODE_CLEARANCE = GRID_SIZE / 2;
     const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
     const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
 
@@ -3882,7 +3883,7 @@
       const b = edgePortPoint(to, "in", transition);
       if (a.y !== b.y || b.x <= a.x) return null;
       const direct = [a, b];
-      return routeIntersectsBlockingState(direct, transition || { from: from.id, to: to.id }, GRID_SIZE / 2) ? null : direct;
+      return routeIsClear(direct, transition || { from: from.id, to: to.id }) ? direct : null;
     }
 
     function forwardBendRoutePoints(from, to, transition = null) {
@@ -3899,7 +3900,7 @@
         { x: midX, y: b.y },
         b
       ]);
-      return routeIntersectsBlockingState(route, transition || { from: from.id, to: to.id }, GRID_SIZE / 2) ? null : route;
+      return routeIsClear(route, transition || { from: from.id, to: to.id }) ? route : null;
     }
 
     function segmentIntersectsBox(a, b, box) {
@@ -3940,6 +3941,10 @@
       return false;
     }
 
+    function routeIsClear(points, transition, margin = ROUTE_NODE_CLEARANCE) {
+      return !routeIntersectsBlockingState(points, transition, margin);
+    }
+
     function pointInBox(point, box) {
       return point.x > box.x1 && point.x < box.x2 && point.y > box.y1 && point.y < box.y2;
     }
@@ -3963,6 +3968,7 @@
     function obstacleAvoidingRoutePoints(from, to, transition = null) {
       const start = snapPointToGrid(edgePortPoint(from, "out", transition));
       const goal = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const routeTransition = transition || { from: from.id, to: to.id };
       const bounds = routeSearchBounds(start, goal);
       const obstacles = visibleStates().map(state =>
         stateBox(state, state.id === from.id || state.id === to.id ? 0 : GRID_SIZE)
@@ -3997,7 +4003,8 @@
             path.unshift(previous);
             walkKey = key(previous);
           }
-          return compactRoutePoints(path);
+          const routed = compactRoutePoints(path);
+          return routeIsClear(routed, routeTransition) ? routed : null;
         }
         closed.add(currentKey);
         const neighbors = [
@@ -4023,12 +4030,13 @@
     }
 
     function baseEdgeRoutePoints(from, to, transition = null) {
+      const routeTransition = transition || { from: from.id, to: to.id };
       const direct = directRoutePoints(from, to, transition);
       if (direct) return direct;
       const forwardBend = forwardBendRoutePoints(from, to, transition);
       if (forwardBend) return forwardBend;
       const dogleg = doglegRoutePoints(from, to, transition);
-      if (!routeIntersectsBlockingState(dogleg, transition || { from: from.id, to: to.id })) return dogleg;
+      if (routeIsClear(dogleg, routeTransition)) return dogleg;
       return obstacleAvoidingRoutePoints(from, to, transition) || dogleg;
     }
 
@@ -4130,7 +4138,7 @@
       for (let attempt = 0; attempt < 12; attempt++) {
         const coordinate = segment.coordinate + laneSlot(slotIndex + attempt) * GRID_SIZE;
         const candidate = applySegmentLane(points, segment, coordinate);
-        if (!routeIntersectsBlockingState(candidate, transition, GRID_SIZE / 2)) return coordinate;
+        if (routeIsClear(candidate, transition)) return coordinate;
       }
       return segment.coordinate + laneSlot(slotIndex) * GRID_SIZE;
     }
@@ -4161,7 +4169,7 @@
       }
       for (const [id, points] of current) {
         const transition = model.transitions.find(item => item.id === id);
-        if (!transition || !routeIntersectsBlockingState(points, transition)) continue;
+        if (!transition || routeIsClear(points, transition)) continue;
         const from = byId(transition.from);
         const to = byId(transition.to);
         const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition) : null;

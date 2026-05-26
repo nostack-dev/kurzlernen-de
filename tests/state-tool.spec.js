@@ -237,11 +237,11 @@ async function gridGeometryReport(page) {
   }, GRID_SIZE);
 }
 
-function segmentIntersectsNode(segment, node) {
-  const x1 = node.left;
-  const x2 = node.left + node.width;
-  const y1 = node.top;
-  const y2 = node.top + node.height;
+function segmentIntersectsNode(segment, node, margin = 0) {
+  const x1 = node.left - margin;
+  const x2 = node.left + node.width + margin;
+  const y1 = node.top - margin;
+  const y2 = node.top + node.height + margin;
   if (segment.orientation === "horizontal") {
     return segment.coordinate > y1 &&
       segment.coordinate < y2 &&
@@ -1335,12 +1335,51 @@ test.describe("State Blueprint tool", () => {
 
     for (const node of report.nodes.filter(item => item.id !== transition.from && item.id !== transition.to)) {
       for (const segment of route.segments) {
-        expect(segmentIntersectsNode(segment, node)).toBe(false);
+        expect(segmentIntersectsNode(segment, node, GRID_SIZE / 2)).toBe(false);
       }
     }
 
     const bypassesObstacle = route.points.some(point => point.y < obstacle.top || point.y > obstacle.top + obstacle.height);
     expect(bypassesObstacle).toBe(true);
+  });
+
+  test("keeps transition cables clear of nearby state bounding boxes", async ({ page }) => {
+    const clearanceModel = {
+      version: 2,
+      name: "Clearance routing",
+      initial: "left",
+      states: [
+        { id: "left", title: "Left", body: "", x: 96, y: 96 },
+        { id: "middle", title: "Middle obstacle", body: "", x: 384, y: 240 },
+        { id: "right", title: "Right", body: "", x: 696, y: 288 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Avoid box", condition: "" }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+    }, { key: STORAGE_KEY, model: clearanceModel });
+    await page.goto("/state.html");
+    await expect(page.locator(".node")).toHaveCount(3);
+
+    const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
+    const transition = model.transitions.find(item => item.id === "left_to_right");
+    const route = report.paths.find(path => path.id === "left_to_right");
+    const obstacle = report.nodes.find(node => node.id === "middle");
+
+    expect(route).toBeTruthy();
+    expect(obstacle).toBeTruthy();
+    expect(route.allSegmentsOrthogonal).toBe(true);
+    for (const segment of route.segments) {
+      expect(segmentIntersectsNode(segment, obstacle, GRID_SIZE / 2)).toBe(false);
+    }
+    expect(route.points.some(point => point.y < obstacle.top - GRID_SIZE / 2 || point.y > obstacle.top + obstacle.height + GRID_SIZE / 2)).toBe(true);
+    expect(transition).toBeTruthy();
   });
 
   test("uses tool undo and redo even when an editor input is focused", async ({ page }) => {
