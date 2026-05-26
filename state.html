@@ -1691,6 +1691,8 @@
     const GRID_SIZE = 24;
     const NODE_H = 96;
     const NODE_TITLE_EXTRA_W = 104;
+    const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
+    const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
 
     const workspaceEl = document.getElementById("workspace");
     const stateInspectorEl = document.getElementById("stateInspector");
@@ -3242,7 +3244,8 @@
       if (!pinchZoom || touchPointers.size < 2) return false;
       const distance = distanceBetweenTouches();
       if (!distance) return false;
-      zoomAtViewportCenter(pinchZoom.scale * (distance / pinchZoom.distance));
+      const ratio = distance / pinchZoom.distance;
+      zoomAtViewportCenter(pinchZoom.scale * Math.pow(ratio, TOUCH_PINCH_ZOOM_RESPONSE));
       return true;
     }
 
@@ -3598,7 +3601,7 @@
 
     function wheelZoomFactor(evt) {
       const deltaY = clamp(wheelDeltaPixels(evt), -640, 640);
-      return Math.pow(2, -deltaY / 420);
+      return Math.pow(2, -deltaY / WHEEL_ZOOM_PIXEL_DENOMINATOR);
     }
 
     function zoomAtClientPoint(clientX, clientY, nextScale) {

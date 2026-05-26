@@ -2028,8 +2028,52 @@ test.describe("State Blueprint tool", () => {
       }
     }, anchor);
 
-    await expect.poll(() => worldScale(page)).toBeGreaterThanOrEqual(scaleBefore * 1.02);
+    await expect.poll(() => worldScale(page)).toBeGreaterThanOrEqual(scaleBefore * 1.06);
     expect(await worldTransform(page)).not.toBe(before);
+  });
+
+  test("zooms desktop touch pinches responsively on the canvas", async ({ page }) => {
+    await openTool(page);
+    const mapBox = await page.locator("#map").boundingBox();
+    const center = {
+      x: mapBox.x + mapBox.width / 2,
+      y: mapBox.y + mapBox.height / 2
+    };
+    const scaleBefore = await worldScale(page);
+
+    await page.locator("#map").evaluate((map, point) => {
+      const fireOnMap = (type, pointerId, x, y) => {
+        map.dispatchEvent(new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "touch",
+          pointerId,
+          clientX: x,
+          clientY: y,
+          buttons: type === "pointerup" ? 0 : 1
+        }));
+      };
+      const fireOnWindow = (type, pointerId, x, y) => {
+        window.dispatchEvent(new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "touch",
+          pointerId,
+          clientX: x,
+          clientY: y,
+          buttons: type === "pointerup" ? 0 : 1
+        }));
+      };
+
+      fireOnMap("pointerdown", 31, point.x - 60, point.y);
+      fireOnMap("pointerdown", 32, point.x + 60, point.y);
+      fireOnWindow("pointermove", 31, point.x - 90, point.y);
+      fireOnWindow("pointermove", 32, point.x + 90, point.y);
+      fireOnWindow("pointerup", 31, point.x - 90, point.y);
+      fireOnWindow("pointerup", 32, point.x + 90, point.y);
+    }, center);
+
+    await expect.poll(() => worldScale(page)).toBeGreaterThanOrEqual(scaleBefore * 1.55);
   });
 
   test("empty-canvas drag pans immediately; long-press enables rectangle select", async ({ page }) => {
