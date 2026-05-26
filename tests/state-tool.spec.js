@@ -809,6 +809,7 @@ test.describe("State Blueprint tool", () => {
   test("persists every state component field across reopening and renders them in the app", async ({ page }) => {
     await openTool(page);
     const imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=";
+    const soundUrl = "https://example.com/{{userName}}/notify.mp3";
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pData").fill('{"userName":"Ada"}');
@@ -840,6 +841,10 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Link").locator("input").nth(0).fill("Docs for {{userName}}");
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/{{userName}}/docs");
 
+    await addComponentState(page, "Play sound");
+    await componentEditor(page, "Play sound").locator("input").nth(0).fill("Sound alert for {{userName}}");
+    await componentEditor(page, "Play sound").locator("input").nth(1).fill(soundUrl);
+
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Note survives for {{userName}}");
 
@@ -859,6 +864,7 @@ test.describe("State Blueprint tool", () => {
       { title: "Image", type: "image", text: "Chart for {{userName}}", url: imageUrl },
       { title: "List", type: "list", text: "First step for {{userName}}\nSecond step\nThird persisted step", url: "" },
       { title: "Link", type: "link", text: "Docs for {{userName}}", url: "https://example.com/{{userName}}/docs" },
+      { title: "Play sound", type: "sound", text: "Sound alert for {{userName}}", url: soundUrl },
       { title: "Note", type: "note", text: "Note survives for {{userName}}", url: "" },
       { title: "Divider", type: "divider", text: "", url: "" }
     ]);
@@ -882,6 +888,9 @@ test.describe("State Blueprint tool", () => {
     await nodeByTitle(page, "Link").click();
     await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for {{userName}}");
     await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/{{userName}}/docs");
+    await nodeByTitle(page, "Play sound").click();
+    await expect(componentEditor(page, "Play sound").locator("input").nth(0)).toHaveValue("Sound alert for {{userName}}");
+    await expect(componentEditor(page, "Play sound").locator("input").nth(1)).toHaveValue(soundUrl);
     await nodeByTitle(page, "Note").click();
     await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for {{userName}}");
     await nodeByTitle(page, "Divider").click();
@@ -899,6 +908,8 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByText("Second step")).toBeVisible();
     await expect(app.getByText("Third persisted step")).toBeVisible();
     await expect(app.getByRole("link", { name: "Docs for Ada" })).toHaveAttribute("href", "https://example.com/Ada/docs");
+    await expect(app.locator(".component-sound-label")).toHaveText("Sound alert for Ada");
+    await expect(app.locator("audio.component-sound-player")).toHaveAttribute("src", "https://example.com/Ada/notify.mp3");
     await expect(app.getByText("Note survives for Ada")).toBeVisible();
     await expect(app.locator('[role="separator"]')).toHaveCount(1);
   });
@@ -1707,6 +1718,94 @@ test.describe("State Blueprint tool", () => {
 
     await expect(app.locator("#statePill")).toHaveText("logged_in");
     await expect(app.getByRole("heading", { name: "Logged in" })).toBeVisible();
+  });
+
+  test("adds while as a normal conditional self-loop preset", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "While loop");
+
+    const model = await savedModel(page);
+    const loop = model.states.find(state => state.title === "While loop");
+    expect(loop).toBeTruthy();
+    expect(loop.data).toEqual({ fetched: false });
+    expect(loop.components[0]).toMatchObject({
+      type: "note",
+      text: "Repeat this state while fetched is false. Add an exit transition with condition fetched."
+    });
+
+    const loopTransitions = model.transitions.filter(transition => transition.from === loop.id && transition.to === loop.id);
+    expect(loopTransitions).toHaveLength(1);
+    expect(loopTransitions[0]).toMatchObject({
+      label: "while !fetched",
+      condition: "!fetched",
+      set: {}
+    });
+
+    await expect(page.locator(`.edge[data-edge-id="${loopTransitions[0].id}"]`)).toBeVisible();
+    await page.locator(`[data-id="${loop.id}"]`).click();
+    await expect(appFrame(page).locator("#statePill")).toHaveText(loop.id);
+  });
+
+  test("runs while loops as conditional self-transitions with a normal exit", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Polling loop",
+      initial: "poll",
+      states: [
+        {
+          id: "poll",
+          title: "Fetch data",
+          body: "",
+          x: 120,
+          y: 140,
+          data: { fetched: false },
+          components: [{ id: "poll_note", type: "note", text: "Waiting for data", url: "" }]
+        },
+        {
+          id: "ready",
+          title: "Ready",
+          body: "",
+          x: 480,
+          y: 140,
+          data: {},
+          components: [{ id: "ready_text", type: "text", text: "Data arrived", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "repeat", from: "poll", to: "poll", label: "while !fetched", condition: "!fetched", set: {} },
+        { id: "done", from: "poll", to: "ready", label: "done", condition: "fetched", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="poll"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("poll");
+    await expect(app.getByText("Waiting for data")).toBeVisible();
+    await expect(app.locator(".field").filter({ hasText: "fetched" }).locator(".switch-value")).toHaveText("Off");
+
+    await app.getByRole("button", { name: "while !fetched" }).click();
+    await expect(app.locator("#statePill")).toHaveText("poll");
+
+    await app.locator(".field").filter({ hasText: "fetched" }).locator(".switch").click();
+    await expect(app.locator(".field").filter({ hasText: "fetched" }).locator(".switch-value")).toHaveText("On");
+
+    await app.getByRole("button", { name: "while !fetched" }).click();
+    await expect(app.locator(".action.invalid").filter({ hasText: "while !fetched" }).locator(".condition-feedback"))
+      .toContainText("Condition not met");
+    await expect(app.locator("#statePill")).toHaveText("poll");
+
+    await app.getByRole("button", { name: "done" }).click();
+    await expect(app.locator("#statePill")).toHaveText("ready");
+    await expect(app.getByText("Data arrived")).toBeVisible();
   });
 
   test("selecting a state starts preview and keeps runtime tab order and Enter submit usable", async ({ page }) => {
