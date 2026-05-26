@@ -1348,6 +1348,10 @@
       font-size: 13px;
     }
 
+    .mobile-tabs {
+      display: none;
+    }
+
     @media (max-width: 1100px) {
       .workspace { grid-template-columns: minmax(260px, 34vw) minmax(0, 1fr); grid-template-rows: 1fr 45vh; }
       .workspace.preview-collapsed { grid-template-columns: minmax(260px, 34vw) minmax(0, 1fr); grid-template-rows: 1fr 42px; }
@@ -1365,7 +1369,7 @@
 
     @media (max-width: 720px) {
       body {
-        grid-template-rows: auto 1fr;
+        grid-template-rows: auto minmax(0, 1fr) auto;
       }
 
       .topbar {
@@ -1392,25 +1396,39 @@
       }
 
       .workspace {
+        position: relative;
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(190px, 28dvh) minmax(0, 1fr) minmax(230px, 38dvh);
+        grid-template-rows: minmax(0, 1fr);
       }
 
-      .workspace.preview-collapsed {
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(190px, 28dvh) minmax(0, 1fr) 48px;
-      }
-
+      .workspace.preview-collapsed,
       .workspace.inspector-collapsed,
       .workspace.inspector-collapsed.preview-collapsed {
         grid-template-columns: 1fr;
-        grid-template-rows: 48px minmax(0, 1fr) minmax(230px, 38dvh);
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .inspector,
+      .map,
+      .preview {
+        grid-column: 1;
+        grid-row: 1;
+        min-height: 0;
+      }
+
+      .workspace.mobile-canvas-active .inspector,
+      .workspace.mobile-canvas-active .preview,
+      .workspace.mobile-edit-active .map,
+      .workspace.mobile-edit-active .preview,
+      .workspace.mobile-app-active .inspector,
+      .workspace.mobile-app-active .map {
+        display: none;
       }
 
       .inspector {
         grid-template-rows: 48px minmax(0, 1fr);
         border-right: 0;
-        border-bottom: 1px solid #18314d;
+        border-bottom: 0;
       }
 
       .inspector-title {
@@ -1419,11 +1437,10 @@
       }
 
       .preview {
-        grid-template-rows: 48px 1fr;
-      }
-
-      .preview {
-        grid-column: auto;
+        grid-template-rows: 48px minmax(0, 1fr);
+        grid-column: 1;
+        border-left: 0;
+        border-top: 0;
       }
 
       .preview-title {
@@ -1434,6 +1451,51 @@
       .preview-toggle {
         width: 40px;
         height: 40px;
+      }
+
+      .workspace.preview-collapsed .preview,
+      .workspace.inspector-collapsed .inspector {
+        grid-template-rows: 48px minmax(0, 1fr);
+      }
+
+      .workspace.preview-collapsed iframe,
+      .workspace.inspector-collapsed .inspector-body {
+        display: block;
+      }
+
+      .workspace.inspector-collapsed .inspector-title-text,
+      .workspace.preview-collapsed .preview-title-text,
+      .workspace.preview-collapsed #syncState {
+        display: inline;
+      }
+
+      .workspace.preview-collapsed .preview-title-actions {
+        flex-direction: row;
+        align-items: center;
+      }
+
+      .mobile-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        padding: 8px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+        border-top: 1px solid #18314d;
+        background: rgba(5,11,20,.96);
+      }
+
+      .mobile-tabs button {
+        min-width: 0;
+        min-height: 44px;
+        border-radius: 14px;
+        color: #bfdbfe;
+        background: #0a1728;
+      }
+
+      .mobile-tabs button.active {
+        border-color: var(--accent);
+        color: #04111d;
+        background: linear-gradient(135deg, #7dd3fc, var(--accent));
+        box-shadow: 0 0 0 3px rgba(56,189,248,.16);
       }
 
       .node {
@@ -1545,8 +1607,6 @@
       <div id="stateInspectorBody" class="inspector-body state-editor-root">
         <div class="inspector-empty">
           <strong>No state selected</strong>
-          <span>Click a state to edit it here. Shift-click keeps building a multi-selection.</span>
-          <span>Drag a state into the bottom explorer to save it as a reusable preset.</span>
         </div>
       </div>
     </aside>
@@ -1603,6 +1663,11 @@
       <iframe id="appFrame" title="Generated App"></iframe>
     </aside>
   </div>
+  <nav id="mobileTabs" class="mobile-tabs" aria-label="Mobile workspace views">
+    <button type="button" data-mobile-view="canvas" class="active" aria-pressed="true">Canvas</button>
+    <button type="button" data-mobile-view="edit" aria-pressed="false">Edit</button>
+    <button type="button" data-mobile-view="app" aria-pressed="false">App</button>
+  </nav>
 
   <script>
     const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
@@ -1662,6 +1727,7 @@
     const modalMessageEl = document.getElementById("modalMessage");
     const modalCancelEl = document.getElementById("modalCancel");
     const modalConfirmEl = document.getElementById("modalConfirm");
+    const mobileTabEls = [...document.querySelectorAll("[data-mobile-view]")];
 
     let appWindow = null;
     let selected = null;
@@ -1682,6 +1748,7 @@
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     let previewCollapsed = loadPreviewCollapsed();
     let inspectorCollapsed = false;
+    let mobileWorkspaceView = "canvas";
     let stateExplorerCollapsed = false;
     let stateTemplates = loadStateTemplates();
     let stateTemplateDrag = null;
@@ -1947,6 +2014,35 @@
       saveEditorState(historyKey, false);
     }
 
+    function applyMobileWorkspaceView() {
+      workspaceEl.classList.toggle("mobile-canvas-active", mobileWorkspaceView === "canvas");
+      workspaceEl.classList.toggle("mobile-edit-active", mobileWorkspaceView === "edit");
+      workspaceEl.classList.toggle("mobile-app-active", mobileWorkspaceView === "app");
+      mobileTabEls.forEach(button => {
+        const active = button.dataset.mobileView === mobileWorkspaceView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      requestAnimationFrame(() => {
+        applyCamera();
+        draw();
+      });
+    }
+
+    function setMobileWorkspaceView(view) {
+      if (!["canvas", "edit", "app"].includes(view)) return;
+      mobileWorkspaceView = view;
+      if (view === "edit" && inspectorCollapsed) {
+        inspectorCollapsed = false;
+        applyInspectorCollapsed();
+      }
+      if (view === "app" && previewCollapsed) {
+        previewCollapsed = false;
+        applyPreviewCollapsed();
+      }
+      applyMobileWorkspaceView();
+    }
+
     function normalizeStateTemplates(value) {
       return (Array.isArray(value) ? value : [])
         .filter(item => item && typeof item === "object")
@@ -1995,6 +2091,9 @@
 
     function revealInspectorForProperties(opts = {}) {
       const forceOpen = opts.forceOpen === true;
+      if (forceOpen && window.matchMedia("(max-width: 720px)").matches) {
+        setMobileWorkspaceView("edit");
+      }
       if (!inspectorCollapsed || forceOpen) {
         if (inspectorCollapsed) {
           inspectorCollapsed = false;
@@ -4666,9 +4765,6 @@
       stateInspectorBodyEl.innerHTML = `
         <div class="inspector-empty">
           <strong>No state selected</strong>
-          <span>Click a state or transition in this canvas to edit it here. Shift-click keeps building a multi-selection.</span>
-          <span>Open a state from its node. Use Back on the canvas frame to return.</span>
-          <span>Drag a state into the bottom explorer to save it as a reusable preset.</span>
         </div>
       `;
       if (wasEditingTemplate) renderStateExplorer();
@@ -5841,6 +5937,9 @@
     btnTogglePreview.onclick = () => {
       togglePreviewCollapsed();
     };
+    mobileTabEls.forEach(button => {
+      button.onclick = () => setMobileWorkspaceView(button.dataset.mobileView);
+    });
     btnToggleStateExplorer.onclick = () => {
       stateExplorerCollapsed = !stateExplorerCollapsed;
       applyStateExplorerCollapsed();
@@ -5894,6 +5993,7 @@
     initHistory();
     applyPreviewCollapsed();
     applyInspectorCollapsed();
+    applyMobileWorkspaceView();
     applyStateExplorerCollapsed();
     renderStateExplorer();
     persistStateTemplates();

@@ -1762,10 +1762,49 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"] .node-edit').tap();
     await expect(page.locator("#pTitle")).toBeVisible();
+    await page.locator('[data-mobile-view="canvas"]').tap();
     const point = await emptyCanvasPoint(page);
     await page.touchscreen.tap(point.x, point.y);
     await expect(page.locator("#pTitle")).toHaveCount(0);
     await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await context.close();
+  });
+
+  test("switches mobile workspace between canvas, edit, and app with bottom tabs", async ({ browser }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:8124",
+      viewport: { width: 390, height: 820 },
+      hasTouch: true,
+      isMobile: true
+    });
+    const page = await context.newPage();
+    await openTool(page);
+
+    await expect(page.locator("#mobileTabs")).toBeVisible();
+    await expect(page.locator("#map")).toBeVisible();
+    await expect(page.locator("#stateInspector")).toBeHidden();
+    await expect(page.locator(".preview")).toBeHidden();
+    await expect(page.locator("#stateInspectorBody")).not.toContainText("Click a state");
+    await expect(page.locator("#stateInspectorBody")).not.toContainText("Drag a state");
+
+    await page.locator('[data-mobile-view="edit"]').tap();
+    await expect(page.locator("#stateInspector")).toBeVisible();
+    await expect(page.locator("#map")).toBeHidden();
+    await expect(page.locator(".preview")).toBeHidden();
+    await expect(page.locator('[data-mobile-view="edit"]')).toHaveClass(/active/);
+
+    await page.locator('[data-mobile-view="app"]').tap();
+    await expect(page.locator(".preview")).toBeVisible();
+    await expect(page.locator("#stateInspector")).toBeHidden();
+    await expect(page.locator("#map")).toBeHidden();
+    await expect(page.locator('[data-mobile-view="app"]')).toHaveClass(/active/);
+
+    await page.locator('[data-mobile-view="canvas"]').tap();
+    await page.locator('[data-id="login"] .node-edit').tap();
+    await expect(page.locator("#stateInspector")).toBeVisible();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect(page.locator('[data-mobile-view="edit"]')).toHaveClass(/active/);
+
     await context.close();
   });
 
