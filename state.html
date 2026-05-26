@@ -674,6 +674,8 @@
       cursor: grab;
       user-select: none;
       pointer-events: auto;
+      overflow: visible;
+      isolation: isolate;
       -webkit-font-smoothing: auto;
       text-rendering: optimizeLegibility;
     }
@@ -806,6 +808,7 @@
 
     .port {
       position: absolute;
+      z-index: 6;
       width: 16px;
       height: 16px;
       border-radius: 999px;
@@ -821,6 +824,7 @@
 
     .input-port {
       position: absolute;
+      z-index: 6;
       width: 12px;
       height: 12px;
       border-radius: 999px;
@@ -870,7 +874,7 @@
 
     .port-slot {
       position: absolute;
-      z-index: 4;
+      z-index: 9;
       width: 12px;
       height: 12px;
       border: 2px solid #06121f;
@@ -878,12 +882,14 @@
       background: var(--edge-color, #5f8dbc);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #5f8dbc) 22%, transparent);
       transform: translateY(-50%);
+      pointer-events: none;
     }
 
     .port-slot-output {
       right: -6px;
       cursor: cell;
       touch-action: none;
+      pointer-events: auto;
     }
 
     .port-slot-input {
@@ -901,6 +907,22 @@
       height: 14px;
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--edge-color, #5f8dbc) 30%, transparent), 0 0 14px var(--edge-color, #5f8dbc);
     }
+
+    .layer-flow-slot {
+      position: absolute;
+      z-index: 8;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #06121f;
+      border-radius: 999px;
+      background: var(--edge-color, #38bdf8);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #38bdf8) 22%, transparent);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .layer-flow-slot-input { left: -5px; }
+    .layer-flow-slot-output { right: -5px; }
 
     .preview {
       min-width: 0;
@@ -4545,6 +4567,18 @@
       nodeEl.appendChild(slot);
     }
 
+    function addLayerFlowSlot(nodeEl, state, laneIndex, side, parent) {
+      const point = layerFlowStatePoint(state, side, laneIndex);
+      const slot = document.createElement("div");
+      slot.className = `layer-flow-slot layer-flow-slot-${side}`;
+      slot.style.top = point.y - state.y + "px";
+      slot.style.setProperty("--edge-color", layerFlowColor(parent, laneIndex));
+      slot.dataset.layerFlowSlot = side === "input" ? "state-input" : "state-output";
+      slot.dataset.layerFlowIndex = String(laneIndex);
+      slot.dataset.stateId = state.id;
+      nodeEl.appendChild(slot);
+    }
+
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
       if (!parent) {
@@ -4582,6 +4616,8 @@
       renderLayerNavigation();
       updateLayerFrame(states);
       edgeRouteCache = buildEdgeRouteCache();
+      const layerParent = byId(currentLayerId);
+      const layerFlowCount = layerParent ? layerFlowLaneCount(layerParent) : 0;
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
       nodesEl.innerHTML = "";
@@ -4819,6 +4855,10 @@
           startConnection(evt, s);
         });
 
+        for (let index = 0; index < layerFlowCount; index++) {
+          addLayerFlowSlot(el, s, index, "input", layerParent);
+          addLayerFlowSlot(el, s, index, "output", layerParent);
+        }
         for (const transition of orderedPortTransitions(s.id, "in")) {
           addPortSlot(el, s, transition, "in", edgeSelection);
         }

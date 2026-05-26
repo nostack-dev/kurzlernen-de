@@ -177,6 +177,8 @@ async function gridGeometryReport(page) {
           top,
           width,
           height,
+          overflow: style.overflow,
+          isolation: style.isolation,
           output: { x: left + width, y: top + height / 2 },
           input: { x: left, y: top + height / 2 }
         };
@@ -257,6 +259,26 @@ async function gridGeometryReport(page) {
           x: side === "out" ? left + width : left,
           y: top + localY,
           fill: getComputedStyle(slot).backgroundColor,
+          zIndex: Number.parseInt(getComputedStyle(slot).zIndex, 10) || 0,
+          width: Number.parseFloat(node.style.width || nodeStyle.width)
+        };
+      }),
+      layerFlowSlots: [...document.querySelectorAll(".layer-flow-slot")].map(slot => {
+        const node = slot.closest(".node");
+        const nodeStyle = getComputedStyle(node);
+        const left = Number.parseFloat(node.style.left);
+        const top = Number.parseFloat(node.style.top);
+        const width = Number.parseFloat(node.style.width);
+        const localY = Number.parseFloat(slot.style.top);
+        const type = slot.dataset.layerFlowSlot;
+        return {
+          type,
+          stateId: slot.dataset.stateId,
+          laneIndex: Number.parseInt(slot.dataset.layerFlowIndex, 10),
+          x: type === "state-output" ? left + width : left,
+          y: top + localY,
+          fill: getComputedStyle(slot).backgroundColor,
+          zIndex: Number.parseInt(getComputedStyle(slot).zIndex, 10) || 0,
           width: Number.parseFloat(node.style.width || nodeStyle.width)
         };
       }),
@@ -537,10 +559,21 @@ test.describe("State Blueprint tool", () => {
     expect(childFlow.layerFlows.length).toBeGreaterThan(0);
     const childInputPin = childFlow.layerFlowPins.find(pin => pin.stateId === childId && pin.type === "state-input");
     const childOutputPin = childFlow.layerFlowPins.find(pin => pin.stateId === childId && pin.type === "state-output");
+    const childFlowSlots = childFlow.layerFlowSlots.filter(slot => slot.stateId === childId);
+    const childInputSlot = childFlowSlots.find(slot => slot.type === "state-input" && slot.laneIndex === 0);
+    const childOutputSlot = childFlowSlots.find(slot => slot.type === "state-output" && slot.laneIndex === 0);
     expect(childInputPin).toBeTruthy();
     expect(childOutputPin).toBeTruthy();
     expect({ x: childInputPin.x, y: childInputPin.y }).toEqual(childNode.input);
     expect({ x: childOutputPin.x, y: childOutputPin.y }).toEqual(childNode.output);
+    expect(childFlowSlots).toHaveLength(4);
+    expect(childNode.overflow).toBe("visible");
+    expect(childNode.isolation).toBe("isolate");
+    expect(childInputSlot).toBeTruthy();
+    expect(childOutputSlot).toBeTruthy();
+    expect({ x: childInputSlot.x, y: childInputSlot.y }).toEqual(childNode.input);
+    expect({ x: childOutputSlot.x, y: childOutputSlot.y }).toEqual(childNode.output);
+    expect(Math.min(...childFlowSlots.map(slot => slot.zIndex))).toBeGreaterThan(6);
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeHidden();
@@ -1198,6 +1231,7 @@ test.describe("State Blueprint tool", () => {
     const authStartOutputSlots = report.portSlots.filter(slot => slot.nodeId === "auth_start" && slot.side === "out");
     expect(authStartOutputSlots).toHaveLength(2);
     expect(new Set(authStartOutputSlots.map(slot => slot.y)).size).toBe(2);
+    expect(Math.min(...authStartOutputSlots.map(slot => slot.zIndex))).toBeGreaterThan(8);
     for (const path of [startLogin, startRegister]) {
       const slot = authStartOutputSlots.find(item => item.id === path.id);
       expect(slot).toBeTruthy();
@@ -1212,6 +1246,7 @@ test.describe("State Blueprint tool", () => {
     const loggedInInputSlots = report.portSlots.filter(slot => slot.nodeId === "logged_in" && slot.side === "in");
     expect(loggedInInputSlots).toHaveLength(2);
     expect(new Set(loggedInInputSlots.map(slot => slot.y)).size).toBe(2);
+    expect(Math.min(...loggedInInputSlots.map(slot => slot.zIndex))).toBeGreaterThan(8);
     for (const path of [loginSuccess, registerSuccess]) {
       const slot = loggedInInputSlots.find(item => item.id === path.id);
       expect(slot).toBeTruthy();
