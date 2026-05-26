@@ -3048,6 +3048,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".zoom-controls")).toHaveCount(0);
     await assertVisibleInViewport(page, "#stateExplorer");
     await assertVisibleInViewport(page, "#btnToggleStateExplorer");
+    await expect(page.locator("#stateExplorerList")).toHaveCSS("scrollbar-color", "rgb(49, 95, 140) rgb(7, 19, 33)");
+    await expect(page.locator("#stateExplorerList")).toHaveCSS("scrollbar-width", "thin");
 
     await page.locator("#btnToggleStateExplorer").click();
     await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
