@@ -227,6 +227,24 @@ async function gridGeometryReport(page) {
         fill: getComputedStyle(pin).fill,
         stroke: getComputedStyle(pin).stroke
       })),
+      portSlots: [...document.querySelectorAll(".port-slot")].map(slot => {
+        const node = slot.closest(".node");
+        const nodeStyle = getComputedStyle(node);
+        const left = Number.parseFloat(node.style.left);
+        const top = Number.parseFloat(node.style.top);
+        const width = Number.parseFloat(node.style.width);
+        const localY = Number.parseFloat(slot.style.top);
+        const side = slot.dataset.portSlot;
+        return {
+          id: slot.dataset.edgeId,
+          nodeId: node.dataset.id,
+          side,
+          x: side === "out" ? left + width : left,
+          y: top + localY,
+          fill: getComputedStyle(slot).backgroundColor,
+          width: Number.parseFloat(node.style.width || nodeStyle.width)
+        };
+      }),
       arrows: [...document.querySelectorAll(".edge-arrow")].map(arrow => ({
         id: arrow.dataset.edgeId,
         fill: getComputedStyle(arrow).fill,
@@ -1146,11 +1164,29 @@ test.describe("State Blueprint tool", () => {
     expect(startLogin.points[0].x).toBe(startRegister.points[0].x);
     expect(startLogin.points[0].y).not.toBe(startRegister.points[0].y);
     expect(startLogin.points[1].y).not.toBe(startRegister.points[1].y);
+    const authStartOutputSlots = report.portSlots.filter(slot => slot.nodeId === "auth_start" && slot.side === "out");
+    expect(authStartOutputSlots).toHaveLength(2);
+    expect(new Set(authStartOutputSlots.map(slot => slot.y)).size).toBe(2);
+    for (const path of [startLogin, startRegister]) {
+      const slot = authStartOutputSlots.find(item => item.id === path.id);
+      expect(slot).toBeTruthy();
+      expect({ x: slot.x, y: slot.y }).toEqual(path.points[0]);
+      expect(slot.fill).toBe(path.stroke);
+    }
 
     const loginEnd = loginSuccess.points.at(-1);
     const registerEnd = registerSuccess.points.at(-1);
     expect(loginEnd.x).toBe(registerEnd.x);
     expect(loginEnd.y).not.toBe(registerEnd.y);
+    const loggedInInputSlots = report.portSlots.filter(slot => slot.nodeId === "logged_in" && slot.side === "in");
+    expect(loggedInInputSlots).toHaveLength(2);
+    expect(new Set(loggedInInputSlots.map(slot => slot.y)).size).toBe(2);
+    for (const path of [loginSuccess, registerSuccess]) {
+      const slot = loggedInInputSlots.find(item => item.id === path.id);
+      expect(slot).toBeTruthy();
+      expect({ x: slot.x, y: slot.y }).toEqual(path.points.at(-1));
+      expect(slot.fill).toBe(path.stroke);
+    }
 
     for (const transition of model.transitions.filter(item =>
       item.from === "auth_start" ||

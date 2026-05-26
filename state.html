@@ -848,6 +848,40 @@
       box-shadow: 0 0 0 7px rgba(56,189,248,.24), 0 0 18px rgba(56,189,248,.75);
     }
 
+    .port-slot {
+      position: absolute;
+      z-index: 4;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #06121f;
+      border-radius: 999px;
+      background: var(--edge-color, #5f8dbc);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #5f8dbc) 22%, transparent);
+      transform: translateY(-50%);
+    }
+
+    .port-slot-output {
+      right: -6px;
+      cursor: cell;
+      touch-action: none;
+    }
+
+    .port-slot-input {
+      left: -6px;
+      pointer-events: none;
+    }
+
+    .port-slot.selected {
+      border-color: var(--selected);
+      box-shadow: 0 0 0 4px rgba(245,158,11,.28), 0 0 12px var(--edge-color, #5f8dbc);
+    }
+
+    .port-slot.hovered {
+      width: 14px;
+      height: 14px;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--edge-color, #5f8dbc) 30%, transparent), 0 0 14px var(--edge-color, #5f8dbc);
+    }
+
     .preview {
       min-width: 0;
       max-width: 100%;
@@ -4345,6 +4379,36 @@
       renderLayerBoundary(layerBoundaryOutputEl, "Output", parentBoundaryTransitions(parent, "output"), "output", parentLayerId);
     }
 
+    function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
+      const point = edgePortPoint(state, side, transition);
+      const slot = document.createElement("div");
+      const classes = ["port-slot", side === "out" ? "port-slot-output" : "port-slot-input"];
+      if (edgeSelection.has(transition.id)) classes.push("selected");
+      if (hoveredEdgeId === transition.id) classes.push("hovered");
+      slot.className = classes.join(" ");
+      slot.style.top = point.y - state.y + "px";
+      slot.style.setProperty("--edge-color", edgeColor(transition));
+      slot.dataset.edgeId = transition.id;
+      slot.dataset.portSlot = side;
+      if (side === "out") {
+        slot.title = "drag to connect from " + (transition.label || state.title || state.id);
+        slot.addEventListener("mousedown", evt => {
+          if (Date.now() - lastTouchAt < 700) return;
+          if (evt.button !== 0) return;
+          startConnection(evt, state);
+        });
+        slot.addEventListener("pointerdown", evt => {
+          if (!isTouchPointer(evt)) return;
+          evt.preventDefault();
+          lastTouchAt = Date.now();
+          if (pinchZoom) return;
+          activePointerId = evt.pointerId;
+          startConnection(evt, state);
+        });
+      }
+      nodeEl.appendChild(slot);
+    }
+
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
       if (!parent) {
@@ -4617,6 +4681,13 @@
           activePointerId = evt.pointerId;
           startConnection(evt, s);
         });
+
+        for (const transition of orderedPortTransitions(s.id, "in")) {
+          addPortSlot(el, s, transition, "in", edgeSelection);
+        }
+        for (const transition of orderedPortTransitions(s.id, "out")) {
+          addPortSlot(el, s, transition, "out", edgeSelection);
+        }
 
         nodesEl.appendChild(el);
       }
