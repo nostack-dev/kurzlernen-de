@@ -3785,6 +3785,7 @@
       evt.stopPropagation();
       if (!evt.shiftKey) selected = { type: "node", id: s.id };
       const p = screenToWorld(evt);
+      if (!edgeRouteCache) edgeRouteCache = buildEdgeRouteCache();
       dragging = {
         id: s.id,
         shiftKey: Boolean(evt.shiftKey),
@@ -3794,6 +3795,7 @@
         dy: p.y - s.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
+        routeSnapshot: cloneRouteMap(edgeRouteCache),
         moved: false
       };
       mapEl.classList.add("dragging-state");
@@ -4050,6 +4052,7 @@
     }
 
     function obstacleAvoidingRoutePoints(from, to, transition = null) {
+      recordRouteMetric("obstacleSearches");
       const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
       const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
       const start = edgeApproachPoint(from, "out", transition);
@@ -4160,6 +4163,19 @@
     }
 
     let edgeRouteCache = null;
+
+    function recordRouteMetric(name, amount = 1) {
+      const metrics = window.__stateBlueprintRouteMetrics;
+      if (metrics && typeof metrics === "object") metrics[name] = (metrics[name] || 0) + amount;
+    }
+
+    function cloneRoutePoints(points) {
+      return (points || []).map(point => ({ ...point }));
+    }
+
+    function cloneRouteMap(routes) {
+      return new Map([...routes].map(([id, points]) => [id, cloneRoutePoints(points)]));
+    }
 
     function edgeOrder(transitionId) {
       const index = model.transitions.findIndex(item => item.id === transitionId);
@@ -4282,7 +4298,32 @@
       return current;
     }
 
+    function liveDragRoutePoints(from, to, transition = null) {
+      return directRoutePoints(from, to, transition) ||
+        forwardBendRoutePoints(from, to, transition) ||
+        doglegRoutePoints(from, to, transition);
+    }
+
+    function buildLiveDragRouteCache(dragStateId, routeSnapshot = null) {
+      recordRouteMetric("liveDragRouteBuilds");
+      const routes = new Map();
+      for (const transition of visibleTransitions()) {
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        if (!from || !to) continue;
+        if (transition.from === dragStateId || transition.to === dragStateId) {
+          routes.set(transition.id, liveDragRoutePoints(from, to, transition));
+        } else if (routeSnapshot?.has(transition.id)) {
+          routes.set(transition.id, cloneRoutePoints(routeSnapshot.get(transition.id)));
+        } else {
+          routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
+        }
+      }
+      return routes;
+    }
+
     function buildEdgeRouteCache() {
+      recordRouteMetric("finalRouteBuilds");
       const routes = new Map();
       for (const transition of visibleTransitions()) {
         const from = byId(transition.from);
@@ -4643,7 +4684,9 @@
       const transitions = visibleTransitions();
       renderLayerNavigation();
       updateLayerFrame(states);
-      edgeRouteCache = buildEdgeRouteCache();
+      edgeRouteCache = dragging?.moved
+        ? buildLiveDragRouteCache(dragging.id, dragging.routeSnapshot)
+        : buildEdgeRouteCache();
       const layerParent = byId(currentLayerId);
       const layerFlowCount = layerParent ? layerFlowLaneCount(layerParent) : 0;
       const nodeSelection = selectedNodeIds();
@@ -6000,6 +6043,8 @@
             return;
           }
           saveModel("state:drag:" + dragId);
+          draw();
+          return;
         }
       }
       if (connecting) {

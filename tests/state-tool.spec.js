@@ -2452,6 +2452,52 @@ test.describe("State Blueprint tool", () => {
     await dragNode("register", () => page.evaluate(() => window.dispatchEvent(new Event("blur"))));
   });
 
+  test("keeps many connected lanes cheap while dragging a busy state node", async ({ page }) => {
+    const states = [{ id: "hub", title: "Hub", body: "Many cables", x: 480, y: 336 }];
+    const transitions = [];
+    for (let index = 0; index < 10; index++) {
+      const y = 96 + index * 72;
+      states.push(
+        { id: `source_${index}`, title: `Source ${index}`, body: "", x: 96, y },
+        { id: `target_${index}`, title: `Target ${index}`, body: "", x: 864, y }
+      );
+      transitions.push(
+        { id: `in_${index}`, from: `source_${index}`, to: "hub", label: `In ${index}`, condition: "" },
+        { id: `out_${index}`, from: "hub", to: `target_${index}`, label: `Out ${index}`, condition: "" }
+      );
+    }
+    const model = { version: 2, name: "Busy lanes", initial: "hub", states, transitions };
+
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+      window.__stateBlueprintRouteMetrics = {};
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator(".edge")).toHaveCount(20);
+    await expect(page.locator('[data-id="hub"] .port-slot')).toHaveCount(20);
+
+    const hubBox = await visibleBox(page.locator('[data-id="hub"]'));
+    const start = { x: hubBox.x + hubBox.width / 2, y: hubBox.y + hubBox.height / 2 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.evaluate(() => { window.__stateBlueprintRouteMetrics = {}; });
+    await page.mouse.move(start.x + 168, start.y + 96, { steps: 24 });
+    await page.waitForTimeout(80);
+
+    const duringDrag = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
+    expect(duringDrag.liveDragRouteBuilds).toBeGreaterThan(0);
+    expect(duringDrag.finalRouteBuilds || 0).toBe(0);
+    expect(duringDrag.obstacleSearches || 0).toBe(0);
+
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRouteMetrics.finalRouteBuilds || 0)).toBeGreaterThan(0);
+    await expect(page.locator(".edge")).toHaveCount(20);
+  });
+
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
     await openTool(page);
 
