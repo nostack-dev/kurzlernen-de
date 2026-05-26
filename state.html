@@ -338,15 +338,18 @@
       box-shadow: inset 0 0 0 1px rgba(245,158,11,.18), 0 20px 50px rgba(0,0,0,.18);
     }
 
-    .layer-frame-header {
+    .layer-hud {
       position: absolute;
-      left: 18px;
-      top: -22px;
+      z-index: 35;
+      left: 12px;
+      top: 12px;
       display: flex;
       align-items: center;
       gap: 8px;
       pointer-events: auto;
     }
+
+    .layer-hud[hidden] { display: none; }
 
     .layer-back {
       min-height: 34px;
@@ -394,12 +397,12 @@
     }
 
     .layer-boundary-input {
-      left: -72px;
+      left: 18px;
       justify-items: start;
     }
 
     .layer-boundary-output {
-      right: -72px;
+      right: 18px;
       justify-items: end;
       text-align: right;
     }
@@ -754,9 +757,8 @@
     .layer-badge { left: 10px; right: auto; bottom: 8px; color: #451a03; background: #fde68a; }
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
-    .node.has-children .layer-badge,
-    .node.has-children .node-open,
-    .node.has-children .node-enter { display: grid; }
+    .node .node-open { display: grid; }
+    .node.has-children .layer-badge { display: block; }
 
     .port {
       position: absolute;
@@ -1549,16 +1551,16 @@
       </div>
     </aside>
     <main id="map" class="map">
+      <div id="layerHud" class="layer-hud" hidden>
+        <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
+        <span id="layerFrameLabel" class="layer-frame-label"></span>
+        <span class="layer-frame-hint">flow in/out</span>
+      </div>
       <div id="layerNav" class="layer-nav" aria-hidden="true"></div>
       <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world">
           <div id="layerFrame" class="layer-frame">
-            <div class="layer-frame-header">
-              <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
-              <span id="layerFrameLabel" class="layer-frame-label"></span>
-              <span class="layer-frame-hint">flow in/out</span>
-            </div>
             <div id="layerBoundaryInput" class="layer-boundary layer-boundary-input" data-layer-boundary="input"></div>
             <div id="layerBoundaryOutput" class="layer-boundary layer-boundary-output" data-layer-boundary="output"></div>
           </div>
@@ -1631,6 +1633,7 @@
     const mapEl = document.getElementById("map");
     const mapCanvasEl = document.getElementById("mapCanvas");
     const mapSceneEl = document.getElementById("mapScene");
+    const layerHudEl = document.getElementById("layerHud");
     const layerNavEl = document.getElementById("layerNav");
     const layerFrameEl = document.getElementById("layerFrame");
     const layerBackEl = document.getElementById("layerBack");
@@ -4116,20 +4119,23 @@
       const parent = byId(currentLayerId);
       if (!parent) {
         layerFrameEl.style.display = "none";
+        layerHudEl.hidden = true;
         renderLayerBoundaries(null);
         return;
       }
-      const pad = GRID_SIZE * 3;
+      const padX = GRID_SIZE * 9;
+      const padY = GRID_SIZE * 4;
       const fallbackCenter = viewportCenterWorld();
       const minX = states.length ? Math.min(...states.map(state => state.x)) : fallbackCenter.x - GRID_SIZE * 8;
       const minY = states.length ? Math.min(...states.map(state => state.y)) : fallbackCenter.y - GRID_SIZE * 5;
       const maxX = states.length ? Math.max(...states.map(state => state.x + nodeWidth(state))) : fallbackCenter.x + GRID_SIZE * 8;
       const maxY = states.length ? Math.max(...states.map(state => state.y + NODE_H)) : fallbackCenter.y + GRID_SIZE * 5;
       layerFrameEl.style.display = "block";
-      layerFrameEl.style.left = snapToGrid(minX - pad) + "px";
-      layerFrameEl.style.top = snapToGrid(minY - pad) + "px";
-      layerFrameEl.style.width = snapToGrid(maxX - minX + pad * 2) + "px";
-      layerFrameEl.style.height = snapToGrid(maxY - minY + pad * 2) + "px";
+      layerFrameEl.style.left = snapToGrid(minX - padX) + "px";
+      layerFrameEl.style.top = snapToGrid(minY - padY) + "px";
+      layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
+      layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
+      layerHudEl.hidden = false;
       layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
       renderLayerBoundaries(parent);
     }

@@ -139,6 +139,17 @@ async function dragTransition(page, output, input, via = null) {
   await page.mouse.up();
 }
 
+async function layerBoundariesOverlapNodes(page) {
+  return page.evaluate(() => {
+    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const boundaries = [...document.querySelectorAll("#layerBoundaryInput, #layerBoundaryOutput")]
+      .filter(el => getComputedStyle(el).display !== "none")
+      .map(el => el.getBoundingClientRect());
+    const nodes = [...document.querySelectorAll(".node")].map(el => el.getBoundingClientRect());
+    return boundaries.some(boundary => nodes.some(node => overlaps(boundary, node)));
+  });
+}
+
 async function gridGeometryReport(page) {
   return page.evaluate(gridSize => {
     const numberList = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
@@ -467,6 +478,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toBeFocused();
     await page.locator("#pTitle").fill("Email step");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
+    await expect.poll(() => layerBoundariesOverlapNodes(page)).toBe(false);
 
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -509,8 +521,8 @@ test.describe("State Blueprint tool", () => {
       ]));
     }, [...wiring.inputIds, ...wiring.outputIds]);
 
-    await page.locator('[data-id="login"]').click();
-    await page.locator("#pEnterLayer").click();
+    await expect(page.locator('[data-id="login"] .node-open')).toBeVisible();
+    await page.locator('[data-id="login"] .node-open').click();
 
     await expect(page.locator("#layerBoundaryInput")).toBeVisible();
     await expect(page.locator("#layerBoundaryOutput")).toBeVisible();
@@ -531,6 +543,10 @@ test.describe("State Blueprint tool", () => {
       await expect(dot).toHaveCount(1);
       await expect.poll(() => dot.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(rootColors[id]);
     }
+
+    await page.locator("#layerBack").click();
+    await expect(page.locator("#layerFrame")).toBeHidden();
+    await expect(page.locator("#layerHud")).toBeHidden();
   });
 
   test("keeps transition wires scoped to the opened state canvas", async ({ page }) => {
