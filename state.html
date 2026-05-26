@@ -3706,6 +3706,15 @@
       ];
     }
 
+    function directRoutePoints(from, to, transition = null) {
+      if (from.id === to.id) return null;
+      const a = edgePortPoint(from, "out", transition);
+      const b = edgePortPoint(to, "in", transition);
+      if (a.y !== b.y || b.x <= a.x) return null;
+      const direct = [a, b];
+      return routeIntersectsBlockingState(direct, transition || { from: from.id, to: to.id }, GRID_SIZE / 2) ? null : direct;
+    }
+
     function segmentIntersectsBox(a, b, box) {
       if (a.x === b.x) {
         if (a.x <= box.x1 || a.x >= box.x2) return false;
@@ -3827,6 +3836,8 @@
     }
 
     function baseEdgeRoutePoints(from, to, transition = null) {
+      const direct = directRoutePoints(from, to, transition);
+      if (direct) return direct;
       const dogleg = doglegRoutePoints(from, to, transition);
       if (!routeIntersectsBlockingState(dogleg, transition || { from: from.id, to: to.id })) return dogleg;
       return obstacleAvoidingRoutePoints(from, to, transition) || dogleg;

@@ -1186,6 +1186,41 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
+  test("renders an unobstructed aligned horizontal transition as a straight direct path", async ({ page }) => {
+    const directModel = {
+      version: 2,
+      name: "Direct path",
+      initial: "left",
+      states: [
+        { id: "left", title: "Left", body: "", x: 96, y: 192 },
+        { id: "right", title: "Right", body: "", x: 504, y: 192 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Direct", condition: "" }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+    }, { key: STORAGE_KEY, model: directModel });
+    await page.goto("/state.html");
+    await expect(page.locator(".node")).toHaveCount(2);
+
+    const report = await gridGeometryReport(page);
+    const route = report.paths.find(path => path.id === "left_to_right");
+    const nodes = new Map(report.nodes.map(node => [node.id, node]));
+
+    expect(route).toBeTruthy();
+    expect(route.points).toHaveLength(2);
+    expect(route.points[0]).toEqual(nodes.get("left").output);
+    expect(route.points[1]).toEqual(nodes.get("right").input);
+    expect(route.points[0].y).toBe(route.points[1].y);
+    expect(route.horizontalSegments).toHaveLength(1);
+    expect(route.verticalSegments).toHaveLength(0);
+  });
+
   test("routes transition cables around state bounding boxes", async ({ page }) => {
     const obstacleModel = {
       version: 2,
