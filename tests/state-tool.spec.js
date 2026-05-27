@@ -718,6 +718,7 @@ test.describe("State Blueprint tool", () => {
     const sourceId = await page.locator(".node.selected").getAttribute("data-id");
     await dragNodeToStateExplorer(page, page.locator(`[data-id="${sourceId}"]`));
     await page.locator(`[data-id="${sourceId}"]`).click();
+    await page.keyboard.press("Enter");
     await page.keyboard.press("Delete");
 
     const preset = page.locator(".state-template-card").filter({ hasText: "Inner lesson" });
@@ -1615,11 +1616,31 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"] .node-edit').click();
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pData")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pDataSourceUrl")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pRepeatPath")).toHaveAttribute("tabindex", "0");
     await expect(componentEditor(page, "Text").getByRole("button", { name: "Delete" })).toHaveAttribute("tabindex", "0");
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pData").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pDataSourceUrl").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pDataSourceTarget").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pDataSourceSelect").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pRepeatPath").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pRepeatAs").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pRepeatIndex").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
     await expect.poll(() => componentEditor(page, "Text").getByRole("button", { name: "Delete" }).evaluate(el => document.activeElement === el)).toBe(true);
@@ -1665,7 +1686,7 @@ test.describe("State Blueprint tool", () => {
     }).toBe("Sign in action");
   });
 
-  test("highlights clicked states and transitions and deletes selection with Delete even when editors are focused", async ({ page }) => {
+  test("keeps Delete native inside focused editors and deletes selected canvas items after commit", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await savedModel(page).then(model =>
       model.transitions.find(t => t.from === "auth_start" && t.to === "login").id
@@ -1680,8 +1701,14 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Delete");
+    await expect(page.locator("#pLabel")).toHaveValue("");
+    await expect(loginEdge).toHaveCount(1);
+    await expect(loginEdge).toHaveClass(/selected/);
+    await expect(loginLabel).toHaveText("Next");
+
+    await page.keyboard.press("Enter");
     await expect(page.locator("#pLabel")).toHaveCount(0);
-    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await page.keyboard.press("Delete");
     await expect(loginEdge).toHaveCount(0);
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -1695,6 +1722,14 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
 
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Delete");
+    await expect(login).toHaveCount(1);
+    await expect(login).toHaveClass(/selected/);
+    await expect(page.locator("#pTitle")).toHaveValue("");
+
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
     await page.keyboard.press("Delete");
     await expect(login).toHaveCount(0);
     await expect(page.locator("#pTitle")).toHaveCount(0);
@@ -1845,6 +1880,123 @@ test.describe("State Blueprint tool", () => {
     await app.getByRole("button", { name: "done" }).click();
     await expect(app.locator("#statePill")).toHaveText("ready");
     await expect(app.getByText("Data arrived")).toBeVisible();
+  });
+
+  test("inspects JSON endpoints and wires array fields into repeated state content", async ({ page }) => {
+    await page.route("https://api.example.test/lessons", route => route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        items: [
+          { title: "Alpha", url: "https://example.test/a" },
+          { title: "Beta", url: "https://example.test/b" }
+        ]
+      })
+    }));
+    await openTool(page);
+
+    await addComponentState(page, "Fetch data");
+    await page.locator("#pDataSourceUrl").fill("https://api.example.test/lessons");
+    await expect(page.locator("#pDataSourceInspect")).toContainText("JSON 200");
+    await expect(page.getByRole("button", { name: /Use items/ })).toBeVisible();
+
+    await page.getByRole("button", { name: /Repeat items/ }).click();
+    await expect(page.locator("#pDataSourceSelect")).toHaveValue("items");
+    await expect(page.locator("#pRepeatPath")).toHaveValue("fetch.data");
+    await expect(page.locator("#pRepeatAs")).toHaveValue("item");
+    await expect(page.locator(".binding-chip").filter({ hasText: "{{item.title}}" })).toBeVisible();
+
+    const note = componentEditor(page, "Note").locator("textarea");
+    await note.fill("");
+    await note.focus();
+    await page.locator(".binding-chip").filter({ hasText: "{{item.title}}" }).click();
+    await expect(note).toHaveValue("{{item.title}}");
+
+    const model = await savedModel(page);
+    const fetchState = model.states.find(state => state.title === "Fetch data");
+    expect(fetchState.dataSource).toMatchObject({
+      url: "https://api.example.test/lessons",
+      target: "fetch",
+      select: "items"
+    });
+    expect(fetchState.repeat).toEqual({ path: "fetch.data", as: "item", index: "i" });
+    expect(fetchState.components.find(component => component.type === "note").text).toBe("{{item.title}}");
+  });
+
+  test("generated app fetches JSON, repeats content, and evaluates dotted fetch conditions", async ({ page }) => {
+    await page.route("https://api.example.test/runtime-lessons", route => route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        items: [
+          { title: "Alpha", slug: "alpha" },
+          { title: "Beta", slug: "beta" }
+        ]
+      })
+    }));
+    const model = {
+      version: 2,
+      name: "Runtime fetch",
+      initial: "load",
+      states: [
+        {
+          id: "load",
+          title: "Lessons",
+          body: "",
+          x: 120,
+          y: 140,
+          data: {},
+          dataSource: {
+            url: "https://api.example.test/runtime-lessons",
+            target: "fetch",
+            select: "items",
+            timeoutMs: 2000,
+            retries: 0
+          },
+          repeat: { path: "fetch.data", as: "item", index: "i" },
+          components: [
+            { id: "lesson_heading", type: "heading", text: "#{{i}} {{item.title}}", url: "" },
+            { id: "lesson_link", type: "link", text: "Open {{item.title}}", url: "https://example.com/{{item.slug}}" }
+          ]
+        },
+        {
+          id: "ready",
+          title: "Ready",
+          body: "",
+          x: 480,
+          y: 140,
+          data: {},
+          components: [{ id: "ready_text", type: "text", text: "Loaded lessons", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "ready_transition", from: "load", to: "ready", label: "Ready", condition: "fetch.ok && fetch.count >= 2", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("load");
+    await expect(app.getByRole("heading", { name: "#0 Alpha" })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "#1 Beta" })).toBeVisible();
+    await expect(app.getByRole("link", { name: "Open Alpha" })).toHaveAttribute("href", "https://example.com/alpha");
+
+    await app.getByRole("button", { name: "Ready" }).click();
+    await expect(app.locator("#statePill")).toHaveText("ready");
+    await expect(app.getByText("Loaded lessons")).toBeVisible();
   });
 
   test("selecting a state starts preview and keeps runtime tab order and Enter submit usable", async ({ page }) => {
