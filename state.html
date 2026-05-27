@@ -1790,7 +1790,7 @@
         </div>
       </div>
     </aside>
-    <main id="map" class="map">
+    <main id="map" class="map" tabindex="-1">
       <div id="layerHud" class="layer-hud" hidden>
         <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
         <span id="layerFrameLabel" class="layer-frame-label"></span>
@@ -3636,15 +3636,6 @@
         preventDefault() { evt?.preventDefault?.(); },
         stopPropagation() { evt?.stopPropagation?.(); }
       };
-    }
-
-    function deleteSelectedNodes() {
-      const ids = selectedNodeIdList();
-      if (!ids.length || !removeStatesById(ids)) return;
-      selected = null;
-      showEmptyInspector();
-      saveModel();
-      draw();
     }
 
     function copySelectedNodes() {
@@ -5880,11 +5871,8 @@
       };
       root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
       root.querySelector("#pDelete").onclick = () => {
-        if (!removeStatesById([s.id])) return;
-        selected = null;
-        showEmptyInspector();
-        saveModel();
-        draw();
+        selected = { type: "node", id: s.id };
+        deleteSelectedItems();
       };
       setupEditorAccessibility(root, opts.focus !== false, {
         onCommit: showEmptyInspector,
@@ -6088,11 +6076,8 @@
         showEdgeInspector(t, opts);
       };
       root.querySelector("#pDelete").onclick = () => {
-        model.transitions = model.transitions.filter(e => e.id !== t.id);
-        selected = null;
-        showEmptyInspector();
-        saveModel();
-        draw();
+        selected = { type: "edge", id: t.id };
+        deleteSelectedItems();
       };
       setupEditorAccessibility(root, opts.focus !== false, {
         onCommit: showEmptyInspector,
@@ -6102,6 +6087,10 @@
 
     function isEditableTarget(target) {
       return target?.closest?.("input, textarea, select, [contenteditable]");
+    }
+
+    function focusCanvasForSelection() {
+      mapEl.focus({ preventScroll: true });
     }
 
     function escapeHtml(text) {
@@ -6124,7 +6113,7 @@
       setTimeout(() => { syncStateEl.textContent = "live"; }, 400);
     }
 
-    function startAppAtState(id) {
+    function startAppAtState(id, opts = {}) {
       if (!byId(id)) return;
       currentAppState = id;
       pendingAppStartStateId = id;
@@ -6133,7 +6122,8 @@
         type: "STATE_BLUEPRINT_MODEL",
         model: JSON.parse(JSON.stringify(model)),
         reset: true,
-        startStateId: id
+        startStateId: id,
+        preserveFocus: Boolean(opts.preserveFocus)
       };
       try { frameEl.contentWindow.postMessage(payload, "*"); } catch (_) {}
       if (appWindow && !appWindow.closed) {
@@ -6599,15 +6589,18 @@
         if (wasClick && s) {
           if (shiftClick) {
             lastNodeClick = null;
+            focusCanvasForSelection();
             toggleSelection("node", s.id);
             draw();
             return;
           }
           const now = Date.now();
+          focusCanvasForSelection();
           setSingleSelection("node", s.id);
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
-          startAppAtState(s.id);
-          showNodeInspector(s);
+          startAppAtState(s.id, { preserveFocus: true });
+          showNodeInspector(s, { focus: false });
+          focusCanvasForSelection();
           return;
         }
         if (didMove) {
@@ -6945,7 +6938,7 @@
     document.getElementById("btnUndo").onclick = undoModel;
     document.getElementById("btnRedo").onclick = redoModel;
     btnSelectionCopy.onclick = copySelectedNodes;
-    btnSelectionDelete.onclick = deleteSelectedNodes;
+    btnSelectionDelete.onclick = deleteSelectedItems;
     btnToggleInspector.onclick = () => {
       inspectorCollapsed = !inspectorCollapsed;
       applyInspectorCollapsed();

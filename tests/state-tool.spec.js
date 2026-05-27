@@ -605,6 +605,35 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(1);
   });
 
+  test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').click();
+    await page.locator("#pAddInside").click();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator(".node")).toHaveCount(1);
+
+    const childId = await page.locator(".node").getAttribute("data-id");
+    await page.locator("#pTitle").fill("Temporary child");
+    await page.locator(`[data-id="${childId}"]`).click();
+    await expect(page.locator(`[data-id="${childId}"]`)).toHaveClass(/selected/);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Delete");
+    await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
+    await expect(page.locator(".node")).toHaveCount(0);
+    await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return {
+        hasChild: model.states.some(state => state.id === childId),
+        linkedToChild: model.transitions.some(transition => transition.from === childId || transition.to === childId),
+        currentLayer: model.states.filter(state => state.parentId === "login").length
+      };
+    }).toEqual({ hasChild: false, linkedToChild: false, currentLayer: 0 });
+  });
+
   test("mirrors parent input and output wiring inside the opened state canvas", async ({ page }) => {
     await openTool(page);
 
@@ -1045,7 +1074,7 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.evaluate(() => window.__htmlInCanvasLastDraw)).toEqual({ id: "mapScene", x: 0, y: 0 });
   });
 
-  test("opens state edits in the left inspector with focused input and Enter commit close", async ({ page }) => {
+  test("selects states from the canvas and focuses title only from the edit action", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
@@ -1053,10 +1082,13 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Login");
     await expect(page.locator("#pTitle")).toHaveValue("Login");
     await expect(page.locator("#pTitle")).toHaveAttribute("tabindex", "0");
-    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(page.locator('[data-id="login"]')).toHaveClass(/selected/);
     await expect(appFrame(page).locator("#statePill")).toHaveText("login");
 
+    await page.locator('[data-id="login"] .node-edit').click();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
     await page.locator("#pTitle").fill("Sign in");
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Sign in");
@@ -1717,7 +1749,7 @@ test.describe("State Blueprint tool", () => {
 
     await openTool(page);
     const login = page.locator('[data-id="login"]');
-    await login.click();
+    await page.locator('[data-id="login"] .node-edit').click();
     await expect(login).toHaveClass(/selected/);
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
@@ -1730,6 +1762,10 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Enter");
     await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
+    await login.click();
+    await expect(login).toHaveClass(/selected/);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
     await page.keyboard.press("Delete");
     await expect(login).toHaveCount(0);
     await expect(page.locator("#pTitle")).toHaveCount(0);
@@ -2290,7 +2326,8 @@ test.describe("State Blueprint tool", () => {
     const password = app.locator(".field").filter({ hasText: "password" }).locator("input");
     const primaryButton = app.getByRole("button", { name: "Einloggen" });
 
-    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
     await expect(email).toHaveAttribute("tabindex", "0");
     await expect(password).toHaveAttribute("tabindex", "0");
     await expect(primaryButton).toHaveAttribute("tabindex", "0");
