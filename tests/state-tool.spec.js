@@ -1926,7 +1926,7 @@ test.describe("State Blueprint tool", () => {
     expect(fetchState.components.find(component => component.type === "note").text).toBe("{{item.title}}");
   });
 
-  test("generated app fetches JSON, repeats content, and evaluates dotted fetch conditions", async ({ page }) => {
+  test("generated app treats JSON fetch results as FSM events and renders mapped content", async ({ page }) => {
     await page.route("https://api.example.test/runtime-lessons", route => route.fulfill({
       status: 200,
       headers: {
@@ -1959,11 +1959,7 @@ test.describe("State Blueprint tool", () => {
             timeoutMs: 2000,
             retries: 0
           },
-          repeat: { path: "fetch.data", as: "item", index: "i" },
-          components: [
-            { id: "lesson_heading", type: "heading", text: "#{{i}} {{item.title}}", url: "" },
-            { id: "lesson_link", type: "link", text: "Open {{item.title}}", url: "https://example.com/{{item.slug}}" }
-          ]
+          components: [{ id: "loading_note", type: "note", text: "Loading {{fetch.status}}", url: "" }]
         },
         {
           id: "ready",
@@ -1972,7 +1968,11 @@ test.describe("State Blueprint tool", () => {
           x: 480,
           y: 140,
           data: {},
-          components: [{ id: "ready_text", type: "text", text: "Loaded lessons", url: "" }]
+          repeat: { path: "fetch.data", as: "item", index: "i" },
+          components: [
+            { id: "lesson_heading", type: "heading", text: "#{{i}} {{item.title}}", url: "" },
+            { id: "lesson_link", type: "link", text: "Open {{item.title}}", url: "https://example.com/{{item.slug}}" }
+          ]
         }
       ],
       transitions: [
@@ -1989,14 +1989,129 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
 
     const app = appFrame(page);
-    await expect(app.locator("#statePill")).toHaveText("load");
+    await expect(app.locator("#statePill")).toHaveText("ready");
     await expect(app.getByRole("heading", { name: "#0 Alpha" })).toBeVisible();
     await expect(app.getByRole("heading", { name: "#1 Beta" })).toBeVisible();
     await expect(app.getByRole("link", { name: "Open Alpha" })).toHaveAttribute("href", "https://example.com/alpha");
+  });
 
-    await app.getByRole("button", { name: "Ready" }).click();
+  test("generated app only auto-follows transitions that reference the active fetch context", async ({ page }) => {
+    await page.route("https://api.example.test/no-auto", route => route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ ok: true })
+    }));
+    const model = {
+      version: 2,
+      name: "Manual after fetch",
+      initial: "load",
+      states: [
+        {
+          id: "load",
+          title: "Load",
+          body: "",
+          x: 120,
+          y: 140,
+          data: {},
+          dataSource: {
+            url: "https://api.example.test/no-auto",
+            target: "fetch",
+            select: "",
+            timeoutMs: 2000,
+            retries: 0
+          },
+          components: [{ id: "status", type: "note", text: "Status {{fetch.status}}", url: "" }]
+        },
+        {
+          id: "ready",
+          title: "Ready",
+          body: "",
+          x: 480,
+          y: 140,
+          data: {},
+          components: [{ id: "ready_text", type: "text", text: "Manual transition only", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "manual_ready", from: "load", to: "ready", label: "Manual ready", condition: "manual == false", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(app.getByText("Status success")).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("load");
+
+    await app.getByRole("button", { name: "Manual ready" }).click();
     await expect(app.locator("#statePill")).toHaveText("ready");
-    await expect(app.getByText("Loaded lessons")).toBeVisible();
+  });
+
+  test("generated app routes failed JSON fetches through custom target conditions", async ({ page }) => {
+    await page.route("https://api.example.test/fails", route => route.fulfill({
+      status: 500,
+      headers: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ error: "nope" })
+    }));
+    const model = {
+      version: 2,
+      name: "Fetch failure",
+      initial: "load",
+      states: [
+        {
+          id: "load",
+          title: "Load users",
+          body: "",
+          x: 120,
+          y: 140,
+          data: {},
+          dataSource: {
+            url: "https://api.example.test/fails",
+            target: "users",
+            select: "",
+            timeoutMs: 2000,
+            retries: 0
+          },
+          components: [{ id: "loading", type: "note", text: "Loading users", url: "" }]
+        },
+        {
+          id: "failed",
+          title: "Failed",
+          body: "",
+          x: 480,
+          y: 140,
+          data: {},
+          components: [{ id: "failed_note", type: "note", text: "Fetch failed: {{users.error}}", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "fetch_failed", from: "load", to: "failed", label: "Fetch failed", condition: "users.status == \"error\"", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("failed");
+    await expect(app.getByText("Fetch failed: HTTP 500")).toBeVisible();
   });
 
   test("selecting a state starts preview and keeps runtime tab order and Enter submit usable", async ({ page }) => {
