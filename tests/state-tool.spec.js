@@ -2114,6 +2114,168 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByText("Fetch failed: HTTP 500")).toBeVisible();
   });
 
+  test("generated app discards stale fetch events after leaving the source state", async ({ page }) => {
+    let releaseFetch;
+    let markFetchStarted;
+    let markFetchFinished;
+    const fetchStarted = new Promise(resolve => { markFetchStarted = resolve; });
+    const fetchFinished = new Promise(resolve => { markFetchFinished = resolve; });
+    await page.route("https://api.example.test/stale", async route => {
+      markFetchStarted();
+      await new Promise(release => { releaseFetch = release; });
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "access-control-allow-origin": "*",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ title: "Late result" })
+      });
+      markFetchFinished();
+    });
+    const model = {
+      version: 2,
+      name: "Stale fetch",
+      initial: "load",
+      states: [
+        {
+          id: "load",
+          title: "Load",
+          body: "",
+          x: 120,
+          y: 140,
+          data: {},
+          dataSource: {
+            url: "https://api.example.test/stale",
+            target: "fetch",
+            select: "",
+            timeoutMs: 2000,
+            retries: 0
+          },
+          components: [{ id: "loading", type: "note", text: "Loading {{fetch.status}}", url: "" }]
+        },
+        {
+          id: "skipped",
+          title: "Skipped",
+          body: "",
+          x: 480,
+          y: 80,
+          data: {},
+          components: [{ id: "skipped_note", type: "note", text: "Skipped before fetch finished", url: "" }]
+        },
+        {
+          id: "ready",
+          title: "Ready",
+          body: "",
+          x: 480,
+          y: 220,
+          data: {},
+          components: [{ id: "ready_note", type: "note", text: "Should not be reached by stale data", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "fetch_ready", from: "load", to: "ready", label: "Ready", condition: "fetch.ok", set: {} },
+        { id: "skip", from: "load", to: "skipped", label: "Skip", condition: "", set: {} },
+        { id: "leak", from: "skipped", to: "ready", label: "Leak check", condition: "fetch.ok", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await fetchStarted;
+    await expect(app.locator("#statePill")).toHaveText("load");
+    await app.getByRole("button", { name: "Skip" }).click();
+    await expect(app.locator("#statePill")).toHaveText("skipped");
+
+    releaseFetch();
+    await fetchFinished;
+    await app.getByRole("button", { name: "Leak check" }).click();
+    await expect(app.locator("#statePill")).toHaveText("skipped");
+    await expect(app.locator(".action.invalid").filter({ hasText: "Leak check" }).locator(".condition-feedback"))
+      .toContainText("Condition not met");
+  });
+
+  test("generated app retries within the active fetch state before emitting the fetch event", async ({ page }) => {
+    let attempts = 0;
+    await page.route("https://api.example.test/retry", route => {
+      attempts += 1;
+      if (attempts === 1) {
+        return route.fulfill({
+          status: 503,
+          headers: {
+            "access-control-allow-origin": "*",
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({ error: "try again" })
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        headers: {
+          "access-control-allow-origin": "*",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ items: [{ title: "Recovered" }] })
+      });
+    });
+    const model = {
+      version: 2,
+      name: "Retry fetch",
+      initial: "load",
+      states: [
+        {
+          id: "load",
+          title: "Load",
+          body: "",
+          x: 120,
+          y: 140,
+          data: {},
+          dataSource: {
+            url: "https://api.example.test/retry",
+            target: "fetch",
+            select: "items",
+            timeoutMs: 2000,
+            retries: 1
+          },
+          components: [{ id: "loading", type: "note", text: "Loading {{fetch.status}}", url: "" }]
+        },
+        {
+          id: "ready",
+          title: "Ready",
+          body: "",
+          x: 480,
+          y: 140,
+          data: {},
+          repeat: { path: "fetch.data", as: "item", index: "i" },
+          components: [{ id: "ready_heading", type: "heading", text: "{{item.title}}", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "fetch_ready", from: "load", to: "ready", label: "Ready", condition: "fetch.ok && fetch.count == 1", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("ready");
+    await expect(app.getByRole("heading", { name: "Recovered" })).toBeVisible();
+    expect(attempts).toBe(2);
+  });
+
   test("selecting a state starts preview and keeps runtime tab order and Enter submit usable", async ({ page }) => {
     await openTool(page);
     const app = appFrame(page);
