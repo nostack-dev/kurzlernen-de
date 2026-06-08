@@ -381,13 +381,13 @@
 
     .layer-hud[hidden] { display: none; }
 
-    .layer-back {
-      min-height: 34px;
-      padding: 7px 12px;
-      border-color: rgba(125,211,252,.42);
-      background: #071321;
-      color: #bae6fd;
-      box-shadow: 0 10px 24px rgba(0,0,0,.3);
+    .layer-frame .layer-back {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      z-index: 4;
+      display: grid;
+      pointer-events: auto;
     }
 
     .layer-frame-label,
@@ -780,7 +780,8 @@
     }
 
     .node-open,
-    .node-enter {
+    .node-enter,
+    .layer-back {
       min-width: 52px;
       height: 28px;
       min-height: 28px;
@@ -803,7 +804,9 @@
     .node-open:hover,
     .node-open:focus-visible,
     .node-enter:hover,
-    .node-enter:focus-visible {
+    .node-enter:focus-visible,
+    .layer-back:hover,
+    .layer-back:focus-visible {
       background: var(--accent);
       color: #04111d;
       outline: none;
@@ -1792,7 +1795,6 @@
     </aside>
     <main id="map" class="map" tabindex="-1">
       <div id="layerHud" class="layer-hud" hidden>
-        <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
         <span id="layerFrameLabel" class="layer-frame-label"></span>
         <span class="layer-frame-hint">flow in/out</span>
       </div>
@@ -1801,6 +1803,7 @@
       <div id="mapScene" class="map-scene">
         <div id="world">
           <div id="layerFrame" class="layer-frame">
+            <button id="layerBack" class="layer-back node-exit" type="button" title="Exit this state canvas" aria-label="Exit this state canvas">Exit</button>
             <div id="layerBoundaryInput" class="layer-boundary layer-boundary-input" data-layer-boundary="input"></div>
             <div id="layerBoundaryOutput" class="layer-boundary layer-boundary-output" data-layer-boundary="output"></div>
           </div>
@@ -3909,6 +3912,12 @@
       zoomAtClientPoint(clientX, clientY, camera.scale * factor);
     }
 
+    function shouldIgnoreMapWheel(evt) {
+      const target = evt.target;
+      if (target?.closest?.(".state-explorer, input, textarea, select, button")) return true;
+      return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
+    }
+
     function viewportCenterWorld() {
       const r = mapEl.getBoundingClientRect();
       return {
@@ -4861,7 +4870,7 @@
       layerFrameEl.style.top = snapToGrid(minY - padY) + "px";
       layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
-      layerHudEl.hidden = false;
+      layerHudEl.hidden = true;
       layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
       renderLayerBoundaries(parent);
     }
@@ -6698,12 +6707,9 @@
 
     document.addEventListener("contextmenu", evt => evt.preventDefault());
     mapEl.addEventListener("wheel", evt => {
-      if (evt.target?.closest?.(".state-explorer")) return;
-      if (evt.ctrlKey || evt.metaKey) {
-        evt.preventDefault();
-        zoomByFactor(wheelZoomFactor(evt), evt.clientX, evt.clientY);
-        return;
-      }
+      if (shouldIgnoreMapWheel(evt)) return;
+      evt.preventDefault();
+      zoomByFactor(wheelZoomFactor(evt), evt.clientX, evt.clientY);
     }, { passive: false });
 
     stateInspectorEl.addEventListener("wheel", evt => {
