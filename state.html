@@ -1876,6 +1876,7 @@
     const NODE_TITLE_EXTRA_W = 104;
     const ROUTE_NODE_CLEARANCE = GRID_SIZE / 2;
     const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
+    const MAP_CANVAS_RENDERER_ENABLED = false;
     const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
 
     const workspaceEl = document.getElementById("workspace");
@@ -3853,6 +3854,10 @@
     }
 
     function initMapRenderer() {
+      if (!MAP_CANVAS_RENDERER_ENABLED) {
+        fallbackMapRenderer();
+        return;
+      }
       const ctx = mapCanvasContext();
       if (!ctx || typeof ctx.drawElementImage !== "function") {
         fallbackMapRenderer();
@@ -6534,8 +6539,12 @@
         updateSelectRect();
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
-          selected = ids.length ? { type: "nodes", ids } : null;
-          scheduleDraw();
+          const currentIds = selectedNodeIdList();
+          const selectionChanged = ids.length !== currentIds.length || ids.some((id, index) => id !== currentIds[index]);
+          if (selectionChanged) {
+            selected = ids.length ? { type: "nodes", ids } : null;
+            scheduleDraw();
+          }
         }
         return;
       }
@@ -6550,18 +6559,25 @@
         if (!s) return;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
-        s.x = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
-        s.y = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+        const nextX = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
+        const nextY = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+        const positionChanged = nextX !== s.x || nextY !== s.y;
+        s.x = nextX;
+        s.y = nextY;
         stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
-        scheduleDraw();
+        if (positionChanged) scheduleDraw();
         return;
       }
       if (connecting) {
-        connecting.to = screenToWorld(evt);
-        const target = connectionTargetAtWorldPoint(connecting.to);
+        const nextTo = screenToWorld(evt);
+        const previousPoint = snapPointToGrid(connecting.to || nextTo);
+        const nextPoint = snapPointToGrid(nextTo);
+        connecting.to = nextTo;
+        const target = connectionTargetAtWorldPoint(nextTo);
         const nextTargetId = target?.id || null;
-        if (nextTargetId !== connectingTargetId) connectingTargetId = nextTargetId;
-        scheduleDraw();
+        const targetChanged = nextTargetId !== connectingTargetId;
+        if (targetChanged) connectingTargetId = nextTargetId;
+        if (targetChanged || previousPoint.x !== nextPoint.x || previousPoint.y !== nextPoint.y) scheduleDraw();
       }
     }
 
