@@ -381,11 +381,11 @@
 
     .layer-hud[hidden] { display: none; }
 
-    .map > .layer-back {
+    .layer-frame .layer-back {
       position: absolute;
-      top: 12px;
-      right: 12px;
-      z-index: 36;
+      top: 7px;
+      right: 7px;
+      z-index: 4;
       display: grid;
       pointer-events: auto;
     }
@@ -1824,12 +1824,12 @@
         <span id="layerFrameLabel" class="layer-frame-label"></span>
         <span class="layer-frame-hint">flow in/out</span>
       </div>
-      <button id="layerBack" class="layer-back node-exit" type="button" title="Exit this state canvas (Esc)" aria-label="Exit this state canvas">Exit</button>
       <div id="layerNav" class="layer-nav" aria-hidden="true"></div>
       <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world">
           <div id="layerFrame" class="layer-frame">
+            <button id="layerBack" class="layer-back node-exit" type="button" title="Exit this state canvas (Esc)" aria-label="Exit this state canvas">Exit</button>
             <div id="layerBoundaryInput" class="layer-boundary layer-boundary-input" data-layer-boundary="input"></div>
             <div id="layerBoundaryOutput" class="layer-boundary layer-boundary-output" data-layer-boundary="output"></div>
           </div>
@@ -5017,12 +5017,6 @@
 
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
-      if (!parent) {
-        layerFrameEl.style.display = "none";
-        layerHudEl.hidden = true;
-        renderLayerBoundaries(null);
-        return;
-      }
       const padX = GRID_SIZE * 9;
       const padY = GRID_SIZE * 4;
       const fallbackCenter = viewportCenterWorld();
@@ -5035,8 +5029,8 @@
       layerFrameEl.style.top = snapToGrid(minY - padY) + "px";
       layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
-      layerHudEl.hidden = true;
-      layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
+      layerHudEl.hidden = false;
+      layerFrameLabelEl.textContent = parent ? `Inside ${parent.title || parent.id}` : "Root";
       renderLayerBoundaries(parent);
     }
 
