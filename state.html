@@ -1962,6 +1962,8 @@
     let suppressEdgeClickUntil = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
+    let canvasMoveFrame = 0;
+    let queuedCanvasMoveEvent = null;
 
     function demoModel() {
       return {
@@ -3428,6 +3430,7 @@
         panning
       );
       if (!hadGesture) return false;
+      cancelQueuedCanvasMove();
       clearLongPress();
       pendingCanvasMouse = null;
       pendingCanvasTouch = null;
@@ -3460,6 +3463,7 @@
       if (evt.buttons !== 0) return false;
       const hasDesktopGesture = Boolean(pendingCanvasMouse || boxSelecting || dragging || connecting || panning);
       if (!hasDesktopGesture) return false;
+      cancelQueuedCanvasMove();
       return cancelActiveCanvasGesture();
     }
 
@@ -4569,6 +4573,10 @@
       return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
     }
 
+    function edgeTipHandlePointForRoute(routePoints) {
+      return polylinePoint(routePoints, 0.82);
+    }
+
     function arrowPathForPoints(points) {
       const compact = compactRoutePoints(points);
       if (compact.length < 2) return "";
@@ -4599,6 +4607,94 @@
     function midPoint(from, to, transition = null) {
       const point = polylinePoint(edgeRoutePoints(from, to, transition), 0.5);
       return { x: point.x, y: point.y - 10 };
+    }
+
+    function midPointForRoute(routePoints) {
+      const point = polylinePoint(routePoints, 0.5);
+      return { x: point.x, y: point.y - 10 };
+    }
+
+    function cssEscapeValue(value) {
+      if (window.CSS?.escape) return CSS.escape(String(value));
+      return String(value).replace(/["\\]/g, "\\$&");
+    }
+
+    function nodeElement(stateId) {
+      return nodesEl.querySelector(`.node[data-id="${cssEscapeValue(stateId)}"]`);
+    }
+
+    function updateNodeElementPosition(state) {
+      const el = nodeElement(state.id);
+      if (!el) return false;
+      el.style.left = state.x + "px";
+      el.style.top = state.y + "px";
+      return true;
+    }
+
+    function updateTransitionElements(transition, routePoints) {
+      const from = byId(transition.from);
+      const to = byId(transition.to);
+      if (!from || !to || !routePoints?.length) return;
+      const pathD = pathFromPoints(routePoints);
+      const arrowD = arrowPathForPoints(routePoints);
+      const middle = midPointForRoute(routePoints);
+      const startPin = routePoints[0];
+      const endPin = routePoints[routePoints.length - 1];
+      const tip = edgeTipHandlePointForRoute(routePoints);
+      const selector = `[data-edge-id="${cssEscapeValue(transition.id)}"]`;
+      for (const el of wiresEl.querySelectorAll(selector)) {
+        if (el.matches("path.hit,path.edge")) el.setAttribute("d", pathD);
+        else if (el.matches("path.edge-arrow")) el.setAttribute("d", arrowD);
+        else if (el.matches("text.edge-label")) {
+          el.setAttribute("x", middle.x);
+          el.setAttribute("y", middle.y);
+        } else if (el.matches("circle.edge-pin")) {
+          const pin = el.dataset.edgePin === "out" ? startPin : endPin;
+          el.setAttribute("cx", pin.x);
+          el.setAttribute("cy", pin.y);
+        } else if (el.matches("circle.edge-tip-hit")) {
+          el.setAttribute("cx", tip.x);
+          el.setAttribute("cy", tip.y);
+        }
+      }
+    }
+
+    function updateDraggedStateEdges(stateId) {
+      for (const transition of visibleTransitions()) {
+        if (transition.from !== stateId && transition.to !== stateId) continue;
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        if (!from || !to) continue;
+        updateTransitionElements(transition, liveDragRoutePoints(from, to, transition));
+      }
+    }
+
+    function tempConnectionRoutePoints() {
+      const from = byId(connecting?.from);
+      if (!from) return [];
+      const target = connectingTargetId ? byId(connectingTargetId) : null;
+      if (target) return baseEdgeRoutePoints(from, target);
+      const a = nodeCenter(from, "out");
+      const b = snapPointToGrid(connecting.to);
+      return [
+        a,
+        { x: a.x + GRID_SIZE * 2, y: a.y },
+        { x: a.x + GRID_SIZE * 2, y: b.y },
+        b
+      ];
+    }
+
+    function updateTempConnectionEdge() {
+      if (!connecting) return false;
+      const temp = wiresEl.querySelector(".temp-edge");
+      if (!temp) return false;
+      temp.setAttribute("d", pathFromPoints(tempConnectionRoutePoints()));
+      return true;
+    }
+
+    function updateConnectingTargetClass(previousId, nextId) {
+      if (previousId && previousId !== nextId) nodeElement(previousId)?.classList.remove("drop-target");
+      if (nextId && previousId !== nextId) nodeElement(nextId)?.classList.add("drop-target");
     }
 
     function attachEdgeInteractions(el, t, canRewire = false) {
@@ -5155,6 +5251,34 @@
       drawFrame = requestAnimationFrame(() => {
         drawFrame = 0;
         draw();
+      });
+    }
+
+    function hasActiveCanvasMotion() {
+      return Boolean(boxSelecting || dragging || connecting || panning);
+    }
+
+    function cancelQueuedCanvasMove() {
+      if (canvasMoveFrame) cancelAnimationFrame(canvasMoveFrame);
+      canvasMoveFrame = 0;
+      queuedCanvasMoveEvent = null;
+    }
+
+    function flushQueuedCanvasMove(fallbackEvent = null) {
+      const evt = queuedCanvasMoveEvent || fallbackEvent;
+      cancelQueuedCanvasMove();
+      if (evt && hasActiveCanvasMotion()) handleCanvasMove(evt);
+    }
+
+    function queueCanvasMove(evt) {
+      if (!hasActiveCanvasMotion()) return;
+      queuedCanvasMoveEvent = evt;
+      if (canvasMoveFrame) return;
+      canvasMoveFrame = requestAnimationFrame(() => {
+        const queuedEvent = queuedCanvasMoveEvent;
+        canvasMoveFrame = 0;
+        queuedCanvasMoveEvent = null;
+        if (queuedEvent && hasActiveCanvasMotion()) handleCanvasMove(queuedEvent);
       });
     }
 
@@ -6565,7 +6689,14 @@
         s.x = nextX;
         s.y = nextY;
         stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
-        if (positionChanged) scheduleDraw();
+        if (positionChanged) {
+          if (updateNodeElementPosition(s)) {
+            updateDraggedStateEdges(s.id);
+            requestMapCanvasPaint();
+          } else {
+            scheduleDraw();
+          }
+        }
         return;
       }
       if (connecting) {
@@ -6576,8 +6707,14 @@
         const target = connectionTargetAtWorldPoint(nextTo);
         const nextTargetId = target?.id || null;
         const targetChanged = nextTargetId !== connectingTargetId;
-        if (targetChanged) connectingTargetId = nextTargetId;
-        if (targetChanged || previousPoint.x !== nextPoint.x || previousPoint.y !== nextPoint.y) scheduleDraw();
+        if (targetChanged) {
+          updateConnectingTargetClass(connectingTargetId, nextTargetId);
+          connectingTargetId = nextTargetId;
+        }
+        if (targetChanged || previousPoint.x !== nextPoint.x || previousPoint.y !== nextPoint.y) {
+          if (updateTempConnectionEdge()) requestMapCanvasPaint();
+          else scheduleDraw();
+        }
       }
     }
 
@@ -6762,11 +6899,12 @@
     window.addEventListener("mousemove", evt => {
       if (cancelStaleDesktopMouseGesture(evt)) return;
       if (updatePendingCanvasMouse(evt)) return;
-      handleCanvasMove(evt);
+      queueCanvasMove(evt);
     });
 
     window.addEventListener("mouseup", evt => {
       if (finishPendingCanvasMouse()) return;
+      flushQueuedCanvasMove(evt);
       handleCanvasEnd(evt);
     });
 
@@ -6787,7 +6925,7 @@
       if (evt.pointerId !== activePointerId) return;
       if (updatePendingEdgeTouch(evt)) return;
       if (updatePendingCanvasTouch(evt)) return;
-      handleCanvasMove(evt);
+      queueCanvasMove(evt);
     }, { passive: false });
 
     window.addEventListener("pointerup", evt => {
@@ -6800,6 +6938,7 @@
           releaseTouchPointer(evt);
           return;
         }
+        flushQueuedCanvasMove(evt);
         if (!finishPendingCanvasTap(evt)) handleCanvasEnd(evt);
         activePointerId = null;
       }
