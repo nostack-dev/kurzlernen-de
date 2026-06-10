@@ -419,6 +419,10 @@
       pointer-events: none;
     }
 
+    #wires .edge.layer-flow-open {
+      pointer-events: none;
+    }
+
     .map.dragging-state #world {
       z-index: 25;
     }
@@ -4953,6 +4957,11 @@
       );
     }
 
+    function layerFlowSideLaneCount(parent, side) {
+      if (!parent || !childStateCount(parent.id)) return 0;
+      return Math.max(1, parentBoundaryTransitions(parent, side).length);
+    }
+
     function layerFlowColor(parent, laneIndex) {
       const parentLayerId = parent?.parentId || null;
       const inputs = parentBoundaryTransitions(parent, "input");
@@ -5096,6 +5105,46 @@
       }));
     }
 
+    function appendLayerFlowOpenLane(parent, points, flowType, laneIndex) {
+      const compact = compactRoutePoints(points);
+      const style = `--edge-color: ${layerFlowColor(parent, laneIndex)}`;
+      wiresEl.appendChild(svgEl("path", {
+        d: pathFromPoints(compact),
+        class: "edge layer-flow-edge layer-flow-open",
+        style,
+        "data-layer-flow": flowType,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      const arrowD = arrowPathForPoints(compact);
+      if (arrowD) wiresEl.appendChild(svgEl("path", {
+        d: arrowD,
+        class: "edge-arrow layer-flow-edge-arrow",
+        style,
+        "data-layer-flow": `${flowType}-arrow`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      const startPin = compact[0];
+      const endPin = compact[compact.length - 1];
+      wiresEl.appendChild(svgEl("circle", {
+        cx: startPin.x,
+        cy: startPin.y,
+        r: 5,
+        class: "edge-pin layer-flow-pin",
+        style,
+        "data-layer-flow": `${flowType}-start`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      wiresEl.appendChild(svgEl("circle", {
+        cx: endPin.x,
+        cy: endPin.y,
+        r: 5,
+        class: "edge-pin layer-flow-pin",
+        style,
+        "data-layer-flow": `${flowType}-end`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+    }
+
     function renderLayerFlowWires(states) {
       const parent = byId(currentLayerId);
       const frame = parent ? layerFrameBox() : null;
@@ -5114,22 +5163,26 @@
       // Render one input wire per outer transition.
       // layerFlowStatePoint is the exact same function addLayerFlowSlot uses to place the dot,
       // so the wire endpoint lands precisely on it.
-      inputs.forEach((t, index) => {
+      for (let index = 0; index < layerFlowSideLaneCount(parent, "input"); index++) {
+        const t = inputs[index] || null;
         const start = layerFlowBoundaryPoint(frame, "input", index);
         const end = layerFlowStatePoint(entryState, "input", index);
         const points = [start];
         appendFlowSegment(points, end);
-        appendLayerFlowTransition(t, points, "input-wire", index, parentLayerId, edgeSelection);
-      });
+        if (t) appendLayerFlowTransition(t, points, "input-wire", index, parentLayerId, edgeSelection);
+        else appendLayerFlowOpenLane(parent, points, "input-wire", index);
+      }
 
       // Render one output wire per outer transition.
-      outputs.forEach((t, index) => {
+      for (let index = 0; index < layerFlowSideLaneCount(parent, "output"); index++) {
+        const t = outputs[index] || null;
         const start = layerFlowStatePoint(exitState, "output", index);
         const end = layerFlowBoundaryPoint(frame, "output", index);
         const points = [start];
         appendFlowSegment(points, end);
-        appendLayerFlowTransition(t, points, "output-wire", index, parentLayerId, edgeSelection);
-      });
+        if (t) appendLayerFlowTransition(t, points, "output-wire", index, parentLayerId, edgeSelection);
+        else appendLayerFlowOpenLane(parent, points, "output-wire", index);
+      }
     }
 
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
@@ -5170,7 +5223,7 @@
       const parentLayerId = parent?.parentId || null;
       const transitions = parentBoundaryTransitions(parent, side === "input" ? "input" : "output");
       const transition = transitions[laneIndex];
-      const color = transition ? edgeColor(transition, parentLayerId) : "#38bdf8";
+      const color = transition ? edgeColor(transition, parentLayerId) : layerFlowColor(parent, laneIndex);
       const classes = ["port-slot", `port-slot-${side}`, "layer-flow-slot", `layer-flow-slot-${side}`];
       if (transition && selectedEdgeIds().has(transition.id)) classes.push("selected");
       if (transition && hoveredEdgeId === transition.id) classes.push("hovered");
@@ -5191,12 +5244,6 @@
 
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
-      if (!parent) {
-        layerFrameEl.style.display = "none";
-        layerHudEl.hidden = true;
-        renderLayerBoundaries(null);
-        return;
-      }
       const padX = GRID_SIZE * 4;
       const padY = GRID_SIZE * 4;
       const fallbackCenter = viewportCenterWorld();
@@ -5210,7 +5257,7 @@
       layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
       layerHudEl.hidden = false;
-      layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
+      layerFrameLabelEl.textContent = parent ? `Inside ${parent.title || parent.id}` : "Root";
       renderLayerBoundaries(parent);
     }
 
@@ -5506,14 +5553,12 @@
 
         if (layerParent) {
           if (entryState && s.id === entryState.id) {
-            const inputs = parentBoundaryTransitions(layerParent, "input");
-            for (let index = 0; index < inputs.length; index++) {
+            for (let index = 0; index < layerFlowSideLaneCount(layerParent, "input"); index++) {
               addLayerFlowSlot(el, s, index, "input", layerParent);
             }
           }
           if (exitState && s.id === exitState.id) {
-            const outputs = parentBoundaryTransitions(layerParent, "output");
-            for (let index = 0; index < outputs.length; index++) {
+            for (let index = 0; index < layerFlowSideLaneCount(layerParent, "output"); index++) {
               addLayerFlowSlot(el, s, index, "output", layerParent);
             }
           }
