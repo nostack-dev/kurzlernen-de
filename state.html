@@ -7218,7 +7218,7 @@
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
-        if (evt.shiftKey) {
+        if (evt.shiftKey || evt.ctrlKey || evt.metaKey) {
           startBoxSelect(evt);
           return;
         }
