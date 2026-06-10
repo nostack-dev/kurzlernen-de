@@ -381,13 +381,13 @@
 
     .layer-hud[hidden] { display: none; }
 
-    .layer-frame .layer-back {
-      position: absolute;
-      top: 7px;
-      right: 7px;
-      z-index: 4;
-      display: grid;
-      pointer-events: auto;
+    .layer-back {
+      min-height: 34px;
+      padding: 7px 12px;
+      border-color: rgba(125,211,252,.42);
+      background: #071321;
+      color: #bae6fd;
+      box-shadow: 0 10px 24px rgba(0,0,0,.3);
     }
 
     .layer-frame-label,
@@ -410,106 +410,6 @@
       font-weight: 850;
     }
 
-    .layer-boundary {
-      position: absolute;
-      top: 50%;
-      display: grid;
-      gap: 7px;
-      min-width: 132px;
-      max-width: 188px;
-      padding: 9px;
-      border: 1px solid rgba(125,211,252,.34);
-      border-radius: 16px;
-      background: rgba(3,7,18,.9);
-      box-shadow: 0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
-      transform: translateY(-50%);
-      pointer-events: none;
-    }
-
-    .layer-boundary-input {
-      left: 18px;
-      justify-items: start;
-    }
-
-    .layer-boundary-output {
-      right: 18px;
-      justify-items: end;
-      text-align: right;
-    }
-
-    .layer-boundary-title {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      color: #e0f2fe;
-      font-size: 12px;
-      font-weight: 950;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-    }
-
-    .layer-boundary-plug {
-      width: 18px;
-      height: 18px;
-      border: 2px solid #07111f;
-      border-radius: 999px;
-      background: #38bdf8;
-      box-shadow: 0 0 0 4px rgba(56,189,248,.18);
-    }
-
-    .layer-boundary-output .layer-boundary-plug {
-      background: #f59e0b;
-      box-shadow: 0 0 0 4px rgba(245,158,11,.18);
-    }
-
-    .layer-boundary-count {
-      color: #93c5fd;
-      font-size: 11px;
-      font-weight: 850;
-    }
-
-    .layer-boundary-list {
-      display: grid;
-      gap: 5px;
-      width: 100%;
-    }
-
-    .layer-boundary-wire {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      min-width: 0;
-      color: #dbeafe;
-      font-size: 11px;
-      font-weight: 850;
-      line-height: 1.2;
-    }
-
-    .layer-boundary-output .layer-boundary-wire {
-      justify-content: flex-end;
-    }
-
-    .layer-boundary-dot {
-      flex: 0 0 auto;
-      width: 10px;
-      height: 10px;
-      border: 2px solid #07111f;
-      border-radius: 999px;
-      background: var(--edge-color, #38bdf8);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #38bdf8) 22%, transparent);
-    }
-
-    .layer-boundary-wire span {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .layer-boundary-empty {
-      opacity: .66;
-    }
-
     #wires .edge.layer-flow-edge {
       pointer-events: none;
     }
@@ -518,36 +418,8 @@
       pointer-events: none;
     }
 
-    .layer-flow-pin {
-      pointer-events: none;
-    }
-
     .map.dragging-state #world {
       z-index: 25;
-    }
-
-    .map.dragging-state #wires .hit,
-    .map.connecting #wires .hit,
-    .map.panning #wires .hit,
-    .map.dragging-state #wires .edge-tip-hit,
-    .map.connecting #wires .edge-tip-hit,
-    .map.panning #wires .edge-tip-hit {
-      pointer-events: none;
-    }
-
-    .map.dragging-state #wires .edge,
-    .map.connecting #wires .edge,
-    .map.panning #wires .edge,
-    .map.dragging-state #wires .edge-arrow,
-    .map.connecting #wires .edge-arrow,
-    .map.panning #wires .edge-arrow,
-    .map.dragging-state #wires .edge-pin,
-    .map.connecting #wires .edge-pin,
-    .map.panning #wires .edge-pin,
-    .map.dragging-state #wires .edge-tip-hit,
-    .map.connecting #wires .edge-tip-hit,
-    .map.panning #wires .edge-tip-hit {
-      filter: none !important;
     }
 
     #wires {
@@ -713,8 +585,6 @@
       position: absolute;
       min-width: 168px;
       min-height: 96px;
-      contain: layout style;
-      will-change: transform;
       border: 1px solid #5f8dbc;
       background: #12345a;
       border-radius: 10px;
@@ -806,8 +676,7 @@
     }
 
     .node-open,
-    .node-enter,
-    .layer-back {
+    .node-enter {
       min-width: 52px;
       height: 28px;
       min-height: 28px;
@@ -830,9 +699,7 @@
     .node-open:hover,
     .node-open:focus-visible,
     .node-enter:hover,
-    .node-enter:focus-visible,
-    .layer-back:hover,
-    .layer-back:focus-visible {
+    .node-enter:focus-visible {
       background: var(--accent);
       color: #04111d;
       outline: none;
@@ -1305,7 +1172,7 @@
     .selection-actions {
       position: absolute;
       left: 50%;
-      bottom: 14px;
+      bottom: 174px; /* default above expanded explorer */
       z-index: 24;
       display: none;
       align-items: center;
@@ -1317,6 +1184,11 @@
       backdrop-filter: blur(10px);
       box-shadow: 0 14px 34px rgba(0,0,0,.34);
       transform: translateX(-50%);
+      transition: bottom 0.18s ease;
+    }
+
+    .selection-actions:has(~ .state-explorer.collapsed) {
+      bottom: 60px; /* above collapsed explorer */
     }
 
     .selection-actions.visible { display: flex; }
@@ -1343,7 +1215,7 @@
       bottom: 12px;
       z-index: 20;
       display: grid;
-      grid-template-rows: 44px minmax(0, 1fr);
+      grid-template-rows: 38px minmax(0, 1fr);
       height: 152px;
       border: 1px solid rgba(56,189,248,.22);
       border-radius: 14px;
@@ -1355,7 +1227,7 @@
     }
 
     .state-explorer.collapsed {
-      height: 44px;
+      height: 38px;
       opacity: .92;
     }
 
@@ -1367,16 +1239,13 @@
     .state-explorer-title {
       display: flex;
       align-items: center;
-      flex-wrap: nowrap;
       gap: 8px;
       min-width: 0;
-      min-height: 44px;
-      padding: 6px 8px 6px 12px;
+      padding: 0 8px 0 12px;
       border-bottom: 1px solid rgba(56,189,248,.14);
       color: #dbeafe;
       font-size: 12px;
       font-weight: 900;
-      line-height: 1.2;
       user-select: none;
     }
 
@@ -1393,7 +1262,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      line-height: 1.2;
     }
 
     .state-explorer-hint {
@@ -1401,7 +1269,6 @@
       color: var(--muted);
       font-size: 11px;
       font-weight: 800;
-      line-height: 1.2;
       white-space: nowrap;
     }
 
@@ -1763,7 +1630,7 @@
       .selection-actions {
         left: max(10px, env(safe-area-inset-left));
         right: max(10px, env(safe-area-inset-right));
-        bottom: max(12px, env(safe-area-inset-bottom));
+        bottom: max(12px, env(safe-area-inset-bottom)) !important;
         justify-content: center;
         transform: none;
       }
@@ -1777,6 +1644,31 @@
         width: 100%;
         border-radius: 18px;
       }
+    }
+
+    /* Performance & Ignore pointer events optimizations during motion */
+    .map.dragging-state #wires .hit,
+    .map.connecting #wires .hit,
+    .map.panning #wires .hit,
+    .map.dragging-state #wires .edge-tip-hit,
+    .map.connecting #wires .edge-tip-hit,
+    .map.panning #wires .edge-tip-hit {
+      pointer-events: none;
+    }
+
+    .map.dragging-state #wires .edge,
+    .map.connecting #wires .edge,
+    .map.panning #wires .edge,
+    .map.dragging-state #wires .edge-arrow,
+    .map.connecting #wires .edge-arrow,
+    .map.panning #wires .edge-arrow,
+    .map.dragging-state #wires .edge-pin,
+    .map.connecting #wires .edge-pin,
+    .map.panning #wires .edge-pin,
+    .map.dragging-state #wires .edge-tip-hit,
+    .map.connecting #wires .edge-tip-hit,
+    .map.panning #wires .edge-tip-hit {
+      filter: none !important;
     }
   </style>
 </head>
@@ -1826,17 +1718,16 @@
     </aside>
     <main id="map" class="map" tabindex="-1">
       <div id="layerHud" class="layer-hud" hidden>
+        <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
         <span id="layerFrameLabel" class="layer-frame-label"></span>
         <span class="layer-frame-hint">flow in/out</span>
       </div>
-      <div id="layerNav" class="layer-nav" aria-hidden="true"></div>
       <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world">
           <div id="layerFrame" class="layer-frame">
-            <button id="layerBack" class="layer-back node-exit" type="button" title="Exit this state canvas (Esc)" aria-label="Exit this state canvas">Exit</button>
-            <div id="layerBoundaryInput" class="layer-boundary layer-boundary-input" data-layer-boundary="input"></div>
-            <div id="layerBoundaryOutput" class="layer-boundary layer-boundary-output" data-layer-boundary="output"></div>
+            <div class="input-port"></div>
+            <div class="port"></div>
           </div>
           <svg id="wires" viewBox="0 0 5000 4000">
             <defs>
@@ -1852,6 +1743,7 @@
       <div id="selectionActions" class="selection-actions" hidden>
         <span id="selectionCount" class="selection-count"></span>
         <button id="btnSelectionCopy" type="button">Copy</button>
+        <button id="btnSelectionCollapse" type="button">Collapse</button>
         <button id="btnSelectionDelete" type="button" class="danger">Delete</button>
       </div>
       <div id="stateExplorer" class="state-explorer">
@@ -1892,8 +1784,7 @@
     const DEFINITION_SCHEMA_VERSION = 2;
     const COMPONENT_EXPORT_KIND = "state-blueprint-component";
     const COMPONENT_EXPORT_SCHEMA_VERSION = 1;
-    const TEXT_COMPONENT_MAX_CHARS = 32;
-    const APP_HTML = "\u003c!doctype html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\n  \u003cmeta charset=\"utf-8\" /\u003e\n  \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\" /\u003e\n  \u003ctitle\u003eGenerated State App\u003c/title\u003e\n  \u003clink rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23020617'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23f59e0b'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E\" /\u003e\n  \u003cstyle\u003e\n    :root {\n      color-scheme: dark;\n      --bg: #020617;\n      --card: #06111f;\n      --card2: #081827;\n      --text: #e5f0ff;\n      --muted: #9fb3c8;\n      --line: #1d3956;\n      --line-strong: #315f8c;\n      --primary: #38bdf8;\n      --primary2: #0ea5e9;\n      --primary-text: #03101f;\n      --accent: #f59e0b;\n      --danger: #fb7185;\n      --danger-bg: #331120;\n      --success: #34d399;\n    }\n\n    * { box-sizing: border-box; }\n\n    html, body {\n      margin: 0;\n      min-height: 100%;\n      overflow: auto;\n      -webkit-overflow-scrolling: touch;\n      font-family: \"Atkinson Hyperlegible\", \"Aptos\", \"Segoe UI Variable\", \"Trebuchet MS\", sans-serif;\n      background-color: var(--bg);\n      background-image:\n        radial-gradient(circle at 14% -10%, rgba(56,189,248,.22), transparent 34%),\n        radial-gradient(circle at 90% 8%, rgba(245,158,11,.14), transparent 30%),\n        linear-gradient(180deg, #07111f 0%, var(--bg) 58%, #01040b 100%);\n      color: var(--text);\n    }\n\n    body {\n      display: grid;\n      place-items: start center;\n      padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));\n    }\n\n    .app { width: min(640px, 100%); }\n\n    .top {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n    }\n\n    .title {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n      color: #bfdbfe;\n      font-size: 13px;\n      font-weight: 950;\n      text-transform: uppercase;\n      letter-spacing: .1em;\n    }\n\n    .state-pill {\n      flex: 0 0 auto;\n      border: 1px solid rgba(56,189,248,.34);\n      border-radius: 999px;\n      padding: 6px 11px;\n      background-color: #071321;\n      color: #7dd3fc;\n      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 30px rgba(2,6,23,.28);\n      font-size: 12px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-weight: 850;\n    }\n\n    .screen {\n      position: relative;\n      overflow: hidden;\n      background-color: var(--card);\n      background-image:\n        linear-gradient(135deg, rgba(56,189,248,.08), transparent 38%),\n        linear-gradient(180deg, rgba(255,255,255,.035), transparent 26%);\n      border: 1px solid var(--line);\n      border-radius: 24px;\n      box-shadow: 0 22px 70px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.04);\n      padding: 30px;\n    }\n\n    .screen.validation-failed {\n      border-color: rgba(251,113,133,.8);\n      box-shadow: 0 0 0 4px rgba(251,113,133,.14), 0 22px 70px rgba(0,0,0,.44);\n    }\n\n    h1 {\n      margin: 0 0 10px;\n      color: #f8fbff;\n      font-size: clamp(30px, 5vw, 50px);\n      line-height: .98;\n      letter-spacing: -.045em;\n    }\n\n    .body {\n      color: var(--muted);\n      line-height: 1.62;\n      min-height: 44px;\n      margin-bottom: 24px;\n      font-size: 16px;\n    }\n\n    .component-stack {\n      display: grid;\n      gap: 12px;\n      margin-bottom: 22px;\n    }\n\n    .component-heading {\n      margin: 4px 0 0;\n      color: #f8fbff;\n      font-size: 22px;\n      line-height: 1.2;\n      font-weight: 950;\n    }\n\n    .component-text {\n      color: var(--muted);\n      font-size: 16px;\n      line-height: 1.62;\n      white-space: pre-wrap;\n    }\n\n    .component-note {\n      padding: 12px 13px;\n      border: 1px solid rgba(245,158,11,.42);\n      border-radius: 14px;\n      background-color: rgba(245,158,11,.1);\n      color: #fde68a;\n      font-size: 14px;\n      font-weight: 750;\n      line-height: 1.45;\n      white-space: pre-wrap;\n    }\n\n    .component-image {\n      display: block;\n      width: 100%;\n      max-height: 280px;\n      object-fit: cover;\n      border-radius: 16px;\n      border: 1px solid var(--line-strong);\n      background-color: #020617;\n      box-shadow: 0 16px 36px rgba(0,0,0,.3);\n    }\n\n    .component-list-block {\n      margin: 0;\n      padding-left: 22px;\n      color: var(--text);\n      line-height: 1.6;\n    }\n\n    .component-list-block li + li { margin-top: 4px; }\n\n    .component-link {\n      display: inline-flex;\n      width: fit-content;\n      max-width: 100%;\n      align-items: center;\n      min-height: 40px;\n      color: #7dd3fc;\n      font-weight: 900;\n      text-decoration: none;\n      overflow-wrap: anywhere;\n    }\n\n    .component-link:hover {\n      color: #bae6fd;\n      text-decoration: underline;\n    }\n\n    .component-sound {\n      display: grid;\n      gap: 10px;\n      padding: 12px 13px;\n      border: 1px solid rgba(56,189,248,.3);\n      border-radius: 16px;\n      background-color: rgba(56,189,248,.08);\n    }\n\n    .component-sound-label {\n      color: #dbeafe;\n      font-size: 14px;\n      font-weight: 900;\n    }\n\n    .component-sound audio {\n      width: 100%;\n      max-width: 100%;\n      accent-color: var(--primary);\n    }\n\n    .component-divider {\n      height: 1px;\n      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);\n    }\n\n    .controls {\n      margin: 18px 0;\n      padding: 14px;\n      background-color: rgba(8,24,39,.86);\n      border: 1px solid var(--line);\n      border-radius: 16px;\n    }\n\n    .controls h2 {\n      margin: 0 0 8px;\n      color: #bfdbfe;\n      font-size: 12px;\n      text-transform: uppercase;\n      letter-spacing: .09em;\n    }\n\n    .field {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 8px 0;\n      border-top: 1px solid rgba(49,95,140,.32);\n    }\n\n    .field:first-of-type { border-top: 0; }\n    .field .field-label {\n      color: var(--text);\n      font-weight: 850;\n    }\n\n    input[type=\"text\"].typed-input {\n      width: 140px;\n      min-height: 42px;\n      padding: 8px 10px;\n      border: 1px solid var(--line-strong);\n      border-radius: 10px;\n      background-color: #020b16;\n      color: var(--text);\n      caret-color: var(--primary);\n      font: inherit;\n    }\n\n    input[type=\"text\"].typed-input:focus-visible {\n      outline: 3px solid rgba(56,189,248,.22);\n      border-color: var(--primary);\n    }\n\n    input.invalid {\n      border-color: var(--danger);\n      outline: 3px solid rgba(251,113,133,.2);\n    }\n\n    .switch {\n      display: inline-flex;\n      align-items: center;\n      justify-content: flex-end;\n      gap: 9px;\n      min-width: 104px;\n      min-height: 44px;\n      cursor: pointer;\n      user-select: none;\n      touch-action: manipulation;\n    }\n\n    .switch input {\n      position: absolute;\n      inline-size: 1px;\n      block-size: 1px;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .switch-track {\n      position: relative;\n      width: 52px;\n      height: 30px;\n      flex: 0 0 auto;\n      border: 1px solid var(--line-strong);\n      border-radius: 999px;\n      background-color: #102033;\n      transition: background-color .16s ease, border-color .16s ease;\n    }\n\n    .switch-track::after {\n      content: \"\";\n      position: absolute;\n      left: 3px;\n      top: 3px;\n      width: 22px;\n      height: 22px;\n      border-radius: 999px;\n      background: #dbeafe;\n      box-shadow: 0 2px 7px rgba(0,0,0,.3);\n      transition: transform .16s ease, background .16s ease;\n    }\n\n    .switch input:checked + .switch-track {\n      border-color: var(--primary);\n      background-color: var(--primary);\n    }\n\n    .switch input:checked + .switch-track::after {\n      transform: translateX(22px);\n      background: #03101f;\n    }\n\n    .switch input:focus-visible + .switch-track {\n      outline: 3px solid rgba(56,189,248,.24);\n      outline-offset: 2px;\n    }\n\n    .switch-value {\n      min-width: 24px;\n      color: var(--muted);\n      font-size: 13px;\n      font-weight: 850;\n      text-align: left;\n    }\n\n    .actions {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 10px;\n      margin-top: 18px;\n    }\n\n    .action {\n      display: flex;\n      flex-direction: column;\n      align-items: flex-start;\n      gap: 5px;\n      max-width: 100%;\n    }\n\n    .condition-note {\n      max-width: min(320px, 100%);\n      color: var(--muted);\n      font-size: 12px;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid button {\n      background-color: var(--danger);\n      background-image: linear-gradient(135deg, var(--danger), #e11d48);\n      color: #fff7f9;\n      box-shadow: 0 0 0 3px rgba(251,113,133,.18);\n    }\n\n    .condition-feedback {\n      display: none;\n      max-width: min(320px, 100%);\n      color: #fecdd3;\n      font-size: 12px;\n      font-weight: 850;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid .condition-feedback { display: block; }\n\n    .runtime-validation {\n      margin: 0 0 18px;\n      padding: 12px 13px;\n      border: 1px solid rgba(251,113,133,.72);\n      border-radius: 14px;\n      background-color: rgba(51,17,32,.88);\n      color: #fecdd3;\n      font-size: 13px;\n      font-weight: 850;\n      line-height: 1.4;\n    }\n\n    .runtime-validation code {\n      display: inline-block;\n      margin-top: 4px;\n      padding: 2px 6px;\n      border-radius: 7px;\n      background: rgba(251,113,133,.14);\n      color: #fff1f2;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 12px;\n      overflow-wrap: anywhere;\n    }\n\n    .condition-note code {\n      color: #e0f2fe;\n      background: rgba(56,189,248,.12);\n      border: 1px solid rgba(56,189,248,.26);\n      border-radius: 7px;\n      padding: 1px 5px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 11px;\n    }\n\n    button {\n      border: 1px solid rgba(125,211,252,.28);\n      border-radius: 999px;\n      padding: 12px 16px;\n      background-color: var(--primary);\n      background-image: linear-gradient(135deg, var(--primary), var(--primary2));\n      color: var(--primary-text);\n      box-shadow: 0 12px 30px rgba(14,165,233,.2);\n      font-weight: 950;\n      cursor: pointer;\n      min-height: 44px;\n      touch-action: manipulation;\n    }\n\n    button:hover {\n      border-color: rgba(186,230,253,.62);\n      background-color: var(--primary2);\n      background-image: linear-gradient(135deg, #7dd3fc, var(--primary2));\n    }\n\n    button:focus-visible {\n      outline: 3px solid rgba(56,189,248,.28);\n      outline-offset: 3px;\n    }\n\n    button:disabled {\n      cursor: not-allowed;\n      background-color: #172033;\n      background-image: none;\n      color: #64748b;\n      box-shadow: none;\n      border-color: #26334a;\n    }\n\n    .empty {\n      padding: 18px;\n      border: 1px dashed var(--line-strong);\n      border-radius: 16px;\n      background-color: rgba(8,24,39,.48);\n      color: var(--muted);\n    }\n\n    .log {\n      margin-top: 14px;\n      color: var(--muted);\n      font-size: 12px;\n      max-height: 110px;\n      overflow: auto;\n      white-space: pre-wrap;\n    }\n\n    @media (max-width: 560px) {\n      body {\n        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));\n      }\n\n      .top { align-items: flex-start; }\n\n      .screen {\n        border-radius: 18px;\n        padding: 20px;\n      }\n\n      h1 { font-size: 30px; }\n\n      .field {\n        align-items: stretch;\n        flex-direction: column;\n        gap: 8px;\n      }\n\n      input[type=\"text\"].typed-input {\n        width: 100%;\n        min-height: 44px;\n        font-size: 16px;\n      }\n\n      .switch {\n        justify-content: space-between;\n        width: 100%;\n        min-height: 48px;\n        padding: 2px 0;\n      }\n\n      .actions {\n        flex-direction: column;\n        align-items: stretch;\n      }\n\n      .action,\n      button { width: 100%; }\n    }\n  \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n  \u003cmain class=\"app\"\u003e\n    \u003cdiv class=\"top\"\u003e\n      \u003cdiv class=\"title\" id=\"appName\"\u003eGenerated App\u003c/div\u003e\n      \u003cdiv class=\"state-pill\" id=\"statePill\"\u003e—\u003c/div\u003e\n    \u003c/div\u003e\n    \u003csection class=\"screen\" id=\"screen\"\u003e\u003c/section\u003e\n    \u003cdiv class=\"log\" id=\"log\"\u003e\u003c/div\u003e\n  \u003c/main\u003e\n\n  \u003cscript\u003e\n    const STORAGE_KEY = \"stateBlueprintHotLinked.model.v2\";\n\n    let model = loadModel() || demoModel();\n    let current = model.initial;\n    let context = defaultContext(model);\n    let logLines = [];\n    let transitionToNotify = null;\n    let blockedTransitionId = null;\n    let runtimeValidation = null;\n    let suppressNextFocus = false;\n    let stateActivationId = 0;\n    const dataSourceRuns = new Map();\n\n    function demoModel() {\n      return {\n        version: 2,\n        name: \"Standard Auth Flow\",\n        initial: \"auth_start\",\n        states: [\n          { id: \"auth_start\", title: \"Auth start\", body: \"User chooses login or registration.\", x: 90, y: 210 },\n          { id: \"login\", title: \"Login\", body: \"Email and password are entered.\", x: 360, y: 100 },\n          { id: \"register\", title: \"Register\", body: \"Create a new account with email and accepted terms.\", x: 360, y: 320 },\n          { id: \"error\", title: \"Error\", body: \"Invalid credentials or registration data.\", x: 630, y: 320 },\n          { id: \"logged_in\", title: \"Logged in\", body: \"Authenticated app area.\", x: 900, y: 100 },\n          { id: \"logged_out\", title: \"Logged out\", body: \"Session ended. User can return to login.\", x: 900, y: 320 }\n        ],\n        transitions: [\n          { id: \"t_start_login\", from: \"auth_start\", to: \"login\", label: \"Login\", condition: \"\" },\n          { id: \"t_start_register\", from: \"auth_start\", to: \"register\", label: \"Registrieren\", condition: \"\" },\n          { id: \"t_login_success\", from: \"login\", to: \"logged_in\", label: \"Einloggen\", condition: \"email == \\\"user@example.com\\\" \u0026\u0026 password == \\\"secret123\\\"\" },\n          { id: \"t_login_error\", from: \"login\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_register_success\", from: \"register\", to: \"logged_in\", label: \"Account erstellen\", condition: \"email == \\\"new@example.com\\\" \u0026\u0026 accepted_terms\" },\n          { id: \"t_register_error\", from: \"register\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_logout\", from: \"logged_in\", to: \"logged_out\", label: \"Logout\", condition: \"\" },\n          { id: \"t_logged_out_login\", from: \"logged_out\", to: \"login\", label: \"Wieder einloggen\", condition: \"\" },\n          { id: \"t_error_back\", from: \"error\", to: \"auth_start\", label: \"Zurück\", condition: \"\" }\n        ]\n      };\n    }\n\n    function loadModel() {\n      try {\n        const text = localStorage.getItem(STORAGE_KEY);\n        return text ? normalizeModel(JSON.parse(text)) : null;\n      } catch (_) { return null; }\n    }\n\n    function saveModel() {\n      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(model)); } catch (_) {}\n    }\n\n\n    function normalizeModel(m) {\n      m.version = 2;\n      m.name = m.name || \"Generated App\";\n      m.states = Array.isArray(m.states) ? m.states : [];\n      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];\n      if (!m.states.length) m.states.push({ id: \"start\", title: \"Start\", body: \"\" });\n      for (const s of m.states) {\n        s.components = normalizeComponents(s.components);\n        s.data = normalizeDataObject(s.data);\n        s.dataSource = normalizeDataSource(s.dataSource || s.fetch);\n        s.repeat = normalizeRepeatConfig(s.repeat);\n      }\n      const ids = new Set(m.states.map(s =\u003e s.id));\n      for (const s of m.states) {\n        s.parentId = typeof s.parentId === \"string\" \u0026\u0026 ids.has(s.parentId) \u0026\u0026 s.parentId !== s.id ? s.parentId : null;\n      }\n      m.transitions = m.transitions.filter(t =\u003e {\n        if (!ids.has(t.from) || !ids.has(t.to)) return false;\n        const from = m.states.find(s =\u003e s.id === t.from);\n        const to = m.states.find(s =\u003e s.id === t.to);\n        return (from?.parentId || null) === (to?.parentId || null);\n      });\n      for (const t of m.transitions) {\n        t.id = t.id || Math.random().toString(36).slice(2, 9);\n        t.label = t.label || t.event || \"Next\";\n        t.condition = t.condition || \"\";\n        t.set = normalizeDataObject(t.set);\n      }\n      if (!ids.has(m.initial)) m.initial = m.states.find(s =\u003e !s.parentId)?.id || m.states[0].id;\n      return m;\n    }\n\n    function normalizeComponents(components) {\n      const allowed = new Set([\"heading\", \"text\", \"image\", \"list\", \"link\", \"sound\", \"note\", \"divider\"]);\n      return (Array.isArray(components) ? components : [])\n        .filter(component =\u003e component \u0026\u0026 typeof component === \"object\" \u0026\u0026 allowed.has(component.type))\n        .slice(0, 24)\n        .map(component =\u003e ({\n          id: String(component.id || Math.random().toString(36).slice(2, 9)),\n          type: component.type,\n          text: String(component.text || \"\"),\n          url: String(component.url || \"\")\n        }));\n    }\n\n    function isPlainDataObject(value) {\n      return Boolean(value) \u0026\u0026 typeof value === \"object\" \u0026\u0026 !Array.isArray(value);\n    }\n\n    function normalizeDataObject(value) {\n      if (!isPlainDataObject(value)) return {};\n      return JSON.parse(JSON.stringify(value));\n    }\n\n    function normalizeContextPath(path, fallback = \"fetch\") {\n      const text = String(path || \"\").trim();\n      if (!text) return fallback;\n      return /^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(text) ? text : fallback;\n    }\n\n    function normalizeContextIdentifier(text, fallback = \"item\") {\n      const value = String(text || \"\").trim();\n      if (!value) return fallback;\n      return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value) ? value : fallback;\n    }\n\n    function normalizeDataSource(value) {\n      const source = isPlainDataObject(value) ? value : {};\n      const timeout = Number(source.timeoutMs);\n      const retries = Number(source.retries);\n      return {\n        url: String(source.url || \"\"),\n        target: normalizeContextPath(source.target, \"fetch\"),\n        select: normalizeContextPath(source.select, \"\"),\n        timeoutMs: Math.min(30000, Math.max(1000, Number.isFinite(timeout) ? timeout : 8000)),\n        retries: Math.min(5, Math.max(0, Number.isFinite(retries) ? Math.round(retries) : 2))\n      };\n    }\n\n    function hasDataSource(value) {\n      return Boolean(normalizeDataSource(value).url.trim());\n    }\n\n    function normalizeRepeatConfig(value) {\n      const source = isPlainDataObject(value) ? value : {};\n      return {\n        path: normalizeContextPath(source.path, \"\"),\n        as: normalizeContextIdentifier(source.as, \"item\"),\n        index: normalizeContextIdentifier(source.index, \"i\")\n      };\n    }\n\n    function pathParts(path) {\n      return String(path || \"\").split(\".\").filter(Boolean);\n    }\n\n    function readValueAtPath(source, path) {\n      const parts = pathParts(path);\n      if (!parts.length) return source;\n      let value = source;\n      for (const part of parts) {\n        if (value === null || value === undefined || typeof value !== \"object\" || !(part in value)) return undefined;\n        value = value[part];\n      }\n      return value;\n    }\n\n    function setValueAtPath(target, path, value) {\n      const parts = pathParts(path);\n      if (!parts.length) return;\n      let cursor = target;\n      for (let i = 0; i \u003c parts.length - 1; i += 1) {\n        const part = parts[i];\n        if (!cursor[part] || typeof cursor[part] !== \"object\" || Array.isArray(cursor[part])) cursor[part] = {};\n        cursor = cursor[part];\n      }\n      cursor[parts[parts.length - 1]] = value;\n    }\n\n    function readContextPathRaw(path) {\n      return readValueAtPath(context, path);\n    }\n\n    function formatContextValue(value) {\n      if (value === null || value === undefined) return \"\";\n      if (Array.isArray(value)) return value.map(formatListItem).join(\", \");\n      if (typeof value === \"object\") return JSON.stringify(value);\n      return String(value);\n    }\n\n    function readContextPath(path) {\n      return formatContextValue(readContextPathRaw(path));\n    }\n\n    function renderTemplate(text) {\n      return String(text || \"\").replace(/\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\}/g, (_, path) =\u003e readContextPath(path));\n    }\n\n    function exactTemplatePath(text) {\n      const match = String(text || \"\").trim().match(/^\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\}$/);\n      return match ? match[1] : \"\";\n    }\n\n    function formatListItem(value) {\n      if (value === null || value === undefined) return \"\";\n      if (typeof value === \"object\") {\n        for (const key of [\"title\", \"name\", \"label\", \"id\"]) {\n          if (value[key] !== null \u0026\u0026 value[key] !== undefined) return String(value[key]);\n        }\n        return JSON.stringify(value);\n      }\n      return String(value);\n    }\n\n\n    function childStates(parentId) {\n      return model.states\n        .filter(state =\u003e (state.parentId || null) === parentId)\n        .sort((a, b) =\u003e (a.y - b.y) || (a.x - b.x) || String(a.id).localeCompare(String(b.id)));\n    }\n\n    function applyStateDataDefaults(state) {\n      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {\n        if (!(key in context)) context[key] = value;\n      }\n    }\n\n    function applyNestedStateDataDefaults(state, seen = new Set()) {\n      if (!state || seen.has(state.id)) return;\n      seen.add(state.id);\n      applyStateDataDefaults(state);\n      for (const child of childStates(state.id)) applyNestedStateDataDefaults(child, seen);\n    }\n\n    function applyTransitionSet(transition) {\n      Object.assign(context, normalizeDataObject(transition.set));\n    }\n\n    function enterState(nextId, transition = null) {\n      if (!findState(nextId)) return false;\n      current = nextId;\n      stateActivationId += 1;\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      if (transition) transitionToNotify = transition;\n      return true;\n    }\n\n    function findState(id) { return model.states.find(s =\u003e s.id === id); }\n    function stateById(id) { return findState(id) || model.states[0]; }\n    function outgoing(id) { return model.transitions.filter(t =\u003e t.from === id); }\n\n    function defaultContext(m) {\n      const vars = inferVariables(m);\n      const out = {};\n      for (const v of vars) out[v.name] = defaultValueFor(v);\n      return out;\n    }\n\n    function inferVariables(m) {\n      const map = new Map();\n      const upsert = (name, patch) =\u003e {\n        if (String(name).includes(\".\")) return;\n        if ([\"true\", \"false\", \"and\", \"or\", \"null\", \"undefined\", \"always\"].includes(String(name).toLowerCase())) return;\n        const prev = map.get(name) || { name, type: \"boolean\" };\n        map.set(name, { ...prev, ...patch });\n      };\n      for (const t of m.transitions || []) {\n        const c = String(t.condition || \"\");\n        const searchable = c.replace(/([\"'])(?:\\\\.|(?!\\1)[\\s\\S])*?\\1/g, \"\");\n        const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];\n        for (const name of names) {\n          upsert(name, {});\n        }\n        for (const numeric of searchable.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(-?\\d+(?:\\.\\d+)?)/g)) {\n          const raw = numeric[3];\n          const decimalPlaces = raw.includes(\".\") ? raw.split(\".\")[1].length : 0;\n          const nextDecimalPlaces = Math.max(map.get(numeric[1])?.decimalPlaces || 0, decimalPlaces);\n          upsert(numeric[1], {\n            type: \"number\",\n            kind: nextDecimalPlaces ? \"float\" : \"int\",\n            decimalPlaces: nextDecimalPlaces\n          });\n        }\n        for (const quoted of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(==|!=)\\s*(['\"])(.*?)\\3/g)) {\n          upsert(quoted[1], { type: \"text\" });\n        }\n      }\n      return [...map.values()].sort((a, b) =\u003e a.name.localeCompare(b.name));\n    }\n\n    function defaultValueFor(v) {\n      if (v.type === \"number\") return \"0\";\n      if (v.type === \"text\") return \"\";\n      return false;\n    }\n\n    function variableMap() {\n      return new Map(inferVariables(model).map(v =\u003e [v.name, v]));\n    }\n\n    function sanitizeContext(vars = inferVariables(model)) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function ensureContext(vars) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function sanitizeValue(value, v) {\n      if (value === null || value === undefined) return defaultValueFor(v);\n      if (v.type === \"number\") return sanitizeNumericInput(String(value), v, { fallback: defaultValueFor(v) });\n      if (v.type === \"text\") return String(value);\n      return Boolean(value);\n    }\n\n    function sanitizeNumericInput(value, v, opts = {}) {\n      const fallback = opts.fallback ?? \"\";\n      let raw = String(value ?? \"\").trim().replace(\",\", \".\");\n      if (v.kind === \"int\") raw = raw.replace(/[^\\d]/g, \"\");\n      else raw = raw.replace(/[^\\d.]/g, \"\").replace(/(\\..*)\\./g, \"    const APP_HTML = \");\n      if (raw === \"\") return fallback;\n      return raw;\n    }\n\n    function isValidValue(value, v) {\n      if (value === null || value === undefined) return false;\n      if (v.type === \"number\") {\n        const raw = String(value);\n        if (v.kind === \"int\") return /^\\d+$/.test(raw);\n        return /^\\d+(?:\\.\\d+)?$/.test(raw);\n      }\n      if (v.type === \"text\") return value !== null \u0026\u0026 value !== undefined;\n      return typeof value === \"boolean\";\n    }\n\n    function strictNumber(value) {\n      if (value === null || value === undefined) return null;\n      if (typeof value === \"number\") return Number.isFinite(value) ? value : null;\n      const raw = String(value).trim();\n      if (!/^-?\\d+(?:\\.\\d+)?$/.test(raw)) return null;\n      const n = Number(raw);\n      return Number.isFinite(n) ? n : null;\n    }\n\n    function coerceValue(text) {\n      const raw = String(text).trim().replace(/^[\"']|[\"']$/g, \"\");\n      if (raw === \"true\") return true;\n      if (raw === \"false\") return false;\n      if (raw === \"null\" || raw === \"undefined\") return Symbol.for(\"invalid\");\n      if (/^-?\\d+(\\.\\d+)?$/.test(raw)) return Number(raw);\n      return raw;\n    }\n\n    function testAtom(atom) {\n      atom = atom.trim();\n      if (!atom || atom === \"true\") return true;\n      if (atom === \"false\") return false;\n\n      if (atom.startsWith(\"!\")) {\n        const name = atom.slice(1).trim();\n        const value = readContextPathRaw(name);\n        if (value === null || value === undefined) return false;\n        return !Boolean(value);\n      }\n\n      const m = atom.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(.+)$/);\n      if (!m) {\n        const value = readContextPathRaw(atom);\n        const v = variableMap().get(atom);\n        if (v \u0026\u0026 !isValidValue(value, v)) return false;\n        return Boolean(value);\n      }\n\n      const left = readContextPathRaw(m[1]);\n      const op = m[2];\n      const right = coerceValue(m[3]);\n      const vars = variableMap();\n      const v = vars.get(m[1]);\n      if (left === null || left === undefined || right === Symbol.for(\"invalid\")) return false;\n      if (v \u0026\u0026 !isValidValue(left, v)) return false;\n\n      if ([\"\u003e=\", \"\u003c=\", \"\u003e\", \"\u003c\"].includes(op)) {\n        const l = strictNumber(left);\n        const r = typeof right === \"number\" \u0026\u0026 Number.isFinite(right) ? right : null;\n        if (l === null || r === null) return false;\n        if (op === \"\u003e=\") return l \u003e= r;\n        if (op === \"\u003c=\") return l \u003c= r;\n        if (op === \"\u003e\") return l \u003e r;\n        if (op === \"\u003c\") return l \u003c r;\n      }\n      if (typeof right === \"number\") {\n        const l = strictNumber(left);\n        if (l === null) return false;\n        return op === \"==\" ? l === right : l !== right;\n      }\n      if (typeof right === \"boolean\") {\n        const l = Boolean(left);\n        return op === \"==\" ? l === right : l !== right;\n      }\n      return op === \"==\" ? String(left) === String(right) : String(left) !== String(right);\n      return false;\n    }\n\n    function conditionOk(condition) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return true;\n      return c.split(\"||\").some(orPart =\u003e orPart.split(\"\u0026\u0026\").every(testAtom));\n    }\n\n    function conditionMentionsDataSource(condition, source) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return false;\n      const target = normalizeContextPath(source.target, \"fetch\");\n      const searchable = c.replace(/([\"'])(?:\\\\.|(?!\\1)[\\s\\S])*?\\1/g, \"\");\n      const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];\n      return names.some(name =\u003e name === \"fetched\" || name === target || name.startsWith(`${target}.`));\n    }\n\n    function followTransition(transition, fromStateId, reason = \"next\") {\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      applyTransitionSet(transition);\n      log(`${fromStateId} --${transition.label || reason}--\u003e ${transition.to}`);\n      enterState(transition.to, transition);\n    }\n\n    function tryDataSourceTransition(state, source, activationId) {\n      if (current !== state.id || activationId !== stateActivationId) return false;\n      const next = outgoing(state.id).find(t =\u003e\n        t.to !== state.id \u0026\u0026\n        conditionMentionsDataSource(t.condition, source) \u0026\u0026\n        conditionOk(t.condition)\n      );\n      if (!next) return false;\n      followTransition(next, state.id, \"fetch\");\n      render();\n      return true;\n    }\n\n    function log(text) {\n      logLines.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);\n      logLines = logLines.slice(0, 6);\n    }\n\n    function safeFetchUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      try {\n        const parsed = new URL(raw, window.location.href);\n        return /^https?:$/i.test(parsed.protocol) ? parsed.href : \"\";\n      } catch (_) {\n        return \"\";\n      }\n    }\n\n    function countData(data) {\n      if (Array.isArray(data)) return data.length;\n      if (data \u0026\u0026 typeof data === \"object\") return Object.keys(data).length;\n      return data === null || data === undefined || data === \"\" ? 0 : 1;\n    }\n\n    function dataSourceResult(patch) {\n      return {\n        status: \"idle\",\n        ok: false,\n        data: null,\n        error: \"\",\n        statusCode: 0,\n        count: 0,\n        url: \"\",\n        ...patch\n      };\n    }\n\n    function writeDataSourceResult(source, result) {\n      setValueAtPath(context, source.target, result);\n      context.fetched = Boolean(result.ok);\n    }\n\n    function dataSourceRunKey(state, source) {\n      return [stateActivationId, state.id, source.url, source.target, source.select].join(\"\\u0000\");\n    }\n\n    // Async fetch results are events emitted by a specific state activation.\n    // Once the FSM leaves that activation, the event no longer belongs to the current state.\n    function dataSourceEventBelongsToCurrentState(state, key, activationId) {\n      return current === state.id \u0026\u0026\n        activationId === stateActivationId \u0026\u0026\n        dataSourceRuns.get(key)?.activationId === activationId;\n    }\n\n    async function fetchJsonWithTimeout(url, timeoutMs) {\n      const controller = new AbortController();\n      const timer = setTimeout(() =\u003e controller.abort(), timeoutMs);\n      try {\n        const response = await fetch(url, {\n          method: \"GET\",\n          headers: { Accept: \"application/json\" },\n          cache: \"no-store\",\n          credentials: \"same-origin\",\n          signal: controller.signal\n        });\n        let json = null;\n        try {\n          json = await response.json();\n        } catch (_) {\n          throw new Error(\"Expected JSON\");\n        }\n        return { response, json };\n      } finally {\n        clearTimeout(timer);\n      }\n    }\n\n    async function runStateDataSource(state, source, key, activationId) {\n      const requestUrl = safeFetchUrl(renderTemplate(source.url));\n      if (!requestUrl) {\n        if (!dataSourceEventBelongsToCurrentState(state, key, activationId)) return;\n        writeDataSourceResult(source, dataSourceResult({ status: \"error\", error: \"Invalid endpoint URL\" }));\n        if (!tryDataSourceTransition(state, source, activationId)) render();\n        return;\n      }\n      let lastError = \"\";\n      for (let attempt = 0; attempt \u003c= source.retries; attempt += 1) {\n        try {\n          const { response, json } = await fetchJsonWithTimeout(requestUrl, source.timeoutMs);\n          if (!response.ok) throw new Error(`HTTP ${response.status}`);\n          const selected = source.select ? readValueAtPath(json, source.select) : json;\n          const data = selected === undefined ? null : selected;\n          if (!dataSourceEventBelongsToCurrentState(state, key, activationId)) return;\n          writeDataSourceResult(source, dataSourceResult({\n            status: \"success\",\n            ok: true,\n            data,\n            statusCode: response.status,\n            count: countData(data),\n            url: requestUrl\n          }));\n          if (!tryDataSourceTransition(state, source, activationId)) render();\n          return;\n        } catch (err) {\n          lastError = err?.name === \"AbortError\" ? \"Timeout\" : (err?.message || \"Fetch failed\");\n          if (attempt \u003c source.retries) await new Promise(resolve =\u003e setTimeout(resolve, 200 * Math.pow(2, attempt)));\n        }\n      }\n      if (!dataSourceEventBelongsToCurrentState(state, key, activationId)) return;\n      writeDataSourceResult(source, dataSourceResult({\n        status: \"error\",\n        error: lastError || \"Fetch failed\",\n        url: requestUrl\n      }));\n      if (!tryDataSourceTransition(state, source, activationId)) render();\n    }\n\n    function ensureStateDataSource(state) {\n      const source = normalizeDataSource(state.dataSource || state.fetch);\n      if (!hasDataSource(source)) return;\n      const key = dataSourceRunKey(state, source);\n      if (dataSourceRuns.has(key)) return;\n      const activationId = stateActivationId;\n      dataSourceRuns.set(key, { stateId: state.id, activationId });\n      writeDataSourceResult(source, dataSourceResult({\n        status: \"loading\",\n        url: renderTemplate(source.url)\n      }));\n      runStateDataSource(state, source, key, activationId);\n    }\n\n    function refreshBlockedValidation() {\n      if (!blockedTransitionId) return;\n      const transition = model.transitions.find(t =\u003e t.id === blockedTransitionId);\n      if (!transition || conditionOk(transition.condition)) blockedTransitionId = null;\n      for (const action of document.querySelectorAll(\"[data-action-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === action.dataset.actionTransitionId);\n        action.classList.toggle(\"invalid\", Boolean(t \u0026\u0026 t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)));\n      }\n    }\n\n    function notifyRuntime() {\n      const payload = {\n        type: \"STATE_BLUEPRINT_RUNTIME_STATE\",\n        current,\n        transitionId: transitionToNotify?.id || null,\n        from: transitionToNotify?.from || null,\n        to: current,\n        label: transitionToNotify?.label || null,\n        context: JSON.parse(JSON.stringify(context))\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n      transitionToNotify = null;\n    }\n\n    function appendComponentElements(stack, components) {\n      let rendered = 0;\n      for (const component of normalizeComponents(components)) {\n        let el;\n        if (component.type === \"heading\") {\n          el = document.createElement(\"h2\");\n          el.className = \"component-heading\";\n          el.textContent = renderTemplate(component.text || \"Section\");\n        } else if (component.type === \"image\") {\n          const src = safeComponentUrl(renderTemplate(component.url));\n          if (!src) continue;\n          el = document.createElement(\"img\");\n          el.className = \"component-image\";\n          el.src = src;\n          el.alt = renderTemplate(component.text || \"\");\n          el.loading = \"lazy\";\n        } else if (component.type === \"list\") {\n          const exactPath = exactTemplatePath(component.text || \"\");\n          const rawItems = exactPath ? readContextPathRaw(exactPath) : null;\n          const items = Array.isArray(rawItems)\n            ? rawItems.map(formatListItem).filter(Boolean)\n            : renderTemplate(component.text || \"\").split(/\\r?\\n/).map(item =\u003e item.trim()).filter(Boolean);\n          if (!items.length) continue;\n          el = document.createElement(\"ul\");\n          el.className = \"component-list-block\";\n          for (const item of items) {\n            const li = document.createElement(\"li\");\n            li.textContent = item;\n            el.appendChild(li);\n          }\n        } else if (component.type === \"link\") {\n          const href = safeComponentUrl(renderTemplate(component.url));\n          if (!href) continue;\n          el = document.createElement(\"a\");\n          el.className = \"component-link\";\n          el.href = href;\n          el.target = \"_blank\";\n          el.rel = \"noopener noreferrer\";\n          el.textContent = renderTemplate(component.text || href);\n        } else if (component.type === \"sound\") {\n          const src = safeComponentUrl(renderTemplate(component.url));\n          if (!src) continue;\n          el = document.createElement(\"div\");\n          el.className = \"component-sound\";\n          const label = document.createElement(\"div\");\n          label.className = \"component-sound-label\";\n          label.textContent = renderTemplate(component.text || \"Play sound\");\n          const audio = document.createElement(\"audio\");\n          audio.className = \"component-sound-player\";\n          audio.controls = true;\n          audio.preload = \"none\";\n          audio.src = src;\n          el.append(label, audio);\n        } else if (component.type === \"note\") {\n          el = document.createElement(\"div\");\n          el.className = \"component-note\";\n          el.textContent = renderTemplate(component.text || \"\");\n        } else if (component.type === \"divider\") {\n          el = document.createElement(\"div\");\n          el.className = \"component-divider\";\n          el.setAttribute(\"role\", \"separator\");\n        } else {\n          el = document.createElement(\"div\");\n          el.className = \"component-text\";\n          el.textContent = renderTemplate(component.text || \"\");\n        }\n        stack.appendChild(el);\n        rendered += 1;\n      }\n      return rendered;\n    }\n\n    function renderComponents(screen, state, seen = new Set(), nested = false) {\n      if (!state || seen.has(state.id)) return 0;\n      seen.add(state.id);\n      const repeat = normalizeRepeatConfig(state.repeat);\n      const repeated = repeat.path ? readContextPathRaw(repeat.path) : null;\n      if (Array.isArray(repeated)) {\n        let total = 0;\n        const previousItem = context[repeat.as];\n        const previousIndex = context[repeat.index];\n        const hadItem = Object.prototype.hasOwnProperty.call(context, repeat.as);\n        const hadIndex = Object.prototype.hasOwnProperty.call(context, repeat.index);\n        repeated.forEach((item, index) =\u003e {\n          context[repeat.as] = item;\n          context[repeat.index] = index;\n          const stack = document.createElement(\"div\");\n          stack.className = \"component-stack\";\n          let rendered = appendComponentElements(stack, state.components);\n          for (const child of childStates(state.id)) {\n            rendered += renderComponents(stack, child, new Set(seen), true);\n          }\n          if (!rendered) {\n            const body = document.createElement(\"div\");\n            body.className = nested ? \"component-text\" : \"body\";\n            body.textContent = renderTemplate(state.body || (state.title || state.id));\n            stack.appendChild(body);\n            rendered = 1;\n          }\n          screen.appendChild(stack);\n          total += rendered;\n        });\n        if (hadItem) context[repeat.as] = previousItem;\n        else delete context[repeat.as];\n        if (hadIndex) context[repeat.index] = previousIndex;\n        else delete context[repeat.index];\n        return total;\n      }\n      const stack = document.createElement(\"div\");\n      stack.className = \"component-stack\";\n      let rendered = appendComponentElements(stack, state.components);\n      for (const child of childStates(state.id)) {\n        rendered += renderComponents(stack, child, seen, true);\n      }\n      if (rendered) {\n        screen.appendChild(stack);\n        return rendered;\n      }\n      const body = document.createElement(\"div\");\n      body.className = nested ? \"component-text\" : \"body\";\n      body.textContent = renderTemplate(state.body || (nested ? (state.title || state.id) : \"This screen is generated from the current state.\"));\n      screen.appendChild(body);\n      return 1;\n    }\n\n    function safeComponentUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      if (/^https?:\\/\\//i.test(raw)) return raw;\n      if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;\n      if (/^data:audio\\/(?:mpeg|mp3|ogg|wav|webm|mp4);base64,/i.test(raw)) return raw;\n      return \"\";\n    }\n\n    function isNegativeTransition(t) {\n      return /\\b(error|fail|fehler|zurück|back|cancel|abbruch)\\b/i.test(String(t.label || \"\"));\n    }\n\n    function defaultTransitionId(transitions) {\n      return (transitions.find(t =\u003e !isNegativeTransition(t)) || transitions[0])?.id || \"\";\n    }\n\n    function activateDefaultAction() {\n      const button = document.querySelector('[data-default-action=\"true\"]');\n      if (button \u0026\u0026 !button.disabled) button.click();\n    }\n\n    function submitOnEnter(evt) {\n      if (evt.key !== \"Enter\" || evt.isComposing || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return;\n      evt.preventDefault();\n      activateDefaultAction();\n    }\n\n    function applyTabOrderAndFocus(screen) {\n      const focusables = [...screen.querySelectorAll(\"input, button, a[href]\")];\n      focusables.forEach(el =\u003e { el.tabIndex = 0; });\n      if (suppressNextFocus) {\n        suppressNextFocus = false;\n        return;\n      }\n      const firstInput = screen.querySelector(\"input:not([type='hidden'])\");\n      const fallback = screen.querySelector('[data-default-action=\"true\"]');\n      const target = firstInput || fallback;\n      if (target) requestAnimationFrame(() =\u003e target.focus({ preventScroll: true }));\n    }\n\n    function render() {\n      normalizeModel(model);\n      if (!findState(current)) current = model.initial;\n      const s = stateById(current);\n      applyNestedStateDataDefaults(s);\n      const transitions = outgoing(s.id);\n      const actionTransitions = transitions;\n      const defaultActionId = defaultTransitionId(actionTransitions);\n      if (blockedTransitionId \u0026\u0026 !actionTransitions.some(t =\u003e t.id === blockedTransitionId)) blockedTransitionId = null;\n      const vars = inferVariables({ transitions: actionTransitions });\n      ensureContext(vars);\n      ensureStateDataSource(s);\n\n      document.getElementById(\"appName\").textContent = model.name || \"Generated App\";\n      document.getElementById(\"statePill\").textContent = s.id;\n\n      const screen = document.getElementById(\"screen\");\n      screen.className = \"screen\";\n      const activeValidation = runtimeValidation?.stateId === s.id ? runtimeValidation : null;\n      if (activeValidation) screen.classList.add(\"validation-failed\");\n      screen.innerHTML = \"\";\n\n      const h1 = document.createElement(\"h1\");\n      h1.textContent = renderTemplate(s.title || s.id);\n      screen.appendChild(h1);\n\n      renderComponents(screen, s);\n\n      if (activeValidation) {\n        const validation = document.createElement(\"div\");\n        validation.className = \"runtime-validation\";\n        validation.setAttribute(\"role\", \"alert\");\n        validation.append(`Condition not met for \"${activeValidation.label}\".`);\n        if (activeValidation.condition) {\n          validation.append(document.createElement(\"br\"));\n          validation.append(\"Expected \");\n          const code = document.createElement(\"code\");\n          code.textContent = activeValidation.condition;\n          validation.appendChild(code);\n        }\n        screen.appendChild(validation);\n      }\n\n      if (vars.length) {\n        const controls = document.createElement(\"div\");\n        controls.className = \"controls\";\n        controls.innerHTML = `\u003ch2\u003eCondition inputs\u003c/h2\u003e`;\n        for (const v of vars) {\n          if (!(v.name in context)) context[v.name] = defaultValueFor(v);\n          const row = document.createElement(\"div\");\n          row.className = \"field\";\n          const label = document.createElement(\"label\");\n          label.className = \"field-label\";\n          label.textContent = v.name;\n          const input = document.createElement(\"input\");\n          let control = input;\n          if (v.type === \"number\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.inputMode = v.kind === \"int\" ? \"numeric\" : \"decimal\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = sanitizeNumericInput(input.value, v);\n              input.value = context[v.name];\n              input.classList.toggle(\"invalid\", !isValidValue(context[v.name], v));\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else if (v.type === \"text\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = String(input.value ?? \"\");\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else {\n            input.type = \"checkbox\";\n            input.checked = Boolean(context[v.name]);\n            const toggle = document.createElement(\"label\");\n            toggle.className = \"switch\";\n            const track = document.createElement(\"span\");\n            track.className = \"switch-track\";\n            const value = document.createElement(\"span\");\n            value.className = \"switch-value\";\n            const updateValue = () =\u003e { value.textContent = input.checked ? \"On\" : \"Off\"; };\n            input.onchange = () =\u003e {\n              context[v.name] = input.checked;\n              updateValue();\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n            updateValue();\n            toggle.append(input, track, value);\n            control = toggle;\n          }\n          row.append(label, control);\n          controls.appendChild(row);\n        }\n        screen.appendChild(controls);\n      }\n\n      const actions = document.createElement(\"div\");\n      actions.className = \"actions\";\n      for (const t of actionTransitions) {\n        const action = document.createElement(\"div\");\n        action.className = \"action\";\n        action.dataset.actionTransitionId = t.id;\n        if (t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)) action.classList.add(\"invalid\");\n        const button = document.createElement(\"button\");\n        button.dataset.transitionId = t.id;\n        if (t.id === defaultActionId) button.dataset.defaultAction = \"true\";\n        button.textContent = t.label || \"Next\";\n        button.onclick = () =\u003e {\n          const ok = conditionOk(t.condition);\n          if (ok) {\n            followTransition(t, s.id);\n          } else {\n            blockedTransitionId = t.id;\n            log(`${s.id} --${t.label || \"next\"} blocked`);\n            render();\n            return;\n          }\n          render();\n        };\n        action.appendChild(button);\n        const condition = String(t.condition || \"\").trim();\n        if (condition \u0026\u0026 condition.toLowerCase() !== \"always\") {\n          const note = document.createElement(\"div\");\n          note.className = \"condition-note\";\n          note.append(\"needs \");\n          const code = document.createElement(\"code\");\n          code.textContent = condition;\n          note.appendChild(code);\n          action.appendChild(note);\n        }\n        const feedback = document.createElement(\"div\");\n        feedback.className = \"condition-feedback\";\n        feedback.textContent = \"Condition not met. Check the inputs above.\";\n        action.appendChild(feedback);\n        actions.appendChild(action);\n      }\n      if (!transitions.length) {\n        const empty = document.createElement(\"div\");\n        empty.className = \"empty\";\n        empty.textContent = \"No outgoing transitions. This is an end state.\";\n        screen.appendChild(empty);\n      }\n      screen.appendChild(actions);\n      applyTabOrderAndFocus(screen);\n\n      document.getElementById(\"log\").textContent = logLines.join(\"\\n\");\n      notifyRuntime();\n    }\n\n    function updateActionButtons() {\n      for (const button of document.querySelectorAll(\"[data-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === button.dataset.transitionId);\n        if (t) button.disabled = false;\n      }\n    }\n\n    function escapeHtml(text) {\n      return String(text).replace(/[\u0026\u003c\u003e\"]/g, ch =\u003e ({\"\u0026\":\"\u0026amp;\",\"\u003c\":\"\u0026lt;\",\"\u003e\":\"\u0026gt;\",\"\\\"\":\"\u0026quot;\"}[ch]));\n    }\n\n    window.addEventListener(\"message\", evt =\u003e {\n      const data = evt.data || {};\n      if (data.type !== \"STATE_BLUEPRINT_MODEL\") return;\n      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));\n      suppressNextFocus = Boolean(data.preserveFocus);\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) saveModel();\n      const oldContext = context;\n      context = { ...defaultContext(model), ...oldContext };\n      if (data.reset) context = defaultContext(model);\n      const requestedStart = typeof data.startStateId === \"string\" \u0026\u0026 findState(data.startStateId) ? data.startStateId : null;\n      if (requestedStart || data.reset || !findState(current)) {\n        current = requestedStart || model.initial;\n        stateActivationId += 1;\n        logLines = [];\n        transitionToNotify = null;\n        blockedTransitionId = null;\n        runtimeValidation = null;\n      }\n      render();\n    });\n\n    window.addEventListener(\"storage\", evt =\u003e {\n      if (evt.key !== STORAGE_KEY || !evt.newValue) return;\n      try {\n        model = normalizeModel(JSON.parse(evt.newValue));\n        suppressNextFocus = true;\n        if (!findState(current)) {\n          current = model.initial;\n          stateActivationId += 1;\n        }\n        render();\n      } catch (_) {}\n    });\n\n\n    document.addEventListener(\"keydown\", evt =\u003e {\n      const mod = evt.ctrlKey || evt.metaKey;\n      if (!mod) return;\n      const key = evt.key.toLowerCase();\n      if (key !== \"s\" \u0026\u0026 key !== \"o\") return;\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) return;\n      evt.preventDefault();\n      evt.stopImmediatePropagation();\n      const payload = {\n        type: \"STATE_BLUEPRINT_SHORTCUT\",\n        action: key === \"s\" ? \"save\" : \"load\"\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n    }, { capture: true });\n\n    render();\n  \u003c/script\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n";
+    const APP_HTML = "\u003c!doctype html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\n  \u003cmeta charset=\"utf-8\" /\u003e\n  \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\" /\u003e\n  \u003ctitle\u003eGenerated State App\u003c/title\u003e\n  \u003clink rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23020617'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23f59e0b'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E\" /\u003e\n  \u003cstyle\u003e\n    :root {\n      color-scheme: dark;\n      --bg: #020617;\n      --card: #06111f;\n      --card2: #081827;\n      --text: #e5f0ff;\n      --muted: #9fb3c8;\n      --line: #1d3956;\n      --line-strong: #315f8c;\n      --primary: #38bdf8;\n      --primary2: #0ea5e9;\n      --primary-text: #03101f;\n      --accent: #f59e0b;\n      --danger: #fb7185;\n      --danger-bg: #331120;\n      --success: #34d399;\n    }\n\n    * { box-sizing: border-box; }\n\n    html, body {\n      margin: 0;\n      min-height: 100%;\n      overflow: auto;\n      -webkit-overflow-scrolling: touch;\n      font-family: \"Atkinson Hyperlegible\", \"Aptos\", \"Segoe UI Variable\", \"Trebuchet MS\", sans-serif;\n      background-color: var(--bg);\n      background-image:\n        radial-gradient(circle at 14% -10%, rgba(56,189,248,.22), transparent 34%),\n        radial-gradient(circle at 90% 8%, rgba(245,158,11,.14), transparent 30%),\n        linear-gradient(180deg, #07111f 0%, var(--bg) 58%, #01040b 100%);\n      color: var(--text);\n    }\n\n    body {\n      display: grid;\n      place-items: start center;\n      padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));\n    }\n\n    .app { width: min(640px, 100%); }\n\n    .top {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n    }\n\n    .title {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n      color: #bfdbfe;\n      font-size: 13px;\n      font-weight: 950;\n      text-transform: uppercase;\n      letter-spacing: .1em;\n    }\n\n    .state-pill {\n      flex: 0 0 auto;\n      border: 1px solid rgba(56,189,248,.34);\n      border-radius: 999px;\n      padding: 6px 11px;\n      background-color: #071321;\n      color: #7dd3fc;\n      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 30px rgba(2,6,23,.28);\n      font-size: 12px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-weight: 850;\n    }\n\n    .screen {\n      position: relative;\n      overflow: hidden;\n      background-color: var(--card);\n      background-image:\n        linear-gradient(135deg, rgba(56,189,248,.08), transparent 38%),\n        linear-gradient(180deg, rgba(255,255,255,.035), transparent 26%);\n      border: 1px solid var(--line);\n      border-radius: 24px;\n      box-shadow: 0 22px 70px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.04);\n      padding: 30px;\n    }\n\n    .screen.validation-failed {\n      border-color: rgba(251,113,133,.8);\n      box-shadow: 0 0 0 4px rgba(251,113,133,.14), 0 22px 70px rgba(0,0,0,.44);\n    }\n\n    h1 {\n      margin: 0 0 10px;\n      color: #f8fbff;\n      font-size: clamp(30px, 5vw, 50px);\n      line-height: .98;\n      letter-spacing: -.045em;\n    }\n\n    .body {\n      color: var(--muted);\n      line-height: 1.62;\n      min-height: 44px;\n      margin-bottom: 24px;\n      font-size: 16px;\n    }\n\n    .component-stack {\n      display: grid;\n      gap: 12px;\n      margin-bottom: 22px;\n    }\n\n    .component-heading {\n      margin: 4px 0 0;\n      color: #f8fbff;\n      font-size: 22px;\n      line-height: 1.2;\n      font-weight: 950;\n    }\n\n    .component-text {\n      color: var(--muted);\n      font-size: 16px;\n      line-height: 1.62;\n      white-space: pre-wrap;\n    }\n\n    .component-note {\n      padding: 12px 13px;\n      border: 1px solid rgba(245,158,11,.42);\n      border-radius: 14px;\n      background-color: rgba(245,158,11,.1);\n      color: #fde68a;\n      font-size: 14px;\n      font-weight: 750;\n      line-height: 1.45;\n      white-space: pre-wrap;\n    }\n\n    .component-image {\n      display: block;\n      width: 100%;\n      max-height: 280px;\n      object-fit: cover;\n      border-radius: 16px;\n      border: 1px solid var(--line-strong);\n      background-color: #020617;\n      box-shadow: 0 16px 36px rgba(0,0,0,.3);\n    }\n\n    .component-list-block {\n      margin: 0;\n      padding-left: 22px;\n      color: var(--text);\n      line-height: 1.6;\n    }\n\n    .component-list-block li + li { margin-top: 4px; }\n\n    .component-link {\n      display: inline-flex;\n      width: fit-content;\n      max-width: 100%;\n      align-items: center;\n      min-height: 40px;\n      color: #7dd3fc;\n      font-weight: 900;\n      text-decoration: none;\n      overflow-wrap: anywhere;\n    }\n\n    .component-link:hover {\n      color: #bae6fd;\n      text-decoration: underline;\n    }\n\n    .component-sound {\n      display: grid;\n      gap: 10px;\n      padding: 12px 13px;\n      border: 1px solid rgba(56,189,248,.3);\n      border-radius: 16px;\n      background-color: rgba(56,189,248,.08);\n    }\n\n    .component-sound-label {\n      color: #dbeafe;\n      font-size: 14px;\n      font-weight: 900;\n    }\n\n    .component-sound audio {\n      width: 100%;\n      max-width: 100%;\n      accent-color: var(--primary);\n    }\n\n    .component-divider {\n      height: 1px;\n      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);\n    }\n\n    .controls {\n      margin: 18px 0;\n      padding: 14px;\n      background-color: rgba(8,24,39,.86);\n      border: 1px solid var(--line);\n      border-radius: 16px;\n    }\n\n    .controls h2 {\n      margin: 0 0 8px;\n      color: #bfdbfe;\n      font-size: 12px;\n      text-transform: uppercase;\n      letter-spacing: .09em;\n    }\n\n    .field {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 8px 0;\n      border-top: 1px solid rgba(49,95,140,.32);\n    }\n\n    .field:first-of-type { border-top: 0; }\n    .field .field-label {\n      color: var(--text);\n      font-weight: 850;\n    }\n\n    input[type=\"text\"].typed-input {\n      width: 140px;\n      min-height: 42px;\n      padding: 8px 10px;\n      border: 1px solid var(--line-strong);\n      border-radius: 10px;\n      background-color: #020b16;\n      color: var(--text);\n      caret-color: var(--primary);\n      font: inherit;\n    }\n\n    input[type=\"text\"].typed-input:focus-visible {\n      outline: 3px solid rgba(56,189,248,.22);\n      border-color: var(--primary);\n    }\n\n    input.invalid {\n      border-color: var(--danger);\n      outline: 3px solid rgba(251,113,133,.2);\n    }\n\n    .switch {\n      display: inline-flex;\n      align-items: center;\n      justify-content: flex-end;\n      gap: 9px;\n      min-width: 104px;\n      min-height: 44px;\n      cursor: pointer;\n      user-select: none;\n      touch-action: manipulation;\n    }\n\n    .switch input {\n      position: absolute;\n      inline-size: 1px;\n      block-size: 1px;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .switch-track {\n      position: relative;\n      width: 52px;\n      height: 30px;\n      flex: 0 0 auto;\n      border: 1px solid var(--line-strong);\n      border-radius: 999px;\n      background-color: #102033;\n      transition: background-color .16s ease, border-color .16s ease;\n    }\n\n    .switch-track::after {\n      content: \"\";\n      position: absolute;\n      left: 3px;\n      top: 3px;\n      width: 22px;\n      height: 22px;\n      border-radius: 999px;\n      background: #dbeafe;\n      box-shadow: 0 2px 7px rgba(0,0,0,.3);\n      transition: transform .16s ease, background .16s ease;\n    }\n\n    .switch input:checked + .switch-track {\n      border-color: var(--primary);\n      background-color: var(--primary);\n    }\n\n    .switch input:checked + .switch-track::after {\n      transform: translateX(22px);\n      background: #03101f;\n    }\n\n    .switch input:focus-visible + .switch-track {\n      outline: 3px solid rgba(56,189,248,.24);\n      outline-offset: 2px;\n    }\n\n    .switch-value {\n      min-width: 24px;\n      color: var(--muted);\n      font-size: 13px;\n      font-weight: 850;\n      text-align: left;\n    }\n\n    .actions {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 10px;\n      margin-top: 18px;\n    }\n\n    .action {\n      display: flex;\n      flex-direction: column;\n      align-items: flex-start;\n      gap: 5px;\n      max-width: 100%;\n    }\n\n    .condition-note {\n      max-width: min(320px, 100%);\n      color: var(--muted);\n      font-size: 12px;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid button {\n      background-color: var(--danger);\n      background-image: linear-gradient(135deg, var(--danger), #e11d48);\n      color: #fff7f9;\n      box-shadow: 0 0 0 3px rgba(251,113,133,.18);\n    }\n\n    .condition-feedback {\n      display: none;\n      max-width: min(320px, 100%);\n      color: #fecdd3;\n      font-size: 12px;\n      font-weight: 850;\n      line-height: 1.3;\n      overflow-wrap: anywhere;\n    }\n\n    .action.invalid .condition-feedback { display: block; }\n\n    .runtime-validation {\n      margin: 0 0 18px;\n      padding: 12px 13px;\n      border: 1px solid rgba(251,113,133,.72);\n      border-radius: 14px;\n      background-color: rgba(51,17,32,.88);\n      color: #fecdd3;\n      font-size: 13px;\n      font-weight: 850;\n      line-height: 1.4;\n    }\n\n    .runtime-validation code {\n      display: inline-block;\n      margin-top: 4px;\n      padding: 2px 6px;\n      border-radius: 7px;\n      background: rgba(251,113,133,.14);\n      color: #fff1f2;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 12px;\n      overflow-wrap: anywhere;\n    }\n\n    .condition-note code {\n      color: #e0f2fe;\n      background: rgba(56,189,248,.12);\n      border: 1px solid rgba(56,189,248,.26);\n      border-radius: 7px;\n      padding: 1px 5px;\n      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n      font-size: 11px;\n    }\n\n    button {\n      border: 1px solid rgba(125,211,252,.28);\n      border-radius: 999px;\n      padding: 12px 16px;\n      background-color: var(--primary);\n      background-image: linear-gradient(135deg, var(--primary), var(--primary2));\n      color: var(--primary-text);\n      box-shadow: 0 12px 30px rgba(14,165,233,.2);\n      font-weight: 950;\n      cursor: pointer;\n      min-height: 44px;\n      touch-action: manipulation;\n    }\n\n    button:hover {\n      border-color: rgba(186,230,253,.62);\n      background-color: var(--primary2);\n      background-image: linear-gradient(135deg, #7dd3fc, var(--primary2));\n    }\n\n    button:focus-visible {\n      outline: 3px solid rgba(56,189,248,.28);\n      outline-offset: 3px;\n    }\n\n    button:disabled {\n      cursor: not-allowed;\n      background-color: #172033;\n      background-image: none;\n      color: #64748b;\n      box-shadow: none;\n      border-color: #26334a;\n    }\n\n    .empty {\n      padding: 18px;\n      border: 1px dashed var(--line-strong);\n      border-radius: 16px;\n      background-color: rgba(8,24,39,.48);\n      color: var(--muted);\n    }\n\n    .log {\n      margin-top: 14px;\n      color: var(--muted);\n      font-size: 12px;\n      max-height: 110px;\n      overflow: auto;\n      white-space: pre-wrap;\n    }\n\n    @media (max-width: 560px) {\n      body {\n        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));\n      }\n\n      .top { align-items: flex-start; }\n\n      .screen {\n        border-radius: 18px;\n        padding: 20px;\n      }\n\n      h1 { font-size: 30px; }\n\n      .field {\n        align-items: stretch;\n        flex-direction: column;\n        gap: 8px;\n      }\n\n      input[type=\"text\"].typed-input {\n        width: 100%;\n        min-height: 44px;\n        font-size: 16px;\n      }\n\n      .switch {\n        justify-content: space-between;\n        width: 100%;\n        min-height: 48px;\n        padding: 2px 0;\n      }\n\n      .actions {\n        flex-direction: column;\n        align-items: stretch;\n      }\n\n      .action,\n      button { width: 100%; }\n    }\n  \u003c/style\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n  \u003cmain class=\"app\"\u003e\n    \u003cdiv class=\"top\"\u003e\n      \u003cdiv class=\"title\" id=\"appName\"\u003eGenerated App\u003c/div\u003e\n      \u003cdiv class=\"state-pill\" id=\"statePill\"\u003e—\u003c/div\u003e\n    \u003c/div\u003e\n    \u003csection class=\"screen\" id=\"screen\"\u003e\u003c/section\u003e\n    \u003cdiv class=\"log\" id=\"log\"\u003e\u003c/div\u003e\n  \u003c/main\u003e\n\n  \u003cscript\u003e\n    const STORAGE_KEY = \"stateBlueprintHotLinked.model.v2\";\n\n    let model = loadModel() || demoModel();\n    let current = model.initial;\n    let context = defaultContext(model);\n    let logLines = [];\n    let transitionToNotify = null;\n    let blockedTransitionId = null;\n    let runtimeValidation = null;\n    let suppressNextFocus = false;\n    let stateActivationId = 0;\n    const dataSourceRuns = new Map();\n\n    function demoModel() {\n      return {\n        version: 2,\n        name: \"Standard Auth Flow\",\n        initial: \"auth_start\",\n        states: [\n          { id: \"auth_start\", title: \"Auth start\", body: \"User chooses login or registration.\", x: 90, y: 210 },\n          { id: \"login\", title: \"Login\", body: \"Email and password are entered.\", x: 360, y: 100 },\n          { id: \"register\", title: \"Register\", body: \"Create a new account with email and accepted terms.\", x: 360, y: 320 },\n          { id: \"error\", title: \"Error\", body: \"Invalid credentials or registration data.\", x: 630, y: 320 },\n          { id: \"logged_in\", title: \"Logged in\", body: \"Authenticated app area.\", x: 900, y: 100 },\n          { id: \"logged_out\", title: \"Logged out\", body: \"Session ended. User can return to login.\", x: 900, y: 320 }\n        ],\n        transitions: [\n          { id: \"t_start_login\", from: \"auth_start\", to: \"login\", label: \"Login\", condition: \"\" },\n          { id: \"t_start_register\", from: \"auth_start\", to: \"register\", label: \"Registrieren\", condition: \"\" },\n          { id: \"t_login_success\", from: \"login\", to: \"logged_in\", label: \"Einloggen\", condition: \"email == \\\"user@example.com\\\" \u0026\u0026 password == \\\"secret123\\\"\" },\n          { id: \"t_login_error\", from: \"login\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_register_success\", from: \"register\", to: \"logged_in\", label: \"Account erstellen\", condition: \"email == \\\"new@example.com\\\" \u0026\u0026 accepted_terms\" },\n          { id: \"t_register_error\", from: \"register\", to: \"error\", label: \"Fehler\", condition: \"\" },\n          { id: \"t_logout\", from: \"logged_in\", to: \"logged_out\", label: \"Logout\", condition: \"\" },\n          { id: \"t_logged_out_login\", from: \"logged_out\", to: \"login\", label: \"Wieder einloggen\", condition: \"\" },\n          { id: \"t_error_back\", from: \"error\", to: \"auth_start\", label: \"Zurück\", condition: \"\" }\n        ]\n      };\n    }\n\n    function loadModel() {\n      try {\n        const text = localStorage.getItem(STORAGE_KEY);\n        return text ? normalizeModel(JSON.parse(text)) : null;\n      } catch (_) { return null; }\n    }\n\n    function saveModel() {\n      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(model)); } catch (_) {}\n    }\n\n\n    function normalizeModel(m) {\n      m.version = 2;\n      m.name = m.name || \"Generated App\";\n      m.states = Array.isArray(m.states) ? m.states : [];\n      m.transitions = Array.isArray(m.transitions) ? m.transitions : [];\n      if (!m.states.length) m.states.push({ id: \"start\", title: \"Start\", body: \"\" });\n      for (const s of m.states) {\n        s.components = normalizeComponents(s.components);\n        s.data = normalizeDataObject(s.data);\n        s.dataSource = normalizeDataSource(s.dataSource || s.fetch);\n        s.repeat = normalizeRepeatConfig(s.repeat);\n      }\n      const ids = new Set(m.states.map(s =\u003e s.id));\n      for (const s of m.states) {\n        s.parentId = typeof s.parentId === \"string\" \u0026\u0026 ids.has(s.parentId) \u0026\u0026 s.parentId !== s.id ? s.parentId : null;\n      }\n      m.transitions = m.transitions.filter(t =\u003e {\n        if (!ids.has(t.from) || !ids.has(t.to)) return false;\n        const from = m.states.find(s =\u003e s.id === t.from);\n        const to = m.states.find(s =\u003e s.id === t.to);\n        return (from?.parentId || null) === (to?.parentId || null);\n      });\n      for (const t of m.transitions) {\n        t.id = t.id || Math.random().toString(36).slice(2, 9);\n        t.label = t.label || t.event || \"Next\";\n        t.condition = t.condition || \"\";\n        t.set = normalizeDataObject(t.set);\n      }\n      if (!ids.has(m.initial)) m.initial = m.states.find(s =\u003e !s.parentId)?.id || m.states[0].id;\n      return m;\n    }\n\n    function normalizeListItems(items, fallbackText) {\n      const allowed = new Set([\"text\", \"link\", \"image\", \"sound\", \"note\", \"divider\"]);\n      if (Array.isArray(items)) {\n        return items\n          .filter(item =\u003e item \u0026\u0026 typeof item === \"object\" \u0026\u0026 allowed.has(item.type || \"text\"))\n          .map(item =\u003e ({\n            id: String(item.id || Math.random().toString(36).slice(2, 9)),\n            type: item.type || \"text\",\n            text: String(item.text || \"\"),\n            url: String(item.url || \"\")\n          }));\n      }\n      const lines = String(fallbackText || \"\").split(/\\r?\\n/).map(line =\u003e line.trim()).filter(Boolean);\n      return lines.map(line =\u003e ({\n        id: Math.random().toString(36).slice(2, 9),\n        type: \"text\",\n        text: line,\n        url: \"\"\n      }));\n    }\n\n    function normalizeComponents(components) {\n      const allowed = new Set([\"heading\", \"text\", \"image\", \"list\", \"link\", \"sound\", \"note\", \"divider\"]);\n      return (Array.isArray(components) ? components : [])\n        .filter(component =\u003e component \u0026\u0026 typeof component === \"object\" \u0026\u0026 allowed.has(component.type))\n        .slice(0, 24)\n        .map(component =\u003e {\n          const norm = {\n            id: String(component.id || Math.random().toString(36).slice(2, 9)),\n            type: component.type,\n            text: String(component.text || \"\"),\n            url: String(component.url || \"\")\n          };\n          if (component.type === \"list\") {\n            norm.items = normalizeListItems(component.items, component.text);\n          }\n          return norm;\n        });\n    }\n\n    function isPlainDataObject(value) {\n      return Boolean(value) \u0026\u0026 typeof value === \"object\" \u0026\u0026 !Array.isArray(value);\n    }\n\n    function normalizeDataObject(value) {\n      if (!isPlainDataObject(value)) return {};\n      return JSON.parse(JSON.stringify(value));\n    }\n\n    function normalizeContextPath(path, fallback = \"fetch\") {\n      const text = String(path || \"\").trim();\n      if (!text) return fallback;\n      return /^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(text) ? text : fallback;\n    }\n\n    function normalizeContextIdentifier(text, fallback = \"item\") {\n      const value = String(text || \"\").trim();\n      if (!value) return fallback;\n      return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value) ? value : fallback;\n    }\n\n    function normalizeDataSource(value) {\n      const source = isPlainDataObject(value) ? value : {};\n      const timeout = Number(source.timeoutMs);\n      const retries = Number(source.retries);\n      return {\n        url: String(source.url || \"\"),\n        target: normalizeContextPath(source.target, \"fetch\"),\n        select: normalizeContextPath(source.select, \"\"),\n        timeoutMs: Math.min(30000, Math.max(1000, Number.isFinite(timeout) ? timeout : 8000)),\n        retries: Math.min(5, Math.max(0, Number.isFinite(retries) ? Math.round(retries) : 2))\n      };\n    }\n\n    function hasDataSource(value) {\n      return Boolean(normalizeDataSource(value).url.trim());\n    }\n\n    function normalizeRepeatConfig(value) {\n      const source = isPlainDataObject(value) ? value : {};\n      return {\n        path: normalizeContextPath(source.path, \"\"),\n        as: normalizeContextIdentifier(source.as, \"item\"),\n        index: normalizeContextIdentifier(source.index, \"i\")\n      };\n    }\n\n    function pathParts(path) {\n      return String(path || \"\").split(\".\").filter(Boolean);\n    }\n\n    function readValueAtPath(source, path) {\n      const parts = pathParts(path);\n      if (!parts.length) return source;\n      let value = source;\n      for (const part of parts) {\n        if (value === null || value === undefined || typeof value !== \"object\" || !(part in value)) return undefined;\n        value = value[part];\n      }\n      return value;\n    }\n\n    function setValueAtPath(target, path, value) {\n      const parts = pathParts(path);\n      if (!parts.length) return;\n      let cursor = target;\n      for (let i = 0; i \u003c parts.length - 1; i += 1) {\n        const part = parts[i];\n        if (!cursor[part] || typeof cursor[part] !== \"object\" || Array.isArray(cursor[part])) cursor[part] = {};\n        cursor = cursor[part];\n      }\n      cursor[parts[parts.length - 1]] = value;\n    }\n\n    function readContextPathRaw(path) {\n      return readValueAtPath(context, path);\n    }\n\n    function formatContextValue(value) {\n      if (value === null || value === undefined) return \"\";\n      if (Array.isArray(value)) return value.map(formatListItem).join(\", \");\n      if (typeof value === \"object\") return JSON.stringify(value);\n      return String(value);\n    }\n\n    function readContextPath(path) {\n      return formatContextValue(readContextPathRaw(path));\n    }\n\n    function renderTemplate(text) {\n      return String(text || \"\").replace(/\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\}/g, (_, path) =\u003e readContextPath(path));\n    }\n\n    function exactTemplatePath(text) {\n      const match = String(text || \"\").trim().match(/^\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\}$/);\n      return match ? match[1] : \"\";\n    }\n\n    function formatListItem(value) {\n      if (value === null || value === undefined) return \"\";\n      if (typeof value === \"object\") {\n        for (const key of [\"title\", \"name\", \"label\", \"id\"]) {\n          if (value[key] !== null \u0026\u0026 value[key] !== undefined) return String(value[key]);\n        }\n        return JSON.stringify(value);\n      }\n      return String(value);\n    }\n\n\n    function childStates(parentId) {\n      return model.states\n        .filter(state =\u003e (state.parentId || null) === parentId)\n        .sort((a, b) =\u003e (a.y - b.y) || (a.x - b.x) || String(a.id).localeCompare(String(b.id)));\n    }\n\n    function applyStateDataDefaults(state) {\n      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {\n        if (!(key in context)) context[key] = value;\n      }\n    }\n\n    function applyNestedStateDataDefaults(state, seen = new Set()) {\n      if (!state || seen.has(state.id)) return;\n      seen.add(state.id);\n      applyStateDataDefaults(state);\n      for (const child of childStates(state.id)) applyNestedStateDataDefaults(child, seen);\n    }\n\n    function applyTransitionSet(transition) {\n      Object.assign(context, normalizeDataObject(transition.set));\n    }\n\n    function enterState(nextId, transition = null) {\n      if (!findState(nextId)) return false;\n      current = nextId;\n      stateActivationId += 1;\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      if (transition) transitionToNotify = transition;\n      return true;\n    }\n\n    function findState(id) { return model.states.find(s =\u003e s.id === id); }\n    function stateById(id) { return findState(id) || model.states[0]; }\n    function outgoing(id) { return model.transitions.filter(t =\u003e t.from === id); }\n\n    function defaultContext(m) {\n      const vars = inferVariables(m);\n      const out = {};\n      for (const v of vars) out[v.name] = defaultValueFor(v);\n      return out;\n    }\n\n    function inferVariables(m) {\n      const map = new Map();\n      const upsert = (name, patch) =\u003e {\n        if (String(name).includes(\".\")) return;\n        if ([\"true\", \"false\", \"and\", \"or\", \"null\", \"undefined\", \"always\"].includes(String(name).toLowerCase())) return;\n        const prev = map.get(name) || { name, type: \"boolean\" };\n        map.set(name, { ...prev, ...patch });\n      };\n      for (const t of m.transitions || []) {\n        const c = String(t.condition || \"\");\n        const searchable = c.replace(/([\"'])(?:\\\\.|(?!\\1)[\\s\\S])*?\\1/g, \"\");\n        const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];\n        for (const name of names) {\n          upsert(name, {});\n        }\n        for (const numeric of searchable.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(-?\\d+(?:\\.\\d+)?)/g)) {\n          const raw = numeric[3];\n          const decimalPlaces = raw.includes(\".\") ? raw.split(\".\")[1].length : 0;\n          const nextDecimalPlaces = Math.max(map.get(numeric[1])?.decimalPlaces || 0, decimalPlaces);\n          upsert(numeric[1], {\n            type: \"number\",\n            kind: nextDecimalPlaces ? \"float\" : \"int\",\n            decimalPlaces: nextDecimalPlaces\n          });\n        }\n        for (const quoted of c.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(==|!=)\\s*(['\"])(.*?)\\3/g)) {\n          upsert(quoted[1], { type: \"text\" });\n        }\n      }\n      return [...map.values()].sort((a, b) =\u003e a.name.localeCompare(b.name));\n    }\n\n    function defaultValueFor(v) {\n      if (v.type === \"number\") return \"0\";\n      if (v.type === \"text\") return \"\";\n      return false;\n    }\n\n    function variableMap() {\n      return new Map(inferVariables(model).map(v =\u003e [v.name, v]));\n    }\n\n    function sanitizeContext(vars = inferVariables(model)) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function ensureContext(vars) {\n      for (const v of vars) {\n        context[v.name] = sanitizeValue(context[v.name], v);\n      }\n    }\n\n    function sanitizeValue(value, v) {\n      if (value === null || value === undefined) return defaultValueFor(v);\n      if (v.type === \"number\") return sanitizeNumericInput(String(value), v, { fallback: defaultValueFor(v) });\n      if (v.type === \"text\") return String(value);\n      return Boolean(value);\n    }\n\n    function sanitizeNumericInput(value, v, opts = {}) {\n      const fallback = opts.fallback ?? \"\";\n      let raw = String(value ?? \"\").trim().replace(\",\", \".\");\n      if (v.kind === \"int\") raw = raw.replace(/[^\\d]/g, \"\");\n      else raw = raw.replace(/[^\\d.]/g, \"\").replace(/(\\..*)\\./g, \"    const APP_HTML = \");\n      if (raw === \"\") return fallback;\n      return raw;\n    }\n\n    function isValidValue(value, v) {\n      if (value === null || value === undefined) return false;\n      if (v.type === \"number\") {\n        const raw = String(value);\n        if (v.kind === \"int\") return /^\\d+$/.test(raw);\n        return /^\\d+(?:\\.\\d+)?$/.test(raw);\n      }\n      if (v.type === \"text\") return value !== null \u0026\u0026 value !== undefined;\n      return typeof value === \"boolean\";\n    }\n\n    function strictNumber(value) {\n      if (value === null || value === undefined) return null;\n      if (typeof value === \"number\") return Number.isFinite(value) ? value : null;\n      const raw = String(value).trim();\n      if (!/^-?\\d+(?:\\.\\d+)?$/.test(raw)) return null;\n      const n = Number(raw);\n      return Number.isFinite(n) ? n : null;\n    }\n\n    function coerceValue(text) {\n      const raw = String(text).trim().replace(/^[\"']|[\"']$/g, \"\");\n      if (raw === \"true\") return true;\n      if (raw === \"false\") return false;\n      if (raw === \"null\" || raw === \"undefined\") return Symbol.for(\"invalid\");\n      if (/^-?\\d+(\\.\\d+)?$/.test(raw)) return Number(raw);\n      return raw;\n    }\n\n    function testAtom(atom) {\n      atom = atom.trim();\n      if (!atom || atom === \"true\") return true;\n      if (atom === \"false\") return false;\n\n      if (atom.startsWith(\"!\")) {\n        const name = atom.slice(1).trim();\n        const value = readContextPathRaw(name);\n        if (value === null || value === undefined) return false;\n        return !Boolean(value);\n      }\n\n      const m = atom.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(==|!=|\u003e=|\u003c=|\u003e|\u003c)\\s*(.+)$/);\n      if (!m) {\n        const value = readContextPathRaw(atom);\n        const v = variableMap().get(atom);\n        if (v \u0026\u0026 !isValidValue(value, v)) return false;\n        return Boolean(value);\n      }\n\n      const left = readContextPathRaw(m[1]);\n      const op = m[2];\n      const right = coerceValue(m[3]);\n      const vars = variableMap();\n      const v = vars.get(m[1]);\n      if (left === null || left === undefined || right === Symbol.for(\"invalid\")) return false;\n      if (v \u0026\u0026 !isValidValue(left, v)) return false;\n\n      if ([\"\u003e=\", \"\u003c=\", \"\u003e\", \"\u003c\"].includes(op)) {\n        const l = strictNumber(left);\n        const r = typeof right === \"number\" \u0026\u0026 Number.isFinite(right) ? right : null;\n        if (l === null || r === null) return false;\n        if (op === \"\u003e=\") return l \u003e= r;\n        if (op === \"\u003c=\") return l \u003c= r;\n        if (op === \"\u003e\") return l \u003e r;\n        if (op === \"\u003c\") return l \u003c r;\n      }\n      if (typeof right === \"number\") {\n        const l = strictNumber(left);\n        if (l === null) return false;\n        return op === \"==\" ? l === right : l !== right;\n      }\n      if (typeof right === \"boolean\") {\n        const l = Boolean(left);\n        return op === \"==\" ? l === right : l !== right;\n      }\n      return op === \"==\" ? String(left) === String(right) : String(left) !== String(right);\n      return false;\n    }\n\n    function conditionOk(condition) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return true;\n      return c.split(\"||\").some(orPart =\u003e orPart.split(\"\u0026\u0026\").every(testAtom));\n    }\n\n    function conditionMentionsDataSource(condition, source) {\n      const c = String(condition || \"\").trim();\n      if (!c || c.toLowerCase() === \"always\") return false;\n      const target = normalizeContextPath(source.target, \"fetch\");\n      const searchable = c.replace(/([\"'])(?:\\\\.|(?!\\1)[\\s\\S])*?\\1/g, \"\");\n      const names = searchable.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*/g) || [];\n      return names.some(name =\u003e name === \"fetched\" || name === target || name.startsWith(`${target}.`));\n    }\n\n    function followTransition(transition, fromStateId, reason = \"next\") {\n      blockedTransitionId = null;\n      runtimeValidation = null;\n      applyTransitionSet(transition);\n      log(`${fromStateId} --${transition.label || reason}--\u003e ${transition.to}`);\n      enterState(transition.to, transition);\n    }\n\n    function tryDataSourceTransition(state, source, activationId) {\n      if (current !== state.id || activationId !== stateActivationId) return false;\n      const next = outgoing(state.id).find(t =\u003e\n        t.to !== state.id \u0026\u0026\n        conditionMentionsDataSource(t.condition, source) \u0026\u0026\n        conditionOk(t.condition)\n      );\n      if (!next) return false;\n      followTransition(next, state.id, \"fetch\");\n      render();\n      return true;\n    }\n\n    function log(text) {\n      logLines.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);\n      logLines = logLines.slice(0, 6);\n    }\n\n    function safeFetchUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      try {\n        const parsed = new URL(raw, window.location.href);\n        return /^https?:$/i.test(parsed.protocol) ? parsed.href : \"\";\n      } catch (_) {\n        return \"\";\n      }\n    }\n\n    function countData(data) {\n      if (Array.isArray(data)) return data.length;\n      if (data \u0026\u0026 typeof data === \"object\") return Object.keys(data).length;\n      return data === null || data === undefined || data === \"\" ? 0 : 1;\n    }\n\n    function dataSourceResult(patch) {\n      return {\n        status: \"idle\",\n        ok: false,\n        data: null,\n        error: \"\",\n        statusCode: 0,\n        count: 0,\n        url: \"\",\n        ...patch\n      };\n    }\n\n    function writeDataSourceResult(source, result) {\n      setValueAtPath(context, source.target, result);\n      context.fetched = Boolean(result.ok);\n    }\n\n    function dataSourceRunKey(state, source) {\n      return [stateActivationId, state.id, source.url, source.target, source.select].join(\"\\u0000\");\n    }\n\n    // Async fetch results are events emitted by a specific state activation.\n    // Once the FSM leaves that activation, the event no longer belongs to the current state.\n    function dataSourceEventBelongsToCurrentState(state, key, activationId) {\n      return current === state.id \u0026\u0026\n        activationId === stateActivationId \u0026\u0026\n        dataSourceRuns.get(key)?.activationId === activationId;\n    }\n\n    async function fetchJsonWithTimeout(url, timeoutMs) {\n      const controller = new AbortController();\n      const timer = setTimeout(() =\u003e controller.abort(), timeoutMs);\n      try {\n        const response = await fetch(url, {\n          method: \"GET\",\n          headers: { Accept: \"application/json\" },\n          cache: \"no-store\",\n          credentials: \"same-origin\",\n          signal: controller.signal\n        });\n        let json = null;\n        try {\n          json = await response.json();\n        } catch (_) {\n          throw new Error(\"Expected JSON\");\n        }\n        return { response, json };\n      } finally {\n        clearTimeout(timer);\n      }\n    }\n\n    async function runStateDataSource(state, source, key, activationId) {\n      const requestUrl = safeFetchUrl(renderTemplate(source.url));\n      if (!requestUrl) {\n        if (!dataSourceEventBelongsToCurrentState(state, key, activationId)) return;\n        writeDataSourceResult(source, dataSourceResult({ status: \"error\", error: \"Invalid endpoint URL\" }));\n        if (!tryDataSourceTransition(state, source, activationId)) render();\n        return;\n      }\n      let lastError = \"\";\n      for (let attempt = 0; attempt \u003c= source.retries; attempt += 1) {\n        try {\n          const { response, json } = await fetchJsonWithTimeout(requestUrl, source.timeoutMs);\n          if (!response.ok) throw new Error(`HTTP ${response.status}`);\n          const selected = source.select ? readValueAtPath(json, source.select) : json;\n          const data = selected === undefined ? null : selected;\n          if (!dataSourceEventBelongsToCurrentState(state, key, activationId)) return;\n          writeDataSourceResult(source, dataSourceResult({\n            status: \"success\",\n            ok: true,\n            data,\n            statusCode: response.status,\n            count: countData(data),\n            url: requestUrl\n          }));\n          if (!tryDataSourceTransition(state, source, activationId)) render();\n          return;\n        } catch (err) {\n          lastError = err?.name === \"AbortError\" ? \"Timeout\" : (err?.message || \"Fetch failed\");\n          if (attempt \u003c source.retries) await new Promise(resolve =\u003e setTimeout(resolve, 200 * Math.pow(2, attempt)));\n        }\n      }\n      if (!dataSourceEventBelongsToCurrentState(state, key, activationId)) return;\n      writeDataSourceResult(source, dataSourceResult({\n        status: \"error\",\n        error: lastError || \"Fetch failed\",\n        url: requestUrl\n      }));\n      if (!tryDataSourceTransition(state, source, activationId)) render();\n    }\n\n    function ensureStateDataSource(state) {\n      const source = normalizeDataSource(state.dataSource || state.fetch);\n      if (!hasDataSource(source)) return;\n      const key = dataSourceRunKey(state, source);\n      if (dataSourceRuns.has(key)) return;\n      const activationId = stateActivationId;\n      dataSourceRuns.set(key, { stateId: state.id, activationId });\n      writeDataSourceResult(source, dataSourceResult({\n        status: \"loading\",\n        url: renderTemplate(source.url)\n      }));\n      runStateDataSource(state, source, key, activationId);\n    }\n\n    function refreshBlockedValidation() {\n      if (!blockedTransitionId) return;\n      const transition = model.transitions.find(t =\u003e t.id === blockedTransitionId);\n      if (!transition || conditionOk(transition.condition)) blockedTransitionId = null;\n      for (const action of document.querySelectorAll(\"[data-action-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === action.dataset.actionTransitionId);\n        action.classList.toggle(\"invalid\", Boolean(t \u0026\u0026 t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)));\n      }\n    }\n\n    function notifyRuntime() {\n      const payload = {\n        type: \"STATE_BLUEPRINT_RUNTIME_STATE\",\n        current,\n        transitionId: transitionToNotify?.id || null,\n        from: transitionToNotify?.from || null,\n        to: current,\n        label: transitionToNotify?.label || null,\n        context: JSON.parse(JSON.stringify(context))\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n      transitionToNotify = null;\n    }\n\n    function createComponentElement(component) {\n      let el;\n      if (component.type === \"heading\") {\n        el = document.createElement(\"h2\");\n        el.className = \"component-heading\";\n        el.textContent = renderTemplate(component.text || \"Section\");\n      } else if (component.type === \"image\") {\n        const src = safeComponentUrl(renderTemplate(component.url));\n        if (!src) return null;\n        el = document.createElement(\"img\");\n        el.className = \"component-image\";\n        el.src = src;\n        el.alt = renderTemplate(component.text || \"\");\n        el.loading = \"lazy\";\n      } else if (component.type === \"list\") {\n        if (Array.isArray(component.items) \u0026\u0026 component.items.length) {\n          el = document.createElement(\"ul\");\n          el.className = \"component-list-block\";\n          for (const item of component.items) {\n            const li = document.createElement(\"li\");\n            const childEl = createComponentElement(item);\n            if (childEl) {\n              li.appendChild(childEl);\n              el.appendChild(li);\n            }\n          }\n        } else {\n          const exactPath = exactTemplatePath(component.text || \"\");\n          const rawItems = exactPath ? readContextPathRaw(exactPath) : null;\n          const items = Array.isArray(rawItems)\n            ? rawItems.map(formatListItem).filter(Boolean)\n            : renderTemplate(component.text || \"\").split(/\\r?\\n/).map(item =\u003e item.trim()).filter(Boolean);\n          if (!items.length) return null;\n          el = document.createElement(\"ul\");\n          el.className = \"component-list-block\";\n          for (const item of items) {\n            const li = document.createElement(\"li\");\n            li.textContent = item;\n            el.appendChild(li);\n          }\n        }\n      } else if (component.type === \"link\") {\n        const href = safeComponentUrl(renderTemplate(component.url));\n        if (!href) return null;\n        el = document.createElement(\"a\");\n        el.className = \"component-link\";\n        el.href = href;\n        el.target = \"_blank\";\n        el.rel = \"noopener noreferrer\";\n        el.textContent = renderTemplate(component.text || href);\n      } else if (component.type === \"sound\") {\n        const src = safeComponentUrl(renderTemplate(component.url));\n        if (!src) return null;\n        el = document.createElement(\"div\");\n        el.className = \"component-sound\";\n        const label = document.createElement(\"div\");\n        label.className = \"component-sound-label\";\n        label.textContent = renderTemplate(component.text || \"Play sound\");\n        const audio = document.createElement(\"audio\");\n        audio.className = \"component-sound-player\";\n        audio.controls = true;\n        audio.preload = \"none\";\n        audio.src = src;\n        el.append(label, audio);\n      } else if (component.type === \"note\") {\n        el = document.createElement(\"div\");\n        el.className = \"component-note\";\n        el.textContent = renderTemplate(component.text || \"\");\n      } else if (component.type === \"divider\") {\n        el = document.createElement(\"div\");\n        el.className = \"component-divider\";\n        el.setAttribute(\"role\", \"separator\");\n      } else {\n        el = document.createElement(\"div\");\n        el.className = \"component-text\";\n        el.textContent = renderTemplate(component.text || \"\");\n      }\n      return el;\n    }\n\n    function appendComponentElements(stack, components) {\n      let rendered = 0;\n      for (const component of normalizeComponents(components)) {\n        const el = createComponentElement(component);\n        if (el) {\n          stack.appendChild(el);\n          rendered += 1;\n        }\n      }\n      return rendered;\n    }\n\n    function renderComponents(screen, state, seen = new Set(), nested = false) {\n      if (!state || seen.has(state.id)) return 0;\n      seen.add(state.id);\n      const repeat = normalizeRepeatConfig(state.repeat);\n      const repeated = repeat.path ? readContextPathRaw(repeat.path) : null;\n      if (Array.isArray(repeated)) {\n        let total = 0;\n        const previousItem = context[repeat.as];\n        const previousIndex = context[repeat.index];\n        const hadItem = Object.prototype.hasOwnProperty.call(context, repeat.as);\n        const hadIndex = Object.prototype.hasOwnProperty.call(context, repeat.index);\n        repeated.forEach((item, index) =\u003e {\n          context[repeat.as] = item;\n          context[repeat.index] = index;\n          const stack = document.createElement(\"div\");\n          stack.className = \"component-stack\";\n          let rendered = appendComponentElements(stack, state.components);\n          for (const child of childStates(state.id)) {\n            rendered += renderComponents(stack, child, new Set(seen), true);\n          }\n          if (!rendered) {\n            const body = document.createElement(\"div\");\n            body.className = nested ? \"component-text\" : \"body\";\n            body.textContent = renderTemplate(state.body || (state.title || state.id));\n            stack.appendChild(body);\n            rendered = 1;\n          }\n          screen.appendChild(stack);\n          total += rendered;\n        });\n        if (hadItem) context[repeat.as] = previousItem;\n        else delete context[repeat.as];\n        if (hadIndex) context[repeat.index] = previousIndex;\n        else delete context[repeat.index];\n        return total;\n      }\n      const stack = document.createElement(\"div\");\n      stack.className = \"component-stack\";\n      let rendered = appendComponentElements(stack, state.components);\n      for (const child of childStates(state.id)) {\n        rendered += renderComponents(stack, child, seen, true);\n      }\n      if (rendered) {\n        screen.appendChild(stack);\n        return rendered;\n      }\n      const body = document.createElement(\"div\");\n      body.className = nested ? \"component-text\" : \"body\";\n      body.textContent = renderTemplate(state.body || (nested ? (state.title || state.id) : \"This screen is generated from the current state.\"));\n      screen.appendChild(body);\n      return 1;\n    }\n\n    function safeComponentUrl(url) {\n      const raw = String(url || \"\").trim();\n      if (!raw) return \"\";\n      if (/^https?:\\/\\//i.test(raw)) return raw;\n      if (/^data:image\\/(?:png|jpe?g|gif|webp|svg\\+xml);base64,/i.test(raw)) return raw;\n      if (/^data:audio\\/(?:mpeg|mp3|ogg|wav|webm|mp4);base64,/i.test(raw)) return raw;\n      return \"\";\n    }\n\n    function isNegativeTransition(t) {\n      return /\\b(error|fail|fehler|zurück|back|cancel|abbruch)\\b/i.test(String(t.label || \"\"));\n    }\n\n    function defaultTransitionId(transitions) {\n      return (transitions.find(t =\u003e !isNegativeTransition(t)) || transitions[0])?.id || \"\";\n    }\n\n    function activateDefaultAction() {\n      const button = document.querySelector('[data-default-action=\"true\"]');\n      if (button \u0026\u0026 !button.disabled) button.click();\n    }\n\n    function submitOnEnter(evt) {\n      if (evt.key !== \"Enter\" || evt.isComposing || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return;\n      evt.preventDefault();\n      activateDefaultAction();\n    }\n\n    function applyTabOrderAndFocus(screen) {\n      const focusables = [...screen.querySelectorAll(\"input, button, a[href]\")];\n      focusables.forEach(el =\u003e { el.tabIndex = 0; });\n      if (suppressNextFocus) {\n        suppressNextFocus = false;\n        return;\n      }\n      const firstInput = screen.querySelector(\"input:not([type='hidden'])\");\n      const fallback = screen.querySelector('[data-default-action=\"true\"]');\n      const target = firstInput || fallback;\n      if (target) requestAnimationFrame(() =\u003e target.focus({ preventScroll: true }));\n    }\n\n    function render() {\n      normalizeModel(model);\n      if (!findState(current)) current = model.initial;\n      const s = stateById(current);\n      applyNestedStateDataDefaults(s);\n      const transitions = outgoing(s.id);\n      const actionTransitions = transitions;\n      const defaultActionId = defaultTransitionId(actionTransitions);\n      if (blockedTransitionId \u0026\u0026 !actionTransitions.some(t =\u003e t.id === blockedTransitionId)) blockedTransitionId = null;\n      const vars = inferVariables({ transitions: actionTransitions });\n      ensureContext(vars);\n      ensureStateDataSource(s);\n\n      document.getElementById(\"appName\").textContent = model.name || \"Generated App\";\n      document.getElementById(\"statePill\").textContent = s.id;\n\n      const screen = document.getElementById(\"screen\");\n      screen.className = \"screen\";\n      const activeValidation = runtimeValidation?.stateId === s.id ? runtimeValidation : null;\n      if (activeValidation) screen.classList.add(\"validation-failed\");\n      screen.innerHTML = \"\";\n\n      const h1 = document.createElement(\"h1\");\n      h1.textContent = renderTemplate(s.title || s.id);\n      screen.appendChild(h1);\n\n      renderComponents(screen, s);\n\n      if (activeValidation) {\n        const validation = document.createElement(\"div\");\n        validation.className = \"runtime-validation\";\n        validation.setAttribute(\"role\", \"alert\");\n        validation.append(`Condition not met for \"${activeValidation.label}\".`);\n        if (activeValidation.condition) {\n          validation.append(document.createElement(\"br\"));\n          validation.append(\"Expected \");\n          const code = document.createElement(\"code\");\n          code.textContent = activeValidation.condition;\n          validation.appendChild(code);\n        }\n        screen.appendChild(validation);\n      }\n\n      if (vars.length) {\n        const controls = document.createElement(\"div\");\n        controls.className = \"controls\";\n        controls.innerHTML = `\u003ch2\u003eCondition inputs\u003c/h2\u003e`;\n        for (const v of vars) {\n          if (!(v.name in context)) context[v.name] = defaultValueFor(v);\n          const row = document.createElement(\"div\");\n          row.className = \"field\";\n          const label = document.createElement(\"label\");\n          label.className = \"field-label\";\n          label.textContent = v.name;\n          const input = document.createElement(\"input\");\n          let control = input;\n          if (v.type === \"number\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.inputMode = v.kind === \"int\" ? \"numeric\" : \"decimal\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = sanitizeNumericInput(input.value, v);\n              input.value = context[v.name];\n              input.classList.toggle(\"invalid\", !isValidValue(context[v.name], v));\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else if (v.type === \"text\") {\n            input.type = \"text\";\n            input.className = \"typed-input\";\n            input.value = context[v.name];\n            input.onkeydown = submitOnEnter;\n            input.oninput = () =\u003e {\n              context[v.name] = String(input.value ?? \"\");\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n          } else {\n            input.type = \"checkbox\";\n            input.checked = Boolean(context[v.name]);\n            const toggle = document.createElement(\"label\");\n            toggle.className = \"switch\";\n            const track = document.createElement(\"span\");\n            track.className = \"switch-track\";\n            const value = document.createElement(\"span\");\n            value.className = \"switch-value\";\n            const updateValue = () =\u003e { value.textContent = input.checked ? \"On\" : \"Off\"; };\n            input.onchange = () =\u003e {\n              context[v.name] = input.checked;\n              updateValue();\n              updateActionButtons();\n              refreshBlockedValidation();\n              notifyRuntime();\n            };\n            updateValue();\n            toggle.append(input, track, value);\n            control = toggle;\n          }\n          row.append(label, control);\n          controls.appendChild(row);\n        }\n        screen.appendChild(controls);\n      }\n\n      const actions = document.createElement(\"div\");\n      actions.className = \"actions\";\n      for (const t of actionTransitions) {\n        const action = document.createElement(\"div\");\n        action.className = \"action\";\n        action.dataset.actionTransitionId = t.id;\n        if (t.id === blockedTransitionId \u0026\u0026 !conditionOk(t.condition)) action.classList.add(\"invalid\");\n        const button = document.createElement(\"button\");\n        button.dataset.transitionId = t.id;\n        if (t.id === defaultActionId) button.dataset.defaultAction = \"true\";\n        button.textContent = t.label || \"Next\";\n        button.onclick = () =\u003e {\n          const ok = conditionOk(t.condition);\n          if (ok) {\n            followTransition(t, s.id);\n          } else {\n            blockedTransitionId = t.id;\n            log(`${s.id} --${t.label || \"next\"} blocked`);\n            render();\n            return;\n          }\n          render();\n        };\n        action.appendChild(button);\n        const condition = String(t.condition || \"\").trim();\n        if (condition \u0026\u0026 condition.toLowerCase() !== \"always\") {\n          const note = document.createElement(\"div\");\n          note.className = \"condition-note\";\n          note.append(\"needs \");\n          const code = document.createElement(\"code\");\n          code.textContent = condition;\n          note.appendChild(code);\n          action.appendChild(note);\n        }\n        const feedback = document.createElement(\"div\");\n        feedback.className = \"condition-feedback\";\n        feedback.textContent = \"Condition not met. Check the inputs above.\";\n        action.appendChild(feedback);\n        actions.appendChild(action);\n      }\n      if (!transitions.length) {\n        const empty = document.createElement(\"div\");\n        empty.className = \"empty\";\n        empty.textContent = \"No outgoing transitions. This is an end state.\";\n        screen.appendChild(empty);\n      }\n      screen.appendChild(actions);\n      applyTabOrderAndFocus(screen);\n\n      document.getElementById(\"log\").textContent = logLines.join(\"\\n\");\n      notifyRuntime();\n    }\n\n    function updateActionButtons() {\n      for (const button of document.querySelectorAll(\"[data-transition-id]\")) {\n        const t = model.transitions.find(item =\u003e item.id === button.dataset.transitionId);\n        if (t) button.disabled = false;\n      }\n    }\n\n    function escapeHtml(text) {\n      return String(text).replace(/[\u0026\u003c\u003e\"]/g, ch =\u003e ({\"\u0026\":\"\u0026amp;\",\"\u003c\":\"\u0026lt;\",\"\u003e\":\"\u0026gt;\",\"\\\"\":\"\u0026quot;\"}[ch]));\n    }\n\n    window.addEventListener(\"message\", evt =\u003e {\n      const data = evt.data || {};\n      if (data.type !== \"STATE_BLUEPRINT_MODEL\") return;\n      model = normalizeModel(JSON.parse(JSON.stringify(data.model)));\n      suppressNextFocus = Boolean(data.preserveFocus);\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) saveModel();\n      const oldContext = context;\n      context = { ...defaultContext(model), ...oldContext };\n      if (data.reset) context = defaultContext(model);\n      const requestedStart = typeof data.startStateId === \"string\" \u0026\u0026 findState(data.startStateId) ? data.startStateId : null;\n      if (requestedStart || data.reset || !findState(current)) {\n        current = requestedStart || model.initial;\n        stateActivationId += 1;\n        logLines = [];\n        transitionToNotify = null;\n        blockedTransitionId = null;\n        runtimeValidation = null;\n      }\n      render();\n    });\n\n    window.addEventListener(\"storage\", evt =\u003e {\n      if (evt.key !== STORAGE_KEY || !evt.newValue) return;\n      try {\n        model = normalizeModel(JSON.parse(evt.newValue));\n        suppressNextFocus = true;\n        if (!findState(current)) {\n          current = model.initial;\n          stateActivationId += 1;\n        }\n        render();\n      } catch (_) {}\n    });\n\n\n    document.addEventListener(\"keydown\", evt =\u003e {\n      const mod = evt.ctrlKey || evt.metaKey;\n      if (!mod) return;\n      const key = evt.key.toLowerCase();\n      if (key !== \"s\" \u0026\u0026 key !== \"o\") return;\n      const hasHost = (window.parent \u0026\u0026 window.parent !== window) || (window.opener \u0026\u0026 !window.opener.closed);\n      if (!hasHost) return;\n      evt.preventDefault();\n      evt.stopImmediatePropagation();\n      const payload = {\n        type: \"STATE_BLUEPRINT_SHORTCUT\",\n        action: key === \"s\" ? \"save\" : \"load\"\n      };\n      try {\n        if (window.parent \u0026\u0026 window.parent !== window) window.parent.postMessage(payload, \"*\");\n      } catch (_) {}\n      try {\n        if (window.opener \u0026\u0026 !window.opener.closed) window.opener.postMessage(payload, \"*\");\n      } catch (_) {}\n    }, { capture: true });\n\n    render();\n  \u003c/script\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n";
     const APP_URL = URL.createObjectURL(new Blob([APP_HTML], { type: "text/html" }));
     const WORLD_MIN_X = -10000;
     const WORLD_MIN_Y = -8000;
@@ -1908,7 +1799,6 @@
     const NODE_TITLE_EXTRA_W = 104;
     const ROUTE_NODE_CLEARANCE = GRID_SIZE / 2;
     const WHEEL_ZOOM_PIXEL_DENOMINATOR = 240;
-    const MAP_CANVAS_RENDERER_ENABLED = false;
     const TOUCH_PINCH_ZOOM_RESPONSE = 1.45;
 
     const workspaceEl = document.getElementById("workspace");
@@ -1920,7 +1810,6 @@
     const mapCanvasEl = document.getElementById("mapCanvas");
     const mapSceneEl = document.getElementById("mapScene");
     const layerHudEl = document.getElementById("layerHud");
-    const layerNavEl = document.getElementById("layerNav");
     const layerFrameEl = document.getElementById("layerFrame");
     const layerBackEl = document.getElementById("layerBack");
     const layerFrameLabelEl = document.getElementById("layerFrameLabel");
@@ -1933,6 +1822,7 @@
     const selectionActionsEl = document.getElementById("selectionActions");
     const selectionCountEl = document.getElementById("selectionCount");
     const btnSelectionCopy = document.getElementById("btnSelectionCopy");
+    const btnSelectionCollapse = document.getElementById("btnSelectionCollapse");
     const btnSelectionDelete = document.getElementById("btnSelectionDelete");
     const frameEl = document.getElementById("appFrame");
     const syncStateEl = document.getElementById("syncState");
@@ -1957,6 +1847,8 @@
     let connectingTargetId = null;
     let panning = null;
     let boxSelecting = null;
+    let canvasMoveFrame = 0;
+    let queuedCanvasMoveEvent = null;
     let isSpaceDown = false;
     let syncTimer = null;
     let currentAppState = null;
@@ -1994,8 +1886,6 @@
     let suppressEdgeClickUntil = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
-    let canvasMoveFrame = 0;
-    let queuedCanvasMoveEvent = null;
 
     function demoModel() {
       return {
@@ -2405,19 +2295,11 @@
 
     function normalizeSelection(value = selected) {
       if (!value || typeof value !== "object") return null;
-      const stateIds = new Set(model.states.map(s => s.id));
-      const edgeIds = new Set(model.transitions.map(t => t.id));
-      if (value.type === "node" && stateIds.has(value.id) && isCurrentLayerState(value.id)) return { type: "node", id: value.id };
-      if (value.type === "edge" && edgeIds.has(value.id) && transitionInLayer(model.transitions.find(t => t.id === value.id))) return { type: "edge", id: value.id };
-      if (value.type === "nodes") {
-        const ids = [...new Set(value.ids || [])].filter(id => stateIds.has(id) && isCurrentLayerState(id));
-        return ids.length ? { type: "nodes", ids } : null;
-      }
-      if (value.type === "items") {
-        const nodes = [...new Set(value.nodes || [])].filter(id => stateIds.has(id) && isCurrentLayerState(id));
-        const edges = [...new Set(value.edges || [])].filter(id => edgeIds.has(id) && transitionInLayer(model.transitions.find(t => t.id === id)));
-        return selectionFromParts(nodes, edges);
-      }
+      if ("nodes" in value || "edges" in value) return selectionFromParts(value.nodes, value.edges);
+      if (value.type === "node") return selectionFromParts([value.id], []);
+      if (value.type === "edge") return selectionFromParts([], [value.id]);
+      if (value.type === "nodes") return selectionFromParts(value.ids, []);
+      if (value.type === "items") return selectionFromParts(value.nodes, value.edges);
       return null;
     }
 
@@ -3039,26 +2921,146 @@
         .replace(/^_+|_+$/g, "") || "state";
     }
 
+    function normalizeListItems(items, fallbackText) {
+      const allowed = new Set(["text", "link", "image", "sound", "note", "divider"]);
+      if (Array.isArray(items)) {
+        return items
+          .filter(item => item && typeof item === "object" && allowed.has(item.type || "text"))
+          .map(item => ({
+            id: item.id || uid("c"),
+            type: item.type || "text",
+            text: String(item.text || ""),
+            url: String(item.url || "")
+          }));
+      }
+      const lines = String(fallbackText || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      return lines.map(line => ({
+        id: uid("c"),
+        type: "text",
+        text: line,
+        url: ""
+      }));
+    }
+
+    function deriveComponentsFromJson(sampleObj, repeatAs = "item") {
+      if (!sampleObj || typeof sampleObj !== "object") return [];
+      const components = [];
+      const keys = Object.keys(sampleObj);
+      let headingKey = keys.find(k => /^(title|name|heading|headline|subject|label)$/i.test(k));
+      let imageKey = keys.find(k => /^(image|img|thumbnail|photo|picture|avatar|icon)$/i.test(k) || 
+                                   (typeof sampleObj[k] === "string" && /^https?:\/\/.*\.(png|jpe?g|gif|webp|svg)/i.test(sampleObj[k])));
+      let soundKey = keys.find(k => /^(sound|audio|track|music|mp3|voice)$/i.test(k) || 
+                                   (typeof sampleObj[k] === "string" && /^https?:\/\/.*\.(mp3|wav|ogg|aac)/i.test(sampleObj[k])));
+      let linkKey = keys.find(k => k !== imageKey && k !== soundKey && 
+                                  (/^(url|link|href|website|uri|page|site)$/i.test(k) || 
+                                   (typeof sampleObj[k] === "string" && /^https?:\/\//i.test(sampleObj[k]))));
+      let noteKey = keys.find(k => /^(note|tip|warning|info|alert)$/i.test(k));
+      let textKey = keys.find(k => k !== headingKey && k !== noteKey && 
+                                  (/^(description|body|text|content|summary|bio|msg|message|desc)$/i.test(k) || 
+                                   (typeof sampleObj[k] === "string" && sampleObj[k].length > 40)));
+
+      if (headingKey) {
+        components.push({
+          id: uid("c"),
+          type: "heading",
+          text: `{{${repeatAs}.${headingKey}}}`
+        });
+      }
+      if (imageKey) {
+        components.push({
+          id: uid("c"),
+          type: "image",
+          text: headingKey ? `{{${repeatAs}.${headingKey}}}` : "",
+          url: `{{${repeatAs}.${imageKey}}}`
+        });
+      }
+      if (textKey) {
+        components.push({
+          id: uid("c"),
+          type: "text",
+          text: `{{${repeatAs}.${textKey}}}`
+        });
+      }
+      if (noteKey) {
+        components.push({
+          id: uid("c"),
+          type: "note",
+          text: `{{${repeatAs}.${noteKey}}}`
+        });
+      }
+      if (soundKey) {
+        components.push({
+          id: uid("c"),
+          type: "sound",
+          text: headingKey ? `{{${repeatAs}.${headingKey}}}` : "Play sound",
+          url: `{{${repeatAs}.${soundKey}}}`
+        });
+      }
+      if (linkKey) {
+        components.push({
+          id: uid("c"),
+          type: "link",
+          text: headingKey ? `{{${repeatAs}.${headingKey}}}` : "Link",
+          url: `{{${repeatAs}.${linkKey}}}`
+        });
+      }
+      if (components.length === 0) {
+        for (const key of keys.slice(0, 8)) {
+          const val = sampleObj[key];
+          if (val !== null && typeof val !== "object" && typeof val !== "function") {
+            components.push({
+              id: uid("c"),
+              type: "text",
+              text: `${key}: {{${repeatAs}.${key}}}`
+            });
+          }
+        }
+      }
+      return components;
+    }
+
+    function isDescendant(parentId, childId) {
+      let current = byId(childId);
+      while (current) {
+        if (current.parentId === parentId) return true;
+        current = current.parentId ? byId(current.parentId) : null;
+      }
+      return false;
+    }
+
+    function stateNodeAtClientPoint(clientX, clientY) {
+      const els = document.querySelectorAll(".node");
+      for (const el of els) {
+        const id = el.dataset.id;
+        if (id && pointInElement(clientX, clientY, el)) {
+          const s = byId(id);
+          if (s) return s;
+        }
+      }
+      return null;
+    }
+
     function normalizeComponents(components) {
       const allowed = new Set(["heading", "text", "image", "list", "link", "sound", "note", "divider"]);
       return (Array.isArray(components) ? components : [])
         .filter(component => component && typeof component === "object" && allowed.has(component.type))
         .slice(0, 24)
-        .map(component => ({
-          id: component.id || uid("c"),
-          type: component.type,
-          text: normalizeComponentText(component.type, component.text),
-          url: String(component.url || "")
-        }));
-    }
-
-    function normalizeComponentText(type, value) {
-      const text = String(value || "");
-      return type === "text" ? text.slice(0, TEXT_COMPONENT_MAX_CHARS) : text;
+        .map(component => {
+          const norm = {
+            id: component.id || uid("c"),
+            type: component.type,
+            text: String(component.text || ""),
+            url: String(component.url || "")
+          };
+          if (component.type === "list") {
+            norm.items = normalizeListItems(component.items, component.text);
+          }
+          return norm;
+        });
     }
 
     function migrateBodyToComponents(body, components) {
-      const text = normalizeComponentText("text", body);
+      const text = String(body || "");
       const normalized = normalizeComponents(components);
       if (!text.trim()) return normalized;
       if (normalized.some(component => component.type === "text" && component.text === text)) return normalized;
@@ -3112,10 +3114,6 @@
         as: normalizeContextIdentifier(source.as, "item"),
         index: normalizeContextIdentifier(source.index, "i")
       };
-    }
-
-    function hasRepeatConfig(value) {
-      return Boolean(normalizeRepeatConfig(value).path);
     }
 
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
@@ -3261,18 +3259,6 @@
       if (removeSet.has(model.initial)) model.initial = statesInLayer(null)[0]?.id || model.states[0]?.id || "";
       if (currentLayerRemoved) currentLayerId = currentParent && byId(currentParent) ? currentParent : null;
       return true;
-    }
-
-    function stateLayerPath(layerId = currentLayerId) {
-      const path = [];
-      let state = byId(layerId);
-      const guard = new Set();
-      while (state && !guard.has(state.id)) {
-        path.unshift(state);
-        guard.add(state.id);
-        state = byId(state.parentId);
-      }
-      return path;
     }
 
     function isCurrentLayerState(id) {
@@ -3439,22 +3425,8 @@
       return true;
     }
 
-    function cancelCanvasMouseSelection() {
-      const hadCanvasMouseGesture = Boolean(pendingCanvasMouse || boxSelecting);
-      clearLongPress();
-      pendingCanvasMouse = null;
-      if (!hadCanvasMouseGesture) return false;
-      if (boxSelecting) {
-        boxSelecting = null;
-        selected = null;
-        saveSelection("selection:canvas");
-      }
-      updateSelectRect();
-      draw();
-      return true;
-    }
-
     function cancelActiveCanvasGesture() {
+      cancelQueuedCanvasMove();
       const dragToSave = dragging?.moved ? dragging.id : null;
       const hadSelectionBox = Boolean(boxSelecting);
       const hadGesture = Boolean(
@@ -3467,7 +3439,6 @@
         panning
       );
       if (!hadGesture) return false;
-      cancelQueuedCanvasMove();
       clearLongPress();
       pendingCanvasMouse = null;
       pendingCanvasTouch = null;
@@ -3500,7 +3471,6 @@
       if (evt.buttons !== 0) return false;
       const hasDesktopGesture = Boolean(pendingCanvasMouse || boxSelecting || dragging || connecting || panning);
       if (!hasDesktopGesture) return false;
-      cancelQueuedCanvasMove();
       return cancelActiveCanvasGesture();
     }
 
@@ -3587,16 +3557,11 @@
     }
 
     function selectedNodeIds() {
-      if (selected?.type === "node") return new Set([selected.id]);
-      if (selected?.type === "nodes") return new Set(selected.ids || []);
-      if (selected?.type === "items") return new Set(selected.nodes || []);
-      return new Set();
+      return new Set(selected?.nodes || []);
     }
 
     function selectedEdgeIds() {
-      if (selected?.type === "edge") return new Set([selected.id]);
-      if (selected?.type === "items") return new Set(selected.edges || []);
-      return new Set();
+      return new Set(selected?.edges || []);
     }
 
     function selectedNodeIdList() {
@@ -3610,15 +3575,21 @@
     function selectionFromParts(nodes, edges) {
       const nodeIds = [...new Set(nodes || [])].filter(id => byId(id) && isCurrentLayerState(id));
       const edgeIds = [...new Set(edges || [])].filter(id => model.transitions.some(t => t.id === id && transitionInLayer(t)));
-      if (nodeIds.length === 1 && edgeIds.length === 0) return { type: "node", id: nodeIds[0] };
-      if (nodeIds.length > 1 && edgeIds.length === 0) return { type: "nodes", ids: nodeIds };
-      if (nodeIds.length === 0 && edgeIds.length === 1) return { type: "edge", id: edgeIds[0] };
-      if (nodeIds.length || edgeIds.length) return { type: "items", nodes: nodeIds, edges: edgeIds };
-      return null;
+      return nodeIds.length || edgeIds.length ? { nodes: nodeIds, edges: edgeIds } : null;
+    }
+
+    function singleSelectedNodeId() {
+      const nodes = selectedNodeIdList();
+      return nodes.length === 1 && selectedEdgeIdList().length === 0 ? nodes[0] : null;
+    }
+
+    function singleSelectedEdgeId() {
+      const edges = selectedEdgeIdList();
+      return edges.length === 1 && selectedNodeIdList().length === 0 ? edges[0] : null;
     }
 
     function setSingleSelection(kind, id, historyKey = null) {
-      selected = kind === "node" ? { type: "node", id } : { type: "edge", id };
+      selected = kind === "node" ? selectionFromParts([id], []) : selectionFromParts([], [id]);
       saveSelection(historyKey);
     }
 
@@ -3642,7 +3613,7 @@
 
     function updateSelectionActions() {
       const ids = selectedNodeIdList();
-      const visible = ids.length > 0 && (selected?.type === "nodes" || selected?.type === "items");
+      const visible = ids.length > 0;
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
       if (visible) selectionCountEl.textContent = ids.length === 1 ? "1 state" : `${ids.length} states`;
@@ -3656,11 +3627,7 @@
       const removeEdges = new Set(edgeIds);
       const removedNodes = removable.length ? removeStatesById(removable) : false;
       if (!removedNodes && !removeEdges.size) return false;
-      if (!removedNodes) {
-        model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
-      } else if (removeEdges.size) {
-        model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
-      }
+      if (removeEdges.size) model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
       selected = null;
       showEmptyInspector();
       saveModel();
@@ -3708,7 +3675,7 @@
         }));
       model.states.push(...copies);
       model.transitions.push(...copiedTransitions);
-      selected = { type: "nodes", ids: copies.map(s => s.id) };
+      selected = selectionFromParts(copies.map(s => s.id), []);
       saveModel();
       draw();
     }
@@ -3813,6 +3780,197 @@
       draw();
     }
 
+    function nodeElement(stateId) {
+      return nodesEl.querySelector(`.node[data-id="${cssEscapeValue(stateId)}"]`);
+    }
+
+    function updateNodeElementPosition(state) {
+      const el = nodeElement(state.id);
+      if (!el) return false;
+      if (dragging?.id === state.id) {
+        el.style.transform = `translate3d(${state.x - dragging.originalX}px, ${state.y - dragging.originalY}px, 0)`;
+      } else {
+        el.style.left = state.x + "px";
+        el.style.top = state.y + "px";
+        el.style.transform = "";
+      }
+      return true;
+    }
+
+    function updateDraggedStateEdges(stateId) {
+      for (const transition of visibleTransitions()) {
+        if (transition.from !== stateId && transition.to !== stateId) continue;
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        if (!from || !to) continue;
+        updateTransitionElements(transition, liveDragRoutePoints(from, to, transition));
+      }
+    }
+
+    function updateTransitionElements(transition, routePoints) {
+      const from = byId(transition.from);
+      const to = byId(transition.to);
+      if (!from || !to || !routePoints?.length) return;
+      const pathD = pathFromPoints(routePoints);
+      const arrowD = arrowPathForPoints(routePoints);
+      const middle = midPointForRoute(routePoints);
+      const startPin = routePoints[0];
+      const endPin = routePoints[routePoints.length - 1];
+      const tip = edgeTipHandlePointForRoute(routePoints);
+      const selector = `[data-edge-id="${cssEscapeValue(transition.id)}"]`;
+      for (const el of wiresEl.querySelectorAll(selector)) {
+        if (el.matches("path.hit,path.edge")) el.setAttribute("d", pathD);
+        else if (el.matches("path.edge-arrow")) el.setAttribute("d", arrowD);
+        else if (el.matches("text.edge-label")) {
+          el.setAttribute("x", String(middle.x));
+          el.setAttribute("y", String(middle.y));
+        } else if (el.matches("circle.edge-pin")) {
+          if (el.dataset.pin === "start") {
+            el.setAttribute("cx", String(startPin.x));
+            el.setAttribute("cy", String(startPin.y));
+          } else {
+            el.setAttribute("cx", String(endPin.x));
+            el.setAttribute("cy", String(endPin.y));
+          }
+        } else if (el.matches("rect.edge-tip-hit")) {
+          el.setAttribute("x", String(tip.x - 12));
+          el.setAttribute("y", String(tip.y - 12));
+        }
+      }
+    }
+
+    function liveDoglegRoutePoints(from, to) {
+      const a = nodeCenter(from, "out");
+      const b = nodeCenter(to, "in");
+      if (from.id === to.id) {
+        const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
+        return [
+          a,
+          { x: a.x + GRID_SIZE * 2, y: a.y },
+          { x: a.x + GRID_SIZE * 2, y: loopTop },
+          { x: b.x - GRID_SIZE * 2, y: loopTop },
+          { x: b.x - GRID_SIZE * 2, y: b.y },
+          b
+        ];
+      }
+      if (b.x - a.x >= GRID_SIZE * 4) {
+        const mx = snapToGrid((a.x + b.x) / 2);
+        return [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b];
+      }
+      const my = snapToGrid((a.y + b.y) / 2);
+      return [
+        a,
+        { x: a.x + GRID_SIZE * 2, y: a.y },
+        { x: a.x + GRID_SIZE * 2, y: my },
+        { x: b.x - GRID_SIZE * 2, y: my },
+        { x: b.x - GRID_SIZE * 2, y: b.y },
+        b
+      ];
+    }
+
+    function edgeTipHandlePointForRoute(routePoints) {
+      return polylinePoint(routePoints, 0.82);
+    }
+
+    function midPointForRoute(routePoints) {
+      return polylinePoint(routePoints, 0.5);
+    }
+
+    function shouldIgnoreMapWheel(evt) {
+      const target = evt.target;
+      if (target?.closest?.(".state-explorer, .inspector, input, textarea, select, button")) return true;
+      return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
+    }
+
+    function hasActiveCanvasMotion() {
+      return Boolean(boxSelecting || dragging || connecting || panning);
+    }
+
+    function cancelQueuedCanvasMove() {
+      if (canvasMoveFrame) cancelAnimationFrame(canvasMoveFrame);
+      canvasMoveFrame = 0;
+      queuedCanvasMoveEvent = null;
+    }
+
+    function flushQueuedCanvasMove(fallbackEvent = null) {
+      const evt = queuedCanvasMoveEvent || fallbackEvent;
+      cancelQueuedCanvasMove();
+      if (evt && hasActiveCanvasMotion()) handleCanvasMove(evt);
+    }
+
+    function queueCanvasMove(evt) {
+      if (!hasActiveCanvasMotion()) return;
+      queuedCanvasMoveEvent = evt;
+      if (canvasMoveFrame) return;
+      canvasMoveFrame = requestAnimationFrame(() => {
+        const queuedEvent = queuedCanvasMoveEvent;
+        canvasMoveFrame = 0;
+        queuedCanvasMoveEvent = null;
+        if (queuedEvent && hasActiveCanvasMotion()) handleCanvasMove(queuedEvent);
+      });
+    }
+
+    async function collapseSelectedNodes() {
+      const selectedIds = selectedNodeIdList();
+      if (selectedIds.length === 0) return;
+
+      if (currentLayerId !== null) {
+        // Already inside a layer (has a parent)
+        const parentState = byId(currentLayerId);
+        const parentTitle = parentState ? parentState.title : "Unbekannt";
+        const message = `Diese States befinden sich bereits in dem Parent-State "${parentTitle}". Möchtest du zu dem Parent-State-Canvas navigieren?`;
+        const confirm = await modalConfirm(message, "Bereits gruppiert");
+        if (confirm) {
+          navigateToLayer(parentState.parentId);
+          selected = selectionFromParts([parentState.id], []);
+          draw();
+        }
+        return;
+      }
+
+      // Root level: perform collapse
+      const selectedStates = selectedIds.map(byId).filter(Boolean);
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      selectedStates.forEach(s => {
+        minX = Math.min(minX, s.x);
+        maxX = Math.max(maxX, s.x + nodeWidth(s));
+        minY = Math.min(minY, s.y);
+        maxY = Math.max(maxY, s.y + NODE_H);
+      });
+
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+
+      // Create new parent state P at average center
+      const parentName = "Group_" + nextStateTitle();
+      const parentState = makeState(cx - 84, cy - 48, parentName, null);
+      model.states.push(parentState);
+
+      // Reconnect transitions that cross the boundary
+      const setIds = new Set(selectedIds);
+      model.transitions.forEach(t => {
+        const fromInside = setIds.has(t.from);
+        const toInside = setIds.has(t.to);
+        if (fromInside && !toInside) {
+          t.from = parentState.id;
+        } else if (!fromInside && toInside) {
+          t.to = parentState.id;
+        }
+      });
+
+      // Update parentId of all selected states to P.id
+      selectedStates.forEach(s => {
+        s.parentId = parentState.id;
+      });
+
+      // Select the new parent state
+      selected = selectionFromParts([parentState.id], []);
+      saveModel("state:collapse");
+      draw();
+      showNodeInspector(parentState, { forceOpen: true });
+    }
+
+
     function applyCamera() {
       camera.scale = clampScale(camera.scale);
       const tx = Math.round(camera.x);
@@ -3895,10 +4053,6 @@
     }
 
     function initMapRenderer() {
-      if (!MAP_CANVAS_RENDERER_ENABLED) {
-        fallbackMapRenderer();
-        return;
-      }
       const ctx = mapCanvasContext();
       if (!ctx || typeof ctx.drawElementImage !== "function") {
         fallbackMapRenderer();
@@ -3958,12 +4112,6 @@
       zoomAtClientPoint(clientX, clientY, camera.scale * factor);
     }
 
-    function shouldIgnoreMapWheel(evt) {
-      const target = evt.target;
-      if (target?.closest?.(".state-explorer, input, textarea, select, button")) return true;
-      return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
-    }
-
     function viewportCenterWorld() {
       const r = mapEl.getBoundingClientRect();
       return {
@@ -4020,8 +4168,9 @@
 
     function startNodeDrag(evt, s) {
       evt.stopPropagation();
-      if (!evt.shiftKey) selected = { type: "node", id: s.id };
+      if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
       const p = screenToWorld(evt);
+      if (!edgeRouteCache) edgeRouteCache = buildEdgeRouteCache();
       dragging = {
         id: s.id,
         shiftKey: Boolean(evt.shiftKey),
@@ -4031,8 +4180,10 @@
         dy: p.y - s.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
+        routeSnapshot: cloneRouteMap(edgeRouteCache),
         moved: false
       };
+      updateNodeElementPosition(s);
       mapEl.classList.add("dragging-state");
       draw();
     }
@@ -4053,7 +4204,7 @@
       if (!from) return;
       connecting = { from: t.from, to: screenToWorld(evt), edgeId: t.id };
       connectingTargetId = null;
-      selected = { type: "edge", id: t.id };
+      selected = selectionFromParts([], [t.id]);
       suppressEdgeClickUntil = Date.now() + 650;
       mapEl.classList.add("connecting");
       draw();
@@ -4187,49 +4338,6 @@
         ];
       }
 
-      const laneY = snapToGrid(Math.min(from.y, to.y) - GRID_SIZE * 2);
-      return [
-        a,
-        { x: a.x + GRID_SIZE * 2, y: a.y },
-        { x: a.x + GRID_SIZE * 2, y: laneY },
-        { x: b.x - GRID_SIZE * 2, y: laneY },
-        { x: b.x - GRID_SIZE * 2, y: b.y },
-        b
-      ];
-    }
-
-    function liveDoglegRoutePoints(from, to) {
-      const a = nodeCenter(from, "out");
-      const b = nodeCenter(to, "in");
-      if (from.id === to.id) {
-        const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
-        return [
-          a,
-          { x: a.x + GRID_SIZE * 2, y: a.y },
-          { x: a.x + GRID_SIZE * 2, y: loopTop },
-          { x: b.x - GRID_SIZE * 2, y: loopTop },
-          { x: b.x - GRID_SIZE * 2, y: b.y },
-          b
-        ];
-      }
-      if (b.x - a.x >= GRID_SIZE * 4) {
-        const outX = a.x + GRID_SIZE * 2;
-        const inX = b.x - GRID_SIZE * 2;
-        let laneY = snapToGrid((a.y + b.y) / 2);
-        if (laneY === a.y || laneY === b.y) {
-          const direction = b.y >= a.y ? 1 : -1;
-          laneY = snapToGrid(a.y + direction * GRID_SIZE * 2);
-          if (laneY === b.y) laneY = snapToGrid(laneY + direction * GRID_SIZE * 2);
-        }
-        return [
-          a,
-          { x: outX, y: a.y },
-          { x: outX, y: laneY },
-          { x: inX, y: laneY },
-          { x: inX, y: b.y },
-          b
-        ];
-      }
       const laneY = snapToGrid(Math.min(from.y, to.y) - GRID_SIZE * 2);
       return [
         a,
@@ -4429,12 +4537,6 @@
       return segments;
     }
 
-    function routeSegmentsOverlap(a, b) {
-      return a.orientation === b.orientation &&
-        a.coordinate === b.coordinate &&
-        Math.max(a.min, b.min) < Math.min(a.max, b.max);
-    }
-
     function laneSlot(index) {
       if (index <= 0) return 0;
       return index % 2 ? Math.ceil(index / 2) : -index / 2;
@@ -4449,6 +4551,10 @@
 
     function cloneRoutePoints(points) {
       return (points || []).map(point => ({ ...point }));
+    }
+
+    function cloneRouteMap(routes) {
+      return new Map([...routes].map(([id, points]) => [id, cloneRoutePoints(points)]));
     }
 
     function edgeOrder(transitionId) {
@@ -4573,10 +4679,12 @@
     }
 
     function liveDragRoutePoints(from, to, transition = null) {
-      return liveDoglegRoutePoints(from, to);
+      return directRoutePoints(from, to, transition) ||
+        forwardBendRoutePoints(from, to, transition) ||
+        doglegRoutePoints(from, to, transition);
     }
 
-    function buildLiveDragRouteCache(dragStateId) {
+    function buildLiveDragRouteCache(dragStateId, routeSnapshot = null) {
       recordRouteMetric("liveDragRouteBuilds");
       const routes = new Map();
       for (const transition of visibleTransitions()) {
@@ -4585,6 +4693,8 @@
         if (!from || !to) continue;
         if (transition.from === dragStateId || transition.to === dragStateId) {
           routes.set(transition.id, liveDragRoutePoints(from, to, transition));
+        } else if (routeSnapshot?.has(transition.id)) {
+          routes.set(transition.id, cloneRoutePoints(routeSnapshot.get(transition.id)));
         } else {
           routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
         }
@@ -4643,10 +4753,6 @@
       return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
     }
 
-    function edgeTipHandlePointForRoute(routePoints) {
-      return polylinePoint(routePoints, 0.82);
-    }
-
     function arrowPathForPoints(points) {
       const compact = compactRoutePoints(points);
       if (compact.length < 2) return "";
@@ -4677,99 +4783,6 @@
     function midPoint(from, to, transition = null) {
       const point = polylinePoint(edgeRoutePoints(from, to, transition), 0.5);
       return { x: point.x, y: point.y - 10 };
-    }
-
-    function midPointForRoute(routePoints) {
-      const point = polylinePoint(routePoints, 0.5);
-      return { x: point.x, y: point.y - 10 };
-    }
-
-    function cssEscapeValue(value) {
-      if (window.CSS?.escape) return CSS.escape(String(value));
-      return String(value).replace(/["\\]/g, "\\$&");
-    }
-
-    function nodeElement(stateId) {
-      return nodesEl.querySelector(`.node[data-id="${cssEscapeValue(stateId)}"]`);
-    }
-
-    function updateNodeElementPosition(state) {
-      const el = nodeElement(state.id);
-      if (!el) return false;
-      if (dragging?.id === state.id) {
-        el.style.transform = `translate3d(${state.x - dragging.originalX}px, ${state.y - dragging.originalY}px, 0)`;
-      } else {
-        el.style.left = state.x + "px";
-        el.style.top = state.y + "px";
-        el.style.transform = "";
-      }
-      return true;
-    }
-
-    function updateTransitionElements(transition, routePoints) {
-      const from = byId(transition.from);
-      const to = byId(transition.to);
-      if (!from || !to || !routePoints?.length) return;
-      const pathD = pathFromPoints(routePoints);
-      const arrowD = arrowPathForPoints(routePoints);
-      const middle = midPointForRoute(routePoints);
-      const startPin = routePoints[0];
-      const endPin = routePoints[routePoints.length - 1];
-      const tip = edgeTipHandlePointForRoute(routePoints);
-      const selector = `[data-edge-id="${cssEscapeValue(transition.id)}"]`;
-      for (const el of wiresEl.querySelectorAll(selector)) {
-        if (el.matches("path.hit,path.edge")) el.setAttribute("d", pathD);
-        else if (el.matches("path.edge-arrow")) el.setAttribute("d", arrowD);
-        else if (el.matches("text.edge-label")) {
-          el.setAttribute("x", middle.x);
-          el.setAttribute("y", middle.y);
-        } else if (el.matches("circle.edge-pin")) {
-          const pin = el.dataset.edgePin === "out" ? startPin : endPin;
-          el.setAttribute("cx", pin.x);
-          el.setAttribute("cy", pin.y);
-        } else if (el.matches("circle.edge-tip-hit")) {
-          el.setAttribute("cx", tip.x);
-          el.setAttribute("cy", tip.y);
-        }
-      }
-    }
-
-    function updateDraggedStateEdges(stateId) {
-      for (const transition of visibleTransitions()) {
-        if (transition.from !== stateId && transition.to !== stateId) continue;
-        const from = byId(transition.from);
-        const to = byId(transition.to);
-        if (!from || !to) continue;
-        updateTransitionElements(transition, liveDragRoutePoints(from, to, transition));
-      }
-    }
-
-    function tempConnectionRoutePoints() {
-      const from = byId(connecting?.from);
-      if (!from) return [];
-      const target = connectingTargetId ? byId(connectingTargetId) : null;
-      if (target) return liveDoglegRoutePoints(from, target);
-      const a = nodeCenter(from, "out");
-      const b = snapPointToGrid(connecting.to);
-      return [
-        a,
-        { x: a.x + GRID_SIZE * 2, y: a.y },
-        { x: a.x + GRID_SIZE * 2, y: b.y },
-        b
-      ];
-    }
-
-    function updateTempConnectionEdge() {
-      if (!connecting) return false;
-      const temp = wiresEl.querySelector(".temp-edge");
-      if (!temp) return false;
-      temp.setAttribute("d", pathFromPoints(tempConnectionRoutePoints()));
-      return true;
-    }
-
-    function updateConnectingTargetClass(previousId, nextId) {
-      if (previousId && previousId !== nextId) nodeElement(previousId)?.classList.remove("drop-target");
-      if (nextId && previousId !== nextId) nodeElement(nextId)?.classList.add("drop-target");
     }
 
     function attachEdgeInteractions(el, t, canRewire = false) {
@@ -4804,11 +4817,6 @@
       wiresEl.insertBefore(hit, defs?.nextSibling || wiresEl.firstChild);
     }
 
-    function renderLayerNavigation() {
-      layerNavEl.innerHTML = "";
-      layerNavEl.hidden = true;
-    }
-
     function parentBoundaryTransitions(parent, side) {
       if (!parent) return [];
       const parentLayerId = parent.parentId || null;
@@ -4831,6 +4839,7 @@
     }
 
     function renderLayerBoundary(el, label, transitions, side, parentLayerId) {
+      if (!el) return;
       el.classList.toggle("layer-boundary-empty", transitions.length === 0);
       const count = transitions.length === 1 ? "1 wire" : `${transitions.length} wires`;
       const titleMarkup = side === "input"
@@ -4884,10 +4893,9 @@
     }
 
     function layerFlowBoundaryPoint(frame, side, laneIndex) {
-      const laneOffset = laneSlot(laneIndex) * GRID_SIZE;
       return {
-        x: side === "input" ? snapToGrid(frame.left + GRID_SIZE * 2) : snapToGrid(frame.right - GRID_SIZE * 2),
-        y: snapToGrid(frame.top + frame.height / 2 + laneOffset)
+        x: side === "input" ? frame.left : frame.right,
+        y: snapToGrid(frame.top + frame.height / 2)
       };
     }
 
@@ -4970,17 +4978,7 @@
             "data-layer-flow-index": String(index)
           }));
         }
-        for (const point of layerFlowPlugPoints(frame, states, index)) {
-          wiresEl.appendChild(svgEl("circle", {
-            cx: point.x,
-            cy: point.y,
-            r: point.stateId ? 4 : 5,
-            class: "edge-pin layer-flow-pin",
-            style,
-            "data-layer-flow": point.type,
-            "data-state-id": point.stateId
-          }));
-        }
+        // SVG circle pins removed to match normal wires and avoid redundant dots
       }
     }
 
@@ -5028,7 +5026,13 @@
 
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
-      const padX = GRID_SIZE * 9;
+      if (!parent) {
+        layerFrameEl.style.display = "none";
+        layerHudEl.hidden = true;
+        renderLayerBoundaries(null);
+        return;
+      }
+      const padX = GRID_SIZE * 4;
       const padY = GRID_SIZE * 4;
       const fallbackCenter = viewportCenterWorld();
       const minX = states.length ? Math.min(...states.map(state => state.x)) : fallbackCenter.x - GRID_SIZE * 8;
@@ -5041,7 +5045,7 @@
       layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
       layerHudEl.hidden = false;
-      layerFrameLabelEl.textContent = parent ? `Inside ${parent.title || parent.id}` : "Root";
+      layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
       renderLayerBoundaries(parent);
     }
 
@@ -5054,10 +5058,9 @@
       selected = normalizeSelection();
       const states = visibleStates();
       const transitions = visibleTransitions();
-      renderLayerNavigation();
       updateLayerFrame(states);
       edgeRouteCache = dragging?.moved
-        ? buildLiveDragRouteCache(dragging.id)
+        ? buildLiveDragRouteCache(dragging.id, dragging.routeSnapshot)
         : buildEdgeRouteCache();
       const layerParent = byId(currentLayerId);
       const layerFlowCount = layerParent ? layerFlowLaneCount(layerParent) : 0;
@@ -5159,7 +5162,7 @@
         const from = byId(connecting.from);
         const target = connectingTargetId ? byId(connectingTargetId) : null;
         if (target) {
-          wiresEl.appendChild(svgEl("path", { d: pathFromPoints(liveDoglegRoutePoints(from, target)), class: "temp-edge" }));
+          wiresEl.appendChild(svgEl("path", { d: edgePath(from, target), class: "temp-edge" }));
         } else {
           const a = nodeCenter(from, "out");
           const b = snapPointToGrid(connecting.to);
@@ -5186,12 +5189,8 @@
         const innerCount = childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
-        const draggingThisNode = dragging?.id === s.id;
-        el.style.left = (draggingThisNode ? dragging.originalX : s.x) + "px";
-        el.style.top = (draggingThisNode ? dragging.originalY : s.y) + "px";
-        if (draggingThisNode && dragging.moved) {
-          el.style.transform = `translate3d(${s.x - dragging.originalX}px, ${s.y - dragging.originalY}px, 0)`;
-        }
+        el.style.left = s.x + "px";
+        el.style.top = s.y + "px";
         el.style.width = nodeWidth(s) + "px";
         el.style.height = NODE_H + "px";
         el.dataset.id = s.id;
@@ -5264,7 +5263,6 @@
         });
 
         el.addEventListener("dblclick", evt => {
-          if (evt.target.closest(".port, .node-edit, .node-open, .node-enter, button")) return;
           evt.preventDefault();
           evt.stopPropagation();
           enterStateLayer(s.id);
@@ -5325,34 +5323,6 @@
       drawFrame = requestAnimationFrame(() => {
         drawFrame = 0;
         draw();
-      });
-    }
-
-    function hasActiveCanvasMotion() {
-      return Boolean(boxSelecting || dragging || connecting || panning);
-    }
-
-    function cancelQueuedCanvasMove() {
-      if (canvasMoveFrame) cancelAnimationFrame(canvasMoveFrame);
-      canvasMoveFrame = 0;
-      queuedCanvasMoveEvent = null;
-    }
-
-    function flushQueuedCanvasMove(fallbackEvent = null) {
-      const evt = queuedCanvasMoveEvent || fallbackEvent;
-      cancelQueuedCanvasMove();
-      if (evt && hasActiveCanvasMotion()) handleCanvasMove(evt);
-    }
-
-    function queueCanvasMove(evt) {
-      if (!hasActiveCanvasMotion()) return;
-      queuedCanvasMoveEvent = evt;
-      if (canvasMoveFrame) return;
-      canvasMoveFrame = requestAnimationFrame(() => {
-        const queuedEvent = queuedCanvasMoveEvent;
-        canvasMoveFrame = 0;
-        queuedCanvasMoveEvent = null;
-        if (queuedEvent && hasActiveCanvasMotion()) handleCanvasMove(queuedEvent);
       });
     }
 
@@ -5534,12 +5504,11 @@
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
       const saveComponent = component => {
-        component.text = normalizeComponentText(component.type, component.text);
         if (!options.skipLiveStateSync) {
           const liveState = byId(s.id);
           const liveComponent = liveState?.components?.find(item => item.id === component.id);
           if (liveComponent) {
-            liveComponent.text = normalizeComponentText(component.type, component.text);
+            liveComponent.text = component.text || "";
             liveComponent.url = component.url || "";
           }
         }
@@ -5577,49 +5546,141 @@
             const fieldLabel = document.createElement("label");
             fieldLabel.textContent = "Items";
             field.appendChild(fieldLabel);
-            const items = component.text.split(/\r?\n/);
-            const normalizedItems = items.length ? items : [""];
-            const writeItems = nextItems => {
-              component.text = nextItems.join("\n");
+            component.items = normalizeListItems(component.items, component.text);
+            const writeItems = () => {
+              component.text = component.items.map(item => item.text).join("\n");
               saveComponent(component);
             };
-            normalizedItems.forEach((value, index) => {
+            component.items.forEach((itemVal, index) => {
               const row = document.createElement("div");
-              row.className = "list-item-editor";
-              const input = document.createElement("input");
-              input.value = value;
-              input.placeholder = "List item";
-              input.dataset.componentId = component.id;
-              input.dataset.listIndex = String(index);
-              input.oninput = () => {
-                const next = component.text ? component.text.split(/\r?\n/) : [];
-                while (next.length <= index) next.push("");
-                next[index] = input.value;
-                writeItems(next);
+              row.className = "component-editor";
+              row.style.border = "1px solid rgba(49, 95, 140, 0.2)";
+              row.style.borderRadius = "8px";
+              row.style.padding = "8px";
+              row.style.marginTop = "6px";
+              row.style.background = "rgba(2, 6, 23, 0.1)";
+
+              const itemHead = document.createElement("div");
+              itemHead.className = "component-editor-head";
+              itemHead.style.marginBottom = "4px";
+
+              const typeSelect = document.createElement("select");
+              typeSelect.style.minHeight = "28px";
+              typeSelect.style.height = "28px";
+              typeSelect.style.padding = "2px 6px";
+              typeSelect.style.borderRadius = "6px";
+              typeSelect.style.fontSize = "12px";
+              typeSelect.style.width = "auto";
+              typeSelect.style.backgroundColor = "#091827";
+              typeSelect.style.borderColor = "#294c72";
+              typeSelect.style.color = "#e5f0ff";
+
+              const types = [
+                { value: "text", label: "Text" },
+                { value: "link", label: "Link" },
+                { value: "image", label: "Image" },
+                { value: "sound", label: "Sound" },
+                { value: "note", label: "Note" },
+                { value: "divider", label: "Divider" }
+              ];
+              types.forEach(t => {
+                const opt = document.createElement("option");
+                opt.value = t.value;
+                opt.textContent = t.label;
+                if (itemVal.type === t.value) opt.selected = true;
+                typeSelect.appendChild(opt);
+              });
+              typeSelect.onchange = () => {
+                itemVal.type = typeSelect.value;
+                writeItems();
+                rerender({ componentId: component.id, listIndex: index });
               };
-              input.onblur = () => { lastHistoryKey = null; draw(); };
+
               const del = document.createElement("button");
               del.type = "button";
               del.className = "danger";
-              del.textContent = "-";
+              del.textContent = "Delete";
+              del.style.minHeight = "28px";
+              del.style.height = "28px";
+              del.style.padding = "2px 8px";
+              del.style.fontSize = "11px";
               bindImmediateButton(del, () => {
-                const next = component.text.split(/\r?\n/);
-                next.splice(index, 1);
-                writeItems(next.length ? next : [""]);
+                component.items.splice(index, 1);
+                writeItems();
                 rerender({ componentId: component.id, listIndex: Math.max(0, index - 1) });
               });
-              row.append(input, del);
+
+              itemHead.append(typeSelect, del);
+              row.appendChild(itemHead);
+
+              if (itemVal.type !== "divider") {
+                const textField = document.createElement("div");
+                textField.className = "field";
+                textField.style.margin = "4px 0";
+                const label = document.createElement("label");
+                label.textContent = itemVal.type === "image" ? "Alt text" : itemVal.type === "link" || itemVal.type === "sound" ? "Label" : "Text";
+                label.style.fontSize = "10px";
+                label.style.marginBottom = "2px";
+
+                const input = document.createElement("input");
+                input.value = itemVal.text || "";
+                input.style.minHeight = "32px";
+                input.style.height = "32px";
+                input.style.padding = "4px 8px";
+                input.style.borderRadius = "6px";
+                input.placeholder = label.textContent;
+                input.dataset.componentId = component.id;
+                input.dataset.listIndex = String(index);
+                input.oninput = () => {
+                  itemVal.text = input.value;
+                  writeItems();
+                };
+                input.onblur = () => { lastHistoryKey = null; draw(); };
+                textField.append(label, input);
+                row.appendChild(textField);
+              }
+
+              if (itemVal.type === "image" || itemVal.type === "link" || itemVal.type === "sound") {
+                const urlField = document.createElement("div");
+                urlField.className = "field";
+                urlField.style.margin = "4px 0";
+                const label = document.createElement("label");
+                label.textContent = itemVal.type === "image" ? "Image URL" : itemVal.type === "sound" ? "Sound URL" : "URL";
+                label.style.fontSize = "10px";
+                label.style.marginBottom = "2px";
+
+                const input = document.createElement("input");
+                input.value = itemVal.url || "";
+                input.style.minHeight = "32px";
+                input.style.height = "32px";
+                input.style.padding = "4px 8px";
+                input.style.borderRadius = "6px";
+                input.placeholder = "https://...";
+                input.oninput = () => {
+                  itemVal.url = input.value;
+                  writeItems();
+                };
+                input.onblur = () => { lastHistoryKey = null; draw(); };
+                urlField.append(label, input);
+                row.appendChild(urlField);
+              }
+
               field.appendChild(row);
             });
+
             const add = document.createElement("button");
             add.type = "button";
             add.className = "component-add-item";
             add.textContent = "+ Item";
             bindImmediateButton(add, () => {
-              const next = component.text ? component.text.split(/\r?\n/) : [];
-              next.push("");
-              writeItems(next);
-              rerender({ componentId: component.id, listIndex: next.length - 1 });
+              component.items.push({
+                id: Math.random().toString(36).slice(2, 9),
+                type: "text",
+                text: "",
+                url: ""
+              });
+              writeItems();
+              rerender({ componentId: component.id, listIndex: component.items.length - 1 });
             });
             field.appendChild(add);
             item.appendChild(field);
@@ -5629,12 +5690,9 @@
             const fieldLabel = document.createElement("label");
             fieldLabel.textContent = component.type === "image" ? "Alt text" : component.type === "link" || component.type === "sound" ? "Label" : "Text";
             const input = component.type === "heading" || component.type === "link" || component.type === "image" || component.type === "sound" ? document.createElement("input") : document.createElement("textarea");
-            if (component.type === "text") input.maxLength = TEXT_COMPONENT_MAX_CHARS;
-            input.value = normalizeComponentText(component.type, component.text);
+            input.value = component.text || "";
             input.oninput = () => {
-              const nextValue = normalizeComponentText(component.type, input.value);
-              if (input.value !== nextValue) input.value = nextValue;
-              component.text = nextValue;
+              component.text = input.value;
               saveComponent(component);
             };
             input.onblur = () => { lastHistoryKey = null; draw(); };
@@ -5690,8 +5748,10 @@
     }
 
     function refreshInspectorForSelection() {
-      const state = selected?.type === "node" ? byId(selected.id) : null;
-      const edge = selected?.type === "edge" ? model.transitions.find(t => t.id === selected.id) : null;
+      const stateId = singleSelectedNodeId();
+      const edgeId = singleSelectedEdgeId();
+      const state = stateId ? byId(stateId) : null;
+      const edge = edgeId ? model.transitions.find(t => t.id === edgeId) : null;
       if (state) showNodeInspector(state, { focus: false });
       else if (edge) showEdgeInspector(edge, { focus: false });
       else showEmptyInspector();
@@ -5779,9 +5839,25 @@
       const inspect = root.querySelector("#pDataSourceInspect");
       const urlInput = root.querySelector("#pDataSourceUrl");
       if (!inspect || !urlInput || token !== latestToken()) return;
+      const trimmed = urlInput.value.trim();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        try {
+          const json = JSON.parse(trimmed);
+          if (token !== latestToken()) return;
+          renderJsonInspect(owner, root, persistOwner, json, {
+            status: "parsed",
+            contentType: "application/json"
+          });
+        } catch (err) {
+          if (token !== latestToken()) return;
+          inspect.textContent = "Pasted string is not valid JSON: " + err.message;
+          inspect.classList.remove("empty");
+        }
+        return;
+      }
       const requestUrl = safeEditorFetchUrl(urlInput.value);
       if (!requestUrl) {
-        inspect.textContent = "Endpoint must be http(s) or a same-origin relative URL.";
+        inspect.textContent = "Endpoint must be http(s), relative URL, or raw JSON.";
         inspect.classList.remove("empty");
         return;
       }
@@ -5919,6 +5995,35 @@
               repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
             };
             arrayBox.appendChild(repeat);
+
+            const derive = document.createElement("button");
+            derive.type = "button";
+            derive.className = "json-path-chip";
+            derive.style.borderColor = "rgba(245,158,11,.4)";
+            derive.style.color = "#fde68a";
+            derive.style.background = "rgba(245,158,11,.08)";
+            derive.textContent = `Auto-derive layout`;
+            derive.onclick = () => {
+              select.value = item.path;
+              select.dispatchEvent(new Event("input", { bubbles: true }));
+              const targetPrefix = normalizeContextPath(target.value, "fetch");
+              repeatPath.value = `${targetPrefix}.data`;
+              if (!repeatAs.value.trim()) repeatAs.value = "item";
+              repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
+              const arrayVal = jsonValueAtPath(json, item.path);
+              if (Array.isArray(arrayVal) && arrayVal.length) {
+                const sample = arrayVal[0];
+                const derived = deriveComponentsFromJson(sample, repeatAs.value);
+                if (derived.length) {
+                  owner.components = derived;
+                  renderComponentEditors(owner, null, root, {});
+                  persistOwner("state:components:auto-derived:" + owner.id);
+                  draw();
+                  syncToApp(true);
+                }
+              }
+            };
+            arrayBox.appendChild(derive);
           }
         }
       } else {
@@ -5973,7 +6078,7 @@
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
           <div class="small"><b>Fetch JSON</b></div>
-          <div class="field"><label>Endpoint URL</label><input id="pDataSourceUrl" placeholder="https://api.example.com/items"></div>
+          <div class="field"><label>Endpoint URL</label><input id="pDataSourceUrl" placeholder="https://... or paste JSON here"></div>
           <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
           <div class="field"><label>JSON path</label><input id="pDataSourceSelect" placeholder="items"></div>
           <div id="pDataSourcePreview" class="condition-preview empty"></div>
@@ -5996,9 +6101,13 @@
             <span id="pInnerCount"></span>
           </div>
           <div id="pInnerDropZone" class="inner-state-dropzone">Drop a State Explorer preset here to place it inside this state. Components are states too.</div>
+          <div class="field" style="margin: 8px 0 4px;">
+            <label style="font-size: 10px; margin-bottom: 2px; text-transform: uppercase; font-weight: 900; color: var(--muted); letter-spacing: .05em;">Child state type</label>
+            <select id="pChildType" style="min-height: 34px; height: 34px; border-radius: 8px; font-size: 12px;"></select>
+          </div>
           <div class="row">
             <button id="pEnterLayer" type="button">Open canvas</button>
-            <button id="pAddInside" type="button">+ State inside</button>
+            <button id="pAddInside" type="button">+ Add child</button>
           </div>
         </div>
         <div class="small">State id: <b>${escapeHtml(s.id)}</b></div>
@@ -6066,8 +6175,25 @@
         scheduleSync(false);
       }, "state");
       renderComponentEditors(s, null, root);
+      const childTypeSelect = root.querySelector("#pChildType");
+      if (childTypeSelect) {
+        childTypeSelect.innerHTML = '<option value="blank">Blank State</option>';
+        builtinStateTemplates().forEach(template => {
+          const opt = document.createElement("option");
+          opt.value = template.id;
+          opt.textContent = template.title;
+          childTypeSelect.appendChild(opt);
+        });
+      }
       root.querySelector("#pEnterLayer").onclick = () => enterStateLayer(s.id);
-      root.querySelector("#pAddInside").onclick = () => addBlankStateInside(s.id, { selectTitle: true });
+      root.querySelector("#pAddInside").onclick = () => {
+        const typeValue = childTypeSelect ? childTypeSelect.value : "blank";
+        if (typeValue === "blank") {
+          addBlankStateInside(s.id, { selectTitle: true });
+        } else {
+          addTemplateInside(typeValue, s.id, { selectTitle: true });
+        }
+      };
       root.querySelector("#pInitial").onclick = () => {
         model.initial = s.id;
         saveModel();
@@ -6080,14 +6206,14 @@
         copy.dataSource = normalizeDataSource(s.dataSource);
         copy.repeat = normalizeRepeatConfig(s.repeat);
         model.states.push(copy);
-        selected = { type: "node", id: copy.id };
+        selected = selectionFromParts([copy.id], []);
         saveModel();
         draw();
         showNodeInspector(copy, { forceOpen: true });
       };
       root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
       root.querySelector("#pDelete").onclick = () => {
-        selected = { type: "node", id: s.id };
+        selected = selectionFromParts([s.id], []);
         deleteSelectedItems();
       };
       setupEditorAccessibility(root, opts.focus !== false, {
@@ -6121,7 +6247,7 @@
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
           <div class="small"><b>Fetch JSON</b></div>
-          <div class="field"><label>Endpoint URL</label><input id="pDataSourceUrl" placeholder="https://api.example.com/items"></div>
+          <div class="field"><label>Endpoint URL</label><input id="pDataSourceUrl" placeholder="https://... or paste JSON here"></div>
           <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
           <div class="field"><label>JSON path</label><input id="pDataSourceSelect" placeholder="items"></div>
           <div id="pDataSourcePreview" class="condition-preview empty"></div>
@@ -6292,7 +6418,7 @@
         showEdgeInspector(t, opts);
       };
       root.querySelector("#pDelete").onclick = () => {
-        selected = { type: "edge", id: t.id };
+        selected = selectionFromParts([], [t.id]);
         deleteSelectedItems();
       };
       setupEditorAccessibility(root, opts.focus !== false, {
@@ -6477,7 +6603,7 @@
       const instance = instantiateStateTemplate(template, center.x - nodeWidth(template) / 2, center.y - NODE_H / 2);
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
-      selected = { type: "node", id: instance.root.id };
+      selected = selectionFromParts([instance.root.id], []);
       saveModel();
       draw();
       showNodeInspector(instance.root, { forceOpen: true });
@@ -6493,7 +6619,7 @@
       const instance = instantiateStateTemplate(template, x, y, currentLayerId);
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
-      selected = { type: "node", id: instance.root.id };
+      selected = selectionFromParts([instance.root.id], []);
       saveModel("layer:add-template:" + (currentLayerId || "root"));
       draw();
       showNodeInspector(instance.root, { forceOpen: true });
@@ -6567,7 +6693,7 @@
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
       currentLayerId = parent.id;
-      selected = { type: "node", id: instance.root.id };
+      selected = selectionFromParts([instance.root.id], []);
       saveModel("layer:add-child:" + parent.id);
       draw();
       showNodeInspector(instance.root, { forceOpen: true, selectTitle: Boolean(opts.selectTitle) });
@@ -6583,7 +6709,7 @@
       const s = makeState(position.x, position.y, nextStateTitle(), parent.id);
       model.states.push(s);
       currentLayerId = parent.id;
-      selected = { type: "node", id: s.id };
+      selected = selectionFromParts([s.id], []);
       saveModel("layer:add-child:" + parent.id);
       draw();
       showNodeInspector(s, { forceOpen: true, selectTitle: opts.selectTitle !== false });
@@ -6598,7 +6724,7 @@
       const instance = instantiateStateTemplate(template, p.x - nodeWidth(template) / 2, p.y - NODE_H / 2);
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
-      selected = { type: "node", id: instance.root.id };
+      selected = selectionFromParts([instance.root.id], []);
       saveModel();
       draw();
       showNodeInspector(instance.root, { forceOpen: true });
@@ -6637,6 +6763,7 @@
           <div class="template-body"></div>
           <div class="template-actions">
             <button class="template-use" type="button">+ ${escapeHtml(template.title)}</button>
+            <button class="template-inside" type="button">Inside</button>
           </div>
         `;
         card.querySelector(".template-title").textContent = template.title;
@@ -6648,6 +6775,18 @@
         card.querySelector(".template-use").onclick = evt => {
           evt.stopPropagation();
           addTemplateToCurrentLayer(template);
+        };
+        const insideButton = card.querySelector(".template-inside");
+        insideButton.title = "Add inside the selected state";
+        insideButton.onclick = evt => {
+          evt.stopPropagation();
+          const targetId = singleSelectedNodeId();
+          const target = targetId ? byId(targetId) : null;
+          if (!target) {
+            void modalAlert("Select a state first, then add this preset inside it.", "No state selected");
+            return;
+          }
+          addTemplateInside(template.id, target.id, { enter: true });
         };
         card.addEventListener("dblclick", evt => {
           if (evt.target.closest("button, input, textarea")) return;
@@ -6715,7 +6854,7 @@
       const title = nextStateTitle();
       const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title);
       model.states.push(s);
-      selected = { type: "node", id: s.id };
+      selected = selectionFromParts([s.id], []);
       saveModel();
       draw();
       showNodeInspector(s, { forceOpen: true, selectTitle: true });
@@ -6729,12 +6868,8 @@
         updateSelectRect();
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
-          const currentIds = selectedNodeIdList();
-          const selectionChanged = ids.length !== currentIds.length || ids.some((id, index) => id !== currentIds[index]);
-          if (selectionChanged) {
-            selected = ids.length ? { type: "nodes", ids } : null;
-            scheduleDraw();
-          }
+          selected = selectionFromParts(ids, []);
+          scheduleDraw();
         }
         return;
       }
@@ -6747,6 +6882,7 @@
       if (dragging) {
         const s = byId(dragging.id);
         if (!s) return;
+        const wasMoved = dragging.moved;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
         const nextX = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
@@ -6755,32 +6891,33 @@
         s.x = nextX;
         s.y = nextY;
         stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
-        if (positionChanged) {
+        
+        document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
+        dragging.targetParentId = null;
+        if (dragging.moved) {
+          const target = stateNodeAtClientPoint(evt.clientX, evt.clientY);
+          if (target && target.id !== s.id && !isDescendant(s.id, target.id)) {
+            const targetEl = document.querySelector(`.node[data-id="${target.id}"]`);
+            if (targetEl) {
+              targetEl.classList.add("inner-drop-target");
+              dragging.targetParentId = target.id;
+            }
+          }
+        }
+
+        if (positionChanged || (!wasMoved && dragging.moved)) {
           if (updateNodeElementPosition(s)) {
             updateDraggedStateEdges(s.id);
-            requestMapCanvasPaint();
-          } else {
-            scheduleDraw();
           }
         }
         return;
       }
       if (connecting) {
-        const nextTo = screenToWorld(evt);
-        const previousPoint = snapPointToGrid(connecting.to || nextTo);
-        const nextPoint = snapPointToGrid(nextTo);
-        connecting.to = nextTo;
-        const target = connectionTargetAtWorldPoint(nextTo);
+        connecting.to = screenToWorld(evt);
+        const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
-        const targetChanged = nextTargetId !== connectingTargetId;
-        if (targetChanged) {
-          updateConnectingTargetClass(connectingTargetId, nextTargetId);
-          connectingTargetId = nextTargetId;
-        }
-        if (targetChanged || previousPoint.x !== nextPoint.x || previousPoint.y !== nextPoint.y) {
-          if (updateTempConnectionEdge()) requestMapCanvasPaint();
-          else scheduleDraw();
-        }
+        if (nextTargetId !== connectingTargetId) connectingTargetId = nextTargetId;
+        scheduleDraw();
       }
     }
 
@@ -6788,7 +6925,7 @@
       if (boxSelecting) {
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
-          selected = ids.length ? { type: "nodes", ids } : null;
+          selected = selectionFromParts(ids, []);
         } else {
           selected = null;
         }
@@ -6810,9 +6947,11 @@
         const shiftClick = dragging.shiftKey;
         const originalX = dragging.originalX;
         const originalY = dragging.originalY;
+        const targetParentId = dragging.targetParentId;
         dragging = null;
         mapEl.classList.remove("dragging-state");
         stateExplorerEl.classList.remove("drag-over");
+        document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
         lastHistoryKey = null;
         if (wasClick && s) {
           if (shiftClick) {
@@ -6823,16 +6962,6 @@
             return;
           }
           const now = Date.now();
-          const recentNodeClick = lastNodeClick &&
-            lastNodeClick.id === s.id &&
-            now - lastNodeClick.time < 360 &&
-            Math.hypot(evt.clientX - lastNodeClick.x, evt.clientY - lastNodeClick.y) < 28;
-          if (recentNodeClick) {
-            lastNodeClick = null;
-            focusCanvasForSelection();
-            enterStateLayer(s.id);
-            return;
-          }
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
@@ -6850,6 +6979,21 @@
             draw();
             return;
           }
+          if (s && targetParentId && byId(targetParentId)) {
+            const parent = byId(targetParentId);
+            s.parentId = parent.id;
+            const position = nextChildPosition(parent.id);
+            s.x = position.x;
+            s.y = position.y;
+            currentLayerId = parent.id;
+            selected = selectionFromParts([s.id], []);
+            saveModel("layer:move-child:" + parent.id);
+            draw();
+            showNodeInspector(s, { forceOpen: true });
+            syncToApp(true);
+            fitView();
+            return;
+          }
           saveModel("state:drag:" + dragId);
           draw();
           return;
@@ -6865,7 +7009,7 @@
           const duplicate = transitionBetween(connecting.from, targetId, t?.id || null);
           if (duplicate) {
             if (t) {
-              selected = { type: "edge", id: t.id };
+              selected = selectionFromParts([], [t.id]);
               saveModel();
               connecting = null;
               connectingTargetId = null;
@@ -6880,7 +7024,7 @@
             t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "", set: {} };
             model.transitions.push(t);
           }
-          selected = { type: "edge", id: t.id };
+          selected = selectionFromParts([], [t.id]);
           saveModel();
           connecting = null;
           connectingTargetId = null;
@@ -6918,7 +7062,7 @@
             model.transitions.push(t);
           }
           model.states.push(s);
-          selected = { type: "node", id: s.id };
+          selected = selectionFromParts([s.id], []);
           saveModel();
           connecting = null;
           connectingTargetId = null;
@@ -6966,6 +7110,10 @@
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
+        if (evt.shiftKey) {
+          startBoxSelect(evt);
+          return;
+        }
         startPendingCanvasMouse(evt);
       }
     });
@@ -6989,7 +7137,6 @@
 
     window.addEventListener("mouseup", evt => {
       if (finishPendingCanvasMouse()) return;
-      flushQueuedCanvasMove(evt);
       handleCanvasEnd(evt);
     });
 
@@ -7023,7 +7170,6 @@
           releaseTouchPointer(evt);
           return;
         }
-        flushQueuedCanvasMove(evt);
         if (!finishPendingCanvasTap(evt)) handleCanvasEnd(evt);
         activePointerId = null;
       }
@@ -7048,22 +7194,17 @@
     function handleKeyDown(evt) {
       const mod = evt.ctrlKey || evt.metaKey;
       const key = String(evt.key || "").toLowerCase();
-      if (evt.key === "Escape" && modalBackdropEl.hidden) {
-        evt.preventDefault();
-        evt.stopImmediatePropagation();
-        exitCurrentLayer();
-        return;
-      }
       if (evt.altKey && evt.key === "ArrowLeft") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         exitCurrentLayer();
         return;
       }
-      if (evt.altKey && evt.key === "ArrowRight" && selected?.type === "node") {
+      const selectedNodeId = singleSelectedNodeId();
+      if (evt.altKey && evt.key === "ArrowRight" && selectedNodeId) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
-        enterStateLayer(selected.id);
+        enterStateLayer(selectedNodeId);
         return;
       }
       if (mod && evt.code === "Space") {
@@ -7190,6 +7331,7 @@
     document.getElementById("btnUndo").onclick = undoModel;
     document.getElementById("btnRedo").onclick = redoModel;
     btnSelectionCopy.onclick = copySelectedNodes;
+    btnSelectionCollapse.onclick = collapseSelectedNodes;
     btnSelectionDelete.onclick = deleteSelectedItems;
     btnToggleInspector.onclick = () => {
       inspectorCollapsed = !inspectorCollapsed;
