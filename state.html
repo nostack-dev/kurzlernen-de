@@ -5011,25 +5011,20 @@
       const inputs = parentBoundaryTransitions(parent, "input");
       const outputs = parentBoundaryTransitions(parent, "output");
 
-      // The entry state is whichever child state is designated initial, or leftmost by x.
+      // Must match draw()'s entryState/exitState: leftmost and rightmost by X.
       const orderedByX = states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
-      const entryState = states.find(s => s.id === model.initial) || orderedByX[0];
+      const entryState = orderedByX[0];
       const exitState = orderedByX[orderedByX.length - 1];
 
-      // Render one input wire per outer transition, each connecting boundary → entryState input port.
-      // Port Y position uses orderedPortTransitions so it aligns exactly with the port slot dots.
+      // Render one input wire per outer transition.
+      // layerFlowStatePoint is the exact same function addLayerFlowSlot uses to place the dot,
+      // so the wire endpoint lands precisely on it.
       inputs.forEach((t, index) => {
-        const inTransitions = orderedPortTransitions(entryState.id, "in");
-        // Use the slot index within inTransitions matching this flow index, clamped.
-        const slotIdx = Math.min(index, inTransitions.length > 0 ? inTransitions.length - 1 : 0);
-        const slot = slotIdx - Math.floor((Math.max(1, inTransitions.length) - 1) / 2);
-        const portY = snapToGrid(entryState.y + NODE_H / 2 + slot * GRID_SIZE);
-        const start = { x: frame.left, y: snapToGrid(frame.top + frame.height / 2) };
-        const end = { x: entryState.x, y: portY };
+        const start = layerFlowBoundaryPoint(frame, "input", index);
+        const end = layerFlowStatePoint(entryState, "input", index);
         const points = [start];
         appendFlowSegment(points, end);
         const compact = compactRoutePoints(points);
-
         const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
         wiresEl.appendChild(svgEl("path", {
           d: pathFromPoints(compact),
@@ -5048,18 +5043,13 @@
         }));
       });
 
-      // Render one output wire per outer transition, each connecting exitState output port → boundary.
+      // Render one output wire per outer transition.
       outputs.forEach((t, index) => {
-        const outTransitions = orderedPortTransitions(exitState.id, "out");
-        const slotIdx = Math.min(index, outTransitions.length > 0 ? outTransitions.length - 1 : 0);
-        const slot = slotIdx - Math.floor((Math.max(1, outTransitions.length) - 1) / 2);
-        const portY = snapToGrid(exitState.y + NODE_H / 2 + slot * GRID_SIZE);
-        const start = { x: exitState.x + nodeWidth(exitState), y: portY };
-        const end = { x: frame.right, y: snapToGrid(frame.top + frame.height / 2) };
+        const start = layerFlowStatePoint(exitState, "output", index);
+        const end = layerFlowBoundaryPoint(frame, "output", index);
         const points = [start];
         appendFlowSegment(points, end);
         const compact = compactRoutePoints(points);
-
         const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
         wiresEl.appendChild(svgEl("path", {
           d: pathFromPoints(compact),
