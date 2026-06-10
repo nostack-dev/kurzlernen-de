@@ -1843,6 +1843,8 @@
     let appWindow = null;
     let selected = null;
     let dragging = null;
+    let lastNodeClickTime = 0;
+    let lastNodeClickId = null;
     let connecting = null;
     let connectingTargetId = null;
     let panning = null;
@@ -3029,15 +3031,8 @@
     }
 
     function stateNodeAtClientPoint(clientX, clientY) {
-      const els = document.querySelectorAll(".node");
-      for (const el of els) {
-        const id = el.dataset.id;
-        if (id && pointInElement(clientX, clientY, el)) {
-          const s = byId(id);
-          if (s) return s;
-        }
-      }
-      return null;
+      const p = screenToWorldXY(clientX, clientY);
+      return nodeAtWorldPoint(p);
     }
 
     function normalizeComponents(components) {
@@ -3778,6 +3773,10 @@
       };
       updateSelectRect();
       draw();
+    }
+
+    function cssEscapeValue(val) {
+      return CSS.escape(val);
     }
 
     function nodeElement(stateId) {
@@ -4956,30 +4955,73 @@
     function renderLayerFlowWires(states) {
       const parent = byId(currentLayerId);
       const frame = parent ? layerFrameBox() : null;
-      if (!parent || !frame) return;
-      const count = layerFlowLaneCount(parent);
-      for (let index = 0; index < count; index++) {
-        const points = layerFlowPathPoints(frame, states, index);
-        const style = `--edge-color: ${layerFlowColor(parent, index)}`;
+      if (!parent || !frame || !states.length) return;
+
+      const inputs = parentBoundaryTransitions(parent, "input");
+      const outputs = parentBoundaryTransitions(parent, "output");
+
+      const orderedStates = states
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+
+      const entryState = orderedStates[0];
+      const exitState = orderedStates[orderedStates.length - 1];
+
+      // Render input wires
+      inputs.forEach((t, index) => {
+        const start = layerFlowBoundaryPoint(frame, "input", index);
+        const end = layerFlowStatePoint(entryState, "input", index);
+        const points = [start];
+        appendFlowSegment(points, end);
+
+        const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
         wiresEl.appendChild(svgEl("path", {
-          d: pathFromPoints(points),
+          d: pathFromPoints(compactRoutePoints(points)),
           class: "edge layer-flow-edge",
           style,
-          "data-layer-flow": "wire",
+          "data-layer-flow": "input-wire",
           "data-layer-flow-index": String(index)
         }));
+
         const arrowD = arrowPathForPoints(points);
         if (arrowD) {
           wiresEl.appendChild(svgEl("path", {
             d: arrowD,
             class: "edge-arrow layer-flow-edge-arrow",
             style,
-            "data-layer-flow": "arrow",
+            "data-layer-flow": "input-arrow",
             "data-layer-flow-index": String(index)
           }));
         }
-        // SVG circle pins removed to match normal wires and avoid redundant dots
-      }
+      });
+
+      // Render output wires
+      outputs.forEach((t, index) => {
+        const start = layerFlowStatePoint(exitState, "output", index);
+        const end = layerFlowBoundaryPoint(frame, "output", index);
+        const points = [start];
+        appendFlowSegment(points, end);
+
+        const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
+        wiresEl.appendChild(svgEl("path", {
+          d: pathFromPoints(compactRoutePoints(points)),
+          class: "edge layer-flow-edge",
+          style,
+          "data-layer-flow": "output-wire",
+          "data-layer-flow-index": String(index)
+        }));
+
+        const arrowD = arrowPathForPoints(points);
+        if (arrowD) {
+          wiresEl.appendChild(svgEl("path", {
+            d: arrowD,
+            class: "edge-arrow layer-flow-edge-arrow",
+            style,
+            "data-layer-flow": "output-arrow",
+            "data-layer-flow-index": String(index)
+          }));
+        }
+      });
     }
 
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
@@ -5017,7 +5059,13 @@
       const slot = document.createElement("div");
       slot.className = `port-slot port-slot-${side} layer-flow-slot layer-flow-slot-${side}`;
       slot.style.top = point.y - state.y + "px";
-      slot.style.setProperty("--edge-color", layerFlowColor(parent, laneIndex));
+
+      const parentLayerId = parent?.parentId || null;
+      const transitions = parentBoundaryTransitions(parent, side === "input" ? "input" : "output");
+      const transition = transitions[laneIndex];
+      const color = transition ? edgeColor(transition, parentLayerId) : "#38bdf8";
+
+      slot.style.setProperty("--edge-color", color);
       slot.dataset.layerFlowSlot = side === "input" ? "state-input" : "state-output";
       slot.dataset.layerFlowIndex = String(laneIndex);
       slot.dataset.stateId = state.id;
@@ -5057,15 +5105,30 @@
       normalizeModel(model);
       selected = normalizeSelection();
       const states = visibleStates();
+      const orderedStates = states
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const entryState = orderedStates[0] || null;
+      const exitState = orderedStates[orderedStates.length - 1] || null;
+
       const transitions = visibleTransitions();
       updateLayerFrame(states);
       edgeRouteCache = dragging?.moved
         ? buildLiveDragRouteCache(dragging.id, dragging.routeSnapshot)
         : buildEdgeRouteCache();
       const layerParent = byId(currentLayerId);
-      const layerFlowCount = layerParent ? layerFlowLaneCount(layerParent) : 0;
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
+
+      const activeEl = document.activeElement;
+      let focusedNodeId = null;
+      if (activeEl && nodesEl.contains(activeEl)) {
+        const nodeEl = activeEl.closest(".node");
+        if (nodeEl) {
+          focusedNodeId = nodeEl.dataset.id;
+        }
+      }
+
       nodesEl.innerHTML = "";
       wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
@@ -5194,6 +5257,13 @@
         el.style.width = nodeWidth(s) + "px";
         el.style.height = NODE_H + "px";
         el.dataset.id = s.id;
+        el.tabIndex = 0;
+        el.addEventListener("focus", () => {
+          if (!nodeSelection.has(s.id)) {
+            setSingleSelection("node", s.id);
+            draw();
+          }
+        });
         el.innerHTML = `
           <div class="input-port"></div>
           <div class="port" title="drag to connect"></div>
@@ -5250,6 +5320,15 @@
           if (evt.target.closest(".port, .node-edit, .node-open, .node-enter")) return;
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
+
+          const now = Date.now();
+          if (lastNodeClickId === s.id && now - lastNodeClickTime < 300) {
+            enterStateLayer(s.id);
+            return;
+          }
+          lastNodeClickId = s.id;
+          lastNodeClickTime = now;
+
           startNodeDrag(evt, s);
         });
 
@@ -5259,6 +5338,15 @@
           lastTouchAt = Date.now();
           if (pinchZoom) return;
           activePointerId = evt.pointerId;
+
+          const now = Date.now();
+          if (lastNodeClickId === s.id && now - lastNodeClickTime < 300) {
+            enterStateLayer(s.id);
+            return;
+          }
+          lastNodeClickId = s.id;
+          lastNodeClickTime = now;
+
           startNodeDrag(evt, s);
         });
 
@@ -5301,9 +5389,19 @@
           startConnection(evt, s);
         });
 
-        for (let index = 0; index < layerFlowCount; index++) {
-          addLayerFlowSlot(el, s, index, "input", layerParent);
-          addLayerFlowSlot(el, s, index, "output", layerParent);
+        if (layerParent) {
+          if (entryState && s.id === entryState.id) {
+            const inputs = parentBoundaryTransitions(layerParent, "input");
+            for (let index = 0; index < inputs.length; index++) {
+              addLayerFlowSlot(el, s, index, "input", layerParent);
+            }
+          }
+          if (exitState && s.id === exitState.id) {
+            const outputs = parentBoundaryTransitions(layerParent, "output");
+            for (let index = 0; index < outputs.length; index++) {
+              addLayerFlowSlot(el, s, index, "output", layerParent);
+            }
+          }
         }
         for (const transition of orderedPortTransitions(s.id, "in")) {
           addPortSlot(el, s, transition, "in", edgeSelection);
@@ -5313,6 +5411,12 @@
         }
 
         nodesEl.appendChild(el);
+      }
+      if (focusedNodeId) {
+        const newEl = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(focusedNodeId)}"]`);
+        if (newEl) {
+          newEl.focus({ preventScroll: true });
+        }
       }
       updateSelectionActions();
       requestMapCanvasPaint();
@@ -6869,7 +6973,11 @@
         if (boxSelecting.moved) {
           const ids = nodesInSelection();
           selected = selectionFromParts(ids, []);
-          scheduleDraw();
+          const idSet = new Set(ids);
+          document.querySelectorAll(".node").forEach(el => {
+            el.classList.toggle("selected", idSet.has(el.dataset.id));
+          });
+          updateSelectionActions();
         }
         return;
       }
@@ -7192,6 +7300,7 @@
     });
 
     function handleKeyDown(evt) {
+      if (!modalBackdropEl.hidden) return;
       const mod = evt.ctrlKey || evt.metaKey;
       const key = String(evt.key || "").toLowerCase();
       if (evt.altKey && evt.key === "ArrowLeft") {
@@ -7240,6 +7349,18 @@
         return;
       }
       if (isEditableTarget(evt.target)) return;
+      if (evt.key === "Enter" && selectedNodeId) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        enterStateLayer(selectedNodeId);
+        return;
+      }
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        exitCurrentLayer();
+        return;
+      }
       if (evt.key === "Delete" && selected && deleteSelectedItems()) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
