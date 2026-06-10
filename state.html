@@ -411,7 +411,8 @@
     }
 
     #wires .edge.layer-flow-edge {
-      pointer-events: none;
+      pointer-events: auto;
+      pointer-events: stroke;
     }
 
     #wires .edge-arrow.layer-flow-edge-arrow {
@@ -829,7 +830,8 @@
     }
 
     .layer-flow-slot {
-      pointer-events: none;
+      cursor: pointer;
+      pointer-events: auto;
     }
 
     .layer-flow-slot-input { left: -6px; }
@@ -3226,6 +3228,15 @@
       return transitionsInLayer(currentLayerId);
     }
 
+    function transitionVisibleInCurrentContext(transition) {
+      if (transitionInLayer(transition)) return true;
+      const parent = byId(currentLayerId);
+      if (!parent) return false;
+      const parentLayerId = parent.parentId || null;
+      if (!transitionInLayer(transition, parentLayerId)) return false;
+      return transition.to === parent.id || transition.from === parent.id;
+    }
+
     function childStateCount(parentId) {
       return statesInLayer(parentId).length;
     }
@@ -3564,12 +3575,12 @@
     }
 
     function selectedEdgeIdList() {
-      return [...selectedEdgeIds()].filter(id => model.transitions.some(t => t.id === id && transitionInLayer(t)));
+      return [...selectedEdgeIds()].filter(id => model.transitions.some(t => t.id === id && transitionVisibleInCurrentContext(t)));
     }
 
     function selectionFromParts(nodes, edges) {
       const nodeIds = [...new Set(nodes || [])].filter(id => byId(id) && isCurrentLayerState(id));
-      const edgeIds = [...new Set(edges || [])].filter(id => model.transitions.some(t => t.id === id && transitionInLayer(t)));
+      const edgeIds = [...new Set(edges || [])].filter(id => model.transitions.some(t => t.id === id && transitionVisibleInCurrentContext(t)));
       return nodeIds.length || edgeIds.length ? { nodes: nodeIds, edges: edgeIds } : null;
     }
 
@@ -4890,6 +4901,7 @@
 
     function renderLayerBoundary(el, label, transitions, side, parentLayerId) {
       if (!el) return;
+      const edgeSelection = selectedEdgeIds();
       el.classList.toggle("layer-boundary-empty", transitions.length === 0);
       const count = transitions.length === 1 ? "1 wire" : `${transitions.length} wires`;
       const titleMarkup = side === "input"
@@ -4897,7 +4909,7 @@
         : `<span>${label}</span><span class="layer-boundary-plug" aria-hidden="true"></span>`;
       const wires = transitions.length
         ? transitions.map(transition => `
-            <div class="layer-boundary-wire" data-edge-id="${escapeHtml(transition.id)}" style="--edge-color: ${edgeColor(transition, parentLayerId)}">
+            <div class="layer-boundary-wire${edgeSelection.has(transition.id) ? " selected" : ""}${hoveredEdgeId === transition.id ? " hovered" : ""}" data-edge-id="${escapeHtml(transition.id)}" style="--edge-color: ${edgeColor(transition, parentLayerId)}">
               <span class="layer-boundary-dot" data-edge-id="${escapeHtml(transition.id)}" aria-hidden="true"></span>
               <span title="${escapeHtml(boundaryWireLabel(transition, side))}">${escapeHtml(boundaryWireLabel(transition, side))}</span>
             </div>
@@ -4908,6 +4920,13 @@
         <div class="layer-boundary-count">${count}</div>
         <div class="layer-boundary-list">${wires}</div>
       `;
+      el.querySelectorAll(".layer-boundary-wire[data-edge-id]").forEach(wire => {
+        const transition = model.transitions.find(item => item.id === wire.dataset.edgeId);
+        if (!transition) return;
+        wire.tabIndex = 0;
+        wire.setAttribute("role", "button");
+        attachEdgeInteractions(wire, transition);
+      });
     }
 
     function renderLayerBoundaries(parent) {
@@ -5003,6 +5022,80 @@
       return plugs;
     }
 
+    function appendLayerFlowTransition(transition, points, flowType, laneIndex, parentLayerId, edgeSelection) {
+      const compact = compactRoutePoints(points);
+      const pathD = pathFromPoints(compact);
+      const edgeStyle = `--edge-color: ${edgeColor(transition, parentLayerId)}`;
+
+      const hit = svgEl("path", {
+        d: pathD,
+        class: "hit layer-flow-hit",
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-layer-flow": flowType,
+        "data-layer-flow-index": String(laneIndex)
+      });
+      attachEdgeInteractions(hit, transition);
+      appendEdgeHit(hit);
+
+      const edgeClasses = ["edge", "layer-flow-edge"];
+      if (edgeSelection.has(transition.id)) edgeClasses.push("selected");
+      if (hoveredEdgeId === transition.id) edgeClasses.push("hovered");
+      if (lastAppTransitionId === transition.id) edgeClasses.push("runtime");
+      const edge = svgEl("path", {
+        d: pathD,
+        class: edgeClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-layer-flow": flowType,
+        "data-layer-flow-index": String(laneIndex)
+      });
+      attachEdgeInteractions(edge, transition);
+      wiresEl.appendChild(edge);
+
+      const arrowClasses = ["edge-arrow", "layer-flow-edge-arrow"];
+      if (edgeSelection.has(transition.id)) arrowClasses.push("selected");
+      if (hoveredEdgeId === transition.id) arrowClasses.push("hovered");
+      if (lastAppTransitionId === transition.id) arrowClasses.push("runtime");
+      const arrowD = arrowPathForPoints(compact);
+      if (arrowD) wiresEl.appendChild(svgEl("path", {
+        d: arrowD,
+        class: arrowClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-layer-flow": `${flowType}-arrow`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+
+      const pinClasses = ["edge-pin", "layer-flow-pin"];
+      if (edgeSelection.has(transition.id)) pinClasses.push("selected");
+      if (hoveredEdgeId === transition.id) pinClasses.push("hovered");
+      const startPin = compact[0];
+      const endPin = compact[compact.length - 1];
+      wiresEl.appendChild(svgEl("circle", {
+        cx: startPin.x,
+        cy: startPin.y,
+        r: 5,
+        class: pinClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-edge-pin": flowType === "input-wire" ? "out" : "in",
+        "data-layer-flow": `${flowType}-start`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      wiresEl.appendChild(svgEl("circle", {
+        cx: endPin.x,
+        cy: endPin.y,
+        r: 5,
+        class: pinClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-edge-pin": flowType === "input-wire" ? "in" : "out",
+        "data-layer-flow": `${flowType}-end`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+    }
+
     function renderLayerFlowWires(states) {
       const parent = byId(currentLayerId);
       const frame = parent ? layerFrameBox() : null;
@@ -5010,6 +5103,8 @@
 
       const inputs = parentBoundaryTransitions(parent, "input");
       const outputs = parentBoundaryTransitions(parent, "output");
+      const parentLayerId = parent.parentId || null;
+      const edgeSelection = selectedEdgeIds();
 
       // Must match draw()'s entryState/exitState: leftmost and rightmost by X.
       const orderedByX = states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
@@ -5024,23 +5119,7 @@
         const end = layerFlowStatePoint(entryState, "input", index);
         const points = [start];
         appendFlowSegment(points, end);
-        const compact = compactRoutePoints(points);
-        const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
-        wiresEl.appendChild(svgEl("path", {
-          d: pathFromPoints(compact),
-          class: "edge layer-flow-edge",
-          style,
-          "data-layer-flow": "input-wire",
-          "data-layer-flow-index": String(index)
-        }));
-        const arrowD = arrowPathForPoints(compact);
-        if (arrowD) wiresEl.appendChild(svgEl("path", {
-          d: arrowD,
-          class: "edge-arrow layer-flow-edge-arrow",
-          style,
-          "data-layer-flow": "input-arrow",
-          "data-layer-flow-index": String(index)
-        }));
+        appendLayerFlowTransition(t, points, "input-wire", index, parentLayerId, edgeSelection);
       });
 
       // Render one output wire per outer transition.
@@ -5049,23 +5128,7 @@
         const end = layerFlowBoundaryPoint(frame, "output", index);
         const points = [start];
         appendFlowSegment(points, end);
-        const compact = compactRoutePoints(points);
-        const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
-        wiresEl.appendChild(svgEl("path", {
-          d: pathFromPoints(compact),
-          class: "edge layer-flow-edge",
-          style,
-          "data-layer-flow": "output-wire",
-          "data-layer-flow-index": String(index)
-        }));
-        const arrowD = arrowPathForPoints(compact);
-        if (arrowD) wiresEl.appendChild(svgEl("path", {
-          d: arrowD,
-          class: "edge-arrow layer-flow-edge-arrow",
-          style,
-          "data-layer-flow": "output-arrow",
-          "data-layer-flow-index": String(index)
-        }));
+        appendLayerFlowTransition(t, points, "output-wire", index, parentLayerId, edgeSelection);
       });
     }
 
@@ -5102,18 +5165,27 @@
     function addLayerFlowSlot(nodeEl, state, laneIndex, side, parent) {
       const point = layerFlowStatePoint(state, side, laneIndex);
       const slot = document.createElement("div");
-      slot.className = `port-slot port-slot-${side} layer-flow-slot layer-flow-slot-${side}`;
       slot.style.top = point.y - state.y + "px";
 
       const parentLayerId = parent?.parentId || null;
       const transitions = parentBoundaryTransitions(parent, side === "input" ? "input" : "output");
       const transition = transitions[laneIndex];
       const color = transition ? edgeColor(transition, parentLayerId) : "#38bdf8";
+      const classes = ["port-slot", `port-slot-${side}`, "layer-flow-slot", `layer-flow-slot-${side}`];
+      if (transition && selectedEdgeIds().has(transition.id)) classes.push("selected");
+      if (transition && hoveredEdgeId === transition.id) classes.push("hovered");
 
+      slot.className = classes.join(" ");
       slot.style.setProperty("--edge-color", color);
+      if (transition) slot.dataset.edgeId = transition.id;
       slot.dataset.layerFlowSlot = side === "input" ? "state-input" : "state-output";
       slot.dataset.layerFlowIndex = String(laneIndex);
       slot.dataset.stateId = state.id;
+      if (transition) {
+        slot.addEventListener("mousedown", evt => evt.stopPropagation());
+        slot.addEventListener("pointerdown", evt => evt.stopPropagation());
+        attachEdgeInteractions(slot, transition);
+      }
       nodeEl.appendChild(slot);
     }
 
