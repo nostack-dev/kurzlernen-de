@@ -3797,12 +3797,14 @@
     }
 
     function updateDraggedStateEdges(stateId) {
+      // Recompute all routes fresh (first-principles: no cache, full A* for all transitions)
+      _frameRoutes = computeFrameRoutes();
       for (const transition of visibleTransitions()) {
-        if (transition.from !== stateId && transition.to !== stateId) continue;
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (!from || !to) continue;
-        updateTransitionElements(transition, liveDragRoutePoints(from, to, transition));
+        const pts = _frameRoutes.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
+        updateTransitionElements(transition, pts);
       }
     }
 
@@ -4169,7 +4171,6 @@
       evt.stopPropagation();
       if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
       const p = screenToWorld(evt);
-      if (!edgeRouteCache) edgeRouteCache = buildEdgeRouteCache();
       dragging = {
         id: s.id,
         shiftKey: Boolean(evt.shiftKey),
@@ -4179,7 +4180,6 @@
         dy: p.y - s.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
-        routeSnapshot: cloneRouteMap(edgeRouteCache),
         moved: false
       };
       updateNodeElementPosition(s);
@@ -4444,60 +4444,140 @@
       const goal = edgeApproachPoint(to, "in", transition);
       const routeTransition = transition || { from: from.id, to: to.id };
       const bounds = routeSearchBounds(start, goal);
-      const obstacles = visibleStates().map(state =>
-        stateBox(state, state.id === from.id || state.id === to.id ? 0 : GRID_SIZE)
-      );
-      const key = point => `${point.x},${point.y}`;
-      const startKey = key(start);
-      const goalKey = key(goal);
-      const blocked = point => {
-        const pointKey = key(point);
-        if (pointKey === startKey || pointKey === goalKey) return false;
-        return obstacles.some(box => pointInBox(point, box));
+
+      const minBoundsGx = Math.round(bounds.minX / GRID_SIZE);
+      const maxBoundsGx = Math.round(bounds.maxX / GRID_SIZE);
+      const minBoundsGy = Math.round(bounds.minY / GRID_SIZE);
+      const maxBoundsGy = Math.round(bounds.maxY / GRID_SIZE);
+
+      const startGx = Math.round(start.x / GRID_SIZE);
+      const startGy = Math.round(start.y / GRID_SIZE);
+      const goalGx = Math.round(goal.x / GRID_SIZE);
+      const goalGy = Math.round(goal.y / GRID_SIZE);
+
+      // Precompute blocked cells (offset by 1 grid cell for clearance, except for from/to states)
+      const blockedCells = new Set();
+      const states = visibleStates();
+      for (const state of states) {
+        if (state.id === from.id || state.id === to.id) continue;
+        const minGx = Math.floor((state.x - GRID_SIZE) / GRID_SIZE);
+        const maxGx = Math.ceil((state.x + nodeWidth(state) + GRID_SIZE) / GRID_SIZE);
+        const minGy = Math.floor((state.y - GRID_SIZE) / GRID_SIZE);
+        const maxGy = Math.ceil((state.y + NODE_H + GRID_SIZE) / GRID_SIZE);
+        for (let gx = minGx; gx < maxGx; gx++) {
+          for (let gy = minGy; gy < maxGy; gy++) {
+            blockedCells.add((gx << 16) | (gy & 0xffff));
+          }
+        }
+      }
+
+      const encode = (gx, gy) => (gx << 16) | (gy & 0xffff);
+      const startKey = encode(startGx, startGy);
+      const goalKey = encode(goalGx, goalGy);
+
+      const blocked = (gx, gy) => {
+        const key = encode(gx, gy);
+        if (key === startKey || key === goalKey) return false;
+        return blockedCells.has(key);
       };
-      const heuristic = point => Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y);
-      const open = [start];
+
+      const heuristic = (gx, gy) => Math.abs(gx - goalGx) + Math.abs(gy - goalGy);
+
+      const heap = [];
+      const fScores = new Map();
+      const gScores = new Map();
       const cameFrom = new Map();
-      const gScore = new Map([[startKey, 0]]);
-      const fScore = new Map([[startKey, heuristic(start)]]);
+
+      const getFScore = (key) => fScores.get(key) ?? Infinity;
+
+      const heapPush = (key) => {
+        heap.push(key);
+        let i = heap.length - 1;
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (getFScore(heap[i]) >= getFScore(heap[p])) break;
+          const tmp = heap[i]; heap[i] = heap[p]; heap[p] = tmp;
+          i = p;
+        }
+      };
+
+      const heapPop = () => {
+        if (heap.length === 0) return null;
+        const top = heap[0];
+        const bottom = heap.pop();
+        if (heap.length > 0) {
+          heap[0] = bottom;
+          let i = 0;
+          const len = heap.length;
+          while ((i << 1) + 1 < len) {
+            let left = (i << 1) + 1;
+            let right = left + 1;
+            let best = left;
+            if (right < len && getFScore(heap[right]) < getFScore(heap[left])) best = right;
+            if (getFScore(heap[i]) <= getFScore(heap[best])) break;
+            const tmp = heap[i]; heap[i] = heap[best]; heap[best] = tmp;
+            i = best;
+          }
+        }
+        return top;
+      };
+
+      const openSet = new Set([startKey]);
+      gScores.set(startKey, 0);
+      fScores.set(startKey, heuristic(startGx, startGy));
+      heapPush(startKey);
+
       const closed = new Set();
 
-      for (let guard = 0; open.length && guard < 24000; guard++) {
-        let bestIndex = 0;
-        for (let i = 1; i < open.length; i++) {
-          if ((fScore.get(key(open[i])) ?? Infinity) < (fScore.get(key(open[bestIndex])) ?? Infinity)) bestIndex = i;
-        }
-        const current = open.splice(bestIndex, 1)[0];
-        const currentKey = key(current);
+      for (let guard = 0; heap.length && guard < 10000; guard++) {
+        const currentKey = heapPop();
+        openSet.delete(currentKey);
+
         if (currentKey === goalKey) {
-          const path = [current];
+          const path = [];
           let walkKey = currentKey;
-          while (cameFrom.has(walkKey)) {
-            const previous = cameFrom.get(walkKey);
-            path.unshift(previous);
-            walkKey = key(previous);
+          while (walkKey !== startKey) {
+            const gx = walkKey >> 16;
+            const gy = (walkKey << 16) >> 16;
+            path.unshift({ x: gx * GRID_SIZE, y: gy * GRID_SIZE });
+            walkKey = cameFrom.get(walkKey);
           }
+          path.unshift(start);
           const routed = compactRoutePoints([startPort, ...path, goalPort]);
           return routeIsClear(routed, routeTransition) ? routed : null;
         }
+
         closed.add(currentKey);
+
+        const cx = currentKey >> 16;
+        const cy = (currentKey << 16) >> 16;
+
         const neighbors = [
-          { x: current.x + GRID_SIZE, y: current.y },
-          { x: current.x - GRID_SIZE, y: current.y },
-          { x: current.x, y: current.y + GRID_SIZE },
-          { x: current.x, y: current.y - GRID_SIZE }
+          encode(cx + 1, cy),
+          encode(cx - 1, cy),
+          encode(cx, cy + 1),
+          encode(cx, cy - 1)
         ];
-        for (const neighbor of neighbors) {
-          if (neighbor.x < bounds.minX || neighbor.x > bounds.maxX || neighbor.y < bounds.minY || neighbor.y > bounds.maxY) continue;
-          if (blocked(neighbor)) continue;
-          const neighborKey = key(neighbor);
+
+        for (const neighborKey of neighbors) {
+          const nx = neighborKey >> 16;
+          const ny = (neighborKey << 16) >> 16;
+
+          if (nx < minBoundsGx || nx > maxBoundsGx || ny < minBoundsGy || ny > maxBoundsGy) continue;
+          if (blocked(nx, ny)) continue;
           if (closed.has(neighborKey)) continue;
-          const tentative = (gScore.get(currentKey) ?? Infinity) + GRID_SIZE;
-          if (tentative >= (gScore.get(neighborKey) ?? Infinity)) continue;
-          cameFrom.set(neighborKey, current);
-          gScore.set(neighborKey, tentative);
-          fScore.set(neighborKey, tentative + heuristic(neighbor));
-          if (!open.some(point => key(point) === neighborKey)) open.push(neighbor);
+
+          const tentative = (gScores.get(currentKey) ?? Infinity) + 1;
+          if (tentative >= (gScores.get(neighborKey) ?? Infinity)) continue;
+
+          cameFrom.set(neighborKey, currentKey);
+          gScores.set(neighborKey, tentative);
+          fScores.set(neighborKey, tentative + heuristic(nx, ny));
+
+          if (!openSet.has(neighborKey)) {
+            openSet.add(neighborKey);
+            heapPush(neighborKey);
+          }
         }
       }
       return null;
@@ -4541,19 +4621,13 @@
       return index % 2 ? Math.ceil(index / 2) : -index / 2;
     }
 
-    let edgeRouteCache = null;
+    // Per-frame route table — populated fresh at the start of every draw() call.
+    // Never persisted across frames. No caching, no snapshots.
+    let _frameRoutes = new Map();
 
     function recordRouteMetric(name, amount = 1) {
       const metrics = window.__stateBlueprintRouteMetrics;
       if (metrics && typeof metrics === "object") metrics[name] = (metrics[name] || 0) + amount;
-    }
-
-    function cloneRoutePoints(points) {
-      return (points || []).map(point => ({ ...point }));
-    }
-
-    function cloneRouteMap(routes) {
-      return new Map([...routes].map(([id, points]) => [id, cloneRoutePoints(points)]));
     }
 
     function edgeOrder(transitionId) {
@@ -4677,31 +4751,9 @@
       return current;
     }
 
-    function liveDragRoutePoints(from, to, transition = null) {
-      return directRoutePoints(from, to, transition) ||
-        forwardBendRoutePoints(from, to, transition) ||
-        doglegRoutePoints(from, to, transition);
-    }
-
-    function buildLiveDragRouteCache(dragStateId, routeSnapshot = null) {
-      recordRouteMetric("liveDragRouteBuilds");
-      const routes = new Map();
-      for (const transition of visibleTransitions()) {
-        const from = byId(transition.from);
-        const to = byId(transition.to);
-        if (!from || !to) continue;
-        if (transition.from === dragStateId || transition.to === dragStateId) {
-          routes.set(transition.id, liveDragRoutePoints(from, to, transition));
-        } else if (routeSnapshot?.has(transition.id)) {
-          routes.set(transition.id, cloneRoutePoints(routeSnapshot.get(transition.id)));
-        } else {
-          routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
-        }
-      }
-      return routes;
-    }
-
-    function buildEdgeRouteCache() {
+    // Compute all transition routes fresh — full A* for every edge, then resolve overlaps.
+    // Called once at the start of every draw() and stored in _frameRoutes.
+    function computeFrameRoutes() {
       recordRouteMetric("finalRouteBuilds");
       const routes = new Map();
       for (const transition of visibleTransitions()) {
@@ -4714,8 +4766,7 @@
 
     function edgeRoutePoints(from, to, transition = null) {
       if (!transition) return baseEdgeRoutePoints(from, to, transition);
-      if (!edgeRouteCache) edgeRouteCache = buildEdgeRouteCache();
-      return edgeRouteCache.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
+      return _frameRoutes.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
     }
 
     function polylinePoint(points, ratio) {
@@ -4960,67 +5011,71 @@
       const inputs = parentBoundaryTransitions(parent, "input");
       const outputs = parentBoundaryTransitions(parent, "output");
 
-      const orderedStates = states
-        .slice()
-        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      // The entry state is whichever child state is designated initial, or leftmost by x.
+      const orderedByX = states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const entryState = states.find(s => s.id === model.initial) || orderedByX[0];
+      const exitState = orderedByX[orderedByX.length - 1];
 
-      const entryState = orderedStates[0];
-      const exitState = orderedStates[orderedStates.length - 1];
-
-      // Render input wires
+      // Render one input wire per outer transition, each connecting boundary → entryState input port.
+      // Port Y position uses orderedPortTransitions so it aligns exactly with the port slot dots.
       inputs.forEach((t, index) => {
-        const start = layerFlowBoundaryPoint(frame, "input", index);
-        const end = layerFlowStatePoint(entryState, "input", index);
+        const inTransitions = orderedPortTransitions(entryState.id, "in");
+        // Use the slot index within inTransitions matching this flow index, clamped.
+        const slotIdx = Math.min(index, inTransitions.length > 0 ? inTransitions.length - 1 : 0);
+        const slot = slotIdx - Math.floor((Math.max(1, inTransitions.length) - 1) / 2);
+        const portY = snapToGrid(entryState.y + NODE_H / 2 + slot * GRID_SIZE);
+        const start = { x: frame.left, y: snapToGrid(frame.top + frame.height / 2) };
+        const end = { x: entryState.x, y: portY };
         const points = [start];
         appendFlowSegment(points, end);
+        const compact = compactRoutePoints(points);
 
         const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
         wiresEl.appendChild(svgEl("path", {
-          d: pathFromPoints(compactRoutePoints(points)),
+          d: pathFromPoints(compact),
           class: "edge layer-flow-edge",
           style,
           "data-layer-flow": "input-wire",
           "data-layer-flow-index": String(index)
         }));
-
-        const arrowD = arrowPathForPoints(points);
-        if (arrowD) {
-          wiresEl.appendChild(svgEl("path", {
-            d: arrowD,
-            class: "edge-arrow layer-flow-edge-arrow",
-            style,
-            "data-layer-flow": "input-arrow",
-            "data-layer-flow-index": String(index)
-          }));
-        }
+        const arrowD = arrowPathForPoints(compact);
+        if (arrowD) wiresEl.appendChild(svgEl("path", {
+          d: arrowD,
+          class: "edge-arrow layer-flow-edge-arrow",
+          style,
+          "data-layer-flow": "input-arrow",
+          "data-layer-flow-index": String(index)
+        }));
       });
 
-      // Render output wires
+      // Render one output wire per outer transition, each connecting exitState output port → boundary.
       outputs.forEach((t, index) => {
-        const start = layerFlowStatePoint(exitState, "output", index);
-        const end = layerFlowBoundaryPoint(frame, "output", index);
+        const outTransitions = orderedPortTransitions(exitState.id, "out");
+        const slotIdx = Math.min(index, outTransitions.length > 0 ? outTransitions.length - 1 : 0);
+        const slot = slotIdx - Math.floor((Math.max(1, outTransitions.length) - 1) / 2);
+        const portY = snapToGrid(exitState.y + NODE_H / 2 + slot * GRID_SIZE);
+        const start = { x: exitState.x + nodeWidth(exitState), y: portY };
+        const end = { x: frame.right, y: snapToGrid(frame.top + frame.height / 2) };
         const points = [start];
         appendFlowSegment(points, end);
+        const compact = compactRoutePoints(points);
 
         const style = `--edge-color: ${edgeColor(t, parent.parentId)}`;
         wiresEl.appendChild(svgEl("path", {
-          d: pathFromPoints(compactRoutePoints(points)),
+          d: pathFromPoints(compact),
           class: "edge layer-flow-edge",
           style,
           "data-layer-flow": "output-wire",
           "data-layer-flow-index": String(index)
         }));
-
-        const arrowD = arrowPathForPoints(points);
-        if (arrowD) {
-          wiresEl.appendChild(svgEl("path", {
-            d: arrowD,
-            class: "edge-arrow layer-flow-edge-arrow",
-            style,
-            "data-layer-flow": "output-arrow",
-            "data-layer-flow-index": String(index)
-          }));
-        }
+        const arrowD = arrowPathForPoints(compact);
+        if (arrowD) wiresEl.appendChild(svgEl("path", {
+          d: arrowD,
+          class: "edge-arrow layer-flow-edge-arrow",
+          style,
+          "data-layer-flow": "output-arrow",
+          "data-layer-flow-index": String(index)
+        }));
       });
     }
 
@@ -5113,9 +5168,7 @@
 
       const transitions = visibleTransitions();
       updateLayerFrame(states);
-      edgeRouteCache = dragging?.moved
-        ? buildLiveDragRouteCache(dragging.id, dragging.routeSnapshot)
-        : buildEdgeRouteCache();
+      _frameRoutes = computeFrameRoutes();
       const layerParent = byId(currentLayerId);
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
