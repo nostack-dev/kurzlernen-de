@@ -6271,6 +6271,7 @@
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
       title.value = s.title || "";
+      title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
       const innerDropZone = root.querySelector("#pInnerDropZone");
