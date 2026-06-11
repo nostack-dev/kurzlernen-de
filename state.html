@@ -4025,8 +4025,15 @@
     }
 
     async function collapseSelectedNodes() {
-      const selectedIds = selectedNodeIdList();
-      if (selectedIds.length === 0) return;
+      const selectedIds = new Set(selectedNodeIdList());
+      for (const edgeId of selectedEdgeIdList()) {
+        const edge = edgeById(edgeId);
+        if (!edge) continue;
+        if (byId(edge.from) && isCurrentLayerState(edge.from)) selectedIds.add(edge.from);
+        if (byId(edge.to) && isCurrentLayerState(edge.to)) selectedIds.add(edge.to);
+      }
+      if (selectedIds.size === 0) return;
+      const selectedIdList = [...selectedIds];
 
       if (currentLayerId !== null) {
         // Already inside a layer (has a parent)
@@ -4043,7 +4050,7 @@
       }
 
       // Root level: perform collapse
-      const selectedStates = selectedIds.map(byId).filter(Boolean);
+      const selectedStates = selectedIdList.map(byId).filter(Boolean);
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       selectedStates.forEach(s => {
         minX = Math.min(minX, s.x);
@@ -4061,7 +4068,7 @@
       model.states.push(parentState);
 
       // Reconnect transitions that cross the boundary
-      const setIds = new Set(selectedIds);
+      const setIds = new Set(selectedIdList);
       model.transitions.forEach(t => {
         const fromInside = setIds.has(t.from);
         const toInside = setIds.has(t.to);
@@ -5056,8 +5063,6 @@
       const boundary = normalizeBoundaryTransitions(parent.boundaryTransitions);
       return Math.max(
         1,
-        parentBoundaryTransitions(parent, "input").length,
-        parentBoundaryTransitions(parent, "output").length,
         boundary.input.length,
         boundary.output.length
       );
@@ -5066,13 +5071,14 @@
     function layerFlowSideLaneCount(parent, side) {
       if (!parent || !childStateCount(parent.id)) return 0;
       const boundary = normalizeBoundaryTransitions(parent.boundaryTransitions);
-      return Math.max(1, parentBoundaryTransitions(parent, side).length, boundary[side].length);
+      return Math.max(1, boundary[side].length);
     }
 
     function layerFlowColor(parent, laneIndex) {
       const parentLayerId = parent?.parentId || null;
-      const inputs = parentBoundaryTransitions(parent, "input");
-      const outputs = parentBoundaryTransitions(parent, "output");
+      const boundary = normalizeBoundaryTransitions(parent?.boundaryTransitions);
+      const inputs = boundary.input;
+      const outputs = boundary.output;
       const source = inputs[laneIndex % inputs.length] || outputs[laneIndex % outputs.length] || null;
       return source ? edgeColor(source, parentLayerId) : "#38bdf8";
     }
