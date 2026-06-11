@@ -3708,19 +3708,137 @@
       draw();
     }
 
+    let selectionClipboard = null;
+
     function updateSelectionActions() {
       const ids = selectedNodeIdList();
       const edges = selectedEdgeIdList();
       const visible = ids.length > 0 || edges.length > 0;
       selectionActionsEl.hidden = !visible;
       selectionActionsEl.classList.toggle("visible", visible);
-      btnSelectionCopy.disabled = !ids.length;
+      btnSelectionCopy.disabled = !(ids.length || edges.length);
       if (visible) {
         const parts = [];
         if (ids.length) parts.push(ids.length === 1 ? "1 state" : `${ids.length} states`);
         if (edges.length) parts.push(edges.length === 1 ? "1 transition" : `${edges.length} transitions`);
         selectionCountEl.textContent = parts.join(" + ");
       }
+    }
+
+    function clipboardSelectionPayload() {
+      const nodeIds = selectedNodeIdList();
+      const edgeIds = selectedEdgeIdList();
+      if (!nodeIds.length && !edgeIds.length) return null;
+      return {
+        sourceLayerId: currentLayerId,
+        nodes: nodeIds.map(id => stateExportSnapshot(byId(id))).filter(Boolean),
+        edges: edgeIds.map(id => {
+          const edge = edgeById(id);
+          if (!edge) return null;
+          if (edge.boundary) {
+            return {
+              kind: "boundary",
+              id: String(edge.id),
+              parentId: String(edge.parentId || ""),
+              side: edge.side === "input" ? "input" : "output",
+              laneIndex: Number(edge.laneIndex || 0),
+              label: String(edge.label || ""),
+              condition: String(edge.condition || ""),
+              set: normalizeDataObject(edge.set)
+            };
+          }
+          return {
+            kind: "transition",
+            ...transitionExportSnapshot(edge)
+          };
+        }).filter(Boolean)
+      };
+    }
+
+    function duplicateSelectionBundle(payload) {
+      const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+      if (!nodes.length) return false;
+      const offsetX = GRID_SIZE * 2;
+      const offsetY = GRID_SIZE * 2;
+      const nodeMap = new Map();
+      const boundarySources = new Map();
+      const copies = [];
+      for (const snapshot of nodes) {
+        const sourceBoundary = normalizeBoundaryTransitions(snapshot.boundaryTransitions);
+        const copy = makeState(
+          Number(snapshot.x || 0) + offsetX,
+          Number(snapshot.y || 0) + offsetY,
+          `${String(snapshot.title || snapshot.id || "State")} Copy`,
+          currentLayerId
+        );
+        copy.components = cloneComponents(snapshot.components);
+        copy.data = normalizeDataObject(snapshot.data);
+        copy.dataSource = normalizeDataSource(snapshot.dataSource);
+        copy.repeat = normalizeRepeatConfig(snapshot.repeat);
+        copy.boundaryTransitions = normalizeBoundaryTransitions(null);
+        copies.push(copy);
+        nodeMap.set(String(snapshot.id), copy.id);
+        boundarySources.set(copy.id, sourceBoundary);
+      }
+      for (const copy of copies) {
+        const original = nodes.find(item => nodeMap.get(String(item.id)) === copy.id);
+        const originalParentId = String(original?.parentId || "");
+        copy.parentId = nodeMap.get(originalParentId) || (currentLayerId && byId(currentLayerId) ? currentLayerId : null);
+        const sourceBoundary = boundarySources.get(copy.id) || normalizeBoundaryTransitions(null);
+        copy.boundaryTransitions = normalizeBoundaryTransitions(null);
+        for (const side of ["input", "output"]) {
+          sourceBoundary[side].forEach((item, index) => {
+            const rule = ensureBoundaryTransition(copy, side, index);
+            rule.label = String(item.label || (side === "input" ? "Input" : "Output"));
+            rule.condition = String(item.condition || "");
+            rule.set = normalizeDataObject(item.set);
+          });
+        }
+      }
+      const copiedEdges = [];
+      for (const edge of Array.isArray(payload?.edges) ? payload.edges : []) {
+        if (edge?.kind === "boundary") {
+          const parentCopyId = nodeMap.get(String(edge.parentId || ""));
+          if (!parentCopyId) continue;
+          const parent = byId(parentCopyId);
+          if (!parent) continue;
+          parent.boundaryTransitions = normalizeBoundaryTransitions(parent.boundaryTransitions);
+          const laneIndex = Number.isInteger(edge.laneIndex) ? edge.laneIndex : 0;
+          const side = edge.side === "output" ? "output" : "input";
+          const list = parent.boundaryTransitions[side];
+          while (list.length <= laneIndex) list.push({});
+          list[laneIndex] = {
+            id: boundaryEdgeId(parent.id, side, laneIndex),
+            label: String(edge.label || (side === "input" ? "Input" : "Output")),
+            condition: String(edge.condition || ""),
+            set: normalizeDataObject(edge.set),
+            boundary: true,
+            parentId: parent.id,
+            side,
+            laneIndex,
+            from: boundaryEdgeId(parent.id, side, laneIndex) + ":from",
+            to: boundaryEdgeId(parent.id, side, laneIndex) + ":to"
+          };
+          continue;
+        }
+        const from = nodeMap.get(String(edge.from || ""));
+        const to = nodeMap.get(String(edge.to || ""));
+        if (!from || !to) continue;
+        copiedEdges.push({
+          id: uid("t"),
+          from,
+          to,
+          label: String(edge.label || "Next"),
+          condition: String(edge.condition || ""),
+          set: normalizeDataObject(edge.set)
+        });
+      }
+      model.states.push(...copies);
+      model.transitions.push(...copiedEdges);
+      selected = selectionFromParts(copies.map(s => s.id), copiedEdges.map(t => t.id));
+      saveModel();
+      draw();
+      return true;
     }
 
     function deleteSelectedItems() {
@@ -3758,34 +3876,21 @@
     }
 
     function copySelectedNodes() {
-      const ids = selectedNodeIdList();
-      if (!ids.length) return;
-      const selectedSet = new Set(ids);
-      const idMap = new Map();
-      const copies = [];
-      for (const original of model.states.filter(s => selectedSet.has(s.id))) {
-        const copy = makeState(original.x + GRID_SIZE * 2, original.y + GRID_SIZE * 2, `${original.title || original.id} Copy`);
-        copy.components = cloneComponents(original.components);
-        copy.data = normalizeDataObject(original.data);
-        copy.boundaryTransitions = normalizeBoundaryTransitions(JSON.parse(JSON.stringify(original.boundaryTransitions || {})));
-        idMap.set(original.id, copy.id);
-        copies.push(copy);
+      const payload = clipboardSelectionPayload();
+      if (!payload) return;
+      selectionClipboard = payload;
+      if (!payload.nodes.length) {
+        saveSelection();
+        updateSelectionActions();
+        return;
       }
-      const copiedTransitions = model.transitions
-        .filter(t => idMap.has(t.from) && idMap.has(t.to))
-        .map(t => ({
-          id: uid("t"),
-          from: idMap.get(t.from),
-          to: idMap.get(t.to),
-          label: t.label || "Next",
-          condition: t.condition || "",
-          set: normalizeDataObject(t.set)
-        }));
-      model.states.push(...copies);
-      model.transitions.push(...copiedTransitions);
-      selected = selectionFromParts(copies.map(s => s.id), []);
-      saveModel();
-      draw();
+      duplicateSelectionBundle(payload);
+    }
+
+    function pasteSelectionClipboard() {
+      if (!selectionClipboard) return false;
+      const payload = JSON.parse(JSON.stringify(selectionClipboard));
+      return duplicateSelectionBundle(payload);
     }
 
     let titleMeasureContext = null;
@@ -5268,28 +5373,15 @@
       if (!parent || !frame || !states.length) return;
 
       const edgeSelection = selectedEdgeIds();
-
-      // Must match draw()'s entryState/exitState: leftmost and rightmost by X.
-      const orderedByX = states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
-      const entryState = orderedByX[0];
-      const exitState = orderedByX[orderedByX.length - 1];
-      // layerFlowStatePoint is the exact same function addLayerFlowSlot uses to place the dot,
-      // so the wire endpoint lands precisely on it.
       for (let index = 0; index < layerFlowSideLaneCount(parent, "input"); index++) {
         const t = ensureBoundaryTransition(parent, "input", index);
-        const start = layerFlowBoundaryPoint(frame, "input", index);
-        const end = layerFlowStatePoint(entryState, "input", index);
-        const points = [start];
-        appendFlowSegment(points, end);
+        const points = layerFlowPathPoints(frame, states, index);
         appendLayerFlowTransition(t, points, "input-wire", index, currentLayerId, edgeSelection);
       }
 
       for (let index = 0; index < layerFlowSideLaneCount(parent, "output"); index++) {
         const t = ensureBoundaryTransition(parent, "output", index);
-        const start = layerFlowStatePoint(exitState, "output", index);
-        const end = layerFlowBoundaryPoint(frame, "output", index);
-        const points = [start];
-        appendFlowSegment(points, end);
+        const points = layerFlowPathPoints(frame, states, index);
         appendLayerFlowTransition(t, points, "output-wire", index, currentLayerId, edgeSelection);
       }
     }
@@ -5374,11 +5466,6 @@
       normalizeModel(model);
       selected = normalizeSelection();
       const states = visibleStates();
-      const orderedStates = states
-        .slice()
-        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
-      const entryState = orderedStates[0] || null;
-      const exitState = orderedStates[orderedStates.length - 1] || null;
 
       const transitions = visibleTransitions();
       updateLayerFrame(states);
@@ -5657,16 +5744,7 @@
         });
 
         if (layerParent) {
-          if (entryState && s.id === entryState.id) {
-            for (let index = 0; index < layerFlowSideLaneCount(layerParent, "input"); index++) {
-              addLayerFlowSlot(el, s, index, "input", layerParent);
-            }
-          }
-          if (exitState && s.id === exitState.id) {
-            for (let index = 0; index < layerFlowSideLaneCount(layerParent, "output"); index++) {
-              addLayerFlowSlot(el, s, index, "output", layerParent);
-            }
-          }
+          // Layer flow is rendered on the frame boundary, not on the node body.
         }
         for (const transition of orderedPortTransitions(s.id, "in")) {
           addPortSlot(el, s, transition, "in", edgeSelection);
@@ -6717,6 +6795,86 @@
       return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     }
 
+    function valueTypeLabel(value) {
+      if (Array.isArray(value)) return "array";
+      if (value === null) return "null";
+      return typeof value;
+    }
+
+    function conditionScopeStates(t) {
+      const states = [];
+      const seen = new Set();
+      const add = state => {
+        if (!state || seen.has(state.id)) return;
+        seen.add(state.id);
+        states.push(state);
+      };
+      add(byId(t.from));
+      add(byId(t.to));
+      for (let parent = byId(byId(t.from)?.parentId); parent; parent = byId(parent.parentId)) add(parent);
+      return states;
+    }
+
+    function collectDataPathSuggestions(value, prefix, sourceLabel, out, depth = 0) {
+      if (!prefix || out.length > 80 || depth > 5) return out;
+      if (Array.isArray(value)) {
+        out.push({ path: prefix, source: sourceLabel, type: "array" });
+        if (value.length) collectDataPathSuggestions(value[0], prefix, sourceLabel + " item", out, depth + 1);
+        return out;
+      }
+      if (!isPlainDataObject(value)) {
+        out.push({ path: prefix, source: sourceLabel, type: valueTypeLabel(value) });
+        return out;
+      }
+      out.push({ path: prefix, source: sourceLabel, type: "object" });
+      for (const [key, child] of Object.entries(value).slice(0, 32)) {
+        collectDataPathSuggestions(child, `${prefix}.${key}`, sourceLabel, out, depth + 1);
+      }
+      return out;
+    }
+
+    function conditionDataSuggestions(t) {
+      const suggestions = [];
+      const seen = new Set();
+      const add = (path, source, type = "value") => {
+        const key = String(path || "").trim();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        suggestions.push({ path: key, source, type });
+      };
+      for (const state of conditionScopeStates(t)) {
+        const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
+        for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
+          collectDataPathSuggestions(value, key, label, suggestions);
+        }
+        const source = normalizeDataSource(state.dataSource || state.fetch);
+        if (String(source.url || "").trim()) {
+          const target = normalizeContextPath(source.target, "fetch");
+          add(`${target}.status`, `${label} data source`, "number");
+          add(`${target}.ok`, `${label} data source`, "boolean");
+          add(`${target}.error`, `${label} data source`, "text");
+          add(`${target}.data`, `${label} data source`, "value");
+        }
+        const repeat = normalizeRepeatConfig(state.repeat);
+        if (repeat.path) {
+          add(repeat.as, `${label} repeat item`, "object");
+          add(`${repeat.as}.field`, `${label} repeat item`, "value");
+          add(repeat.index, `${label} repeat index`, "number");
+        }
+      }
+      return suggestions.sort((a, b) => a.path.localeCompare(b.path));
+    }
+
+    function renderConditionSuggestions(datalist, suggestions) {
+      datalist.innerHTML = "";
+      for (const item of suggestions.slice(0, 80)) {
+        const option = document.createElement("option");
+        option.value = item.path;
+        option.label = `${item.source} · ${item.type}`;
+        datalist.appendChild(option);
+      }
+    }
+
     function showEdgeInspector(t, opts = {}) {
       const root = stateInspectorBodyEl;
       const from = byId(t.from);
@@ -6741,7 +6899,7 @@
         <h3>${isBoundary ? "Boundary Transition" : "Transition / Button"}</h3>
         <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
         <div class="field"><label>${isBoundary ? "Label" : "Button label"}</label><input id="pLabel"></div>
-        <div class="field"><label>Condition</label><input id="pCond" placeholder="accepted, amount >= 10, !blocked"></div>
+        <div class="field"><label>Condition</label><input id="pCond" list="pCondDataList" placeholder="accepted, amount >= 10, !blocked"><datalist id="pCondDataList"></datalist></div>
         <div id="pCondPreview" class="condition-preview"></div>
         <div class="field"><label>Set data</label><textarea id="pSet" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pSetPreview" class="condition-preview empty"></div>
@@ -6753,6 +6911,7 @@
       `;
       const label = root.querySelector("#pLabel");
       const cond = root.querySelector("#pCond");
+      const condDataList = root.querySelector("#pCondDataList");
       const condPreview = root.querySelector("#pCondPreview");
       const set = root.querySelector("#pSet");
       const setPreview = root.querySelector("#pSetPreview");
@@ -6761,8 +6920,13 @@
       set.value = JSON.stringify(normalizeDataObject(t.set), null, 2);
       const updateConditionPreview = () => {
         const summary = conditionInputSummary(cond.value);
-        condPreview.textContent = summary;
-        condPreview.classList.toggle("empty", summary === "No inputs. Always available.");
+        const suggestions = conditionDataSuggestions(t);
+        renderConditionSuggestions(condDataList, suggestions);
+        const dataSummary = suggestions.length
+          ? `Data: ${suggestions.slice(0, 8).map(item => item.path).join(", ")}${suggestions.length > 8 ? " ..." : ""}`
+          : "No state data paths available.";
+        condPreview.textContent = `${summary} · ${dataSummary}`;
+        condPreview.classList.toggle("empty", summary === "No inputs. Always available." && !suggestions.length);
       };
       const updateSetPreview = () => {
         try {
@@ -7625,6 +7789,18 @@
         evt.preventDefault();
         evt.stopImmediatePropagation();
         requestLoadBlueprintFile();
+        return;
+      }
+      if (!isEditableTarget(evt.target) && mod && (key === "c" || evt.code === "KeyC") && selected) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        copySelectedNodes();
+        return;
+      }
+      if (!isEditableTarget(evt.target) && mod && (key === "v" || evt.code === "KeyV") && selectionClipboard) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        pasteSelectionClipboard();
         return;
       }
       if (isEditableTarget(evt.target)) return;
