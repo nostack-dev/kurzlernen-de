@@ -841,35 +841,6 @@
     .layer-flow-slot-input { left: -6px; }
     .layer-flow-slot-output { right: -6px; }
 
-    .layer-boundary-port {
-      cursor: crosshair;
-      pointer-events: auto;
-    }
-
-    .layer-boundary-port-output {
-      cursor: default;
-    }
-
-    .layer-flow-add-frame {
-      cursor: copy;
-      pointer-events: auto;
-    }
-
-    .layer-flow-add-frame-hit {
-      fill: var(--accent);
-      stroke: #06121f;
-      stroke-width: 2;
-      filter: drop-shadow(0 0 10px rgba(245,158,11,.45));
-    }
-
-    .layer-flow-add-frame-label {
-      fill: #03101f;
-      font-size: 13px;
-      font-weight: 950;
-      pointer-events: none;
-      user-select: none;
-    }
-
     .preview {
       min-width: 0;
       max-width: 100%;
@@ -1919,6 +1890,7 @@
     let pinchZoom = null;
     let longPressTimer = null;
     let pendingCanvasTouch = null;
+    let pendingCanvasMouse = null;
     let pendingEdgeTouch = null;
     let suppressEdgeClickUntil = 0;
     let cameraSaveTimer = null;
@@ -3226,9 +3198,10 @@
       }
       const pairs = new Set();
       m.transitions = m.transitions.filter(t => {
-        const fromLayer = transitionEndpointLayerId(m, t.from);
-        const toLayer = transitionEndpointLayerId(m, t.to);
-        if (fromLayer === undefined || toLayer === undefined || fromLayer !== toLayer) return false;
+        if (!ids.has(t.from) || !ids.has(t.to)) return false;
+        const fromState = byModelId(m, t.from);
+        const toState = byModelId(m, t.to);
+        if (stateParentId(fromState) !== stateParentId(toState)) return false;
         const pair = transitionKey(t.from, t.to);
         if (pairs.has(pair)) return false;
         pairs.add(pair);
@@ -3266,9 +3239,9 @@
     }
 
     function transitionInLayer(transition, layerId = currentLayerId) {
-      const fromLayer = transitionEndpointLayerId(model, transition?.from);
-      const toLayer = transitionEndpointLayerId(model, transition?.to);
-      return fromLayer !== undefined && fromLayer === toLayer && fromLayer === (layerId || null);
+      const from = byId(transition?.from);
+      const to = byId(transition?.to);
+      return Boolean(from && to && stateParentId(from) === stateParentId(to) && stateParentId(from) === (layerId || null));
     }
 
     function transitionsInLayer(layerId = currentLayerId) {
@@ -3292,37 +3265,6 @@
       const parentId = parts.join(":");
       if (!parentId || (side !== "input" && side !== "output") || !Number.isInteger(laneIndex) || laneIndex < 0) return null;
       return { parentId, side, laneIndex };
-    }
-
-    function transitionEndpointLayerId(sourceModel, id) {
-      const state = byModelId(sourceModel, id);
-      if (state) return stateParentId(state);
-      const boundary = parseBoundaryEdgeId(id);
-      if (!boundary) return undefined;
-      return byModelId(sourceModel, boundary.parentId) ? boundary.parentId : undefined;
-    }
-
-    function boundaryPortById(id) {
-      const boundary = parseBoundaryEdgeId(id);
-      if (!boundary || currentLayerId !== boundary.parentId) return null;
-      const parent = byId(boundary.parentId);
-      const frame = parent ? layerFrameBox() : null;
-      if (!parent || !frame || boundary.laneIndex >= layerFlowSideLaneCount(parent, boundary.side)) return null;
-      const point = layerFlowBoundaryPoint(frame, boundary.side, boundary.laneIndex);
-      return {
-        id,
-        title: boundary.side === "input" ? `Parent input ${boundary.laneIndex + 1}` : `Parent output ${boundary.laneIndex + 1}`,
-        boundaryPort: true,
-        side: boundary.side,
-        laneIndex: boundary.laneIndex,
-        x: point.x,
-        y: point.y,
-        parentId: boundary.parentId
-      };
-    }
-
-    function endpointById(id) {
-      return byId(id) || boundaryPortById(id);
     }
 
     function ensureBoundaryTransition(parent, side, laneIndex) {
@@ -3361,24 +3303,8 @@
       return model.transitions.find(t => t.id === id) || boundaryTransitionById(id);
     }
 
-    function boundarySideBaseLaneCount(parent, side) {
-      if (!parent || !childStateCount(parent.id)) return 0;
-      return Math.max(1, parentBoundaryTransitions(parent, side).length);
-    }
-
-    function removeBoundaryTransition(id) {
-      const parsed = parseBoundaryEdgeId(id);
-      if (!parsed) return false;
-      const parent = byId(parsed.parentId);
-      if (!parent || currentLayerId !== parent.id) return false;
-      parent.boundaryTransitions = normalizeBoundaryTransitions(parent.boundaryTransitions);
-      const list = parent.boundaryTransitions[parsed.side];
-      const baseCount = boundarySideBaseLaneCount(parent, parsed.side);
-      if (parsed.laneIndex >= baseCount && parsed.laneIndex < list.length) {
-        list.splice(parsed.laneIndex, 1);
-        return true;
-      }
-      const edge = ensureBoundaryTransition(parent, parsed.side, parsed.laneIndex);
+    function clearBoundaryTransition(id) {
+      const edge = boundaryTransitionById(id);
       if (!edge) return false;
       edge.label = edge.side === "input" ? "Input" : "Output";
       edge.condition = "";
@@ -3386,19 +3312,14 @@
       return true;
     }
 
-    function addBoundaryLane(parent, side) {
-      if (!parent || currentLayerId !== parent.id) return;
-      const laneIndex = layerFlowSideLaneCount(parent, side);
-      if (laneIndex >= 16) return;
-      ensureBoundaryTransition(parent, side, laneIndex);
-      selected = null;
-      saveModel();
-      draw();
-    }
-
     function transitionVisibleInCurrentContext(transition) {
       if (transition?.boundary) return currentLayerId === transition.parentId;
-      return transitionInLayer(transition);
+      if (transitionInLayer(transition)) return true;
+      const parent = byId(currentLayerId);
+      if (!parent) return false;
+      const parentLayerId = parent.parentId || null;
+      if (!transitionInLayer(transition, parentLayerId)) return false;
+      return transition.to === parent.id || transition.from === parent.id;
     }
 
     function childStateCount(parentId) {
@@ -3425,12 +3346,7 @@
       const currentLayerRemoved = currentLayerId && removeSet.has(currentLayerId);
       const currentParent = byId(currentLayerId)?.parentId || null;
       model.states = model.states.filter(state => !removeSet.has(state.id));
-      const endpointRemoved = id => {
-        if (removeSet.has(id)) return true;
-        const boundary = parseBoundaryEdgeId(id);
-        return Boolean(boundary && removeSet.has(boundary.parentId));
-      };
-      model.transitions = model.transitions.filter(transition => !endpointRemoved(transition.from) && !endpointRemoved(transition.to));
+      model.transitions = model.transitions.filter(transition => !removeSet.has(transition.from) && !removeSet.has(transition.to));
       if (removeSet.has(model.initial)) model.initial = statesInLayer(null)[0]?.id || model.states[0]?.id || "";
       if (currentLayerRemoved) currentLayerId = currentParent && byId(currentParent) ? currentParent : null;
       return true;
@@ -3529,6 +3445,7 @@
       if (!distance) return;
       clearLongPress();
       pendingCanvasTouch = null;
+      pendingCanvasMouse = null;
       pendingEdgeTouch = null;
       pinchZoom = { distance, scale: camera.scale };
       activePointerId = null;
@@ -3537,6 +3454,7 @@
       connectingTargetId = null;
       panning = null;
       boxSelecting = null;
+      pendingCanvasMouse = null;
       mapEl.classList.remove("connecting", "panning", "dragging-state");
       updateSelectRect();
     }
@@ -3559,11 +3477,51 @@
       }, 430);
     }
 
+    function startPendingCanvasMouse(evt) {
+      clearLongPress();
+      evt.preventDefault();
+      evt.stopPropagation();
+      pendingCanvasMouse = {
+        clientX: evt.clientX,
+        clientY: evt.clientY,
+        moved: false
+      };
+      longPressTimer = setTimeout(() => {
+        if (!pendingCanvasMouse || pendingCanvasMouse.moved) return;
+        pendingCanvasMouse = null;
+        panning = null;
+        mapEl.classList.remove("panning");
+        startBoxSelect(evt);
+      }, 360);
+    }
+
+    function updatePendingCanvasMouse(evt) {
+      if (!pendingCanvasMouse || boxSelecting) return false;
+      const distance = Math.hypot(evt.clientX - pendingCanvasMouse.clientX, evt.clientY - pendingCanvasMouse.clientY);
+      if (distance <= 7) return true;
+      const start = pendingCanvasMouse;
+      pendingCanvasMouse = null;
+      start.moved = true;
+      clearLongPress();
+      startPanning(eventFromPoint(start, evt));
+      handleCanvasMove(evt);
+      return true;
+    }
+
+    function finishPendingCanvasMouse() {
+      if (!pendingCanvasMouse) return false;
+      pendingCanvasMouse = null;
+      clearLongPress();
+      clearSelection("selection:canvas");
+      return true;
+    }
+
     function cancelActiveCanvasGesture() {
       cancelQueuedCanvasMove();
       const dragToSave = dragging?.moved ? dragging.id : null;
       const hadSelectionBox = Boolean(boxSelecting);
       const hadGesture = Boolean(
+        pendingCanvasMouse ||
         pendingCanvasTouch ||
         pendingEdgeTouch ||
         boxSelecting ||
@@ -3573,6 +3531,7 @@
       );
       if (!hadGesture) return false;
       clearLongPress();
+      pendingCanvasMouse = null;
       pendingCanvasTouch = null;
       pendingEdgeTouch = null;
       activePointerId = null;
@@ -3601,7 +3560,7 @@
       if (Date.now() - lastTouchAt < 700) return false;
       if (activePointerId !== null || pendingCanvasTouch || pendingEdgeTouch || touchPointers.size) return false;
       if (evt.buttons !== 0) return false;
-      const hasDesktopGesture = Boolean(boxSelecting || dragging || connecting || panning);
+      const hasDesktopGesture = Boolean(pendingCanvasMouse || boxSelecting || dragging || connecting || panning);
       if (!hasDesktopGesture) return false;
       return cancelActiveCanvasGesture();
     }
@@ -3774,7 +3733,7 @@
       if (!removedNodes && !removeEdges.size) return false;
       if (removeEdges.size) {
         model.transitions = model.transitions.filter(t => !removeEdges.has(t.id));
-        for (const id of removeEdges) removeBoundaryTransition(id);
+        for (const id of removeEdges) clearBoundaryTransition(id);
       }
       selected = null;
       showEmptyInspector();
@@ -3857,20 +3816,6 @@
     function connectionTargetAtWorldPoint(p) {
       let best = null;
       let bestScore = Infinity;
-      const parent = byId(currentLayerId);
-      const frame = parent ? layerFrameBox() : null;
-      if (parent && frame) {
-        for (let index = 0; index < layerFlowSideLaneCount(parent, "output"); index++) {
-          const id = boundaryEdgeId(parent.id, "output", index);
-          if (id === connecting?.from) continue;
-          const point = layerFlowBoundaryPoint(frame, "output", index);
-          const dist = Math.hypot(p.x - point.x, p.y - point.y);
-          if (dist <= GRID_SIZE * 2 && dist < bestScore) {
-            best = boundaryPortById(id);
-            bestScore = dist;
-          }
-        }
-      }
       const states = visibleStates();
       for (let i = states.length - 1; i >= 0; i--) {
         const s = states[i];
@@ -3916,58 +3861,21 @@
       selectRectEl.style.display = boxSelecting.moved ? "block" : "none";
     }
 
-    function selectionBounds() {
+    function nodesInSelection() {
       if (!boxSelecting) return [];
       const a = screenToWorldXY(boxSelecting.startX, boxSelecting.startY);
       const b = screenToWorldXY(boxSelecting.currentX, boxSelecting.currentY);
-      return {
-        minX: Math.min(a.x, b.x),
-        maxX: Math.max(a.x, b.x),
-        minY: Math.min(a.y, b.y),
-        maxY: Math.max(a.y, b.y)
-      };
-    }
-
-    function nodesInSelection(bounds = selectionBounds()) {
-      if (!bounds) return [];
+      const minX = Math.min(a.x, b.x);
+      const maxX = Math.max(a.x, b.x);
+      const minY = Math.min(a.y, b.y);
+      const maxY = Math.max(a.y, b.y);
       return visibleStates()
-        .filter(s => s.x < bounds.maxX && s.x + nodeWidth(s) > bounds.minX && s.y < bounds.maxY && s.y + NODE_H > bounds.minY)
+        .filter(s => s.x < maxX && s.x + nodeWidth(s) > minX && s.y < maxY && s.y + NODE_H > minY)
         .map(s => s.id);
-    }
-
-    function routeIntersectsSelection(points, bounds) {
-      if (!bounds || !points?.length) return false;
-      const compact = compactRoutePoints(points);
-      for (const point of compact) {
-        if (point.x >= bounds.minX && point.x <= bounds.maxX && point.y >= bounds.minY && point.y <= bounds.maxY) return true;
-      }
-      for (const segment of routeSegments(compact)) {
-        if (segment.orientation === "horizontal") {
-          if (segment.coordinate < bounds.minY || segment.coordinate > bounds.maxY) continue;
-          if (segment.max >= bounds.minX && segment.min <= bounds.maxX) return true;
-        } else {
-          if (segment.coordinate < bounds.minX || segment.coordinate > bounds.maxX) continue;
-          if (segment.max >= bounds.minY && segment.min <= bounds.maxY) return true;
-        }
-      }
-      return false;
-    }
-
-    function edgesInSelection(bounds = selectionBounds()) {
-      if (!bounds) return [];
-      return visibleTransitions()
-        .filter(transition => {
-          const from = endpointById(transition.from);
-          const to = endpointById(transition.to);
-          if (!from || !to) return false;
-          return routeIntersectsSelection(edgeRoutePoints(from, to, transition), bounds);
-        })
-        .map(transition => transition.id);
     }
 
     function startBoxSelect(evt) {
       evt.preventDefault();
-      evt.stopPropagation();
       selected = null;
       boxSelecting = {
         startX: evt.clientX,
@@ -3991,9 +3899,8 @@
     function updateNodeElementPosition(state) {
       const el = nodeElement(state.id);
       if (!el) return false;
-      const original = dragging?.originals?.[state.id];
-      if (original) {
-        el.style.transform = `translate3d(${state.x - original.x}px, ${state.y - original.y}px, 0)`;
+      if (dragging?.id === state.id) {
+        el.style.transform = `translate3d(${state.x - dragging.originalX}px, ${state.y - dragging.originalY}px, 0)`;
       } else {
         el.style.left = state.x + "px";
         el.style.top = state.y + "px";
@@ -4006,8 +3913,8 @@
       // Recompute all routes fresh (first-principles: no cache, full A* for all transitions)
       _frameRoutes = computeFrameRoutes();
       for (const transition of visibleTransitions()) {
-        const from = endpointById(transition.from);
-        const to = endpointById(transition.to);
+        const from = byId(transition.from);
+        const to = byId(transition.to);
         if (!from || !to) continue;
         const pts = _frameRoutes.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
         updateTransitionElements(transition, pts);
@@ -4015,8 +3922,8 @@
     }
 
     function updateTransitionElements(transition, routePoints) {
-      const from = endpointById(transition.from);
-      const to = endpointById(transition.to);
+      const from = byId(transition.from);
+      const to = byId(transition.to);
       if (!from || !to || !routePoints?.length) return;
       const pathD = pathFromPoints(routePoints);
       const arrowD = arrowPathForPoints(routePoints);
@@ -4375,45 +4282,28 @@
 
     function startNodeDrag(evt, s) {
       evt.stopPropagation();
-      const alreadySelected = selectedNodeIds().has(s.id);
-      if (!evt.shiftKey && !alreadySelected) selected = selectionFromParts([s.id], []);
+      if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
       const p = screenToWorld(evt);
-      const dragIds = selectedNodeIdList().includes(s.id) ? selectedNodeIdList() : [s.id];
-      const originals = Object.fromEntries(dragIds.map(id => {
-        const state = byId(id);
-        return [id, { x: state?.x || 0, y: state?.y || 0 }];
-      }));
       dragging = {
         id: s.id,
-        ids: dragIds,
-        originals,
         shiftKey: Boolean(evt.shiftKey),
         originalX: s.x,
         originalY: s.y,
         dx: p.x - s.x,
         dy: p.y - s.y,
-        startWorldX: p.x,
-        startWorldY: p.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
         moved: false
       };
-      for (const id of dragIds) {
-        const state = byId(id);
-        if (state) updateNodeElementPosition(state);
-      }
+      updateNodeElementPosition(s);
       mapEl.classList.add("dragging-state");
       draw();
     }
 
     function startConnection(evt, s) {
-      startConnectionFromEndpoint(evt, s.id);
-    }
-
-    function startConnectionFromEndpoint(evt, endpointId) {
       evt.stopPropagation();
       const p = screenToWorld(evt);
-      connecting = { from: endpointId, to: p };
+      connecting = { from: s.id, to: p };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
       draw();
@@ -4422,7 +4312,7 @@
     function startEdgeRewire(evt, t) {
       evt.preventDefault();
       evt.stopPropagation();
-      const from = endpointById(t.from);
+      const from = byId(t.from);
       if (!from) return;
       connecting = { from: t.from, to: screenToWorld(evt), edgeId: t.id };
       connectingTargetId = null;
@@ -4433,7 +4323,6 @@
     }
 
     function nodeCenter(s, side) {
-      if (s?.boundaryPort) return { x: s.x, y: s.y };
       const width = nodeWidth(s);
       const centerY = s.y + NODE_H / 2;
       if (side === "out") return { x: s.x + width, y: centerY };
@@ -4513,7 +4402,6 @@
     }
 
     function edgePortPoint(state, side, transition = null) {
-      if (state?.boundaryPort) return nodeCenter(state, side);
       if (!transition) return nodeCenter(state, side);
       const transitions = orderedPortTransitions(state.id, side);
       const index = Math.max(0, transitions.findIndex(item => item.id === transition.id));
@@ -4973,8 +4861,8 @@
       for (const [id, points] of current) {
         const transition = model.transitions.find(item => item.id === id);
         if (!transition || routeIsClear(points, transition)) continue;
-        const from = endpointById(transition.from);
-        const to = endpointById(transition.to);
+        const from = byId(transition.from);
+        const to = byId(transition.to);
         const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition) : null;
         if (rerouted) current.set(id, rerouted);
       }
@@ -4987,8 +4875,8 @@
       recordRouteMetric("finalRouteBuilds");
       const routes = new Map();
       for (const transition of visibleTransitions()) {
-        const from = endpointById(transition.from);
-        const to = endpointById(transition.to);
+        const from = byId(transition.from);
+        const to = byId(transition.to);
         if (from && to) routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
       }
       return resolveRouteOverlaps(routes);
@@ -5181,6 +5069,14 @@
       return Math.max(1, parentBoundaryTransitions(parent, side).length, boundary[side].length);
     }
 
+    function layerFlowColor(parent, laneIndex) {
+      const parentLayerId = parent?.parentId || null;
+      const inputs = parentBoundaryTransitions(parent, "input");
+      const outputs = parentBoundaryTransitions(parent, "output");
+      const source = inputs[laneIndex % inputs.length] || outputs[laneIndex % outputs.length] || null;
+      return source ? edgeColor(source, parentLayerId) : "#38bdf8";
+    }
+
     function layerFlowBoundaryPoint(frame, side, laneIndex) {
       return {
         x: side === "input" ? frame.left : frame.right,
@@ -5192,84 +5088,204 @@
       };
     }
 
-    function renderLayerBoundaryPorts(parent) {
+    function layerFlowStatePoint(state, side, laneIndex) {
+      const y = snapClampToGrid(
+        state.y + NODE_H / 2 + laneSlot(laneIndex) * GRID_SIZE,
+        state.y + GRID_SIZE,
+        state.y + NODE_H - GRID_SIZE
+      );
+      return {
+        x: side === "input" ? state.x : state.x + nodeWidth(state),
+        y
+      };
+    }
+
+    function appendFlowSegment(points, target) {
+      const start = points[points.length - 1];
+      if (!start) {
+        points.push(target);
+        return;
+      }
+      if (start.x === target.x || start.y === target.y) {
+        points.push(target);
+        return;
+      }
+      const midX = snapToGrid((start.x + target.x) / 2);
+      points.push({ x: midX, y: start.y }, { x: midX, y: target.y }, target);
+    }
+
+    function layerFlowPathPoints(frame, states, laneIndex) {
+      const orderedStates = states
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const points = [layerFlowBoundaryPoint(frame, "input", laneIndex)];
+      for (const state of orderedStates) {
+        appendFlowSegment(points, layerFlowStatePoint(state, "input", laneIndex));
+        appendFlowSegment(points, layerFlowStatePoint(state, "output", laneIndex));
+      }
+      appendFlowSegment(points, layerFlowBoundaryPoint(frame, "output", laneIndex));
+      return compactRoutePoints(points);
+    }
+
+    function layerFlowPlugPoints(frame, states, laneIndex) {
+      const orderedStates = states
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const plugs = [
+        { ...layerFlowBoundaryPoint(frame, "input", laneIndex), type: "input", stateId: "" }
+      ];
+      for (const state of orderedStates) {
+        plugs.push({ ...layerFlowStatePoint(state, "input", laneIndex), type: "state-input", stateId: state.id });
+        plugs.push({ ...layerFlowStatePoint(state, "output", laneIndex), type: "state-output", stateId: state.id });
+      }
+      plugs.push({ ...layerFlowBoundaryPoint(frame, "output", laneIndex), type: "output", stateId: "" });
+      return plugs;
+    }
+
+    function appendLayerFlowTransition(transition, points, flowType, laneIndex, parentLayerId, edgeSelection) {
+      const compact = compactRoutePoints(points);
+      const pathD = pathFromPoints(compact);
+      const edgeStyle = `--edge-color: ${edgeColor(transition, parentLayerId)}`;
+
+      const hit = svgEl("path", {
+        d: pathD,
+        class: "hit layer-flow-hit",
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-layer-flow": flowType,
+        "data-layer-flow-index": String(laneIndex)
+      });
+      attachEdgeInteractions(hit, transition);
+      appendEdgeHit(hit);
+
+      const edgeClasses = ["edge", "layer-flow-edge"];
+      if (edgeSelection.has(transition.id)) edgeClasses.push("selected");
+      if (hoveredEdgeId === transition.id) edgeClasses.push("hovered");
+      if (lastAppTransitionId === transition.id) edgeClasses.push("runtime");
+      const edge = svgEl("path", {
+        d: pathD,
+        class: edgeClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-layer-flow": flowType,
+        "data-layer-flow-index": String(laneIndex)
+      });
+      attachEdgeInteractions(edge, transition);
+      wiresEl.appendChild(edge);
+
+      const arrowClasses = ["edge-arrow", "layer-flow-edge-arrow"];
+      if (edgeSelection.has(transition.id)) arrowClasses.push("selected");
+      if (hoveredEdgeId === transition.id) arrowClasses.push("hovered");
+      if (lastAppTransitionId === transition.id) arrowClasses.push("runtime");
+      const arrowD = arrowPathForPoints(compact);
+      if (arrowD) wiresEl.appendChild(svgEl("path", {
+        d: arrowD,
+        class: arrowClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-layer-flow": `${flowType}-arrow`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+
+      const pinClasses = ["edge-pin", "layer-flow-pin"];
+      if (edgeSelection.has(transition.id)) pinClasses.push("selected");
+      if (hoveredEdgeId === transition.id) pinClasses.push("hovered");
+      const startPin = compact[0];
+      const endPin = compact[compact.length - 1];
+      wiresEl.appendChild(svgEl("circle", {
+        cx: startPin.x,
+        cy: startPin.y,
+        r: 5,
+        class: pinClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-edge-pin": flowType === "input-wire" ? "out" : "in",
+        "data-layer-flow": `${flowType}-start`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      wiresEl.appendChild(svgEl("circle", {
+        cx: endPin.x,
+        cy: endPin.y,
+        r: 5,
+        class: pinClasses.join(" "),
+        style: edgeStyle,
+        "data-edge-id": transition.id,
+        "data-edge-pin": flowType === "input-wire" ? "in" : "out",
+        "data-layer-flow": `${flowType}-end`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+    }
+
+    function appendLayerFlowOpenLane(parent, points, flowType, laneIndex) {
+      const compact = compactRoutePoints(points);
+      const style = `--edge-color: ${layerFlowColor(parent, laneIndex)}`;
+      wiresEl.appendChild(svgEl("path", {
+        d: pathFromPoints(compact),
+        class: "edge layer-flow-edge layer-flow-open",
+        style,
+        "data-layer-flow": flowType,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      const arrowD = arrowPathForPoints(compact);
+      if (arrowD) wiresEl.appendChild(svgEl("path", {
+        d: arrowD,
+        class: "edge-arrow layer-flow-edge-arrow",
+        style,
+        "data-layer-flow": `${flowType}-arrow`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      const startPin = compact[0];
+      const endPin = compact[compact.length - 1];
+      wiresEl.appendChild(svgEl("circle", {
+        cx: startPin.x,
+        cy: startPin.y,
+        r: 5,
+        class: "edge-pin layer-flow-pin",
+        style,
+        "data-layer-flow": `${flowType}-start`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+      wiresEl.appendChild(svgEl("circle", {
+        cx: endPin.x,
+        cy: endPin.y,
+        r: 5,
+        class: "edge-pin layer-flow-pin",
+        style,
+        "data-layer-flow": `${flowType}-end`,
+        "data-layer-flow-index": String(laneIndex)
+      }));
+    }
+
+    function renderLayerFlowWires(states) {
+      const parent = byId(currentLayerId);
       const frame = parent ? layerFrameBox() : null;
-      if (!parent || !frame || !childStateCount(parent.id)) return;
+      if (!parent || !frame || !states.length) return;
+
       const edgeSelection = selectedEdgeIds();
-      const renderPort = (side, index) => {
-        const id = boundaryEdgeId(parent.id, side, index);
-        const point = layerFlowBoundaryPoint(frame, side, index);
-        const port = boundaryPortById(id);
-        const classes = ["edge-pin", "layer-flow-pin", "layer-boundary-port", `layer-boundary-port-${side}`];
-        if (edgeSelection.has(id) || connecting?.from === id || connectingTargetId === id) classes.push("selected");
-        const color = edgeColor(ensureBoundaryTransition(parent, side, index));
-        const circle = svgEl("circle", {
-          cx: point.x,
-          cy: point.y,
-          r: 7,
-          class: classes.join(" "),
-          style: `--edge-color: ${color}`,
-          "data-boundary-port-id": id,
-          "data-layer-flow": `${side}-port`,
-          "data-layer-flow-index": String(index)
-        });
-        if (side === "input") {
-          circle.addEventListener("mousedown", evt => {
-            if (Date.now() - lastTouchAt < 700) return;
-            if (evt.button !== 0) return;
-            startConnectionFromEndpoint(evt, id);
-          });
-          circle.addEventListener("pointerdown", evt => {
-            if (!isTouchPointer(evt)) return;
-            evt.preventDefault();
-            lastTouchAt = Date.now();
-            if (pinchZoom) return;
-            activePointerId = evt.pointerId;
-            startConnectionFromEndpoint(evt, id);
-          });
-        }
-        circle.addEventListener("click", evt => {
-          evt.stopPropagation();
-          if (evt.shiftKey) {
-            toggleSelection("edge", id);
-            refreshInspectorForSelection();
-            draw();
-            return;
-          }
-          if (port) selectEdge(id, evt.clientX, evt.clientY);
-        });
-        wiresEl.appendChild(circle);
-      };
-      for (let index = 0; index < layerFlowSideLaneCount(parent, "input"); index++) renderPort("input", index);
-      for (let index = 0; index < layerFlowSideLaneCount(parent, "output"); index++) renderPort("output", index);
-      const renderAdd = side => {
-        const index = layerFlowSideLaneCount(parent, side);
-        if (index >= 16) return;
-        const point = layerFlowBoundaryPoint(frame, side, index);
-        const group = svgEl("g", {
-          class: `layer-flow-add-frame layer-flow-add-frame-${side}`,
-          "data-layer-flow-add": side,
-          "data-layer-flow-index": String(index)
-        });
-        const hit = svgEl("circle", { cx: point.x, cy: point.y, r: 10, class: "layer-flow-add-frame-hit" });
-        const text = svgEl("text", { x: point.x, y: point.y + 4, class: "layer-flow-add-frame-label", "text-anchor": "middle" });
-        text.textContent = "+";
-        const add = evt => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          addBoundaryLane(parent, side);
-        };
-        group.addEventListener("mousedown", evt => evt.stopPropagation());
-        group.addEventListener("pointerdown", evt => {
-          evt.stopPropagation();
-          if (isTouchPointer(evt)) evt.preventDefault();
-        });
-        group.addEventListener("click", add);
-        group.append(hit, text);
-        wiresEl.appendChild(group);
-      };
-      renderAdd("input");
-      renderAdd("output");
+
+      // Must match draw()'s entryState/exitState: leftmost and rightmost by X.
+      const orderedByX = states.slice().sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      const entryState = orderedByX[0];
+      const exitState = orderedByX[orderedByX.length - 1];
+      // layerFlowStatePoint is the exact same function addLayerFlowSlot uses to place the dot,
+      // so the wire endpoint lands precisely on it.
+      for (let index = 0; index < layerFlowSideLaneCount(parent, "input"); index++) {
+        const t = ensureBoundaryTransition(parent, "input", index);
+        const start = layerFlowBoundaryPoint(frame, "input", index);
+        const end = layerFlowStatePoint(entryState, "input", index);
+        const points = [start];
+        appendFlowSegment(points, end);
+        appendLayerFlowTransition(t, points, "input-wire", index, currentLayerId, edgeSelection);
+      }
+
+      for (let index = 0; index < layerFlowSideLaneCount(parent, "output"); index++) {
+        const t = ensureBoundaryTransition(parent, "output", index);
+        const start = layerFlowStatePoint(exitState, "output", index);
+        const end = layerFlowBoundaryPoint(frame, "output", index);
+        const points = [start];
+        appendFlowSegment(points, end);
+        appendLayerFlowTransition(t, points, "output-wire", index, currentLayerId, edgeSelection);
+      }
     }
 
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
@@ -5299,6 +5315,29 @@
           startConnection(evt, state);
         });
       }
+      nodeEl.appendChild(slot);
+    }
+
+    function addLayerFlowSlot(nodeEl, state, laneIndex, side, parent) {
+      const point = layerFlowStatePoint(state, side, laneIndex);
+      const slot = document.createElement("div");
+      slot.style.top = point.y - state.y + "px";
+
+      const transition = ensureBoundaryTransition(parent, side === "input" ? "input" : "output", laneIndex);
+      const color = edgeColor(transition);
+      const classes = ["port-slot", `port-slot-${side}`, "layer-flow-slot", `layer-flow-slot-${side}`];
+      if (selectedEdgeIds().has(transition.id)) classes.push("selected");
+      if (hoveredEdgeId === transition.id) classes.push("hovered");
+
+      slot.className = classes.join(" ");
+      slot.style.setProperty("--edge-color", color);
+      slot.dataset.edgeId = transition.id;
+      slot.dataset.layerFlowSlot = side === "input" ? "state-input" : "state-output";
+      slot.dataset.layerFlowIndex = String(laneIndex);
+      slot.dataset.stateId = state.id;
+      slot.addEventListener("mousedown", evt => evt.stopPropagation());
+      slot.addEventListener("pointerdown", evt => evt.stopPropagation());
+      attachEdgeInteractions(slot, transition);
       nodeEl.appendChild(slot);
     }
 
@@ -5355,12 +5394,12 @@
       wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
-      renderLayerBoundaryPorts(layerParent);
+      renderLayerFlowWires(states);
 
       for (const t of transitions) {
         if (connecting?.edgeId === t.id) continue;
-        const from = endpointById(t.from);
-        const to = endpointById(t.to);
+        const from = byId(t.from);
+        const to = byId(t.to);
         if (!from || !to) continue;
         const routePoints = edgeRoutePoints(from, to, t);
         const pathD = pathFromPoints(routePoints);
@@ -5444,11 +5483,11 @@
       for (const tipHit of edgeTipHits) wiresEl.appendChild(tipHit);
 
       if (connecting) {
-        const from = endpointById(connecting.from);
-        const target = connectingTargetId ? endpointById(connectingTargetId) : null;
+        const from = byId(connecting.from);
+        const target = connectingTargetId ? byId(connectingTargetId) : null;
         if (target) {
           wiresEl.appendChild(svgEl("path", { d: edgePath(from, target), class: "temp-edge" }));
-        } else if (from) {
+        } else {
           const a = nodeCenter(from, "out");
           const b = snapPointToGrid(connecting.to);
           wiresEl.appendChild(svgEl("path", {
@@ -5611,6 +5650,18 @@
           startConnection(evt, s);
         });
 
+        if (layerParent) {
+          if (entryState && s.id === entryState.id) {
+            for (let index = 0; index < layerFlowSideLaneCount(layerParent, "input"); index++) {
+              addLayerFlowSlot(el, s, index, "input", layerParent);
+            }
+          }
+          if (exitState && s.id === exitState.id) {
+            for (let index = 0; index < layerFlowSideLaneCount(layerParent, "output"); index++) {
+              addLayerFlowSlot(el, s, index, "output", layerParent);
+            }
+          }
+        }
         for (const transition of orderedPortTransitions(s.id, "in")) {
           addPortSlot(el, s, transition, "in", edgeSelection);
         }
@@ -6662,8 +6713,8 @@
 
     function showEdgeInspector(t, opts = {}) {
       const root = stateInspectorBodyEl;
-      const from = endpointById(t.from);
-      const to = endpointById(t.to);
+      const from = byId(t.from);
+      const to = byId(t.to);
       const isBoundary = Boolean(t.boundary);
       const fromLabel = isBoundary
         ? (t.side === "input" ? "Parent input" : "Child output")
@@ -7193,17 +7244,11 @@
         boxSelecting.moved = Math.hypot(evt.clientX - boxSelecting.startX, evt.clientY - boxSelecting.startY) > 4;
         updateSelectRect();
         if (boxSelecting.moved) {
-          const bounds = selectionBounds();
-          const ids = nodesInSelection(bounds);
-          const edgeIds = edgesInSelection(bounds);
-          selected = selectionFromParts(ids, edgeIds);
+          const ids = nodesInSelection();
+          selected = selectionFromParts(ids, []);
           const idSet = new Set(ids);
-          const edgeSet = new Set(edgeIds);
           document.querySelectorAll(".node").forEach(el => {
             el.classList.toggle("selected", idSet.has(el.dataset.id));
-          });
-          wiresEl.querySelectorAll("[data-edge-id]").forEach(el => {
-            el.classList.toggle("selected", edgeSet.has(el.dataset.edgeId));
           });
           updateSelectionActions();
         }
@@ -7221,24 +7266,16 @@
         const wasMoved = dragging.moved;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
-        const deltaX = snapToGrid(p.x - dragging.startWorldX);
-        const deltaY = snapToGrid(p.y - dragging.startWorldY);
-        let positionChanged = false;
-        for (const id of dragging.ids || [dragging.id]) {
-          const state = byId(id);
-          const original = dragging.originals?.[id];
-          if (!state || !original) continue;
-          const nextX = snapClampToGrid(original.x + deltaX, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state));
-          const nextY = snapClampToGrid(original.y + deltaY, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
-          positionChanged = positionChanged || nextX !== state.x || nextY !== state.y;
-          state.x = nextX;
-          state.y = nextY;
-        }
+        const nextX = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
+        const nextY = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+        const positionChanged = nextX !== s.x || nextY !== s.y;
+        s.x = nextX;
+        s.y = nextY;
         stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
         
         document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
         dragging.targetParentId = null;
-        if (dragging.moved && (dragging.ids || [dragging.id]).length === 1) {
+        if (dragging.moved) {
           const target = stateNodeAtClientPoint(evt.clientX, evt.clientY);
           if (target && target.id !== s.id && !isDescendant(s.id, target.id)) {
             const targetEl = document.querySelector(`.node[data-id="${target.id}"]`);
@@ -7250,11 +7287,9 @@
         }
 
         if (positionChanged || (!wasMoved && dragging.moved)) {
-          for (const id of dragging.ids || [dragging.id]) {
-            const state = byId(id);
-            if (state) updateNodeElementPosition(state);
+          if (updateNodeElementPosition(s)) {
+            updateDraggedStateEdges(s.id);
           }
-          updateDraggedStateEdges(dragging.id);
         }
         return;
       }
@@ -7270,8 +7305,8 @@
     function handleCanvasEnd(evt) {
       if (boxSelecting) {
         if (boxSelecting.moved) {
-          const bounds = selectionBounds();
-          selected = selectionFromParts(nodesInSelection(bounds), edgesInSelection(bounds));
+          const ids = nodesInSelection();
+          selected = selectionFromParts(ids, []);
         } else {
           selected = null;
         }
@@ -7290,9 +7325,9 @@
         const wasClick = !dragging.moved && Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) <= 4;
         const didMove = dragging.moved;
         const dragId = dragging.id;
-        const dragIds = dragging.ids || [dragging.id];
         const shiftClick = dragging.shiftKey;
-        const originals = dragging.originals || { [dragging.id]: { x: dragging.originalX, y: dragging.originalY } };
+        const originalX = dragging.originalX;
+        const originalY = dragging.originalY;
         const targetParentId = dragging.targetParentId;
         dragging = null;
         mapEl.classList.remove("dragging-state");
@@ -7319,19 +7354,13 @@
         if (didMove) {
           lastNodeClick = null;
           if (s && pointInElement(evt.clientX, evt.clientY, stateExplorerEl)) {
-            for (const id of dragIds) {
-              const state = byId(id);
-              const stateOriginal = originals[id];
-              if (stateOriginal && state) {
-                state.x = stateOriginal.x;
-                state.y = stateOriginal.y;
-              }
-            }
-            if (dragIds.length === 1) addStateTemplateFromState(s);
+            s.x = originalX;
+            s.y = originalY;
+            addStateTemplateFromState(s);
             draw();
             return;
           }
-          if (s && dragIds.length === 1 && targetParentId && byId(targetParentId)) {
+          if (s && targetParentId && byId(targetParentId)) {
             const parent = byId(targetParentId);
             s.parentId = parent.id;
             const position = nextChildPosition(parent.id);
@@ -7346,14 +7375,14 @@
             fitView();
             return;
           }
-          saveModel("state:drag:" + dragIds.join(","));
+          saveModel("state:drag:" + dragId);
           draw();
           return;
         }
       }
       if (connecting) {
         const dropPoint = screenToWorld(evt);
-        const targetNode = connectingTargetId ? endpointById(connectingTargetId) : connectionTargetAtWorldPoint(dropPoint);
+        const targetNode = connectingTargetId ? byId(connectingTargetId) : connectionTargetAtWorldPoint(dropPoint);
         const targetId = targetNode?.id;
         const wasRewire = Boolean(connecting.edgeId);
         if (targetId) {
@@ -7462,7 +7491,11 @@
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
-        startBoxSelect(evt);
+        if (evt.shiftKey || evt.ctrlKey || evt.metaKey) {
+          startBoxSelect(evt);
+          return;
+        }
+        startPendingCanvasMouse(evt);
       }
     });
 
@@ -7479,10 +7512,12 @@
 
     window.addEventListener("mousemove", evt => {
       if (cancelStaleDesktopMouseGesture(evt)) return;
+      if (updatePendingCanvasMouse(evt)) return;
       queueCanvasMove(evt);
     });
 
     window.addEventListener("mouseup", evt => {
+      if (finishPendingCanvasMouse()) return;
       handleCanvasEnd(evt);
     });
 
@@ -7491,7 +7526,7 @@
     });
 
     document.addEventListener("mouseout", evt => {
-      if (evt.relatedTarget || evt.buttons !== 0) return;
+      if (evt.relatedTarget || evt.buttons !== 1) return;
       cancelActiveCanvasGesture();
     });
 
@@ -7596,10 +7631,6 @@
       if (evt.key === "Escape") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
-        if (selected) {
-          clearSelection("selection:escape");
-          return;
-        }
         exitCurrentLayer();
         return;
       }
