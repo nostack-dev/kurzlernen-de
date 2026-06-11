@@ -1919,7 +1919,6 @@
     let pinchZoom = null;
     let longPressTimer = null;
     let pendingCanvasTouch = null;
-    let pendingCanvasMouse = null;
     let pendingEdgeTouch = null;
     let suppressEdgeClickUntil = 0;
     let cameraSaveTimer = null;
@@ -3530,7 +3529,6 @@
       if (!distance) return;
       clearLongPress();
       pendingCanvasTouch = null;
-      pendingCanvasMouse = null;
       pendingEdgeTouch = null;
       pinchZoom = { distance, scale: camera.scale };
       activePointerId = null;
@@ -3539,7 +3537,6 @@
       connectingTargetId = null;
       panning = null;
       boxSelecting = null;
-      pendingCanvasMouse = null;
       mapEl.classList.remove("connecting", "panning", "dragging-state");
       updateSelectRect();
     }
@@ -3562,51 +3559,11 @@
       }, 430);
     }
 
-    function startPendingCanvasMouse(evt) {
-      clearLongPress();
-      evt.preventDefault();
-      evt.stopPropagation();
-      pendingCanvasMouse = {
-        clientX: evt.clientX,
-        clientY: evt.clientY,
-        moved: false
-      };
-      longPressTimer = setTimeout(() => {
-        if (!pendingCanvasMouse || pendingCanvasMouse.moved) return;
-        pendingCanvasMouse = null;
-        panning = null;
-        mapEl.classList.remove("panning");
-        startBoxSelect(evt);
-      }, 360);
-    }
-
-    function updatePendingCanvasMouse(evt) {
-      if (!pendingCanvasMouse || boxSelecting) return false;
-      const distance = Math.hypot(evt.clientX - pendingCanvasMouse.clientX, evt.clientY - pendingCanvasMouse.clientY);
-      if (distance <= 7) return true;
-      const start = pendingCanvasMouse;
-      pendingCanvasMouse = null;
-      start.moved = true;
-      clearLongPress();
-      startPanning(eventFromPoint(start, evt));
-      handleCanvasMove(evt);
-      return true;
-    }
-
-    function finishPendingCanvasMouse() {
-      if (!pendingCanvasMouse) return false;
-      pendingCanvasMouse = null;
-      clearLongPress();
-      clearSelection("selection:canvas");
-      return true;
-    }
-
     function cancelActiveCanvasGesture() {
       cancelQueuedCanvasMove();
       const dragToSave = dragging?.moved ? dragging.id : null;
       const hadSelectionBox = Boolean(boxSelecting);
       const hadGesture = Boolean(
-        pendingCanvasMouse ||
         pendingCanvasTouch ||
         pendingEdgeTouch ||
         boxSelecting ||
@@ -3616,7 +3573,6 @@
       );
       if (!hadGesture) return false;
       clearLongPress();
-      pendingCanvasMouse = null;
       pendingCanvasTouch = null;
       pendingEdgeTouch = null;
       activePointerId = null;
@@ -3645,7 +3601,7 @@
       if (Date.now() - lastTouchAt < 700) return false;
       if (activePointerId !== null || pendingCanvasTouch || pendingEdgeTouch || touchPointers.size) return false;
       if (evt.buttons !== 0) return false;
-      const hasDesktopGesture = Boolean(pendingCanvasMouse || boxSelecting || dragging || connecting || panning);
+      const hasDesktopGesture = Boolean(boxSelecting || dragging || connecting || panning);
       if (!hasDesktopGesture) return false;
       return cancelActiveCanvasGesture();
     }
@@ -3960,21 +3916,58 @@
       selectRectEl.style.display = boxSelecting.moved ? "block" : "none";
     }
 
-    function nodesInSelection() {
+    function selectionBounds() {
       if (!boxSelecting) return [];
       const a = screenToWorldXY(boxSelecting.startX, boxSelecting.startY);
       const b = screenToWorldXY(boxSelecting.currentX, boxSelecting.currentY);
-      const minX = Math.min(a.x, b.x);
-      const maxX = Math.max(a.x, b.x);
-      const minY = Math.min(a.y, b.y);
-      const maxY = Math.max(a.y, b.y);
+      return {
+        minX: Math.min(a.x, b.x),
+        maxX: Math.max(a.x, b.x),
+        minY: Math.min(a.y, b.y),
+        maxY: Math.max(a.y, b.y)
+      };
+    }
+
+    function nodesInSelection(bounds = selectionBounds()) {
+      if (!bounds) return [];
       return visibleStates()
-        .filter(s => s.x < maxX && s.x + nodeWidth(s) > minX && s.y < maxY && s.y + NODE_H > minY)
+        .filter(s => s.x < bounds.maxX && s.x + nodeWidth(s) > bounds.minX && s.y < bounds.maxY && s.y + NODE_H > bounds.minY)
         .map(s => s.id);
+    }
+
+    function routeIntersectsSelection(points, bounds) {
+      if (!bounds || !points?.length) return false;
+      const compact = compactRoutePoints(points);
+      for (const point of compact) {
+        if (point.x >= bounds.minX && point.x <= bounds.maxX && point.y >= bounds.minY && point.y <= bounds.maxY) return true;
+      }
+      for (const segment of routeSegments(compact)) {
+        if (segment.orientation === "horizontal") {
+          if (segment.coordinate < bounds.minY || segment.coordinate > bounds.maxY) continue;
+          if (segment.max >= bounds.minX && segment.min <= bounds.maxX) return true;
+        } else {
+          if (segment.coordinate < bounds.minX || segment.coordinate > bounds.maxX) continue;
+          if (segment.max >= bounds.minY && segment.min <= bounds.maxY) return true;
+        }
+      }
+      return false;
+    }
+
+    function edgesInSelection(bounds = selectionBounds()) {
+      if (!bounds) return [];
+      return visibleTransitions()
+        .filter(transition => {
+          const from = endpointById(transition.from);
+          const to = endpointById(transition.to);
+          if (!from || !to) return false;
+          return routeIntersectsSelection(edgeRoutePoints(from, to, transition), bounds);
+        })
+        .map(transition => transition.id);
     }
 
     function startBoxSelect(evt) {
       evt.preventDefault();
+      evt.stopPropagation();
       selected = null;
       boxSelecting = {
         startX: evt.clientX,
@@ -3998,8 +3991,9 @@
     function updateNodeElementPosition(state) {
       const el = nodeElement(state.id);
       if (!el) return false;
-      if (dragging?.id === state.id) {
-        el.style.transform = `translate3d(${state.x - dragging.originalX}px, ${state.y - dragging.originalY}px, 0)`;
+      const original = dragging?.originals?.[state.id];
+      if (original) {
+        el.style.transform = `translate3d(${state.x - original.x}px, ${state.y - original.y}px, 0)`;
       } else {
         el.style.left = state.x + "px";
         el.style.top = state.y + "px";
@@ -4381,20 +4375,33 @@
 
     function startNodeDrag(evt, s) {
       evt.stopPropagation();
-      if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
+      const alreadySelected = selectedNodeIds().has(s.id);
+      if (!evt.shiftKey && !alreadySelected) selected = selectionFromParts([s.id], []);
       const p = screenToWorld(evt);
+      const dragIds = selectedNodeIdList().includes(s.id) ? selectedNodeIdList() : [s.id];
+      const originals = Object.fromEntries(dragIds.map(id => {
+        const state = byId(id);
+        return [id, { x: state?.x || 0, y: state?.y || 0 }];
+      }));
       dragging = {
         id: s.id,
+        ids: dragIds,
+        originals,
         shiftKey: Boolean(evt.shiftKey),
         originalX: s.x,
         originalY: s.y,
         dx: p.x - s.x,
         dy: p.y - s.y,
+        startWorldX: p.x,
+        startWorldY: p.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
         moved: false
       };
-      updateNodeElementPosition(s);
+      for (const id of dragIds) {
+        const state = byId(id);
+        if (state) updateNodeElementPosition(state);
+      }
       mapEl.classList.add("dragging-state");
       draw();
     }
@@ -5223,6 +5230,12 @@
         }
         circle.addEventListener("click", evt => {
           evt.stopPropagation();
+          if (evt.shiftKey) {
+            toggleSelection("edge", id);
+            refreshInspectorForSelection();
+            draw();
+            return;
+          }
           if (port) selectEdge(id, evt.clientX, evt.clientY);
         });
         wiresEl.appendChild(circle);
@@ -7180,11 +7193,17 @@
         boxSelecting.moved = Math.hypot(evt.clientX - boxSelecting.startX, evt.clientY - boxSelecting.startY) > 4;
         updateSelectRect();
         if (boxSelecting.moved) {
-          const ids = nodesInSelection();
-          selected = selectionFromParts(ids, []);
+          const bounds = selectionBounds();
+          const ids = nodesInSelection(bounds);
+          const edgeIds = edgesInSelection(bounds);
+          selected = selectionFromParts(ids, edgeIds);
           const idSet = new Set(ids);
+          const edgeSet = new Set(edgeIds);
           document.querySelectorAll(".node").forEach(el => {
             el.classList.toggle("selected", idSet.has(el.dataset.id));
+          });
+          wiresEl.querySelectorAll("[data-edge-id]").forEach(el => {
+            el.classList.toggle("selected", edgeSet.has(el.dataset.edgeId));
           });
           updateSelectionActions();
         }
@@ -7202,16 +7221,24 @@
         const wasMoved = dragging.moved;
         dragging.moved = dragging.moved || Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) > 4;
         const p = screenToWorld(evt);
-        const nextX = snapClampToGrid(p.x - dragging.dx, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(s));
-        const nextY = snapClampToGrid(p.y - dragging.dy, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
-        const positionChanged = nextX !== s.x || nextY !== s.y;
-        s.x = nextX;
-        s.y = nextY;
+        const deltaX = snapToGrid(p.x - dragging.startWorldX);
+        const deltaY = snapToGrid(p.y - dragging.startWorldY);
+        let positionChanged = false;
+        for (const id of dragging.ids || [dragging.id]) {
+          const state = byId(id);
+          const original = dragging.originals?.[id];
+          if (!state || !original) continue;
+          const nextX = snapClampToGrid(original.x + deltaX, WORLD_MIN_X, WORLD_MAX_X - nodeWidth(state));
+          const nextY = snapClampToGrid(original.y + deltaY, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+          positionChanged = positionChanged || nextX !== state.x || nextY !== state.y;
+          state.x = nextX;
+          state.y = nextY;
+        }
         stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
         
         document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
         dragging.targetParentId = null;
-        if (dragging.moved) {
+        if (dragging.moved && (dragging.ids || [dragging.id]).length === 1) {
           const target = stateNodeAtClientPoint(evt.clientX, evt.clientY);
           if (target && target.id !== s.id && !isDescendant(s.id, target.id)) {
             const targetEl = document.querySelector(`.node[data-id="${target.id}"]`);
@@ -7223,9 +7250,11 @@
         }
 
         if (positionChanged || (!wasMoved && dragging.moved)) {
-          if (updateNodeElementPosition(s)) {
-            updateDraggedStateEdges(s.id);
+          for (const id of dragging.ids || [dragging.id]) {
+            const state = byId(id);
+            if (state) updateNodeElementPosition(state);
           }
+          updateDraggedStateEdges(dragging.id);
         }
         return;
       }
@@ -7241,8 +7270,8 @@
     function handleCanvasEnd(evt) {
       if (boxSelecting) {
         if (boxSelecting.moved) {
-          const ids = nodesInSelection();
-          selected = selectionFromParts(ids, []);
+          const bounds = selectionBounds();
+          selected = selectionFromParts(nodesInSelection(bounds), edgesInSelection(bounds));
         } else {
           selected = null;
         }
@@ -7261,9 +7290,9 @@
         const wasClick = !dragging.moved && Math.hypot(evt.clientX - dragging.startClientX, evt.clientY - dragging.startClientY) <= 4;
         const didMove = dragging.moved;
         const dragId = dragging.id;
+        const dragIds = dragging.ids || [dragging.id];
         const shiftClick = dragging.shiftKey;
-        const originalX = dragging.originalX;
-        const originalY = dragging.originalY;
+        const originals = dragging.originals || { [dragging.id]: { x: dragging.originalX, y: dragging.originalY } };
         const targetParentId = dragging.targetParentId;
         dragging = null;
         mapEl.classList.remove("dragging-state");
@@ -7290,13 +7319,19 @@
         if (didMove) {
           lastNodeClick = null;
           if (s && pointInElement(evt.clientX, evt.clientY, stateExplorerEl)) {
-            s.x = originalX;
-            s.y = originalY;
-            addStateTemplateFromState(s);
+            for (const id of dragIds) {
+              const state = byId(id);
+              const stateOriginal = originals[id];
+              if (stateOriginal && state) {
+                state.x = stateOriginal.x;
+                state.y = stateOriginal.y;
+              }
+            }
+            if (dragIds.length === 1) addStateTemplateFromState(s);
             draw();
             return;
           }
-          if (s && targetParentId && byId(targetParentId)) {
+          if (s && dragIds.length === 1 && targetParentId && byId(targetParentId)) {
             const parent = byId(targetParentId);
             s.parentId = parent.id;
             const position = nextChildPosition(parent.id);
@@ -7311,7 +7346,7 @@
             fitView();
             return;
           }
-          saveModel("state:drag:" + dragId);
+          saveModel("state:drag:" + dragIds.join(","));
           draw();
           return;
         }
@@ -7427,11 +7462,7 @@
       if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
       if (isEmptyCanvasTarget(evt.target)) {
         if (evt.button !== 0) return;
-        if (evt.shiftKey || evt.ctrlKey || evt.metaKey) {
-          startBoxSelect(evt);
-          return;
-        }
-        startPendingCanvasMouse(evt);
+        startBoxSelect(evt);
       }
     });
 
@@ -7448,12 +7479,10 @@
 
     window.addEventListener("mousemove", evt => {
       if (cancelStaleDesktopMouseGesture(evt)) return;
-      if (updatePendingCanvasMouse(evt)) return;
       queueCanvasMove(evt);
     });
 
     window.addEventListener("mouseup", evt => {
-      if (finishPendingCanvasMouse()) return;
       handleCanvasEnd(evt);
     });
 
@@ -7462,7 +7491,7 @@
     });
 
     document.addEventListener("mouseout", evt => {
-      if (evt.relatedTarget || evt.buttons !== 1) return;
+      if (evt.relatedTarget || evt.buttons !== 0) return;
       cancelActiveCanvasGesture();
     });
 
@@ -7567,6 +7596,10 @@
       if (evt.key === "Escape") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
+        if (selected) {
+          clearSelection("selection:escape");
+          return;
+        }
         exitCurrentLayer();
         return;
       }
