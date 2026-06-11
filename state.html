@@ -1,10 +1,8 @@
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<html lang="de"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>State Blueprint Tool</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307111f'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23a78bfa'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307111f'/%3E%3Cpath d='M18 20h18a8 8 0 0 1 0 16H28a8 8 0 0 0 0 16h18' fill='none' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='20' r='7' fill='%23a78bfa'/%3E%3Ccircle cx='46' cy='52' r='7' fill='%2334d399'/%3E%3C/svg%3E">
   <style>
     :root {
       --bg: #07111f;
@@ -1685,8 +1683,8 @@
     <button id="btnSave">Save</button>
     <button id="btnLoad">Load</button>
     <button id="btnExport">Export HTML</button>
-    <button id="btnUndo" title="Undo">Undo</button>
-    <button id="btnRedo" title="Redo">Redo</button>
+    <button id="btnUndo" title="Undo" disabled="">Undo</button>
+    <button id="btnRedo" title="Redo" disabled="">Redo</button>
     <button id="btnFit">Fit</button>
     <button id="btnRun">Reset App</button>
     <details class="topbar-menu" id="topbarMore">
@@ -1696,10 +1694,10 @@
         <button id="btnReset" class="danger">Demo reset</button>
       </div>
     </details>
-    <div class="status" id="runtimeState">app: —</div>
+    <div class="status" id="runtimeState">app: start</div>
   </div>
-  <input id="fileLoad" type="file" accept="application/json,.json,.state.json" hidden>
-  <div id="modalBackdrop" class="modal-backdrop" hidden>
+  <input id="fileLoad" type="file" accept="application/json,.json,.state.json" hidden="">
+  <div id="modalBackdrop" class="modal-backdrop" hidden="">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
       <h2 id="modalTitle"></h2>
       <p id="modalMessage"></p>
@@ -1710,7 +1708,7 @@
     </div>
   </div>
 
-  <div class="workspace" id="workspace">
+  <div class="workspace mobile-canvas-active" id="workspace">
     <aside class="inspector" id="stateInspector">
       <div class="inspector-title">
         <span class="inspector-title-text" id="stateInspectorTitle">State Inspector</span>
@@ -1722,34 +1720,46 @@
         </div>
       </div>
     </aside>
-    <main id="map" class="map" tabindex="-1">
-      <div id="layerHud" class="layer-hud" hidden>
+    <main id="map" class="map" tabindex="-1" data-canvas-renderer="dom" style="background-size: 24px 24px, 24px 24px, 100% 100%, 100% 100%; background-position: 14px 3px, 14px 3px, 0px 0px, 0px 0px;">
+      <div id="layerHud" class="layer-hud">
         <button id="layerBack" class="layer-back" type="button" aria-label="Back to containing state">Back</button>
-        <span id="layerFrameLabel" class="layer-frame-label"></span>
+        <span id="layerFrameLabel" class="layer-frame-label">Root</span>
         <span class="layer-frame-hint">flow in/out</span>
       </div>
-      <canvas id="mapCanvas" class="map-canvas" layoutsubtree hidden aria-hidden="true"></canvas>
+      <canvas id="mapCanvas" class="map-canvas" layoutsubtree="" hidden="" aria-hidden="true" data-drawn="false"></canvas>
       <div id="mapScene" class="map-scene">
-        <div id="world">
-          <div id="layerFrame" class="layer-frame">
+        <div id="world" style="width: 30000px; height: 24000px; transform: translate(782px, 267px) scale(1);">
+          <div id="layerFrame" class="layer-frame" style="display: block; left: 24px; top: 72px; width: 360px; height: 288px;">
             <div class="input-port"></div>
             <div class="port"></div>
           </div>
-          <svg id="wires" viewBox="0 0 5000 4000">
+          <svg id="wires" viewBox="-10000 -8000 30000 24000" style="left: -10000px; top: -8000px; width: 30000px; height: 24000px;">
             <defs>
               <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
                 <path d="M0,0 L0,12 L12,6 z" fill="context-stroke"></path>
               </marker>
             </defs>
           </svg>
-          <div id="nodes"></div>
+          <div id="nodes"><div class="node initial active" data-id="start" tabindex="0" style="left: 120px; top: 168px; width: 168px; height: 96px;">
+          <div class="input-port"></div>
+          <div class="port" title="drag to connect"></div>
+          <div class="badge">INITIAL</div>
+          <div class="live-badge">LIVE</div>
+          <div class="layer-badge">0 states</div>
+          <div class="title">Start</div>
+          <div class="body"></div>
+          <div class="node-layer-actions">
+            <button class="node-open node-enter" type="button" title="Open this state canvas" aria-label="Open this state canvas">Open</button>
+          </div>
+          <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
+        </div></div>
         </div>
       </div>
       <div id="selectRect" class="select-rect"></div>
-      <div id="selectionActions" class="selection-actions" hidden>
+      <div id="selectionActions" class="selection-actions" hidden="">
         <span id="selectionCount" class="selection-count"></span>
-        <button id="btnSelectionCopy" type="button">Copy</button>
-        <button id="btnSelectionCollapse" type="button">Collapse</button>
+        <button id="btnSelectionCopy" type="button" disabled="">Copy</button>
+        <button id="btnSelectionCollapse" type="button" disabled="">Collapse</button>
         <button id="btnSelectionDelete" type="button" class="danger">Delete</button>
       </div>
       <div id="stateExplorer" class="state-explorer">
@@ -1757,9 +1767,79 @@
           <span>State Explorer</span>
           <span class="state-explorer-hint">drag states here · Ctrl+Space</span>
           <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Add empty preset">+ Add preset</button>
-          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Toggle state explorer" aria-label="Toggle state explorer">⌄</button>
+          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Collapse state explorer" aria-label="Collapse state explorer">v</button>
         </div>
-        <div id="stateExplorerList" class="state-explorer-list"></div>
+        <div id="stateExplorerList" class="state-explorer-list"><div class="state-explorer-section core" data-template-group="core"><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_heading">
+          <div class="template-title">Heading</div>
+          <div class="template-body">Heading state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Heading</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_text">
+          <div class="template-title">Text</div>
+          <div class="template-body">Text state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Text</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_image">
+          <div class="template-title">Image</div>
+          <div class="template-body">Image state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Image</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_list">
+          <div class="template-title">List</div>
+          <div class="template-body">List state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ List</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_link">
+          <div class="template-title">Link</div>
+          <div class="template-body">Link state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Link</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_sound">
+          <div class="template-title">Play sound</div>
+          <div class="template-body">Play sound state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Play sound</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_note">
+          <div class="template-title">Note</div>
+          <div class="template-body">Note state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Note</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_divider">
+          <div class="template-title">Divider</div>
+          <div class="template-body">Divider state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Divider</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_fetch_data">
+          <div class="template-title">Fetch data</div>
+          <div class="template-body">Fetch data state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ Fetch data</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_while_loop">
+          <div class="template-title">While loop</div>
+          <div class="template-body">While loop state preset</div>
+          <div class="template-actions">
+            <button class="template-use" type="button">+ While loop</button>
+            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
+          </div>
+        </div></div><div class="state-explorer-section user" data-template-group="user"><div class="state-template-empty">Drag a canvas state here, or use + Add preset for a custom state.</div></div></div>
       </div>
     </main>
 
@@ -1772,7 +1852,7 @@
           <button id="btnTogglePreview" class="preview-toggle" type="button" title="Collapse app preview" aria-label="Collapse app preview">&gt;</button>
         </span>
       </div>
-      <iframe id="appFrame" title="Generated App"></iframe>
+      <iframe id="appFrame" title="Generated App" src="blob:null/6678e603-d08c-490e-be0f-46db552ba793"></iframe>
     </aside>
   </div>
   <nav id="mobileTabs" class="mobile-tabs" aria-label="Mobile workspace views">
@@ -8095,5 +8175,6 @@
     draw();
     setTimeout(fitView, 50);
   </script>
-</body>
-</html>
+
+
+</body></html>
