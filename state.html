@@ -3320,7 +3320,8 @@
       return sourceModel?.states?.find?.(s => s.id === id) || null;
     }
 
-    function byId(id) { return model.states.find(s => s.id === id); }
+    let _virtualNodes = new Map();
+    function byId(id) { return _virtualNodes.get(id) || model.states.find(s => s.id === id) || null; }
 
     function stateParentId(state) {
       return state?.parentId || null;
@@ -5294,41 +5295,7 @@
       return side === "input" ? `from ${name}` : `to ${name}`;
     }
 
-    function renderLayerBoundary(el, label, transitions, side, parentLayerId) {
-      if (!el) return;
-      const edgeSelection = selectedEdgeIds();
-      el.classList.toggle("layer-boundary-empty", transitions.length === 0);
-      const count = transitions.length === 1 ? "1 wire" : `${transitions.length} wires`;
-      const titleMarkup = side === "input"
-        ? `<span class="layer-boundary-plug" aria-hidden="true"></span><span>${label}</span>`
-        : `<span>${label}</span><span class="layer-boundary-plug" aria-hidden="true"></span>`;
-      const wires = transitions.length
-        ? transitions.map(transition => `
-            <div class="layer-boundary-wire${edgeSelection.has(transition.id) ? " selected" : ""}${hoveredEdgeId === transition.id ? " hovered" : ""}" data-edge-id="${escapeHtml(transition.id)}" style="--edge-color: ${edgeColor(transition, parentLayerId)}">
-              <span class="layer-boundary-dot" data-edge-id="${escapeHtml(transition.id)}" aria-hidden="true"></span>
-              <span title="${escapeHtml(boundaryWireLabel(transition, side))}">${escapeHtml(boundaryWireLabel(transition, side))}</span>
-            </div>
-          `).join("")
-        : `<div class="layer-boundary-wire"><span class="layer-boundary-dot" aria-hidden="true"></span><span>not connected yet</span></div>`;
-      el.innerHTML = `
-        <div class="layer-boundary-title">${titleMarkup}</div>
-        <div class="layer-boundary-count">${count}</div>
-        <div class="layer-boundary-list">${wires}</div>
-      `;
-      el.querySelectorAll(".layer-boundary-wire[data-edge-id]").forEach(wire => {
-        const transition = model.transitions.find(item => item.id === wire.dataset.edgeId);
-        if (!transition) return;
-        wire.tabIndex = 0;
-        wire.setAttribute("role", "button");
-        attachEdgeInteractions(wire, transition);
-      });
-    }
 
-    function renderLayerBoundaries(parent) {
-      const parentLayerId = parent?.parentId || null;
-      renderLayerBoundary(layerBoundaryInputEl, "Input", parentBoundaryTransitions(parent, "input"), "input", parentLayerId);
-      renderLayerBoundary(layerBoundaryOutputEl, "Output", parentBoundaryTransitions(parent, "output"), "output", parentLayerId);
-    }
 
     function layerFrameBox() {
       const left = Number.parseFloat(layerFrameEl.style.left);
@@ -5429,138 +5396,7 @@
       return plugs;
     }
 
-    function appendLayerFlowTransition(transition, points, flowType, laneIndex, parentLayerId, edgeSelection) {
-      const compact = compactRoutePoints(points);
-      const pathD = pathFromPoints(compact);
-      const edgeStyle = `--edge-color: ${edgeColor(transition, parentLayerId)}`;
 
-      const hit = svgEl("path", {
-        d: pathD,
-        class: "hit layer-flow-hit",
-        style: edgeStyle,
-        "data-edge-id": transition.id,
-        "data-layer-flow": flowType,
-        "data-layer-flow-index": String(laneIndex)
-      });
-      attachEdgeInteractions(hit, transition);
-      appendEdgeHit(hit);
-
-      const edgeClasses = ["edge", "layer-flow-edge"];
-      if (edgeSelection.has(transition.id)) edgeClasses.push("selected");
-      if (hoveredEdgeId === transition.id) edgeClasses.push("hovered");
-      if (lastAppTransitionId === transition.id) edgeClasses.push("runtime");
-      const edge = svgEl("path", {
-        d: pathD,
-        class: edgeClasses.join(" "),
-        style: edgeStyle,
-        "data-edge-id": transition.id,
-        "data-layer-flow": flowType,
-        "data-layer-flow-index": String(laneIndex)
-      });
-      attachEdgeInteractions(edge, transition);
-      wiresEl.appendChild(edge);
-
-      const arrowClasses = ["edge-arrow", "layer-flow-edge-arrow"];
-      if (edgeSelection.has(transition.id)) arrowClasses.push("selected");
-      if (hoveredEdgeId === transition.id) arrowClasses.push("hovered");
-      if (lastAppTransitionId === transition.id) arrowClasses.push("runtime");
-      const arrowD = arrowPathForPoints(compact);
-      if (arrowD) wiresEl.appendChild(svgEl("path", {
-        d: arrowD,
-        class: arrowClasses.join(" "),
-        style: edgeStyle,
-        "data-edge-id": transition.id,
-        "data-layer-flow": `${flowType}-arrow`,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-
-      const pinClasses = ["edge-pin", "layer-flow-pin"];
-      if (edgeSelection.has(transition.id)) pinClasses.push("selected");
-      if (hoveredEdgeId === transition.id) pinClasses.push("hovered");
-      const startPin = compact[0];
-      const endPin = compact[compact.length - 1];
-      wiresEl.appendChild(svgEl("circle", {
-        cx: startPin.x,
-        cy: startPin.y,
-        r: 5,
-        class: pinClasses.join(" "),
-        style: edgeStyle,
-        "data-edge-id": transition.id,
-        "data-edge-pin": flowType === "input-wire" ? "out" : "in",
-        "data-layer-flow": `${flowType}-start`,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-      wiresEl.appendChild(svgEl("circle", {
-        cx: endPin.x,
-        cy: endPin.y,
-        r: 5,
-        class: pinClasses.join(" "),
-        style: edgeStyle,
-        "data-edge-id": transition.id,
-        "data-edge-pin": flowType === "input-wire" ? "in" : "out",
-        "data-layer-flow": `${flowType}-end`,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-    }
-
-    function appendLayerFlowOpenLane(parent, points, flowType, laneIndex) {
-      const compact = compactRoutePoints(points);
-      const style = `--edge-color: ${layerFlowColor(parent, laneIndex)}`;
-      wiresEl.appendChild(svgEl("path", {
-        d: pathFromPoints(compact),
-        class: "edge layer-flow-edge layer-flow-open",
-        style,
-        "data-layer-flow": flowType,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-      const arrowD = arrowPathForPoints(compact);
-      if (arrowD) wiresEl.appendChild(svgEl("path", {
-        d: arrowD,
-        class: "edge-arrow layer-flow-edge-arrow",
-        style,
-        "data-layer-flow": `${flowType}-arrow`,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-      const startPin = compact[0];
-      const endPin = compact[compact.length - 1];
-      wiresEl.appendChild(svgEl("circle", {
-        cx: startPin.x,
-        cy: startPin.y,
-        r: 5,
-        class: "edge-pin layer-flow-pin",
-        style,
-        "data-layer-flow": `${flowType}-start`,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-      wiresEl.appendChild(svgEl("circle", {
-        cx: endPin.x,
-        cy: endPin.y,
-        r: 5,
-        class: "edge-pin layer-flow-pin",
-        style,
-        "data-layer-flow": `${flowType}-end`,
-        "data-layer-flow-index": String(laneIndex)
-      }));
-    }
-
-    function renderLayerFlowWires(states) {
-      const parent = byId(currentLayerId);
-      const frame = parent ? layerFrameBox() : null;
-      if (!parent || !frame || !states.length) return;
-
-      const edgeSelection = selectedEdgeIds();
-      for (let index = 0; index < layerFlowSideLaneCount(parent, "input"); index++) {
-        const t = ensureBoundaryTransition(parent, "input", index);
-        const points = layerFlowPathPoints(frame, states, index);
-        appendLayerFlowTransition(t, points, "input-wire", index, currentLayerId, edgeSelection);
-      }
-
-      for (let index = 0; index < layerFlowSideLaneCount(parent, "output"); index++) {
-        const t = ensureBoundaryTransition(parent, "output", index);
-        const points = layerFlowPathPoints(frame, states, index);
-        appendLayerFlowTransition(t, points, "output-wire", index, currentLayerId, edgeSelection);
-      }
-    }
 
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
       const point = edgePortPoint(state, side, transition);
@@ -5631,7 +5467,6 @@
       layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
       layerHudEl.hidden = false;
       layerFrameLabelEl.textContent = parent ? `Inside ${parent.title || parent.id}` : "Root";
-      renderLayerBoundaries(parent);
     }
 
     function draw() {
@@ -5650,6 +5485,37 @@
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
 
+      _virtualNodes.clear();
+      if (layerParent) {
+        const frame = layerFrameBox();
+        if (frame && states.length) {
+          for (let index = 0; index < layerFlowSideLaneCount(layerParent, "input"); index++) {
+            const t = ensureBoundaryTransition(layerParent, "input", index);
+            transitions.push(t);
+            const points = layerFlowPathPoints(frame, states, index);
+            _frameRoutes.set(t.id, points);
+            if (points.length) {
+              const start = points[0];
+              const end = points[points.length - 1];
+              _virtualNodes.set(t.from, { id: t.from, x: start.x, y: start.y - NODE_H / 2, width: 0, height: 0, title: t.label });
+              _virtualNodes.set(t.to, { id: t.to, x: end.x, y: end.y - NODE_H / 2, width: 0, height: 0, title: "" });
+            }
+          }
+          for (let index = 0; index < layerFlowSideLaneCount(layerParent, "output"); index++) {
+            const t = ensureBoundaryTransition(layerParent, "output", index);
+            transitions.push(t);
+            const points = layerFlowPathPoints(frame, states, index);
+            _frameRoutes.set(t.id, points);
+            if (points.length) {
+              const start = points[0];
+              const end = points[points.length - 1];
+              _virtualNodes.set(t.from, { id: t.from, x: start.x, y: start.y - NODE_H / 2, width: 0, height: 0, title: "" });
+              _virtualNodes.set(t.to, { id: t.to, x: end.x, y: end.y - NODE_H / 2, width: 0, height: 0, title: t.label });
+            }
+          }
+        }
+      }
+
       const activeEl = document.activeElement;
       let focusedNodeId = null;
       if (activeEl && nodesEl.contains(activeEl)) {
@@ -5663,7 +5529,6 @@
       wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
-      renderLayerFlowWires(states);
 
       for (const t of transitions) {
         if (connecting?.edgeId === t.id) continue;
