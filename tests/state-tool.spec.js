@@ -42,6 +42,15 @@ async function savedModel(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
 }
 
+async function firstChildStateId(page, parentId) {
+  const id = await page.evaluate(({ key, parentId }) => {
+    const model = JSON.parse(localStorage.getItem(key));
+    return model.states.find(state => state.parentId === parentId)?.id || "";
+  }, { key: STORAGE_KEY, parentId });
+  expect(id).toBeTruthy();
+  return id;
+}
+
 async function savedStateTemplates(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(`${key}.stateExplorer`) || "[]"), STORAGE_KEY);
 }
@@ -112,6 +121,19 @@ async function emptyCanvasPoint(page) {
   return point;
 }
 
+async function addChildByDoubleClick(page, parentId, excludeIds = []) {
+  const point = await emptyCanvasPoint(page);
+  await page.mouse.dblclick(point.x, point.y);
+  const id = await page.evaluate(({ key, parentId, excludeIds }) => {
+    const excluded = new Set(excludeIds);
+    const model = JSON.parse(localStorage.getItem(key));
+    const children = model.states.filter(state => state.parentId === parentId && !excluded.has(state.id));
+    return children[children.length - 1]?.id || "";
+  }, { key: STORAGE_KEY, parentId, excludeIds });
+  expect(id).toBeTruthy();
+  return id;
+}
+
 async function dispatchLostDesktopMouseRelease(page, point = { x: 18, y: 18 }) {
   await page.evaluate(({ x, y }) => {
     window.dispatchEvent(new MouseEvent("mousemove", {
@@ -141,17 +163,6 @@ async function dragTransition(page, output, input, via = null) {
   if (via) await page.mouse.move(via.x, via.y, { steps: 8 });
   await page.mouse.move(end.x, end.y, { steps: 12 });
   await page.mouse.up();
-}
-
-async function layerBoundariesOverlapNodes(page) {
-  return page.evaluate(() => {
-    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-    const boundaries = [...document.querySelectorAll("#layerBoundaryInput, #layerBoundaryOutput")]
-      .filter(el => getComputedStyle(el).display !== "none")
-      .map(el => el.getBoundingClientRect());
-    const nodes = [...document.querySelectorAll(".node")].map(el => el.getBoundingClientRect());
-    return boundaries.some(boundary => nodes.some(node => overlaps(boundary, node)));
-  });
 }
 
 async function gridGeometryReport(page) {
@@ -221,31 +232,6 @@ async function gridGeometryReport(page) {
           })
         };
       }),
-      layerFlows: [...document.querySelectorAll('[data-layer-flow="wire"]')].map(flow => {
-        const d = flow.getAttribute("d") || "";
-        return {
-          d,
-          className: flow.getAttribute("class") || "",
-          points: pointsFromPath(d),
-          stroke: getComputedStyle(flow).stroke,
-          strokeDasharray: getComputedStyle(flow).strokeDasharray
-        };
-      }),
-      layerFlowArrows: [...document.querySelectorAll('[data-layer-flow="arrow"]')].map(arrow => ({
-        className: arrow.getAttribute("class") || "",
-        fill: getComputedStyle(arrow).fill,
-        stroke: getComputedStyle(arrow).stroke,
-        d: arrow.getAttribute("d") || "",
-        points: pointsFromPath(arrow.getAttribute("d") || "")
-      })),
-      layerFlowPins: [...document.querySelectorAll(".layer-flow-pin")].map(pin => ({
-        className: pin.getAttribute("class") || "",
-        type: pin.dataset.layerFlow,
-        stateId: pin.dataset.stateId || "",
-        x: Number.parseFloat(pin.getAttribute("cx")),
-        y: Number.parseFloat(pin.getAttribute("cy")),
-        fill: getComputedStyle(pin).fill
-      })),
       pins: [...document.querySelectorAll(".edge-pin[data-edge-id]")].map(pin => ({
         id: pin.dataset.edgeId,
         side: pin.dataset.edgePin,
@@ -267,26 +253,6 @@ async function gridGeometryReport(page) {
           nodeId: node.dataset.id,
           side,
           x: side === "out" ? left + width : left,
-          y: top + localY,
-          fill: getComputedStyle(slot).backgroundColor,
-          zIndex: Number.parseInt(getComputedStyle(slot).zIndex, 10) || 0,
-          width: Number.parseFloat(node.style.width || nodeStyle.width)
-        };
-      }),
-      layerFlowSlots: [...document.querySelectorAll(".layer-flow-slot")].map(slot => {
-        const node = slot.closest(".node");
-        const nodeStyle = getComputedStyle(node);
-        const left = Number.parseFloat(node.style.left);
-        const top = Number.parseFloat(node.style.top);
-        const width = Number.parseFloat(node.style.width);
-        const localY = Number.parseFloat(slot.style.top);
-        const type = slot.dataset.layerFlowSlot;
-        return {
-          className: slot.className,
-          type,
-          stateId: slot.dataset.stateId,
-          laneIndex: Number.parseInt(slot.dataset.layerFlowIndex, 10),
-          x: type === "state-output" ? left + width : left,
           y: top + localY,
           fill: getComputedStyle(slot).backgroundColor,
           zIndex: Number.parseInt(getComputedStyle(slot).zIndex, 10) || 0,
@@ -549,14 +515,12 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerFrame")).toBeVisible();
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator("#layerBack")).toBeVisible();
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(4);
+    await expect(page.locator(".node")).toHaveCount(5);
 
-    const childId = await page.locator(".node:not(.boundary-proxy)").getAttribute("data-id");
+    const childId = await firstChildStateId(page, "login");
     await expect(page.locator("#pTitle")).toBeFocused();
     await page.locator("#pTitle").fill("Email step");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
-    await expect.poll(() => layerBoundariesOverlapNodes(page)).toBe(false);
 
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -569,10 +533,6 @@ test.describe("State Blueprint tool", () => {
     }).toEqual({ childParent: "login", rootCount: 6, childCount: 1 });
     const childFlow = await gridGeometryReport(page);
     const childNode = childFlow.nodes.find(node => node.id === childId);
-    expect(childFlow.layerFlows).toHaveLength(0);
-    expect(childFlow.layerFlowArrows).toHaveLength(0);
-    expect(childFlow.layerFlowPins).toHaveLength(0);
-    expect(childFlow.layerFlowSlots).toHaveLength(0);
     expect(childNode.overflow).toBe("visible");
     expect(childNode.isolation).toBe("isolate");
 
@@ -584,8 +544,7 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"] .node-open').click();
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(4);
+    await expect(page.locator(".node")).toHaveCount(5);
   });
 
   test("opens nested state canvases with a node double click @smoke", async ({ page }) => {
@@ -602,9 +561,9 @@ test.describe("State Blueprint tool", () => {
     await page.locator('[data-id="login"]').click();
     await page.locator("#pAddInside").click();
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator(".node")).toHaveCount(5);
 
-    const childId = await page.locator(".node:not(.boundary-proxy)").getAttribute("data-id");
+    const childId = await firstChildStateId(page, "login");
     await page.locator("#pTitle").fill("Temporary child");
     await page.locator(`[data-id="${childId}"]`).click();
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveClass(/selected/);
@@ -613,7 +572,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Delete");
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+    await expect(page.locator(".node")).toHaveCount(0);
     await expect(page.locator("#stateInspectorBody")).toContainText("No state selected");
     await expect.poll(async () => {
       const model = await savedModel(page);
@@ -640,20 +599,14 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pAddInside").click();
-    const childId = await page.locator(".node:not(.boundary-proxy)").getAttribute("data-id");
+    const childId = await firstChildStateId(page, "login");
 
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(4);
+    await expect(page.locator(".node")).toHaveCount(5);
     await expect(page.locator(".edge[data-edge-id]")).toHaveCount(4);
     for (const id of [...wiring.inputIds, ...wiring.outputIds]) {
       await expect(page.locator(`.edge[data-edge-id="${id}"]`)).toHaveCount(1);
     }
-    await expect(page.locator(".layer-flow-wire")).toHaveCount(0);
     const directFlow = await gridGeometryReport(page);
-    expect(directFlow.layerFlows).toHaveLength(0);
-    expect(directFlow.layerFlowArrows).toHaveLength(0);
-    expect(directFlow.layerFlowPins).toHaveLength(0);
-    expect(directFlow.layerFlowSlots).toHaveLength(0);
     expect(directFlow.paths).toHaveLength(4);
     expect(directFlow.paths.every(path => path.points.length >= 2)).toBe(true);
     expect(directFlow.portSlots.some(slot => slot.nodeId === childId && slot.side === "in")).toBe(true);
@@ -675,26 +628,17 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pAddInside").click();
-    const firstChildId = await page.locator(".node:not(.boundary-proxy)").getAttribute("data-id");
-    const firstPort = await centerOf(page.locator(`[data-id="${firstChildId}"] .port`));
-    const map = await page.locator("#map").boundingBox();
-    const drop = {
-      x: Math.min(map.x + map.width - 180, firstPort.x + 280),
-      y: Math.min(map.y + map.height - 220, firstPort.y + 100)
-    };
+    const firstChildId = await firstChildStateId(page, "login");
+    const secondChildId = await addChildByDoubleClick(page, "login", [firstChildId]);
 
-    await page.mouse.move(firstPort.x, firstPort.y);
-    await page.mouse.down();
-    await page.mouse.move(drop.x, drop.y, { steps: 10 });
-    await page.mouse.up();
-
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
-    const secondChildId = await page.locator(".node:not(.boundary-proxy)").nth(1).getAttribute("data-id");
-    const proxyPort = await centerOf(page.locator(`.node.boundary-proxy[data-id="proxy:login:input:${inputId}"] .port`));
+    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
+    await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
+    const edgeTip = await centerOf(page.locator(`.edge-tip-hit[data-edge-id="${inputId}"]`));
     const secondBox = await visibleBox(page.locator(`[data-id="${secondChildId}"]`));
     const target = { x: secondBox.x + 8, y: secondBox.y + secondBox.height / 2 };
 
-    await page.mouse.move(proxyPort.x, proxyPort.y);
+    await page.mouse.move(edgeTip.x, edgeTip.y);
     await page.mouse.down();
     await page.mouse.move(target.x, target.y, { steps: 12 });
     await page.mouse.up();
@@ -703,11 +647,9 @@ test.describe("State Blueprint tool", () => {
       const model = await savedModel(page);
       const transition = model.transitions.find(item => item.id === inputId);
       return {
-        groupEntryId: transition?.groupEntryId,
-        proxyStates: model.states.filter(state => String(state.id).startsWith("proxy:")).length,
-        proxyTransitions: model.transitions.filter(transition => String(transition.from).startsWith("proxy:") || String(transition.to).startsWith("proxy:")).length
+        groupEntryId: transition?.groupEntryId
       };
-    }).toEqual({ groupEntryId: secondChildId, proxyStates: 0, proxyTransitions: 0 });
+    }).toEqual({ groupEntryId: secondChildId });
 
     await expect(page.locator(`.edge[data-edge-id="${inputId}"]`)).toHaveCount(1);
   });
@@ -745,8 +687,7 @@ test.describe("State Blueprint tool", () => {
     await app.getByRole("button", { name: "Enter" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
-    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
 
     await app.getByRole("button", { name: "Continue" }).click();
@@ -766,25 +707,23 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await page.locator("#pAddInside").click();
-    const firstChildId = await page.locator(".node:not(.boundary-proxy)").getAttribute("data-id");
+    const firstChildId = await firstChildStateId(page, "login");
+    const secondChildId = await addChildByDoubleClick(page, "login", [firstChildId]);
     const firstPort = await centerOf(page.locator(`[data-id="${firstChildId}"] .port`));
-    const map = await page.locator("#map").boundingBox();
-    const drop = {
-      x: Math.min(map.x + map.width - 180, firstPort.x + 280),
-      y: Math.min(map.y + map.height - 220, firstPort.y + 100)
-    };
-
+    const secondBox = await visibleBox(page.locator(`[data-id="${secondChildId}"]`));
     await page.mouse.move(firstPort.x, firstPort.y);
     await page.mouse.down();
-    await page.mouse.move(drop.x, drop.y, { steps: 10 });
+    await page.mouse.move(secondBox.x + 8, secondBox.y + secondBox.height / 2, { steps: 12 });
     await page.mouse.up();
 
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
-    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
-    const innerEdgeId = await page.evaluate(({ key, from }) => {
+    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
+    await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
+    const innerEdgeId = await page.evaluate(({ key, from, to }) => {
       const model = JSON.parse(localStorage.getItem(key));
-      return model.transitions.find(transition => transition.from === from)?.id || "";
-    }, { key: STORAGE_KEY, from: firstChildId });
+      return model.transitions.find(transition => transition.from === from && transition.to === to)?.id || "";
+    }, { key: STORAGE_KEY, from: firstChildId, to: secondChildId });
     expect(innerEdgeId).toBeTruthy();
 
     await page.locator("#layerBack").click();
