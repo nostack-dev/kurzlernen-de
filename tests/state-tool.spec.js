@@ -588,7 +588,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(4);
   });
 
-  test("opens nested state canvases with a node double click", async ({ page }) => {
+  test("opens nested state canvases with a node double click @smoke", async ({ page }) => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').dblclick();
