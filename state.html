@@ -833,11 +833,60 @@
 
     .layer-flow-slot {
       cursor: pointer;
-      pointer-events: auto;
+      pointer-events: none;
     }
 
     .layer-flow-slot-input { left: -6px; }
     .layer-flow-slot-output { right: -6px; }
+
+    .layer-boundary {
+      position: absolute;
+      z-index: 12;
+      display: grid;
+      gap: 5px;
+      min-width: 130px;
+      max-width: 210px;
+      padding: 8px;
+      border: 1px solid rgba(125,211,252,.28);
+      border-radius: 10px;
+      background: rgba(7,19,33,.94);
+      color: #dbeafe;
+      font-size: 11px;
+      font-weight: 800;
+      pointer-events: auto;
+    }
+
+    .layer-boundary[hidden] { display: none; }
+    .layer-boundary-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #bfdbfe;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .layer-boundary-count {
+      color: #7dd3fc;
+      white-space: nowrap;
+    }
+    .layer-boundary-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .layer-boundary-dot {
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      border: 1px solid #06121f;
+      border-radius: 999px;
+      background: var(--edge-color, #38bdf8);
+    }
 
     .preview {
       min-width: 0;
@@ -1732,6 +1781,8 @@
           <div id="layerFrame" class="layer-frame" style="display: block; left: 24px; top: 72px; width: 360px; height: 288px;">
             <div class="input-port"></div>
             <div class="port"></div>
+            <div id="layerBoundaryInput" class="layer-boundary" hidden=""></div>
+            <div id="layerBoundaryOutput" class="layer-boundary" hidden=""></div>
           </div>
           <svg id="wires" viewBox="-10000 -8000 30000 24000" style="left: -10000px; top: -8000px; width: 30000px; height: 24000px;">
             <defs>
@@ -3239,12 +3290,23 @@
     }
 
     function cloneComponents(components) {
-      return normalizeComponents(components).map(component => ({
-        id: uid("c"),
-        type: component.type,
-        text: component.text,
-        url: component.url || ""
-      }));
+      return normalizeComponents(components).map(component => {
+        const clone = {
+          id: uid("c"),
+          type: component.type,
+          text: component.text,
+          url: component.url || ""
+        };
+        if (component.type === "list") {
+          clone.items = normalizeListItems(component.items, component.text).map(item => ({
+            id: uid("c"),
+            type: item.type || "text",
+            text: String(item.text || ""),
+            url: String(item.url || "")
+          }));
+        }
+        return clone;
+      });
     }
 
     function normalizeModel(m) {
@@ -4125,13 +4187,12 @@
     }
 
     function updateDraggedStateEdges(stateId) {
-      // Recompute all routes fresh (first-principles: no cache, full A* for all transitions)
-      _frameRoutes = computeFrameRoutes();
+      recordRouteMetric("liveDragRouteBuilds");
       for (const transition of visibleTransitions()) {
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (!from || !to) continue;
-        const pts = _frameRoutes.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
+        const pts = liveDoglegRoutePoints(from, to);
         updateTransitionElements(transition, pts);
       }
     }
@@ -4208,6 +4269,7 @@
     function shouldIgnoreMapWheel(evt) {
       const target = evt.target;
       if (target?.closest?.(".state-explorer, .inspector, input, textarea, select, button")) return true;
+      if (!(evt.ctrlKey || evt.metaKey)) return true;
       return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
     }
 
@@ -4755,6 +4817,35 @@
       ];
     }
 
+    function ensureLeftInputApproach(points) {
+      const compact = compactRoutePoints(points || []);
+      if (compact.length < 2) return compact;
+      const end = compact[compact.length - 1];
+      const before = compact[compact.length - 2];
+      if (before.y === end.y && before.x < end.x) return compact;
+      const approachX = snapToGrid(end.x - GRID_SIZE * 2);
+      if (before.y === end.y && before.x >= end.x) {
+        const escapeX = snapToGrid(Math.max(before.x, end.x) + GRID_SIZE * 2);
+        const laneY = snapToGrid(end.y - GRID_SIZE * 2);
+        const next = compact.slice(0, -1);
+        const last = next[next.length - 1];
+        if (!last || last.x !== escapeX || last.y !== before.y) next.push({ x: escapeX, y: before.y });
+        next.push(
+          { x: escapeX, y: laneY },
+          { x: approachX, y: laneY },
+          { x: approachX, y: end.y },
+          end
+        );
+        return compactRoutePoints(next);
+      }
+      const next = compact.slice(0, -1);
+      const last = next[next.length - 1];
+      if (!last || last.x !== approachX || last.y !== before.y) next.push({ x: approachX, y: before.y });
+      if (before.y !== end.y) next.push({ x: approachX, y: end.y });
+      next.push(end);
+      return compactRoutePoints(next);
+    }
+
     function directRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
       const a = edgePortPoint(from, "out", transition);
@@ -4993,12 +5084,12 @@
     function baseEdgeRoutePoints(from, to, transition = null) {
       const routeTransition = transition || { from: from.id, to: to.id };
       const direct = directRoutePoints(from, to, transition);
-      if (direct) return direct;
+      if (direct) return ensureLeftInputApproach(direct);
       const forwardBend = forwardBendRoutePoints(from, to, transition);
-      if (forwardBend) return forwardBend;
+      if (forwardBend) return ensureLeftInputApproach(forwardBend);
       const dogleg = doglegRoutePoints(from, to, transition);
-      if (routeIsClear(dogleg, routeTransition)) return dogleg;
-      return obstacleAvoidingRoutePoints(from, to, transition) || dogleg;
+      if (routeIsClear(dogleg, routeTransition)) return ensureLeftInputApproach(dogleg);
+      return ensureLeftInputApproach(obstacleAvoidingRoutePoints(from, to, transition) || dogleg);
     }
 
     function routeSegments(points) {
@@ -5153,7 +5244,10 @@
         const from = byId(transition.from);
         const to = byId(transition.to);
         const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition) : null;
-        if (rerouted) current.set(id, rerouted);
+        if (rerouted) current.set(id, ensureLeftInputApproach(rerouted));
+      }
+      for (const [id, points] of current) {
+        current.set(id, ensureLeftInputApproach(points));
       }
       return current;
     }
@@ -5317,16 +5411,47 @@
     }
 
     function layerFlowSideLaneCount(parent, side) {
-      if (!parent || !childStateCount(parent.id)) return 0;
+      if (!parent) return 0;
       const boundary = normalizeBoundaryTransitions(parent.boundaryTransitions);
       return Math.max(1, boundary[side].length);
     }
 
+    function parentBoundaryTransitions(parent, side) {
+      if (!parent) return [];
+      const parentLayerId = parent.parentId || null;
+      return model.transitions.filter(transition => {
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        if (!from || !to || stateParentId(from) !== parentLayerId || stateParentId(to) !== parentLayerId) return false;
+        return side === "input" ? transition.to === parent.id : transition.from === parent.id;
+      });
+    }
+
+    function syncBoundaryTransitionsFromParent(parent) {
+      if (!parent) return normalizeBoundaryTransitions(null);
+      const existing = normalizeBoundaryTransitions(parent.boundaryTransitions);
+      const next = { input: [], output: [] };
+      for (const side of ["input", "output"]) {
+        const parentTransitions = parentBoundaryTransitions(parent, side);
+        const count = Math.max(1, parentTransitions.length, existing[side].length);
+        for (let index = 0; index < count; index++) {
+          const source = parentTransitions[index] || existing[side][index] || {};
+          next[side].push({
+            id: source.id || uid("b"),
+            label: source.label || (side === "input" ? "Input" : "Output"),
+            condition: source.condition || "",
+            set: normalizeDataObject(source.set)
+          });
+        }
+      }
+      parent.boundaryTransitions = next;
+      return next;
+    }
+
     function layerFlowColor(parent, laneIndex) {
       const parentLayerId = parent?.parentId || null;
-      const boundary = normalizeBoundaryTransitions(parent?.boundaryTransitions);
-      const inputs = boundary.input;
-      const outputs = boundary.output;
+      const inputs = parentBoundaryTransitions(parent, "input");
+      const outputs = parentBoundaryTransitions(parent, "output");
       const source = inputs[laneIndex % inputs.length] || outputs[laneIndex % outputs.length] || null;
       return source ? edgeColor(source, parentLayerId) : "#38bdf8";
     }
@@ -5453,6 +5578,14 @@
 
     function updateLayerFrame(states) {
       const parent = byId(currentLayerId);
+      if (!parent) {
+        layerFrameEl.style.display = "none";
+        layerHudEl.hidden = true;
+        layerFrameLabelEl.textContent = "Root";
+        if (layerBoundaryInputEl) layerBoundaryInputEl.hidden = true;
+        if (layerBoundaryOutputEl) layerBoundaryOutputEl.hidden = true;
+        return;
+      }
       const padX = GRID_SIZE * 4;
       const padY = GRID_SIZE * 4;
       const fallbackCenter = viewportCenterWorld();
@@ -5466,7 +5599,80 @@
       layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
       layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
       layerHudEl.hidden = false;
-      layerFrameLabelEl.textContent = parent ? `Inside ${parent.title || parent.id}` : "Root";
+      layerFrameLabelEl.textContent = `Inside ${parent.title || parent.id}`;
+    }
+
+    function renderBoundaryPanel(el, parent, side, frame) {
+      if (!el || !parent || !frame) {
+        if (el) el.hidden = true;
+        return;
+      }
+      const transitions = parentBoundaryTransitions(parent, side);
+      el.hidden = false;
+      el.style.left = side === "input" ? "-150px" : `${frame.width + 20}px`;
+      el.style.top = `${Math.max(0, frame.height / 2 - 44)}px`;
+      const label = side === "input" ? "Inputs" : "Outputs";
+      const countText = transitions.length === 1 ? "1 wire" : `${transitions.length} wires`;
+      el.innerHTML = "";
+      const title = document.createElement("div");
+      title.className = "layer-boundary-title";
+      const name = document.createElement("span");
+      name.textContent = label;
+      const count = document.createElement("span");
+      count.className = "layer-boundary-count";
+      count.textContent = countText;
+      title.append(name, count);
+      el.appendChild(title);
+      for (const transition of transitions) {
+        const row = document.createElement("div");
+        row.className = "layer-boundary-row";
+        const dot = document.createElement("span");
+        dot.className = "layer-boundary-dot";
+        dot.dataset.edgeId = transition.id;
+        dot.style.setProperty("--edge-color", edgeColor(transition, parent.parentId || null));
+        const text = document.createElement("span");
+        text.textContent = boundaryWireLabel(transition, side);
+        row.append(dot, text);
+        el.appendChild(row);
+      }
+    }
+
+    function renderLayerFlows(parent, states, frame) {
+      if (!parent || !frame) return;
+      syncBoundaryTransitionsFromParent(parent);
+      const laneCount = Math.max(layerFlowSideLaneCount(parent, "input"), layerFlowSideLaneCount(parent, "output"));
+      for (let index = 0; index < laneCount; index++) {
+        const points = layerFlowPathPoints(frame, states, index);
+        if (points.length < 2) continue;
+        const edgeStyle = `--edge-color: ${layerFlowColor(parent, index)}`;
+        wiresEl.appendChild(svgEl("path", {
+          d: pathFromPoints(points),
+          class: "edge layer-flow-edge",
+          style: edgeStyle,
+          "data-layer-flow": "wire",
+          "data-layer-flow-index": String(index)
+        }));
+        const arrowD = arrowPathForPoints(points);
+        if (arrowD) wiresEl.appendChild(svgEl("path", {
+          d: arrowD,
+          class: "edge-arrow layer-flow-edge-arrow",
+          style: edgeStyle,
+          "data-layer-flow": "arrow",
+          "data-layer-flow-index": String(index)
+        }));
+        for (const plug of layerFlowPlugPoints(frame, states, index)) {
+          wiresEl.appendChild(svgEl("circle", {
+            cx: plug.x,
+            cy: plug.y,
+            r: 5,
+            class: "edge-pin layer-flow-pin",
+            style: edgeStyle,
+            "data-layer-flow": plug.type,
+            "data-layer-flow-index": String(index),
+            "data-state-id": plug.stateId
+          }));
+        }
+      }
     }
 
     function draw() {
@@ -5482,39 +5688,11 @@
       updateLayerFrame(states);
       _frameRoutes = computeFrameRoutes();
       const layerParent = byId(currentLayerId);
+      if (layerParent) syncBoundaryTransitionsFromParent(layerParent);
       const nodeSelection = selectedNodeIds();
       const edgeSelection = selectedEdgeIds();
 
       _virtualNodes.clear();
-      if (layerParent) {
-        const frame = layerFrameBox();
-        if (frame && states.length) {
-          for (let index = 0; index < layerFlowSideLaneCount(layerParent, "input"); index++) {
-            const t = ensureBoundaryTransition(layerParent, "input", index);
-            transitions.push(t);
-            const points = layerFlowPathPoints(frame, states, index);
-            _frameRoutes.set(t.id, points);
-            if (points.length) {
-              const start = points[0];
-              const end = points[points.length - 1];
-              _virtualNodes.set(t.from, { id: t.from, x: start.x, y: start.y - NODE_H / 2, width: 0, height: 0, title: t.label });
-              _virtualNodes.set(t.to, { id: t.to, x: end.x, y: end.y - NODE_H / 2, width: 0, height: 0, title: "" });
-            }
-          }
-          for (let index = 0; index < layerFlowSideLaneCount(layerParent, "output"); index++) {
-            const t = ensureBoundaryTransition(layerParent, "output", index);
-            transitions.push(t);
-            const points = layerFlowPathPoints(frame, states, index);
-            _frameRoutes.set(t.id, points);
-            if (points.length) {
-              const start = points[0];
-              const end = points[points.length - 1];
-              _virtualNodes.set(t.from, { id: t.from, x: start.x, y: start.y - NODE_H / 2, width: 0, height: 0, title: "" });
-              _virtualNodes.set(t.to, { id: t.to, x: end.x, y: end.y - NODE_H / 2, width: 0, height: 0, title: t.label });
-            }
-          }
-        }
-      }
 
       const activeEl = document.activeElement;
       let focusedNodeId = null;
@@ -5529,6 +5707,10 @@
       wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
+      const layerFrame = layerFrameBox();
+      renderBoundaryPanel(layerBoundaryInputEl, layerParent, "input", layerFrame);
+      renderBoundaryPanel(layerBoundaryOutputEl, layerParent, "output", layerFrame);
+      renderLayerFlows(layerParent, states, layerFrame);
 
       for (const t of transitions) {
         if (connecting?.edgeId === t.id) continue;
@@ -5716,14 +5898,6 @@
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
 
-          const now = Date.now();
-          if (lastNodeClickId === s.id && now - lastNodeClickTime < 300) {
-            enterStateLayer(s.id);
-            return;
-          }
-          lastNodeClickId = s.id;
-          lastNodeClickTime = now;
-
           startNodeDrag(evt, s);
         });
 
@@ -5733,14 +5907,6 @@
           lastTouchAt = Date.now();
           if (pinchZoom) return;
           activePointerId = evt.pointerId;
-
-          const now = Date.now();
-          if (lastNodeClickId === s.id && now - lastNodeClickTime < 300) {
-            enterStateLayer(s.id);
-            return;
-          }
-          lastNodeClickId = s.id;
-          lastNodeClickTime = now;
 
           startNodeDrag(evt, s);
         });
@@ -5785,7 +5951,11 @@
         });
 
         if (layerParent) {
-          // Layer flow is rendered on the frame boundary, not on the node body.
+          const laneCount = Math.max(layerFlowSideLaneCount(layerParent, "input"), layerFlowSideLaneCount(layerParent, "output"));
+          for (let index = 0; index < laneCount; index++) {
+            addLayerFlowSlot(el, s, index, "input", layerParent);
+            addLayerFlowSlot(el, s, index, "output", layerParent);
+          }
         }
         for (const transition of orderedPortTransitions(s.id, "in")) {
           addPortSlot(el, s, transition, "in", edgeSelection);
@@ -5998,6 +6168,14 @@
           if (liveComponent) {
             liveComponent.text = component.text || "";
             liveComponent.url = component.url || "";
+            if (component.type === "list") {
+              liveComponent.items = normalizeListItems(component.items, component.text).map(item => ({
+                id: item.id || uid("c"),
+                type: item.type || "text",
+                text: String(item.text || ""),
+                url: String(item.url || "")
+              }));
+            }
           }
         }
         persistOwner("state:component:" + component.id);
@@ -6041,7 +6219,7 @@
             };
             component.items.forEach((itemVal, index) => {
               const row = document.createElement("div");
-              row.className = "component-editor";
+              row.className = "list-item-editor";
               row.style.border = "1px solid rgba(49, 95, 140, 0.2)";
               row.style.borderRadius = "8px";
               row.style.padding = "8px";
@@ -6863,7 +7041,7 @@
         if (value.length) collectDataPathSuggestions(value[0], prefix, sourceLabel + " item", out, depth + 1);
         return out;
       }
-      if (!isPlainDataObject(value)) {
+      if (!isPlainObject(value)) {
         out.push({ path: prefix, source: sourceLabel, type: valueTypeLabel(value) });
         return out;
       }
@@ -6976,7 +7154,7 @@
           t.set = normalizeDataObject(parsed);
           setPreview.textContent = Object.keys(t.set).length ? "Data will be merged before entering the target state." : "No data changes.";
           setPreview.classList.toggle("empty", !Object.keys(t.set).length);
-          saveModel("edge:set:" + t.id);
+          saveEditorState("edge:set:" + t.id, true);
         } catch (err) {
           setPreview.textContent = err.message || "Invalid JSON.";
           setPreview.classList.remove("empty");
@@ -6992,6 +7170,18 @@
       };
       cond.oninput = () => { t.condition = cond.value; updateConditionPreview(); saveModel("edge:condition:" + t.id); draw(); };
       set.oninput = updateSetPreview;
+      set.addEventListener("input", updateSetPreview);
+      set.addEventListener("change", updateSetPreview);
+      let lastSetValue = set.value;
+      const pollSetPreview = () => {
+        if (!document.contains(set)) return;
+        if (set.value !== lastSetValue) {
+          lastSetValue = set.value;
+          updateSetPreview();
+        }
+        requestAnimationFrame(pollSetPreview);
+      };
+      requestAnimationFrame(pollSetPreview);
       label.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
       const flipButton = root.querySelector("#pFlip");
       if (isBoundary) {
@@ -7008,9 +7198,9 @@
         selected = selectionFromParts([], [t.id]);
         deleteSelectedItems();
       };
-      setupEditorAccessibility(root, opts.focus === true, {
+      setupEditorAccessibility(root, opts.focus !== false, {
         onCommit: showEmptyInspector,
-        selectFirstInput: false
+        selectFirstInput: true
       });
     }
 
@@ -7488,7 +7678,7 @@
         
         document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
         dragging.targetParentId = null;
-        if (dragging.moved) {
+        if (dragging.moved && evt.altKey) {
           const target = stateNodeAtClientPoint(evt.clientX, evt.clientY);
           if (target && target.id !== s.id && !isDescendant(s.id, target.id)) {
             const targetEl = document.querySelector(`.node[data-id="${target.id}"]`);
@@ -7644,6 +7834,7 @@
         if (!targetId) {
           const title = nextStateTitle();
           const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
+          s.parentId = currentLayerId || null;
           let t = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId) : null;
           const duplicate = transitionBetween(connecting.from, s.id, t?.id || null);
           if (duplicate) {
@@ -7789,7 +7980,7 @@
       if (!modalBackdropEl.hidden) return;
       const mod = evt.ctrlKey || evt.metaKey;
       const key = String(evt.key || "").toLowerCase();
-      if (evt.altKey && evt.key === "ArrowLeft") {
+      if (evt.altKey && (evt.key === "ArrowLeft" || evt.code === "ArrowLeft")) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         exitCurrentLayer();
@@ -7850,6 +8041,10 @@
       if (evt.key === "Enter" && selectedNodeId) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
+        if (inspectorStateId === selectedNodeId || inspectorEdgeId || editingTemplateId) {
+          showEmptyInspector();
+          return;
+        }
         enterStateLayer(selectedNodeId);
         return;
       }
