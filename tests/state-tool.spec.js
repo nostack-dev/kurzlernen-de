@@ -605,6 +605,14 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(1);
   });
 
+  test("opens nested state canvases with a node double click", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').dblclick();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerBack")).toBeVisible();
+  });
+
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
     await openTool(page);
 
@@ -3544,6 +3552,21 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#btnTogglePreview").click();
     await assertVisibleInViewport(page, "#btnOpen");
     await assertVisibleInViewport(page, "#btnTogglePreview");
+  });
+
+  test("hides the topbar scrollbar on narrow screens", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 820 });
+    await openTool(page);
+
+    const topbar = await page.locator(".topbar").evaluate(el => {
+      const style = getComputedStyle(el);
+      return {
+        overflowX: style.overflowX,
+        scrollbarWidth: style.scrollbarWidth
+      };
+    });
+    expect(topbar.overflowX).toBe("auto");
+    expect(topbar.scrollbarWidth).toBe("none");
   });
 
   test("keeps the canvas free of helper and zoom overlays around the state explorer", async ({ page }) => {

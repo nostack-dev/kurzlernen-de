@@ -79,7 +79,11 @@
       border-bottom: 1px solid #18314d;
       min-width: 0;
       -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
+
+    .topbar::-webkit-scrollbar { display: none; }
 
     .brand {
       font-weight: 900;
@@ -1498,6 +1502,8 @@
         flex-wrap: nowrap;
         overflow-x: auto;
         white-space: nowrap;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
       }
     }
 
@@ -1511,6 +1517,7 @@
         padding: calc(7px + env(safe-area-inset-top)) 10px 7px;
         overflow-x: auto;
         scrollbar-width: none;
+        -ms-overflow-style: none;
       }
 
       .topbar::-webkit-scrollbar { display: none; }
@@ -7746,6 +7753,18 @@
             return;
           }
           const now = Date.now();
+          const previousClick = lastNodeClick;
+          if (
+            previousClick?.id === s.id &&
+            now - previousClick.time < 360 &&
+            Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 8
+          ) {
+            lastNodeClick = null;
+            focusCanvasForSelection();
+            setSingleSelection("node", s.id);
+            enterStateLayer(s.id);
+            return;
+          }
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
           lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
