@@ -627,6 +627,15 @@
       opacity: .92;
     }
 
+    .node.boundary-proxy .title {
+      padding-right: 10px;
+      text-align: center;
+    }
+
+    .node.boundary-proxy .body {
+      display: none;
+    }
+
     .node.boundary-proxy .node-edit,
     .node.boundary-proxy .node-open,
     .node.boundary-proxy .layer-badge {
@@ -3533,11 +3542,41 @@
       }
       if (projection.side === "output") {
         const target = byId(targetId);
+        if (target?.virtualProxy?.side === "output" && target.virtualProxy.transitionId === transition.id) {
+          const exit = byId(connecting.from);
+          if (!exit || stateParentId(exit) !== projection.parentId) return null;
+          transition.groupExitId = exit.id;
+          selected = selectionFromParts([], [transition.id]);
+          return transition;
+        }
         if (!target || stateParentId(target) !== (parent.parentId || null)) return null;
         const exit = byId(connecting.from);
         if (!exit || stateParentId(exit) !== projection.parentId) return null;
         transition.to = target.id;
         transition.groupExitId = exit.id;
+        selected = selectionFromParts([], [transition.id]);
+        return transition;
+      }
+      return null;
+    }
+
+    function finishBoundaryConnection(fromId, targetId) {
+      const parent = byId(currentLayerId);
+      if (!parent) return null;
+      const from = byId(fromId);
+      const target = byId(targetId);
+      if (!from || !target) return null;
+      if (from.virtualProxy?.side === "input" && stateParentId(target) === parent.id) {
+        const transition = concreteTransitionById(from.virtualProxy.transitionId);
+        if (!transition) return null;
+        transition.groupEntryId = target.id;
+        selected = selectionFromParts([], [transition.id]);
+        return transition;
+      }
+      if (target.virtualProxy?.side === "output" && stateParentId(from) === parent.id) {
+        const transition = concreteTransitionById(target.virtualProxy.transitionId);
+        if (!transition) return null;
+        transition.groupExitId = from.id;
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
@@ -4037,6 +4076,7 @@
     }
 
     function nodeWidth(s) {
+      if (s?.virtualProxy) return GRID_SIZE * 3;
       const title = String(s?.title || s?.id || "State");
       return snapClampToGrid(Math.ceil(measuredTextWidth(title)) + NODE_TITLE_EXTRA_W, NODE_MIN_W, NODE_MAX_W);
     }
@@ -5352,21 +5392,25 @@
         if (state.virtualProxy) _virtualNodes.delete(id);
       }
       if (!parent || !states.length) return;
+      const padX = GRID_SIZE * 4;
       const minX = Math.min(...states.map(state => state.x));
       const maxX = Math.max(...states.map(state => state.x + nodeWidth(state)));
+      const frameLeft = snapToGrid(minX - padX);
+      const frameRight = snapToGrid(maxX + padX);
       const centerY = states.reduce((sum, state) => sum + state.y + NODE_H / 2, 0) / states.length;
       const addProxy = (transition, side, index, count) => {
         const outside = byId(side === "input" ? transition.from : transition.to);
-        const title = outside?.title || outside?.id || (side === "input" ? "Input" : "Output");
+        const title = side === "input" ? "IN" : "OUT";
+        const outsideTitle = outside?.title || outside?.id || "";
         const width = nodeWidth({ title });
         const slot = index - (count - 1) / 2;
-        const x = side === "input" ? minX - width - GRID_SIZE * 5 : maxX + GRID_SIZE * 5;
+        const x = side === "input" ? frameLeft - width : frameRight;
         const y = snapToGrid(centerY - NODE_H / 2 + slot * GRID_SIZE * 5);
         const id = boundaryProxyId(parent.id, side, transition.id);
         _virtualNodes.set(id, {
           id,
           title,
-          body: side === "input" ? "Parent input" : "Parent output",
+          body: outsideTitle,
           parentId: parent.id,
           x,
           y,
@@ -7563,6 +7607,16 @@
             mapEl.classList.remove("connecting");
             draw();
             showEdgeInspector(projected, { focus: !wasRewire, forceOpen: true });
+            return;
+          }
+          const boundary = finishBoundaryConnection(connecting.from, targetId);
+          if (boundary) {
+            saveModel();
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
+            showEdgeInspector(boundary, { focus: !wasRewire, forceOpen: true });
             return;
           }
           const groupRoute = groupRouteForConnection(connecting.from, targetId);
