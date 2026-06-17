@@ -621,6 +621,18 @@
       box-shadow: 0 0 0 7px rgba(245,158,11,.18), 0 10px 24px rgba(0,0,0,.34);
     }
 
+    .node.boundary-proxy {
+      border-style: dashed;
+      background: #0b2745;
+      opacity: .92;
+    }
+
+    .node.boundary-proxy .node-edit,
+    .node.boundary-proxy .node-open,
+    .node.boundary-proxy .layer-badge {
+      display: none !important;
+    }
+
     .node .title {
       padding: 10px 72px 3px 12px;
       font-weight: 900;
@@ -3304,7 +3316,8 @@
       return sourceModel?.states?.find?.(s => s.id === id) || null;
     }
 
-    function byId(id) { return model.states.find(s => s.id === id) || null; }
+    let _virtualNodes = new Map();
+    function byId(id) { return _virtualNodes.get(id) || model.states.find(s => s.id === id) || null; }
 
     function stateParentId(state) {
       return state?.parentId || null;
@@ -3328,7 +3341,12 @@
     }
 
     function visibleStates() {
-      return statesInLayer(currentLayerId);
+      const parent = byId(currentLayerId);
+      const children = statesInLayer(currentLayerId);
+      syncBoundaryProxies(parent, children);
+      const layerId = currentLayerId || null;
+      const proxies = [..._virtualNodes.values()].filter(state => state.virtualProxy?.layerId === layerId);
+      return [...children, ...proxies];
     }
 
     function transitionInLayer(transition, layerId = currentLayerId) {
@@ -3342,7 +3360,14 @@
     }
 
     function visibleTransitions() {
-      return transitionsInLayer(currentLayerId);
+      const transitions = transitionsInLayer(currentLayerId);
+      const parent = byId(currentLayerId);
+      if (!parent) return transitions;
+      return [...transitions, ...projectedGroupTransitions(parent)];
+    }
+
+    function boundaryProxyId(parentId, side, transitionId) {
+      return `proxy:${parentId}:${side}:${transitionId}`;
     }
 
     function defaultGroupEntryChild(parentId) {
@@ -3369,7 +3394,7 @@
         if (!entry) continue;
         projected.push({
           ...transition,
-          from: transition.from,
+          from: boundaryProxyId(parent.id, "input", transition.id),
           to: entry.id,
           projection: { parentId: parent.id, side: "input", transitionId: transition.id }
         });
@@ -3380,7 +3405,7 @@
         projected.push({
           ...transition,
           from: exit.id,
-          to: transition.to,
+          to: boundaryProxyId(parent.id, "output", transition.id),
           projection: { parentId: parent.id, side: "output", transitionId: transition.id }
         });
       }
@@ -3392,7 +3417,12 @@
     }
 
     function transitionVisibleInCurrentContext(transition) {
-      return transitionInLayer(transition);
+      if (transitionInLayer(transition)) return true;
+      const parent = byId(currentLayerId);
+      if (!parent) return false;
+      const parentLayerId = parent.parentId || null;
+      if (!transitionInLayer(transition, parentLayerId)) return false;
+      return transition.to === parent.id || transition.from === parent.id;
     }
 
     function childStateCount(parentId) {
@@ -5317,6 +5347,45 @@
         });
     }
 
+    function syncBoundaryProxies(parent, states) {
+      for (const [id, state] of [..._virtualNodes]) {
+        if (state.virtualProxy) _virtualNodes.delete(id);
+      }
+      if (!parent || !states.length) return;
+      const minX = Math.min(...states.map(state => state.x));
+      const maxX = Math.max(...states.map(state => state.x + nodeWidth(state)));
+      const centerY = states.reduce((sum, state) => sum + state.y + NODE_H / 2, 0) / states.length;
+      const addProxy = (transition, side, index, count) => {
+        const outside = byId(side === "input" ? transition.from : transition.to);
+        const title = outside?.title || outside?.id || (side === "input" ? "Input" : "Output");
+        const width = nodeWidth({ title });
+        const slot = index - (count - 1) / 2;
+        const x = side === "input" ? minX - width - GRID_SIZE * 5 : maxX + GRID_SIZE * 5;
+        const y = snapToGrid(centerY - NODE_H / 2 + slot * GRID_SIZE * 5);
+        const id = boundaryProxyId(parent.id, side, transition.id);
+        _virtualNodes.set(id, {
+          id,
+          title,
+          body: side === "input" ? "Parent input" : "Parent output",
+          parentId: parent.id,
+          x,
+          y,
+          components: [],
+          virtualProxy: {
+            layerId: parent.id,
+            parentId: parent.id,
+            side,
+            transitionId: transition.id,
+            outsideId: outside?.id || ""
+          }
+        });
+      };
+      const inputs = parentLayerTransitions(parent, "input");
+      const outputs = parentLayerTransitions(parent, "output");
+      inputs.forEach((transition, index) => addProxy(transition, "input", index, inputs.length));
+      outputs.forEach((transition, index) => addProxy(transition, "output", index, outputs.length));
+    }
+
     function layerFrameBox() {
       const left = Number.parseFloat(layerFrameEl.style.left);
       const top = Number.parseFloat(layerFrameEl.style.top);
@@ -5518,12 +5587,13 @@
       for (const s of states) {
         const el = document.createElement("div");
         const classes = ["node"];
+        if (s.virtualProxy) classes.push("boundary-proxy");
         if (s.id === model.initial) classes.push("initial");
         if (connecting?.from === s.id) classes.push("connect-source");
         if (nodeSelection.has(s.id)) classes.push("selected");
         if (currentAppState === s.id) classes.push("active");
         if (connectingTargetId === s.id) classes.push("drop-target");
-        const innerCount = childStateCount(s.id);
+        const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
         el.style.left = s.x + "px";
