@@ -3250,19 +3250,27 @@
         s.y = snapClampToGrid(Number.isFinite(s.y) ? s.y : 100, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
       }
       const ids = new Set(m.states.map(s => s.id));
+      const stateById = new Map(m.states.map(s => [s.id, s]));
       for (const s of m.states) {
         s.parentId = typeof s.parentId === "string" && ids.has(s.parentId) && s.parentId !== s.id ? s.parentId : null;
       }
       for (const s of m.states) {
-        const seenParents = new Set([s.id]);
-        let parent = byModelId(m, s.parentId);
-        while (parent) {
-          if (seenParents.has(parent.id)) {
-            s.parentId = null;
+        const seen = new Set([s.id]);
+        const chain = [];
+        let current = s;
+        while (current?.parentId) {
+          if (seen.has(current.parentId)) {
+            for (const node of chain) node.parentId = null;
             break;
           }
-          seenParents.add(parent.id);
-          parent = byModelId(m, parent.parentId);
+          const next = stateById.get(current.parentId);
+          if (!next) {
+            current.parentId = null;
+            break;
+          }
+          chain.push(current);
+          seen.add(current.id);
+          current = next;
         }
       }
       const pairs = new Set();
@@ -6910,12 +6918,16 @@
       return String(text).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch]));
     }
 
+    function snapshotModelForRuntime() {
+      return normalizeModel(JSON.parse(JSON.stringify(model)));
+    }
+
     function syncToApp(reset) {
       syncStateEl.textContent = reset ? "reset" : "live";
       if (reset) pendingAppStartStateId = null;
       const payload = {
         type: "STATE_BLUEPRINT_MODEL",
-        model: JSON.parse(JSON.stringify(model)),
+        model: snapshotModelForRuntime(),
         reset: Boolean(reset),
         preserveFocus: !reset
       };
@@ -6933,7 +6945,7 @@
       syncStateEl.textContent = "start";
       const payload = {
         type: "STATE_BLUEPRINT_MODEL",
-        model: JSON.parse(JSON.stringify(model)),
+        model: snapshotModelForRuntime(),
         reset: true,
         startStateId: id,
         preserveFocus: Boolean(opts.preserveFocus)
