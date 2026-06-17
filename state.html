@@ -3328,20 +3328,7 @@
     }
 
     function visibleStates() {
-      const parent = byId(currentLayerId);
-      if (!parent) return statesInLayer(currentLayerId);
-      const children = statesInLayer(currentLayerId);
-      if (!children.length) return children;
-      const ids = new Set();
-      const states = [];
-      const add = state => {
-        if (!state || ids.has(state.id)) return;
-        ids.add(state.id);
-        states.push(state);
-      };
-      children.forEach(add);
-      groupContextStates(parent).forEach(add);
-      return states;
+      return statesInLayer(currentLayerId);
     }
 
     function transitionInLayer(transition, layerId = currentLayerId) {
@@ -3355,10 +3342,7 @@
     }
 
     function visibleTransitions() {
-      const transitions = transitionsInLayer(currentLayerId);
-      const parent = byId(currentLayerId);
-      if (!parent) return transitions;
-      return [...transitions, ...projectedGroupTransitions(parent)];
+      return transitionsInLayer(currentLayerId);
     }
 
     function defaultGroupEntryChild(parentId) {
@@ -3408,12 +3392,7 @@
     }
 
     function transitionVisibleInCurrentContext(transition) {
-      if (transitionInLayer(transition)) return true;
-      const parent = byId(currentLayerId);
-      if (!parent) return false;
-      const parentLayerId = parent.parentId || null;
-      if (!transitionInLayer(transition, parentLayerId)) return false;
-      return transition.to === parent.id || transition.from === parent.id;
+      return transitionInLayer(transition);
     }
 
     function childStateCount(parentId) {
