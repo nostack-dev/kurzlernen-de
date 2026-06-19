@@ -2026,8 +2026,6 @@
     let appWindow = null;
     let selected = null;
     let dragging = null;
-    let lastNodeClickTime = 0;
-    let lastNodeClickId = null;
     let connecting = null;
     let connectingTargetId = null;
     let panning = null;
@@ -2061,7 +2059,7 @@
     let lastHistoryKey = null;
     let activePointerId = null;
     let lastTouchAt = 0;
-    let lastNodeClick = null;
+    let lastTouchNodeTap = null;
     let lastEmptyCanvasClick = null;
     let suppressEmptyCanvasDblClickUntil = 0;
     let touchPointers = new Map();
@@ -3926,7 +3924,7 @@
       if (!opts.force && (dragging || connecting || panning || boxSelecting)) return;
       suppressLayerExitUntil = Date.now() + 800;
       suppressEmptyCanvasDblClickUntil = Date.now() + 800;
-      lastNodeClick = null;
+      lastTouchNodeTap = null;
       lastEmptyCanvasClick = null;
       pendingCanvasMouse = null;
       pendingCanvasTouch = null;
@@ -5247,7 +5245,7 @@
       stopRuntimeLayerFollow();
       evt.stopPropagation();
       const p = screenToWorld(evt);
-      lastNodeClick = null;
+      lastTouchNodeTap = null;
       suppressLayerEnterUntil = Date.now() + 700;
       connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s) };
       connectingTargetId = null;
@@ -5262,7 +5260,7 @@
       const concrete = projectedTransitionSource(t);
       const from = byId(t.from);
       if (!from) return;
-      lastNodeClick = null;
+      lastTouchNodeTap = null;
       suppressLayerEnterUntil = Date.now() + 700;
       connecting = {
         from: t.from,
@@ -8154,7 +8152,7 @@
       const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, currentLayerId || null);
       model.states.push(s);
       selected = selectionFromParts([s.id], []);
-      lastNodeClick = null;
+      lastTouchNodeTap = null;
       suppressLayerEnterUntil = Date.now() + 500;
       suppressRuntimeLayerFollowUntil = Date.now() + 1200;
       saveModel();
@@ -8256,21 +8254,21 @@
             focusCanvasForSelection();
             setSingleSelection("node", s.id);
             const now = Date.now();
-            const previousClick = lastNodeClick;
+            const previousClick = lastTouchNodeTap;
             if (previousClick?.id === s.id &&
               now - previousClick.time < 500 &&
               Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 12
             ) {
-              lastNodeClick = null;
+              lastTouchNodeTap = null;
               enterStateLayer(s.id, { source: "node-dblclick" });
               return;
             }
-            lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
+            lastTouchNodeTap = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
             showNodeInspector(s, { focus: false });
             return;
           }
           if (shiftClick) {
-            lastNodeClick = null;
+            lastTouchNodeTap = null;
             focusCanvasForSelection();
             toggleSelection("node", s.id);
             draw();
@@ -8278,13 +8276,13 @@
           }
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
-          lastNodeClick = null;
+          lastTouchNodeTap = null;
           showNodeInspector(s, { focus: false });
           focusCanvasForSelection();
           return;
         }
         if (didMove) {
-          lastNodeClick = null;
+          lastTouchNodeTap = null;
           suppressLayerEnterUntil = Date.now() + 900;
           suppressRuntimeLayerFollowUntil = Date.now() + 1200;
           if (s && pointInElement(evt.clientX, evt.clientY, stateExplorerEl)) {
@@ -8300,7 +8298,7 @@
         }
       }
       if (connecting) {
-        lastNodeClick = null;
+        lastTouchNodeTap = null;
         suppressLayerEnterUntil = Date.now() + 700;
         const dropPoint = screenToWorld(evt);
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
@@ -8521,7 +8519,7 @@
       evt.stopPropagation();
       const p = screenToWorld(evt);
       addStateAt(p.x, p.y, evt.clientX, evt.clientY);
-      lastNodeClick = null;
+      lastTouchNodeTap = null;
       suppressLayerEnterUntil = Date.now() + 700;
     });
 
