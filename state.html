@@ -3485,10 +3485,7 @@
     }
 
     function visibleTransitions() {
-      const transitions = transitionsInLayer(currentLayerId);
-      const parent = currentLayerContainer();
-      if (!parent) return transitions;
-      return [...transitions, ...projectedGroupTransitions(parent)];
+      return transitionsInLayer(currentLayerId);
     }
 
     function boundaryProxyId(parentId, side, transitionId) {
