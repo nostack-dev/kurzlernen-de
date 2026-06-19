@@ -8147,16 +8147,19 @@
     }
 
     function addStateAt(x, y, showAtX, showAtY) {
+      const layerBeforeCreate = currentLayerId && byId(currentLayerId) ? currentLayerId : null;
       const title = nextStateTitle();
-      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, currentLayerId || null);
+      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
       model.states.push(s);
       selected = selectionFromParts([s.id], []);
       lastCreatedStateId = s.id;
       lastCreatedStateTime = Date.now();
       lastTouchNodeTap = null;
+      suppressLayerExitUntil = Date.now() + 800;
       suppressLayerEnterUntil = Date.now() + 500;
       suppressRuntimeLayerFollowUntil = Date.now() + 1200;
       saveModel();
+      currentLayerId = layerBeforeCreate && byId(layerBeforeCreate) ? layerBeforeCreate : null;
       draw();
       showNodeInspector(s, { focus: false });
     }
