@@ -3513,8 +3513,36 @@
       return `__boundary_${side}`;
     }
 
-    function stateBoundaryFlowId(parentId, side, stateId) {
-      return `boundary-flow:${parentId}:${side}:${stateId}`;
+    function layerBoundaryFlowId(parentId, side) {
+      return `boundary-flow:${parentId}:${side}`;
+    }
+
+    function setBoundaryEndpoint(parent, side, stateId) {
+      if (!parent) return;
+      if (parent.rootLayer) {
+        model.boundary = normalizeBoundaryConfig(model.boundary);
+        if (side === "input") model.boundary.entryId = stateId;
+        else model.boundary.exitId = stateId;
+      } else {
+        parent.boundary = normalizeBoundaryConfig(parent.boundary);
+        if (side === "input") parent.boundary.entryId = stateId;
+        else parent.boundary.exitId = stateId;
+      }
+    }
+
+    function configuredBoundaryState(parent, side, states) {
+      if (!parent || !states.length) return null;
+      const boundary = normalizeBoundaryConfig(parent.rootLayer ? model.boundary : parent.boundary);
+      const configuredId = side === "input" ? boundary.entryId : boundary.exitId;
+      const configured = configuredId ? byId(configuredId) : null;
+      const childParentId = layerChildParentId(parent);
+      if (configured && stateParentId(configured) === childParentId) return configured;
+      const sorted = states.slice().sort((a, b) =>
+        (side === "input" ? a.x - b.x : b.x - a.x) ||
+        a.y - b.y ||
+        String(a.id).localeCompare(String(b.id))
+      );
+      return sorted[0] || null;
     }
 
     function ensureBoundaryFlowTransition(parent, side, state) {
@@ -3522,7 +3550,7 @@
       const parentId = parent.id;
       const inputProxyId = boundaryProxyId(parentId, "input", defaultBoundaryLaneId("input"));
       const outputProxyId = boundaryProxyId(parentId, "output", defaultBoundaryLaneId("output"));
-      const id = stateBoundaryFlowId(parentId, side, state.id);
+      const id = layerBoundaryFlowId(parentId, side);
       let transition = model.transitions.find(item => item.id === id);
       if (!transition) {
         transition = {
@@ -3544,10 +3572,19 @@
     }
 
     function ensureDefaultBoundaryTransitions(parent, states) {
-      if (!parent) return [];
-      for (const state of states) {
-        ensureBoundaryFlowTransition(parent, "input", state);
-        ensureBoundaryFlowTransition(parent, "output", state);
+      if (!parent) return;
+      const validIds = new Set([layerBoundaryFlowId(parent.id, "input"), layerBoundaryFlowId(parent.id, "output")]);
+      model.transitions = model.transitions.filter(transition => {
+        if (transition.boundaryFlow?.parentId !== parent.id) return true;
+        return validIds.has(transition.id);
+      });
+      const inputState = configuredBoundaryState(parent, "input", states);
+      const outputState = configuredBoundaryState(parent, "output", states);
+      for (const side of ["input", "output"]) {
+        const state = side === "input" ? inputState : outputState;
+        const id = layerBoundaryFlowId(parent.id, side);
+        if (state) ensureBoundaryFlowTransition(parent, side, state);
+        else model.transitions = model.transitions.filter(transition => transition.id !== id);
       }
     }
 
@@ -3714,16 +3751,19 @@
       if (!from || !target) return null;
       const childParentId = layerChildParentId(parent);
       if (from.virtualProxy?.side === "input" && stateParentId(target) === childParentId) {
+        setBoundaryEndpoint(parent, "input", target.id);
         const transition = ensureBoundaryFlowTransition(parent, "input", target);
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (from.virtualProxy?.side === "output" && stateParentId(target) === childParentId) {
+        setBoundaryEndpoint(parent, "output", target.id);
         const transition = ensureBoundaryFlowTransition(parent, "output", target);
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (target.virtualProxy?.side === "output" && stateParentId(from) === childParentId) {
+        setBoundaryEndpoint(parent, "output", from.id);
         const transition = ensureBoundaryFlowTransition(parent, "output", from);
         selected = selectionFromParts([], [transition.id]);
         return transition;
@@ -7963,10 +8003,12 @@
           s.parentId = currentLayerId || null;
           const fromBoundary = byId(connecting.from);
           if (fromBoundary?.virtualProxy?.side === "input") {
+            const firstStateInLayer = !statesInLayer(currentLayerId).length;
             model.states.push(s);
             const parent = currentLayerContainer();
-            ensureBoundaryFlowTransition(parent, "input", s);
-            ensureBoundaryFlowTransition(parent, "output", s);
+            setBoundaryEndpoint(parent, "input", s.id);
+            if (firstStateInLayer) setBoundaryEndpoint(parent, "output", s.id);
+            ensureDefaultBoundaryTransitions(parent, statesInLayer(currentLayerId));
             selected = selectionFromParts([s.id], []);
             saveModel();
             connecting = null;
