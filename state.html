@@ -629,6 +629,7 @@
       border-radius: 0;
       background: transparent;
       box-shadow: none;
+      pointer-events: none;
       cursor: default;
       opacity: 1;
     }
@@ -637,6 +638,13 @@
       border-color: transparent;
       box-shadow: none;
       transform: none;
+    }
+
+    .node.boundary-proxy .input-port,
+    .node.boundary-proxy .port,
+    .node.boundary-proxy .port-slot {
+      pointer-events: auto;
+      touch-action: none;
     }
 
     .node.boundary-proxy.selected,
@@ -649,13 +657,21 @@
       transform: none;
     }
 
-    .node.boundary-input .input-port,
-    .node.boundary-output .port {
-      display: none;
+    .node.boundary-proxy.selected,
+    .node.boundary-proxy:focus,
+    .node.boundary-proxy:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+      transform: none !important;
     }
 
     .node.boundary-proxy.has-input-slots > .input-port,
     .node.boundary-proxy.has-output-slots > .port {
+      display: none;
+    }
+
+    .node.boundary-input .input-port,
+    .node.boundary-output .port {
       display: none;
     }
 
@@ -768,17 +784,30 @@
     .node .node-open { display: grid; }
     .node.has-children .layer-badge { display: block; }
 
-    .port {
+    .input-port,
+    .port,
+    .port-slot {
       position: absolute;
       z-index: 6;
       width: 16px;
       height: 16px;
       border-radius: 999px;
       border: 2px solid #06121f;
+      top: calc(50% + var(--port-offset, 0px));
+      transform: translateY(-50%);
+      pointer-events: auto;
+    }
+
+    .input-port {
+      left: -8px;
+      background: #94a3b8;
+      box-shadow: 0 0 0 3px rgba(148,163,184,.16);
+      cursor: default;
+    }
+
+    .port {
       background: var(--accent);
       right: -8px;
-      top: 50%;
-      transform: translateY(-50%);
       box-shadow: 0 0 0 3px rgba(56,189,248,.18);
       cursor: cell;
       touch-action: none;
@@ -790,21 +819,6 @@
 
     .node.has-input-slots > .input-port {
       display: none;
-    }
-
-    .input-port {
-      position: absolute;
-      z-index: 6;
-      width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      border: 2px solid #06121f;
-      left: -8px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: #94a3b8;
-      box-shadow: 0 0 0 3px rgba(148,163,184,.16);
-      cursor: default;
     }
 
     .input-port::before {
@@ -842,35 +856,44 @@
       box-shadow: 0 0 0 7px rgba(56,189,248,.24), 0 0 18px rgba(56,189,248,.75);
     }
 
+    .node.boundary-output.drop-target .input-port {
+      left: -11px;
+      right: auto;
+    }
+
     .port-slot {
-      position: absolute;
       z-index: 9;
+      --port-offset: 0px;
       width: 12px;
       height: 12px;
       border: 2px solid #06121f;
       border-radius: 999px;
       background: var(--edge-color, #5f8dbc);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #5f8dbc) 22%, transparent);
-      transform: translateY(-50%);
       pointer-events: none;
+      left: unset;
     }
 
     .port-slot-output {
+      --port-offset: 0px;
       width: 16px;
       height: 16px;
       right: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
+      transform: translateY(-50%);
     }
 
     .port-slot-input {
+      --port-offset: 0px;
       width: 16px;
       height: 16px;
       left: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
+      transform: translateY(-50%);
     }
 
     .port-slot.selected {
@@ -1776,10 +1799,7 @@
       <canvas id="mapCanvas" class="map-canvas" layoutsubtree="" hidden="" aria-hidden="true" data-drawn="false"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world" style="width: 30000px; height: 24000px; transform: translate(782px, 267px) scale(1);">
-          <div id="layerFrame" class="layer-frame" style="display: block; left: 24px; top: 72px; width: 360px; height: 288px;">
-            <div class="input-port"></div>
-            <div class="port"></div>
-          </div>
+        <div id="layerFrame" class="layer-frame" style="display: block; left: 24px; top: 72px; width: 360px; height: 288px;"></div>
           <svg id="wires" viewBox="-10000 -8000 30000 24000" style="left: -10000px; top: -8000px; width: 30000px; height: 24000px;">
             <defs>
               <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
@@ -3715,6 +3735,23 @@
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
+      if (from.virtualProxy?.side === "output" && stateParentId(target) === childParentId) {
+        const transition = from.virtualProxy.transitionId ? concreteTransitionById(from.virtualProxy.transitionId) : null;
+        if (!transition) {
+          if (parent.rootLayer) {
+            model.boundary = normalizeBoundaryConfig(model.boundary);
+            model.boundary.exitId = target.id;
+          } else {
+            parent.boundary = normalizeBoundaryConfig(parent.boundary);
+            parent.boundary.exitId = target.id;
+          }
+          selected = selectionFromParts([target.id], []);
+          return { virtualBoundaryFlow: true };
+        }
+        transition.groupExitId = target.id;
+        selected = selectionFromParts([], [transition.id]);
+        return transition;
+      }
       if (target.virtualProxy?.side === "output" && stateParentId(from) === childParentId) {
         const transition = target.virtualProxy.transitionId ? concreteTransitionById(target.virtualProxy.transitionId) : null;
         if (!transition) {
@@ -4010,7 +4047,10 @@
     }
 
     function selectedNodeIds() {
-      return new Set(selected?.nodes || []);
+      return new Set((selected?.nodes || []).filter(id => {
+        const node = byId(id);
+        return node && !node.virtualProxy;
+      }));
     }
 
     function selectedEdgeIds() {
@@ -4029,7 +4069,10 @@
     }
 
     function selectionFromParts(nodes, edges) {
-      const nodeIds = [...new Set(nodes || [])].filter(id => byId(id) && isVisibleStateId(id));
+      const nodeIds = [...new Set(nodes || [])].filter(id => {
+        const node = byId(id);
+        return node && !node.virtualProxy && isVisibleStateId(id);
+      });
       const edgeIds = [...new Set(edges || [])].filter(id => {
         const edge = edgeById(id);
         return edge && transitionVisibleInCurrentContext(edge);
@@ -4244,6 +4287,7 @@
       const states = visibleStates();
       for (let i = states.length - 1; i >= 0; i--) {
         const s = states[i];
+        if (s.virtualProxy) continue;
         if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + nodeHeight(s)) return s;
       }
       return null;
@@ -4256,8 +4300,9 @@
       for (let i = states.length - 1; i >= 0; i--) {
         const s = states[i];
         if (s.virtualProxy) {
-          if (s.virtualProxy.side !== "output" || connecting?.from === s.id) continue;
-          const port = nodeCenter(s, "in");
+          if (connecting?.from === s.id) continue;
+          const portSide = s.virtualProxy.side === "input" ? "out" : "in";
+          const port = nodeCenter(s, portSide);
           const dist = Math.hypot(p.x - port.x, p.y - port.y);
           const nearBoundaryPort =
             dist <= GRID_SIZE * 2.25 ||
@@ -4277,13 +4322,13 @@
           p.x >= s.x - 56 &&
           p.x <= s.x + 54 &&
           p.y >= s.y - 8 &&
-          p.y <= s.y + 96;
+          p.y <= s.y + nodeHeight(s);
         const insideNode =
           s.id !== connecting?.from &&
           p.x >= s.x &&
           p.x <= s.x + nodeWidth(s) &&
           p.y >= s.y &&
-          p.y <= s.y + NODE_H;
+          p.y <= s.y + nodeHeight(s);
         if ((nearInput || insideNode) && dist < bestScore) {
           best = s;
           bestScore = dist;
@@ -4322,7 +4367,7 @@
       const minY = Math.min(a.y, b.y);
       const maxY = Math.max(a.y, b.y);
       return visibleStates()
-        .filter(s => s.x < maxX && s.x + nodeWidth(s) > minX && s.y < maxY && s.y + nodeHeight(s) > minY)
+        .filter(s => !s.virtualProxy && s.x < maxX && s.x + nodeWidth(s) > minX && s.y < maxY && s.y + nodeHeight(s) > minY)
         .map(s => s.id);
     }
 
@@ -4826,12 +4871,16 @@
       draw();
     }
 
-    function startConnection(evt, s) {
+    function connectionStartSide(state) {
+      return state?.virtualProxy?.side === "output" ? "in" : "out";
+    }
+
+    function startConnection(evt, s, fromSide = null) {
       evt.stopPropagation();
       const p = screenToWorld(evt);
       lastNodeClick = null;
       suppressLayerEnterUntil = Date.now() + 700;
-      connecting = { from: s.id, to: p };
+      connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s) };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
       draw();
@@ -4864,6 +4913,19 @@
       if (side === "out") return { x: s.x + width, y: centerY };
       if (side === "in") return { x: s.x, y: centerY };
       return { x: s.x + width / 2, y: centerY };
+    }
+
+    function draftConnectionRoute(from, to, fromSide) {
+      const side = fromSide || "out";
+      const a = nodeCenter(from, side);
+      const b = nodeCenter(to, "in");
+      const step = side === "in" ? -GRID_SIZE * 2 : GRID_SIZE * 2;
+      return [
+        a,
+        { x: a.x + step, y: a.y },
+        { x: a.x + step, y: b.y },
+        b
+      ];
     }
 
     function edgeColor(transition, layerId = currentLayerId) {
@@ -4934,11 +4996,15 @@
     }
 
     function edgePortPoint(state, side, transition = null) {
-      if (!transition) return nodeCenter(state, side);
-      const y = nodeCenter(state, side).y;
+      const center = nodeCenter(state, side);
+      if (!transition) return center;
+      const transitions = orderedPortTransitions(state.id, side);
+      const index = transitions.findIndex(item => item.id === transition.id);
+      const laneOffset = index >= 0 && transitions.length > 1 ? (index - (transitions.length - 1) / 2) * GRID_SIZE : 0;
+      const y = center.y + laneOffset;
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
-      return nodeCenter(state, side);
+      return center;
     }
 
     function edgeApproachPoint(state, side, transition = null) {
@@ -5550,7 +5616,6 @@
 
     function parentLayerTransitions(parent, side) {
       if (!parent) return [];
-      if (parent.rootLayer) return [];
       const parentLayerId = parent.parentId || null;
       return transitionsInLayer(parentLayerId)
         .filter(transition => side === "input" ? transition.to === parent.id : transition.from === parent.id)
@@ -5575,20 +5640,21 @@
       const minX = states.length ? Math.min(...states.map(state => state.x)) : fallbackCenter.x - GRID_SIZE * 8;
       const minY = states.length ? Math.min(...states.map(state => state.y)) : fallbackCenter.y - GRID_SIZE * 5;
       const maxX = states.length ? Math.max(...states.map(state => state.x + nodeWidth(state))) : fallbackCenter.x + GRID_SIZE * 8;
-      const maxY = states.length ? Math.max(...states.map(state => state.y + NODE_H)) : fallbackCenter.y + GRID_SIZE * 5;
+      const maxY = states.length ? Math.max(...states.map(state => state.y + nodeHeight(state))) : fallbackCenter.y + GRID_SIZE * 5;
       const frameLeft = snapToGrid(minX - padX);
       const frameRight = snapToGrid(maxX + padX);
       const frameTop = snapToGrid(minY - padY);
       const frameHeight = snapToGrid(maxY - minY + padY * 2);
       const centerY = frameTop + frameHeight / 2;
       const addProxy = (transition, side, index, count) => {
+        const proxyWidth = nodeWidth({ virtualProxy: true });
         const outside = transition ? byId(side === "input" ? transition.from : transition.to) : null;
         const title = side === "input" ? "IN" : "OUT";
         const outsideTitle = outside?.title || outside?.id || "";
-          const width = nodeWidth({ title, virtualProxy: { side } });
+        const proxyHeight = nodeHeight({ virtualProxy: true });
         const slot = index - (count - 1) / 2;
-        const x = side === "input" ? frameLeft - width : frameRight;
-        const y = snapToGrid(centerY - nodeHeight({ virtualProxy: true }) / 2 + slot * GRID_SIZE * 5);
+        const x = side === "input" ? frameLeft - proxyWidth : frameRight;
+        const y = snapToGrid(centerY - proxyHeight / 2 + slot * GRID_SIZE * 5);
         const id = boundaryProxyId(parent.id, side, transition?.id || defaultBoundaryLaneId(side));
         const layerId = parent.rootLayer ? null : parent.id;
         _virtualNodes.set(id, {
@@ -5632,7 +5698,9 @@
       if (edgeSelection.has(transition.id)) classes.push("selected");
       if (hoveredEdgeId === transition.id) classes.push("hovered");
       slot.className = classes.join(" ");
-      slot.style.top = point.y - state.y + "px";
+      slot.style.setProperty("--port-offset", `${point.y - state.y - nodeHeight(state) / 2}px`);
+      slot.style.left = "";
+      slot.style.right = "";
       slot.style.setProperty("--edge-color", edgeColor(transition));
       slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
@@ -5667,7 +5735,7 @@
       const minX = states.length ? Math.min(...states.map(state => state.x)) : fallbackCenter.x - GRID_SIZE * 8;
       const minY = states.length ? Math.min(...states.map(state => state.y)) : fallbackCenter.y - GRID_SIZE * 5;
       const maxX = states.length ? Math.max(...states.map(state => state.x + nodeWidth(state))) : fallbackCenter.x + GRID_SIZE * 8;
-      const maxY = states.length ? Math.max(...states.map(state => state.y + NODE_H)) : fallbackCenter.y + GRID_SIZE * 5;
+      const maxY = states.length ? Math.max(...states.map(state => state.y + nodeHeight(state))) : fallbackCenter.y + GRID_SIZE * 5;
       layerFrameEl.style.display = "block";
       layerFrameEl.style.left = snapToGrid(minX - padX) + "px";
       layerFrameEl.style.top = snapToGrid(minY - padY) + "px";
@@ -5801,17 +5869,20 @@
 
       if (connecting) {
         const from = byId(connecting.from);
+        const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
         const target = connectingTargetId ? byId(connectingTargetId) : null;
         if (target) {
-          wiresEl.appendChild(svgEl("path", { d: edgePath(from, target), class: "temp-edge" }));
+          const points = sourceSide === "out" ? edgeRoutePoints(from, target) : draftConnectionRoute(from, target, sourceSide);
+          wiresEl.appendChild(svgEl("path", { d: pathFromPoints(points), class: "temp-edge" }));
         } else {
-          const a = nodeCenter(from, "out");
+          const a = nodeCenter(from, sourceSide);
           const b = snapPointToGrid(connecting.to);
+          const stepX = sourceSide === "in" ? -GRID_SIZE * 2 : GRID_SIZE * 2;
           wiresEl.appendChild(svgEl("path", {
             d: pathFromPoints([
               a,
-              { x: a.x + GRID_SIZE * 2, y: a.y },
-              { x: a.x + GRID_SIZE * 2, y: b.y },
+              { x: a.x + stepX, y: a.y },
+              { x: a.x + stepX, y: b.y },
               b
             ]),
             class: "temp-edge"
@@ -5831,8 +5902,10 @@
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
         const outputTransitions = orderedPortTransitions(s.id, "out");
-        if (inputTransitions.length) classes.push("has-input-slots");
-        if (outputTransitions.length) classes.push("has-output-slots");
+        const renderInputSlots = inputTransitions.length > 0;
+        const renderOutputSlots = outputTransitions.length > 0;
+        if (renderInputSlots) classes.push("has-input-slots");
+        if (renderOutputSlots) classes.push("has-output-slots");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
@@ -5850,56 +5923,63 @@
             draw();
           }
         });
-        el.innerHTML = `
-          <div class="input-port"></div>
-          <div class="port" title="drag to connect"></div>
-          <div class="badge">INITIAL</div>
-          <div class="live-badge">LIVE</div>
-          <div class="layer-badge"></div>
-          <div class="title"></div>
-          <div class="body"></div>
-          <div class="node-layer-actions">
-            <button class="node-open node-enter" type="button" title="Open this state canvas" aria-label="Open this state canvas">Open</button>
-          </div>
-          <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
-        `;
-        el.querySelector(".title").textContent = s.title || s.id;
-        el.querySelector(".body").textContent = statePreviewText(s);
-        el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 state" : `${innerCount} states`;
-        const enterButton = el.querySelector(".node-open");
-        enterButton.addEventListener("mousedown", evt => evt.stopPropagation());
-        enterButton.addEventListener("pointerdown", evt => {
-          evt.stopPropagation();
-          if (!isTouchPointer(evt)) return;
-          evt.preventDefault();
-          enterStateLayer(s.id);
-        });
-        enterButton.addEventListener("click", evt => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          enterStateLayer(s.id);
-        });
-        const editButton = el.querySelector(".node-edit");
-        editButton.addEventListener("mousedown", evt => {
-          evt.stopPropagation();
-        });
-        editButton.addEventListener("pointerdown", evt => {
-          evt.stopPropagation();
-          if (!isTouchPointer(evt)) return;
-          evt.preventDefault();
-          lastTouchAt = Date.now();
-          setSingleSelection("node", s.id);
-          draw();
-          showNodeInspector(s, { forceOpen: true });
-        });
-        editButton.addEventListener("click", evt => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          if (Date.now() - lastTouchAt < 700) return;
-          setSingleSelection("node", s.id);
-          draw();
-          showNodeInspector(s, { forceOpen: true });
-        });
+        if (s.virtualProxy) {
+          el.innerHTML = `
+            <div class="input-port" title="drag to connect / reroute"></div>
+            <div class="port" title="drag to connect / reroute"></div>
+          `;
+        } else {
+          el.innerHTML = `
+            <div class="input-port"></div>
+            <div class="port" title="drag to connect"></div>
+            <div class="badge">INITIAL</div>
+            <div class="live-badge">LIVE</div>
+            <div class="layer-badge"></div>
+            <div class="title"></div>
+            <div class="body"></div>
+            <div class="node-layer-actions">
+              <button class="node-open node-enter" type="button" title="Open this state canvas" aria-label="Open this state canvas">Open</button>
+            </div>
+            <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
+          `;
+          el.querySelector(".title").textContent = s.title || s.id;
+          el.querySelector(".body").textContent = statePreviewText(s);
+          el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 state" : `${innerCount} states`;
+          const enterButton = el.querySelector(".node-open");
+          enterButton.addEventListener("mousedown", evt => evt.stopPropagation());
+          enterButton.addEventListener("pointerdown", evt => {
+            evt.stopPropagation();
+            if (!isTouchPointer(evt)) return;
+            evt.preventDefault();
+            enterStateLayer(s.id);
+          });
+          enterButton.addEventListener("click", evt => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            enterStateLayer(s.id);
+          });
+          const editButton = el.querySelector(".node-edit");
+          editButton.addEventListener("mousedown", evt => {
+            evt.stopPropagation();
+          });
+          editButton.addEventListener("pointerdown", evt => {
+            evt.stopPropagation();
+            if (!isTouchPointer(evt)) return;
+            evt.preventDefault();
+            lastTouchAt = Date.now();
+            setSingleSelection("node", s.id);
+            draw();
+            showNodeInspector(s, { forceOpen: true });
+          });
+          editButton.addEventListener("click", evt => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (Date.now() - lastTouchAt < 700) return;
+            setSingleSelection("node", s.id);
+            draw();
+            showNodeInspector(s, { forceOpen: true });
+          });
+        }
 
         el.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
@@ -5954,25 +6034,34 @@
           addTemplateInside(templateId, s.id, { enter: true });
         });
 
-        el.querySelector(".port").addEventListener("mousedown", evt => {
+        const onPortMousedown = (evt, side) => {
           if (Date.now() - lastTouchAt < 700) return;
           if (evt.button !== 0) return;
-          startConnection(evt, s);
-        });
-
-        el.querySelector(".port").addEventListener("pointerdown", evt => {
+          startConnection(evt, s, side);
+        };
+        const onPortPointerdown = (evt, side) => {
           if (!isTouchPointer(evt)) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
           if (pinchZoom) return;
           activePointerId = evt.pointerId;
-          startConnection(evt, s);
-        });
+          startConnection(evt, s, side);
+        };
+        const portElement = el.querySelector(".port");
+        portElement.addEventListener("mousedown", evt => onPortMousedown(evt, connectionStartSide(s)));
+        portElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, connectionStartSide(s)));
+        if (s.virtualProxy && s.virtualProxy.side === "output") {
+          const inputPortElement = el.querySelector(".input-port");
+          inputPortElement.addEventListener("mousedown", evt => onPortMousedown(evt, "in"));
+          inputPortElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, "in"));
+        }
 
         for (const transition of inputTransitions) {
+          if (!renderInputSlots && !s.virtualProxy) continue;
           addPortSlot(el, s, transition, "in", edgeSelection);
         }
         for (const transition of outputTransitions) {
+          if (!renderOutputSlots && !s.virtualProxy) continue;
           addPortSlot(el, s, transition, "out", edgeSelection);
         }
 
@@ -7800,16 +7889,16 @@
           }
           const now = Date.now();
           const previousClick = lastNodeClick;
-          if (
-            previousClick?.id === s.id &&
-            now >= suppressLayerEnterUntil &&
+          if (previousClick?.id === s.id &&
             now - previousClick.time < 360 &&
             Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 8
           ) {
             lastNodeClick = null;
             focusCanvasForSelection();
-            setSingleSelection("node", s.id);
-            enterStateLayer(s.id);
+            if (now >= suppressLayerEnterUntil) {
+              setSingleSelection("node", s.id);
+              enterStateLayer(s.id);
+            }
             return;
           }
           focusCanvasForSelection();
@@ -7855,6 +7944,7 @@
         const dropPoint = screenToWorld(evt);
         const targetNode = connectingTargetId ? byId(connectingTargetId) : connectionTargetAtWorldPoint(dropPoint);
         const targetId = targetNode?.id;
+        const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
         if (targetId) {
           const projected = finishProjectedConnection(targetId);
@@ -7882,6 +7972,13 @@
             mapEl.classList.remove("connecting");
             draw();
             if (!boundary.virtualBoundaryFlow) showEdgeInspector(boundary, { focus: !wasRewire, forceOpen: true });
+            return;
+          }
+          if (fromNode?.virtualProxy || targetNode?.virtualProxy) {
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
             return;
           }
           const groupRoute = groupRouteForConnection(connecting.from, targetId);
@@ -8045,8 +8142,12 @@
     mapEl.addEventListener("dblclick", evt => {
       const onEmpty = isEmptyCanvasTarget(evt.target);
       if (!onEmpty) return;
+      evt.preventDefault();
+      evt.stopPropagation();
       const p = screenToWorld(evt);
       addStateAt(p.x, p.y, evt.clientX, evt.clientY);
+      lastNodeClick = null;
+      suppressLayerEnterUntil = Date.now() + 700;
     });
 
     mapEl.addEventListener("mousedown", evt => {
