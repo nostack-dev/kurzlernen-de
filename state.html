@@ -7819,17 +7819,6 @@
         stateExplorerEl.classList.toggle("drag-over", pointInElement(evt.clientX, evt.clientY, stateExplorerEl));
         
         document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
-        dragging.targetParentId = null;
-        if (dragging.moved && evt.altKey) {
-          const target = stateNodeAtClientPoint(evt.clientX, evt.clientY);
-          if (target && target.id !== s.id && !isDescendant(s.id, target.id)) {
-            const targetEl = document.querySelector(`.node[data-id="${target.id}"]`);
-            if (targetEl) {
-              targetEl.classList.add("inner-drop-target");
-              dragging.targetParentId = target.id;
-            }
-          }
-        }
 
         if (positionChanged || (!wasMoved && dragging.moved)) {
           if (updateNodeElementPosition(s)) {
@@ -7873,7 +7862,6 @@
         const shiftClick = dragging.shiftKey;
         const originalX = dragging.originalX;
         const originalY = dragging.originalY;
-        const targetParentId = dragging.targetParentId;
         dragging = null;
         mapEl.classList.remove("dragging-state");
         stateExplorerEl.classList.remove("drag-over");
@@ -7912,21 +7900,6 @@
             s.y = originalY;
             addStateTemplateFromState(s);
             draw();
-            return;
-          }
-          if (s && targetParentId && byId(targetParentId)) {
-            const parent = byId(targetParentId);
-            s.parentId = parent.id;
-            const position = nextChildPosition(parent.id);
-            s.x = position.x;
-            s.y = position.y;
-            currentLayerId = parent.id;
-            selected = selectionFromParts([s.id], []);
-            saveModel("layer:move-child:" + parent.id);
-            draw();
-            showNodeInspector(s, { forceOpen: true });
-            syncToApp(true);
-            fitView();
             return;
           }
           saveModel("state:drag:" + dragId);
