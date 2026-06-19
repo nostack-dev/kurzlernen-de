@@ -5538,7 +5538,7 @@
         const outside = transition ? byId(side === "input" ? transition.from : transition.to) : null;
         const title = side === "input" ? "IN" : "OUT";
         const outsideTitle = outside?.title || outside?.id || "";
-        const width = nodeWidth({ title });
+          const width = nodeWidth({ title, virtualProxy: { side } });
         const slot = index - (count - 1) / 2;
         const x = side === "input" ? frameLeft - width : frameRight;
         const y = snapToGrid(centerY - nodeHeight({ virtualProxy: true }) / 2 + slot * GRID_SIZE * 5);
