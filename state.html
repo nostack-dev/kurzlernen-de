@@ -1829,7 +1829,7 @@
         <span id="layerFrameLabel" class="layer-frame-label">Root</span>
         <span class="layer-frame-hint">flow in/out</span>
       </div>
-      <canvas id="mapCanvas" class="map-canvas" layoutsubtree="" hidden="" aria-hidden="true" data-drawn="false"></canvas>
+      <canvas id="mapCanvas" class="map-canvas" hidden="" aria-hidden="true" data-drawn="false"></canvas>
       <div id="mapScene" class="map-scene">
         <div id="world" style="width: 30000px; height: 24000px; transform: translate(782px, 267px) scale(1);">
         <div id="layerFrame" class="layer-frame" style="display: block; left: 24px; top: 72px; width: 360px; height: 288px;"></div>
@@ -2034,6 +2034,8 @@
     let queuedCanvasMoveEvent = null;
     let isSpaceDown = false;
     let syncTimer = null;
+    let appFrameReady = false;
+    let pendingFramePayload = null;
     let currentAppState = null;
     let pendingAppStartStateId = null;
     let lastAppTransitionId = null;
@@ -5070,19 +5072,7 @@
     }
 
     function drawMapCanvasFrame() {
-      if (!htmlCanvasRenderer) return;
-      const ctx = htmlCanvasRenderer.ctx;
-      try {
-        if (typeof ctx.reset === "function") ctx.reset();
-        else if (typeof ctx.setTransform === "function") ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, mapCanvasEl.width, mapCanvasEl.height);
-        const transform = ctx.drawElementImage(mapSceneEl, 0, 0);
-        if (transform?.toString) mapSceneEl.style.transform = transform.toString();
-        mapCanvasEl.dataset.drawn = "true";
-      } catch (error) {
-        console.warn("HTML-in-Canvas renderer disabled; falling back to DOM/SVG.", error);
-        fallbackMapRenderer();
-      }
+      fallbackMapRenderer();
     }
 
     function requestMapCanvasPaint() {
@@ -5096,31 +5086,7 @@
     }
 
     function initMapRenderer() {
-      const ctx = mapCanvasContext();
-      if (!ctx || typeof ctx.drawElementImage !== "function") {
-        fallbackMapRenderer();
-        return;
-      }
-
-      const paintHandler = () => drawMapCanvasFrame();
-      htmlCanvasRenderer = {
-        ctx,
-        frame: 0,
-        paintHandler,
-        resizeObserver: null
-      };
-      mapCanvasEl.hidden = false;
-      mapCanvasEl.setAttribute("layoutsubtree", "");
-      mapCanvasEl.appendChild(mapSceneEl);
-      mapEl.classList.add("html-canvas-renderer");
-      mapEl.dataset.canvasRenderer = "html-in-canvas";
-      mapCanvasEl.addEventListener("paint", paintHandler);
-      if (typeof ResizeObserver === "function") {
-        htmlCanvasRenderer.resizeObserver = new ResizeObserver(resizeMapCanvas);
-        htmlCanvasRenderer.resizeObserver.observe(mapEl);
-      }
-      window.addEventListener("resize", resizeMapCanvas);
-      resizeMapCanvas();
+      fallbackMapRenderer();
     }
 
     function wheelDeltaPixels(evt) {
@@ -7719,6 +7685,22 @@
       return snapshot;
     }
 
+    function postRuntimePayload(payload) {
+      if (appFrameReady && frameEl.contentWindow) {
+        try {
+          frameEl.contentWindow.postMessage(payload, "*");
+          pendingFramePayload = null;
+        } catch (_) {
+          pendingFramePayload = payload;
+        }
+      } else {
+        pendingFramePayload = payload;
+      }
+      if (appWindow && !appWindow.closed) {
+        try { appWindow.postMessage(payload, "*"); } catch (_) {}
+      }
+    }
+
     function syncToApp(reset) {
       syncStateEl.textContent = reset ? "reset" : "live";
       if (reset) pendingAppStartStateId = null;
@@ -7728,10 +7710,7 @@
         reset: Boolean(reset),
         preserveFocus: !reset
       };
-      try { frameEl.contentWindow.postMessage(payload, "*"); } catch (_) {}
-      if (appWindow && !appWindow.closed) {
-        try { appWindow.postMessage(payload, "*"); } catch (_) {}
-      }
+      postRuntimePayload(payload);
       setTimeout(() => { syncStateEl.textContent = "live"; }, 400);
     }
 
@@ -7749,10 +7728,7 @@
         startStateId: id,
         preserveFocus: Boolean(opts.preserveFocus)
       };
-      try { frameEl.contentWindow.postMessage(payload, "*"); } catch (_) {}
-      if (appWindow && !appWindow.closed) {
-        try { appWindow.postMessage(payload, "*"); } catch (_) {}
-      }
+      postRuntimePayload(payload);
       draw();
       setTimeout(() => { syncStateEl.textContent = "live"; }, 400);
     }
@@ -8888,7 +8864,12 @@
     });
 
     frameEl.addEventListener("load", () => {
-      if (pendingAppStartStateId && byId(pendingAppStartStateId)) startAppAtState(pendingAppStartStateId);
+      appFrameReady = true;
+      if (pendingFramePayload) {
+        const payload = pendingFramePayload;
+        pendingFramePayload = null;
+        postRuntimePayload(payload);
+      } else if (pendingAppStartStateId && byId(pendingAppStartStateId)) startAppAtState(pendingAppStartStateId);
       else syncToApp(true);
     });
     frameEl.src = APP_URL;
