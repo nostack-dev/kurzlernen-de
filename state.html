@@ -7987,21 +7987,15 @@
       const instance = instantiateStateTemplate(template, position.x, position.y, parent.id);
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
-      if (opts.enter === false) {
-        selected = selectionFromParts([parent.id], []);
-      } else {
-        currentLayerId = parent.id;
-        selected = selectionFromParts([instance.root.id], []);
-      }
+      selected = selectionFromParts([parent.id], []);
       saveModel("layer:add-child:" + parent.id);
       draw();
-      showNodeInspector(opts.enter === false ? parent : instance.root, {
+      showNodeInspector(parent, {
         forceOpen: true,
         manualOpen: true,
         selectTitle: Boolean(opts.selectTitle)
       });
       syncToApp(false);
-      if (opts.enter !== false && opts.fit !== false) fitView();
       return instance.root;
     }
 
@@ -8011,20 +8005,14 @@
       const position = nextChildPosition(parent.id);
       const s = makeState(position.x, position.y, nextStateTitle(), parent.id);
       model.states.push(s);
-      if (opts.enter === false) {
-        selected = selectionFromParts([parent.id], []);
-      } else {
-        currentLayerId = parent.id;
-        selected = selectionFromParts([s.id], []);
-      }
+      selected = selectionFromParts([parent.id], []);
       saveModel("layer:add-child:" + parent.id);
       draw();
-      showNodeInspector(opts.enter === false ? parent : s, {
+      showNodeInspector(parent, {
         forceOpen: true,
         manualOpen: true,
-        selectTitle: opts.enter === false ? false : opts.selectTitle !== false
+        selectTitle: Boolean(opts.selectTitle)
       });
-      if (opts.enter !== false && opts.fit !== false) fitView();
       return s;
     }
 
