@@ -8253,9 +8253,19 @@
         lastHistoryKey = null;
         if (wasClick && s) {
           if (touchClick) {
-            lastNodeClick = null;
             focusCanvasForSelection();
             setSingleSelection("node", s.id);
+            const now = Date.now();
+            const previousClick = lastNodeClick;
+            if (previousClick?.id === s.id &&
+              now - previousClick.time < 500 &&
+              Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 12
+            ) {
+              lastNodeClick = null;
+              enterStateLayer(s.id, { source: "node-dblclick" });
+              return;
+            }
+            lastNodeClick = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
             showNodeInspector(s, { focus: false });
             return;
           }
