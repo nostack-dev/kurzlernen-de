@@ -750,6 +750,67 @@
     .node.initial .badge { display: block; }
     .node.active .live-badge { display: block; }
     .node.has-children .layer-badge { display: block; }
+    .node.has-children {
+      border-color: rgba(245,158,11,.62);
+      background-image:
+        linear-gradient(135deg, rgba(245,158,11,.13), transparent 42%),
+        linear-gradient(180deg, rgba(255,255,255,.055), transparent);
+      box-shadow:
+        0 18px 42px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.06),
+        0 0 0 1px rgba(245,158,11,.12);
+    }
+    .node.has-children .layer-badge {
+      color: #451a03;
+      background: #fde68a;
+      border-color: rgba(245,158,11,.65);
+    }
+
+    .child-jump-list {
+      display: grid;
+      gap: 7px;
+      margin: 8px 0 10px;
+    }
+
+    .child-jump-empty {
+      padding: 9px 10px;
+      border: 1px dashed rgba(148,163,184,.34);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .child-jump {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 36px;
+      padding: 8px 10px;
+      border-color: rgba(245,158,11,.38);
+      background: rgba(245,158,11,.08);
+      color: #fde68a;
+      text-align: left;
+    }
+
+    .child-jump strong,
+    .child-jump span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .child-jump span {
+      flex: 0 0 auto;
+      color: #fbbf24;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
 
     .input-port,
     .port,
@@ -1350,7 +1411,7 @@
       display: grid;
       gap: 5px;
       align-content: start;
-      min-height: 86px;
+      min-height: 108px;
       border: 1px solid #244766;
       border-radius: 12px;
       background: #081726;
@@ -1398,9 +1459,14 @@
 
     .state-template-card .template-title,
     .component-preset-card .template-title {
+      display: -webkit-box;
+      min-height: 34px;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: normal;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.25;
       font-size: 13px;
       font-weight: 900;
     }
@@ -1894,6 +1960,7 @@
 
   <script>
     const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
+    const EDITOR_STORAGE_KEY = STORAGE_KEY + ".editor";
     const STATE_EXPLORER_KEY = STORAGE_KEY + ".stateExplorer";
     const UI_STATE_KEY = STORAGE_KEY + ".ui";
     const LEGACY_PREVIEW_COLLAPSED_KEY = STORAGE_KEY + ".previewCollapsed";
@@ -2004,9 +2071,13 @@
     let pendingEdgeTouch = null;
     let suppressEdgeClickUntil = 0;
     let suppressLayerEnterUntil = 0;
+    let suppressLayerExitUntil = 0;
     let suppressRuntimeLayerFollowUntil = 0;
+    let runtimeLayerFollowEnabled = false;
+    let lastInspectorPointerDownAt = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
+    applyPersistedEditorState(loadEditorState());
 
     function demoModel() {
       return {
@@ -2040,8 +2111,21 @@
         version: 2,
         name: "Untitled Flow",
         initial: "start",
+        boundary: normalizeBoundaryConfig(null),
         states: [
-          { id: "start", title: "Start", body: "", components: [], x: 120, y: 160 }
+          {
+            id: "start",
+            title: "Start",
+            body: "",
+            components: [],
+            data: {},
+            dataSource: normalizeDataSource(null),
+            repeat: normalizeRepeatConfig(null),
+            boundary: normalizeBoundaryConfig(null),
+            parentId: null,
+            x: 120,
+            y: 160
+          }
         ],
         transitions: []
       };
@@ -2136,11 +2220,13 @@
       evt.stopPropagation();
       if (!isTouchPointer(evt)) return;
       evt.preventDefault();
+      if (Date.now() < suppressLayerExitUntil) return;
       exitCurrentLayer();
     });
     layerBackEl.addEventListener("click", evt => {
       evt.preventDefault();
       evt.stopPropagation();
+      if (Date.now() < suppressLayerExitUntil) return;
       exitCurrentLayer();
     });
 
@@ -2148,8 +2234,30 @@
       try {
         const text = localStorage.getItem(STORAGE_KEY);
         if (!text) return null;
-        return normalizeModel(JSON.parse(text));
+        const data = JSON.parse(text);
+        return normalizeModel(data && typeof data === "object" && "model" in data ? data.model : data);
       } catch (_) { return null; }
+    }
+
+    function loadEditorState() {
+      try {
+        const text = localStorage.getItem(EDITOR_STORAGE_KEY);
+        if (!text) return null;
+        const data = JSON.parse(text);
+        if (!data || typeof data !== "object") return null;
+        return "model" in data ? data : { model: data };
+      } catch (_) { return null; }
+    }
+
+    function applyPersistedEditorState(data) {
+      if (!data || typeof data !== "object" || !data.model) return;
+      model = normalizeModel(data.model);
+      const templates = snapshotStateTemplates(Array.isArray(data.stateTemplates) ? data.stateTemplates : stateTemplates);
+      const templateIds = new Set(templates.map(template => template.id));
+      stateTemplates = templates;
+      currentLayerId = data.currentLayerId && byId(data.currentLayerId) ? data.currentLayerId : null;
+      selected = normalizeSelection(data.selected || null);
+      editingTemplateId = templateIds.has(data.editingTemplateId) ? data.editingTemplateId : null;
     }
 
     function loadCamera() {
@@ -2428,6 +2536,7 @@
 
     function editorSnapshot() {
       return JSON.stringify({
+        savedAt: new Date().toISOString(),
         model: JSON.parse(modelSnapshot()),
         selected: normalizeSelection(),
         currentLayerId,
@@ -2459,7 +2568,10 @@
     }
 
     function persistModel(sync = true) {
-      localStorage.setItem(STORAGE_KEY, modelSnapshot());
+      try {
+        localStorage.setItem(STORAGE_KEY, modelSnapshot());
+        localStorage.setItem(EDITOR_STORAGE_KEY, editorSnapshot());
+      } catch (_) {}
       if (sync) scheduleSync(false);
     }
 
@@ -3646,6 +3758,23 @@
       return { parentId, side };
     }
 
+    function boundaryFlowInfoFromProxyId(proxyId) {
+      if (!isBoundaryProxyId(proxyId)) return null;
+      const parts = String(proxyId).split(":");
+      const parentId = parts[1] || ROOT_LAYER_ID;
+      const side = parts[2];
+      if (side !== "input" && side !== "output") return null;
+      return { parentId, side };
+    }
+
+    function boundaryFlowInfoFromTransition(transition, edgeId = "") {
+      if (!transition && !edgeId) return null;
+      return transition?.boundaryFlow ||
+        boundaryFlowInfoFromId(edgeId || transition?.id) ||
+        boundaryFlowInfoFromProxyId(transition?.from) ||
+        boundaryFlowInfoFromProxyId(transition?.to);
+    }
+
     function defaultGroupEntryChild(parentId) {
       const children = statesInLayer(parentId)
         .slice()
@@ -3700,12 +3829,23 @@
     function removeStatesById(ids) {
       const removeSet = descendantStateIds(ids);
       if (!removeSet.size || model.states.length - removeSet.size < 1) return false;
+      const affectedParentIds = new Set(
+        model.states
+          .filter(state => removeSet.has(state.id))
+          .map(state => stateParentId(state))
+          .filter(Boolean)
+      );
       const currentLayerRemoved = currentLayerId && removeSet.has(currentLayerId);
       const currentParent = byId(currentLayerId)?.parentId || null;
       model.states = model.states.filter(state => !removeSet.has(state.id));
       model.transitions = model.transitions.filter(transition => !removeSet.has(transition.from) && !removeSet.has(transition.to));
       if (removeSet.has(model.initial)) model.initial = statesInLayer(null)[0]?.id || model.states[0]?.id || "";
       if (currentLayerRemoved) currentLayerId = currentParent && byId(currentParent) ? currentParent : null;
+      if (currentLayerId && affectedParentIds.has(currentLayerId) && statesInLayer(currentLayerId).length === 0) {
+        const emptyGroup = byId(currentLayerId);
+        currentLayerId = stateParentId(emptyGroup);
+        if (emptyGroup) selected = selectionFromParts([emptyGroup.id], []);
+      }
       return true;
     }
 
@@ -3718,10 +3858,12 @@
       return visibleStates().some(state => state.id === id);
     }
 
-    function navigateToLayer(layerId, historyKey = "layer:navigate") {
+    function navigateToLayer(layerId, historyKey = "layer:navigate", opts = {}) {
       const nextLayerId = layerId && byId(layerId) ? layerId : null;
       if (currentLayerId === nextLayerId) return;
-      if (historyKey !== "layer:runtime") suppressRuntimeLayerFollowUntil = Date.now() + 1200;
+      if (historyKey !== "layer:runtime") {
+        stopRuntimeLayerFollow(1200);
+      }
       currentLayerId = nextLayerId;
       selected = null;
       connecting = null;
@@ -3731,19 +3873,31 @@
       showEmptyInspector();
       updateSelectRect();
       saveSelection(historyKey + ":" + (nextLayerId || "root"));
-      fitView();
+      if (opts.fit === true) fitView();
       draw();
     }
 
+    function stopRuntimeLayerFollow(duration = 1600) {
+      runtimeLayerFollowEnabled = false;
+      suppressRuntimeLayerFollowUntil = Date.now() + duration;
+    }
+
     function enterStateLayer(stateId, opts = {}) {
+      if (opts.source !== "node-dblclick") return;
       if (!opts.force && Date.now() < suppressLayerEnterUntil) return;
       if (!byId(stateId)) return;
-      navigateToLayer(stateId, "layer:enter");
+      suppressLayerExitUntil = Date.now() + 800;
+      suppressEmptyCanvasDblClickUntil = Date.now() + 800;
+      lastEmptyCanvasClick = null;
+      pendingCanvasMouse = null;
+      pendingCanvasTouch = null;
+      navigateToLayer(stateId, "layer:enter", { fit: true });
     }
 
     function exitCurrentLayer() {
+      if (Date.now() < suppressLayerExitUntil) return;
       const parent = byId(currentLayerId)?.parentId || null;
-      navigateToLayer(parent, "layer:exit");
+      navigateToLayer(parent, "layer:exit", { fit: true });
     }
 
     function transitionKey(from) {
@@ -3977,6 +4131,7 @@
     }
 
     function startPendingCanvasTouch(evt) {
+      stopRuntimeLayerFollow();
       clearLongPress();
       pendingCanvasTouch = {
         pointerId: evt.pointerId,
@@ -3995,6 +4150,7 @@
     }
 
     function startPendingCanvasMouse(evt) {
+      stopRuntimeLayerFollow();
       clearLongPress();
       evt.preventDefault();
       evt.stopPropagation();
@@ -4354,12 +4510,17 @@
 
     function deleteBoundaryFlowById(edgeId) {
       const transition = model.transitions.find(t => t.id === edgeId);
-      const flow = transition?.boundaryFlow || boundaryFlowInfoFromId(edgeId);
+      const flow = boundaryFlowInfoFromTransition(transition, edgeId);
       if (!flow) return false;
       const parent = boundaryParentFromFlow(flow);
       const side = flow.side;
       if (side === "input" || side === "output") clearBoundaryEndpoint(parent, side);
       else clearBoundaryRoute(parent);
+      model.transitions = model.transitions.filter(item => {
+        if (item.id === edgeId) return false;
+        const itemFlow = boundaryFlowInfoFromTransition(item, item.id);
+        return !(itemFlow && itemFlow.parentId === flow.parentId && itemFlow.side === side);
+      });
       return true;
     }
 
@@ -4527,6 +4688,7 @@
     }
 
     function startBoxSelect(evt) {
+      stopRuntimeLayerFollow();
       evt.preventDefault();
       selected = null;
       boxSelecting = {
@@ -4756,13 +4918,7 @@
         // Already inside a layer (has a parent)
         const parentState = byId(currentLayerId);
         const parentTitle = parentState ? parentState.title : "Unbekannt";
-        const message = `Diese States befinden sich bereits in dem Parent-State "${parentTitle}". Möchtest du zu dem Parent-State-Canvas navigieren?`;
-        const confirm = await modalConfirm(message, "Bereits gruppiert");
-        if (confirm) {
-          navigateToLayer(parentState.parentId);
-          selected = selectionFromParts([parentState.id], []);
-          draw();
-        }
+        await modalAlert(`Diese States befinden sich bereits in dem Parent-State "${parentTitle}". Layerwechsel passiert nur per Doppelclick auf einen State.`, "Bereits gruppiert");
         return;
       }
 
@@ -5000,6 +5156,7 @@
     }
 
     function startPanning(evt) {
+      stopRuntimeLayerFollow();
       evt.preventDefault();
       evt.stopPropagation();
       panning = { startX: evt.clientX, startY: evt.clientY, cameraX: camera.x, cameraY: camera.y };
@@ -5007,6 +5164,7 @@
     }
 
     function startNodeDrag(evt, s) {
+      stopRuntimeLayerFollow();
       evt.stopPropagation();
       if (!evt.shiftKey) selected = selectionFromParts([s.id], []);
       const p = screenToWorld(evt);
@@ -5032,6 +5190,7 @@
     }
 
     function startConnection(evt, s, fromSide = null) {
+      stopRuntimeLayerFollow();
       evt.stopPropagation();
       const p = screenToWorld(evt);
       lastNodeClick = null;
@@ -5043,6 +5202,7 @@
     }
 
     function startEdgeRewire(evt, t) {
+      stopRuntimeLayerFollow();
       evt.preventDefault();
       evt.stopPropagation();
       const concrete = projectedTransitionSource(t);
@@ -5868,6 +6028,11 @@
         activePointerId = evt.pointerId;
         startEdgeRewire(evt, transition);
       });
+      slot.addEventListener("click", evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        selectEdge(transition.id, evt.clientX, evt.clientY);
+      });
       nodeEl.appendChild(slot);
     }
 
@@ -6150,8 +6315,9 @@
         el.addEventListener("dblclick", evt => {
           evt.preventDefault();
           evt.stopPropagation();
+          evt.stopImmediatePropagation();
           if (s.virtualProxy) return;
-          enterStateLayer(s.id);
+          enterStateLayer(s.id, { source: "node-dblclick" });
         });
 
         el.addEventListener("dragover", evt => {
@@ -6169,7 +6335,7 @@
           evt.preventDefault();
           evt.stopPropagation();
           el.classList.remove("inner-drop-target");
-          addTemplateInside(templateId, s.id, { enter: true });
+          addTemplateInside(templateId, s.id, { enter: false, selectTitle: false });
         });
 
         const onPortMousedown = (evt, side) => {
@@ -6967,6 +7133,31 @@
       }
     }
 
+    function renderChildJumpList(parent, root = stateInspectorBodyEl) {
+      const list = root.querySelector("#pChildJumpList");
+      if (!list || !parent) return;
+      const children = statesInLayer(parent.id)
+        .slice()
+        .sort((a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)));
+      list.innerHTML = "";
+      if (!children.length) {
+        const empty = document.createElement("div");
+        empty.className = "child-jump-empty";
+        empty.textContent = "No child states yet. This is a normal state until it has at least one child.";
+        list.appendChild(empty);
+        return;
+      }
+      for (const child of children) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "child-jump";
+        button.disabled = true;
+        const nestedCount = childStateCount(child.id);
+        button.innerHTML = `<strong>${escapeHtml(child.title || child.id)}</strong><span>${nestedCount ? `${nestedCount} nested` : "state"}</span>`;
+        list.appendChild(button);
+      }
+    }
+
     function showNodeInspector(s, opts = {}) {
       const root = stateInspectorBodyEl;
       const wasEditingTemplate = Boolean(editingTemplateId);
@@ -7007,6 +7198,7 @@
             <span id="pInnerCount"></span>
           </div>
           <div id="pInnerDropZone" class="inner-state-dropzone">Drop a State Explorer preset here to place it inside this state. Components are states too.</div>
+          <div id="pChildJumpList" class="child-jump-list"></div>
           <div class="field" style="margin: 8px 0 4px;">
             <label style="font-size: 10px; margin-bottom: 2px; text-transform: uppercase; font-weight: 900; color: var(--muted); letter-spacing: .05em;">Child state type</label>
             <select id="pChildType" style="min-height: 34px; height: 34px; border-radius: 8px; font-size: 12px;"></select>
@@ -7033,6 +7225,7 @@
       title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
+      renderChildJumpList(s, root);
       const innerDropZone = root.querySelector("#pInnerDropZone");
       innerDropZone.addEventListener("dragover", evt => {
         if (!evt.dataTransfer.types.includes("text/state-template-id")) return;
@@ -7048,7 +7241,7 @@
         if (!templateId) return;
         evt.preventDefault();
         innerDropZone.classList.remove("drag-over");
-        addTemplateInside(templateId, s.id, { enter: true });
+        addTemplateInside(templateId, s.id, { enter: false, selectTitle: false });
       });
       const updateDataPreview = () => {
         try {
@@ -7092,13 +7285,15 @@
           childTypeSelect.appendChild(opt);
         });
       }
-      root.querySelector("#pEnterLayer").onclick = () => enterStateLayer(s.id, { force: true });
+      const enterLayerButton = root.querySelector("#pEnterLayer");
+      enterLayerButton.textContent = "Double-click state to open";
+      enterLayerButton.disabled = true;
       root.querySelector("#pAddInside").onclick = () => {
         const typeValue = childTypeSelect ? childTypeSelect.value : "blank";
         if (typeValue === "blank") {
-          addBlankStateInside(s.id, { selectTitle: true });
+          addBlankStateInside(s.id, { enter: false, selectTitle: false });
         } else {
-          addTemplateInside(typeValue, s.id, { selectTitle: true });
+          addTemplateInside(typeValue, s.id, { enter: false, selectTitle: false });
         }
       };
       root.querySelector("#pInitial").onclick = () => {
@@ -7421,10 +7616,11 @@
         selected = selectionFromParts([], [t.id]);
         deleteSelectedItems();
       };
-      setupEditorAccessibility(root, opts.focus !== false, {
+      setupEditorAccessibility(root, false, {
         onCommit: showEmptyInspector,
-        selectFirstInput: true
+        selectFirstInput: false
       });
+      keepCanvasFocusAfterTransitionSelect(t.id);
     }
 
     function isEditableTarget(target) {
@@ -7434,6 +7630,31 @@
     function focusCanvasForSelection() {
       mapEl.focus({ preventScroll: true });
     }
+
+    function keepCanvasFocusAfterTransitionSelect(edgeId) {
+      const focusCanvas = () => {
+        if (inspectorEdgeId !== edgeId) return;
+        const active = document.activeElement;
+        if (active && stateInspectorBodyEl.contains(active) && isEditableTarget(active)) active.blur();
+        focusCanvasForSelection();
+      };
+      focusCanvas();
+      requestAnimationFrame(focusCanvas);
+      setTimeout(focusCanvas, 0);
+      setTimeout(focusCanvas, 90);
+    }
+
+    stateInspectorBodyEl.addEventListener("pointerdown", () => {
+      lastInspectorPointerDownAt = Date.now();
+    }, { capture: true });
+
+    stateInspectorBodyEl.addEventListener("focusin", evt => {
+      if (!stateInspectorEl.classList.contains("transition-inspector")) return;
+      if (!isEditableTarget(evt.target)) return;
+      if (Date.now() - lastInspectorPointerDownAt < 300) return;
+      evt.target.blur();
+      focusCanvasForSelection();
+    }, { capture: true });
 
     function escapeHtml(text) {
       return String(text).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch]));
@@ -7463,6 +7684,7 @@
 
     function startAppAtState(id, opts = {}) {
       if (!byId(id)) return;
+      runtimeLayerFollowEnabled = Boolean(opts.allowLayerFollow);
       if (opts.suppressLayerFollow) suppressRuntimeLayerFollowUntil = Date.now() + 1200;
       currentAppState = id;
       pendingAppStartStateId = id;
@@ -7634,7 +7856,6 @@
       showNodeInspector(instance.root, { forceOpen: true });
       if (currentLayerId) syncToApp(false);
       else startAppAtState(instance.root.id);
-      if (currentLayerId) fitView();
       return instance.root;
     }
 
@@ -7710,13 +7931,21 @@
       const instance = instantiateStateTemplate(template, position.x, position.y, parent.id);
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
-      currentLayerId = parent.id;
-      selected = selectionFromParts([instance.root.id], []);
+      if (opts.enter === false) {
+        selected = selectionFromParts([parent.id], []);
+      } else {
+        currentLayerId = parent.id;
+        selected = selectionFromParts([instance.root.id], []);
+      }
       saveModel("layer:add-child:" + parent.id);
       draw();
-      showNodeInspector(instance.root, { forceOpen: true, selectTitle: Boolean(opts.selectTitle) });
+      showNodeInspector(opts.enter === false ? parent : instance.root, {
+        forceOpen: true,
+        manualOpen: true,
+        selectTitle: Boolean(opts.selectTitle)
+      });
       syncToApp(false);
-      if (opts.fit !== false) fitView();
+      if (opts.enter !== false && opts.fit !== false) fitView();
       return instance.root;
     }
 
@@ -7726,12 +7955,20 @@
       const position = nextChildPosition(parent.id);
       const s = makeState(position.x, position.y, nextStateTitle(), parent.id);
       model.states.push(s);
-      currentLayerId = parent.id;
-      selected = selectionFromParts([s.id], []);
+      if (opts.enter === false) {
+        selected = selectionFromParts([parent.id], []);
+      } else {
+        currentLayerId = parent.id;
+        selected = selectionFromParts([s.id], []);
+      }
       saveModel("layer:add-child:" + parent.id);
       draw();
-      showNodeInspector(s, { forceOpen: true, selectTitle: opts.selectTitle !== false });
-      if (opts.fit !== false) fitView();
+      showNodeInspector(opts.enter === false ? parent : s, {
+        forceOpen: true,
+        manualOpen: true,
+        selectTitle: opts.enter === false ? false : opts.selectTitle !== false
+      });
+      if (opts.enter !== false && opts.fit !== false) fitView();
       return s;
     }
 
@@ -7804,7 +8041,7 @@
             void modalAlert("Select a state first, then add this preset inside it.", "No state selected");
             return;
           }
-          addTemplateInside(template.id, target.id, { enter: true });
+          addTemplateInside(template.id, target.id, { enter: false, selectTitle: false });
         };
         card.addEventListener("dblclick", evt => {
           if (evt.target.closest("button, input, textarea")) return;
@@ -7870,10 +8107,8 @@
 
     function addStateAt(x, y, showAtX, showAtY) {
       const title = nextStateTitle();
-      const routeSnapshot = snapshotRouteAssignments();
-      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title);
+      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, currentLayerId || null);
       model.states.push(s);
-      restoreRouteAssignments(routeSnapshot);
       selected = selectionFromParts([s.id], []);
       lastNodeClick = null;
       suppressLayerEnterUntil = Date.now() + 500;
@@ -7901,12 +8136,14 @@
         return;
       }
       if (panning) {
+        stopRuntimeLayerFollow();
         camera.x = panning.cameraX + (evt.clientX - panning.startX);
         camera.y = panning.cameraY + (evt.clientY - panning.startY);
         applyCamera();
         return;
       }
       if (dragging) {
+        stopRuntimeLayerFollow();
         const s = byId(dragging.id);
         if (!s) return;
         const wasMoved = dragging.moved;
@@ -7929,6 +8166,7 @@
         return;
       }
       if (connecting) {
+        stopRuntimeLayerFollow();
         connecting.to = screenToWorld(evt);
         const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
@@ -7974,7 +8212,6 @@
             lastNodeClick = null;
             focusCanvasForSelection();
             setSingleSelection("node", s.id);
-            startAppAtState(s.id, { preserveFocus: true, suppressLayerFollow: true });
             showNodeInspector(s, { focus: false });
             return;
           }
@@ -7988,7 +8225,6 @@
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
           lastNodeClick = null;
-          startAppAtState(s.id, { preserveFocus: true, suppressLayerFollow: true });
           showNodeInspector(s, { focus: false });
           focusCanvasForSelection();
           return;
@@ -8330,14 +8566,12 @@
       if (evt.altKey && (evt.key === "ArrowLeft" || evt.code === "ArrowLeft")) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
-        exitCurrentLayer();
         return;
       }
       const selectedNodeId = singleSelectedNodeId();
       if (evt.altKey && evt.key === "ArrowRight" && selectedNodeId) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
-        enterStateLayer(selectedNodeId);
         return;
       }
       if (mod && evt.code === "Space") {
@@ -8396,15 +8630,15 @@
         evt.stopImmediatePropagation();
         if (inspectorStateId === selectedNodeId || inspectorEdgeId || editingTemplateId) {
           showEmptyInspector();
-          return;
         }
-        enterStateLayer(selectedNodeId);
         return;
       }
       if (evt.key === "Escape") {
         evt.preventDefault();
         evt.stopImmediatePropagation();
-        exitCurrentLayer();
+        selected = null;
+        showEmptyInspector();
+        draw();
         return;
       }
       if (evt.key === "Delete" && deleteActiveSelection()) {
@@ -8458,18 +8692,10 @@
         pendingAppStartStateId = null;
       }
       lastAppTransitionId = data.transitionId || null;
-      const allowRuntimeLayerFollow = Boolean(lastAppTransitionId) && Date.now() >= suppressRuntimeLayerFollowUntil;
+      const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Boolean(lastAppTransitionId) && Date.now() >= suppressRuntimeLayerFollowUntil;
       const runtimeState = byId(currentAppState);
       const runtimeLayerId = runtimeState?.parentId || null;
       const previousRuntimeLayerId = byId(previousAppState)?.parentId || null;
-      if (allowRuntimeLayerFollow && runtimeLayerId && (currentLayerId || null) !== runtimeLayerId) {
-        navigateToLayer(runtimeLayerId, "layer:runtime");
-        return;
-      }
-      if (allowRuntimeLayerFollow && !runtimeLayerId && previousRuntimeLayerId && (currentLayerId || null) === previousRuntimeLayerId) {
-        navigateToLayer(null, "layer:runtime");
-        return;
-      }
       draw();
       if (lastAppTransitionId) {
         const id = lastAppTransitionId;
@@ -8482,16 +8708,35 @@
       }
     });
 
+    window.addEventListener("beforeunload", () => {
+      persistModel(false);
+    });
+
     function loadEditorModel(nextModel, shouldFit = true) {
+      cancelQueuedCanvasMove();
       model = normalizeModel(nextModel);
       selected = null;
       dragging = null;
       connecting = null;
       connectingTargetId = null;
       boxSelecting = null;
+      panning = null;
+      pendingCanvasMouse = null;
+      pendingCanvasTouch = null;
+      pendingEdgeTouch = null;
+      clearLongPress();
+      currentLayerId = null;
       currentAppState = null;
+      pendingAppStartStateId = null;
       lastAppTransitionId = null;
       hoveredEdgeId = null;
+      runtimeLayerFollowEnabled = false;
+      suppressLayerEnterUntil = 0;
+      suppressRuntimeLayerFollowUntil = Date.now() + 1200;
+      _virtualNodes.clear();
+      mapEl.classList.remove("connecting", "panning", "dragging-state");
+      stateExplorerEl.classList.remove("drag-over");
+      document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
       showEmptyInspector();
       updateSelectRect();
       initHistory();
@@ -8524,7 +8769,10 @@
     };
     document.getElementById("btnFit").onclick = fitView;
     document.getElementById("btnResetView").onclick = resetView;
-    document.getElementById("btnRun").onclick = () => syncToApp(true);
+    document.getElementById("btnRun").onclick = () => {
+      runtimeLayerFollowEnabled = true;
+      syncToApp(true);
+    };
     document.getElementById("btnOpen").onclick = () => {
       appWindow = window.open(APP_URL, "state_blueprint_app", "width=480,height=760");
       setTimeout(() => syncToApp(true), 300);
