@@ -3917,7 +3917,7 @@
 
     function enterStateLayer(stateId, opts = {}) {
       if (opts.source !== "node-dblclick") return;
-      if (!opts.force && Date.now() < suppressLayerEnterUntil) return;
+      if (!opts.force && !opts.explicit && Date.now() < suppressLayerEnterUntil) return;
       const state = byId(stateId);
       if (!state || state.virtualProxy) return;
       if (!opts.force && stateParentId(state) !== (currentLayerId || null)) return;
@@ -6333,9 +6333,8 @@
           evt.stopPropagation();
           evt.stopImmediatePropagation();
           if (s.virtualProxy) return;
-          if (evt.detail < 2) return;
           if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 300) return;
-          enterStateLayer(s.id, { source: "node-dblclick" });
+          enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
         });
 
         el.addEventListener("dragover", evt => {
@@ -8239,7 +8238,7 @@
               Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 12
             ) {
               lastTouchNodeTap = null;
-              enterStateLayer(s.id, { source: "node-dblclick" });
+              enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
               return;
             }
             lastTouchNodeTap = { id: s.id, time: now, x: evt.clientX, y: evt.clientY };
