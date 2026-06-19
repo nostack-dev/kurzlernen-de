@@ -4349,7 +4349,6 @@
 
     function trackTouchStart(evt) {
       if (!isTouchPointer(evt) || isTouchUiTarget(evt.target)) return;
-      evt.preventDefault();
       captureTouchPointer(evt);
       rememberTouchPointer(evt);
       lastTouchAt = Date.now();
