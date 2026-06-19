@@ -3907,7 +3907,7 @@
       boxSelecting = null;
       showEmptyInspector();
       updateSelectRect();
-      saveSelection(historyKey + ":" + (nextLayerId || "root"));
+      if (opts.persist !== false) saveSelection(historyKey + ":" + (nextLayerId || "root"));
       if (opts.fit === true) fitView();
       draw();
     }
@@ -8725,7 +8725,13 @@
       const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Boolean(lastAppTransitionId) && Date.now() >= suppressRuntimeLayerFollowUntil;
       const runtimeState = byId(currentAppState);
       const runtimeLayerId = runtimeState?.parentId || null;
-      const previousRuntimeLayerId = byId(previousAppState)?.parentId || null;
+      if (allowRuntimeLayerFollow && runtimeState) {
+        if (currentLayerId !== runtimeLayerId) {
+          navigateToLayer(runtimeLayerId, "layer:runtime", { fit: true, persist: false });
+        }
+        selected = selectionFromParts([runtimeState.id], []);
+        updateSelectRect();
+      }
       draw();
       if (lastAppTransitionId) {
         const id = lastAppTransitionId;
