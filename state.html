@@ -2292,7 +2292,7 @@
 
     function loadUiState() {
       const fallback = {
-        inspectorCollapsed: false,
+        inspectorCollapsed: true,
         previewCollapsed: defaultPreviewCollapsed(),
         stateExplorerCollapsed: false,
         mobileWorkspaceView: "canvas"
@@ -2426,10 +2426,6 @@
     function setMobileWorkspaceView(view) {
       view = normalizeMobileWorkspaceView(view);
       mobileWorkspaceView = view;
-      if (view === "edit" && inspectorCollapsed) {
-        inspectorCollapsed = false;
-        applyInspectorCollapsed();
-      }
       if (view === "app" && previewCollapsed) {
         previewCollapsed = false;
         applyPreviewCollapsed();
@@ -2465,12 +2461,12 @@
       });
     }
 
-    function applyInspectorCollapsed() {
+    function applyInspectorCollapsed(opts = {}) {
       workspaceEl.classList.toggle("inspector-collapsed", inspectorCollapsed);
       btnToggleInspector.textContent = inspectorCollapsed ? ">" : "<";
       btnToggleInspector.title = inspectorCollapsed ? "Expand state inspector" : "Collapse state inspector";
       btnToggleInspector.setAttribute("aria-label", btnToggleInspector.title);
-      saveUiState();
+      if (opts.persist !== false) saveUiState();
       requestAnimationFrame(() => {
         applyCamera();
         draw();
@@ -8900,7 +8896,7 @@
     normalizeModel(model);
     initHistory();
     applyPreviewCollapsed();
-    applyInspectorCollapsed();
+    applyInspectorCollapsed({ persist: false });
     applyMobileWorkspaceView();
     applyStateExplorerCollapsed();
     renderStateExplorer();
