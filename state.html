@@ -2082,6 +2082,7 @@
     let lastInspectorPointerDownAt = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
+    let _virtualNodes = new Map();
     applyPersistedEditorState(initialEditorState);
 
     function demoModel() {
@@ -3526,7 +3527,6 @@
       return sourceModel?.states?.find?.(s => s.id === id) || null;
     }
 
-    let _virtualNodes = new Map();
     function byId(id) { return _virtualNodes.get(id) || model.states.find(s => s.id === id) || null; }
 
     function stateParentId(state) {
