@@ -7895,10 +7895,6 @@
           ) {
             lastNodeClick = null;
             focusCanvasForSelection();
-            if (now >= suppressLayerEnterUntil) {
-              setSingleSelection("node", s.id);
-              enterStateLayer(s.id);
-            }
             return;
           }
           focusCanvasForSelection();
