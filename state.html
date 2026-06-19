@@ -2075,6 +2075,7 @@
     let pendingEdgeTouch = null;
     let suppressEdgeClickUntil = 0;
     let suppressLayerEnterUntil = 0;
+    let suppressExplicitLayerEnterUntil = 0;
     let suppressLayerExitUntil = 0;
     let suppressRuntimeLayerFollowUntil = 0;
     let runtimeLayerFollowEnabled = false;
@@ -3918,6 +3919,7 @@
 
     function enterStateLayer(stateId, opts = {}) {
       if (opts.source !== "node-dblclick") return;
+      if (!opts.force && Date.now() < suppressExplicitLayerEnterUntil) return;
       if (!opts.force && !opts.explicit && Date.now() < suppressLayerEnterUntil) return;
       const state = byId(stateId);
       if (!state || state.virtualProxy) return;
@@ -3931,6 +3933,15 @@
       pendingCanvasMouse = null;
       pendingCanvasTouch = null;
       navigateToLayer(stateId, "layer:enter", { fit: true });
+    }
+
+    function blockLayerEntryAfterPointerAction(duration = 900) {
+      const until = Date.now() + duration;
+      suppressLayerEnterUntil = Math.max(suppressLayerEnterUntil, until);
+      suppressExplicitLayerEnterUntil = Math.max(suppressExplicitLayerEnterUntil, until);
+      suppressEmptyCanvasDblClickUntil = Math.max(suppressEmptyCanvasDblClickUntil, until);
+      lastNodeClick = null;
+      lastTouchNodeTap = null;
     }
 
     function exitCurrentLayer() {
@@ -4295,66 +4306,37 @@
     }
 
     function startPendingEdgeTouch(evt, t) {
-      clearLongPress();
-      pendingEdgeTouch = {
-        pointerId: evt.pointerId,
-        transitionId: t.id,
-        clientX: evt.clientX,
-        clientY: evt.clientY
-      };
-      longPressTimer = setTimeout(() => {
-        if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId || pinchZoom || touchPointers.size > 1) return;
-        const edge = model.transitions.find(item => item.id === pendingEdgeTouch.transitionId);
-        pendingEdgeTouch = null;
-        if (edge) startEdgeRewire(eventFromPoint({ clientX: evt.clientX, clientY: evt.clientY }, evt), edge);
-      }, 430);
+      return false;
     }
 
     function updatePendingEdgeTouch(evt) {
-      if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId) return false;
-      const distance = Math.hypot(evt.clientX - pendingEdgeTouch.clientX, evt.clientY - pendingEdgeTouch.clientY);
-      if (distance <= 10) return true;
       pendingEdgeTouch = null;
       clearLongPress();
       return false;
     }
 
     function finishPendingEdgeTouch(evt) {
-      if (!pendingEdgeTouch || pendingEdgeTouch.pointerId !== evt.pointerId) return false;
-      const edgeId = pendingEdgeTouch.transitionId;
       pendingEdgeTouch = null;
       clearLongPress();
-      if (Date.now() >= suppressEdgeClickUntil) selectEdge(edgeId, evt.clientX, evt.clientY);
-      return true;
+      return false;
     }
 
     function finishPendingCanvasTap(evt) {
-      if (!pendingCanvasTouch) return false;
-      const pending = pendingCanvasTouch;
       clearLongPress();
       pendingCanvasTouch = null;
-      if (pending.moved || pending.longPressed) return false;
-      const p = screenToWorld(evt);
-      addStateAt(p.x, p.y, evt.clientX, evt.clientY);
-      return true;
+      return false;
     }
 
     function updatePendingCanvasTouch(evt) {
-      if (!pendingCanvasTouch || pendingCanvasTouch.pointerId !== evt.pointerId || boxSelecting) return false;
-      const distance = Math.hypot(evt.clientX - pendingCanvasTouch.clientX, evt.clientY - pendingCanvasTouch.clientY);
-      if (distance <= 10) return true;
-      pendingCanvasTouch.moved = true;
+      pendingCanvasTouch = null;
       clearLongPress();
-      if (!panning) startPanning(eventFromPoint(pendingCanvasTouch, evt));
       return false;
     }
 
     function trackTouchStart(evt) {
       if (!isTouchPointer(evt) || isTouchUiTarget(evt.target)) return;
-      captureTouchPointer(evt);
-      rememberTouchPointer(evt);
+      evt.preventDefault();
       lastTouchAt = Date.now();
-      if (touchPointers.size >= 2) beginPinchZoom();
     }
 
     function updatePinchZoom() {
@@ -5210,8 +5192,7 @@
       stopRuntimeLayerFollow();
       evt.stopPropagation();
       const p = screenToWorld(evt);
-      lastTouchNodeTap = null;
-      suppressLayerEnterUntil = Date.now() + 700;
+      blockLayerEntryAfterPointerAction(1000);
       connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s) };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
@@ -5225,8 +5206,7 @@
       const concrete = projectedTransitionSource(t);
       const from = byId(t.from);
       if (!from) return;
-      lastTouchNodeTap = null;
-      suppressLayerEnterUntil = Date.now() + 700;
+      blockLayerEntryAfterPointerAction(1000);
       connecting = {
         from: t.from,
         to: screenToWorld(evt),
@@ -6318,16 +6298,8 @@
 
         el.addEventListener("pointerdown", evt => {
           if (!isTouchPointer(evt) || evt.target.closest(".port, .port-slot, .node-edit")) return;
-          if (s.virtualProxy) {
-            evt.preventDefault();
-            return;
-          }
           evt.preventDefault();
           lastTouchAt = Date.now();
-          if (pinchZoom) return;
-          activePointerId = evt.pointerId;
-
-          startNodeDrag(evt, s);
         });
 
         el.addEventListener("dblclick", evt => {
@@ -8282,9 +8254,7 @@
           return;
         }
         if (didMove) {
-          lastNodeClick = null;
-          lastTouchNodeTap = null;
-          suppressLayerEnterUntil = Date.now() + 900;
+          blockLayerEntryAfterPointerAction(1000);
           suppressRuntimeLayerFollowUntil = Date.now() + 1200;
           if (s && pointInElement(evt.clientX, evt.clientY, stateExplorerEl)) {
             s.x = originalX;
@@ -8299,8 +8269,7 @@
         }
       }
       if (connecting) {
-        lastTouchNodeTap = null;
-        suppressLayerEnterUntil = Date.now() + 700;
+        blockLayerEntryAfterPointerAction(1000);
         const dropPoint = screenToWorld(evt);
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
@@ -8544,9 +8513,6 @@
       if (!isTouchPointer(evt) || !isEmptyCanvasTarget(evt.target)) return;
       evt.preventDefault();
       lastTouchAt = Date.now();
-      if (pinchZoom) return;
-      activePointerId = evt.pointerId;
-      startPendingCanvasTouch(evt);
     }, { passive: false });
 
     window.addEventListener("mousemove", evt => {
@@ -8792,6 +8758,7 @@
       hoveredEdgeId = null;
       runtimeLayerFollowEnabled = false;
       suppressLayerEnterUntil = 0;
+      suppressExplicitLayerEnterUntil = 0;
       suppressRuntimeLayerFollowUntil = Date.now() + 1200;
       _virtualNodes.clear();
       mapEl.classList.remove("connecting", "panning", "dragging-state");
