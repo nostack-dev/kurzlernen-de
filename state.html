@@ -2029,7 +2029,6 @@
     let lastHistoryKey = null;
     let activePointerId = null;
     let lastTouchAt = 0;
-    let lastCanvasTap = null;
     let lastNodeClick = null;
     let touchPointers = new Map();
     let pinchZoom = null;
@@ -4004,17 +4003,8 @@
       clearLongPress();
       pendingCanvasTouch = null;
       if (pending.moved || pending.longPressed) return false;
-      const recentTap = lastCanvasTap &&
-        Date.now() - lastCanvasTap.time < 360 &&
-        Math.hypot(evt.clientX - lastCanvasTap.x, evt.clientY - lastCanvasTap.y) < 28;
-      if (recentTap) {
-        lastCanvasTap = null;
-        const p = screenToWorld(evt);
-        addStateAt(p.x, p.y, evt.clientX, evt.clientY);
-      } else {
-        lastCanvasTap = { time: Date.now(), x: evt.clientX, y: evt.clientY };
-        clearSelection("selection:canvas");
-      }
+      const p = screenToWorld(evt);
+      addStateAt(p.x, p.y, evt.clientX, evt.clientY);
       return true;
     }
 
@@ -4864,6 +4854,7 @@
         dy: p.y - s.y,
         startClientX: evt.clientX,
         startClientY: evt.clientY,
+        touch: isTouchPointer(evt),
         moved: false
       };
       updateNodeElementPosition(s);
@@ -7862,12 +7853,20 @@
         const shiftClick = dragging.shiftKey;
         const originalX = dragging.originalX;
         const originalY = dragging.originalY;
+        const touchClick = dragging.touch;
         dragging = null;
         mapEl.classList.remove("dragging-state");
         stateExplorerEl.classList.remove("drag-over");
         document.querySelectorAll(".node").forEach(el => el.classList.remove("inner-drop-target"));
         lastHistoryKey = null;
         if (wasClick && s) {
+          if (touchClick) {
+            lastNodeClick = null;
+            focusCanvasForSelection();
+            setSingleSelection("node", s.id);
+            enterStateLayer(s.id);
+            return;
+          }
           if (shiftClick) {
             lastNodeClick = null;
             focusCanvasForSelection();
