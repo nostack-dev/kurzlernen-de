@@ -8722,7 +8722,7 @@
         pendingAppStartStateId = null;
       }
       lastAppTransitionId = data.transitionId || null;
-      const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Boolean(lastAppTransitionId) && Date.now() >= suppressRuntimeLayerFollowUntil;
+      const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
       const runtimeState = byId(currentAppState);
       const runtimeLayerId = runtimeState?.parentId || null;
       if (allowRuntimeLayerFollow && runtimeState) {
