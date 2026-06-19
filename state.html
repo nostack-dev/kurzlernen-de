@@ -3713,7 +3713,25 @@
       const configured = configuredId ? byId(configuredId) : null;
       const childParentId = layerChildParentId(parent);
       if (configured && stateParentId(configured) === childParentId) return configured;
-      return null;
+      const candidates = states
+        .filter(state => state && !state.virtualProxy && stateParentId(state) === childParentId)
+        .sort((a, b) => (a.x - b.x) || (a.y - b.y) || String(a.id).localeCompare(String(b.id)));
+      if (!candidates.length) return null;
+      const candidateIds = new Set(candidates.map(state => state.id));
+      const internalTransitions = model.transitions.filter(transition =>
+        !transition.boundaryFlow &&
+        !isBoundaryProxyId(transition.from) &&
+        !isBoundaryProxyId(transition.to) &&
+        candidateIds.has(transition.from) &&
+        candidateIds.has(transition.to)
+      );
+      const incoming = new Set(internalTransitions.map(transition => transition.to));
+      const outgoing = new Set(internalTransitions.map(transition => transition.from));
+      const autoState = side === "input"
+        ? candidates.find(state => !incoming.has(state.id)) || candidates[0]
+        : [...candidates].reverse().find(state => !outgoing.has(state.id)) || candidates[candidates.length - 1];
+      if (autoState) setBoundaryEndpoint(parent, side, autoState.id);
+      return autoState || null;
     }
 
     function ensureBoundaryFlowTransition(parent, side, state) {
