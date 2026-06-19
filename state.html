@@ -640,6 +640,16 @@
       transform: none;
     }
 
+    .node.boundary-proxy.selected,
+    .node.boundary-proxy:focus,
+    .node.boundary-proxy:focus-visible {
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+      outline: none;
+      transform: none;
+    }
+
     .node.boundary-input .input-port,
     .node.boundary-output .port {
       display: none;
@@ -5805,7 +5815,7 @@
         if (s.virtualProxy?.side) classes.push(`boundary-${s.virtualProxy.side}`);
         if (s.id === model.initial) classes.push("initial");
         if (connecting?.from === s.id) classes.push("connect-source");
-        if (nodeSelection.has(s.id)) classes.push("selected");
+        if (!s.virtualProxy && nodeSelection.has(s.id)) classes.push("selected");
         if (currentAppState === s.id) classes.push("active");
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
@@ -5821,8 +5831,9 @@
         el.style.height = nodeHeight(s) + "px";
         el.dataset.id = s.id;
         if (s.virtualProxy?.side) el.dataset.boundarySide = s.virtualProxy.side;
-        el.tabIndex = 0;
+        el.tabIndex = s.virtualProxy ? -1 : 0;
         el.addEventListener("focus", () => {
+          if (s.virtualProxy) return;
           if (!nodeSelection.has(s.id)) {
             setSingleSelection("node", s.id);
             draw();
@@ -5882,7 +5893,10 @@
         el.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
           if (evt.target.closest(".port, .port-slot, .node-edit, .node-open, .node-enter")) return;
-          if (s.virtualProxy) return;
+          if (s.virtualProxy) {
+            evt.preventDefault();
+            return;
+          }
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
 
@@ -5891,7 +5905,10 @@
 
         el.addEventListener("pointerdown", evt => {
           if (!isTouchPointer(evt) || evt.target.closest(".port, .port-slot, .node-edit, .node-open, .node-enter")) return;
-          if (s.virtualProxy) return;
+          if (s.virtualProxy) {
+            evt.preventDefault();
+            return;
+          }
           evt.preventDefault();
           lastTouchAt = Date.now();
           if (pinchZoom) return;
