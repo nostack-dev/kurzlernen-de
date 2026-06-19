@@ -3920,9 +3920,13 @@
     function enterStateLayer(stateId, opts = {}) {
       if (opts.source !== "node-dblclick") return;
       if (!opts.force && Date.now() < suppressLayerEnterUntil) return;
-      if (!byId(stateId)) return;
+      const state = byId(stateId);
+      if (!state || state.virtualProxy) return;
+      if (!opts.force && stateParentId(state) !== (currentLayerId || null)) return;
+      if (!opts.force && (dragging || connecting || panning || boxSelecting)) return;
       suppressLayerExitUntil = Date.now() + 800;
       suppressEmptyCanvasDblClickUntil = Date.now() + 800;
+      lastNodeClick = null;
       lastEmptyCanvasClick = null;
       pendingCanvasMouse = null;
       pendingCanvasTouch = null;
@@ -6368,6 +6372,7 @@
           evt.stopPropagation();
           evt.stopImmediatePropagation();
           if (s.virtualProxy) return;
+          if (evt.detail < 2) return;
           enterStateLayer(s.id, { source: "node-dblclick" });
         });
 
