@@ -2136,7 +2136,10 @@
       return prefix + Math.random().toString(36).slice(2, 9);
     }
 
-    function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+    function clamp(n, min, max) {
+      const value = Number(n);
+      return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+    }
 
     function snapToGrid(value) {
       return Math.round(value / GRID_SIZE) * GRID_SIZE;
@@ -5121,8 +5124,11 @@
     }
 
     function wheelDeltaPixels(evt) {
-      const modeScale = evt.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : evt.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 240 : 1;
-      return evt.deltaY * modeScale;
+      const lineMode = typeof WheelEvent === "undefined" ? 1 : WheelEvent.DOM_DELTA_LINE;
+      const pageMode = typeof WheelEvent === "undefined" ? 2 : WheelEvent.DOM_DELTA_PAGE;
+      const modeScale = evt.deltaMode === lineMode ? 16 : evt.deltaMode === pageMode ? 240 : 1;
+      const deltaY = Number(evt.deltaY);
+      return Number.isFinite(deltaY) ? deltaY * modeScale : 0;
     }
 
     function wheelZoomFactor(evt) {
@@ -5728,6 +5734,7 @@
     let _frameRoutes = new Map();
 
     function recordRouteMetric(name, amount = 1) {
+      window.__stateBlueprintRouteMetrics = window.__stateBlueprintRouteMetrics || {};
       const metrics = window.__stateBlueprintRouteMetrics;
       if (metrics && typeof metrics === "object") metrics[name] = (metrics[name] || 0) + amount;
     }
