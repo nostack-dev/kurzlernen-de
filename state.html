@@ -840,7 +840,9 @@
 
     .port-slot-input {
       left: -6px;
-      pointer-events: none;
+      cursor: cell;
+      touch-action: none;
+      pointer-events: auto;
     }
 
     .port-slot.selected {
@@ -4227,7 +4229,22 @@
       const states = visibleStates();
       for (let i = states.length - 1; i >= 0; i--) {
         const s = states[i];
-        if (s.virtualProxy?.side === "input" && connecting?.from !== s.id) continue;
+        if (s.virtualProxy) {
+          if (s.virtualProxy.side !== "output" || connecting?.from === s.id) continue;
+          const port = nodeCenter(s, "in");
+          const dist = Math.hypot(p.x - port.x, p.y - port.y);
+          const nearBoundaryPort =
+            dist <= GRID_SIZE * 2.25 ||
+            (p.x >= port.x - GRID_SIZE * 2 &&
+              p.x <= port.x + GRID_SIZE * 2 &&
+              p.y >= port.y - GRID_SIZE * 2 &&
+              p.y <= port.y + GRID_SIZE * 2);
+          if (nearBoundaryPort && dist < bestScore) {
+            best = s;
+            bestScore = dist;
+          }
+          continue;
+        }
         const input = nodeCenter(s, "in");
         const dist = Math.hypot(p.x - input.x, p.y - input.y);
         const nearInput =
@@ -5589,22 +5606,20 @@
       slot.style.setProperty("--edge-color", edgeColor(transition));
       slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
-      if (side === "out") {
-        slot.title = "drag to connect from " + (transition.label || state.title || state.id);
-        slot.addEventListener("mousedown", evt => {
-          if (Date.now() - lastTouchAt < 700) return;
-          if (evt.button !== 0) return;
-          startConnection(evt, state);
-        });
-        slot.addEventListener("pointerdown", evt => {
-          if (!isTouchPointer(evt)) return;
-          evt.preventDefault();
-          lastTouchAt = Date.now();
-          if (pinchZoom) return;
-          activePointerId = evt.pointerId;
-          startConnection(evt, state);
-        });
-      }
+      slot.title = "drag to reroute " + (transition.label || "transition");
+      slot.addEventListener("mousedown", evt => {
+        if (Date.now() - lastTouchAt < 700) return;
+        if (evt.button !== 0) return;
+        startEdgeRewire(evt, transition);
+      });
+      slot.addEventListener("pointerdown", evt => {
+        if (!isTouchPointer(evt)) return;
+        evt.preventDefault();
+        lastTouchAt = Date.now();
+        if (pinchZoom) return;
+        activePointerId = evt.pointerId;
+        startEdgeRewire(evt, transition);
+      });
       nodeEl.appendChild(slot);
     }
 
@@ -7767,6 +7782,13 @@
             mapEl.classList.remove("connecting");
             draw();
             showEdgeInspector(projected, { focus: !wasRewire, forceOpen: true });
+            return;
+          }
+          if (connecting.projection) {
+            connecting = null;
+            connectingTargetId = null;
+            mapEl.classList.remove("connecting");
+            draw();
             return;
           }
           const boundary = finishBoundaryConnection(connecting.from, targetId);
