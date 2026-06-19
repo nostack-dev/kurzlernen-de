@@ -3429,7 +3429,15 @@
       m.states = Array.isArray(m.states) ? m.states : [];
       m.transitions = Array.isArray(m.transitions) ? m.transitions : [];
       if (!m.states.length) {
-        m.states.push({ id: "start", title: "Start", body: "", components: [{ id: uid("c"), type: "text", text: "First screen", url: "" }], x: 100, y: 100 });
+        m.transitions = [];
+        m.initial = "";
+        m.boundary.entryId = "";
+        m.boundary.exitId = "";
+        m.boundary.entryDisabled = true;
+        m.boundary.exitDisabled = true;
+        currentAppState = null;
+        currentLayerId = null;
+        return m;
       }
       const used = new Set();
       for (const s of m.states) {
@@ -3454,11 +3462,15 @@
       for (const s of m.states) {
         s.parentId = typeof s.parentId === "string" && ids.has(s.parentId) && s.parentId !== s.id ? s.parentId : null;
       }
-      if (m.boundary.entryId && stateParentId(byModelId(m, m.boundary.entryId)) !== null) m.boundary.entryId = "";
-      if (m.boundary.exitId && stateParentId(byModelId(m, m.boundary.exitId)) !== null) m.boundary.exitId = "";
+      const rootEntry = m.boundary.entryId ? byModelId(m, m.boundary.entryId) : null;
+      const rootExit = m.boundary.exitId ? byModelId(m, m.boundary.exitId) : null;
+      if (m.boundary.entryId && (!rootEntry || stateParentId(rootEntry) !== null)) m.boundary.entryId = "";
+      if (m.boundary.exitId && (!rootExit || stateParentId(rootExit) !== null)) m.boundary.exitId = "";
       for (const s of m.states) {
-        if (s.boundary.entryId && stateParentId(byModelId(m, s.boundary.entryId)) !== s.id) s.boundary.entryId = "";
-        if (s.boundary.exitId && stateParentId(byModelId(m, s.boundary.exitId)) !== s.id) s.boundary.exitId = "";
+        const entry = s.boundary.entryId ? byModelId(m, s.boundary.entryId) : null;
+        const exit = s.boundary.exitId ? byModelId(m, s.boundary.exitId) : null;
+        if (s.boundary.entryId && (!entry || stateParentId(entry) !== s.id)) s.boundary.entryId = "";
+        if (s.boundary.exitId && (!exit || stateParentId(exit) !== s.id)) s.boundary.exitId = "";
       }
       for (const s of m.states) {
         const seen = new Set([s.id]);
@@ -3826,26 +3838,45 @@
       return out;
     }
 
+    function clearBoundaryRefsForRemovedStates(removeSet) {
+      if (!removeSet?.size) return;
+      const root = rootLayerContainer();
+      if (model.boundary?.entryId && removeSet.has(model.boundary.entryId)) clearBoundaryEndpoint(root, "input");
+      if (model.boundary?.exitId && removeSet.has(model.boundary.exitId)) clearBoundaryEndpoint(root, "output");
+      for (const state of model.states) {
+        state.boundary = normalizeBoundaryConfig(state.boundary);
+        if (state.boundary.entryId && removeSet.has(state.boundary.entryId)) clearBoundaryEndpoint(state, "input");
+        if (state.boundary.exitId && removeSet.has(state.boundary.exitId)) clearBoundaryEndpoint(state, "output");
+      }
+      for (const transition of model.transitions) {
+        if (transition.groupEntryId && removeSet.has(transition.groupEntryId)) transition.groupEntryId = "";
+        if (transition.groupExitId && removeSet.has(transition.groupExitId)) transition.groupExitId = "";
+      }
+    }
+
     function removeStatesById(ids) {
       const removeSet = descendantStateIds(ids);
-      if (!removeSet.size || model.states.length - removeSet.size < 1) return false;
-      const affectedParentIds = new Set(
-        model.states
-          .filter(state => removeSet.has(state.id))
-          .map(state => stateParentId(state))
-          .filter(Boolean)
-      );
+      if (!removeSet.size) return false;
       const currentLayerRemoved = currentLayerId && removeSet.has(currentLayerId);
       const currentParent = byId(currentLayerId)?.parentId || null;
       model.states = model.states.filter(state => !removeSet.has(state.id));
+      clearBoundaryRefsForRemovedStates(removeSet);
       model.transitions = model.transitions.filter(transition => !removeSet.has(transition.from) && !removeSet.has(transition.to));
+      if (!model.states.length) {
+        model.initial = "";
+        model.boundary = {
+          entryId: "",
+          exitId: "",
+          entryDisabled: true,
+          exitDisabled: true
+        };
+        currentLayerId = null;
+        currentAppState = null;
+        pendingAppStartStateId = null;
+        return true;
+      }
       if (removeSet.has(model.initial)) model.initial = statesInLayer(null)[0]?.id || model.states[0]?.id || "";
       if (currentLayerRemoved) currentLayerId = currentParent && byId(currentParent) ? currentParent : null;
-      if (currentLayerId && affectedParentIds.has(currentLayerId) && statesInLayer(currentLayerId).length === 0) {
-        const emptyGroup = byId(currentLayerId);
-        currentLayerId = stateParentId(emptyGroup);
-        if (emptyGroup) selected = selectionFromParts([emptyGroup.id], []);
-      }
       return true;
     }
 
@@ -4393,6 +4424,18 @@
       showEmptyInspector();
       saveSelection(historyKey);
       draw();
+    }
+
+    function selectAllCurrentLayerItems() {
+      const nodeIds = visibleStates()
+        .filter(state => !state.virtualProxy)
+        .map(state => state.id);
+      const edgeIds = visibleTransitions().map(transition => transition.id);
+      selected = selectionFromParts(nodeIds, edgeIds);
+      showEmptyInspector();
+      saveSelection("selection:all");
+      draw();
+      return Boolean(selected);
     }
 
     let selectionClipboard = null;
@@ -8604,6 +8647,12 @@
         evt.preventDefault();
         evt.stopImmediatePropagation();
         requestLoadBlueprintFile();
+        return;
+      }
+      if (!isEditableTarget(evt.target) && mod && !evt.shiftKey && (key === "a" || evt.code === "KeyA")) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        selectAllCurrentLayerItems();
         return;
       }
       if (!isEditableTarget(evt.target) && mod && (key === "c" || evt.code === "KeyC") && selected) {
