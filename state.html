@@ -2042,7 +2042,8 @@
     let hoveredEdgeId = null;
     let htmlCanvasRenderer = null;
     let currentLayerId = null;
-    let model = loadModel() || demoModel();
+    const initialEditorState = loadEditorState();
+    let model = initialEditorState?.model ? normalizeModel(initialEditorState.model) : (loadModel() || demoModel());
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
     const uiState = loadUiState();
     let previewCollapsed = uiState.previewCollapsed;
@@ -2077,7 +2078,7 @@
     let lastInspectorPointerDownAt = 0;
     let cameraSaveTimer = null;
     let drawFrame = 0;
-    applyPersistedEditorState(loadEditorState());
+    applyPersistedEditorState(initialEditorState);
 
     function demoModel() {
       return {
@@ -2569,8 +2570,8 @@
 
     function persistModel(sync = true) {
       try {
-        localStorage.setItem(STORAGE_KEY, modelSnapshot());
         localStorage.setItem(EDITOR_STORAGE_KEY, editorSnapshot());
+        localStorage.removeItem(STORAGE_KEY);
       } catch (_) {}
       if (sync) scheduleSync(false);
     }
@@ -8875,7 +8876,6 @@
     });
 
     frameEl.addEventListener("load", () => {
-      persistModel(false);
       if (pendingAppStartStateId && byId(pendingAppStartStateId)) startAppAtState(pendingAppStartStateId);
       else syncToApp(true);
     });
