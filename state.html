@@ -6003,7 +6003,6 @@
           evt.preventDefault();
           evt.stopPropagation();
           if (s.virtualProxy) return;
-          if (Date.now() < suppressLayerEnterUntil) return;
           enterStateLayer(s.id);
         });
 
@@ -7882,6 +7881,8 @@
           ) {
             lastNodeClick = null;
             focusCanvasForSelection();
+            setSingleSelection("node", s.id);
+            enterStateLayer(s.id);
             return;
           }
           focusCanvasForSelection();
