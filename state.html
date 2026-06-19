@@ -622,23 +622,29 @@
     }
 
     .node.boundary-proxy {
+      min-width: 0;
+      min-height: 0;
       border: 0;
+      border-radius: 0;
       background: transparent;
       box-shadow: none;
+      cursor: default;
       opacity: 1;
     }
 
-    .node.boundary-proxy .title {
-      display: none;
-    }
-
-    .node.boundary-proxy .body {
-      display: none;
+    .node.boundary-proxy.drop-target {
+      border-color: transparent;
+      box-shadow: none;
+      transform: none;
     }
 
     .node.boundary-input .input-port,
     .node.boundary-output .port {
       display: none;
+    }
+
+    .node.boundary-proxy > :not(.input-port):not(.port) {
+      display: none !important;
     }
 
     .node.boundary-proxy .node-edit,
