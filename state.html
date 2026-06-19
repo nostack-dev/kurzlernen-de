@@ -3523,6 +3523,7 @@
       if (!parent) return [];
       const projected = [];
       const childParentId = layerChildParentId(parent);
+      if (!statesInLayer(childParentId).length) return projected;
       const boundary = normalizeBoundaryConfig(parent.boundary);
       const defaultEntry = boundary.entryId ? byId(boundary.entryId) : null;
       if (defaultEntry && stateParentId(defaultEntry) === childParentId && !parentLayerTransitions(parent, "input").length) {
