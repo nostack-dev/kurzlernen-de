@@ -4933,10 +4933,7 @@
 
     function edgePortPoint(state, side, transition = null) {
       if (!transition) return nodeCenter(state, side);
-      const transitions = orderedPortTransitions(state.id, side);
-      const index = Math.max(0, transitions.findIndex(item => item.id === transition.id));
-      const slot = index - Math.floor((transitions.length - 1) / 2);
-      const y = snapToGrid(state.y + nodeHeight(state) / 2 + slot * GRID_SIZE);
+      const y = nodeCenter(state, side).y;
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
       return nodeCenter(state, side);
