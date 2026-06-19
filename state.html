@@ -490,11 +490,12 @@
     }
 
     .edge-pin {
-      display: none;
       fill: var(--edge-color, #5f8dbc);
       stroke: #07111f;
       stroke-width: 2.2;
-      pointer-events: none;
+      pointer-events: auto;
+      cursor: cell;
+      touch-action: none;
       filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
     }
 
@@ -833,39 +834,38 @@
     .port-slot {
       position: absolute;
       z-index: 9;
-      width: 12px;
-      height: 12px;
-      border: 2px solid #06121f;
+      width: 30px;
+      height: 30px;
+      border: 0;
       border-radius: 999px;
-      background: var(--edge-color, #5f8dbc);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #5f8dbc) 22%, transparent);
+      background: transparent;
+      box-shadow: none;
       transform: translateY(-50%);
       pointer-events: none;
     }
 
     .port-slot-output {
-      right: -6px;
+      right: -15px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
     }
 
     .port-slot-input {
-      left: -6px;
+      left: -15px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
     }
 
     .port-slot.selected {
-      border-color: var(--selected);
-      box-shadow: 0 0 0 4px rgba(245,158,11,.28), 0 0 12px var(--edge-color, #5f8dbc);
+      box-shadow: none;
     }
 
     .port-slot.hovered {
-      width: 14px;
-      height: 14px;
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--edge-color, #5f8dbc) 30%, transparent), 0 0 14px var(--edge-color, #5f8dbc);
+      width: 30px;
+      height: 30px;
+      box-shadow: none;
     }
 
 
@@ -5743,7 +5743,7 @@
         if (hoveredEdgeId === t.id) pinClasses.push("hovered");
         const startPin = routePoints[0];
         const endPin = routePoints[routePoints.length - 1];
-        wiresEl.appendChild(svgEl("circle", {
+        const startPinEl = svgEl("circle", {
           cx: startPin.x,
           cy: startPin.y,
           r: 5,
@@ -5751,8 +5751,10 @@
           style: edgeStyle,
           "data-edge-id": t.id,
           "data-edge-pin": "out"
-        }));
-        wiresEl.appendChild(svgEl("circle", {
+        });
+        attachEdgeInteractions(startPinEl, t, true);
+        wiresEl.appendChild(startPinEl);
+        const endPinEl = svgEl("circle", {
           cx: endPin.x,
           cy: endPin.y,
           r: 5,
@@ -5760,7 +5762,9 @@
           style: edgeStyle,
           "data-edge-id": t.id,
           "data-edge-pin": "in"
-        }));
+        });
+        attachEdgeInteractions(endPinEl, t, true);
+        wiresEl.appendChild(endPinEl);
 
         const tip = edgeTipHandlePoint(from, to, t);
         const tipClasses = ["edge-tip-hit"];
