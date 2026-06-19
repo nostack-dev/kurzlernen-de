@@ -3485,7 +3485,7 @@
     }
 
     function visibleTransitions() {
-      return transitionsInLayer(currentLayerId);
+      return [...transitionsInLayer(currentLayerId), ...layerDefaultBoundaryTransitions(currentLayerContainer())];
     }
 
     function boundaryProxyId(parentId, side, transitionId) {
@@ -3498,6 +3498,37 @@
 
     function boundaryFlowId(parentId, side) {
       return `boundary-flow:${parentId}:${side}`;
+    }
+
+    function stateBoundaryFlowId(parentId, side, stateId) {
+      return `boundary-flow:${parentId}:${side}:${stateId}`;
+    }
+
+    function layerDefaultBoundaryTransitions(parent) {
+      if (!parent) return [];
+      const childParentId = layerChildParentId(parent);
+      const inputProxyId = boundaryProxyId(parent.id, "input", defaultBoundaryLaneId("input"));
+      const outputProxyId = boundaryProxyId(parent.id, "output", defaultBoundaryLaneId("output"));
+      return statesInLayer(childParentId).flatMap(state => [
+        {
+          id: stateBoundaryFlowId(parent.id, "input", state.id),
+          from: inputProxyId,
+          to: state.id,
+          label: "IN",
+          condition: "",
+          set: {},
+          virtualBoundaryFlow: { parentId: parent.id, side: "input", stateId: state.id }
+        },
+        {
+          id: stateBoundaryFlowId(parent.id, "output", state.id),
+          from: state.id,
+          to: outputProxyId,
+          label: "OUT",
+          condition: "",
+          set: {},
+          virtualBoundaryFlow: { parentId: parent.id, side: "output", stateId: state.id }
+        }
+      ]);
     }
 
     function defaultGroupEntryChild(parentId) {
