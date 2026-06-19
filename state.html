@@ -4803,6 +4803,8 @@
     function startConnection(evt, s) {
       evt.stopPropagation();
       const p = screenToWorld(evt);
+      lastNodeClick = null;
+      suppressLayerEnterUntil = Date.now() + 700;
       connecting = { from: s.id, to: p };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
@@ -4815,6 +4817,8 @@
       const concrete = projectedTransitionSource(t);
       const from = byId(t.from);
       if (!from) return;
+      lastNodeClick = null;
+      suppressLayerEnterUntil = Date.now() + 700;
       connecting = {
         from: t.from,
         to: screenToWorld(evt),
@@ -7769,6 +7773,8 @@
         }
       }
       if (connecting) {
+        lastNodeClick = null;
+        suppressLayerEnterUntil = Date.now() + 700;
         const dropPoint = screenToWorld(evt);
         const targetNode = connectingTargetId ? byId(connectingTargetId) : connectionTargetAtWorldPoint(dropPoint);
         const targetId = targetNode?.id;
