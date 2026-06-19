@@ -490,6 +490,7 @@
     }
 
     .edge-pin {
+      display: none;
       fill: var(--edge-color, #5f8dbc);
       stroke: #07111f;
       stroke-width: 2.2;
@@ -768,6 +769,10 @@
       touch-action: none;
     }
 
+    .node.has-output-slots > .port {
+      display: none;
+    }
+
     .input-port {
       position: absolute;
       z-index: 6;
@@ -781,6 +786,7 @@
       background: #94a3b8;
       box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: default;
+      opacity: 0;
     }
 
     .input-port::before {
@@ -793,12 +799,17 @@
       border-radius: 999px;
     }
 
-    .map.connecting .node .input-port {
+    .node.boundary-output:not(.has-input-slots) .input-port,
+    .map.connecting .node:not(.has-input-slots) .input-port {
+      opacity: 1;
+    }
+
+    .map.connecting .node:not(.has-input-slots) .input-port {
       background: #dbeafe;
       box-shadow: 0 0 0 8px rgba(56,189,248,.13);
     }
 
-    .map.connecting .node .input-port::before {
+    .map.connecting .node:not(.has-input-slots) .input-port::before {
       background: rgba(56,189,248,.06);
       outline: 1px dashed rgba(56,189,248,.34);
       outline-offset: -8px;
@@ -810,7 +821,8 @@
       box-shadow: 0 0 0 5px rgba(56,189,248,.25), 0 14px 30px rgba(0,0,0,.38);
     }
 
-    .node.drop-target .input-port {
+    .node.drop-target:not(.has-input-slots) .input-port {
+      opacity: 1;
       width: 22px;
       height: 22px;
       left: -12px;
@@ -5799,6 +5811,10 @@
         if (nodeSelection.has(s.id)) classes.push("selected");
         if (currentAppState === s.id) classes.push("active");
         if (connectingTargetId === s.id) classes.push("drop-target");
+        const inputTransitions = orderedPortTransitions(s.id, "in");
+        const outputTransitions = orderedPortTransitions(s.id, "out");
+        if (inputTransitions.length) classes.push("has-input-slots");
+        if (outputTransitions.length) classes.push("has-output-slots");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
@@ -5868,7 +5884,7 @@
 
         el.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
-          if (evt.target.closest(".port, .node-edit, .node-open, .node-enter")) return;
+          if (evt.target.closest(".port, .port-slot, .node-edit, .node-open, .node-enter")) return;
           if (s.virtualProxy) return;
           if (evt.button === 1 || evt.button === 2 || isSpaceDown) return startPanning(evt);
           if (evt.button !== 0) return;
@@ -5877,7 +5893,7 @@
         });
 
         el.addEventListener("pointerdown", evt => {
-          if (!isTouchPointer(evt) || evt.target.closest(".port, .node-edit, .node-open, .node-enter")) return;
+          if (!isTouchPointer(evt) || evt.target.closest(".port, .port-slot, .node-edit, .node-open, .node-enter")) return;
           if (s.virtualProxy) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
@@ -5928,10 +5944,10 @@
           startConnection(evt, s);
         });
 
-        for (const transition of orderedPortTransitions(s.id, "in")) {
+        for (const transition of inputTransitions) {
           addPortSlot(el, s, transition, "in", edgeSelection);
         }
-        for (const transition of orderedPortTransitions(s.id, "out")) {
+        for (const transition of outputTransitions) {
           addPortSlot(el, s, transition, "out", edgeSelection);
         }
 
