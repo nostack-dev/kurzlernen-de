@@ -490,12 +490,11 @@
     }
 
     .edge-pin {
+      opacity: 0;
       fill: var(--edge-color, #5f8dbc);
       stroke: #07111f;
       stroke-width: 2.2;
-      pointer-events: auto;
-      cursor: cell;
-      touch-action: none;
+      pointer-events: none;
       filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
     }
 
@@ -789,6 +788,10 @@
       display: none;
     }
 
+    .node.has-input-slots > .input-port {
+      display: none;
+    }
+
     .input-port {
       position: absolute;
       z-index: 6;
@@ -796,7 +799,7 @@
       height: 12px;
       border-radius: 999px;
       border: 2px solid #06121f;
-      left: -7px;
+      left: -6px;
       top: 50%;
       transform: translateY(-50%);
       background: #94a3b8;
@@ -834,7 +837,7 @@
     .node.drop-target .input-port {
       width: 22px;
       height: 22px;
-      left: -12px;
+      left: -11px;
       background: var(--accent);
       box-shadow: 0 0 0 7px rgba(56,189,248,.24), 0 0 18px rgba(56,189,248,.75);
     }
@@ -842,38 +845,39 @@
     .port-slot {
       position: absolute;
       z-index: 9;
-      width: 30px;
-      height: 30px;
-      border: 0;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #06121f;
       border-radius: 999px;
-      background: transparent;
-      box-shadow: none;
+      background: var(--edge-color, #5f8dbc);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--edge-color, #5f8dbc) 22%, transparent);
       transform: translateY(-50%);
       pointer-events: none;
     }
 
     .port-slot-output {
-      right: -15px;
+      width: 16px;
+      height: 16px;
+      right: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
     }
 
     .port-slot-input {
-      left: -15px;
+      left: -6px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
     }
 
     .port-slot.selected {
-      box-shadow: none;
+      border-color: var(--selected);
+      box-shadow: 0 0 0 4px rgba(245,158,11,.28), 0 0 12px var(--edge-color, #5f8dbc);
     }
 
     .port-slot.hovered {
-      width: 30px;
-      height: 30px;
-      box-shadow: none;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--edge-color, #5f8dbc) 30%, transparent), 0 0 14px var(--edge-color, #5f8dbc);
     }
 
 
