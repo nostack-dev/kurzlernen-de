@@ -787,7 +787,6 @@
       background: #94a3b8;
       box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: default;
-      opacity: 0;
     }
 
     .input-port::before {
@@ -800,17 +799,12 @@
       border-radius: 999px;
     }
 
-    .node.boundary-output:not(.has-input-slots) .input-port,
-    .map.connecting .node:not(.has-input-slots) .input-port {
-      opacity: 1;
-    }
-
-    .map.connecting .node:not(.has-input-slots) .input-port {
+    .map.connecting .node .input-port {
       background: #dbeafe;
       box-shadow: 0 0 0 8px rgba(56,189,248,.13);
     }
 
-    .map.connecting .node:not(.has-input-slots) .input-port::before {
+    .map.connecting .node .input-port::before {
       background: rgba(56,189,248,.06);
       outline: 1px dashed rgba(56,189,248,.34);
       outline-offset: -8px;
@@ -822,8 +816,7 @@
       box-shadow: 0 0 0 5px rgba(56,189,248,.25), 0 14px 30px rgba(0,0,0,.38);
     }
 
-    .node.drop-target:not(.has-input-slots) .input-port {
-      opacity: 1;
+    .node.drop-target .input-port {
       width: 22px;
       height: 22px;
       left: -12px;
