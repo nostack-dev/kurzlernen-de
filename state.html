@@ -4395,6 +4395,8 @@
     function setSingleSelection(kind, id, historyKey = null) {
       selected = kind === "node" ? selectionFromParts([id], []) : selectionFromParts([], [id]);
       saveSelection(historyKey);
+      const singleNode = kind === "node" ? singleSelectedNodeId() : null;
+      if (singleNode) startAppAtState(singleNode, { preserveFocus: true, suppressLayerFollow: true });
     }
 
     function toggleSelection(kind, id) {
@@ -4406,6 +4408,8 @@
       else list.push(id);
       selected = selectionFromParts(nodes, edges);
       saveSelection();
+      const singleNode = singleSelectedNodeId();
+      if (singleNode) startAppAtState(singleNode, { preserveFocus: true, suppressLayerFollow: true });
     }
 
     function clearSelection(historyKey = null) {
