@@ -659,7 +659,7 @@
       display: none;
     }
 
-    .node.boundary-proxy > :not(.input-port):not(.port) {
+    .node.boundary-proxy > :not(.input-port):not(.port):not(.port-slot) {
       display: none !important;
     }
 
@@ -3551,7 +3551,7 @@
     }
 
     function edgeById(id) {
-      return model.transitions.find(t => t.id === id) || null;
+      return model.transitions.find(t => t.id === id) || visibleTransitions().find(t => t.id === id) || null;
     }
 
     function transitionVisibleInCurrentContext(transition) {
@@ -7120,6 +7120,42 @@
       revealInspectorForProperties(opts);
       stateInspectorEl.classList.remove("template-inspector");
       stateInspectorEl.classList.add("transition-inspector");
+      if (t.virtualBoundaryFlow) {
+        const side = t.virtualBoundaryFlow.side;
+        stateInspectorTitleEl.textContent = "Boundary flow: " + (side === "input" ? "IN" : "OUT");
+        if (wasEditingTemplate) renderStateExplorer();
+        root.innerHTML = `
+          <h3>Boundary flow</h3>
+          <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
+          <div class="small">This is the default ${side === "input" ? "entry" : "exit"} anchor for the current dotted boundary. Drag its visible port to reroute it.</div>
+          <div class="row" style="margin-top:10px">
+            <button id="pClearBoundary" class="danger">Clear boundary ${side === "input" ? "entry" : "exit"}</button>
+          </div>
+        `;
+        root.querySelector("#pClearBoundary").onclick = () => {
+          const owner = currentLayerContainer();
+          if (!owner || owner.id !== t.virtualBoundaryFlow.parentId) return;
+          if (owner.rootLayer) {
+            model.boundary = normalizeBoundaryConfig(model.boundary);
+            if (side === "input") model.boundary.entryId = "";
+            else model.boundary.exitId = "";
+          } else {
+            owner.boundary = normalizeBoundaryConfig(owner.boundary);
+            if (side === "input") owner.boundary.entryId = "";
+            else owner.boundary.exitId = "";
+          }
+          selected = null;
+          saveModel("boundary:clear:" + side);
+          draw();
+          showEmptyInspector();
+          syncToApp(true);
+        };
+        setupEditorAccessibility(root, opts.focus !== false, {
+          onCommit: showEmptyInspector,
+          selectFirstInput: true
+        });
+        return;
+      }
       stateInspectorTitleEl.textContent = "Transition: " + (t.label || "Next");
       if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
