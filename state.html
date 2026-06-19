@@ -655,6 +655,11 @@
       display: none;
     }
 
+    .node.boundary-proxy.has-input-slots > .input-port,
+    .node.boundary-proxy.has-output-slots > .port {
+      display: none;
+    }
+
     .node.boundary-proxy > :not(.input-port):not(.port) {
       display: none !important;
     }
@@ -5563,13 +5568,16 @@
       if (!parent) return;
       const fallbackCenter = viewportCenterWorld();
       const padX = GRID_SIZE * 4;
+      const padY = GRID_SIZE * 4;
       const minX = states.length ? Math.min(...states.map(state => state.x)) : fallbackCenter.x - GRID_SIZE * 8;
+      const minY = states.length ? Math.min(...states.map(state => state.y)) : fallbackCenter.y - GRID_SIZE * 5;
       const maxX = states.length ? Math.max(...states.map(state => state.x + nodeWidth(state))) : fallbackCenter.x + GRID_SIZE * 8;
+      const maxY = states.length ? Math.max(...states.map(state => state.y + NODE_H)) : fallbackCenter.y + GRID_SIZE * 5;
       const frameLeft = snapToGrid(minX - padX);
       const frameRight = snapToGrid(maxX + padX);
-      const centerY = states.length
-        ? states.reduce((sum, state) => sum + state.y + nodeHeight(state) / 2, 0) / states.length
-        : fallbackCenter.y;
+      const frameTop = snapToGrid(minY - padY);
+      const frameHeight = snapToGrid(maxY - minY + padY * 2);
+      const centerY = frameTop + frameHeight / 2;
       const addProxy = (transition, side, index, count) => {
         const outside = transition ? byId(side === "input" ? transition.from : transition.to) : null;
         const title = side === "input" ? "IN" : "OUT";
