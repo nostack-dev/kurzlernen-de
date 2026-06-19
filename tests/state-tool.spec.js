@@ -1687,7 +1687,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pLabel")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pCond")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pSet")).toHaveAttribute("tabindex", "0");
-    await expect(page.locator("#pFlip")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#pFlip")).toHaveCount(0);
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
     await expect.poll(() => page.locator("#pLabel").evaluate(el => ({
       value: el.value,
@@ -3612,4 +3612,370 @@ test.describe("State Blueprint tool", () => {
     expect(html).not.toContain("Vorlesen");
     expect(html).not.toContain("SpeechSynthesis");
   });
+});
+
+function nestedRegressionModel() {
+  return {
+    version: 2,
+    name: "Nested regression model",
+    initial: "parent",
+    states: [
+      {
+        id: "parent",
+        title: "Parent",
+        type: "screen",
+        description: "Root parent state",
+        x: 144,
+        y: 216,
+        color: "#f59e0b",
+        boundary: { entryId: "child_a", exitId: "child_b" },
+      },
+      {
+        id: "next",
+        title: "Next",
+        type: "screen",
+        description: "State after parent exits",
+        x: 552,
+        y: 216,
+        color: "#2563eb",
+      },
+      {
+        id: "child_a",
+        parentId: "parent",
+        title: "Child A",
+        type: "screen",
+        description: "Parent entry child",
+        x: 144,
+        y: 216,
+        color: "#22c55e",
+      },
+      {
+        id: "child_b",
+        parentId: "parent",
+        title: "Child B",
+        type: "screen",
+        description: "Parent exit child",
+        x: 456,
+        y: 216,
+        color: "#ec4899",
+      },
+    ],
+    transitions: [
+      { id: "parent_to_next", from: "parent", to: "next", label: "to Next" },
+      { id: "child_a_to_child_b", from: "child_a", to: "child_b", label: "to B" },
+    ],
+    components: [
+      { id: "component_parent", stateId: "parent", preset: "headline", content: "Parent" },
+      { id: "component_child_a", stateId: "child_a", preset: "headline", content: "Child A" },
+      { id: "component_child_b", stateId: "child_b", preset: "headline", content: "Child B" },
+      { id: "component_next", stateId: "next", preset: "headline", content: "Next" },
+    ],
+  };
+}
+
+async function openWithRegressionModel(page, model = nestedRegressionModel()) {
+  await page.addInitScript(
+    ({ storageKey, initialModel }) => {
+      localStorage.clear();
+      localStorage.setItem(storageKey, JSON.stringify(initialModel));
+    },
+    { storageKey: STORAGE_KEY, initialModel: model },
+  );
+  await page.goto("/state.html");
+  await expect(nodeById(page, model.initial)).toBeVisible();
+}
+
+function nodeById(page, id) {
+  return page.locator(`.node[data-id="${id}"]`).first();
+}
+
+function edgeById(page, id) {
+  return page.locator(`.edge[data-edge-id="${id}"], .hit[data-edge-id="${id}"]`).first();
+}
+
+async function persistedEditorModel(page) {
+  return page.evaluate((storageKey) => {
+    if (typeof saveModel === "function") saveModel();
+    return JSON.parse(localStorage.getItem(storageKey));
+  }, STORAGE_KEY);
+}
+
+test("@smoke single click never enters nested state, double click does", async ({ page }) => {
+  await openWithRegressionModel(page);
+
+  await expect(page.locator(".node-open, .node-enter")).toHaveCount(0);
+  await nodeById(page, "parent").click();
+  await expect(nodeById(page, "parent")).toBeVisible();
+  await expect(nodeById(page, "next")).toBeVisible();
+  await expect(nodeById(page, "child_a")).toHaveCount(0);
+
+  await nodeById(page, "parent").dblclick();
+  await expect(nodeById(page, "child_a")).toBeVisible();
+  await expect(nodeById(page, "child_b")).toBeVisible();
+  await expect(nodeById(page, "next")).toHaveCount(0);
+});
+
+test("@smoke empty double click creates a child without changing the current layer", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+  await expect(nodeById(page, "child_a")).toBeVisible();
+
+  const before = await persistedEditorModel(page);
+  const beforeChildIds = before.states.filter((state) => state.parentId === "parent").map((state) => state.id);
+  const point = await emptyCanvasPoint(page);
+  await page.mouse.dblclick(point.x, point.y);
+
+  await expect
+    .poll(async () => {
+      const after = await persistedEditorModel(page);
+      return after.states.filter((state) => state.parentId === "parent").length;
+    })
+    .toBe(beforeChildIds.length + 1);
+
+  await expect(nodeById(page, "child_a")).toBeVisible();
+  await expect(nodeById(page, "child_b")).toBeVisible();
+  await expect(nodeById(page, "parent")).toHaveCount(0);
+
+  const after = await persistedEditorModel(page);
+  const added = after.states.find((state) => state.parentId === "parent" && !beforeChildIds.includes(state.id));
+  expect(added).toBeTruthy();
+  expect(after.transitions.some((transition) => transition.from === added.id || transition.to === added.id)).toBe(false);
+});
+
+test("@smoke boundary transitions are real selectable edges and Delete disables them", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+
+  const outputEdgeId = "boundary-flow:parent:output";
+  await expect(edgeById(page, outputEdgeId)).toBeVisible();
+  await edgeById(page, outputEdgeId).click({ force: true });
+  await page.keyboard.press("Delete");
+
+  await expect(edgeById(page, outputEdgeId)).toHaveCount(0);
+  const model = await persistedEditorModel(page);
+  const parent = model.states.find((state) => state.id === "parent");
+  expect(parent.boundary.exitId).toBe("");
+  expect(parent.boundary.exitDisabled).toBe(true);
+  expect(model.transitions.some((transition) => transition.id === outputEdgeId)).toBe(false);
+});
+
+test("@smoke moving children never retargets explicit parent boundary ids", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+
+  const childA = nodeById(page, "child_a");
+  const start = await centerOf(childA);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 528, start.y - 72, { steps: 8 });
+  await page.mouse.up();
+
+  const model = await persistedEditorModel(page);
+  const parent = model.states.find((state) => state.id === "parent");
+  expect(parent.boundary.entryId).toBe("child_a");
+  expect(parent.boundary.exitId).toBe("child_b");
+});
+
+test("@smoke runtime flows parent entry through children and exits via parent out", async ({ page }) => {
+  await openWithRegressionModel(page);
+  const app = appFrame(page);
+
+  await expect(app.locator("#statePill")).toHaveText("child_a");
+  await expect(app.locator("h1")).toHaveText(/Parent \/ Child A/);
+
+  await app.getByRole("button", { name: "to B" }).click();
+  await expect(app.locator("#statePill")).toHaveText("child_b");
+  await expect(app.locator("h1")).toHaveText(/Parent \/ Child B/);
+
+  await app.getByRole("button", { name: "to Next" }).click();
+  await expect(app.locator("#statePill")).toHaveText("next");
+  await expect(app.locator("h1")).toHaveText("Next");
+});
+
+test("boundary out rewire inserts a child before the parent out without duplicate outs", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+
+  const before = await persistedEditorModel(page);
+  const beforeChildIds = before.states.filter((state) => state.parentId === "parent").map((state) => state.id);
+  const point = await emptyCanvasPoint(page);
+  await page.mouse.dblclick(point.x, point.y);
+
+  const afterAdd = await persistedEditorModel(page);
+  const inserted = afterAdd.states.find((state) => state.parentId === "parent" && !beforeChildIds.includes(state.id));
+  expect(inserted).toBeTruthy();
+
+  const outputSlot = page.locator('.port-slot[data-edge-id="boundary-flow:parent:output"]').first();
+  const insertedInput = nodeById(page, inserted.id).locator(".input-port").first();
+  await dragTransition(page, outputSlot, insertedInput);
+
+  const model = await persistedEditorModel(page);
+  const parent = model.states.find((state) => state.id === "parent");
+  const boundaryOutTransitions = model.transitions.filter((transition) => transition.id === "boundary-flow:parent:output");
+  expect(parent.boundary.exitId).toBe(inserted.id);
+  expect(boundaryOutTransitions).toHaveLength(1);
+  expect(boundaryOutTransitions[0].from).toBe(inserted.id);
+  expect(model.transitions.filter((transition) => transition.from === "child_b" && transition.to === inserted.id)).toHaveLength(1);
+});
+
+test("normal state transitions keep one outgoing edge per state", async ({ page }) => {
+  const model = nestedRegressionModel();
+  model.states.push({
+    id: "child_c",
+    parentId: "parent",
+    title: "Child C",
+    type: "screen",
+    description: "Competing outgoing target",
+    x: 744,
+    y: 216,
+    color: "#14b8a6",
+  });
+  model.transitions.push({ id: "duplicate_child_a_to_child_c", from: "child_a", to: "child_c", label: "duplicate" });
+
+  await openWithRegressionModel(page, model);
+  await nodeById(page, "parent").dblclick();
+
+  const normalized = await persistedEditorModel(page);
+  const outgoing = normalized.transitions.filter((transition) => transition.from === "child_a");
+  expect(outgoing).toHaveLength(1);
+  expect(["child_b", "child_c"]).toContain(outgoing[0].to);
+});
+
+test("@smoke automatic canvas actions never expand the inspector drawer or auto-enter nested layers", async ({ page }) => {
+  await openWithRegressionModel(page);
+
+  await page.locator("#btnToggleInspector").click();
+  await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+
+  await nodeById(page, "parent").click();
+  await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+  await expect(nodeById(page, "parent")).toBeVisible();
+  await expect(nodeById(page, "next")).toBeVisible();
+  await expect(nodeById(page, "child_a")).toHaveCount(0);
+
+  await nodeById(page, "parent").dblclick();
+  await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+  await expect(nodeById(page, "child_a")).toBeVisible();
+
+  const point = await emptyCanvasPoint(page);
+  await page.mouse.dblclick(point.x, point.y);
+  await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
+  await expect(nodeById(page, "child_a")).toBeVisible();
+  await expect(nodeById(page, "parent")).toHaveCount(0);
+});
+
+test("@smoke inside double click creates a state even on non-port boundary proxy surface", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+  await expect(nodeById(page, "child_a")).toBeVisible();
+
+  const before = await persistedEditorModel(page);
+  const beforeCount = before.states.filter((state) => state.parentId === "parent").length;
+  const proxyPoint = await page.evaluate(() => {
+    const proxy = document.querySelector('.node.boundary-proxy[data-boundary-side="input"]');
+    if (!proxy) return null;
+    const rect = proxy.getBoundingClientRect();
+    for (let y = rect.top + 6; y < rect.bottom - 6; y += 8) {
+      for (let x = rect.left + 6; x < rect.right - 6; x += 8) {
+        const stack = document.elementsFromPoint(x, y);
+        if (!stack.includes(proxy)) continue;
+        if (stack.some((el) => el.closest?.(".port, .input-port, .port-slot, .edge, .hit, .edge-label"))) continue;
+        return { x, y };
+      }
+    }
+    return { x: rect.left + rect.width / 2, y: rect.top + 6 };
+  });
+  expect(proxyPoint).toBeTruthy();
+
+  await page.mouse.dblclick(proxyPoint.x, proxyPoint.y);
+  await expect
+    .poll(async () => {
+      const after = await persistedEditorModel(page);
+      return after.states.filter((state) => state.parentId === "parent").length;
+    })
+    .toBe(beforeCount + 1);
+  await expect(nodeById(page, "child_a")).toBeVisible();
+  await expect(nodeById(page, "parent")).toHaveCount(0);
+});
+
+test("@smoke adding disconnected child never hijacks an existing boundary out", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+  await expect(edgeById(page, "boundary-flow:parent:output")).toBeVisible();
+
+  const before = await persistedEditorModel(page);
+  expect(before.states.find((state) => state.id === "parent").boundary.exitId).toBe("child_b");
+  const beforeChildIds = before.states.filter((state) => state.parentId === "parent").map((state) => state.id);
+
+  const point = await emptyCanvasPoint(page);
+  await page.mouse.dblclick(point.x, point.y);
+
+  const after = await persistedEditorModel(page);
+  const parent = after.states.find((state) => state.id === "parent");
+  const added = after.states.find((state) => state.parentId === "parent" && !beforeChildIds.includes(state.id));
+  expect(added).toBeTruthy();
+  expect(parent.boundary.exitId).toBe("child_b");
+  expect(after.transitions.find((transition) => transition.id === "boundary-flow:parent:output")?.from).toBe("child_b");
+  expect(after.transitions.some((transition) => transition.from === added.id || transition.to === added.id)).toBe(false);
+});
+
+test("@smoke deleting a boundary output edge leaves that side disconnected and stops the flow", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+
+  await expect(edgeById(page, "boundary-flow:parent:input")).toBeVisible();
+  await expect(edgeById(page, "boundary-flow:parent:output")).toBeVisible();
+  await edgeById(page, "boundary-flow:parent:output").click({ force: true });
+  await page.keyboard.press("Delete");
+
+  await expect(edgeById(page, "boundary-flow:parent:input")).toBeVisible();
+  await expect(edgeById(page, "boundary-flow:parent:output")).toHaveCount(0);
+  await expect(edgeById(page, "boundary-flow:parent:passthrough")).toHaveCount(0);
+
+  const model = await persistedEditorModel(page);
+  const parent = model.states.find((state) => state.id === "parent");
+  expect(parent.boundary.entryId).toBe("child_a");
+  expect(parent.boundary.exitId).toBe("");
+  expect(model.transitions.some((transition) => transition.id === "boundary-flow:parent:input")).toBe(true);
+  expect(model.transitions.some((transition) => transition.id === "boundary-flow:parent:output")).toBe(false);
+  expect(model.transitions.some((transition) => transition.id === "boundary-flow:parent:passthrough")).toBe(false);
+});
+
+test("@smoke dragging a parent with children never opens its inside layer", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await expect(nodeById(page, "parent")).toBeVisible();
+  await expect(nodeById(page, "next")).toBeVisible();
+  await expect(nodeById(page, "child_a")).toHaveCount(0);
+
+  const parentStart = await centerOf(nodeById(page, "parent"));
+  await page.mouse.move(parentStart.x, parentStart.y);
+  await page.mouse.down();
+  await page.mouse.move(parentStart.x + 96, parentStart.y + 48, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(nodeById(page, "parent")).toBeVisible();
+  await expect(nodeById(page, "next")).toBeVisible();
+  await expect(nodeById(page, "child_a")).toHaveCount(0);
+});
+
+test("@smoke deleting a boundary input edge leaves that side disconnected and stops the flow", async ({ page }) => {
+  await openWithRegressionModel(page);
+  await nodeById(page, "parent").dblclick();
+
+  await expect(edgeById(page, "boundary-flow:parent:input")).toBeVisible();
+  await expect(edgeById(page, "boundary-flow:parent:output")).toBeVisible();
+  await edgeById(page, "boundary-flow:parent:input").click({ force: true });
+  await page.keyboard.press("Delete");
+
+  await expect(edgeById(page, "boundary-flow:parent:input")).toHaveCount(0);
+  await expect(edgeById(page, "boundary-flow:parent:output")).toBeVisible();
+  await expect(edgeById(page, "boundary-flow:parent:passthrough")).toHaveCount(0);
+
+  const model = await persistedEditorModel(page);
+  const parent = model.states.find((state) => state.id === "parent");
+  expect(parent.boundary.entryId).toBe("");
+  expect(parent.boundary.exitId).toBe("child_b");
+  expect(model.transitions.some((transition) => transition.id === "boundary-flow:parent:input")).toBe(false);
+  expect(model.transitions.some((transition) => transition.id === "boundary-flow:parent:output")).toBe(true);
+  expect(model.transitions.some((transition) => transition.id === "boundary-flow:parent:passthrough")).toBe(false);
 });
