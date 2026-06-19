@@ -2060,6 +2060,8 @@
     let activePointerId = null;
     let lastTouchAt = 0;
     let lastTouchNodeTap = null;
+    let lastCreatedStateId = null;
+    let lastCreatedStateTime = 0;
     let lastEmptyCanvasClick = null;
     let suppressEmptyCanvasDblClickUntil = 0;
     let touchPointers = new Map();
@@ -6367,6 +6369,7 @@
           evt.stopImmediatePropagation();
           if (s.virtualProxy) return;
           if (evt.detail < 2) return;
+          if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 300) return;
           enterStateLayer(s.id, { source: "node-dblclick" });
         });
 
@@ -8148,6 +8151,8 @@
       const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, currentLayerId || null);
       model.states.push(s);
       selected = selectionFromParts([s.id], []);
+      lastCreatedStateId = s.id;
+      lastCreatedStateTime = Date.now();
       lastTouchNodeTap = null;
       suppressLayerEnterUntil = Date.now() + 500;
       suppressRuntimeLayerFollowUntil = Date.now() + 1200;
