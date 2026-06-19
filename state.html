@@ -2061,6 +2061,7 @@
     let lastHistoryKey = null;
     let activePointerId = null;
     let lastTouchAt = 0;
+    let lastNodeClick = null;
     let lastTouchNodeTap = null;
     let lastCreatedStateId = null;
     let lastCreatedStateTime = 0;
@@ -3924,6 +3925,7 @@
       if (!opts.force && (dragging || connecting || panning || boxSelecting)) return;
       suppressLayerExitUntil = Date.now() + 800;
       suppressEmptyCanvasDblClickUntil = Date.now() + 800;
+      lastNodeClick = null;
       lastTouchNodeTap = null;
       lastEmptyCanvasClick = null;
       pendingCanvasMouse = null;
@@ -8231,6 +8233,7 @@
           if (touchClick) {
             focusCanvasForSelection();
             setSingleSelection("node", s.id);
+            lastNodeClick = null;
             const now = Date.now();
             const previousClick = lastTouchNodeTap;
             if (previousClick?.id === s.id &&
@@ -8246,6 +8249,7 @@
             return;
           }
           if (shiftClick) {
+            lastNodeClick = null;
             lastTouchNodeTap = null;
             focusCanvasForSelection();
             toggleSelection("node", s.id);
@@ -8255,11 +8259,25 @@
           focusCanvasForSelection();
           setSingleSelection("node", s.id);
           lastTouchNodeTap = null;
+          const now = Date.now();
+          const previousClick = lastNodeClick;
+          if (previousClick?.id === s.id &&
+            previousClick.layerId === (currentLayerId || null) &&
+            now - previousClick.time < 420 &&
+            Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 10 &&
+            !(s.id === lastCreatedStateId && now - lastCreatedStateTime < 300)
+          ) {
+            lastNodeClick = null;
+            enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
+            return;
+          }
+          lastNodeClick = { id: s.id, layerId: currentLayerId || null, time: now, x: evt.clientX, y: evt.clientY };
           showNodeInspector(s, { focus: false });
           focusCanvasForSelection();
           return;
         }
         if (didMove) {
+          lastNodeClick = null;
           lastTouchNodeTap = null;
           suppressLayerEnterUntil = Date.now() + 900;
           suppressRuntimeLayerFollowUntil = Date.now() + 1200;
@@ -8497,6 +8515,7 @@
       evt.stopPropagation();
       const p = screenToWorld(evt);
       addStateAt(p.x, p.y, evt.clientX, evt.clientY);
+      lastNodeClick = null;
       lastTouchNodeTap = null;
       suppressLayerEnterUntil = Date.now() + 700;
     });
