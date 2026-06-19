@@ -6335,7 +6335,7 @@
           evt.stopPropagation();
           evt.stopImmediatePropagation();
           if (s.virtualProxy) return;
-          if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 300) return;
+          if (s.id === lastCreatedStateId && Date.now() - lastCreatedStateTime < 500) return;
           enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
         });
 
@@ -8236,6 +8236,11 @@
             lastNodeClick = null;
             const now = Date.now();
             const previousClick = lastTouchNodeTap;
+            if (s.id === lastCreatedStateId && now - lastCreatedStateTime < 500) {
+              lastTouchNodeTap = null;
+              showNodeInspector(s, { focus: false });
+              return;
+            }
             if (previousClick?.id === s.id &&
               now - previousClick.time < 500 &&
               Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 12
@@ -8265,7 +8270,7 @@
             previousClick.layerId === (currentLayerId || null) &&
             now - previousClick.time < 420 &&
             Math.hypot(evt.clientX - previousClick.x, evt.clientY - previousClick.y) <= 10 &&
-            !(s.id === lastCreatedStateId && now - lastCreatedStateTime < 300)
+            !(s.id === lastCreatedStateId && now - lastCreatedStateTime < 500)
           ) {
             lastNodeClick = null;
             enterStateLayer(s.id, { source: "node-dblclick", explicit: true });
