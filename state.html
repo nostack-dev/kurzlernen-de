@@ -490,7 +490,7 @@
     }
 
     .edge-pin {
-      opacity: 0;
+      display: none;
       fill: var(--edge-color, #5f8dbc);
       stroke: #07111f;
       stroke-width: 2.2;
@@ -532,11 +532,13 @@
     }
 
     .edge-tip-hit {
-      fill: rgba(56,189,248,.01);
-      stroke: transparent;
+      fill: var(--edge-color, #5f8dbc);
+      stroke: #07111f;
       stroke-width: 2;
       cursor: grab;
       touch-action: none;
+      opacity: .86;
+      filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
     }
 
     .edge-tip-hit:hover,
@@ -5324,18 +5326,22 @@
         .sort((a, b) => compareEdgeLane(a, b, side));
     }
 
-    function portLaneOffset(index, count, reserveCenter = false) {
+    function portLaneOffset(index, count, reserveCenter = false, maxOffset = NODE_H / 2 - 14) {
       if (index < 0 || count <= 1) return reserveCenter ? GRID_SIZE : 0;
-      const laneStep = GRID_SIZE * 0.75;
+      const baseStep = GRID_SIZE * 0.75;
       if (reserveCenter) {
         const before = Math.floor(count / 2);
         let lane = index - before;
         if (lane >= 0) lane += 1;
+        const maxLane = Math.max(1, Math.max(before, count - before));
+        const laneStep = Math.min(baseStep, maxOffset / maxLane);
         return lane * laneStep;
       }
       const raw = index - (count - 1) / 2;
-      if (Number.isInteger(raw)) return raw * laneStep;
-      return Math.sign(raw) * Math.ceil(Math.abs(raw)) * laneStep;
+      const lane = Number.isInteger(raw) ? raw : Math.sign(raw) * Math.ceil(Math.abs(raw));
+      const maxLane = Math.max(1, Math.ceil((count - 1) / 2));
+      const laneStep = Math.min(baseStep, maxOffset / maxLane);
+      return lane * laneStep;
     }
 
     function edgePortPoint(state, side, transition = null) {
@@ -5343,7 +5349,8 @@
       if (!transition) return center;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
-      const laneOffset = portLaneOffset(index, transitions.length);
+      const maxOffset = Math.max(0, nodeHeight(state) / 2 - 14);
+      const laneOffset = portLaneOffset(index, transitions.length, false, maxOffset);
       const y = center.y + laneOffset;
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
@@ -6202,7 +6209,7 @@
         const tipHit = svgEl("circle", {
           cx: tip.x,
           cy: tip.y,
-          r: 13,
+          r: 6,
           class: tipClasses.join(" "),
           style: edgeStyle,
           "data-edge-id": t.id,
