@@ -6239,6 +6239,7 @@
         const outputTransitions = orderedPortTransitions(s.id, "out");
         const renderInputSlots = inputTransitions.length > 0;
         const renderOutputSlots = outputTransitions.length > 0;
+        const outputAddOffset = outputTransitions.length ? ((outputTransitions.length + 1) / 2) * GRID_SIZE : 0;
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
@@ -6365,6 +6366,7 @@
           startConnection(evt, s, side);
         };
         const portElement = el.querySelector(".port");
+        portElement.style.setProperty("--port-offset", outputAddOffset + "px");
         portElement.addEventListener("mousedown", evt => onPortMousedown(evt, connectionStartSide(s)));
         portElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, connectionStartSide(s)));
         if (s.virtualProxy && s.virtualProxy.side === "output") {
