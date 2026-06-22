@@ -3798,8 +3798,8 @@
         opts.flowLaneId || (opts.forceNew ? `${laneId}_${state.id}_${uid("lane")}` : ""),
         `${laneId}_${state.id}`
       );
-      const inputProxyId = boundaryProxyId(parentId, "input", defaultBoundaryLaneId("input"));
-      const outputProxyId = boundaryProxyId(parentId, "output", defaultBoundaryLaneId("output"));
+      const inputProxyId = boundaryProxyId(parentId, "input", laneId);
+      const outputProxyId = boundaryProxyId(parentId, "output", laneId);
       const id = layerBoundaryFlowId(parentId, side, flowLaneId);
       let transition = model.transitions.find(item => item.id === id);
       if (!transition) {
@@ -3843,8 +3843,8 @@
       });
       const inputState = configuredBoundaryState(parent, "input", states);
       const outputState = configuredBoundaryState(parent, "output", states);
-      const parentInputLanes = parentLayerTransitions(parent, "input");
-      const parentOutputLanes = parentLayerTransitions(parent, "output");
+      const parentInputLanes = parentBoundaryLaneDescriptors(parent, "input");
+      const parentOutputLanes = parentBoundaryLaneDescriptors(parent, "output");
       if (inputState && parentInputLanes.length) {
         for (const lane of parentInputLanes) ensureBoundaryFlowTransition(parent, "input", inputState, { laneId: lane.id });
       } else if (inputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
@@ -5566,12 +5566,14 @@
       if (!state || state.virtualProxy) return [];
       if (!model.states.some(child => stateParentId(child) === state.id)) return [];
       const boundarySide = side === "in" ? "input" : "output";
+      const allowedLaneIds = new Set(parentBoundaryLaneDescriptors(state, boundarySide).map(lane => lane.id));
       return model.transitions
         .filter(transition => transition.boundaryFlow?.parentId === state.id && transition.boundaryFlow?.side === boundarySide)
         .map(transition => normalizePortId(
           transition.boundaryFlow.proxyLaneId || transition.boundaryFlow.laneId || transitionPortId(transition, side),
           side === "in" ? "entry" : "out"
         ))
+        .filter(portId => allowedLaneIds.has(portId))
         .filter(Boolean);
     }
 
@@ -6296,6 +6298,37 @@
         });
     }
 
+    function parentBoundaryLaneDescriptors(parent, side) {
+      if (!parent) return [];
+      const lanes = new Map();
+      const fallbackLaneId = defaultBoundaryLaneId(side);
+      const addLane = (id, outsideId = "") => {
+        const laneId = normalizePortId(id, fallbackLaneId);
+        if (!laneId || lanes.has(laneId)) return;
+        lanes.set(laneId, { id: laneId, outsideId });
+      };
+      const parentTransitions = parentLayerTransitions(parent, side);
+      const outerLaneIds = new Set(parentTransitions.map(transition => normalizePortId(
+        transitionPortId(transition, side === "input" ? "in" : "out"),
+        fallbackLaneId
+      )));
+      const legacyOuterLaneIds = new Set(parentTransitions.map(transition => normalizePortId(transition.id, fallbackLaneId)));
+      for (const transition of parentTransitions) {
+        addLane(transitionPortId(transition, side === "input" ? "in" : "out"), side === "input" ? transition.from : transition.to);
+      }
+      const hasOuterLanes = parentTransitions.length > 0;
+      for (const transition of model.transitions) {
+        const flow = transition.boundaryFlow;
+        if (!flow || flow.parentId !== parent.id || flow.side !== side) continue;
+        const laneId = normalizePortId(flow.proxyLaneId || flow.laneId || transitionPortId(transition, side === "input" ? "out" : "in"), fallbackLaneId);
+        if (hasOuterLanes && laneId === fallbackLaneId) continue;
+        if (hasOuterLanes && legacyOuterLaneIds.has(laneId) && !outerLaneIds.has(laneId)) continue;
+        addLane(laneId);
+      }
+      if (!lanes.size) addLane(fallbackLaneId);
+      return [...lanes.values()];
+    }
+
     function syncBoundaryProxies(parent, states) {
       for (const [id, state] of [..._virtualNodes]) {
         if (state.virtualProxy) _virtualNodes.delete(id);
@@ -6313,34 +6346,38 @@
       const frameTop = snapToGrid(minY - padY);
       const frameHeight = snapToGrid(maxY - minY + padY * 2);
       const centerY = frameTop + frameHeight / 2;
-      const addProxy = (side) => {
+      const addProxies = (side) => {
+        const lanes = parentBoundaryLaneDescriptors(parent, side);
         const proxyWidth = nodeWidth({ virtualProxy: true });
         const title = side === "input" ? "IN" : "OUT";
         const proxyHeight = nodeHeight({ virtualProxy: true });
         const x = side === "input" ? frameLeft - proxyWidth : frameRight;
-        const y = snapToGrid(centerY - proxyHeight / 2);
-        const transitionId = defaultBoundaryLaneId(side);
-        const id = boundaryProxyId(parent.id, side, transitionId);
+        const spacing = proxyHeight + GRID_SIZE;
         const layerId = parent.rootLayer ? null : parent.id;
-        _virtualNodes.set(id, {
-          id,
-          title,
-          body: "",
-          parentId: layerId,
-          x,
-          y,
-          components: [],
-          virtualProxy: {
-            layerId,
-            parentId: parent.id,
-            side,
-            transitionId,
-            outsideId: ""
-          }
+        lanes.forEach((lane, index) => {
+          const y = snapToGrid(centerY + (index - (lanes.length - 1) / 2) * spacing - proxyHeight / 2);
+          const transitionId = normalizePortId(lane.id, defaultBoundaryLaneId(side));
+          const id = boundaryProxyId(parent.id, side, transitionId);
+          _virtualNodes.set(id, {
+            id,
+            title,
+            body: "",
+            parentId: layerId,
+            x,
+            y,
+            components: [],
+            virtualProxy: {
+              layerId,
+              parentId: parent.id,
+              side,
+              transitionId,
+              outsideId: lane.outsideId || ""
+            }
+          });
         });
       };
-      addProxy("input");
-      addProxy("output");
+      addProxies("input");
+      addProxies("output");
       ensureDefaultBoundaryTransitions(parent, states);
     }
 
