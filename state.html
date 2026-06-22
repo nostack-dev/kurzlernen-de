@@ -490,7 +490,7 @@
     }
 
     .edge-pin {
-      display: none;
+      opacity: 0;
       fill: var(--edge-color, #5f8dbc);
       stroke: #07111f;
       stroke-width: 2.2;
@@ -532,13 +532,11 @@
     }
 
     .edge-tip-hit {
-      fill: var(--edge-color, #5f8dbc);
-      stroke: #07111f;
+      fill: rgba(56,189,248,.01);
+      stroke: transparent;
       stroke-width: 2;
       cursor: grab;
       touch-action: none;
-      opacity: .86;
-      filter: drop-shadow(0 0 4px rgba(15,23,42,.45));
     }
 
     .edge-tip-hit:hover,
@@ -676,11 +674,6 @@
     .node.boundary-input .input-port,
     .node.boundary-output .port {
       display: none;
-    }
-
-    .node.boundary-input.has-output-slots > .port,
-    .node.boundary-output.has-input-slots > .input-port {
-      display: block;
     }
 
     .node.boundary-proxy > :not(.input-port):not(.port):not(.port-slot) {
@@ -848,29 +841,12 @@
       touch-action: none;
     }
 
-    .node.has-input-slots:not(.boundary-proxy) > .input-port,
-    .node.has-output-slots:not(.boundary-proxy) > .port {
-      display: block;
-    }
-
-    .node.has-input-slots > .input-port,
     .node.has-output-slots > .port {
-      display: block;
+      display: none;
     }
 
-    .node.boundary-input > .input-port,
-    .node.boundary-output > .port {
-      display: none !important;
-    }
-
-    .node.boundary-input > .port,
-    .node.boundary-output > .input-port {
-      display: block !important;
-    }
-
-    .node.boundary-input.has-output-slots > .port,
-    .node.boundary-output.has-input-slots > .input-port {
-      display: block !important;
+    .node.has-input-slots > .input-port {
+      display: none;
     }
 
     .input-port::before {
@@ -926,24 +902,11 @@
       left: unset;
     }
 
-    .node.ports-collapsed > .port-slot {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-50%) scale(.62);
-    }
-
-    .node.ports-collapsed:hover > .port-slot,
-    .node.ports-expanded > .port-slot {
-      opacity: 1;
-      pointer-events: auto;
-      transform: translateY(-50%) scale(1);
-    }
-
     .port-slot-output {
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      right: -30px;
+      right: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
@@ -954,7 +917,7 @@
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      left: -30px;
+      left: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
@@ -2874,6 +2837,7 @@
       }
 
       const transitionIds = new Set();
+      const transitionPairs = new Set();
       const transitions = source.transitions.map((transition, index) => {
         const path = `definition.model.transitions[${index}]`;
         assertPlainObject(transition, path);
@@ -2897,6 +2861,9 @@
           const exitState = states.find(state => state.id === groupExitId);
           if (!exitState || exitState.parentId !== from) throw new Error(`${path}.groupExitId must reference a child of ${from}.`);
         }
+        const pair = transitionKey(from);
+        if (transitionPairs.has(pair)) throw new Error(`${path} duplicates an existing outgoing transition from ${from}.`);
+        transitionPairs.add(pair);
         return {
           id,
           from,
@@ -3085,8 +3052,6 @@
         id: String(t.id || uid("t")),
         from: String(t.from || ""),
         to: String(t.to || ""),
-        fromPortId: transitionPortId(t, "out"),
-        toPortId: transitionPortId(t, "in"),
         label: String(t.label || "Next"),
         condition: String(t.condition || ""),
         set: normalizeDataObject(t.set)
@@ -3432,24 +3397,6 @@
       };
     }
 
-    function normalizePortId(value, fallback = "port") {
-      const text = String(value || "").trim();
-      return normalizeId(text || fallback || "port");
-    }
-
-    function transitionPortId(transition, side) {
-      const id = normalizeId(transition?.id || "transition");
-      return normalizePortId(side === "out" ? transition?.fromPortId : transition?.toPortId, `${side}_${id}`);
-    }
-
-    function normalizeTransitionPorts(transition) {
-      if (!transition) return transition;
-      const id = normalizeId(transition.id || "transition");
-      transition.fromPortId = normalizePortId(transition.fromPortId, `out_${id}`);
-      transition.toPortId = normalizePortId(transition.toPortId, `in_${id}`);
-      return transition;
-    }
-
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
       if (!String(source.url || "").trim()) return "No data source. State data defaults still work as before.";
       const targetValid = isContextPath(rawTarget);
@@ -3557,10 +3504,8 @@
         if (t.groupEntryId && (!ids.has(t.groupEntryId) || stateParentId(byModelId(m, t.groupEntryId)) !== t.to)) t.groupEntryId = "";
         if (t.groupExitId && (!ids.has(t.groupExitId) || stateParentId(byModelId(m, t.groupExitId)) !== t.from)) t.groupExitId = "";
         const pair = transitionIdentityKey(t);
-        if (pair) {
-          if (pairs.has(pair)) return false;
-          pairs.add(pair);
-        }
+        if (pairs.has(pair)) return false;
+        pairs.add(pair);
         return true;
       });
       for (const t of m.transitions) {
@@ -3570,7 +3515,6 @@
         t.set = normalizeDataObject(t.set);
         t.groupEntryId = typeof t.groupEntryId === "string" ? t.groupEntryId : "";
         t.groupExitId = typeof t.groupExitId === "string" ? t.groupExitId : "";
-        normalizeTransitionPorts(t);
       }
       if (!ids.has(m.initial)) m.initial = m.states[0].id;
       if (currentAppState && !ids.has(currentAppState)) currentAppState = null;
@@ -3665,8 +3609,8 @@
       return `__boundary_${side}`;
     }
 
-    function layerBoundaryFlowId(parentId, side, laneId = defaultBoundaryLaneId(side)) {
-      return `boundary-flow:${parentId}:${side}:${normalizePortId(laneId, defaultBoundaryLaneId(side))}`;
+    function layerBoundaryFlowId(parentId, side) {
+      return `boundary-flow:${parentId}:${side}`;
     }
 
     function setBoundaryEndpoint(parent, side, stateId) {
@@ -3790,71 +3734,47 @@
       return autoState || null;
     }
 
-    function ensureBoundaryFlowTransition(parent, side, state, opts = {}) {
+    function ensureBoundaryFlowTransition(parent, side, state) {
       if (!parent || !state) return null;
       const parentId = parent.id;
-      const laneId = normalizePortId(opts.laneId, defaultBoundaryLaneId(side));
-      const flowLaneId = normalizePortId(
-        opts.flowLaneId || (opts.forceNew ? `${laneId}_${state.id}_${uid("lane")}` : ""),
-        `${laneId}_${state.id}`
-      );
       const inputProxyId = boundaryProxyId(parentId, "input", defaultBoundaryLaneId("input"));
       const outputProxyId = boundaryProxyId(parentId, "output", defaultBoundaryLaneId("output"));
-      const id = layerBoundaryFlowId(parentId, side, flowLaneId);
+      const id = layerBoundaryFlowId(parentId, side);
       let transition = model.transitions.find(item => item.id === id);
       if (!transition) {
         transition = {
           id,
           from: side === "input" ? inputProxyId : state.id,
           to: side === "input" ? state.id : outputProxyId,
-          fromPortId: side === "input" ? laneId : flowLaneId,
-          toPortId: side === "input" ? (opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId) : laneId,
           label: side === "input" ? "IN" : "OUT",
           condition: "",
           set: {},
-          boundaryFlow: { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId }
+          boundaryFlow: { parentId, side, stateId: state.id }
         };
-        normalizeTransitionPorts(transition);
         model.transitions.push(transition);
       } else {
         transition.from = side === "input" ? inputProxyId : state.id;
         transition.to = side === "input" ? state.id : outputProxyId;
-        if (side === "input") {
-          transition.fromPortId = laneId;
-          transition.toPortId = opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId;
-        }
-        if (side === "output") {
-          transition.fromPortId = flowLaneId;
-          transition.toPortId = laneId;
-        }
-        transition.boundaryFlow = { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId };
-        normalizeTransitionPorts(transition);
+        transition.boundaryFlow = { parentId, side, stateId: state.id };
       }
       return transition;
     }
 
     function ensureDefaultBoundaryTransitions(parent, states) {
       if (!parent) return;
+      const inputId = layerBoundaryFlowId(parent.id, "input");
+      const outputId = layerBoundaryFlowId(parent.id, "output");
+      const validIds = new Set([inputId, outputId]);
       model.transitions = model.transitions.filter(transition => {
         if (transition.boundaryFlow?.parentId !== parent.id) return true;
-        const from = byId(transition.from);
-        const to = byId(transition.to);
-        return Boolean(from && to);
+        return validIds.has(transition.id);
       });
       const inputState = configuredBoundaryState(parent, "input", states);
       const outputState = configuredBoundaryState(parent, "output", states);
-      const parentInputLanes = parentLayerTransitions(parent, "input");
-      const parentOutputLanes = parentLayerTransitions(parent, "output");
-      if (inputState && parentInputLanes.length) {
-        for (const lane of parentInputLanes) ensureBoundaryFlowTransition(parent, "input", inputState, { laneId: lane.id });
-      } else if (inputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
-        ensureBoundaryFlowTransition(parent, "input", inputState);
-      }
-      if (outputState && parentOutputLanes.length) {
-        for (const lane of parentOutputLanes) ensureBoundaryFlowTransition(parent, "output", outputState, { laneId: lane.id });
-      } else if (outputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
-        ensureBoundaryFlowTransition(parent, "output", outputState);
-      }
+      if (inputState) ensureBoundaryFlowTransition(parent, "input", inputState);
+      else model.transitions = model.transitions.filter(transition => transition.id !== inputId);
+      if (outputState) ensureBoundaryFlowTransition(parent, "output", outputState);
+      else model.transitions = model.transitions.filter(transition => transition.id !== outputId);
     }
 
     function boundaryParentFromFlow(flow) {
@@ -3865,11 +3785,11 @@
     function boundaryFlowInfoFromId(edgeId) {
       if (typeof edgeId !== "string" || !edgeId.startsWith("boundary-flow:")) return null;
       const parts = edgeId.split(":");
-      const side = parts[2];
+      const side = parts.pop();
       if (side !== "input" && side !== "output") return null;
-      const parentId = parts[1];
+      const parentId = parts.slice(1).join(":");
       if (!parentId) return null;
-      return { parentId, side, laneId: parts.slice(3).join(":") || defaultBoundaryLaneId(side) };
+      return { parentId, side };
     }
 
     function boundaryFlowInfoFromProxyId(proxyId) {
@@ -3878,7 +3798,7 @@
       const parentId = parts[1] || ROOT_LAYER_ID;
       const side = parts[2];
       if (side !== "input" && side !== "output") return null;
-      return { parentId, side, laneId: parts.slice(3).join(":") || defaultBoundaryLaneId(side) };
+      return { parentId, side };
     }
 
     function boundaryFlowInfoFromTransition(transition, edgeId = "") {
@@ -4048,14 +3968,18 @@
       navigateToLayer(parent, "layer:exit", { fit: true });
     }
 
+    function transitionKey(from) {
+      return String(from || "");
+    }
+
     function transitionIdentityKey(transition) {
       if (transition?.boundaryFlow) {
-        return `boundary:${transition.boundaryFlow.parentId || ""}:${transition.boundaryFlow.side || ""}:${transition.boundaryFlow.laneId || transition.id || ""}`;
+        return `boundary:${transition.boundaryFlow.parentId || ""}:${transition.boundaryFlow.side || ""}`;
       }
       if (isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) {
         return `proxy:${transition?.from || ""}->${transition?.to || ""}`;
       }
-      return "";
+      return `normal:${transition?.from || ""}`;
     }
 
     function transitionBetween(from, to, excludeId = null) {
@@ -4074,13 +3998,10 @@
         id: uid("t"),
         from,
         to,
-        fromPortId: seed.fromPortId || "",
-        toPortId: seed.toPortId || "",
         label: seed.label || "Next",
         condition: seed.condition || "",
         set: normalizeDataObject(seed.set)
       };
-      normalizeTransitionPorts(transition);
       model.transitions.push(transition);
       return transition;
     }
@@ -4143,7 +4064,7 @@
         if (!source || stateParentId(source) !== childParentId || source.id === target.id) return null;
         const inserted = createOrReuseTransition(source.id, target.id, boundary.id);
         setBoundaryEndpoint(parent, "output", target.id);
-        ensureBoundaryFlowTransition(parent, "output", target, { laneId: boundary.boundaryFlow.proxyLaneId || boundary.boundaryFlow.laneId || defaultBoundaryLaneId("output") });
+        ensureBoundaryFlowTransition(parent, "output", target);
         selected = selectionFromParts([], inserted ? [inserted.id] : []);
         return inserted || boundary;
       }
@@ -4151,7 +4072,7 @@
         const previousEntry = byId(boundary.to);
         if (!previousEntry || stateParentId(previousEntry) !== childParentId || previousEntry.id === target.id) return null;
         setBoundaryEndpoint(parent, "input", target.id);
-        ensureBoundaryFlowTransition(parent, "input", target, { laneId: boundary.boundaryFlow.proxyLaneId || boundary.boundaryFlow.laneId || defaultBoundaryLaneId("input") });
+        ensureBoundaryFlowTransition(parent, "input", target);
         const inserted = createOrReuseTransition(target.id, previousEntry.id, boundary.id);
         selected = selectionFromParts([], inserted ? [inserted.id] : []);
         return inserted || boundary;
@@ -4159,7 +4080,7 @@
       return null;
     }
 
-    function finishBoundaryConnection(fromId, targetId, opts = {}) {
+    function finishBoundaryConnection(fromId, targetId) {
       const parent = currentLayerContainer();
       if (!parent) return null;
       const from = byId(fromId);
@@ -4168,31 +4089,21 @@
       const childParentId = layerChildParentId(parent);
       if (from.virtualProxy?.side === "input" && stateParentId(target) === childParentId) {
         setBoundaryEndpoint(parent, "input", target.id);
-        const transition = ensureBoundaryFlowTransition(parent, "input", target, {
-          laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("input"),
-          targetPortId: opts.targetPortId || "",
-          explicitTargetPort: Boolean(opts.explicitTargetPort),
-          forceNew: connecting?.mode === "new"
-        });
+        const transition = ensureBoundaryFlowTransition(parent, "input", target);
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (from.virtualProxy?.side === "output" && stateParentId(target) === childParentId) {
         setBoundaryEndpoint(parent, "output", target.id);
-        const transition = ensureBoundaryFlowTransition(parent, "output", target, {
-          laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("output"),
-          forceNew: connecting?.mode === "new"
-        });
+        const transition = ensureBoundaryFlowTransition(parent, "output", target);
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (target.virtualProxy?.side === "output" && stateParentId(from) === childParentId) {
-        const laneId = opts.targetPortId || target.virtualProxy.transitionId || defaultBoundaryLaneId("output");
+        const existing = model.transitions.find(item => item.id === layerBoundaryFlowId(parent.id, "output"));
+        if (existing && existing.from !== from.id && !connecting?.edgeId) return null;
         setBoundaryEndpoint(parent, "output", from.id);
-        const transition = ensureBoundaryFlowTransition(parent, "output", from, {
-          laneId,
-          forceNew: connecting?.mode === "new"
-        });
+        const transition = ensureBoundaryFlowTransition(parent, "output", from);
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
@@ -4233,7 +4144,7 @@
 
     function isEmptyCanvasTarget(target) {
       if (!target || !mapEl.contains(target)) return false;
-      if (target.closest?.(".state-explorer, .node:not(.boundary-proxy), .port, .input-port, .port-slot, .edge, .edge-arrow, .hit, .edge-label, .edge-tip-hit, .edge-pin, button, input, textarea, select, [contenteditable]")) return false;
+      if (target.closest?.(".node:not(.boundary-proxy), .port, .input-port, .port-slot, .edge, .edge-arrow, .hit, .edge-label, .edge-tip-hit, .edge-pin, button, input, textarea, select, [contenteditable]")) return false;
       return true;
     }
 
@@ -4657,22 +4568,12 @@
       if (!flow) return false;
       const parent = boundaryParentFromFlow(flow);
       const side = flow.side;
-      const hasOtherSameSide = model.transitions.some(item => {
-        if (item.id === edgeId) return false;
-        const itemFlow = boundaryFlowInfoFromTransition(item, item.id);
-        return itemFlow && itemFlow.parentId === flow.parentId && itemFlow.side === side;
-      });
-      if (!hasOtherSameSide) {
-        if (side === "input" || side === "output") clearBoundaryEndpoint(parent, side);
-        else clearBoundaryRoute(parent);
-      }
+      if (side === "input" || side === "output") clearBoundaryEndpoint(parent, side);
+      else clearBoundaryRoute(parent);
       model.transitions = model.transitions.filter(item => {
         if (item.id === edgeId) return false;
         const itemFlow = boundaryFlowInfoFromTransition(item, item.id);
-        return !(itemFlow &&
-          itemFlow.parentId === flow.parentId &&
-          itemFlow.side === side &&
-          (itemFlow.laneId || defaultBoundaryLaneId(side)) === (flow.laneId || defaultBoundaryLaneId(side)));
+        return !(itemFlow && itemFlow.parentId === flow.parentId && itemFlow.side === side);
       });
       return true;
     }
@@ -4752,68 +4653,15 @@
       return s?.virtualProxy ? GRID_SIZE * 2 : NODE_H;
     }
 
-  function nodeAtWorldPoint(p) {
-    const states = visibleStates();
-    for (let i = states.length - 1; i >= 0; i--) {
-      const s = states[i];
-      if (s.virtualProxy) continue;
-      if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + nodeHeight(s)) return s;
-    }
-    return null;
-  }
-  function stateRectForPosition(x, y, title) {
-    const width = nodeWidth({ title: title || "" });
-    return {
-      left: x,
-      top: y,
-      right: x + width,
-      bottom: y + NODE_H,
-      width,
-      height: NODE_H
-    };
-  }
-  function rectsOverlap(a, b, padding = GRID_SIZE) {
-    return a.left < b.right + padding &&
-      a.right > b.left - padding &&
-      a.top < b.bottom + padding &&
-      a.bottom > b.top - padding;
-  }
-  function statePositionCollides(x, y, title, parentId) {
-    const candidate = stateRectForPosition(x, y, title);
-    return model.states.some(s => {
-      if (s.virtualProxy) return false;
-      if ((s.parentId || null) !== (parentId || null)) return false;
-      const rect = stateRectForPosition(s.x, s.y, s.title);
-      return rectsOverlap(candidate, rect);
-    });
-  }
-  function findFreeStatePosition(x, y, title, parentId = currentLayerId) {
-    const width = nodeWidth({ title: title || "" });
-    const baseX = snapClampToGrid(x, WORLD_MIN_X, WORLD_MAX_X - width);
-    const baseY = snapClampToGrid(y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
-    const layerId = parentId || null;
-    if (!statePositionCollides(baseX, baseY, title, layerId)) return { x: baseX, y: baseY };
-    const stepX = GRID_SIZE * 8;
-    const stepY = GRID_SIZE * 6;
-    for (let ring = 1; ring <= 10; ring++) {
-      const candidates = [
-        { x: baseX + stepX * ring, y: baseY },
-        { x: baseX, y: baseY + stepY * ring },
-        { x: baseX + stepX * ring, y: baseY + stepY * ring },
-        { x: baseX - stepX * ring, y: baseY },
-        { x: baseX, y: baseY - stepY * ring },
-        { x: baseX - stepX * ring, y: baseY + stepY * ring },
-        { x: baseX + stepX * ring, y: baseY - stepY * ring },
-        { x: baseX - stepX * ring, y: baseY - stepY * ring }
-      ];
-      for (const pos of candidates) {
-        const px = snapClampToGrid(pos.x, WORLD_MIN_X, WORLD_MAX_X - width);
-        const py = snapClampToGrid(pos.y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
-        if (!statePositionCollides(px, py, title, layerId)) return { x: px, y: py };
+    function nodeAtWorldPoint(p) {
+      const states = visibleStates();
+      for (let i = states.length - 1; i >= 0; i--) {
+        const s = states[i];
+        if (s.virtualProxy) continue;
+        if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + nodeHeight(s)) return s;
       }
+      return null;
     }
-    return { x: baseX, y: baseY };
-  }
 
     function connectionTargetAtWorldPoint(p) {
       let best = null;
@@ -4838,7 +4686,6 @@
           }
           continue;
         }
-        if (s.id === connecting?.from) continue;
         const input = nodeCenter(s, "in");
         const dist = Math.hypot(p.x - input.x, p.y - input.y);
         const nearInput =
@@ -4847,6 +4694,7 @@
           p.y >= s.y - 8 &&
           p.y <= s.y + nodeHeight(s);
         const insideNode =
+          s.id !== connecting?.from &&
           p.x >= s.x &&
           p.x <= s.x + nodeWidth(s) &&
           p.y >= s.y &&
@@ -4932,11 +4780,10 @@
     function updateDraggedStateEdges(stateId) {
       recordRouteMetric("liveDragRouteBuilds");
       for (const transition of visibleTransitions()) {
-        if (transition.from !== stateId && transition.to !== stateId) continue;
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (!from || !to) continue;
-        const pts = doglegRoutePoints(from, to, transition);
+        const pts = liveDoglegRoutePoints(from, to);
         updateTransitionElements(transition, pts);
       }
     }
@@ -4959,56 +4806,18 @@
           el.setAttribute("x", String(middle.x));
           el.setAttribute("y", String(middle.y));
         } else if (el.matches("circle.edge-pin")) {
-          if (el.dataset.edgePin === "out") {
+          if (el.dataset.pin === "start") {
             el.setAttribute("cx", String(startPin.x));
             el.setAttribute("cy", String(startPin.y));
           } else {
             el.setAttribute("cx", String(endPin.x));
             el.setAttribute("cy", String(endPin.y));
           }
-        } else if (el.matches("circle.edge-tip-hit")) {
-          el.setAttribute("cx", String(tip.x));
-          el.setAttribute("cy", String(tip.y));
+        } else if (el.matches("rect.edge-tip-hit")) {
+          el.setAttribute("x", String(tip.x - 12));
+          el.setAttribute("y", String(tip.y - 12));
         }
       }
-    }
-
-    function connectingPreviewPoints() {
-      if (!connecting) return null;
-      const from = byId(connecting.from);
-      if (!from) return null;
-      const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
-      const target = connectingTargetId ? byId(connectingTargetId) : null;
-      if (target) return draftConnectionRoute(from, target, sourceSide);
-      const a = nodeCenter(from, sourceSide);
-      const b = snapPointToGrid(connecting.to);
-      const stepX = sourceSide === "in" ? -GRID_SIZE * 2 : GRID_SIZE * 2;
-      return [
-        a,
-        { x: a.x + stepX, y: a.y },
-        { x: a.x + stepX, y: b.y },
-        b
-      ];
-    }
-
-    function updateConnectingPreview() {
-      if (!connecting) return false;
-      const points = connectingPreviewPoints();
-      if (!points?.length) return false;
-      let temp = wiresEl.querySelector(".temp-edge");
-      if (!temp) {
-        temp = svgEl("path", { d: "", class: "temp-edge" });
-        wiresEl.appendChild(temp);
-      }
-      temp.setAttribute("d", pathFromPoints(points));
-      document.querySelectorAll(".node.drop-target").forEach(el => {
-        el.classList.toggle("drop-target", el.dataset.id === connectingTargetId);
-      });
-      if (connectingTargetId) {
-        const targetEl = nodeElement(connectingTargetId);
-        if (targetEl) targetEl.classList.add("drop-target");
-      }
-      return true;
     }
 
     function liveDoglegRoutePoints(from, to) {
@@ -5041,10 +4850,7 @@
     }
 
     function edgeTipHandlePointForRoute(routePoints) {
-      const compact = compactRoutePoints(routePoints || []);
-      if (compact.length >= 3) return compact[2];
-      if (compact.length >= 2) return polylinePoint(compact, 0.24);
-      return compact[0] || { x: 0, y: 0 };
+      return polylinePoint(routePoints, 0.82);
     }
 
     function midPointForRoute(routePoints) {
@@ -5054,6 +4860,7 @@
     function shouldIgnoreMapWheel(evt) {
       const target = evt.target;
       if (target?.closest?.(".state-explorer, .inspector, input, textarea, select, button")) return true;
+      if (!(evt.ctrlKey || evt.metaKey)) return true;
       return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
     }
 
@@ -5403,21 +5210,12 @@
       return state?.virtualProxy?.side === "output" ? "in" : "out";
     }
 
-    function startConnection(evt, s, fromSide = null, opts = {}) {
+    function startConnection(evt, s, fromSide = null) {
       stopRuntimeLayerFollow();
       evt.stopPropagation();
       const p = screenToWorld(evt);
       blockLayerEntryAfterPointerAction(1000);
-      connecting = {
-        from: s.id,
-        to: p,
-        fromSide: fromSide || connectionStartSide(s),
-        fromPortId: opts.fromPortId || "",
-        mode: "new",
-        startClientX: evt.clientX,
-        startClientY: evt.clientY,
-        moved: false
-      };
+      connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s) };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
       draw();
@@ -5435,11 +5233,7 @@
         from: t.from,
         to: screenToWorld(evt),
         edgeId: concrete?.id || t.id,
-        projection: t.projection || null,
-        mode: "rewire",
-        startClientX: evt.clientX,
-        startClientY: evt.clientY,
-        moved: false
+        projection: t.projection || null
       };
       connectingTargetId = null;
       selected = selectionFromParts([], [concrete?.id || t.id]);
@@ -5482,11 +5276,7 @@
 
     function pathFromPoints(points) {
       const compact = [];
-      for (const rawPoint of points) {
-        const point = {
-          x: Number.isFinite(rawPoint?.x) ? rawPoint.x : 0,
-          y: Number.isFinite(rawPoint?.y) ? rawPoint.y : 0
-        };
+      for (const point of points.map(snapPointToGrid)) {
         const previous = compact[compact.length - 1];
         if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
       }
@@ -5495,11 +5285,7 @@
 
     function compactRoutePoints(points) {
       const compact = [];
-      for (const rawPoint of points) {
-        const point = {
-          x: Number.isFinite(rawPoint?.x) ? rawPoint.x : 0,
-          y: Number.isFinite(rawPoint?.y) ? rawPoint.y : 0
-        };
+      for (const point of points.map(snapPointToGrid)) {
         const previous = compact[compact.length - 1];
         if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
       }
@@ -5544,156 +5330,70 @@
         .sort((a, b) => compareEdgeLane(a, b, side));
     }
 
-    function orderedPortIds(stateId, side) {
-      const seen = new Set();
-      const ids = [];
-      for (const transition of orderedPortTransitions(stateId, side)) {
-        const id = transitionPortId(transition, side);
-        if (seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-      }
-      for (const id of projectedBoundaryPortIds(stateId, side)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-      }
-      return ids;
-    }
-
-    function projectedBoundaryPortIds(stateId, side) {
-      const state = byId(stateId);
-      if (!state || state.virtualProxy) return [];
-      if (!model.states.some(child => stateParentId(child) === state.id)) return [];
-      const boundarySide = side === "in" ? "input" : "output";
-      return model.transitions
-        .filter(transition => transition.boundaryFlow?.parentId === state.id && transition.boundaryFlow?.side === boundarySide)
-        .map(transition => normalizePortId(
-          transition.boundaryFlow.proxyLaneId || transition.boundaryFlow.laneId || transitionPortId(transition, side),
-          side === "in" ? "entry" : "out"
-        ))
-        .filter(Boolean);
-    }
-
-    function portSlotDescriptors(stateId, side) {
-      const descriptors = [];
-      const seen = new Set();
-      for (const transition of orderedPortTransitions(stateId, side)) {
-        const portId = transitionPortId(transition, side);
-        descriptors.push({ transition, portId, virtualPort: false });
-        seen.add(portId);
-      }
-      for (const portId of projectedBoundaryPortIds(stateId, side)) {
-        if (seen.has(portId)) continue;
-        descriptors.push({ transition: null, portId, virtualPort: true });
-        seen.add(portId);
-      }
-      return descriptors;
-    }
-
-    function portDescriptorTransition(state, side, descriptor) {
-      return descriptor.transition || {
-        id: `${state.id}:${side}:${descriptor.portId}`,
-        from: side === "out" ? state.id : "",
-        to: side === "in" ? state.id : "",
-        fromPortId: side === "out" ? descriptor.portId : "",
-        toPortId: side === "in" ? descriptor.portId : "",
-        label: humanPortName(descriptor.portId) || (side === "out" ? "Out" : "In")
-      };
-    }
-
-    function nearestPortIdAtWorldPoint(state, side, point) {
-      if (!state || !point) return "";
-      let best = "";
-      let bestDist = Infinity;
-      for (const descriptor of portSlotDescriptors(state.id, side)) {
-        const portPoint = edgePortPoint(state, side, portDescriptorTransition(state, side, descriptor));
-        const dist = Math.hypot(point.x - portPoint.x, point.y - portPoint.y);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = descriptor.portId;
-        }
-      }
-      return bestDist <= GRID_SIZE * 2.25 ? best : "";
-    }
-
-    function edgeLaneOffset(stateId, side, transition = null) {
-      if (!transition?.id) return 0;
-      const lanes = orderedPortIds(stateId, side);
-      if (lanes.length <= 1) return 0;
-      const index = lanes.indexOf(transitionPortId(transition, side));
-      if (index < 0) return 0;
-      const center = (lanes.length - 1) / 2;
-      const spread = Math.min(GRID_SIZE * 2, Math.max(12, (NODE_H - 28) / Math.max(1, lanes.length - 1)));
-      return Math.round((index - center) * spread);
-    }
-
     function edgePortPoint(state, side, transition = null) {
       const center = nodeCenter(state, side);
-      return { x: center.x, y: center.y + edgeLaneOffset(state.id, side, transition) };
+      if (!transition) return center;
+      const transitions = orderedPortTransitions(state.id, side);
+      const index = transitions.findIndex(item => item.id === transition.id);
+      const laneOffset = index >= 0 && transitions.length > 1 ? (index - (transitions.length - 1) / 2) * GRID_SIZE : 0;
+      const y = center.y + laneOffset;
+      if (side === "out") return { x: state.x + nodeWidth(state), y };
+      if (side === "in") return { x: state.x, y };
+      return center;
     }
 
     function edgeApproachPoint(state, side, transition = null) {
-      const point = edgePortPoint(state, side, transition);
+      const point = snapPointToGrid(edgePortPoint(state, side, transition));
       const offset = GRID_SIZE * 2;
-      if (side === "out") return { x: snapToGrid(point.x + offset), y: point.y };
-      if (side === "in") return { x: snapToGrid(point.x - offset), y: point.y };
+      if (side === "out") return { x: point.x + offset, y: point.y };
+      if (side === "in") return { x: point.x - offset, y: point.y };
       return point;
-    }
-
-    function routeFromPortToApproach(port, approach) {
-      const bend = { x: approach.x, y: port.y };
-      return compactRoutePoints([port, bend, approach]);
-    }
-
-    function routeFromApproachToPort(approach, port) {
-      const bend = { x: approach.x, y: port.y };
-      return compactRoutePoints([bend, port]);
     }
 
     function doglegRoutePoints(from, to, transition = null) {
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
-      const out = edgeApproachPoint(from, "out", transition);
-      const inn = edgeApproachPoint(to, "in", transition);
-      const start = routeFromPortToApproach(a, out);
-      const finish = routeFromApproachToPort(inn, b);
       if (from.id === to.id) {
         const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
-        return compactRoutePoints([
-          ...start,
-          { x: out.x, y: loopTop },
-          { x: inn.x, y: loopTop },
-          inn,
-          ...finish
-        ]);
+        return [
+          a,
+          { x: a.x + GRID_SIZE * 2, y: a.y },
+          { x: a.x + GRID_SIZE * 2, y: loopTop },
+          { x: b.x - GRID_SIZE * 2, y: loopTop },
+          { x: b.x - GRID_SIZE * 2, y: b.y },
+          b
+        ];
       }
 
-      const canRouteBetweenNodes = inn.x >= out.x;
+      const canRouteBetweenNodes = b.x - a.x >= GRID_SIZE * 4;
       if (canRouteBetweenNodes) {
-        let laneY = snapToGrid((out.y + inn.y) / 2);
-        if (laneY === out.y || laneY === inn.y) {
-          const direction = inn.y >= out.y ? 1 : -1;
-          laneY = snapToGrid(out.y + direction * GRID_SIZE * 2);
-          if (laneY === inn.y) laneY = snapToGrid(laneY + direction * GRID_SIZE * 2);
+        const outX = a.x + GRID_SIZE * 2;
+        const inX = b.x - GRID_SIZE * 2;
+        let laneY = snapToGrid((a.y + b.y) / 2);
+        if (laneY === a.y || laneY === b.y) {
+          const direction = b.y >= a.y ? 1 : -1;
+          laneY = snapToGrid(a.y + direction * GRID_SIZE * 2);
+          if (laneY === b.y) laneY = snapToGrid(laneY + direction * GRID_SIZE * 2);
         }
-        return compactRoutePoints([
-          ...start,
-          { x: out.x, y: laneY },
-          { x: inn.x, y: laneY },
-          inn,
-          ...finish
-        ]);
+        return [
+          a,
+          { x: outX, y: a.y },
+          { x: outX, y: laneY },
+          { x: inX, y: laneY },
+          { x: inX, y: b.y },
+          b
+        ];
       }
 
       const laneY = snapToGrid(Math.min(from.y, to.y) - GRID_SIZE * 2);
-      return compactRoutePoints([
-        ...start,
-        { x: out.x, y: laneY },
-        { x: inn.x, y: laneY },
-        inn,
-        ...finish
-      ]);
+      return [
+        a,
+        { x: a.x + GRID_SIZE * 2, y: a.y },
+        { x: a.x + GRID_SIZE * 2, y: laneY },
+        { x: b.x - GRID_SIZE * 2, y: laneY },
+        { x: b.x - GRID_SIZE * 2, y: b.y },
+        b
+      ];
     }
 
     function ensureLeftInputApproach(points) {
@@ -5736,8 +5436,8 @@
 
     function forwardBendRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
-      const a = edgePortPoint(from, "out", transition);
-      const b = edgePortPoint(to, "in", transition);
+      const a = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const b = snapPointToGrid(edgePortPoint(to, "in", transition));
       if (b.x - a.x < GRID_SIZE * 3) return null;
       if (Math.abs(b.y - a.y) > GRID_SIZE * 3) return null;
       const midX = snapToGrid((a.x + b.x) / 2);
@@ -5815,8 +5515,8 @@
 
     function obstacleAvoidingRoutePoints(from, to, transition = null) {
       recordRouteMetric("obstacleSearches");
-      const startPort = edgePortPoint(from, "out", transition);
-      const goalPort = edgePortPoint(to, "in", transition);
+      const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
       const start = edgeApproachPoint(from, "out", transition);
       const goal = edgeApproachPoint(to, "in", transition);
       const routeTransition = transition || { from: from.id, to: to.id };
@@ -5920,11 +5620,7 @@
             walkKey = cameFrom.get(walkKey);
           }
           path.unshift(start);
-          const routed = compactRoutePoints([
-            ...routeFromPortToApproach(startPort, start),
-            ...path.slice(1),
-            ...routeFromApproachToPort(goal, goalPort)
-          ]);
+          const routed = compactRoutePoints([startPort, ...path, goalPort]);
           return routeIsClear(routed, routeTransition) ? routed : null;
         }
 
@@ -6185,7 +5881,7 @@
     }
 
     function edgeTipHandlePoint(from, to, transition = null) {
-      return edgeTipHandlePointForRoute(edgeRoutePoints(from, to, transition));
+      return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
     }
 
     function arrowPathForPoints(points) {
@@ -6220,35 +5916,8 @@
       return { x: point.x, y: point.y - 10 };
     }
 
-    function mainOutputPortStateAtClientPoint(clientX, clientY) {
-      for (const port of nodesEl.querySelectorAll(".node > .port")) {
-        const node = port.closest(".node");
-        const state = byId(node?.dataset?.id);
-        if (!state) continue;
-        const r = port.getBoundingClientRect();
-        const pad = 4;
-        if (
-          clientX >= r.left - pad &&
-          clientX <= r.right + pad &&
-          clientY >= r.top - pad &&
-          clientY <= r.bottom + pad
-        ) return state;
-      }
-      return null;
-    }
-
-    function startMainOutputPortConnectionIfHit(evt) {
-      if (evt.button !== 0) return false;
-      const state = mainOutputPortStateAtClientPoint(evt.clientX, evt.clientY);
-      if (!state) return false;
-      evt.preventDefault();
-      startConnection(evt, state, connectionStartSide(state));
-      return true;
-    }
-
     function attachEdgeInteractions(el, t, canRewire = false) {
       el.addEventListener("mousedown", evt => {
-        if (startMainOutputPortConnectionIfHit(evt)) return;
         if (canRewire && evt.button === 0) startEdgeRewire(evt, t);
       });
       el.addEventListener("pointerdown", evt => {
@@ -6319,8 +5988,7 @@
         const proxyHeight = nodeHeight({ virtualProxy: true });
         const x = side === "input" ? frameLeft - proxyWidth : frameRight;
         const y = snapToGrid(centerY - proxyHeight / 2);
-        const transitionId = defaultBoundaryLaneId(side);
-        const id = boundaryProxyId(parent.id, side, transitionId);
+        const id = boundaryProxyId(parent.id, side, defaultBoundaryLaneId(side));
         const layerId = parent.rootLayer ? null : parent.id;
         _virtualNodes.set(id, {
           id,
@@ -6334,7 +6002,7 @@
             layerId,
             parentId: parent.id,
             side,
-            transitionId,
+            transitionId: "",
             outsideId: ""
           }
         });
@@ -6353,41 +6021,24 @@
       return { left, top, width, height, right: left + width, bottom: top + height };
     }
 
-    function portSlotLabel(transition, side) {
-      const portId = transitionPortId(transition, side);
-      const label = String(transition?.label || "Next").trim();
-      const condition = String(transition?.condition || "").trim();
-      if (side === "out" && condition) return `${label}: ${condition}`;
-      return `${label} · ${portId}`;
-    }
-
-    function addPortSlot(nodeEl, state, transition, side, edgeSelection, opts = {}) {
-      const portId = opts.portId || transitionPortId(transition, side);
-      const virtualPort = Boolean(opts.virtualPort || !transition);
-      const point = edgePortPoint(state, side, portDescriptorTransition(state, side, { transition, portId }));
+    function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
+      const point = edgePortPoint(state, side, transition);
       const slot = document.createElement("div");
       const classes = ["port-slot", side === "out" ? "port-slot-output" : "port-slot-input"];
-      if (transition && edgeSelection.has(transition.id)) classes.push("selected");
-      if (transition && hoveredEdgeId === transition.id) classes.push("hovered");
+      if (edgeSelection.has(transition.id)) classes.push("selected");
+      if (hoveredEdgeId === transition.id) classes.push("hovered");
       slot.className = classes.join(" ");
       slot.style.setProperty("--port-offset", `${point.y - state.y - nodeHeight(state) / 2}px`);
       slot.style.left = "";
       slot.style.right = "";
-      slot.style.setProperty("--edge-color", transition ? edgeColor(transition) : "var(--accent)");
-      if (transition) slot.dataset.edgeId = transition.id;
+      slot.style.setProperty("--edge-color", edgeColor(transition));
+      slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
-      slot.dataset.portId = portId;
-      slot.title = virtualPort
-        ? (side === "out" ? "drag to connect " : "drop to connect ") + (humanPortName(portId) || "port")
-        : "drag to reroute " + (transition.label || "transition");
-      const startSlotDrag = evt => {
-        if (virtualPort && side === "out") startConnection(evt, state, "out", { fromPortId: portId });
-        else if (transition) startEdgeRewire(evt, transition);
-      };
+      slot.title = "drag to reroute " + (transition.label || "transition");
       slot.addEventListener("mousedown", evt => {
         if (Date.now() - lastTouchAt < 700) return;
         if (evt.button !== 0) return;
-        startSlotDrag(evt);
+        startEdgeRewire(evt, transition);
       });
       slot.addEventListener("pointerdown", evt => {
         if (!isTouchPointer(evt)) return;
@@ -6395,12 +6046,12 @@
         lastTouchAt = Date.now();
         if (pinchZoom) return;
         activePointerId = evt.pointerId;
-        startSlotDrag(evt);
+        startEdgeRewire(evt, transition);
       });
       slot.addEventListener("click", evt => {
         evt.preventDefault();
         evt.stopPropagation();
-        if (transition) selectEdge(transition.id, evt.clientX, evt.clientY);
+        selectEdge(transition.id, evt.clientX, evt.clientY);
       });
       nodeEl.appendChild(slot);
     }
@@ -6539,7 +6190,7 @@
         const tipHit = svgEl("circle", {
           cx: tip.x,
           cy: tip.y,
-          r: 6,
+          r: 13,
           class: tipClasses.join(" "),
           style: edgeStyle,
           "data-edge-id": t.id,
@@ -6556,7 +6207,7 @@
         const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
         const target = connectingTargetId ? byId(connectingTargetId) : null;
         if (target) {
-          const points = draftConnectionRoute(from, target, sourceSide);
+          const points = sourceSide === "out" ? edgeRoutePoints(from, target) : draftConnectionRoute(from, target, sourceSide);
           wiresEl.appendChild(svgEl("path", { d: pathFromPoints(points), class: "temp-edge" }));
         } else {
           const a = nodeCenter(from, sourceSide);
@@ -6586,22 +6237,10 @@
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
         const outputTransitions = orderedPortTransitions(s.id, "out");
-        const inputPortSlots = portSlotDescriptors(s.id, "in");
-        const outputPortSlots = portSlotDescriptors(s.id, "out");
-        const renderInputSlots = Boolean(inputPortSlots.length > 0);
-        const renderOutputSlots = Boolean(outputPortSlots.length > 0);
+        const renderInputSlots = inputTransitions.length > 0;
+        const renderOutputSlots = outputTransitions.length > 0;
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
-        const selectedConnectedPort = [...inputTransitions, ...outputTransitions].some(transition => edgeSelection.has(transition.id));
-        const hasPortSlots = renderInputSlots || renderOutputSlots;
-        const portsExpanded = hasPortSlots && (
-          selectedConnectedPort ||
-          (!s.virtualProxy && nodeSelection.has(s.id)) ||
-          connecting?.from === s.id ||
-          connectingTargetId === s.id
-        );
-        if (portsExpanded) classes.push("ports-expanded");
-        else if (hasPortSlots) classes.push("ports-collapsed");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
@@ -6726,17 +6365,6 @@
           startConnection(evt, s, side);
         };
         const portElement = el.querySelector(".port");
-        const inputPortElement = el.querySelector(".input-port");
-        if (inputPortElement) {
-          inputPortElement.title = inputPortSlots.length > 1
-            ? `${inputPortSlots.length} input ports. Hover/select to expand.`
-            : "input port";
-        }
-        if (portElement) {
-          portElement.title = outputPortSlots.length > 1
-            ? `${outputPortSlots.length} output ports. Drag to add, hover/select to expand.`
-            : "drag to connect";
-        }
         portElement.addEventListener("mousedown", evt => onPortMousedown(evt, connectionStartSide(s)));
         portElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, connectionStartSide(s)));
         if (s.virtualProxy && s.virtualProxy.side === "output") {
@@ -6745,13 +6373,13 @@
           inputPortElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, "in"));
         }
 
-        for (const descriptor of inputPortSlots) {
-          if (!renderInputSlots) continue;
-          addPortSlot(el, s, descriptor.transition, "in", edgeSelection, descriptor);
+        for (const transition of inputTransitions) {
+          if (!renderInputSlots && !s.virtualProxy) continue;
+          addPortSlot(el, s, transition, "in", edgeSelection);
         }
-        for (const descriptor of outputPortSlots) {
-          if (!renderOutputSlots) continue;
-          addPortSlot(el, s, descriptor.transition, "out", edgeSelection, descriptor);
+        for (const transition of outputTransitions) {
+          if (!renderOutputSlots && !s.virtualProxy) continue;
+          addPortSlot(el, s, transition, "out", edgeSelection);
         }
 
         nodesEl.appendChild(el);
@@ -7555,13 +7183,7 @@
       if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
         <h3>State</h3>
-        <div class="field"><label>Title</label><input id="pTitle" list="pTitleSuggestions"><datalist id="pTitleSuggestions"></datalist></div>
-        <div class="data-source-panel">
-          <div class="small"><b>Flow I/O</b></div>
-          <div id="pFlowIo" class="condition-preview empty"></div>
-        <div class="small"><b>Ports & data</b></div>
-        <div id="pPortData" class="condition-preview empty"></div>
-        </div>
+        <div class="field"><label>Title</label><input id="pTitle"></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
@@ -7613,9 +7235,6 @@
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
       title.value = s.title || "";
-      renderSimpleDatalist(root.querySelector("#pTitleSuggestions"), stateTitleSuggestions(s));
-      renderStateFlowIo(s, root.querySelector("#pFlowIo"));
-      renderStatePortDataSummary(s, root.querySelector("#pPortData"));
       title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
@@ -7923,156 +7542,6 @@
       }
     }
 
-    function uniqueSuggestionValues(values) {
-      const seen = new Set();
-      const out = [];
-      for (const value of values) {
-        const text = String(value || "").trim();
-        const key = text.toLowerCase();
-        if (!text || seen.has(key)) continue;
-        seen.add(key);
-        out.push(text);
-      }
-      return out.slice(0, 80);
-    }
-
-    function renderSimpleDatalist(datalist, values) {
-      if (!datalist) return;
-      datalist.innerHTML = "";
-      for (const value of uniqueSuggestionValues(values)) {
-        const option = document.createElement("option");
-        option.value = value;
-        datalist.appendChild(option);
-      }
-    }
-
-    function stateTitleSuggestions(currentState = null) {
-      return uniqueSuggestionValues([
-        "Start",
-        "Pruefen",
-        "Entscheidung",
-        "Freigabe",
-        "Nachforderung",
-        "Eskalation",
-        "Fehler",
-        "Ende",
-        ...model.states.filter(state => state.id !== currentState?.id).map(state => state.title || state.id),
-        ...snapshotStateTemplates().map(template => template.title)
-      ]);
-    }
-
-    function transitionLabelSuggestions(t = null) {
-      const from = byId(t?.from);
-      const to = byId(t?.to);
-      return uniqueSuggestionValues([
-        "Next",
-        "Ja",
-        "Nein",
-        "OK",
-        "Fehler",
-        "Zurueck",
-        "Abbrechen",
-        "Weiter",
-        "Freigeben",
-        "Ablehnen",
-        "Nachfordern",
-        from?.title && `Von ${from.title}`,
-        to?.title && `Zu ${to.title}`,
-        ...model.transitions.map(transition => transition.label)
-      ]);
-    }
-
-    function stateDataPathSuggestionValues(state) {
-      if (!state) return [];
-      const suggestions = [];
-      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
-        collectDataPathSuggestions(value, key, "state data", suggestions);
-      }
-      const source = normalizeDataSource(state.dataSource || state.fetch);
-      if (String(source.url || "").trim()) {
-        const target = normalizeContextPath(source.target, "fetch");
-        suggestions.push(
-          { path: `${target}.ok`, source: "data source", type: "boolean" },
-          { path: `${target}.status`, source: "data source", type: "number" },
-          { path: `${target}.data`, source: "data source", type: "value" }
-        );
-      }
-      const repeat = normalizeRepeatConfig(state.repeat);
-      if (repeat.path) {
-        suggestions.push(
-          { path: repeat.as, source: "repeat", type: "object" },
-          { path: `${repeat.as}.field`, source: "repeat", type: "value" },
-          { path: repeat.index, source: "repeat", type: "number" }
-        );
-      }
-      return uniqueSuggestionValues(suggestions.map(item => item.path));
-    }
-
-    function statePortSuggestions(state, side, currentPortId = "") {
-      const prefix = side === "out" ? "out" : "in";
-      return uniqueSuggestionValues([
-        "",
-        side === "out" ? "default out" : "default in",
-        side === "out" ? "success" : "entry",
-        side === "out" ? "error" : "source",
-        side === "out" ? "yes" : "incoming",
-        side === "out" ? "no" : "fallback",
-        ...orderedPortIds(state?.id, side),
-        ...stateDataPathSuggestionValues(state).map(path => `${prefix} ${path}`),
-        `${prefix} ${state?.title || state?.id || "state"}`
-      ]);
-    }
-
-    function humanPortName(portId) {
-      return String(portId || "")
-        .replace(/^(__boundary_|boundary_|proxy_|input_|output_|from_|to_|in_|out_)/i, "")
-        .replace(/^t_[a-z0-9_]+$/i, "")
-        .replace(/[_-]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    }
-
-    function renderStatePortDataSummary(state, target) {
-      if (!target) return;
-      const incoming = orderedPortIds(state.id, "in");
-      const outgoing = orderedPortIds(state.id, "out");
-      const dataPaths = stateDataPathSuggestionValues(state);
-      const displayPort = value => humanPortName(value) || "default";
-      const format = (label, values) => values.length
-        ? `<div>${label}: ${values.map(value => `<code>${escapeHtml(displayPort(value))}</code>`).join(" ")}</div>`
-        : `<div>${label}: <span class="muted">none</span></div>`;
-      target.innerHTML = [
-        format("Input ports", incoming),
-        format("Output ports", outgoing),
-        format("Data hints", dataPaths.slice(0, 10))
-      ].join("");
-      target.classList.toggle("empty", !incoming.length && !outgoing.length && !dataPaths.length);
-    }
-
-    function renderStateFlowIo(state, target) {
-      if (!target) return;
-      const transitionInSameLayer = transition => {
-        if (!transition || transition.boundaryFlow || isBoundaryProxyId(transition.from) || isBoundaryProxyId(transition.to)) return false;
-        const from = byId(transition.from);
-        const to = byId(transition.to);
-        return from && to && stateParentId(from) === stateParentId(to);
-      };
-      const incoming = model.transitions.filter(transition => transitionInSameLayer(transition) && transition.to === state.id);
-      const outgoing = model.transitions.filter(transition => transitionInSameLayer(transition) && transition.from === state.id);
-      const row = (transition, direction) => {
-        const other = byId(direction === "in" ? transition.from : transition.to);
-        const condition = String(transition.condition || "").trim();
-        const label = transition.label || "Next";
-        return `<div>${direction === "in" ? "In" : "Out"}: <b>${escapeHtml(other?.title || other?.id || "?")}</b> · ${escapeHtml(label)}${condition ? ` · if ${escapeHtml(condition)}` : ""}</div>`;
-      };
-      const rows = [
-        ...incoming.map(transition => row(transition, "in")),
-        ...outgoing.map(transition => row(transition, "out"))
-      ];
-      target.innerHTML = rows.length ? rows.join("") : "No incoming/outgoing transitions in this layer.";
-      target.classList.toggle("empty", !rows.length);
-    }
-
     function showEdgeInspector(t, opts = {}) {
       const root = stateInspectorBodyEl;
       const from = byId(t.from);
@@ -8091,11 +7560,7 @@
       root.innerHTML = `
         <h3>Transition / Button</h3>
         <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
-        <div class="row">
-          <div class="field"><label>Output name</label><input id="pFromPort" list="pFromPortSuggestions" placeholder="success, error, approved"><datalist id="pFromPortSuggestions"></datalist></div>
-          <div class="field"><label>Input name</label><input id="pToPort" list="pToPortSuggestions" placeholder="entry, source, fallback"><datalist id="pToPortSuggestions"></datalist></div>
-        </div>
-        <div class="field"><label>Button label</label><input id="pLabel" list="pLabelSuggestions"><datalist id="pLabelSuggestions"></datalist></div>
+        <div class="field"><label>Button label</label><input id="pLabel"></div>
         <div class="field"><label>Condition</label><input id="pCond" list="pCondDataList" placeholder="accepted, amount >= 10, !blocked"><datalist id="pCondDataList"></datalist></div>
         <div id="pCondPreview" class="condition-preview"></div>
         <div class="field"><label>Set data</label><textarea id="pSet" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
@@ -8106,22 +7571,12 @@
         </div>
       `;
       const label = root.querySelector("#pLabel");
-      const fromPort = root.querySelector("#pFromPort");
-      const toPort = root.querySelector("#pToPort");
       const cond = root.querySelector("#pCond");
-      const labelSuggestions = root.querySelector("#pLabelSuggestions");
-      const fromPortSuggestions = root.querySelector("#pFromPortSuggestions");
-      const toPortSuggestions = root.querySelector("#pToPortSuggestions");
       const condDataList = root.querySelector("#pCondDataList");
       const condPreview = root.querySelector("#pCondPreview");
       const set = root.querySelector("#pSet");
       const setPreview = root.querySelector("#pSetPreview");
       label.value = t.label || "Next";
-      fromPort.value = humanPortName(transitionPortId(t, "out"));
-      toPort.value = humanPortName(transitionPortId(t, "in"));
-      renderSimpleDatalist(labelSuggestions, transitionLabelSuggestions(t));
-      renderSimpleDatalist(fromPortSuggestions, statePortSuggestions(from, "out", fromPort.value));
-      renderSimpleDatalist(toPortSuggestions, statePortSuggestions(to, "in", toPort.value));
       cond.value = t.condition || "";
       set.value = JSON.stringify(normalizeDataObject(t.set), null, 2);
       const updateConditionPreview = () => {
@@ -8155,16 +7610,6 @@
         saveModel("edge:label:" + t.id);
         draw();
       };
-      fromPort.oninput = () => {
-        t.fromPortId = normalizePortId(fromPort.value, t.label || "out");
-        saveModel("edge:from-port:" + t.id);
-        draw();
-      };
-      toPort.oninput = () => {
-        t.toPortId = normalizePortId(toPort.value, "entry");
-        saveModel("edge:to-port:" + t.id);
-        draw();
-      };
       cond.oninput = () => { t.condition = cond.value; updateConditionPreview(); saveModel("edge:condition:" + t.id); draw(); };
       set.oninput = updateSetPreview;
       set.addEventListener("input", updateSetPreview);
@@ -8179,7 +7624,7 @@
         requestAnimationFrame(pollSetPreview);
       };
       requestAnimationFrame(pollSetPreview);
-      label.onblur = fromPort.onblur = toPort.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
+      label.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
       root.querySelector("#pDelete").onclick = () => {
         selected = selectionFromParts([], [t.id]);
         deleteSelectedItems();
@@ -8571,10 +8016,6 @@
         card.draggable = true;
         card.dataset.templateId = template.id;
         card.addEventListener("dragstart", evt => {
-          evt.stopPropagation();
-          pendingCanvasMouse = null;
-          panning = null;
-          mapEl.classList.remove("panning");
           evt.dataTransfer.effectAllowed = "copy";
           evt.dataTransfer.setData("text/state-template-id", template.id);
         });
@@ -8678,8 +8119,7 @@
     function addStateAt(x, y, showAtX, showAtY) {
       const layerBeforeCreate = currentLayerId && byId(currentLayerId) ? currentLayerId : null;
       const title = nextStateTitle();
-      const position = findFreeStatePosition(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
-      const s = makeState(position.x, position.y, title, layerBeforeCreate);
+      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
       model.states.push(s);
       selected = selectionFromParts([s.id], []);
       lastCreatedStateId = s.id;
@@ -8743,12 +8183,11 @@
       }
       if (connecting) {
         stopRuntimeLayerFollow();
-        connecting.moved = connecting.moved || Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) > 6;
         connecting.to = screenToWorld(evt);
         const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
         if (nextTargetId !== connectingTargetId) connectingTargetId = nextTargetId;
-        updateConnectingPreview();
+        scheduleDraw();
       }
     }
 
@@ -8853,30 +8292,12 @@
       }
       if (connecting) {
         blockLayerEntryAfterPointerAction(1000);
-        if (!connecting.moved && Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) <= 6) {
-          connecting = null;
-          connectingTargetId = null;
-          mapEl.classList.remove("connecting");
-          draw();
-          return;
-        }
         const dropPoint = screenToWorld(evt);
-        const domPortSlot = evt.target?.closest?.(".port-slot");
-        const explicitTargetPort = domPortSlot?.dataset?.portSlot === "in";
-        let targetPortId = explicitTargetPort ? domPortSlot.dataset.portId || "" : "";
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
-        if (!targetPortId && targetNode) targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
-        if (targetId === connecting.from) {
-          connecting = null;
-          connectingTargetId = null;
-          mapEl.classList.remove("connecting");
-          draw();
-          return;
-        }
         if (targetId) {
           const projected = finishProjectedConnection(targetId);
           if (projected) {
@@ -8905,11 +8326,7 @@
             showEdgeInspector(splitBoundary, { focus: false });
             return;
           }
-          const boundary = finishBoundaryConnection(connecting.from, targetId, {
-            fromPortId: connecting.fromPortId || "",
-            targetPortId,
-            explicitTargetPort
-          });
+          const boundary = finishBoundaryConnection(connecting.from, targetId);
           if (boundary) {
             saveModel();
             connecting = null;
@@ -8928,9 +8345,15 @@
           }
           const groupRoute = groupRouteForConnection(connecting.from, targetId);
           if (groupRoute) {
-            const rewireTransition = connecting.mode === "rewire" && connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+            const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
             let t = rewireTransition || null;
-            if (t) {
+            const duplicate = normalTransitionFrom(groupRoute.from, t?.id || null);
+            if (duplicate) {
+              if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+              t = duplicate;
+              t.groupEntryId = groupRoute.groupEntryId;
+              t.groupExitId = groupRoute.groupExitId;
+            } else if (t) {
               t.from = groupRoute.from;
               t.to = groupRoute.to;
               t.groupEntryId = groupRoute.groupEntryId;
@@ -8946,7 +8369,6 @@
                 condition: "",
                 set: {}
               };
-              normalizeTransitionPorts(t);
               model.transitions.push(t);
             }
             selected = selectionFromParts([], [t.id]);
@@ -8958,15 +8380,27 @@
             showEdgeInspector(t, { focus: false });
             return;
           }
-          const rewireTransition = connecting.mode === "rewire" && connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+          const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
-          if (t) {
+          const duplicate = normalTransitionFrom(connecting.from, t?.id || null);
+          if (duplicate) {
+            if (t) {
+              model.transitions = model.transitions.filter(item => item.id !== t.id);
+              t = duplicate;
+              selected = selectionFromParts([], [t.id]);
+              saveModel();
+              connecting = null;
+              connectingTargetId = null;
+              mapEl.classList.remove("connecting");
+              draw();
+              return;
+            }
+            t = duplicate;
+          } else if (t) {
             t.to = targetId;
-            if (targetPortId) t.toPortId = targetPortId;
           } else {
-            t = { id: uid("t"), from: connecting.from, to: targetId, fromPortId: connecting.fromPortId || "", toPortId: targetPortId || "", label: "Next", condition: "", set: {} };
-            normalizeTransitionPorts(t);
-              model.transitions.push(t);
+            t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "", set: {} };
+            model.transitions.push(t);
           }
           selected = selectionFromParts([], [t.id]);
           saveModel();
@@ -8986,9 +8420,8 @@
         }
         if (!targetId) {
           const title = nextStateTitle();
-          const layerBeforeCreate = currentLayerId && byId(currentLayerId) ? currentLayerId : null;
-          const position = findFreeStatePosition(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title, layerBeforeCreate);
-          const s = makeState(position.x, position.y, title, layerBeforeCreate);
+          const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
+          s.parentId = currentLayerId || null;
           const boundaryEdge = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && item.boundaryFlow) : null;
           if (boundaryEdge) {
             model.states.push(s);
@@ -9003,14 +8436,12 @@
             return;
           }
           const fromBoundary = byId(connecting.from);
-          if (fromBoundary?.virtualProxy) {
+          if (fromBoundary?.virtualProxy?.side === "input") {
             model.states.push(s);
-            const boundary = finishBoundaryConnection(connecting.from, s.id, {
-              fromPortId: connecting.fromPortId || "",
-              targetPortId: "",
-              explicitTargetPort: false
-            });
-            selected = selectionFromParts([s.id], boundary ? [boundary.id] : []);
+            const parent = currentLayerContainer();
+            setBoundaryEndpoint(parent, "input", s.id);
+            ensureDefaultBoundaryTransitions(parent, statesInLayer(currentLayerId));
+            selected = selectionFromParts([s.id], []);
             saveModel();
             connecting = null;
             connectingTargetId = null;
@@ -9019,15 +8450,17 @@
             if (!wasRewire) showNodeInspector(s, { focus: false });
             return;
           }
-          const rewireTransition = connecting.mode === "rewire" && connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+          const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
-          if (t) {
+          const duplicate = normalTransitionFrom(connecting.from, t?.id || null);
+          if (duplicate) {
+            if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+            t = duplicate;
+          } else if (t) {
             t.to = s.id;
-            if (connecting.fromPortId) t.fromPortId = connecting.fromPortId;
           } else {
-            t = { id: uid("t"), from: connecting.from, to: s.id, fromPortId: connecting.fromPortId || "", label: "Next", condition: "", set: {} };
-            normalizeTransitionPorts(t);
-              model.transitions.push(t);
+            t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "", set: {} };
+            model.transitions.push(t);
           }
           model.states.push(s);
           selected = selectionFromParts([s.id], []);
@@ -9047,14 +8480,6 @@
     }
 
     document.addEventListener("contextmenu", evt => evt.preventDefault());
-    mapEl.addEventListener("dragstart", evt => {
-      evt.preventDefault();
-      evt.stopPropagation();
-    }, { capture: true });
-    mapEl.addEventListener("selectstart", evt => {
-      if (evt.target?.closest?.("input, textarea, select, [contenteditable]")) return;
-      evt.preventDefault();
-    }, { capture: true });
     mapEl.addEventListener("wheel", evt => {
       if (shouldIgnoreMapWheel(evt)) return;
       evt.preventDefault();
@@ -9429,13 +8854,6 @@
       applyStateExplorerCollapsed();
     };
     btnAddStateTemplate.onclick = () => addBlankStateTemplate();
-
-    stateExplorerEl.addEventListener("mousedown", evt => {
-      evt.stopPropagation();
-    });
-    stateExplorerEl.addEventListener("pointerdown", evt => {
-      evt.stopPropagation();
-    }, { passive: true });
 
     stateExplorerEl.addEventListener("dragenter", evt => {
       evt.preventDefault();
