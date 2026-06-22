@@ -3794,7 +3794,10 @@
       if (!parent || !state) return null;
       const parentId = parent.id;
       const laneId = normalizePortId(opts.laneId, defaultBoundaryLaneId(side));
-      const flowLaneId = normalizePortId(opts.flowLaneId, `${laneId}_${state.id}`);
+      const flowLaneId = normalizePortId(
+        opts.flowLaneId || (opts.forceNew ? `${laneId}_${state.id}_${uid("lane")}` : ""),
+        `${laneId}_${state.id}`
+      );
       const inputProxyId = boundaryProxyId(parentId, "input", defaultBoundaryLaneId("input"));
       const outputProxyId = boundaryProxyId(parentId, "output", defaultBoundaryLaneId("output"));
       const id = layerBoundaryFlowId(parentId, side, flowLaneId);
@@ -4159,20 +4162,29 @@
       const childParentId = layerChildParentId(parent);
       if (from.virtualProxy?.side === "input" && stateParentId(target) === childParentId) {
         setBoundaryEndpoint(parent, "input", target.id);
-        const transition = ensureBoundaryFlowTransition(parent, "input", target, { laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("input") });
+        const transition = ensureBoundaryFlowTransition(parent, "input", target, {
+          laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("input"),
+          forceNew: connecting?.mode === "new"
+        });
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (from.virtualProxy?.side === "output" && stateParentId(target) === childParentId) {
         setBoundaryEndpoint(parent, "output", target.id);
-        const transition = ensureBoundaryFlowTransition(parent, "output", target, { laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("output") });
+        const transition = ensureBoundaryFlowTransition(parent, "output", target, {
+          laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("output"),
+          forceNew: connecting?.mode === "new"
+        });
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (target.virtualProxy?.side === "output" && stateParentId(from) === childParentId) {
         const laneId = opts.targetPortId || target.virtualProxy.transitionId || defaultBoundaryLaneId("output");
         setBoundaryEndpoint(parent, "output", from.id);
-        const transition = ensureBoundaryFlowTransition(parent, "output", from, { laneId });
+        const transition = ensureBoundaryFlowTransition(parent, "output", from, {
+          laneId,
+          forceNew: connecting?.mode === "new"
+        });
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
