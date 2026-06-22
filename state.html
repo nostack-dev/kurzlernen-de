@@ -1777,6 +1777,172 @@
     .map.panning #wires .edge-tip-hit {
       filter: none !important;
     }
+    .process-mode .map {
+      background:
+        radial-gradient(circle at 18% 12%, rgba(250, 204, 21, 0.16), transparent 30%),
+        radial-gradient(circle at 88% 84%, rgba(14, 165, 233, 0.14), transparent 34%),
+        #f8fafc;
+    }
+    .process-view-tabs {
+      display: none;
+      gap: 6px;
+      align-items: center;
+      padding-left: 8px;
+      border-left: 1px solid #e2e8f0;
+    }
+    .process-mode .process-view-tabs {
+      display: flex;
+    }
+    .process-view-tabs button.active {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    #btnProcessMode.active {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .process-panel {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 18;
+      width: min(380px, calc(100vw - 36px));
+      max-height: min(520px, calc(100vh - 150px));
+      overflow: auto;
+      display: none;
+      padding: 14px;
+      border-radius: 24px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(16px);
+    }
+    .process-mode .process-panel {
+      display: block;
+    }
+    .process-panel h3 {
+      margin: 0 0 4px;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+    .process-panel p {
+      margin: 0 0 12px;
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .process-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .process-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 10px;
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+    .process-card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      font-weight: 800;
+      font-size: 13px;
+      color: #0f172a;
+    }
+    .process-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .process-pill,
+    .process-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #334155;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .process-score {
+      color: #713f12;
+      background: #fef3c7;
+      border-color: #fde68a;
+    }
+    .process-meta-panel {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .process-meta-panel h4 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #475569;
+    }
+    .process-field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .process-field-grid .field.wide {
+      grid-column: 1 / -1;
+    }
+    .process-field-grid select,
+    .process-field-grid input,
+    .process-field-grid textarea {
+      width: 100%;
+    }
+    .node .process-chip {
+      position: absolute;
+      left: 14px;
+      bottom: 9px;
+      display: none;
+      max-width: calc(100% - 28px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .process-mode .node .process-chip {
+      display: inline-flex;
+    }
+    .node.process-area {
+      border-color: #f59e0b;
+      background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+    }
+    .node.process-step {
+      border-color: #38bdf8;
+    }
+    .node.process-decision {
+      border-style: dashed;
+      border-color: #f97316;
+      background: linear-gradient(180deg, #fff7ed 0%, #fff 100%);
+    }
+    .node.process-exception {
+      border-color: #ef4444;
+      background: linear-gradient(180deg, #fef2f2 0%, #fff 100%);
+    }
+    .node.process-manual {
+      border-color: #a855f7;
+      background: linear-gradient(180deg, #faf5ff 0%, #fff 100%);
+    }
+    .node.process-system {
+      border-color: #22c55e;
+      background: linear-gradient(180deg, #f0fdf4 0%, #fff 100%);
+    }
   </style>
 </head>
 <body>
@@ -1789,6 +1955,12 @@
     <button id="btnUndo" title="Undo" disabled="">Undo</button>
     <button id="btnRedo" title="Redo" disabled="">Redo</button>
     <button id="btnFit">Fit</button>
+    <button id="btnProcessMode" type="button" title="Process map mode">Process Map</button>
+    <div id="processViewTabs" class="process-view-tabs" aria-label="Process views">
+      <button type="button" data-process-view="map" class="active">Map</button>
+      <button type="button" data-process-view="flow">Flow</button>
+      <button type="button" data-process-view="pilot">Pilot</button>
+    </div>
     <button id="btnRun">Reset App</button>
     <details class="topbar-menu" id="topbarMore">
       <summary>More</summary>
@@ -1859,6 +2031,7 @@
         <button id="btnSelectionCollapse" type="button" disabled="">Collapse</button>
         <button id="btnSelectionDelete" type="button" class="danger">Delete</button>
       </div>
+      <div id="processPanel" class="process-panel" aria-live="polite"></div>
       <div id="stateExplorer" class="state-explorer">
         <div class="state-explorer-title">
           <span>State Explorer</span>
@@ -2014,6 +2187,9 @@
     const stateExplorerListEl = document.getElementById("stateExplorerList");
     const btnAddStateTemplate = document.getElementById("btnAddStateTemplate");
     const btnToggleStateExplorer = document.getElementById("btnToggleStateExplorer");
+    const btnProcessMode = document.getElementById("btnProcessMode");
+    const processViewTabsEl = document.getElementById("processViewTabs");
+    const processPanelEl = document.getElementById("processPanel");
     const runtimeStateEl = document.getElementById("runtimeState");
     const fileLoadEl = document.getElementById("fileLoad");
     const modalBackdropEl = document.getElementById("modalBackdrop");
@@ -2050,6 +2226,8 @@
     let inspectorCollapsed = uiState.inspectorCollapsed;
     let mobileWorkspaceView = uiState.mobileWorkspaceView;
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
+    let processModeEnabled = uiState.processModeEnabled;
+    let processView = uiState.processView;
     let stateTemplates = loadStateTemplates();
     let stateTemplateDrag = null;
     let editingTemplateId = null;
@@ -2301,7 +2479,9 @@
         inspectorCollapsed: true,
         previewCollapsed: defaultPreviewCollapsed(),
         stateExplorerCollapsed: false,
-        mobileWorkspaceView: "canvas"
+        mobileWorkspaceView: "canvas",
+        processModeEnabled: false,
+        processView: "map"
       };
       try {
         const stored = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "null");
@@ -2310,7 +2490,9 @@
           inspectorCollapsed: typeof stored.inspectorCollapsed === "boolean" ? stored.inspectorCollapsed : fallback.inspectorCollapsed,
           previewCollapsed: typeof stored.previewCollapsed === "boolean" ? stored.previewCollapsed : fallback.previewCollapsed,
           stateExplorerCollapsed: typeof stored.stateExplorerCollapsed === "boolean" ? stored.stateExplorerCollapsed : fallback.stateExplorerCollapsed,
-          mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView)
+          mobileWorkspaceView: normalizeMobileWorkspaceView(stored.mobileWorkspaceView),
+          processModeEnabled: typeof stored.processModeEnabled === "boolean" ? stored.processModeEnabled : fallback.processModeEnabled,
+          processView: ["map", "flow", "pilot"].includes(stored.processView) ? stored.processView : fallback.processView
         };
       } catch (_) {
         return fallback;
@@ -2322,7 +2504,9 @@
         inspectorCollapsed: Boolean(inspectorCollapsed),
         previewCollapsed: Boolean(previewCollapsed),
         stateExplorerCollapsed: Boolean(stateExplorerCollapsed),
-        mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView)
+        mobileWorkspaceView: normalizeMobileWorkspaceView(mobileWorkspaceView),
+        processModeEnabled: Boolean(processModeEnabled),
+        processView: ["map", "flow", "pilot"].includes(processView) ? processView : "map"
       };
     }
 
@@ -2346,6 +2530,7 @@
             body: "",
             components: migrateBodyToComponents(state.body, state.components || []),
             data: normalizeDataObject(state.data),
+            process: normalizeProcessMeta(state.process),
             dataSource: normalizeDataSource(state.dataSource || state.fetch),
             repeat: normalizeRepeatConfig(state.repeat),
             boundary: normalizeBoundaryConfig(state.boundary),
@@ -2353,7 +2538,6 @@
             y: Number.isFinite(y) ? y : 120
           };
           if (typeof state.parentId === "string" && state.parentId) snapshot.parentId = state.parentId;
-          return snapshot;
         });
     }
 
@@ -2387,6 +2571,7 @@
           body: "",
           components: migrateBodyToComponents(item.body, item.components || []),
           data: normalizeDataObject(item.data),
+          process: normalizeProcessMeta(item.process),
           dataSource: normalizeDataSource(item.dataSource || item.fetch),
           repeat: normalizeRepeatConfig(item.repeat),
           rootStateId: String(item.rootStateId || item.sourceStateId || item.id || ""),
@@ -2449,6 +2634,9 @@
           body: "",
           components: migrateBodyToComponents(item.body, item.components || []),
           data: normalizeDataObject(item.data),
+          process: normalizeProcessMeta(item.process),
+          dataSource: normalizeDataSource(item.dataSource || item.fetch),
+          repeat: normalizeRepeatConfig(item.repeat),
           rootStateId: String(item.rootStateId || item.sourceStateId || item.id || ""),
           states: snapshotTemplateStates(item),
           transitions: snapshotTemplateTransitions(item)
@@ -2803,6 +2991,7 @@
           body: "",
           components: migrateBodyToComponents(body, validateComponents(state.components, `${path}.components`)),
           data: validateDataObject(state.data, `${path}.data`),
+          process: normalizeProcessMeta(state.process),
           dataSource: validateDataSource(state.dataSource, `${path}.dataSource`),
           repeat: validateRepeatConfig(state.repeat, `${path}.repeat`),
           boundary: normalizeBoundaryConfig(state.boundary),
@@ -3037,6 +3226,7 @@
         body: "",
         components: normalizeComponents(s.components || []),
         data: normalizeDataObject(s.data),
+        process: normalizeProcessMeta(s.process),
         dataSource: normalizeDataSource(s.dataSource || s.fetch),
         repeat: normalizeRepeatConfig(s.repeat),
         boundary: normalizeBoundaryConfig(s.boundary),
@@ -3343,6 +3533,190 @@
       return JSON.parse(JSON.stringify(value));
     }
 
+    const PROCESS_TYPES = [
+      { id: "process-area", label: "Process Area" },
+      { id: "step", label: "Step" },
+      { id: "decision", label: "Decision" },
+      { id: "exception", label: "Exception" },
+      { id: "manual", label: "Manual Work" },
+      { id: "system", label: "External System" }
+    ];
+    const PROCESS_TYPE_IDS = new Set(PROCESS_TYPES.map(type => type.id));
+    const PROCESS_RISKS = ["low", "medium", "high"];
+    const PROCESS_FREQUENCIES = ["rare", "monthly", "weekly", "daily"];
+
+    function normalizeProcessMeta(value) {
+      const source = isPlainObject(value) ? value : {};
+      const type = PROCESS_TYPE_IDS.has(source.type) ? source.type : "step";
+      const risk = PROCESS_RISKS.includes(source.risk) ? source.risk : "medium";
+      const frequency = PROCESS_FREQUENCIES.includes(source.frequency) ? source.frequency : "weekly";
+      const potential = clamp(Number(source.potential ?? source.digitalPotential ?? 3), 1, 5);
+      return {
+        type,
+        role: String(source.role || "").slice(0, 80),
+        system: String(source.system || "").slice(0, 80),
+        input: String(source.input || "").slice(0, 160),
+        output: String(source.output || "").slice(0, 160),
+        risk,
+        frequency,
+        potential,
+        pain: String(source.pain || "").slice(0, 220)
+      };
+    }
+
+    function processTypeInfo(stateOrType) {
+      const type = typeof stateOrType === "string" ? stateOrType : normalizeProcessMeta(stateOrType?.process).type;
+      return PROCESS_TYPES.find(item => item.id === type) || PROCESS_TYPES[1];
+    }
+
+    function processScore(state) {
+      const meta = normalizeProcessMeta(state?.process);
+      const riskScore = meta.risk === "high" ? 3 : meta.risk === "medium" ? 2 : 1;
+      const frequencyScore = meta.frequency === "daily" ? 4 : meta.frequency === "weekly" ? 3 : meta.frequency === "monthly" ? 2 : 1;
+      const childScore = childStateCount(state?.id) ? 1 : 0;
+      return riskScore + frequencyScore + Number(meta.potential || 0) + childScore;
+    }
+
+    function processPreviewText(state) {
+      const meta = normalizeProcessMeta(state?.process);
+      return [meta.role, meta.system, meta.input && "In: " + meta.input, meta.output && "Out: " + meta.output]
+        .filter(Boolean)
+        .join(" | ");
+    }
+
+    function processIncomingCount(state) {
+      if (!state) return 0;
+      return model.transitions.filter(t => t.to === state.id && stateParentId(byId(t.from)) === stateParentId(state)).length;
+    }
+
+    function processOutgoingCount(state) {
+      if (!state) return 0;
+      return model.transitions.filter(t => t.from === state.id && stateParentId(byId(t.to)) === stateParentId(state)).length;
+    }
+
+    function processLayerStates(layerId = currentLayerId) {
+      return statesInLayer(layerId).filter(state => state && !state.virtualProxy);
+    }
+
+    function processCardHtml(state, options = {}) {
+      const meta = normalizeProcessMeta(state.process);
+      const type = processTypeInfo(meta.type);
+      const bits = [
+        type.label,
+        meta.role,
+        meta.system,
+        meta.risk + " risk",
+        meta.frequency,
+        "potential " + meta.potential + "/5",
+        processIncomingCount(state) + " in",
+        processOutgoingCount(state) + " out"
+      ].filter(Boolean);
+      const pain = meta.pain ? `<div class="small" style="margin-top:8px">${escapeHtml(meta.pain)}</div>` : "";
+      const score = options.score ? `<span class="process-pill process-score">${processScore(state)}</span>` : "";
+      return `
+        <div class="process-card" data-state-id="${escapeHtml(state.id)}">
+          <div class="process-card-title">
+            <span>${escapeHtml(state.title || state.id)}</span>
+            ${score}
+          </div>
+          <div class="process-card-meta">
+            ${bits.map(bit => `<span class="process-pill">${escapeHtml(bit)}</span>`).join("")}
+          </div>
+          ${pain}
+        </div>
+      `;
+    }
+
+    function renderProcessPanel() {
+      if (!processPanelEl) return;
+      document.body.classList.toggle("process-mode", processModeEnabled);
+      btnProcessMode?.classList.toggle("active", processModeEnabled);
+      processViewTabsEl?.querySelectorAll("[data-process-view]").forEach(button => {
+        button.classList.toggle("active", button.dataset.processView === processView);
+      });
+      if (!processModeEnabled) {
+        processPanelEl.innerHTML = "";
+        return;
+      }
+      const states = processLayerStates(currentLayerId);
+      const activeLayerName = currentLayerId ? (byId(currentLayerId)?.title || currentLayerId) : "Root";
+      if (processView === "flow") {
+        processPanelEl.innerHTML = `
+          <h3>Flow View</h3>
+          <p>${escapeHtml(activeLayerName)} as connected process path. Disconnected states are visible as open work.</p>
+          <div class="process-grid">
+            ${states.map(state => processCardHtml(state)).join("") || `<div class="process-card">No process states in this layer.</div>`}
+          </div>
+        `;
+      } else if (processView === "pilot") {
+        const ranked = [...states].sort((a, b) => processScore(b) - processScore(a));
+        processPanelEl.innerHTML = `
+          <h3>Pilot Finder</h3>
+          <p>Ranks high-frequency, risky, manual or painful steps as first digitalization candidates.</p>
+          <div class="process-grid">
+            ${ranked.map(state => processCardHtml(state, { score: true })).join("") || `<div class="process-card">No pilot candidates yet.</div>`}
+          </div>
+        `;
+      } else {
+        const areas = states.filter(state => normalizeProcessMeta(state.process).type === "process-area").length;
+        const decisions = states.filter(state => normalizeProcessMeta(state.process).type === "decision").length;
+        const exceptions = states.filter(state => normalizeProcessMeta(state.process).type === "exception").length;
+        const manual = states.filter(state => normalizeProcessMeta(state.process).type === "manual").length;
+        processPanelEl.innerHTML = `
+          <h3>Process Map</h3>
+          <p>${escapeHtml(activeLayerName)} contains ${states.length} states, ${areas} areas, ${decisions} decisions, ${exceptions} exceptions and ${manual} manual steps.</p>
+          <div class="process-grid">
+            ${states.map(state => processCardHtml(state)).join("") || `<div class="process-card">Double-click the canvas to add the first process state.</div>`}
+          </div>
+        `;
+      }
+    }
+
+    function bindProcessEditor(state, root) {
+      const meta = normalizeProcessMeta(state.process);
+      state.process = meta;
+      const type = root.querySelector("#pProcessType");
+      const role = root.querySelector("#pProcessRole");
+      const system = root.querySelector("#pProcessSystem");
+      const input = root.querySelector("#pProcessInput");
+      const output = root.querySelector("#pProcessOutput");
+      const risk = root.querySelector("#pProcessRisk");
+      const frequency = root.querySelector("#pProcessFrequency");
+      const potential = root.querySelector("#pProcessPotential");
+      const pain = root.querySelector("#pProcessPain");
+      if (!type) return;
+      type.innerHTML = PROCESS_TYPES.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)}</option>`).join("");
+      risk.innerHTML = PROCESS_RISKS.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("");
+      frequency.innerHTML = PROCESS_FREQUENCIES.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("");
+      type.value = meta.type;
+      role.value = meta.role;
+      system.value = meta.system;
+      input.value = meta.input;
+      output.value = meta.output;
+      risk.value = meta.risk;
+      frequency.value = meta.frequency;
+      potential.value = meta.potential;
+      pain.value = meta.pain;
+      const commit = () => {
+        state.process = normalizeProcessMeta({
+          type: type.value,
+          role: role.value,
+          system: system.value,
+          input: input.value,
+          output: output.value,
+          risk: risk.value,
+          frequency: frequency.value,
+          potential: potential.value,
+          pain: pain.value
+        });
+        saveModel();
+        draw();
+      };
+      [type, role, system, input, output, risk, frequency, potential, pain].forEach(control => {
+        control.addEventListener(control.tagName === "SELECT" ? "change" : "input", commit);
+      });
+    }
+
     function normalizeContextPath(path, fallback = "fetch") {
       const text = String(path || "").trim();
       if (!text) return fallback;
@@ -3455,6 +3829,7 @@
         s.components = migrateBodyToComponents(s.body, s.components);
         s.body = "";
         s.data = normalizeDataObject(s.data);
+        s.process = normalizeProcessMeta(s.process);
         s.dataSource = normalizeDataSource(s.dataSource || s.fetch);
         s.repeat = normalizeRepeatConfig(s.repeat);
         s.boundary = normalizeBoundaryConfig(s.boundary);
@@ -4503,6 +4878,7 @@
         );
         copy.components = cloneComponents(snapshot.components);
         copy.data = normalizeDataObject(snapshot.data);
+        copy.process = normalizeProcessMeta(snapshot.process);
         copy.dataSource = normalizeDataSource(snapshot.dataSource);
         copy.repeat = normalizeRepeatConfig(snapshot.repeat);
         copy.boundary = normalizeBoundaryConfig(snapshot.boundary);
@@ -6228,8 +6604,10 @@
       for (const s of states) {
         const el = document.createElement("div");
         const classes = ["node"];
+        const processMeta = normalizeProcessMeta(s.process);
         if (s.virtualProxy) classes.push("boundary-proxy");
         if (s.virtualProxy?.side) classes.push(`boundary-${s.virtualProxy.side}`);
+        if (!s.virtualProxy) classes.push(processMeta.type === "process-area" ? "process-area" : `process-${processMeta.type}`);
         if (s.id === model.initial) classes.push("initial");
         if (connecting?.from === s.id) classes.push("connect-source");
         if (!s.virtualProxy && nodeSelection.has(s.id)) classes.push("selected");
@@ -6277,10 +6655,12 @@
             <div class="layer-badge"></div>
             <div class="title"></div>
             <div class="body"></div>
+            <div class="process-chip"></div>
             <button class="node-edit" type="button" title="Edit state" aria-label="Edit state">⚙</button>
           `;
           el.querySelector(".title").textContent = s.title || s.id;
-          el.querySelector(".body").textContent = statePreviewText(s);
+          el.querySelector(".body").textContent = processModeEnabled ? (processPreviewText(s) || statePreviewText(s)) : statePreviewText(s);
+          el.querySelector(".process-chip").textContent = processTypeInfo(processMeta.type).label;
           el.querySelector(".layer-badge").textContent = innerCount === 1 ? "1 state" : `${innerCount} states`;
           const editButton = el.querySelector(".node-edit");
           editButton.addEventListener("mousedown", evt => {
@@ -6391,6 +6771,7 @@
         }
       }
       updateSelectionActions();
+      renderProcessPanel();
       requestMapCanvasPaint();
     }
 
@@ -6482,9 +6863,67 @@
         body: "",
         components: [{ id: `builtin_${type}`, type, text: defaultComponentText(type), url: defaultComponentUrl(type) }],
         data: {},
+        process: normalizeProcessMeta(null),
         builtIn: true
       }));
+      const processTemplates = [
+        {
+          id: "builtin_process_area",
+          title: "Process area",
+          body: "",
+          components: [{ id: "builtin_process_area_note", type: "note", text: "High-level process area. Place subprocesses inside this state.", url: "" }],
+          data: {},
+          process: normalizeProcessMeta({ type: "process-area", potential: 3 }),
+          builtIn: true
+        },
+        {
+          id: "builtin_process_step",
+          title: "Process step",
+          body: "",
+          components: [{ id: "builtin_process_step_text", type: "text", text: "Describe the work step, input, output and owner.", url: "" }],
+          data: {},
+          process: normalizeProcessMeta({ type: "step", potential: 3 }),
+          builtIn: true
+        },
+        {
+          id: "builtin_process_decision",
+          title: "Decision",
+          body: "",
+          components: [{ id: "builtin_process_decision_note", type: "note", text: "Decision point. Add one outgoing transition per outcome.", url: "" }],
+          data: {},
+          process: normalizeProcessMeta({ type: "decision", risk: "medium", potential: 3 }),
+          builtIn: true
+        },
+        {
+          id: "builtin_process_exception",
+          title: "Exception",
+          body: "",
+          components: [{ id: "builtin_process_exception_note", type: "note", text: "Special case, rework, escalation or non-standard path.", url: "" }],
+          data: {},
+          process: normalizeProcessMeta({ type: "exception", risk: "high", potential: 4 }),
+          builtIn: true
+        },
+        {
+          id: "builtin_process_manual",
+          title: "Manual work",
+          body: "",
+          components: [{ id: "builtin_process_manual_note", type: "note", text: "Manual handoff, spreadsheet, email, phone call or paper-based work.", url: "" }],
+          data: {},
+          process: normalizeProcessMeta({ type: "manual", risk: "medium", potential: 5 }),
+          builtIn: true
+        },
+        {
+          id: "builtin_process_system",
+          title: "External system",
+          body: "",
+          components: [{ id: "builtin_process_system_note", type: "note", text: "External application, data source or system dependency.", url: "" }],
+          data: {},
+          process: normalizeProcessMeta({ type: "system", potential: 4 }),
+          builtIn: true
+        }
+      ];
       return [
+        ...processTemplates,
         ...componentTemplates,
         {
           id: "builtin_fetch_data",
@@ -6506,6 +6945,7 @@
             }
           ],
           data: { fetched: false },
+          process: normalizeProcessMeta({ type: "system", system: "External API", output: "JSON data", potential: 4 }),
           dataSource: {
             url: "https://example.com/api/data",
             target: "fetch",
@@ -6528,6 +6968,7 @@
             url: ""
           }],
           data: { fetched: false },
+          process: normalizeProcessMeta({ type: "decision", input: "Loop condition", output: "Repeat or exit", potential: 3 }),
           transitions: [{
             id: "builtin_while_loop_repeat",
             from: "builtin_while_loop",
@@ -7184,6 +7625,20 @@
       root.innerHTML = `
         <h3>State</h3>
         <div class="field"><label>Title</label><input id="pTitle"></div>
+        <div class="process-meta-panel">
+          <h4>Process map</h4>
+          <div class="process-field-grid">
+            <div class="field"><label>Type</label><select id="pProcessType"></select></div>
+            <div class="field"><label>Role</label><input id="pProcessRole" placeholder="Team / role"></div>
+            <div class="field"><label>System</label><input id="pProcessSystem" placeholder="ERP, email, paper..."></div>
+            <div class="field"><label>Risk</label><select id="pProcessRisk"></select></div>
+            <div class="field"><label>Frequency</label><select id="pProcessFrequency"></select></div>
+            <div class="field"><label>Digital potential</label><input id="pProcessPotential" type="number" min="1" max="5" step="1"></div>
+            <div class="field wide"><label>Input</label><input id="pProcessInput" placeholder="What enters this step?"></div>
+            <div class="field wide"><label>Output</label><input id="pProcessOutput" placeholder="What leaves this step?"></div>
+            <div class="field wide"><label>Pain / exception</label><textarea id="pProcessPain" placeholder="Manual work, media breaks, delays, special cases..."></textarea></div>
+          </div>
+        </div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
@@ -7236,6 +7691,7 @@
       const dataPreview = root.querySelector("#pDataPreview");
       title.value = s.title || "";
       title.addEventListener("focus", () => title.select());
+      bindProcessEditor(s, root);
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
       renderChildJumpList(s, root);
@@ -7318,6 +7774,7 @@
         const copy = makeState(s.x + GRID_SIZE * 2, s.y + GRID_SIZE * 5, (s.title || s.id) + " Copy");
         copy.components = cloneComponents(s.components);
         copy.data = normalizeDataObject(s.data);
+        copy.process = normalizeProcessMeta(s.process);
         copy.dataSource = normalizeDataSource(s.dataSource);
         copy.repeat = normalizeRepeatConfig(s.repeat);
         model.states.push(copy);
@@ -7747,6 +8204,7 @@
         body: "",
         components: [],
         data: {},
+        process: normalizeProcessMeta(null),
         dataSource: normalizeDataSource(null),
         repeat: normalizeRepeatConfig(null),
         boundary: normalizeBoundaryConfig(null),
@@ -7769,6 +8227,7 @@
         body: "",
         components: cloneComponents(s.components),
         data: normalizeDataObject(s.data),
+        process: normalizeProcessMeta(s.process),
         dataSource: normalizeDataSource(s.dataSource),
         repeat: normalizeRepeatConfig(s.repeat),
         boundary: normalizeBoundaryConfig(s.boundary),
@@ -7793,6 +8252,7 @@
         body: "",
         components: [],
         data: {},
+        process: normalizeProcessMeta(null),
         dataSource: normalizeDataSource(null),
         repeat: normalizeRepeatConfig(null)
       };
@@ -7887,6 +8347,7 @@
       s.body = "";
       s.components = cloneComponents(template.components);
       s.data = normalizeDataObject(template.data);
+      s.process = normalizeProcessMeta(template.process);
       s.dataSource = normalizeDataSource(template.dataSource || template.fetch);
       s.repeat = normalizeRepeatConfig(template.repeat);
       s.boundary = normalizeBoundaryConfig(template.boundary);
@@ -7907,6 +8368,7 @@
         next.body = "";
         next.components = cloneComponents(child.components);
         next.data = normalizeDataObject(child.data);
+        next.process = normalizeProcessMeta(child.process);
         next.dataSource = normalizeDataSource(child.dataSource || child.fetch);
         next.repeat = normalizeRepeatConfig(child.repeat);
         next.boundary = normalizeBoundaryConfig(child.boundary);
@@ -8857,6 +9319,30 @@
       stateExplorerCollapsed = !stateExplorerCollapsed;
       applyStateExplorerCollapsed();
     };
+    btnProcessMode.onclick = () => {
+      processModeEnabled = !processModeEnabled;
+      if (processModeEnabled) processView = processView || "map";
+      saveUiState();
+      draw();
+    };
+    processViewTabsEl.addEventListener("click", evt => {
+      const button = evt.target.closest("[data-process-view]");
+      if (!button) return;
+      processModeEnabled = true;
+      processView = button.dataset.processView || "map";
+      saveUiState();
+      draw();
+    });
+    processPanelEl.addEventListener("click", evt => {
+      const card = evt.target.closest("[data-state-id]");
+      if (!card) return;
+      const state = byId(card.dataset.stateId);
+      if (!state || state.virtualProxy) return;
+      setSingleSelection("node", state.id);
+      startAppAtState(state.id, { preserveFocus: true });
+      draw();
+      showNodeInspector(state, { forceOpen: true, manualOpen: true, focus: false });
+    });
     btnAddStateTemplate.onclick = () => addBlankStateTemplate();
 
     stateExplorerEl.addEventListener("mousedown", evt => {
