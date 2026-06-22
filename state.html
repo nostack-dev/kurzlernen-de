@@ -841,12 +841,12 @@
       touch-action: none;
     }
 
-    .node.has-output-slots > .port {
+    .node.has-input-slots > .input-port {
       display: none;
     }
 
-    .node.has-input-slots > .input-port {
-      display: none;
+    .node.has-output-slots > .port {
+      z-index: 12;
     }
 
     .input-port::before {
@@ -5329,7 +5329,16 @@
       if (!transition) return center;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
-      const laneOffset = index >= 0 && transitions.length > 1 ? (index - (transitions.length - 1) / 2) * GRID_SIZE : 0;
+      let laneOffset = 0;
+      if (index >= 0) {
+        if (side === "out") {
+          let lane = index - Math.floor(transitions.length / 2);
+          if (lane >= 0) lane += 1;
+          laneOffset = lane * GRID_SIZE;
+        } else if (transitions.length > 1) {
+          laneOffset = (index - (transitions.length - 1) / 2) * GRID_SIZE;
+        }
+      }
       const y = center.y + laneOffset;
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
