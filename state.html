@@ -4860,7 +4860,6 @@
     function shouldIgnoreMapWheel(evt) {
       const target = evt.target;
       if (target?.closest?.(".state-explorer, .inspector, input, textarea, select, button")) return true;
-      if (!(evt.ctrlKey || evt.metaKey)) return true;
       return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
     }
 
