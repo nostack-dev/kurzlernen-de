@@ -843,12 +843,9 @@
       touch-action: none;
     }
 
-    .node.has-input-slots > .input-port {
-      display: none;
-    }
-
-    .node.has-output-slots > .port {
-      display: none;
+    .node.has-input-slots:not(.boundary-proxy) > .input-port,
+    .node.has-output-slots:not(.boundary-proxy) > .port {
+      display: block;
     }
 
     .input-port::before {
@@ -5326,34 +5323,8 @@
         .sort((a, b) => compareEdgeLane(a, b, side));
     }
 
-    function portLaneOffset(index, count, reserveCenter = false, maxOffset = NODE_H / 2 - 14) {
-      if (index < 0 || count <= 1) return reserveCenter ? GRID_SIZE : 0;
-      const baseStep = GRID_SIZE * 0.75;
-      if (reserveCenter) {
-        const before = Math.floor(count / 2);
-        let lane = index - before;
-        if (lane >= 0) lane += 1;
-        const maxLane = Math.max(1, Math.max(before, count - before));
-        const laneStep = Math.min(baseStep, maxOffset / maxLane);
-        return lane * laneStep;
-      }
-      const raw = index - (count - 1) / 2;
-      const lane = Number.isInteger(raw) ? raw : Math.sign(raw) * Math.ceil(Math.abs(raw));
-      const maxLane = Math.max(1, Math.ceil((count - 1) / 2));
-      const laneStep = Math.min(baseStep, maxOffset / maxLane);
-      return lane * laneStep;
-    }
-
     function edgePortPoint(state, side, transition = null) {
       const center = nodeCenter(state, side);
-      if (!transition) return center;
-      const transitions = orderedPortTransitions(state.id, side);
-      const index = transitions.findIndex(item => item.id === transition.id);
-      const maxOffset = Math.max(0, nodeHeight(state) / 2 - 14);
-      const laneOffset = portLaneOffset(index, transitions.length, false, maxOffset);
-      const y = center.y + laneOffset;
-      if (side === "out") return { x: state.x + nodeWidth(state), y };
-      if (side === "in") return { x: state.x, y };
       return center;
     }
 
@@ -6256,8 +6227,8 @@
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
         const outputTransitions = orderedPortTransitions(s.id, "out");
-        const renderInputSlots = inputTransitions.length > 0;
-        const renderOutputSlots = outputTransitions.length > 0;
+        const renderInputSlots = Boolean(s.virtualProxy && inputTransitions.length > 0);
+        const renderOutputSlots = Boolean(s.virtualProxy && outputTransitions.length > 0);
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
