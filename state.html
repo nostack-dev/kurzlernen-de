@@ -678,6 +678,11 @@
       display: none;
     }
 
+    .node.boundary-input.has-output-slots > .port,
+    .node.boundary-output.has-input-slots > .input-port {
+      display: block;
+    }
+
     .node.boundary-proxy > :not(.input-port):not(.port):not(.port-slot) {
       display: none !important;
     }
@@ -848,6 +853,47 @@
       display: block;
     }
 
+    .node.has-input-slots > .input-port,
+    .node.has-output-slots > .port {
+      display: block;
+    }
+
+    .node.boundary-input > .input-port,
+    .node.boundary-output > .port {
+      display: none !important;
+    }
+
+    .node.boundary-input.has-output-slots > .port,
+    .node.boundary-output.has-input-slots > .input-port {
+      display: block !important;
+    }
+
+    .node.has-multi-input > .input-port::after,
+    .node.has-multi-output > .port::after {
+      content: attr(data-count);
+      position: absolute;
+      right: -7px;
+      top: -9px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border: 1px solid rgba(15,23,42,.32);
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 10px;
+      font-weight: 950;
+      line-height: 14px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(15,23,42,.18);
+      pointer-events: none;
+    }
+
+    .node.has-multi-input > .input-port::after {
+      left: -7px;
+      right: auto;
+    }
+
     .input-port::before {
       content: "";
       position: absolute;
@@ -901,26 +947,76 @@
       left: unset;
     }
 
+    .node.ports-collapsed > .port-slot {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) scale(.62);
+    }
+
+    .node.ports-collapsed:hover > .port-slot,
+    .node.ports-expanded > .port-slot {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(-50%) scale(1);
+    }
+
+    .port-slot::after {
+      content: attr(data-port-label);
+      position: absolute;
+      top: 50%;
+      max-width: 180px;
+      padding: 4px 7px;
+      border: 1px solid rgba(148,163,184,.38);
+      border-radius: 999px;
+      background: rgba(15,23,42,.94);
+      color: #e2e8f0;
+      box-shadow: 0 10px 24px rgba(15,23,42,.24);
+      font-size: 10px;
+      font-weight: 850;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) scale(.96);
+      transition: opacity .12s ease, transform .12s ease;
+    }
+
+    .node.ports-expanded > .port-slot::after,
+    .node.ports-collapsed:hover > .port-slot::after {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+
     .port-slot-output {
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      right: -8px;
+      right: -30px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
       transform: translateY(-50%);
     }
 
+    .port-slot-output::after {
+      left: calc(100% + 8px);
+    }
+
     .port-slot-input {
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      left: -8px;
+      left: -30px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
       transform: translateY(-50%);
+    }
+
+    .port-slot-input::after {
+      right: calc(100% + 8px);
     }
 
     .port-slot.selected {
@@ -5334,7 +5430,11 @@
 
     function pathFromPoints(points) {
       const compact = [];
-      for (const point of points.map(snapPointToGrid)) {
+      for (const rawPoint of points) {
+        const point = {
+          x: Number.isFinite(rawPoint?.x) ? rawPoint.x : 0,
+          y: Number.isFinite(rawPoint?.y) ? rawPoint.y : 0
+        };
         const previous = compact[compact.length - 1];
         if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
       }
@@ -5343,7 +5443,11 @@
 
     function compactRoutePoints(points) {
       const compact = [];
-      for (const point of points.map(snapPointToGrid)) {
+      for (const rawPoint of points) {
+        const point = {
+          x: Number.isFinite(rawPoint?.x) ? rawPoint.x : 0,
+          y: Number.isFinite(rawPoint?.y) ? rawPoint.y : 0
+        };
         const previous = compact[compact.length - 1];
         if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
       }
@@ -5417,10 +5521,10 @@
     }
 
     function edgeApproachPoint(state, side, transition = null) {
-      const point = snapPointToGrid(edgePortPoint(state, side, transition));
+      const point = edgePortPoint(state, side, transition);
       const offset = GRID_SIZE * 2;
-      if (side === "out") return { x: point.x + offset, y: point.y };
-      if (side === "in") return { x: point.x - offset, y: point.y };
+      if (side === "out") return { x: snapToGrid(point.x + offset), y: point.y };
+      if (side === "in") return { x: snapToGrid(point.x - offset), y: point.y };
       return point;
     }
 
@@ -5435,8 +5539,8 @@
     }
 
     function doglegRoutePoints(from, to, transition = null) {
-      const a = snapPointToGrid(edgePortPoint(from, "out", transition));
-      const b = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const a = edgePortPoint(from, "out", transition);
+      const b = edgePortPoint(to, "in", transition);
       const out = edgeApproachPoint(from, "out", transition);
       const inn = edgeApproachPoint(to, "in", transition);
       const start = routeFromPortToApproach(a, out);
@@ -5521,8 +5625,8 @@
     function forwardBendRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
       if (edgeLaneOffset(from.id, "out", transition) || edgeLaneOffset(to.id, "in", transition)) return null;
-      const a = snapPointToGrid(edgePortPoint(from, "out", transition));
-      const b = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const a = edgePortPoint(from, "out", transition);
+      const b = edgePortPoint(to, "in", transition);
       if (b.x - a.x < GRID_SIZE * 3) return null;
       if (Math.abs(b.y - a.y) > GRID_SIZE * 3) return null;
       const midX = snapToGrid((a.x + b.x) / 2);
@@ -5600,8 +5704,8 @@
 
     function obstacleAvoidingRoutePoints(from, to, transition = null) {
       recordRouteMetric("obstacleSearches");
-      const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
-      const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const startPort = edgePortPoint(from, "out", transition);
+      const goalPort = edgePortPoint(to, "in", transition);
       const start = edgeApproachPoint(from, "out", transition);
       const goal = edgeApproachPoint(to, "in", transition);
       const routeTransition = transition || { from: from.id, to: to.id };
@@ -6116,6 +6220,14 @@
       return { left, top, width, height, right: left + width, bottom: top + height };
     }
 
+    function portSlotLabel(transition, side) {
+      const portId = transitionPortId(transition, side);
+      const label = String(transition?.label || "Next").trim();
+      const condition = String(transition?.condition || "").trim();
+      if (side === "out" && condition) return `${label}: ${condition}`;
+      return `${label} · ${portId}`;
+    }
+
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
       const point = edgePortPoint(state, side, transition);
       const slot = document.createElement("div");
@@ -6130,6 +6242,7 @@
       slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
       slot.dataset.portId = transitionPortId(transition, side);
+      slot.dataset.portLabel = portSlotLabel(transition, side);
       slot.title = "drag to reroute " + (transition.label || "transition");
       const startSlotDrag = evt => {
         startEdgeRewire(evt, transition);
@@ -6340,6 +6453,18 @@
         const renderOutputSlots = Boolean(outputTransitions.length > 0);
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
+        if (inputTransitions.length > 1) classes.push("has-multi-input");
+        if (outputTransitions.length > 1) classes.push("has-multi-output");
+        const selectedConnectedPort = [...inputTransitions, ...outputTransitions].some(transition => edgeSelection.has(transition.id));
+        const hasPortSlots = renderInputSlots || renderOutputSlots;
+        const portsExpanded = hasPortSlots && (
+          selectedConnectedPort ||
+          (!s.virtualProxy && nodeSelection.has(s.id)) ||
+          connecting?.from === s.id ||
+          connectingTargetId === s.id
+        );
+        if (portsExpanded) classes.push("ports-expanded");
+        else if (hasPortSlots) classes.push("ports-collapsed");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
@@ -6464,6 +6589,19 @@
           startConnection(evt, s, side);
         };
         const portElement = el.querySelector(".port");
+        const inputPortElement = el.querySelector(".input-port");
+        if (inputPortElement) {
+          inputPortElement.dataset.count = inputTransitions.length > 1 ? String(inputTransitions.length) : "";
+          inputPortElement.title = inputTransitions.length > 1
+            ? `${inputTransitions.length} input ports. Hover/select to expand.`
+            : "input port";
+        }
+        if (portElement) {
+          portElement.dataset.count = outputTransitions.length > 1 ? String(outputTransitions.length) : "";
+          portElement.title = outputTransitions.length > 1
+            ? `${outputTransitions.length} output ports. Drag to add, hover/select to expand.`
+            : "drag to connect";
+        }
         portElement.addEventListener("mousedown", evt => onPortMousedown(evt, connectionStartSide(s)));
         portElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, connectionStartSide(s)));
         if (s.virtualProxy && s.virtualProxy.side === "output") {
