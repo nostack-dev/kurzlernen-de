@@ -828,6 +828,7 @@
 
     .input-port {
       left: -8px;
+      top: 18px;
       background: #94a3b8;
       box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: default;
@@ -835,6 +836,7 @@
 
     .port {
       background: #94a3b8;
+      top: 18px;
       right: -8px;
       box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: cell;
@@ -4652,6 +4654,10 @@
       return snapClampToGrid(Math.ceil(measuredTextWidth(title)) + NODE_TITLE_EXTRA_W, NODE_MIN_W, NODE_MAX_W);
     }
 
+    const PORT_ANCHOR_Y = 18;
+    const PORT_SLOT_GAP = 20;
+    const PORT_BOTTOM_PAD = 18;
+
     function nodeHeight(s) {
       if (s?.virtualProxy) return GRID_SIZE * 2;
       try {
@@ -4659,7 +4665,7 @@
           orderedPortTransitions(s.id, "in").length,
           orderedPortTransitions(s.id, "out").length
         );
-        return Math.max(NODE_H, portCount > 1 ? 36 * portCount + 24 : NODE_H);
+        return Math.max(NODE_H, PORT_ANCHOR_Y + PORT_SLOT_GAP * portCount + PORT_BOTTOM_PAD);
       } catch (_) {
         return NODE_H;
       }
@@ -5256,8 +5262,9 @@
     function nodeCenter(s, side) {
       const width = nodeWidth(s);
       const centerY = s.y + nodeHeight(s) / 2;
-      if (side === "out") return { x: s.x + width, y: centerY };
-      if (side === "in") return { x: s.x, y: centerY };
+      const portY = s.y + Math.min(Math.max(12, PORT_ANCHOR_Y), Math.max(12, nodeHeight(s) - 12));
+      if (side === "out") return { x: s.x + width, y: portY };
+      if (side === "in") return { x: s.x, y: portY };
       return { x: s.x + width / 2, y: centerY };
     }
 
@@ -5342,20 +5349,16 @@
     }
 
     function edgePortPoint(state, side, transition = null) {
-      const center = nodeCenter(state, side);
-      if (!transition) return center;
+      const anchor = nodeCenter(state, side);
+      if (!transition) return anchor;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
-      let y = center.y;
-      if (index >= 0) {
-        const gap = 18;
-        const firstY = center.y + gap;
-        const maxY = state.y + nodeHeight(state) - 10;
-        y = Math.min(maxY, firstY + index * gap);
-      }
+      let y = anchor.y;
+      if (index >= 0) y = state.y + PORT_ANCHOR_Y + PORT_SLOT_GAP * (index + 1);
+      y = Math.min(state.y + nodeHeight(state) - 10, Math.max(state.y + 10, y));
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
-      return center;
+      return anchor;
     }
 
     function edgeApproachPoint(state, side, transition = null) {
@@ -6038,16 +6041,14 @@
     }
 
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
-      const point = snapPointToGrid(edgePortPoint(state, side, transition));
+      const point = edgePortPoint(state, side, transition);
       const slot = document.createElement("div");
       const classes = ["port-slot", side === "out" ? "port-slot-output" : "port-slot-input"];
       if (edgeSelection.has(transition.id)) classes.push("selected");
       if (hoveredEdgeId === transition.id) classes.push("hovered");
       slot.className = classes.join(" ");
-      const rawPortOffset = point.y - state.y - nodeHeight(state) / 2;
-      const maxPortOffset = Math.max(0, nodeHeight(state) / 2 - 10);
-      const clampedPortOffset = Math.max(-maxPortOffset, Math.min(maxPortOffset, rawPortOffset));
-      slot.style.setProperty("--port-offset", clampedPortOffset + "px");
+      slot.style.top = (point.y - state.y) + "px";
+      slot.style.setProperty("--port-offset", "0px");
       slot.style.left = "";
       slot.style.right = "";
       slot.style.setProperty("--edge-color", edgeColor(transition));
