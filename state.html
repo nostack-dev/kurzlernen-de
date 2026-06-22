@@ -4150,7 +4150,7 @@
       return null;
     }
 
-    function finishBoundaryConnection(fromId, targetId) {
+    function finishBoundaryConnection(fromId, targetId, opts = {}) {
       const parent = currentLayerContainer();
       if (!parent) return null;
       const from = byId(fromId);
@@ -4159,18 +4159,18 @@
       const childParentId = layerChildParentId(parent);
       if (from.virtualProxy?.side === "input" && stateParentId(target) === childParentId) {
         setBoundaryEndpoint(parent, "input", target.id);
-        const transition = ensureBoundaryFlowTransition(parent, "input", target, { laneId: from.virtualProxy.transitionId || defaultBoundaryLaneId("input") });
+        const transition = ensureBoundaryFlowTransition(parent, "input", target, { laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("input") });
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (from.virtualProxy?.side === "output" && stateParentId(target) === childParentId) {
         setBoundaryEndpoint(parent, "output", target.id);
-        const transition = ensureBoundaryFlowTransition(parent, "output", target, { laneId: from.virtualProxy.transitionId || defaultBoundaryLaneId("output") });
+        const transition = ensureBoundaryFlowTransition(parent, "output", target, { laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("output") });
         selected = selectionFromParts([], [transition.id]);
         return transition;
       }
       if (target.virtualProxy?.side === "output" && stateParentId(from) === childParentId) {
-        const laneId = target.virtualProxy.transitionId || defaultBoundaryLaneId("output");
+        const laneId = opts.targetPortId || target.virtualProxy.transitionId || defaultBoundaryLaneId("output");
         setBoundaryEndpoint(parent, "output", from.id);
         const transition = ensureBoundaryFlowTransition(parent, "output", from, { laneId });
         selected = selectionFromParts([], [transition.id]);
@@ -5330,7 +5330,7 @@
       return state?.virtualProxy?.side === "output" ? "in" : "out";
     }
 
-    function startConnection(evt, s, fromSide = null) {
+    function startConnection(evt, s, fromSide = null, opts = {}) {
       stopRuntimeLayerFollow();
       evt.stopPropagation();
       const p = screenToWorld(evt);
@@ -5339,6 +5339,7 @@
         from: s.id,
         to: p,
         fromSide: fromSide || connectionStartSide(s),
+        fromPortId: opts.fromPortId || "",
         mode: "new",
         startClientX: evt.clientX,
         startClientY: evt.clientY,
@@ -5479,7 +5480,68 @@
         seen.add(id);
         ids.push(id);
       }
+      for (const id of projectedBoundaryPortIds(stateId, side)) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
       return ids;
+    }
+
+    function projectedBoundaryPortIds(stateId, side) {
+      const state = byId(stateId);
+      if (!state || state.virtualProxy) return [];
+      if (!model.states.some(child => stateParentId(child) === state.id)) return [];
+      const boundarySide = side === "in" ? "input" : "output";
+      return model.transitions
+        .filter(transition => transition.boundaryFlow?.parentId === state.id && transition.boundaryFlow?.side === boundarySide)
+        .map(transition => normalizePortId(
+          transition.boundaryFlow.proxyLaneId || transition.boundaryFlow.laneId || transitionPortId(transition, side),
+          side === "in" ? "entry" : "out"
+        ))
+        .filter(Boolean);
+    }
+
+    function portSlotDescriptors(stateId, side) {
+      const descriptors = [];
+      const seen = new Set();
+      for (const transition of orderedPortTransitions(stateId, side)) {
+        const portId = transitionPortId(transition, side);
+        descriptors.push({ transition, portId, virtualPort: false });
+        seen.add(portId);
+      }
+      for (const portId of projectedBoundaryPortIds(stateId, side)) {
+        if (seen.has(portId)) continue;
+        descriptors.push({ transition: null, portId, virtualPort: true });
+        seen.add(portId);
+      }
+      return descriptors;
+    }
+
+    function portDescriptorTransition(state, side, descriptor) {
+      return descriptor.transition || {
+        id: `${state.id}:${side}:${descriptor.portId}`,
+        from: side === "out" ? state.id : "",
+        to: side === "in" ? state.id : "",
+        fromPortId: side === "out" ? descriptor.portId : "",
+        toPortId: side === "in" ? descriptor.portId : "",
+        label: humanPortName(descriptor.portId) || (side === "out" ? "Out" : "In")
+      };
+    }
+
+    function nearestPortIdAtWorldPoint(state, side, point) {
+      if (!state || !point) return "";
+      let best = "";
+      let bestDist = Infinity;
+      for (const descriptor of portSlotDescriptors(state.id, side)) {
+        const portPoint = edgePortPoint(state, side, portDescriptorTransition(state, side, descriptor));
+        const dist = Math.hypot(point.x - portPoint.x, point.y - portPoint.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = descriptor.portId;
+        }
+      }
+      return bestDist <= GRID_SIZE * 2.25 ? best : "";
     }
 
     function edgeLaneOffset(stateId, side, transition = null) {
@@ -6226,23 +6288,28 @@
       return `${label} · ${portId}`;
     }
 
-    function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
-      const point = edgePortPoint(state, side, transition);
+    function addPortSlot(nodeEl, state, transition, side, edgeSelection, opts = {}) {
+      const portId = opts.portId || transitionPortId(transition, side);
+      const virtualPort = Boolean(opts.virtualPort || !transition);
+      const point = edgePortPoint(state, side, portDescriptorTransition(state, side, { transition, portId }));
       const slot = document.createElement("div");
       const classes = ["port-slot", side === "out" ? "port-slot-output" : "port-slot-input"];
-      if (edgeSelection.has(transition.id)) classes.push("selected");
-      if (hoveredEdgeId === transition.id) classes.push("hovered");
+      if (transition && edgeSelection.has(transition.id)) classes.push("selected");
+      if (transition && hoveredEdgeId === transition.id) classes.push("hovered");
       slot.className = classes.join(" ");
       slot.style.setProperty("--port-offset", `${point.y - state.y - nodeHeight(state) / 2}px`);
       slot.style.left = "";
       slot.style.right = "";
-      slot.style.setProperty("--edge-color", edgeColor(transition));
-      slot.dataset.edgeId = transition.id;
+      slot.style.setProperty("--edge-color", transition ? edgeColor(transition) : "var(--accent)");
+      if (transition) slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
-      slot.dataset.portId = transitionPortId(transition, side);
-      slot.title = "drag to reroute " + (transition.label || "transition");
+      slot.dataset.portId = portId;
+      slot.title = virtualPort
+        ? (side === "out" ? "drag to connect " : "drop to connect ") + (humanPortName(portId) || "port")
+        : "drag to reroute " + (transition.label || "transition");
       const startSlotDrag = evt => {
-        startEdgeRewire(evt, transition);
+        if (virtualPort && side === "out") startConnection(evt, state, "out", { fromPortId: portId });
+        else if (transition) startEdgeRewire(evt, transition);
       };
       slot.addEventListener("mousedown", evt => {
         if (Date.now() - lastTouchAt < 700) return;
@@ -6260,7 +6327,7 @@
       slot.addEventListener("click", evt => {
         evt.preventDefault();
         evt.stopPropagation();
-        selectEdge(transition.id, evt.clientX, evt.clientY);
+        if (transition) selectEdge(transition.id, evt.clientX, evt.clientY);
       });
       nodeEl.appendChild(slot);
     }
@@ -6446,8 +6513,10 @@
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
         const outputTransitions = orderedPortTransitions(s.id, "out");
-        const renderInputSlots = Boolean(inputTransitions.length > 0);
-        const renderOutputSlots = Boolean(outputTransitions.length > 0);
+        const inputPortSlots = portSlotDescriptors(s.id, "in");
+        const outputPortSlots = portSlotDescriptors(s.id, "out");
+        const renderInputSlots = Boolean(inputPortSlots.length > 0);
+        const renderOutputSlots = Boolean(outputPortSlots.length > 0);
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
         const selectedConnectedPort = [...inputTransitions, ...outputTransitions].some(transition => edgeSelection.has(transition.id));
@@ -6586,13 +6655,13 @@
         const portElement = el.querySelector(".port");
         const inputPortElement = el.querySelector(".input-port");
         if (inputPortElement) {
-          inputPortElement.title = inputTransitions.length > 1
-            ? `${inputTransitions.length} input ports. Hover/select to expand.`
+          inputPortElement.title = inputPortSlots.length > 1
+            ? `${inputPortSlots.length} input ports. Hover/select to expand.`
             : "input port";
         }
         if (portElement) {
-          portElement.title = outputTransitions.length > 1
-            ? `${outputTransitions.length} output ports. Drag to add, hover/select to expand.`
+          portElement.title = outputPortSlots.length > 1
+            ? `${outputPortSlots.length} output ports. Drag to add, hover/select to expand.`
             : "drag to connect";
         }
         portElement.addEventListener("mousedown", evt => onPortMousedown(evt, connectionStartSide(s)));
@@ -6603,13 +6672,13 @@
           inputPortElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, "in"));
         }
 
-        for (const transition of inputTransitions) {
+        for (const descriptor of inputPortSlots) {
           if (!renderInputSlots) continue;
-          addPortSlot(el, s, transition, "in", edgeSelection);
+          addPortSlot(el, s, descriptor.transition, "in", edgeSelection, descriptor);
         }
-        for (const transition of outputTransitions) {
+        for (const descriptor of outputPortSlots) {
           if (!renderOutputSlots) continue;
-          addPortSlot(el, s, transition, "out", edgeSelection);
+          addPortSlot(el, s, descriptor.transition, "out", edgeSelection, descriptor);
         }
 
         nodesEl.appendChild(el);
@@ -8718,8 +8787,11 @@
           return;
         }
         const dropPoint = screenToWorld(evt);
+        const domPortSlot = evt.target?.closest?.(".port-slot");
+        let targetPortId = domPortSlot?.dataset?.portSlot === "in" ? domPortSlot.dataset.portId || "" : "";
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
+        if (!targetPortId && targetNode) targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
@@ -8758,7 +8830,10 @@
             showEdgeInspector(splitBoundary, { focus: false });
             return;
           }
-          const boundary = finishBoundaryConnection(connecting.from, targetId);
+          const boundary = finishBoundaryConnection(connecting.from, targetId, {
+            fromPortId: connecting.fromPortId || "",
+            targetPortId
+          });
           if (boundary) {
             saveModel();
             connecting = null;
@@ -8811,8 +8886,9 @@
           let t = rewireTransition || null;
           if (t) {
             t.to = targetId;
+            if (targetPortId) t.toPortId = targetPortId;
           } else {
-            t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "", set: {} };
+            t = { id: uid("t"), from: connecting.from, to: targetId, fromPortId: connecting.fromPortId || "", toPortId: targetPortId || "", label: "Next", condition: "", set: {} };
             normalizeTransitionPorts(t);
               model.transitions.push(t);
           }
@@ -8868,8 +8944,9 @@
           let t = rewireTransition || null;
           if (t) {
             t.to = s.id;
+            if (connecting.fromPortId) t.fromPortId = connecting.fromPortId;
           } else {
-            t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "", set: {} };
+            t = { id: uid("t"), from: connecting.from, to: s.id, fromPortId: connecting.fromPortId || "", label: "Next", condition: "", set: {} };
             normalizeTransitionPorts(t);
               model.transitions.push(t);
           }
