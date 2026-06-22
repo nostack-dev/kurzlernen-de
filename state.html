@@ -863,6 +863,11 @@
       display: none !important;
     }
 
+    .node.boundary-input > .port,
+    .node.boundary-output > .input-port {
+      display: block !important;
+    }
+
     .node.boundary-input.has-output-slots > .port,
     .node.boundary-output.has-input-slots > .input-port {
       display: block !important;
@@ -5587,7 +5592,6 @@
 
     function directRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
-      if (edgeLaneOffset(from.id, "out", transition) || edgeLaneOffset(to.id, "in", transition)) return null;
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
       if (a.y !== b.y || b.x <= a.x) return null;
@@ -5597,7 +5601,6 @@
 
     function forwardBendRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
-      if (edgeLaneOffset(from.id, "out", transition) || edgeLaneOffset(to.id, "in", transition)) return null;
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
       if (b.x - a.x < GRID_SIZE * 3) return null;
