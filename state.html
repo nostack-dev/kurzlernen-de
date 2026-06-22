@@ -3807,8 +3807,8 @@
           id,
           from: side === "input" ? inputProxyId : state.id,
           to: side === "input" ? state.id : outputProxyId,
-          fromPortId: side === "input" ? laneId : flowLaneId,
-          toPortId: side === "input" ? (opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId) : laneId,
+          fromPortId: flowLaneId,
+          toPortId: flowLaneId,
           label: side === "input" ? "IN" : "OUT",
           condition: "",
           set: {},
@@ -3820,12 +3820,12 @@
         transition.from = side === "input" ? inputProxyId : state.id;
         transition.to = side === "input" ? state.id : outputProxyId;
         if (side === "input") {
-          transition.fromPortId = laneId;
-          transition.toPortId = opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId;
+          transition.fromPortId = flowLaneId;
+          transition.toPortId = flowLaneId;
         }
         if (side === "output") {
           transition.fromPortId = flowLaneId;
-          transition.toPortId = laneId;
+          transition.toPortId = flowLaneId;
         }
         transition.boundaryFlow = { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId };
         normalizeTransitionPorts(transition);
@@ -5568,14 +5568,23 @@
       if (!state || state.virtualProxy) return [];
       if (!model.states.some(child => stateParentId(child) === state.id)) return [];
       const boundarySide = side === "in" ? "input" : "output";
-      const allowedLaneIds = new Set(parentBoundaryLaneDescriptors(state, boundarySide).map(lane => lane.id));
+      const externalLaneIds = new Set(parentLayerTransitions(state, boundarySide).map(transition => normalizePortId(
+        transitionPortId(transition, side),
+        side === "in" ? "entry" : "out"
+      )));
       return model.transitions
         .filter(transition => transition.boundaryFlow?.parentId === state.id && transition.boundaryFlow?.side === boundarySide)
-        .map(transition => normalizePortId(
-          transition.boundaryFlow.proxyLaneId || transition.boundaryFlow.laneId || transitionPortId(transition, side),
-          side === "in" ? "entry" : "out"
-        ))
-        .filter(portId => allowedLaneIds.has(portId))
+        .map(transition => {
+          const proxyLaneId = normalizePortId(
+            transition.boundaryFlow.proxyLaneId || "",
+            side === "in" ? "entry" : "out"
+          );
+          if (externalLaneIds.has(proxyLaneId)) return proxyLaneId;
+          return normalizePortId(
+            transition.boundaryFlow.laneId || transitionPortId(transition, side),
+            side === "in" ? "entry" : "out"
+          );
+        })
         .filter(Boolean);
     }
 
@@ -6318,7 +6327,6 @@
       for (const transition of parentTransitions) {
         addLane(transitionPortId(transition, side === "input" ? "in" : "out"), side === "input" ? transition.from : transition.to);
       }
-      if (parentTransitions.length) return [...lanes.values()];
       const hasOuterLanes = parentTransitions.length > 0;
       for (const transition of model.transitions) {
         const flow = transition.boundaryFlow;
