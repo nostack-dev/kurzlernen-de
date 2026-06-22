@@ -2837,7 +2837,6 @@
       }
 
       const transitionIds = new Set();
-      const transitionPairs = new Set();
       const transitions = source.transitions.map((transition, index) => {
         const path = `definition.model.transitions[${index}]`;
         assertPlainObject(transition, path);
@@ -2861,9 +2860,6 @@
           const exitState = states.find(state => state.id === groupExitId);
           if (!exitState || exitState.parentId !== from) throw new Error(`${path}.groupExitId must reference a child of ${from}.`);
         }
-        const pair = transitionKey(from);
-        if (transitionPairs.has(pair)) throw new Error(`${path} duplicates an existing outgoing transition from ${from}.`);
-        transitionPairs.add(pair);
         return {
           id,
           from,
@@ -3504,8 +3500,10 @@
         if (t.groupEntryId && (!ids.has(t.groupEntryId) || stateParentId(byModelId(m, t.groupEntryId)) !== t.to)) t.groupEntryId = "";
         if (t.groupExitId && (!ids.has(t.groupExitId) || stateParentId(byModelId(m, t.groupExitId)) !== t.from)) t.groupExitId = "";
         const pair = transitionIdentityKey(t);
-        if (pairs.has(pair)) return false;
-        pairs.add(pair);
+        if (pair) {
+          if (pairs.has(pair)) return false;
+          pairs.add(pair);
+        }
         return true;
       });
       for (const t of m.transitions) {
@@ -3968,10 +3966,6 @@
       navigateToLayer(parent, "layer:exit", { fit: true });
     }
 
-    function transitionKey(from) {
-      return String(from || "");
-    }
-
     function transitionIdentityKey(transition) {
       if (transition?.boundaryFlow) {
         return `boundary:${transition.boundaryFlow.parentId || ""}:${transition.boundaryFlow.side || ""}`;
@@ -3979,7 +3973,7 @@
       if (isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) {
         return `proxy:${transition?.from || ""}->${transition?.to || ""}`;
       }
-      return `normal:${transition?.from || ""}`;
+      return "";
     }
 
     function transitionBetween(from, to, excludeId = null) {
