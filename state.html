@@ -6032,7 +6032,10 @@
       if (edgeSelection.has(transition.id)) classes.push("selected");
       if (hoveredEdgeId === transition.id) classes.push("hovered");
       slot.className = classes.join(" ");
-      slot.style.setProperty("--port-offset", `${point.y - state.y - nodeHeight(state) / 2}px`);
+      const rawPortOffset = point.y - state.y - nodeHeight(state) / 2;
+      const maxPortOffset = Math.max(0, nodeHeight(state) / 2 - 10);
+      const clampedPortOffset = Math.max(-maxPortOffset, Math.min(maxPortOffset, rawPortOffset));
+      slot.style.setProperty("--port-offset", clampedPortOffset + "px");
       slot.style.left = "";
       slot.style.right = "";
       slot.style.setProperty("--edge-color", edgeColor(transition));
