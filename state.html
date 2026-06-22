@@ -3808,7 +3808,7 @@
           from: side === "input" ? inputProxyId : state.id,
           to: side === "input" ? state.id : outputProxyId,
           fromPortId: side === "input" ? laneId : flowLaneId,
-          toPortId: side === "input" ? (opts.targetPortId || flowLaneId) : laneId,
+          toPortId: side === "input" ? (opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId) : laneId,
           label: side === "input" ? "IN" : "OUT",
           condition: "",
           set: {},
@@ -3821,7 +3821,7 @@
         transition.to = side === "input" ? state.id : outputProxyId;
         if (side === "input") {
           transition.fromPortId = laneId;
-          transition.toPortId = opts.targetPortId || flowLaneId;
+          transition.toPortId = opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId;
         }
         if (side === "output") {
           transition.fromPortId = flowLaneId;
@@ -4171,6 +4171,7 @@
         const transition = ensureBoundaryFlowTransition(parent, "input", target, {
           laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("input"),
           targetPortId: opts.targetPortId || "",
+          explicitTargetPort: Boolean(opts.explicitTargetPort),
           forceNew: connecting?.mode === "new"
         });
         selected = selectionFromParts([], [transition.id]);
@@ -8807,7 +8808,8 @@
         }
         const dropPoint = screenToWorld(evt);
         const domPortSlot = evt.target?.closest?.(".port-slot");
-        let targetPortId = domPortSlot?.dataset?.portSlot === "in" ? domPortSlot.dataset.portId || "" : "";
+        const explicitTargetPort = domPortSlot?.dataset?.portSlot === "in";
+        let targetPortId = explicitTargetPort ? domPortSlot.dataset.portId || "" : "";
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
         if (!targetPortId && targetNode) targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
@@ -8851,7 +8853,8 @@
           }
           const boundary = finishBoundaryConnection(connecting.from, targetId, {
             fromPortId: connecting.fromPortId || "",
-            targetPortId
+            targetPortId,
+            explicitTargetPort
           });
           if (boundary) {
             saveModel();
