@@ -8608,6 +8608,14 @@
     }
 
     document.addEventListener("contextmenu", evt => evt.preventDefault());
+    mapEl.addEventListener("dragstart", evt => {
+      evt.preventDefault();
+      evt.stopPropagation();
+    }, { capture: true });
+    mapEl.addEventListener("selectstart", evt => {
+      if (evt.target?.closest?.("input, textarea, select, [contenteditable]")) return;
+      evt.preventDefault();
+    }, { capture: true });
     mapEl.addEventListener("wheel", evt => {
       if (shouldIgnoreMapWheel(evt)) return;
       evt.preventDefault();
