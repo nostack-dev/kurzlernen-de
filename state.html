@@ -3979,11 +3979,11 @@
       if (isBoundaryProxyId(transition?.from) || isBoundaryProxyId(transition?.to)) {
         return `proxy:${transition?.from || ""}->${transition?.to || ""}`;
       }
-      return `normal:${transition?.from || ""}`;
+      return `normal:${transition?.from || ""}->${transition?.to || ""}`;
     }
 
     function transitionBetween(from, to, excludeId = null) {
-      return model.transitions.find(t => t.from === from && !t.boundaryFlow && !isBoundaryProxyId(t.from) && !isBoundaryProxyId(t.to) && t.id !== excludeId);
+      return model.transitions.find(t => t.from === from && t.to === to && !t.boundaryFlow && !isBoundaryProxyId(t.from) && !isBoundaryProxyId(t.to) && t.id !== excludeId);
     }
 
     function normalTransitionFrom(from, excludeId = null) {
@@ -8347,7 +8347,7 @@
           if (groupRoute) {
             const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
             let t = rewireTransition || null;
-            const duplicate = normalTransitionFrom(groupRoute.from, t?.id || null);
+            const duplicate = transitionBetween(groupRoute.from, groupRoute.to, t?.id || null);
             if (duplicate) {
               if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
               t = duplicate;
@@ -8382,7 +8382,7 @@
           }
           const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
-          const duplicate = normalTransitionFrom(connecting.from, t?.id || null);
+          const duplicate = transitionBetween(connecting.from, targetId, t?.id || null);
           if (duplicate) {
             if (t) {
               model.transitions = model.transitions.filter(item => item.id !== t.id);
@@ -8452,7 +8452,7 @@
           }
           const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
-          const duplicate = normalTransitionFrom(connecting.from, t?.id || null);
+          const duplicate = transitionBetween(connecting.from, s.id, t?.id || null);
           if (duplicate) {
             if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
             t = duplicate;
