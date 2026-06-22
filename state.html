@@ -2218,6 +2218,17 @@
     let hoveredEdgeId = null;
     let htmlCanvasRenderer = null;
     let currentLayerId = null;
+    const PROCESS_TYPES = [
+      { id: "process-area", label: "Process Area" },
+      { id: "step", label: "Step" },
+      { id: "decision", label: "Decision" },
+      { id: "exception", label: "Exception" },
+      { id: "manual", label: "Manual Work" },
+      { id: "system", label: "External System" }
+    ];
+    const PROCESS_TYPE_IDS = new Set(PROCESS_TYPES.map(type => type.id));
+    const PROCESS_RISKS = ["low", "medium", "high"];
+    const PROCESS_FREQUENCIES = ["rare", "monthly", "weekly", "daily"];
     const initialEditorState = loadEditorState();
     let model = initialEditorState?.model ? normalizeModel(initialEditorState.model) : (loadModel() || demoModel());
     let camera = loadCamera() || { x: 32, y: 32, scale: 1 };
@@ -3532,18 +3543,6 @@
       if (!isPlainObject(value)) return {};
       return JSON.parse(JSON.stringify(value));
     }
-
-    const PROCESS_TYPES = [
-      { id: "process-area", label: "Process Area" },
-      { id: "step", label: "Step" },
-      { id: "decision", label: "Decision" },
-      { id: "exception", label: "Exception" },
-      { id: "manual", label: "Manual Work" },
-      { id: "system", label: "External System" }
-    ];
-    const PROCESS_TYPE_IDS = new Set(PROCESS_TYPES.map(type => type.id));
-    const PROCESS_RISKS = ["low", "medium", "high"];
-    const PROCESS_FREQUENCIES = ["rare", "monthly", "weekly", "daily"];
 
     function normalizeProcessMeta(value) {
       const source = isPlainObject(value) ? value : {};
