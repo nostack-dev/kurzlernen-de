@@ -3047,6 +3047,8 @@
         id: String(t.id || uid("t")),
         from: String(t.from || ""),
         to: String(t.to || ""),
+        fromPortId: transitionPortId(t, "out"),
+        toPortId: transitionPortId(t, "in"),
         label: String(t.label || "Next"),
         condition: String(t.condition || ""),
         set: normalizeDataObject(t.set)
@@ -3392,6 +3394,24 @@
       };
     }
 
+    function normalizePortId(value, fallback = "port") {
+      const text = String(value || "").trim();
+      return normalizeId(text || fallback || "port");
+    }
+
+    function transitionPortId(transition, side) {
+      const id = normalizeId(transition?.id || "transition");
+      return normalizePortId(side === "out" ? transition?.fromPortId : transition?.toPortId, `${side}_${id}`);
+    }
+
+    function normalizeTransitionPorts(transition) {
+      if (!transition) return transition;
+      const id = normalizeId(transition.id || "transition");
+      transition.fromPortId = normalizePortId(transition.fromPortId, `out_${id}`);
+      transition.toPortId = normalizePortId(transition.toPortId, `in_${id}`);
+      return transition;
+    }
+
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
       if (!String(source.url || "").trim()) return "No data source. State data defaults still work as before.";
       const targetValid = isContextPath(rawTarget);
@@ -3512,6 +3532,7 @@
         t.set = normalizeDataObject(t.set);
         t.groupEntryId = typeof t.groupEntryId === "string" ? t.groupEntryId : "";
         t.groupExitId = typeof t.groupExitId === "string" ? t.groupExitId : "";
+        normalizeTransitionPorts(t);
       }
       if (!ids.has(m.initial)) m.initial = m.states[0].id;
       if (currentAppState && !ids.has(currentAppState)) currentAppState = null;
@@ -3991,10 +4012,13 @@
         id: uid("t"),
         from,
         to,
+        fromPortId: seed.fromPortId || "",
+        toPortId: seed.toPortId || "",
         label: seed.label || "Next",
         condition: seed.condition || "",
         set: normalizeDataObject(seed.set)
       };
+      normalizeTransitionPorts(transition);
       model.transitions.push(transition);
       return transition;
     }
@@ -5364,27 +5388,39 @@
         .sort((a, b) => compareEdgeLane(a, b, side));
     }
 
+    function orderedPortIds(stateId, side) {
+      const seen = new Set();
+      const ids = [];
+      for (const transition of orderedPortTransitions(stateId, side)) {
+        const id = transitionPortId(transition, side);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
+      return ids;
+    }
+
     function edgeLaneOffset(stateId, side, transition = null) {
-      if (!transition?.id || isBoundaryProxyId(stateId)) return 0;
-      const lanes = orderedPortTransitions(stateId, side);
+      if (!transition?.id) return 0;
+      const lanes = orderedPortIds(stateId, side);
       if (lanes.length <= 1) return 0;
-      const index = lanes.findIndex(item => item.id === transition.id);
+      const index = lanes.indexOf(transitionPortId(transition, side));
       if (index < 0) return 0;
       const center = (lanes.length - 1) / 2;
-      return snapToGrid((index - center) * GRID_SIZE * 2);
+      const spread = Math.min(GRID_SIZE * 2, Math.max(12, (NODE_H - 28) / Math.max(1, lanes.length - 1)));
+      return Math.round((index - center) * spread);
     }
 
     function edgePortPoint(state, side, transition = null) {
       const center = nodeCenter(state, side);
-      return center;
+      return { x: center.x, y: center.y + edgeLaneOffset(state.id, side, transition) };
     }
 
     function edgeApproachPoint(state, side, transition = null) {
       const point = snapPointToGrid(edgePortPoint(state, side, transition));
       const offset = GRID_SIZE * 2;
-      const laneOffset = edgeLaneOffset(state.id, side, transition);
-      if (side === "out") return { x: point.x + offset, y: point.y + laneOffset };
-      if (side === "in") return { x: point.x - offset, y: point.y + laneOffset };
+      if (side === "out") return { x: point.x + offset, y: point.y };
+      if (side === "in") return { x: point.x - offset, y: point.y };
       return point;
     }
 
@@ -6035,13 +6071,15 @@
       const frameTop = snapToGrid(minY - padY);
       const frameHeight = snapToGrid(maxY - minY + padY * 2);
       const centerY = frameTop + frameHeight / 2;
-      const addProxy = (side) => {
+      const addProxy = (side, transition, index, count) => {
         const proxyWidth = nodeWidth({ virtualProxy: true });
-        const title = side === "input" ? "IN" : "OUT";
+        const titleBase = side === "input" ? "IN" : "OUT";
+        const title = count > 1 ? `${titleBase} ${index + 1}` : titleBase;
         const proxyHeight = nodeHeight({ virtualProxy: true });
         const x = side === "input" ? frameLeft - proxyWidth : frameRight;
-        const y = snapToGrid(centerY - proxyHeight / 2);
-        const id = boundaryProxyId(parent.id, side, defaultBoundaryLaneId(side));
+        const y = snapToGrid(centerY - proxyHeight / 2 + (index - (count - 1) / 2) * GRID_SIZE * 3);
+        const transitionId = transition?.id || defaultBoundaryLaneId(side);
+        const id = boundaryProxyId(parent.id, side, transitionId);
         const layerId = parent.rootLayer ? null : parent.id;
         _virtualNodes.set(id, {
           id,
@@ -6055,13 +6093,17 @@
             layerId,
             parentId: parent.id,
             side,
-            transitionId: "",
-            outsideId: ""
+            transitionId: transition?.id || "",
+            outsideId: transition ? (side === "input" ? transition.from : transition.to) : ""
           }
         });
       };
-      addProxy("input");
-      addProxy("output");
+      const inputTransitions = parentLayerTransitions(parent, "input");
+      const outputTransitions = parentLayerTransitions(parent, "output");
+      const inputs = inputTransitions.length ? inputTransitions : [null];
+      const outputs = outputTransitions.length ? outputTransitions : [null];
+      inputs.forEach((transition, index) => addProxy("input", transition, index, inputs.length));
+      outputs.forEach((transition, index) => addProxy("output", transition, index, outputs.length));
       ensureDefaultBoundaryTransitions(parent, states);
     }
 
@@ -6087,10 +6129,10 @@
       slot.style.setProperty("--edge-color", edgeColor(transition));
       slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
+      slot.dataset.portId = transitionPortId(transition, side);
       slot.title = "drag to reroute " + (transition.label || "transition");
       const startSlotDrag = evt => {
-        if (side === "out" && !state.virtualProxy) startConnection(evt, state, "out");
-        else startEdgeRewire(evt, transition);
+        startEdgeRewire(evt, transition);
       };
       slot.addEventListener("mousedown", evt => {
         if (Date.now() - lastTouchAt < 700) return;
@@ -6294,8 +6336,8 @@
         if (connectingTargetId === s.id) classes.push("drop-target");
         const inputTransitions = orderedPortTransitions(s.id, "in");
         const outputTransitions = orderedPortTransitions(s.id, "out");
-        const renderInputSlots = Boolean(s.virtualProxy && inputTransitions.length > 0);
-        const renderOutputSlots = Boolean(s.virtualProxy && outputTransitions.length > 0);
+        const renderInputSlots = Boolean(inputTransitions.length > 0);
+        const renderOutputSlots = Boolean(outputTransitions.length > 0);
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
@@ -6431,11 +6473,11 @@
         }
 
         for (const transition of inputTransitions) {
-          if (!renderInputSlots && !s.virtualProxy) continue;
+          if (!renderInputSlots) continue;
           addPortSlot(el, s, transition, "in", edgeSelection);
         }
         for (const transition of outputTransitions) {
-          if (!renderOutputSlots && !s.virtualProxy) continue;
+          if (!renderOutputSlots) continue;
           addPortSlot(el, s, transition, "out", edgeSelection);
         }
 
@@ -7244,6 +7286,8 @@
         <div class="data-source-panel">
           <div class="small"><b>Flow I/O</b></div>
           <div id="pFlowIo" class="condition-preview empty"></div>
+        <div class="small"><b>Ports & data</b></div>
+        <div id="pPortData" class="condition-preview empty"></div>
         </div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
@@ -7298,6 +7342,7 @@
       title.value = s.title || "";
       renderSimpleDatalist(root.querySelector("#pTitleSuggestions"), stateTitleSuggestions(s));
       renderStateFlowIo(s, root.querySelector("#pFlowIo"));
+      renderStatePortDataSummary(s, root.querySelector("#pPortData"));
       title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
@@ -7664,6 +7709,58 @@
       ]);
     }
 
+    function stateDataPathSuggestionValues(state) {
+      if (!state) return [];
+      const suggestions = [];
+      for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
+        collectDataPathSuggestions(value, key, "state data", suggestions);
+      }
+      const source = normalizeDataSource(state.dataSource || state.fetch);
+      if (String(source.url || "").trim()) {
+        const target = normalizeContextPath(source.target, "fetch");
+        suggestions.push(
+          { path: `${target}.ok`, source: "data source", type: "boolean" },
+          { path: `${target}.status`, source: "data source", type: "number" },
+          { path: `${target}.data`, source: "data source", type: "value" }
+        );
+      }
+      const repeat = normalizeRepeatConfig(state.repeat);
+      if (repeat.path) {
+        suggestions.push(
+          { path: repeat.as, source: "repeat", type: "object" },
+          { path: `${repeat.as}.field`, source: "repeat", type: "value" },
+          { path: repeat.index, source: "repeat", type: "number" }
+        );
+      }
+      return uniqueSuggestionValues(suggestions.map(item => item.path));
+    }
+
+    function statePortSuggestions(state, side, currentPortId = "") {
+      const prefix = side === "out" ? "out" : "in";
+      return uniqueSuggestionValues([
+        currentPortId,
+        ...orderedPortIds(state?.id, side),
+        ...stateDataPathSuggestionValues(state).map(path => normalizePortId(`${prefix}_${path}`)),
+        `${prefix}_${normalizeId(state?.title || state?.id || "state")}`
+      ]);
+    }
+
+    function renderStatePortDataSummary(state, target) {
+      if (!target) return;
+      const incoming = orderedPortIds(state.id, "in");
+      const outgoing = orderedPortIds(state.id, "out");
+      const dataPaths = stateDataPathSuggestionValues(state);
+      const format = (label, values) => values.length
+        ? `<div>${label}: ${values.map(value => `<code>${escapeHtml(value)}</code>`).join(" ")}</div>`
+        : `<div>${label}: <span class="muted">none</span></div>`;
+      target.innerHTML = [
+        format("Input ports", incoming),
+        format("Output ports", outgoing),
+        format("Data hints", dataPaths.slice(0, 10))
+      ].join("");
+      target.classList.toggle("empty", !incoming.length && !outgoing.length && !dataPaths.length);
+    }
+
     function renderStateFlowIo(state, target) {
       if (!target) return;
       const transitionInSameLayer = transition => {
@@ -7706,6 +7803,10 @@
       root.innerHTML = `
         <h3>Transition / Button</h3>
         <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
+        <div class="row">
+          <div class="field"><label>From out port</label><input id="pFromPort" list="pFromPortSuggestions"><datalist id="pFromPortSuggestions"></datalist></div>
+          <div class="field"><label>To in port</label><input id="pToPort" list="pToPortSuggestions"><datalist id="pToPortSuggestions"></datalist></div>
+        </div>
         <div class="field"><label>Button label</label><input id="pLabel" list="pLabelSuggestions"><datalist id="pLabelSuggestions"></datalist></div>
         <div class="field"><label>Condition</label><input id="pCond" list="pCondDataList" placeholder="accepted, amount >= 10, !blocked"><datalist id="pCondDataList"></datalist></div>
         <div id="pCondPreview" class="condition-preview"></div>
@@ -7717,14 +7818,22 @@
         </div>
       `;
       const label = root.querySelector("#pLabel");
+      const fromPort = root.querySelector("#pFromPort");
+      const toPort = root.querySelector("#pToPort");
       const cond = root.querySelector("#pCond");
       const labelSuggestions = root.querySelector("#pLabelSuggestions");
+      const fromPortSuggestions = root.querySelector("#pFromPortSuggestions");
+      const toPortSuggestions = root.querySelector("#pToPortSuggestions");
       const condDataList = root.querySelector("#pCondDataList");
       const condPreview = root.querySelector("#pCondPreview");
       const set = root.querySelector("#pSet");
       const setPreview = root.querySelector("#pSetPreview");
       label.value = t.label || "Next";
+      fromPort.value = transitionPortId(t, "out");
+      toPort.value = transitionPortId(t, "in");
       renderSimpleDatalist(labelSuggestions, transitionLabelSuggestions(t));
+      renderSimpleDatalist(fromPortSuggestions, statePortSuggestions(from, "out", fromPort.value));
+      renderSimpleDatalist(toPortSuggestions, statePortSuggestions(to, "in", toPort.value));
       cond.value = t.condition || "";
       set.value = JSON.stringify(normalizeDataObject(t.set), null, 2);
       const updateConditionPreview = () => {
@@ -7758,6 +7867,16 @@
         saveModel("edge:label:" + t.id);
         draw();
       };
+      fromPort.oninput = () => {
+        t.fromPortId = normalizePortId(fromPort.value, "out_" + t.id);
+        saveModel("edge:from-port:" + t.id);
+        draw();
+      };
+      toPort.oninput = () => {
+        t.toPortId = normalizePortId(toPort.value, "in_" + t.id);
+        saveModel("edge:to-port:" + t.id);
+        draw();
+      };
       cond.oninput = () => { t.condition = cond.value; updateConditionPreview(); saveModel("edge:condition:" + t.id); draw(); };
       set.oninput = updateSetPreview;
       set.addEventListener("input", updateSetPreview);
@@ -7772,7 +7891,7 @@
         requestAnimationFrame(pollSetPreview);
       };
       requestAnimationFrame(pollSetPreview);
-      label.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
+      label.onblur = fromPort.onblur = toPort.onblur = cond.onblur = set.onblur = () => { lastHistoryKey = null; };
       root.querySelector("#pDelete").onclick = () => {
         selected = selectionFromParts([], [t.id]);
         deleteSelectedItems();
@@ -8515,6 +8634,7 @@
                 condition: "",
                 set: {}
               };
+              normalizeTransitionPorts(t);
               model.transitions.push(t);
             }
             selected = selectionFromParts([], [t.id]);
@@ -8532,7 +8652,8 @@
             t.to = targetId;
           } else {
             t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "", set: {} };
-            model.transitions.push(t);
+            normalizeTransitionPorts(t);
+              model.transitions.push(t);
           }
           selected = selectionFromParts([], [t.id]);
           saveModel();
@@ -8588,7 +8709,8 @@
             t.to = s.id;
           } else {
             t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "", set: {} };
-            model.transitions.push(t);
+            normalizeTransitionPorts(t);
+              model.transitions.push(t);
           }
           model.states.push(s);
           selected = selectionFromParts([s.id], []);
