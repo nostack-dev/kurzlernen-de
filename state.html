@@ -9050,21 +9050,6 @@
     wiresEl.style.width = WORLD_W + "px";
     wiresEl.style.height = WORLD_H + "px";
 
-    normalizeModel(model);
-    initHistory();
-    applyPreviewCollapsed();
-    applyInspectorCollapsed({ persist: false });
-    applyMobileWorkspaceView();
-    applyStateExplorerCollapsed();
-    renderStateExplorer();
-    persistStateTemplates();
-    applyCamera();
-    initMapRenderer();
-    persistModel();
-    draw();
-    setTimeout(fitView, 50);
-  
-
     ;(() => {
       if (window.__stateContinuationEditorInstalled) return;
       window.__stateContinuationEditorInstalled = true;
@@ -9342,6 +9327,23 @@
         renderContinuationEditor(state);
       };
     })();
+
+    normalizeModel(model);
+    initHistory();
+    applyPreviewCollapsed();
+    applyInspectorCollapsed({ persist: false });
+    applyMobileWorkspaceView();
+    applyStateExplorerCollapsed();
+    renderStateExplorer();
+    persistStateTemplates();
+    applyCamera();
+    initMapRenderer();
+    persistModel();
+    draw();
+    setTimeout(fitView, 50);
+  
+
+
 
   </script>
 
