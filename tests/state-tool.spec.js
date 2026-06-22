@@ -3542,6 +3542,11 @@ test.describe("State Blueprint tool", () => {
       const inPin = edge.pins.find(pin => pin.side === "in");
       expect(outPin).toMatchObject(start);
       expect(inPin).toMatchObject(end);
+      for (let index = 1; index < edge.points.length; index += 1) {
+        const previous = edge.points[index - 1];
+        const point = edge.points[index];
+        expect(previous.x === point.x || previous.y === point.y).toBe(true);
+      }
     }
   });
 
