@@ -4653,7 +4653,16 @@
     }
 
     function nodeHeight(s) {
-      return s?.virtualProxy ? GRID_SIZE * 2 : NODE_H;
+      if (s?.virtualProxy) return GRID_SIZE * 2;
+      try {
+        const portCount = Math.max(
+          orderedPortTransitions(s.id, "in").length,
+          orderedPortTransitions(s.id, "out").length
+        );
+        return Math.max(NODE_H, portCount > 1 ? 36 * portCount + 24 : NODE_H);
+      } catch (_) {
+        return NODE_H;
+      }
     }
 
     function nodeAtWorldPoint(p) {
@@ -5339,16 +5348,10 @@
       const index = transitions.findIndex(item => item.id === transition.id);
       let y = center.y;
       if (index >= 0) {
-        const height = nodeHeight(state);
-        const baseY = state.y + Math.min(height - 12, Math.max(12, height / 2));
         const gap = 18;
-        const firstY = baseY + gap;
-        const maxY = state.y + height - 10;
+        const firstY = center.y + gap;
+        const maxY = state.y + nodeHeight(state) - 10;
         y = Math.min(maxY, firstY + index * gap);
-        if (transitions.length > 1 && firstY + (transitions.length - 1) * gap > maxY) {
-          const usable = Math.max(0, maxY - firstY);
-          y = firstY + usable * (index / Math.max(1, transitions.length - 1));
-        }
       }
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
