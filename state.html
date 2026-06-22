@@ -8743,9 +8743,7 @@
       if (lastAppTransitionId && Date.now() >= suppressRuntimeLayerFollowUntil) runtimeLayerFollowEnabled = true;
       const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
       const runtimeState = byId(currentAppState);
-      const runtimeLayerId = runtimeState && statesInLayer(runtimeState.id).length
-        ? runtimeState.id
-        : (runtimeState?.parentId || null);
+      const runtimeLayerId = runtimeState?.parentId || null;
       if (allowRuntimeLayerFollow && runtimeState) {
         if (currentLayerId !== runtimeLayerId) {
           navigateToLayer(runtimeLayerId, "layer:runtime", { fit: true, persist: false });
