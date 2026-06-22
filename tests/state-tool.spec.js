@@ -3491,6 +3491,60 @@ test.describe("State Blueprint tool", () => {
     await workPage.close();
   });
 
+  test("drag-drops built-in explorer presets onto the canvas @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const before = (await savedModel(page)).states.length;
+    const mapBox = await visibleBox(page.locator("#map"));
+    await componentPreset(page, "Text").dragTo(page.locator("#map"), {
+      targetPosition: { x: Math.round(mapBox.width * 0.58), y: 170 }
+    });
+
+    await expect(page.locator(".node")).toHaveCount(before + 1);
+    await expect(page.locator("#pTitle")).toHaveValue("Text");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.filter(state => state.title === "Text").length;
+    }).toBeGreaterThan(0);
+  });
+
+  test("keeps visible ports in a single svg coordinate system @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await expect(page.locator(".node > .input-port, .node > .port, .port-slot")).toHaveCount(0);
+    await expect(page.locator("svg#wires .svg-port")).toHaveCount(await page.locator(".node").count() * 2);
+    await expect(page.locator("svg#wires .edge-pin").first()).toBeVisible();
+
+    const report = await page.evaluate(() => {
+      const nums = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      const pathPoints = value => {
+        const values = nums(value);
+        const points = [];
+        for (let i = 0; i < values.length; i += 2) points.push({ x: values[i], y: values[i + 1] });
+        return points;
+      };
+      return [...document.querySelectorAll(".edge[data-edge-id]")].map(edge => {
+        const points = pathPoints(edge.getAttribute("d") || "");
+        const pins = [...document.querySelectorAll('.edge-pin[data-edge-id="' + CSS.escape(edge.dataset.edgeId) + '"]')].map(pin => ({
+          side: pin.dataset.edgePin,
+          x: Number(pin.getAttribute("cx")),
+          y: Number(pin.getAttribute("cy"))
+        }));
+        return { id: edge.dataset.edgeId, points, pins };
+      });
+    });
+
+    expect(report.length).toBeGreaterThan(0);
+    for (const edge of report) {
+      const start = edge.points[0];
+      const end = edge.points[edge.points.length - 1];
+      const outPin = edge.pins.find(pin => pin.side === "out");
+      const inPin = edge.pins.find(pin => pin.side === "in");
+      expect(outPin).toMatchObject(start);
+      expect(inPin).toMatchObject(end);
+    }
+  });
+
   test("exports individual state components, presets, and full definitions with presets", async ({ page }) => {
     await openTool(page);
 

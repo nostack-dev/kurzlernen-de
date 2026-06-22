@@ -6386,14 +6386,9 @@
           }
         });
         if (s.virtualProxy) {
-          el.innerHTML = `
-            <div class="input-port" title="drag to connect / reroute"></div>
-            <div class="port" title="drag to connect / reroute"></div>
-          `;
+          el.innerHTML = "";
         } else {
           el.innerHTML = `
-            <div class="input-port"></div>
-            <div class="port" title="drag to connect"></div>
             <div class="badge">INITIAL</div>
             <div class="live-badge">LIVE</div>
             <div class="layer-badge"></div>
@@ -6472,29 +6467,6 @@
           el.classList.remove("inner-drop-target");
           addTemplateInside(templateId, s.id, { enter: false, selectTitle: false });
         });
-
-        const onPortMousedown = (evt, side) => {
-          if (Date.now() - lastTouchAt < 700) return;
-          if (evt.button !== 0) return;
-          startConnection(evt, s, side);
-        };
-        const onPortPointerdown = (evt, side) => {
-          if (!isTouchPointer(evt)) return;
-          evt.preventDefault();
-          lastTouchAt = Date.now();
-          if (pinchZoom) return;
-          activePointerId = evt.pointerId;
-          startConnection(evt, s, side);
-        };
-        const portElement = el.querySelector(".port");
-        portElement.style.setProperty("--port-offset", outputAddOffset + "px");
-        portElement.addEventListener("mousedown", evt => onPortMousedown(evt, connectionStartSide(s)));
-        portElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, connectionStartSide(s)));
-        if (s.virtualProxy && s.virtualProxy.side === "output") {
-          const inputPortElement = el.querySelector(".input-port");
-          inputPortElement.addEventListener("mousedown", evt => onPortMousedown(evt, "in"));
-          inputPortElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, "in"));
-        }
 
         nodesEl.appendChild(el);
       }
@@ -9143,7 +9115,7 @@
 
     window.__stateNativeDragBlocked = true;
     document.addEventListener("dragstart", evt => {
-      if (evt.target?.closest?.(".state-template-card")) return;
+      if (evt.target?.closest?.(".state-template-card, .component-preset-card, [data-template-id]")) return;
       if (evt.target?.closest?.(".map, .node, .wires, svg, img, .preview, .inspector, .component-editor")) {
         evt.preventDefault();
         evt.stopPropagation();
