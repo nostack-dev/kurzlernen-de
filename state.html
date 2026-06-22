@@ -7173,7 +7173,11 @@
       if (wasEditingTemplate) renderStateExplorer();
       root.innerHTML = `
         <h3>State</h3>
-        <div class="field"><label>Title</label><input id="pTitle"></div>
+        <div class="field"><label>Title</label><input id="pTitle" list="pTitleSuggestions"><datalist id="pTitleSuggestions"></datalist></div>
+        <div class="data-source-panel">
+          <div class="small"><b>Flow I/O</b></div>
+          <div id="pFlowIo" class="condition-preview empty"></div>
+        </div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
@@ -7225,6 +7229,8 @@
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
       title.value = s.title || "";
+      renderSimpleDatalist(root.querySelector("#pTitleSuggestions"), stateTitleSuggestions(s));
+      renderStateFlowIo(s, root.querySelector("#pFlowIo"));
       title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
@@ -7532,6 +7538,89 @@
       }
     }
 
+    function uniqueSuggestionValues(values) {
+      const seen = new Set();
+      const out = [];
+      for (const value of values) {
+        const text = String(value || "").trim();
+        const key = text.toLowerCase();
+        if (!text || seen.has(key)) continue;
+        seen.add(key);
+        out.push(text);
+      }
+      return out.slice(0, 80);
+    }
+
+    function renderSimpleDatalist(datalist, values) {
+      if (!datalist) return;
+      datalist.innerHTML = "";
+      for (const value of uniqueSuggestionValues(values)) {
+        const option = document.createElement("option");
+        option.value = value;
+        datalist.appendChild(option);
+      }
+    }
+
+    function stateTitleSuggestions(currentState = null) {
+      return uniqueSuggestionValues([
+        "Start",
+        "Pruefen",
+        "Entscheidung",
+        "Freigabe",
+        "Nachforderung",
+        "Eskalation",
+        "Fehler",
+        "Ende",
+        ...model.states.filter(state => state.id !== currentState?.id).map(state => state.title || state.id),
+        ...snapshotStateTemplates().map(template => template.title)
+      ]);
+    }
+
+    function transitionLabelSuggestions(t = null) {
+      const from = byId(t?.from);
+      const to = byId(t?.to);
+      return uniqueSuggestionValues([
+        "Next",
+        "Ja",
+        "Nein",
+        "OK",
+        "Fehler",
+        "Zurueck",
+        "Abbrechen",
+        "Weiter",
+        "Freigeben",
+        "Ablehnen",
+        "Nachfordern",
+        from?.title && `Von ${from.title}`,
+        to?.title && `Zu ${to.title}`,
+        ...model.transitions.map(transition => transition.label)
+      ]);
+    }
+
+    function renderStateFlowIo(state, target) {
+      if (!target) return;
+      const transitionInSameLayer = transition => {
+        if (!transition || transition.boundaryFlow || isBoundaryProxyId(transition.from) || isBoundaryProxyId(transition.to)) return false;
+        const from = byId(transition.from);
+        const to = byId(transition.to);
+        return from && to && stateParentId(from) === stateParentId(to);
+      };
+      const incoming = model.transitions.filter(transition => transitionInSameLayer(transition) && transition.to === state.id);
+      const outgoing = model.transitions.filter(transition => transitionInSameLayer(transition) && transition.from === state.id);
+      const row = (transition, direction) => {
+        const other = byId(direction === "in" ? transition.from : transition.to);
+        const condition = String(transition.condition || "").trim();
+        const label = transition.label || "Next";
+        return `<div>${direction === "in" ? "In" : "Out"}: <b>${escapeHtml(other?.title || other?.id || "?")}</b> · ${escapeHtml(label)}${condition ? ` · if ${escapeHtml(condition)}` : ""}</div>`;
+      };
+      const rows = [
+        ...incoming.map(transition => row(transition, "in")),
+        ...outgoing.map(transition => row(transition, "out"))
+      ];
+      target.innerHTML = rows.length ? rows.join("") : "No incoming/outgoing transitions in this layer.";
+      target.classList.toggle("empty", !rows.length);
+    }
+
     function showEdgeInspector(t, opts = {}) {
       const root = stateInspectorBodyEl;
       const from = byId(t.from);
@@ -7550,7 +7639,7 @@
       root.innerHTML = `
         <h3>Transition / Button</h3>
         <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
-        <div class="field"><label>Button label</label><input id="pLabel"></div>
+        <div class="field"><label>Button label</label><input id="pLabel" list="pLabelSuggestions"><datalist id="pLabelSuggestions"></datalist></div>
         <div class="field"><label>Condition</label><input id="pCond" list="pCondDataList" placeholder="accepted, amount >= 10, !blocked"><datalist id="pCondDataList"></datalist></div>
         <div id="pCondPreview" class="condition-preview"></div>
         <div class="field"><label>Set data</label><textarea id="pSet" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
@@ -7562,11 +7651,13 @@
       `;
       const label = root.querySelector("#pLabel");
       const cond = root.querySelector("#pCond");
+      const labelSuggestions = root.querySelector("#pLabelSuggestions");
       const condDataList = root.querySelector("#pCondDataList");
       const condPreview = root.querySelector("#pCondPreview");
       const set = root.querySelector("#pSet");
       const setPreview = root.querySelector("#pSetPreview");
       label.value = t.label || "Next";
+      renderSimpleDatalist(labelSuggestions, transitionLabelSuggestions(t));
       cond.value = t.condition || "";
       set.value = JSON.stringify(normalizeDataObject(t.set), null, 2);
       const updateConditionPreview = () => {
