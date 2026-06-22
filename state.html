@@ -2540,7 +2540,6 @@
 
     function editorSnapshot() {
       return JSON.stringify({
-        savedAt: new Date().toISOString(),
         model: JSON.parse(modelSnapshot()),
         selected: normalizeSelection(),
         currentLayerId,
