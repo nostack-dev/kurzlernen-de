@@ -680,7 +680,7 @@
 
     .node.boundary-input.has-output-slots > .port,
     .node.boundary-output.has-input-slots > .input-port {
-      display: block;
+      display: none;
     }
 
     .node.boundary-proxy > :not(.input-port):not(.port):not(.port-slot) {
@@ -850,12 +850,12 @@
 
     .node.has-input-slots:not(.boundary-proxy) > .input-port,
     .node.has-output-slots:not(.boundary-proxy) > .port {
-      display: block;
+      display: none;
     }
 
     .node.has-input-slots > .input-port,
     .node.has-output-slots > .port {
-      display: block;
+      display: none;
     }
 
     .node.boundary-input > .input-port,
@@ -870,7 +870,7 @@
 
     .node.boundary-input.has-output-slots > .port,
     .node.boundary-output.has-input-slots > .input-port {
-      display: block !important;
+      display: none !important;
     }
 
     .input-port::before {
@@ -943,7 +943,7 @@
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      right: -30px;
+      right: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
@@ -954,7 +954,7 @@
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      left: -30px;
+      left: -8px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
@@ -6631,14 +6631,8 @@
         if (renderOutputSlots) classes.push("has-output-slots");
         const selectedConnectedPort = [...inputTransitions, ...outputTransitions].some(transition => edgeSelection.has(transition.id));
         const hasPortSlots = renderInputSlots || renderOutputSlots;
-        const portsExpanded = hasPortSlots && (
-          selectedConnectedPort ||
-          (!s.virtualProxy && nodeSelection.has(s.id)) ||
-          connecting?.from === s.id ||
-          connectingTargetId === s.id
-        );
+        const portsExpanded = hasPortSlots || selectedConnectedPort;
         if (portsExpanded) classes.push("ports-expanded");
-        else if (hasPortSlots) classes.push("ports-collapsed");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
@@ -8903,7 +8897,7 @@
         let targetPortId = explicitTargetPort ? domPortSlot.dataset.portId || "" : "";
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
-        if (!targetPortId && targetNode) targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
+        if (!targetPortId && targetNode && connecting.mode === "rewire") targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
