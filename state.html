@@ -4644,21 +4644,7 @@
     }
 
     function nodeHeight(s) {
-      if (s?.virtualProxy) return GRID_SIZE * 2;
-      const counts = ["in", "out"].map(side => transitionPortCount(s?.id, side));
-      const maxCount = Math.max(1, ...counts);
-      const maxOffset = Math.max(...Array.from({ length: maxCount }, (_, index) => Math.abs(portLaneOffset(index, maxCount))));
-      return Math.max(NODE_H, ceilToGrid(maxOffset * 2 + GRID_SIZE));
-    }
-
-    function transitionPortCount(stateId, side) {
-      if (!stateId || !Array.isArray(model?.transitions)) return 0;
-      return model.transitions.filter(transition =>
-        !transition.boundaryFlow &&
-        !isBoundaryProxyId(transition.from) &&
-        !isBoundaryProxyId(transition.to) &&
-        (side === "out" ? transition.from === stateId : transition.to === stateId)
-      ).length;
+      return s?.virtualProxy ? GRID_SIZE * 2 : NODE_H;
     }
 
     function nodeAtWorldPoint(p) {
@@ -4991,7 +4977,7 @@
         minX = Math.min(minX, s.x);
         maxX = Math.max(maxX, s.x + nodeWidth(s));
         minY = Math.min(minY, s.y);
-        maxY = Math.max(maxY, s.y + nodeHeight(s));
+        maxY = Math.max(maxY, s.y + NODE_H);
       });
 
       const cx = (minX + maxX) / 2;
@@ -5340,15 +5326,16 @@
 
     function portLaneOffset(index, count, reserveCenter = false) {
       if (index < 0 || count <= 1) return reserveCenter ? GRID_SIZE : 0;
+      const laneStep = GRID_SIZE * 0.75;
       if (reserveCenter) {
         const before = Math.floor(count / 2);
         let lane = index - before;
         if (lane >= 0) lane += 1;
-        return lane * GRID_SIZE;
+        return lane * laneStep;
       }
       const raw = index - (count - 1) / 2;
-      if (Number.isInteger(raw)) return raw * GRID_SIZE;
-      return Math.sign(raw) * Math.ceil(Math.abs(raw)) * GRID_SIZE;
+      if (Number.isInteger(raw)) return raw * laneStep;
+      return Math.sign(raw) * Math.ceil(Math.abs(raw)) * laneStep;
     }
 
     function edgePortPoint(state, side, transition = null) {
