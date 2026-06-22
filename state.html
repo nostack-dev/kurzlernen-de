@@ -8351,7 +8351,13 @@
           if (groupRoute) {
             const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
             let t = rewireTransition || null;
-            if (t) {
+            const duplicate = normalTransitionFrom(groupRoute.from, t?.id || null);
+            if (duplicate) {
+              if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+              t = duplicate;
+              t.groupEntryId = groupRoute.groupEntryId;
+              t.groupExitId = groupRoute.groupExitId;
+            } else if (t) {
               t.from = groupRoute.from;
               t.to = groupRoute.to;
               t.groupEntryId = groupRoute.groupEntryId;
@@ -8380,7 +8386,21 @@
           }
           const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
-          if (t) {
+          const duplicate = normalTransitionFrom(connecting.from, t?.id || null);
+          if (duplicate) {
+            if (t) {
+              model.transitions = model.transitions.filter(item => item.id !== t.id);
+              t = duplicate;
+              selected = selectionFromParts([], [t.id]);
+              saveModel();
+              connecting = null;
+              connectingTargetId = null;
+              mapEl.classList.remove("connecting");
+              draw();
+              return;
+            }
+            t = duplicate;
+          } else if (t) {
             t.to = targetId;
           } else {
             t = { id: uid("t"), from: connecting.from, to: targetId, label: "Next", condition: "", set: {} };
@@ -8436,7 +8456,11 @@
           }
           const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
-          if (t) {
+          const duplicate = normalTransitionFrom(connecting.from, t?.id || null);
+          if (duplicate) {
+            if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+            t = duplicate;
+          } else if (t) {
             t.to = s.id;
           } else {
             t = { id: uid("t"), from: connecting.from, to: s.id, label: "Next", condition: "", set: {} };
