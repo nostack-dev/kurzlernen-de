@@ -5369,7 +5369,7 @@
       evt.stopPropagation();
       const p = screenToWorld(evt);
       blockLayerEntryAfterPointerAction(1000);
-      connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s) };
+      connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s), mode: "new" };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
       draw();
@@ -5387,7 +5387,8 @@
         from: t.from,
         to: screenToWorld(evt),
         edgeId: concrete?.id || t.id,
-        projection: t.projection || null
+        projection: t.projection || null,
+        mode: "rewire"
       };
       connectingTargetId = null;
       selected = selectionFromParts([], [concrete?.id || t.id]);
@@ -6109,8 +6110,35 @@
       return { x: point.x, y: point.y - 10 };
     }
 
+    function mainOutputPortStateAtClientPoint(clientX, clientY) {
+      for (const port of nodesEl.querySelectorAll(".node > .port")) {
+        const node = port.closest(".node");
+        const state = byId(node?.dataset?.id);
+        if (!state) continue;
+        const r = port.getBoundingClientRect();
+        const pad = 4;
+        if (
+          clientX >= r.left - pad &&
+          clientX <= r.right + pad &&
+          clientY >= r.top - pad &&
+          clientY <= r.bottom + pad
+        ) return state;
+      }
+      return null;
+    }
+
+    function startMainOutputPortConnectionIfHit(evt) {
+      if (evt.button !== 0) return false;
+      const state = mainOutputPortStateAtClientPoint(evt.clientX, evt.clientY);
+      if (!state) return false;
+      evt.preventDefault();
+      startConnection(evt, state, connectionStartSide(state));
+      return true;
+    }
+
     function attachEdgeInteractions(el, t, canRewire = false) {
       el.addEventListener("mousedown", evt => {
+        if (startMainOutputPortConnectionIfHit(evt)) return;
         if (canRewire && evt.button === 0) startEdgeRewire(evt, t);
       });
       el.addEventListener("pointerdown", evt => {
@@ -8754,7 +8782,7 @@
           }
           const groupRoute = groupRouteForConnection(connecting.from, targetId);
           if (groupRoute) {
-            const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+            const rewireTransition = connecting.mode === "rewire" && connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
             let t = rewireTransition || null;
             if (t) {
               t.from = groupRoute.from;
@@ -8784,7 +8812,7 @@
             showEdgeInspector(t, { focus: false });
             return;
           }
-          const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+          const rewireTransition = connecting.mode === "rewire" && connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
           if (t) {
             t.to = targetId;
@@ -8841,7 +8869,7 @@
             if (!wasRewire) showNodeInspector(s, { focus: false });
             return;
           }
-          const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
+          const rewireTransition = connecting.mode === "rewire" && connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
           if (t) {
             t.to = s.id;
