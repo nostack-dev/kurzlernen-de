@@ -3989,7 +3989,7 @@
     }
 
     function transitionBetween(from, to, excludeId = null) {
-      return model.transitions.find(t => t.from === from && !t.boundaryFlow && !isBoundaryProxyId(t.from) && !isBoundaryProxyId(t.to) && t.id !== excludeId);
+      return model.transitions.find(t => t.from === from && t.to === to && !t.boundaryFlow && !isBoundaryProxyId(t.from) && !isBoundaryProxyId(t.to) && t.id !== excludeId);
     }
 
     function normalTransitionFrom(from, excludeId = null) {
