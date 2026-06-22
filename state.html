@@ -4773,6 +4773,7 @@
           }
           continue;
         }
+        if (s.id === connecting?.from) continue;
         const input = nodeCenter(s, "in");
         const dist = Math.hypot(p.x - input.x, p.y - input.y);
         const nearInput =
@@ -4781,7 +4782,6 @@
           p.y >= s.y - 8 &&
           p.y <= s.y + nodeHeight(s);
         const insideNode =
-          s.id !== connecting?.from &&
           p.x >= s.x &&
           p.x <= s.x + nodeWidth(s) &&
           p.y >= s.y &&
@@ -5343,7 +5343,15 @@
       evt.stopPropagation();
       const p = screenToWorld(evt);
       blockLayerEntryAfterPointerAction(1000);
-      connecting = { from: s.id, to: p, fromSide: fromSide || connectionStartSide(s), mode: "new" };
+      connecting = {
+        from: s.id,
+        to: p,
+        fromSide: fromSide || connectionStartSide(s),
+        mode: "new",
+        startClientX: evt.clientX,
+        startClientY: evt.clientY,
+        moved: false
+      };
       connectingTargetId = null;
       mapEl.classList.add("connecting");
       draw();
@@ -5362,7 +5370,10 @@
         to: screenToWorld(evt),
         edgeId: concrete?.id || t.id,
         projection: t.projection || null,
-        mode: "rewire"
+        mode: "rewire",
+        startClientX: evt.clientX,
+        startClientY: evt.clientY,
+        moved: false
       };
       connectingTargetId = null;
       selected = selectionFromParts([], [concrete?.id || t.id]);
@@ -8590,6 +8601,7 @@
       }
       if (connecting) {
         stopRuntimeLayerFollow();
+        connecting.moved = connecting.moved || Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) > 6;
         connecting.to = screenToWorld(evt);
         const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
@@ -8699,12 +8711,26 @@
       }
       if (connecting) {
         blockLayerEntryAfterPointerAction(1000);
+        if (!connecting.moved && Math.hypot(evt.clientX - connecting.startClientX, evt.clientY - connecting.startClientY) <= 6) {
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          return;
+        }
         const dropPoint = screenToWorld(evt);
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
+        if (targetId === connecting.from) {
+          connecting = null;
+          connectingTargetId = null;
+          mapEl.classList.remove("connecting");
+          draw();
+          return;
+        }
         if (targetId) {
           const projected = finishProjectedConnection(targetId);
           if (projected) {
