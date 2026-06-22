@@ -3845,14 +3845,16 @@
       const outputState = configuredBoundaryState(parent, "output", states);
       const parentInputLanes = parentBoundaryLaneDescriptors(parent, "input");
       const parentOutputLanes = parentBoundaryLaneDescriptors(parent, "output");
-      if (inputState && parentInputLanes.length) {
+      const hasExternalInputLanes = parentLayerTransitions(parent, "input").length > 0;
+      const hasExternalOutputLanes = parentLayerTransitions(parent, "output").length > 0;
+      if (inputState && !hasExternalInputLanes && parentInputLanes.length) {
         for (const lane of parentInputLanes) ensureBoundaryFlowTransition(parent, "input", inputState, { laneId: lane.id });
-      } else if (inputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
+      } else if (inputState && !hasExternalInputLanes && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
         ensureBoundaryFlowTransition(parent, "input", inputState);
       }
-      if (outputState && parentOutputLanes.length) {
+      if (outputState && !hasExternalOutputLanes && parentOutputLanes.length) {
         for (const lane of parentOutputLanes) ensureBoundaryFlowTransition(parent, "output", outputState, { laneId: lane.id });
-      } else if (outputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
+      } else if (outputState && !hasExternalOutputLanes && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
         ensureBoundaryFlowTransition(parent, "output", outputState);
       }
     }
@@ -6316,6 +6318,7 @@
       for (const transition of parentTransitions) {
         addLane(transitionPortId(transition, side === "input" ? "in" : "out"), side === "input" ? transition.from : transition.to);
       }
+      if (parentTransitions.length) return [...lanes.values()];
       const hasOuterLanes = parentTransitions.length > 0;
       for (const transition of model.transitions) {
         const flow = transition.boundaryFlow;
