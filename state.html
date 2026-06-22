@@ -8601,6 +8601,12 @@ Risiko: niedrig",
       evt.stopPropagation();
     }, { passive: true });
 
+    ["pointerdown", "pointermove", "pointerup", "pointercancel", "mousedown", "mousemove", "mouseup"].forEach(type => {
+      stateExplorerEl.addEventListener(type, evt => {
+        evt.stopPropagation();
+      }, { capture: true });
+    });
+
     stateExplorerEl.addEventListener("wheel", evt => {
       if (stateExplorerCollapsed) return;
       const delta = Math.abs(evt.deltaX) > Math.abs(evt.deltaY) ? evt.deltaX : evt.deltaY;
