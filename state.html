@@ -4155,8 +4155,6 @@
         return transition;
       }
       if (target.virtualProxy?.side === "output" && stateParentId(from) === childParentId) {
-        const existing = model.transitions.find(item => item.id === layerBoundaryFlowId(parent.id, "output"));
-        if (existing && existing.from !== from.id && !connecting?.edgeId) return null;
         setBoundaryEndpoint(parent, "output", from.id);
         const transition = ensureBoundaryFlowTransition(parent, "output", from);
         selected = selectionFromParts([], [transition.id]);
@@ -6166,12 +6164,14 @@
         "data-state-id": state.id,
         "data-port-side": side
       });
-      if (side === "out") {
+      const canStartConnection = side === "out" || (state.virtualProxy?.side === "output" && side === "in");
+      if (canStartConnection) {
+        const startSide = side === "in" ? "in" : "out";
         circle.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
           if (evt.button !== 0) return;
           evt.preventDefault();
-          startConnection(evt, state, "out");
+          startConnection(evt, state, startSide);
         });
         circle.addEventListener("pointerdown", evt => {
           if (!isTouchPointer(evt)) return;
@@ -6179,7 +6179,7 @@
           lastTouchAt = Date.now();
           if (pinchZoom) return;
           activePointerId = evt.pointerId;
-          startConnection(evt, state, "out");
+          startConnection(evt, state, startSide);
         });
       }
       circle.addEventListener("click", evt => {
