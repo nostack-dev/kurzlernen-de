@@ -3680,6 +3680,23 @@
       return `boundary-flow:${parentId}:${side}`;
     }
 
+    function boundaryProxyForSide(parentId, side) {
+      return boundaryProxyId(parentId, side, defaultBoundaryLaneId(side));
+    }
+
+    function pruneBoundarySideTransitions(parent, side, keepId = "") {
+      if (!parent) return;
+      const parentId = parent.id;
+      const canonicalId = layerBoundaryFlowId(parentId, side);
+      const proxyId = boundaryProxyForSide(parentId, side);
+      model.transitions = model.transitions.filter(transition => {
+        if (transition.id === canonicalId || transition.id === keepId) return true;
+        if (transition.boundaryFlow?.parentId === parentId && transition.boundaryFlow?.side === side) return false;
+        if (transition.from === proxyId || transition.to === proxyId) return false;
+        return true;
+      });
+    }
+
     function setBoundaryEndpoint(parent, side, stateId) {
       if (!parent) return;
       if (parent.rootLayer) {
@@ -3804,8 +3821,9 @@
     function ensureBoundaryFlowTransition(parent, side, state) {
       if (!parent || !state) return null;
       const parentId = parent.id;
-      const inputProxyId = boundaryProxyId(parentId, "input", defaultBoundaryLaneId("input"));
-      const outputProxyId = boundaryProxyId(parentId, "output", defaultBoundaryLaneId("output"));
+      pruneBoundarySideTransitions(parent, side);
+      const inputProxyId = boundaryProxyForSide(parentId, "input");
+      const outputProxyId = boundaryProxyForSide(parentId, "output");
       const id = layerBoundaryFlowId(parentId, side);
       let transition = model.transitions.find(item => item.id === id);
       if (!transition) {
@@ -3824,6 +3842,7 @@
         transition.to = side === "input" ? state.id : outputProxyId;
         transition.boundaryFlow = { parentId, side, stateId: state.id };
       }
+      pruneBoundarySideTransitions(parent, side, transition.id);
       return transition;
     }
 
