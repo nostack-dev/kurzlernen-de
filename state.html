@@ -5337,10 +5337,13 @@
       if (!transition) return center;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
-      const laneOffset = index >= 0 && transitions.length > 1
-        ? (side === "out" ? (index + 1) * GRID_SIZE : laneSlot(index + 1) * GRID_SIZE)
-        : 0;
-      const y = center.y + laneOffset;
+      let y = center.y;
+      if (index >= 0 && transitions.length > 1) {
+        const height = nodeHeight(state);
+        const pad = Math.min(14, Math.max(8, height / 5));
+        const usable = Math.max(0, height - pad * 2);
+        y = state.y + pad + usable * (index / (transitions.length - 1));
+      }
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
       return center;
