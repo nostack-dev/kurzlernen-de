@@ -7874,8 +7874,7 @@ user.loggedIn"></textarea><div class="hint">Ein Pfad pro Zeile. * beobachtet den
         seen.add(key);
         suggestions.push({ path: key, source, type });
       };
-      for (const state of conditionScopeStates(t)) {
-        const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
+      const addKnownStateData = (state, label) => {
         for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
           collectDataPathSuggestions(value, key, label, suggestions);
         }
@@ -7892,6 +7891,29 @@ user.loggedIn"></textarea><div class="hint">Ein Pfad pro Zeile. * beobachtet den
           add(repeat.as, `${label} repeat item`, "object");
           add(`${repeat.as}.field`, `${label} repeat item`, "value");
           add(repeat.index, `${label} repeat index`, "number");
+        }
+      };
+      add("state.current", "runtime", "text");
+      let includeKnownGlobalState = false;
+      for (const state of conditionScopeStates(t)) {
+        const label = state.id === t.from ? "from state" : state.id === t.to ? "target state" : "parent state";
+        for (const path of normalizeSubscriptions(state.subscriptions)) {
+          if (path === "*") {
+            includeKnownGlobalState = true;
+          } else {
+            add(path, `${label} subscription`, "value");
+          }
+        }
+        addKnownStateData(state, label);
+      }
+      if (includeKnownGlobalState) {
+        for (const state of model.states || []) {
+          addKnownStateData(state, `global ${state.title || state.id}`);
+        }
+        for (const transition of model.transitions || []) {
+          for (const [key, value] of Object.entries(normalizeDataObject(transition.set))) {
+            collectDataPathSuggestions(value, key, `transition ${transition.label || transition.id} set data`, suggestions);
+          }
         }
       }
       return suggestions.sort((a, b) => a.path.localeCompare(b.path));
@@ -7954,8 +7976,8 @@ user.loggedIn"></textarea><div class="hint">Ein Pfad pro Zeile. * beobachtet den
       triggerTimer.value = String(normalizeTransitionTimerMs(t.timerMs));
       const triggerSuggestions = new Set(["*", "state.current", defaultTransitionEvent(t), "button.next.clicked", "audio.played"]);
       const sourceState = byId(t.from);
-      normalizeSubscriptions(sourceState?.subscriptions).forEach(path => { triggerSuggestions.add(path); triggerSuggestions.add("change." + path); });
-      conditionDataSuggestions(t).forEach(item => { triggerSuggestions.add(item.path); triggerSuggestions.add("change." + item.path); });
+      normalizeSubscriptions(sourceState?.subscriptions).forEach(path => { triggerSuggestions.add(path); if (path !== "*") triggerSuggestions.add("change." + path); });
+      conditionDataSuggestions(t).forEach(item => { triggerSuggestions.add(item.path); if (item.path !== "*") triggerSuggestions.add("change." + item.path); });
       triggerEventList.innerHTML = Array.from(triggerSuggestions).filter(Boolean).map(value => "<option value=\"" + escapeHtml(value) + "\"></option>").join("");
       cond.value = t.condition || "";
       set.value = JSON.stringify(normalizeDataObject(t.set), null, 2);
