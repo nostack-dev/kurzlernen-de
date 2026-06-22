@@ -842,11 +842,11 @@
     }
 
     .node.has-output-slots > .port {
-      display: none;
+      display: block;
     }
 
     .node.has-input-slots > .input-port {
-      display: none;
+      display: block;
     }
 
     .input-port::before {
@@ -907,9 +907,9 @@
       width: 16px;
       height: 16px;
       right: -8px;
-      cursor: cell;
+      cursor: default;
       touch-action: none;
-      pointer-events: auto;
+      pointer-events: none;
       transform: translateY(-50%);
     }
 
@@ -918,9 +918,9 @@
       width: 16px;
       height: 16px;
       left: -8px;
-      cursor: cell;
+      cursor: default;
       touch-action: none;
-      pointer-events: auto;
+      pointer-events: none;
       transform: translateY(-50%);
     }
 
