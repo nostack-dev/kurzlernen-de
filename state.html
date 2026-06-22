@@ -6042,10 +6042,14 @@
       slot.dataset.edgeId = transition.id;
       slot.dataset.portSlot = side;
       slot.title = "drag to reroute " + (transition.label || "transition");
+      const startSlotDrag = evt => {
+        if (side === "out" && !state.virtualProxy) startConnection(evt, state, "out");
+        else startEdgeRewire(evt, transition);
+      };
       slot.addEventListener("mousedown", evt => {
         if (Date.now() - lastTouchAt < 700) return;
         if (evt.button !== 0) return;
-        startEdgeRewire(evt, transition);
+        startSlotDrag(evt);
       });
       slot.addEventListener("pointerdown", evt => {
         if (!isTouchPointer(evt)) return;
@@ -6053,7 +6057,7 @@
         lastTouchAt = Date.now();
         if (pinchZoom) return;
         activePointerId = evt.pointerId;
-        startEdgeRewire(evt, transition);
+        startSlotDrag(evt);
       });
       slot.addEventListener("click", evt => {
         evt.preventDefault();
