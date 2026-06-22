@@ -963,6 +963,18 @@
       filter: drop-shadow(0 0 5px rgba(245,158,11,.65));
     }
 
+    #ports {
+      position: absolute;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 80;
+    }
+
+    #ports .svg-port,
+    #ports .edge-pin {
+      pointer-events: auto;
+    }
+
     .svg-port {
       fill: #94a3b8;
       stroke: #06121f;
@@ -6141,6 +6153,21 @@
       nodeEl.appendChild(slot);
     }
 
+    function getPortOverlay() {
+      let overlay = document.getElementById("ports");
+      if (!overlay) {
+        overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        overlay.id = "ports";
+        worldEl.appendChild(overlay);
+      }
+      overlay.setAttribute("viewBox", wiresEl.getAttribute("viewBox") || "");
+      overlay.style.left = wiresEl.style.left;
+      overlay.style.top = wiresEl.style.top;
+      overlay.style.width = wiresEl.style.width;
+      overlay.style.height = wiresEl.style.height;
+      return overlay;
+    }
+
     function addSvgStatePorts(state) {
       if (!state) return;
       if (state.virtualProxy) {
@@ -6189,7 +6216,7 @@
         setSingleSelection("node", state.id);
         showNodeInspector(state, { focus: false });
       });
-      wiresEl.appendChild(circle);
+      getPortOverlay().appendChild(circle);
     }
 
     function updateLayerFrame(states) {
@@ -6242,7 +6269,8 @@
       }
 
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.svg-port,.temp-edge").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
+      getPortOverlay().querySelectorAll(".svg-port,.edge-pin").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
@@ -6306,7 +6334,7 @@
           "data-edge-pin": "out"
         });
         attachEdgeInteractions(startPinEl, t, true);
-        wiresEl.appendChild(startPinEl);
+        getPortOverlay().appendChild(startPinEl);
         const endPinEl = svgEl("circle", {
           cx: endPin.x,
           cy: endPin.y,
@@ -6317,7 +6345,7 @@
           "data-edge-pin": "in"
         });
         attachEdgeInteractions(endPinEl, t, true);
-        wiresEl.appendChild(endPinEl);
+        getPortOverlay().appendChild(endPinEl);
 
         const tip = edgeTipHandlePoint(from, to, t);
         const tipClasses = ["edge-tip-hit"];
