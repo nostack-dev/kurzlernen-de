@@ -829,6 +829,8 @@
     .input-port {
       left: -8px;
       top: 24px;
+      opacity: 0;
+      pointer-events: none;
       background: #94a3b8;
       box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: default;
@@ -838,6 +840,8 @@
       background: #94a3b8;
       top: 24px;
       right: -8px;
+      opacity: 0;
+      pointer-events: none;
       box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: cell;
       touch-action: none;
@@ -957,6 +961,28 @@
     .edge-pin:hover {
       stroke: var(--selected) !important;
       filter: drop-shadow(0 0 5px rgba(245,158,11,.65));
+    }
+
+    .svg-port {
+      fill: #94a3b8;
+      stroke: #06121f;
+      stroke-width: 3px;
+      vector-effect: non-scaling-stroke;
+      pointer-events: auto;
+    }
+
+    .svg-port-output {
+      cursor: crosshair;
+    }
+
+    .svg-port-input {
+      cursor: default;
+    }
+
+    .svg-port-output:hover,
+    .map.connecting .svg-port-input {
+      fill: var(--accent);
+      filter: drop-shadow(0 0 6px rgba(56,189,248,.7));
     }
 
 
@@ -6100,6 +6126,55 @@
       nodeEl.appendChild(slot);
     }
 
+    function addSvgStatePorts(state) {
+      if (!state) return;
+      if (state.virtualProxy) {
+        const side = state.virtualProxy.side === "input" ? "out" : "in";
+        addSvgStatePort(state, side);
+        return;
+      }
+      addSvgStatePort(state, "in");
+      addSvgStatePort(state, "out");
+    }
+
+    function addSvgStatePort(state, side) {
+      const point = nodeCenter(state, side);
+      const classes = ["svg-port", side === "out" ? "svg-port-output" : "svg-port-input"];
+      if (state.id === currentAppState) classes.push("runtime");
+      const circle = svgEl("circle", {
+        cx: point.x,
+        cy: point.y,
+        r: 8,
+        class: classes.join(" "),
+        "data-state-id": state.id,
+        "data-port-side": side
+      });
+      if (side === "out") {
+        circle.addEventListener("mousedown", evt => {
+          if (Date.now() - lastTouchAt < 700) return;
+          if (evt.button !== 0) return;
+          evt.preventDefault();
+          startConnection(evt, state, "out");
+        });
+        circle.addEventListener("pointerdown", evt => {
+          if (!isTouchPointer(evt)) return;
+          evt.preventDefault();
+          lastTouchAt = Date.now();
+          if (pinchZoom) return;
+          activePointerId = evt.pointerId;
+          startConnection(evt, state, "out");
+        });
+      }
+      circle.addEventListener("click", evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        focusCanvasForSelection();
+        setSingleSelection("node", state.id);
+        showNodeInspector(state, { focus: false });
+      });
+      wiresEl.appendChild(circle);
+    }
+
     function updateLayerFrame(states) {
       const parent = currentLayerContainer();
       if (!parent) {
@@ -6150,7 +6225,7 @@
       }
 
       nodesEl.innerHTML = "";
-      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
+      wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.svg-port,.temp-edge").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
@@ -6245,6 +6320,8 @@
       }
 
       for (const tipHit of edgeTipHits) wiresEl.appendChild(tipHit);
+
+      for (const state of states) addSvgStatePorts(state);
 
       if (connecting) {
         const from = byId(connecting.from);
@@ -6417,15 +6494,6 @@
           const inputPortElement = el.querySelector(".input-port");
           inputPortElement.addEventListener("mousedown", evt => onPortMousedown(evt, "in"));
           inputPortElement.addEventListener("pointerdown", evt => onPortPointerdown(evt, "in"));
-        }
-
-        for (const transition of inputTransitions) {
-          if (!renderInputSlots && !s.virtualProxy) continue;
-          addPortSlot(el, s, transition, "in", edgeSelection);
-        }
-        for (const transition of outputTransitions) {
-          if (!renderOutputSlots && !s.virtualProxy) continue;
-          addPortSlot(el, s, transition, "out", edgeSelection);
         }
 
         nodesEl.appendChild(el);
