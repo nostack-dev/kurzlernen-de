@@ -4777,7 +4777,7 @@
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (!from || !to) continue;
-        const pts = liveDoglegRoutePoints(from, to);
+        const pts = doglegRoutePoints(from, to, transition);
         updateTransitionElements(transition, pts);
       }
     }
@@ -4820,7 +4820,7 @@
       if (!from) return null;
       const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
       const target = connectingTargetId ? byId(connectingTargetId) : null;
-      if (target) return sourceSide === "out" ? edgeRoutePoints(from, target) : draftConnectionRoute(from, target, sourceSide);
+      if (target) return draftConnectionRoute(from, target, sourceSide);
       const a = nodeCenter(from, sourceSide);
       const b = snapPointToGrid(connecting.to);
       const stepX = sourceSide === "in" ? -GRID_SIZE * 2 : GRID_SIZE * 2;
@@ -4882,7 +4882,10 @@
     }
 
     function edgeTipHandlePointForRoute(routePoints) {
-      return polylinePoint(routePoints, 0.82);
+      const compact = compactRoutePoints(routePoints || []);
+      if (compact.length >= 3) return compact[2];
+      if (compact.length >= 2) return polylinePoint(compact, 0.24);
+      return compact[0] || { x: 0, y: 0 };
     }
 
     function midPointForRoute(routePoints) {
@@ -4892,7 +4895,6 @@
     function shouldIgnoreMapWheel(evt) {
       const target = evt.target;
       if (target?.closest?.(".state-explorer, .inspector, input, textarea, select, button")) return true;
-      if (!(evt.ctrlKey || evt.metaKey)) return true;
       return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
     }
 
@@ -5362,6 +5364,16 @@
         .sort((a, b) => compareEdgeLane(a, b, side));
     }
 
+    function edgeLaneOffset(stateId, side, transition = null) {
+      if (!transition?.id || isBoundaryProxyId(stateId)) return 0;
+      const lanes = orderedPortTransitions(stateId, side);
+      if (lanes.length <= 1) return 0;
+      const index = lanes.findIndex(item => item.id === transition.id);
+      if (index < 0) return 0;
+      const center = (lanes.length - 1) / 2;
+      return snapToGrid((index - center) * GRID_SIZE * 2);
+    }
+
     function edgePortPoint(state, side, transition = null) {
       const center = nodeCenter(state, side);
       return center;
@@ -5370,55 +5382,65 @@
     function edgeApproachPoint(state, side, transition = null) {
       const point = snapPointToGrid(edgePortPoint(state, side, transition));
       const offset = GRID_SIZE * 2;
-      if (side === "out") return { x: point.x + offset, y: point.y };
-      if (side === "in") return { x: point.x - offset, y: point.y };
+      const laneOffset = edgeLaneOffset(state.id, side, transition);
+      if (side === "out") return { x: point.x + offset, y: point.y + laneOffset };
+      if (side === "in") return { x: point.x - offset, y: point.y + laneOffset };
       return point;
     }
 
+    function routeFromPortToApproach(port, approach) {
+      const bend = { x: approach.x, y: port.y };
+      return compactRoutePoints([port, bend, approach]);
+    }
+
+    function routeFromApproachToPort(approach, port) {
+      const bend = { x: approach.x, y: port.y };
+      return compactRoutePoints([bend, port]);
+    }
+
     function doglegRoutePoints(from, to, transition = null) {
-      const a = edgePortPoint(from, "out", transition);
-      const b = edgePortPoint(to, "in", transition);
+      const a = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const b = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const out = edgeApproachPoint(from, "out", transition);
+      const inn = edgeApproachPoint(to, "in", transition);
+      const start = routeFromPortToApproach(a, out);
+      const finish = routeFromApproachToPort(inn, b);
       if (from.id === to.id) {
         const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
-        return [
-          a,
-          { x: a.x + GRID_SIZE * 2, y: a.y },
-          { x: a.x + GRID_SIZE * 2, y: loopTop },
-          { x: b.x - GRID_SIZE * 2, y: loopTop },
-          { x: b.x - GRID_SIZE * 2, y: b.y },
-          b
-        ];
+        return compactRoutePoints([
+          ...start,
+          { x: out.x, y: loopTop },
+          { x: inn.x, y: loopTop },
+          inn,
+          ...finish
+        ]);
       }
 
-      const canRouteBetweenNodes = b.x - a.x >= GRID_SIZE * 4;
+      const canRouteBetweenNodes = inn.x >= out.x;
       if (canRouteBetweenNodes) {
-        const outX = a.x + GRID_SIZE * 2;
-        const inX = b.x - GRID_SIZE * 2;
-        let laneY = snapToGrid((a.y + b.y) / 2);
-        if (laneY === a.y || laneY === b.y) {
-          const direction = b.y >= a.y ? 1 : -1;
-          laneY = snapToGrid(a.y + direction * GRID_SIZE * 2);
-          if (laneY === b.y) laneY = snapToGrid(laneY + direction * GRID_SIZE * 2);
+        let laneY = snapToGrid((out.y + inn.y) / 2);
+        if (laneY === out.y || laneY === inn.y) {
+          const direction = inn.y >= out.y ? 1 : -1;
+          laneY = snapToGrid(out.y + direction * GRID_SIZE * 2);
+          if (laneY === inn.y) laneY = snapToGrid(laneY + direction * GRID_SIZE * 2);
         }
-        return [
-          a,
-          { x: outX, y: a.y },
-          { x: outX, y: laneY },
-          { x: inX, y: laneY },
-          { x: inX, y: b.y },
-          b
-        ];
+        return compactRoutePoints([
+          ...start,
+          { x: out.x, y: laneY },
+          { x: inn.x, y: laneY },
+          inn,
+          ...finish
+        ]);
       }
 
       const laneY = snapToGrid(Math.min(from.y, to.y) - GRID_SIZE * 2);
-      return [
-        a,
-        { x: a.x + GRID_SIZE * 2, y: a.y },
-        { x: a.x + GRID_SIZE * 2, y: laneY },
-        { x: b.x - GRID_SIZE * 2, y: laneY },
-        { x: b.x - GRID_SIZE * 2, y: b.y },
-        b
-      ];
+      return compactRoutePoints([
+        ...start,
+        { x: out.x, y: laneY },
+        { x: inn.x, y: laneY },
+        inn,
+        ...finish
+      ]);
     }
 
     function ensureLeftInputApproach(points) {
@@ -5452,6 +5474,7 @@
 
     function directRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
+      if (edgeLaneOffset(from.id, "out", transition) || edgeLaneOffset(to.id, "in", transition)) return null;
       const a = edgePortPoint(from, "out", transition);
       const b = edgePortPoint(to, "in", transition);
       if (a.y !== b.y || b.x <= a.x) return null;
@@ -5461,6 +5484,7 @@
 
     function forwardBendRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
+      if (edgeLaneOffset(from.id, "out", transition) || edgeLaneOffset(to.id, "in", transition)) return null;
       const a = snapPointToGrid(edgePortPoint(from, "out", transition));
       const b = snapPointToGrid(edgePortPoint(to, "in", transition));
       if (b.x - a.x < GRID_SIZE * 3) return null;
@@ -5645,7 +5669,11 @@
             walkKey = cameFrom.get(walkKey);
           }
           path.unshift(start);
-          const routed = compactRoutePoints([startPort, ...path, goalPort]);
+          const routed = compactRoutePoints([
+            ...routeFromPortToApproach(startPort, start),
+            ...path.slice(1),
+            ...routeFromApproachToPort(goal, goalPort)
+          ]);
           return routeIsClear(routed, routeTransition) ? routed : null;
         }
 
@@ -5906,7 +5934,7 @@
     }
 
     function edgeTipHandlePoint(from, to, transition = null) {
-      return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
+      return edgeTipHandlePointForRoute(edgeRoutePoints(from, to, transition));
     }
 
     function arrowPathForPoints(points) {
@@ -6236,7 +6264,7 @@
         const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
         const target = connectingTargetId ? byId(connectingTargetId) : null;
         if (target) {
-          const points = sourceSide === "out" ? edgeRoutePoints(from, target) : draftConnectionRoute(from, target, sourceSide);
+          const points = draftConnectionRoute(from, target, sourceSide);
           wiresEl.appendChild(svgEl("path", { d: pathFromPoints(points), class: "temp-edge" }));
         } else {
           const a = nodeCenter(from, sourceSide);
