@@ -5446,6 +5446,7 @@
 
     function edgePortPoint(state, side, transition = null) {
       const anchor = nodeCenter(state, side);
+      if (state?.virtualProxy) return anchor;
       if (!transition) return anchor;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
