@@ -841,24 +841,12 @@
       touch-action: none;
     }
 
-    .node:not(.boundary-proxy) > .port::after {
-      content: "+";
-      position: absolute;
-      inset: -1px 0 0;
-      display: grid;
-      place-items: center;
-      color: #06121f;
-      font-size: 13px;
-      font-weight: 950;
-      line-height: 1;
-    }
-
     .node.has-input-slots > .input-port {
       display: none;
     }
 
     .node.has-output-slots > .port {
-      z-index: 12;
+      display: none;
     }
 
     .input-port::before {
@@ -5336,17 +5324,11 @@
         .sort((a, b) => compareEdgeLane(a, b, side));
     }
 
-    function portLaneOffset(index, count, reserveCenter = false) {
-      if (index < 0 || count <= 1) return reserveCenter ? GRID_SIZE : 0;
-      if (!reserveCenter) {
-        const raw = index - (count - 1) / 2;
-        if (Number.isInteger(raw)) return raw * GRID_SIZE;
-        return Math.sign(raw) * Math.ceil(Math.abs(raw)) * GRID_SIZE;
-      }
-      const before = Math.floor(count / 2);
-      let lane = index - before;
-      if (lane >= 0) lane += 1;
-      return lane * GRID_SIZE;
+    function portLaneOffset(index, count) {
+      if (index < 0 || count <= 1) return 0;
+      const raw = index - (count - 1) / 2;
+      if (Number.isInteger(raw)) return raw * GRID_SIZE;
+      return Math.sign(raw) * Math.ceil(Math.abs(raw)) * GRID_SIZE;
     }
 
     function edgePortPoint(state, side, transition = null) {
@@ -5354,7 +5336,7 @@
       if (!transition) return center;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
-      const laneOffset = portLaneOffset(index, transitions.length, side === "out");
+      const laneOffset = portLaneOffset(index, transitions.length);
       const y = center.y + laneOffset;
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
