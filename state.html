@@ -6179,6 +6179,18 @@
       addSvgStatePort(state, "out");
     }
 
+    function updateSvgStatePortPositions(state) {
+      if (!state) return;
+      const overlay = document.getElementById("ports");
+      if (!overlay) return;
+      overlay.querySelectorAll(`.svg-port[data-state-id="${CSS.escape(state.id)}"]`).forEach(circle => {
+        const side = circle.dataset.portSide || "out";
+        const point = nodeCenter(state, side);
+        circle.setAttribute("cx", point.x);
+        circle.setAttribute("cy", point.y);
+      });
+    }
+
     function addSvgStatePort(state, side) {
       const point = nodeCenter(state, side);
       const classes = ["svg-port", side === "out" ? "svg-port-output" : "svg-port-input"];
@@ -8423,6 +8435,7 @@
 
         if (positionChanged || (!wasMoved && dragging.moved)) {
           if (updateNodeElementPosition(s)) {
+            updateSvgStatePortPositions(s);
             updateDraggedStateEdges(s.id);
           }
         }
