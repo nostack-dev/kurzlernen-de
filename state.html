@@ -680,7 +680,7 @@
 
     .node.boundary-input.has-output-slots > .port,
     .node.boundary-output.has-input-slots > .input-port {
-      display: none;
+      display: block;
     }
 
     .node.boundary-proxy > :not(.input-port):not(.port):not(.port-slot) {
@@ -850,12 +850,12 @@
 
     .node.has-input-slots:not(.boundary-proxy) > .input-port,
     .node.has-output-slots:not(.boundary-proxy) > .port {
-      display: none;
+      display: block;
     }
 
     .node.has-input-slots > .input-port,
     .node.has-output-slots > .port {
-      display: none;
+      display: block;
     }
 
     .node.boundary-input > .input-port,
@@ -870,7 +870,7 @@
 
     .node.boundary-input.has-output-slots > .port,
     .node.boundary-output.has-input-slots > .input-port {
-      display: none !important;
+      display: block !important;
     }
 
     .input-port::before {
@@ -943,7 +943,7 @@
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      right: -8px;
+      right: -30px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
@@ -954,7 +954,7 @@
       --port-offset: 0px;
       width: 16px;
       height: 16px;
-      left: -8px;
+      left: -30px;
       cursor: cell;
       touch-action: none;
       pointer-events: auto;
@@ -3798,8 +3798,8 @@
         opts.flowLaneId || (opts.forceNew ? `${laneId}_${state.id}_${uid("lane")}` : ""),
         `${laneId}_${state.id}`
       );
-      const inputProxyId = boundaryProxyId(parentId, "input", laneId);
-      const outputProxyId = boundaryProxyId(parentId, "output", laneId);
+      const inputProxyId = boundaryProxyId(parentId, "input", defaultBoundaryLaneId("input"));
+      const outputProxyId = boundaryProxyId(parentId, "output", defaultBoundaryLaneId("output"));
       const id = layerBoundaryFlowId(parentId, side, flowLaneId);
       let transition = model.transitions.find(item => item.id === id);
       if (!transition) {
@@ -3807,8 +3807,8 @@
           id,
           from: side === "input" ? inputProxyId : state.id,
           to: side === "input" ? state.id : outputProxyId,
-          fromPortId: flowLaneId,
-          toPortId: flowLaneId,
+          fromPortId: side === "input" ? laneId : flowLaneId,
+          toPortId: side === "input" ? (opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId) : laneId,
           label: side === "input" ? "IN" : "OUT",
           condition: "",
           set: {},
@@ -3820,12 +3820,12 @@
         transition.from = side === "input" ? inputProxyId : state.id;
         transition.to = side === "input" ? state.id : outputProxyId;
         if (side === "input") {
-          transition.fromPortId = flowLaneId;
-          transition.toPortId = flowLaneId;
+          transition.fromPortId = laneId;
+          transition.toPortId = opts.forceNew && !opts.explicitTargetPort ? flowLaneId : opts.targetPortId || flowLaneId;
         }
         if (side === "output") {
           transition.fromPortId = flowLaneId;
-          transition.toPortId = flowLaneId;
+          transition.toPortId = laneId;
         }
         transition.boundaryFlow = { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId };
         normalizeTransitionPorts(transition);
@@ -3843,18 +3843,16 @@
       });
       const inputState = configuredBoundaryState(parent, "input", states);
       const outputState = configuredBoundaryState(parent, "output", states);
-      const parentInputLanes = parentBoundaryLaneDescriptors(parent, "input");
-      const parentOutputLanes = parentBoundaryLaneDescriptors(parent, "output");
-      const hasExternalInputLanes = parentLayerTransitions(parent, "input").length > 0;
-      const hasExternalOutputLanes = parentLayerTransitions(parent, "output").length > 0;
-      if (inputState && !hasExternalInputLanes && parentInputLanes.length) {
+      const parentInputLanes = parentLayerTransitions(parent, "input");
+      const parentOutputLanes = parentLayerTransitions(parent, "output");
+      if (inputState && parentInputLanes.length) {
         for (const lane of parentInputLanes) ensureBoundaryFlowTransition(parent, "input", inputState, { laneId: lane.id });
-      } else if (inputState && !hasExternalInputLanes && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
+      } else if (inputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
         ensureBoundaryFlowTransition(parent, "input", inputState);
       }
-      if (outputState && !hasExternalOutputLanes && parentOutputLanes.length) {
+      if (outputState && parentOutputLanes.length) {
         for (const lane of parentOutputLanes) ensureBoundaryFlowTransition(parent, "output", outputState, { laneId: lane.id });
-      } else if (outputState && !hasExternalOutputLanes && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
+      } else if (outputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
         ensureBoundaryFlowTransition(parent, "output", outputState);
       }
     }
@@ -5568,23 +5566,12 @@
       if (!state || state.virtualProxy) return [];
       if (!model.states.some(child => stateParentId(child) === state.id)) return [];
       const boundarySide = side === "in" ? "input" : "output";
-      const externalLaneIds = new Set(parentLayerTransitions(state, boundarySide).map(transition => normalizePortId(
-        transitionPortId(transition, side),
-        side === "in" ? "entry" : "out"
-      )));
       return model.transitions
         .filter(transition => transition.boundaryFlow?.parentId === state.id && transition.boundaryFlow?.side === boundarySide)
-        .map(transition => {
-          const proxyLaneId = normalizePortId(
-            transition.boundaryFlow.proxyLaneId || "",
-            side === "in" ? "entry" : "out"
-          );
-          if (externalLaneIds.has(proxyLaneId)) return proxyLaneId;
-          return normalizePortId(
-            transition.boundaryFlow.laneId || transitionPortId(transition, side),
-            side === "in" ? "entry" : "out"
-          );
-        })
+        .map(transition => normalizePortId(
+          transition.boundaryFlow.proxyLaneId || transition.boundaryFlow.laneId || transitionPortId(transition, side),
+          side === "in" ? "entry" : "out"
+        ))
         .filter(Boolean);
     }
 
@@ -6309,37 +6296,6 @@
         });
     }
 
-    function parentBoundaryLaneDescriptors(parent, side) {
-      if (!parent) return [];
-      const lanes = new Map();
-      const fallbackLaneId = defaultBoundaryLaneId(side);
-      const addLane = (id, outsideId = "") => {
-        const laneId = normalizePortId(id, fallbackLaneId);
-        if (!laneId || lanes.has(laneId)) return;
-        lanes.set(laneId, { id: laneId, outsideId });
-      };
-      const parentTransitions = parentLayerTransitions(parent, side);
-      const outerLaneIds = new Set(parentTransitions.map(transition => normalizePortId(
-        transitionPortId(transition, side === "input" ? "in" : "out"),
-        fallbackLaneId
-      )));
-      const legacyOuterLaneIds = new Set(parentTransitions.map(transition => normalizePortId(transition.id, fallbackLaneId)));
-      for (const transition of parentTransitions) {
-        addLane(transitionPortId(transition, side === "input" ? "in" : "out"), side === "input" ? transition.from : transition.to);
-      }
-      const hasOuterLanes = parentTransitions.length > 0;
-      for (const transition of model.transitions) {
-        const flow = transition.boundaryFlow;
-        if (!flow || flow.parentId !== parent.id || flow.side !== side) continue;
-        const laneId = normalizePortId(flow.proxyLaneId || flow.laneId || transitionPortId(transition, side === "input" ? "out" : "in"), fallbackLaneId);
-        if (hasOuterLanes && laneId === fallbackLaneId) continue;
-        if (hasOuterLanes && legacyOuterLaneIds.has(laneId) && !outerLaneIds.has(laneId)) continue;
-        addLane(laneId);
-      }
-      if (!lanes.size) addLane(fallbackLaneId);
-      return [...lanes.values()];
-    }
-
     function syncBoundaryProxies(parent, states) {
       for (const [id, state] of [..._virtualNodes]) {
         if (state.virtualProxy) _virtualNodes.delete(id);
@@ -6357,38 +6313,34 @@
       const frameTop = snapToGrid(minY - padY);
       const frameHeight = snapToGrid(maxY - minY + padY * 2);
       const centerY = frameTop + frameHeight / 2;
-      const addProxies = (side) => {
-        const lanes = parentBoundaryLaneDescriptors(parent, side);
+      const addProxy = (side) => {
         const proxyWidth = nodeWidth({ virtualProxy: true });
         const title = side === "input" ? "IN" : "OUT";
         const proxyHeight = nodeHeight({ virtualProxy: true });
         const x = side === "input" ? frameLeft - proxyWidth : frameRight;
-        const spacing = proxyHeight + GRID_SIZE;
+        const y = snapToGrid(centerY - proxyHeight / 2);
+        const transitionId = defaultBoundaryLaneId(side);
+        const id = boundaryProxyId(parent.id, side, transitionId);
         const layerId = parent.rootLayer ? null : parent.id;
-        lanes.forEach((lane, index) => {
-          const y = snapToGrid(centerY + (index - (lanes.length - 1) / 2) * spacing - proxyHeight / 2);
-          const transitionId = normalizePortId(lane.id, defaultBoundaryLaneId(side));
-          const id = boundaryProxyId(parent.id, side, transitionId);
-          _virtualNodes.set(id, {
-            id,
-            title,
-            body: "",
-            parentId: layerId,
-            x,
-            y,
-            components: [],
-            virtualProxy: {
-              layerId,
-              parentId: parent.id,
-              side,
-              transitionId,
-              outsideId: lane.outsideId || ""
-            }
-          });
+        _virtualNodes.set(id, {
+          id,
+          title,
+          body: "",
+          parentId: layerId,
+          x,
+          y,
+          components: [],
+          virtualProxy: {
+            layerId,
+            parentId: parent.id,
+            side,
+            transitionId,
+            outsideId: ""
+          }
         });
       };
-      addProxies("input");
-      addProxies("output");
+      addProxy("input");
+      addProxy("output");
       ensureDefaultBoundaryTransitions(parent, states);
     }
 
@@ -6642,8 +6594,14 @@
         if (renderOutputSlots) classes.push("has-output-slots");
         const selectedConnectedPort = [...inputTransitions, ...outputTransitions].some(transition => edgeSelection.has(transition.id));
         const hasPortSlots = renderInputSlots || renderOutputSlots;
-        const portsExpanded = hasPortSlots || selectedConnectedPort;
+        const portsExpanded = hasPortSlots && (
+          selectedConnectedPort ||
+          (!s.virtualProxy && nodeSelection.has(s.id)) ||
+          connecting?.from === s.id ||
+          connectingTargetId === s.id
+        );
         if (portsExpanded) classes.push("ports-expanded");
+        else if (hasPortSlots) classes.push("ports-collapsed");
         const innerCount = s.virtualProxy ? 0 : childStateCount(s.id);
         if (innerCount) classes.push("has-children");
         el.className = classes.join(" ");
@@ -8908,7 +8866,7 @@
         let targetPortId = explicitTargetPort ? domPortSlot.dataset.portId || "" : "";
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
         const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
-        if (!targetPortId && targetNode && connecting.mode === "rewire") targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
+        if (!targetPortId && targetNode) targetPortId = nearestPortIdAtWorldPoint(targetNode, "in", dropPoint);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
