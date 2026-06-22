@@ -846,7 +846,7 @@
     }
 
     .node.has-output-slots > .port {
-      z-index: 12;
+      display: none;
     }
 
     .input-port::before {
@@ -5342,7 +5342,7 @@
       if (!transition) return center;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
-      const laneOffset = portLaneOffset(index, transitions.length, side === "out");
+      const laneOffset = portLaneOffset(index, transitions.length);
       const y = center.y + laneOffset;
       if (side === "out") return { x: state.x + nodeWidth(state), y };
       if (side === "in") return { x: state.x, y };
