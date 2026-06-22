@@ -4644,7 +4644,21 @@
     }
 
     function nodeHeight(s) {
-      return s?.virtualProxy ? GRID_SIZE * 2 : NODE_H;
+      if (s?.virtualProxy) return GRID_SIZE * 2;
+      const counts = ["in", "out"].map(side => transitionPortCount(s?.id, side));
+      const maxCount = Math.max(1, ...counts);
+      const maxOffset = Math.max(...Array.from({ length: maxCount }, (_, index) => Math.abs(portLaneOffset(index, maxCount))));
+      return Math.max(NODE_H, ceilToGrid(maxOffset * 2 + GRID_SIZE));
+    }
+
+    function transitionPortCount(stateId, side) {
+      if (!stateId || !Array.isArray(model?.transitions)) return 0;
+      return model.transitions.filter(transition =>
+        !transition.boundaryFlow &&
+        !isBoundaryProxyId(transition.from) &&
+        !isBoundaryProxyId(transition.to) &&
+        (side === "out" ? transition.from === stateId : transition.to === stateId)
+      ).length;
     }
 
     function nodeAtWorldPoint(p) {
@@ -4977,7 +4991,7 @@
         minX = Math.min(minX, s.x);
         maxX = Math.max(maxX, s.x + nodeWidth(s));
         minY = Math.min(minY, s.y);
-        maxY = Math.max(maxY, s.y + NODE_H);
+        maxY = Math.max(maxY, s.y + nodeHeight(s));
       });
 
       const cx = (minX + maxX) / 2;
