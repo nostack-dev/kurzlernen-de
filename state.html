@@ -868,32 +868,6 @@
       display: block !important;
     }
 
-    .node.has-multi-input > .input-port::after,
-    .node.has-multi-output > .port::after {
-      content: attr(data-count);
-      position: absolute;
-      right: -7px;
-      top: -9px;
-      min-width: 16px;
-      height: 16px;
-      padding: 0 4px;
-      border: 1px solid rgba(15,23,42,.32);
-      border-radius: 999px;
-      background: #f8fafc;
-      color: #0f172a;
-      font-size: 10px;
-      font-weight: 950;
-      line-height: 14px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(15,23,42,.18);
-      pointer-events: none;
-    }
-
-    .node.has-multi-input > .input-port::after {
-      left: -7px;
-      right: auto;
-    }
-
     .input-port::before {
       content: "";
       position: absolute;
@@ -6481,8 +6455,6 @@
         const renderOutputSlots = Boolean(outputTransitions.length > 0);
         if (renderInputSlots) classes.push("has-input-slots");
         if (renderOutputSlots) classes.push("has-output-slots");
-        if (inputTransitions.length > 1) classes.push("has-multi-input");
-        if (outputTransitions.length > 1) classes.push("has-multi-output");
         const selectedConnectedPort = [...inputTransitions, ...outputTransitions].some(transition => edgeSelection.has(transition.id));
         const hasPortSlots = renderInputSlots || renderOutputSlots;
         const portsExpanded = hasPortSlots && (
@@ -6619,13 +6591,11 @@
         const portElement = el.querySelector(".port");
         const inputPortElement = el.querySelector(".input-port");
         if (inputPortElement) {
-          inputPortElement.dataset.count = inputTransitions.length > 1 ? String(inputTransitions.length) : "";
           inputPortElement.title = inputTransitions.length > 1
             ? `${inputTransitions.length} input ports. Hover/select to expand.`
             : "input port";
         }
         if (portElement) {
-          portElement.dataset.count = outputTransitions.length > 1 ? String(outputTransitions.length) : "";
           portElement.title = outputTransitions.length > 1
             ? `${outputTransitions.length} output ports. Drag to add, hover/select to expand.`
             : "drag to connect";
