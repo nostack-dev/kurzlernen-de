@@ -5342,18 +5342,25 @@
       return pathFromPoints(edgeRoutePoints(from, to, transition));
     }
 
-    function pathFromPoints(points) {
-      const compact = [];
-      for (const point of points.map((point, index, list) => index === 0 || index === list.length - 1 ? point : snapPointToGrid(point))) {
-        const previous = compact[compact.length - 1];
-        if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
+    function orthogonalizeRoutePoints(points) {
+      const source = (points || []).filter(Boolean).map((point, index, list) =>
+        index === 0 || index === list.length - 1 ? { x: point.x, y: point.y } : snapPointToGrid(point)
+      );
+      const out = [];
+      for (const point of source) {
+        const previous = out[out.length - 1];
+        if (!previous) {
+          out.push(point);
+          continue;
+        }
+        if (previous.x === point.x && previous.y === point.y) continue;
+        if (previous.x !== point.x && previous.y !== point.y) {
+          out.push({ x: point.x, y: previous.y });
+        }
+        out.push(point);
       }
-      return compact.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
-    }
-
-    function compactRoutePoints(points) {
       const compact = [];
-      for (const point of points.map((point, index, list) => index === 0 || index === list.length - 1 ? point : snapPointToGrid(point))) {
+      for (const point of out) {
         const previous = compact[compact.length - 1];
         if (!previous || previous.x !== point.x || previous.y !== point.y) compact.push(point);
       }
@@ -5370,6 +5377,16 @@
         }
       }
       return straightened;
+    }
+
+    function pathFromPoints(points) {
+      return orthogonalizeRoutePoints(points)
+        .map((point, index) => (index ? "L" : "M") + " " + point.x + " " + point.y)
+        .join(" ");
+    }
+
+    function compactRoutePoints(points) {
+      return orthogonalizeRoutePoints(points);
     }
 
     function edgeLaneSortValue(transition, side) {
