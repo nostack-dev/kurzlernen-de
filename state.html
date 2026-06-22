@@ -4752,15 +4752,68 @@
       return s?.virtualProxy ? GRID_SIZE * 2 : NODE_H;
     }
 
-    function nodeAtWorldPoint(p) {
-      const states = visibleStates();
-      for (let i = states.length - 1; i >= 0; i--) {
-        const s = states[i];
-        if (s.virtualProxy) continue;
-        if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + nodeHeight(s)) return s;
-      }
-      return null;
+  function nodeAtWorldPoint(p) {
+    const states = visibleStates();
+    for (let i = states.length - 1; i >= 0; i--) {
+      const s = states[i];
+      if (s.virtualProxy) continue;
+      if (p.x >= s.x && p.x <= s.x + nodeWidth(s) && p.y >= s.y && p.y <= s.y + nodeHeight(s)) return s;
     }
+    return null;
+  }
+  function stateRectForPosition(x, y, title) {
+    const width = nodeWidth({ title: title || "" });
+    return {
+      left: x,
+      top: y,
+      right: x + width,
+      bottom: y + NODE_H,
+      width,
+      height: NODE_H
+    };
+  }
+  function rectsOverlap(a, b, padding = GRID_SIZE) {
+    return a.left < b.right + padding &&
+      a.right > b.left - padding &&
+      a.top < b.bottom + padding &&
+      a.bottom > b.top - padding;
+  }
+  function statePositionCollides(x, y, title, parentId) {
+    const candidate = stateRectForPosition(x, y, title);
+    return model.states.some(s => {
+      if (s.virtualProxy) return false;
+      if ((s.parentId || null) !== (parentId || null)) return false;
+      const rect = stateRectForPosition(s.x, s.y, s.title);
+      return rectsOverlap(candidate, rect);
+    });
+  }
+  function findFreeStatePosition(x, y, title, parentId = currentLayerId) {
+    const width = nodeWidth({ title: title || "" });
+    const baseX = snapClampToGrid(x, WORLD_MIN_X, WORLD_MAX_X - width);
+    const baseY = snapClampToGrid(y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+    const layerId = parentId || null;
+    if (!statePositionCollides(baseX, baseY, title, layerId)) return { x: baseX, y: baseY };
+    const stepX = GRID_SIZE * 8;
+    const stepY = GRID_SIZE * 6;
+    for (let ring = 1; ring <= 10; ring++) {
+      const candidates = [
+        { x: baseX + stepX * ring, y: baseY },
+        { x: baseX, y: baseY + stepY * ring },
+        { x: baseX + stepX * ring, y: baseY + stepY * ring },
+        { x: baseX - stepX * ring, y: baseY },
+        { x: baseX, y: baseY - stepY * ring },
+        { x: baseX - stepX * ring, y: baseY + stepY * ring },
+        { x: baseX + stepX * ring, y: baseY - stepY * ring },
+        { x: baseX - stepX * ring, y: baseY - stepY * ring }
+      ];
+      for (const pos of candidates) {
+        const px = snapClampToGrid(pos.x, WORLD_MIN_X, WORLD_MAX_X - width);
+        const py = snapClampToGrid(pos.y, WORLD_MIN_Y, WORLD_MAX_Y - NODE_H);
+        if (!statePositionCollides(px, py, title, layerId)) return { x: px, y: py };
+      }
+    }
+    return { x: baseX, y: baseY };
+  }
 
     function connectionTargetAtWorldPoint(p) {
       let best = null;
@@ -8625,7 +8678,8 @@
     function addStateAt(x, y, showAtX, showAtY) {
       const layerBeforeCreate = currentLayerId && byId(currentLayerId) ? currentLayerId : null;
       const title = nextStateTitle();
-      const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
+      const position = findFreeStatePosition(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
+      const s = makeState(position.x, position.y, title, layerBeforeCreate);
       model.states.push(s);
       selected = selectionFromParts([s.id], []);
       lastCreatedStateId = s.id;
@@ -8932,8 +8986,9 @@
         }
         if (!targetId) {
           const title = nextStateTitle();
-          const s = makeState(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title);
-          s.parentId = currentLayerId || null;
+          const layerBeforeCreate = currentLayerId && byId(currentLayerId) ? currentLayerId : null;
+          const position = findFreeStatePosition(dropPoint.x - nodeWidth({ title }) / 2, dropPoint.y - NODE_H / 2, title, layerBeforeCreate);
+          const s = makeState(position.x, position.y, title, layerBeforeCreate);
           const boundaryEdge = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && item.boundaryFlow) : null;
           if (boundaryEdge) {
             model.states.push(s);
