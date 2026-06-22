@@ -7869,11 +7869,25 @@
     function statePortSuggestions(state, side, currentPortId = "") {
       const prefix = side === "out" ? "out" : "in";
       return uniqueSuggestionValues([
-        currentPortId,
+        "",
+        side === "out" ? "default out" : "default in",
+        side === "out" ? "success" : "entry",
+        side === "out" ? "error" : "source",
+        side === "out" ? "yes" : "incoming",
+        side === "out" ? "no" : "fallback",
         ...orderedPortIds(state?.id, side),
-        ...stateDataPathSuggestionValues(state).map(path => normalizePortId(`${prefix}_${path}`)),
-        `${prefix}_${normalizeId(state?.title || state?.id || "state")}`
+        ...stateDataPathSuggestionValues(state).map(path => `${prefix} ${path}`),
+        `${prefix} ${state?.title || state?.id || "state"}`
       ]);
+    }
+
+    function humanPortName(portId) {
+      return String(portId || "")
+        .replace(/^(__boundary_|boundary_|proxy_|input_|output_|from_|to_|in_|out_)/i, "")
+        .replace(/^t_[a-z0-9_]+$/i, "")
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     function renderStatePortDataSummary(state, target) {
@@ -7881,8 +7895,9 @@
       const incoming = orderedPortIds(state.id, "in");
       const outgoing = orderedPortIds(state.id, "out");
       const dataPaths = stateDataPathSuggestionValues(state);
+      const displayPort = value => humanPortName(value) || "default";
       const format = (label, values) => values.length
-        ? `<div>${label}: ${values.map(value => `<code>${escapeHtml(value)}</code>`).join(" ")}</div>`
+        ? `<div>${label}: ${values.map(value => `<code>${escapeHtml(displayPort(value))}</code>`).join(" ")}</div>`
         : `<div>${label}: <span class="muted">none</span></div>`;
       target.innerHTML = [
         format("Input ports", incoming),
@@ -7935,8 +7950,8 @@
         <h3>Transition / Button</h3>
         <div class="small"><b>${escapeHtml(fromLabel)}</b> → <b>${escapeHtml(toLabel)}</b></div>
         <div class="row">
-          <div class="field"><label>From out port</label><input id="pFromPort" list="pFromPortSuggestions"><datalist id="pFromPortSuggestions"></datalist></div>
-          <div class="field"><label>To in port</label><input id="pToPort" list="pToPortSuggestions"><datalist id="pToPortSuggestions"></datalist></div>
+          <div class="field"><label>Output name</label><input id="pFromPort" list="pFromPortSuggestions" placeholder="success, error, approved"><datalist id="pFromPortSuggestions"></datalist></div>
+          <div class="field"><label>Input name</label><input id="pToPort" list="pToPortSuggestions" placeholder="entry, source, fallback"><datalist id="pToPortSuggestions"></datalist></div>
         </div>
         <div class="field"><label>Button label</label><input id="pLabel" list="pLabelSuggestions"><datalist id="pLabelSuggestions"></datalist></div>
         <div class="field"><label>Condition</label><input id="pCond" list="pCondDataList" placeholder="accepted, amount >= 10, !blocked"><datalist id="pCondDataList"></datalist></div>
@@ -7960,8 +7975,8 @@
       const set = root.querySelector("#pSet");
       const setPreview = root.querySelector("#pSetPreview");
       label.value = t.label || "Next";
-      fromPort.value = transitionPortId(t, "out");
-      toPort.value = transitionPortId(t, "in");
+      fromPort.value = humanPortName(transitionPortId(t, "out"));
+      toPort.value = humanPortName(transitionPortId(t, "in"));
       renderSimpleDatalist(labelSuggestions, transitionLabelSuggestions(t));
       renderSimpleDatalist(fromPortSuggestions, statePortSuggestions(from, "out", fromPort.value));
       renderSimpleDatalist(toPortSuggestions, statePortSuggestions(to, "in", toPort.value));
@@ -7999,12 +8014,12 @@
         draw();
       };
       fromPort.oninput = () => {
-        t.fromPortId = normalizePortId(fromPort.value, "out_" + t.id);
+        t.fromPortId = normalizePortId(fromPort.value, t.label || "out");
         saveModel("edge:from-port:" + t.id);
         draw();
       };
       toPort.oninput = () => {
-        t.toPortId = normalizePortId(toPort.value, "in_" + t.id);
+        t.toPortId = normalizePortId(toPort.value, "entry");
         saveModel("edge:to-port:" + t.id);
         draw();
       };
