@@ -3812,7 +3812,7 @@
           label: side === "input" ? "IN" : "OUT",
           condition: "",
           set: {},
-          boundaryFlow: { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId, auto: Boolean(opts.auto) }
+          boundaryFlow: { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId }
         };
         normalizeTransitionPorts(transition);
         model.transitions.push(transition);
@@ -3827,43 +3827,10 @@
           transition.fromPortId = flowLaneId;
           transition.toPortId = laneId;
         }
-        transition.boundaryFlow = { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId, auto: Boolean(opts.auto) };
+        transition.boundaryFlow = { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId };
         normalizeTransitionPorts(transition);
       }
       return transition;
-    }
-
-    function boundaryFlowProxyLaneId(transition, side) {
-      return normalizePortId(
-        transition?.boundaryFlow?.proxyLaneId || transition?.boundaryFlow?.laneId || transitionPortId(transition, side === "input" ? "out" : "in"),
-        defaultBoundaryLaneId(side)
-      );
-    }
-
-    function pruneAutoExpandedBoundaryFlows(parent, side) {
-      const outerLaneIds = parentLayerTransitions(parent, side).map(transition => normalizePortId(
-        transitionPortId(transition, side === "input" ? "in" : "out"),
-        defaultBoundaryLaneId(side)
-      ));
-      if (outerLaneIds.length <= 1) return;
-      const outerLaneSet = new Set(outerLaneIds);
-      const laneOrder = new Map(outerLaneIds.map((id, index) => [id, index]));
-      const flows = model.transitions
-        .filter(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === side)
-        .filter(transition => outerLaneSet.has(boundaryFlowProxyLaneId(transition, side)))
-        .filter(transition => {
-          if (transition.boundaryFlow.auto) return true;
-          const emptySet = !Object.keys(normalizeDataObject(transition.set)).length;
-          const defaultLabel = String(transition.label || "") === (side === "input" ? "IN" : "OUT");
-          return defaultLabel && !String(transition.condition || "").trim() && emptySet;
-        })
-        .sort((a, b) => (laneOrder.get(boundaryFlowProxyLaneId(a, side)) ?? 0) - (laneOrder.get(boundaryFlowProxyLaneId(b, side)) ?? 0));
-      if (flows.length <= 1) return;
-      const targetIds = new Set(flows.map(transition => side === "input" ? transition.to : transition.from));
-      if (targetIds.size !== 1) return;
-      const keepId = flows[0].id;
-      const removeIds = new Set(flows.slice(1).map(transition => transition.id));
-      model.transitions = model.transitions.filter(transition => transition.id === keepId || !removeIds.has(transition.id));
     }
 
     function ensureDefaultBoundaryTransitions(parent, states) {
@@ -3874,17 +3841,19 @@
         const to = byId(transition.to);
         return Boolean(from && to);
       });
-      pruneAutoExpandedBoundaryFlows(parent, "input");
-      pruneAutoExpandedBoundaryFlows(parent, "output");
       const inputState = configuredBoundaryState(parent, "input", states);
       const outputState = configuredBoundaryState(parent, "output", states);
-      const hasOuterInputLanes = parentLayerTransitions(parent, "input").length > 0;
-      const hasOuterOutputLanes = parentLayerTransitions(parent, "output").length > 0;
-      if (inputState && !hasOuterInputLanes && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
-        ensureBoundaryFlowTransition(parent, "input", inputState, { auto: true });
+      const parentInputLanes = parentBoundaryLaneDescriptors(parent, "input");
+      const parentOutputLanes = parentBoundaryLaneDescriptors(parent, "output");
+      if (inputState && parentInputLanes.length) {
+        for (const lane of parentInputLanes) ensureBoundaryFlowTransition(parent, "input", inputState, { laneId: lane.id });
+      } else if (inputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "input")) {
+        ensureBoundaryFlowTransition(parent, "input", inputState);
       }
-      if (outputState && !hasOuterOutputLanes && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
-        ensureBoundaryFlowTransition(parent, "output", outputState, { auto: true });
+      if (outputState && parentOutputLanes.length) {
+        for (const lane of parentOutputLanes) ensureBoundaryFlowTransition(parent, "output", outputState, { laneId: lane.id });
+      } else if (outputState && !model.transitions.some(transition => transition.boundaryFlow?.parentId === parent.id && transition.boundaryFlow?.side === "output")) {
+        ensureBoundaryFlowTransition(parent, "output", outputState);
       }
     }
 
@@ -6050,66 +6019,6 @@
       return index < 0 ? Number.MAX_SAFE_INTEGER : index;
     }
 
-    function routeSignature(points) {
-      return compactRoutePoints(points)
-        .map(point => `${Math.round(point.x * 10) / 10},${Math.round(point.y * 10) / 10}`)
-        .join(";");
-    }
-
-    function fanOutDuplicateRoute(points, offset) {
-      const compact = compactRoutePoints(points);
-      if (!offset || compact.length < 2) return compact;
-      const start = compact[0];
-      const end = compact[compact.length - 1];
-      const forward = end.x >= start.x;
-      const startApproach = compact[1] || {
-        x: start.x + (forward ? GRID_SIZE * 2 : -GRID_SIZE * 2),
-        y: start.y
-      };
-      const endApproach = compact[compact.length - 2] || {
-        x: end.x - GRID_SIZE * 2,
-        y: end.y
-      };
-      const horizontalSpan = Math.abs(endApproach.x - startApproach.x) >= Math.abs(endApproach.y - startApproach.y);
-      if (horizontalSpan) {
-        const laneY = (startApproach.y + endApproach.y) / 2 + offset;
-        return compactRoutePoints([
-          start,
-          { x: startApproach.x, y: start.y },
-          { x: startApproach.x, y: laneY },
-          { x: endApproach.x, y: laneY },
-          { x: endApproach.x, y: end.y },
-          end
-        ]);
-      }
-      const laneX = (startApproach.x + endApproach.x) / 2 + offset;
-      return compactRoutePoints([
-        start,
-        { x: laneX, y: start.y },
-        { x: laneX, y: end.y },
-        end
-      ]);
-    }
-
-    function fanOutExactDuplicateRoutes(routes) {
-      const groups = new Map();
-      for (const [transitionId, points] of routes) {
-        const key = routeSignature(points);
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(transitionId);
-      }
-      const next = new Map(routes);
-      for (const ids of groups.values()) {
-        if (ids.length <= 1) continue;
-        const ordered = ids.slice().sort((a, b) => edgeOrder(a) - edgeOrder(b));
-        ordered.forEach((id, index) => {
-          const offset = (index - (ordered.length - 1) / 2) * 14;
-          next.set(id, fanOutDuplicateRoute(next.get(id), offset));
-        });
-      }
-      return next;
-    }
-
     function routeSegmentRecords(routes) {
       const records = [];
       for (const [transitionId, points] of routes) {
@@ -6192,7 +6101,7 @@
     }
 
     function resolveRouteOverlaps(routes) {
-      let current = fanOutExactDuplicateRoutes(new Map([...routes].map(([id, points]) => [id, points.map(point => ({ ...point }))])));
+      let current = new Map([...routes].map(([id, points]) => [id, points.map(point => ({ ...point }))]));
       for (let pass = 0; pass < 8; pass++) {
         const groups = overlappingRouteGroups(current);
         if (!groups.length) break;
@@ -6223,7 +6132,6 @@
         const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition) : null;
         if (rerouted) current.set(id, ensureLeftInputApproach(rerouted));
       }
-      current = fanOutExactDuplicateRoutes(current);
       for (const [id, points] of current) {
         current.set(id, ensureLeftInputApproach(points));
       }
