@@ -834,9 +834,9 @@
     }
 
     .port {
-      background: var(--accent);
+      background: #94a3b8;
       right: -8px;
-      box-shadow: 0 0 0 3px rgba(56,189,248,.18);
+      box-shadow: 0 0 0 3px rgba(148,163,184,.16);
       cursor: cell;
       touch-action: none;
     }
@@ -6022,7 +6022,7 @@
     }
 
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
-      const point = edgePortPoint(state, side, transition);
+      const point = snapPointToGrid(edgePortPoint(state, side, transition));
       const slot = document.createElement("div");
       const classes = ["port-slot", side === "out" ? "port-slot-output" : "port-slot-input"];
       if (edgeSelection.has(transition.id)) classes.push("selected");
