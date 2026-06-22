@@ -6488,6 +6488,37 @@
       return [
         ...componentTemplates,
         {
+          id: "builtin_show_toast",
+          rootStateId: "builtin_show_toast",
+          title: "Show toast",
+          body: "",
+          components: [
+            {
+              id: "builtin_show_toast_heading",
+              type: "heading",
+              text: "Toast anzeigen",
+              url: ""
+            },
+            {
+              id: "builtin_show_toast_note",
+              type: "note",
+              text: "Gespeichert. Die Aktion wurde erfolgreich ausgeführt.",
+              url: ""
+            },
+            {
+              id: "builtin_show_toast_text",
+              type: "text",
+              text: "Kurze sichtbare Rückmeldung für den nächsten Prozessschritt.",
+              url: ""
+            }
+          ],
+          data: {
+            toastVariant: "success",
+            toastMessage: "Gespeichert"
+          },
+          builtIn: true
+        },
+        {
           id: "builtin_fetch_data",
           rootStateId: "builtin_fetch_data",
           title: "Fetch data",
