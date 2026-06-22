@@ -935,6 +935,30 @@
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--edge-color, #5f8dbc) 30%, transparent), 0 0 14px var(--edge-color, #5f8dbc);
     }
 
+    .port-slot {
+      opacity: 0;
+      width: 28px;
+      height: 28px;
+      border-color: transparent !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+
+    .edge-pin {
+      fill: var(--edge-color, #38bdf8) !important;
+      stroke: #06121f !important;
+      stroke-width: 3px !important;
+      vector-effect: non-scaling-stroke;
+      pointer-events: auto;
+      cursor: grab;
+    }
+
+    .edge-pin.selected,
+    .edge-pin:hover {
+      stroke: var(--selected) !important;
+      filter: drop-shadow(0 0 5px rgba(245,158,11,.65));
+    }
+
 
     .preview {
       min-width: 0;
