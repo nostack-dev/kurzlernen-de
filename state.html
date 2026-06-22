@@ -6334,7 +6334,7 @@
         });
 
         el.addEventListener("dragover", evt => {
-          if (!evt.dataTransfer.types.includes("text/state-template-id")) return;
+          if (!hasTemplateDrag(evt)) return;
           evt.preventDefault();
           evt.dataTransfer.dropEffect = "copy";
           el.classList.add("inner-drop-target");
@@ -7242,7 +7242,7 @@
       renderChildJumpList(s, root);
       const innerDropZone = root.querySelector("#pInnerDropZone");
       innerDropZone.addEventListener("dragover", evt => {
-        if (!evt.dataTransfer.types.includes("text/state-template-id")) return;
+        if (!hasTemplateDrag(evt)) return;
         evt.preventDefault();
         evt.dataTransfer.dropEffect = "copy";
         innerDropZone.classList.add("drag-over");
@@ -8003,6 +8003,14 @@
       return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
     }
 
+    function hasTemplateDrag(evt) {
+      const types = evt.dataTransfer?.types;
+      if (!types) return false;
+      if (typeof types.includes === "function") return types.includes("text/state-template-id");
+      if (typeof types.contains === "function") return types.contains("text/state-template-id");
+      return Array.from(types).includes("text/state-template-id");
+    }
+
     function renderStateExplorer() {
       stateExplorerListEl.innerHTML = "";
       const stopAction = evt => evt.stopPropagation();
@@ -8017,8 +8025,10 @@
         card.draggable = true;
         card.dataset.templateId = template.id;
         card.addEventListener("dragstart", evt => {
+          evt.stopPropagation();
           evt.dataTransfer.effectAllowed = "copy";
           evt.dataTransfer.setData("text/state-template-id", template.id);
+          evt.dataTransfer.setData("text/plain", template.title || template.id);
         });
       };
       const componentCards = builtinStateTemplates().map(template => {
@@ -8870,8 +8880,30 @@
       stateExplorerEl.classList.remove("drag-over");
     });
 
+    function isTemplateCanvasDrop(evt) {
+      if (!hasTemplateDrag(evt)) return false;
+      if (!pointInElement(evt.clientX, evt.clientY, mapEl)) return false;
+      if (evt.target?.closest?.(".node, .inner-state-dropzone")) return false;
+      return true;
+    }
+
+    document.addEventListener("dragover", evt => {
+      if (!isTemplateCanvasDrop(evt)) return;
+      evt.preventDefault();
+      evt.dataTransfer.dropEffect = "copy";
+    }, { capture: true });
+
+    document.addEventListener("drop", evt => {
+      if (!isTemplateCanvasDrop(evt)) return;
+      const templateId = evt.dataTransfer.getData("text/state-template-id");
+      if (!templateId) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      addTemplateAt(templateId, evt.clientX, evt.clientY);
+    }, { capture: true });
+
     mapEl.addEventListener("dragover", evt => {
-      if (!evt.dataTransfer.types.includes("text/state-template-id")) return;
+      if (!hasTemplateDrag(evt)) return;
       evt.preventDefault();
       evt.dataTransfer.dropEffect = "copy";
     });
