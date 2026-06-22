@@ -6338,8 +6338,6 @@
 
       for (const tipHit of edgeTipHits) wiresEl.appendChild(tipHit);
 
-      for (const state of states) addSvgStatePorts(state);
-
       if (connecting) {
         const from = byId(connecting.from);
         const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
@@ -6493,6 +6491,8 @@
           newEl.focus({ preventScroll: true });
         }
       }
+      for (const state of states) addSvgStatePorts(state);
+
       updateSelectionActions();
       requestMapCanvasPaint();
     }
