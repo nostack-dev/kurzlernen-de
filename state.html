@@ -4144,7 +4144,7 @@
 
     function isEmptyCanvasTarget(target) {
       if (!target || !mapEl.contains(target)) return false;
-      if (target.closest?.(".state-explorer, .node:not(.boundary-proxy), .port, .input-port, .port-slot, .edge, .edge-arrow, .hit, .edge-label, .edge-tip-hit, .edge-pin, button, input, textarea, select, [contenteditable]")) return false;
+      if (target.closest?.(".node:not(.boundary-proxy), .port, .input-port, .port-slot, .edge, .edge-arrow, .hit, .edge-label, .edge-tip-hit, .edge-pin, button, input, textarea, select, [contenteditable]")) return false;
       return true;
     }
 
@@ -8016,10 +8016,6 @@
         card.draggable = true;
         card.dataset.templateId = template.id;
         card.addEventListener("dragstart", evt => {
-          evt.stopPropagation();
-          pendingCanvasMouse = null;
-          panning = null;
-          mapEl.classList.remove("panning");
           evt.dataTransfer.effectAllowed = "copy";
           evt.dataTransfer.setData("text/state-template-id", template.id);
         });
@@ -8858,13 +8854,6 @@
       applyStateExplorerCollapsed();
     };
     btnAddStateTemplate.onclick = () => addBlankStateTemplate();
-
-    stateExplorerEl.addEventListener("mousedown", evt => {
-      evt.stopPropagation();
-    });
-    stateExplorerEl.addEventListener("pointerdown", evt => {
-      evt.stopPropagation();
-    }, { passive: true });
 
     stateExplorerEl.addEventListener("dragenter", evt => {
       evt.preventDefault();
