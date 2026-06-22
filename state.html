@@ -3807,8 +3807,8 @@
           id,
           from: side === "input" ? inputProxyId : state.id,
           to: side === "input" ? state.id : outputProxyId,
-          fromPortId: side === "input" ? laneId : "",
-          toPortId: side === "output" ? laneId : "",
+          fromPortId: side === "input" ? laneId : flowLaneId,
+          toPortId: side === "input" ? (opts.targetPortId || flowLaneId) : laneId,
           label: side === "input" ? "IN" : "OUT",
           condition: "",
           set: {},
@@ -3819,8 +3819,14 @@
       } else {
         transition.from = side === "input" ? inputProxyId : state.id;
         transition.to = side === "input" ? state.id : outputProxyId;
-        if (side === "input") transition.fromPortId = laneId;
-        if (side === "output") transition.toPortId = laneId;
+        if (side === "input") {
+          transition.fromPortId = laneId;
+          transition.toPortId = opts.targetPortId || flowLaneId;
+        }
+        if (side === "output") {
+          transition.fromPortId = flowLaneId;
+          transition.toPortId = laneId;
+        }
         transition.boundaryFlow = { parentId, side, stateId: state.id, laneId: flowLaneId, proxyLaneId: laneId };
         normalizeTransitionPorts(transition);
       }
@@ -4164,6 +4170,7 @@
         setBoundaryEndpoint(parent, "input", target.id);
         const transition = ensureBoundaryFlowTransition(parent, "input", target, {
           laneId: opts.fromPortId || from.virtualProxy.transitionId || defaultBoundaryLaneId("input"),
+          targetPortId: opts.targetPortId || "",
           forceNew: connecting?.mode === "new"
         });
         selected = selectionFromParts([], [transition.id]);
