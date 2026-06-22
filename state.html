@@ -9003,12 +9003,14 @@
             return;
           }
           const fromBoundary = byId(connecting.from);
-          if (fromBoundary?.virtualProxy?.side === "input") {
+          if (fromBoundary?.virtualProxy) {
             model.states.push(s);
-            const parent = currentLayerContainer();
-            setBoundaryEndpoint(parent, "input", s.id);
-            ensureDefaultBoundaryTransitions(parent, statesInLayer(currentLayerId));
-            selected = selectionFromParts([s.id], []);
+            const boundary = finishBoundaryConnection(connecting.from, s.id, {
+              fromPortId: connecting.fromPortId || "",
+              targetPortId: "",
+              explicitTargetPort: false
+            });
+            selected = selectionFromParts([s.id], boundary ? [boundary.id] : []);
             saveModel();
             connecting = null;
             connectingTargetId = null;
