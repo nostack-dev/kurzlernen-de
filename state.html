@@ -4773,6 +4773,7 @@
     function updateDraggedStateEdges(stateId) {
       recordRouteMetric("liveDragRouteBuilds");
       for (const transition of visibleTransitions()) {
+        if (transition.from !== stateId && transition.to !== stateId) continue;
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (!from || !to) continue;
@@ -4799,18 +4800,56 @@
           el.setAttribute("x", String(middle.x));
           el.setAttribute("y", String(middle.y));
         } else if (el.matches("circle.edge-pin")) {
-          if (el.dataset.pin === "start") {
+          if (el.dataset.edgePin === "out") {
             el.setAttribute("cx", String(startPin.x));
             el.setAttribute("cy", String(startPin.y));
           } else {
             el.setAttribute("cx", String(endPin.x));
             el.setAttribute("cy", String(endPin.y));
           }
-        } else if (el.matches("rect.edge-tip-hit")) {
-          el.setAttribute("x", String(tip.x - 12));
-          el.setAttribute("y", String(tip.y - 12));
+        } else if (el.matches("circle.edge-tip-hit")) {
+          el.setAttribute("cx", String(tip.x));
+          el.setAttribute("cy", String(tip.y));
         }
       }
+    }
+
+    function connectingPreviewPoints() {
+      if (!connecting) return null;
+      const from = byId(connecting.from);
+      if (!from) return null;
+      const sourceSide = connecting?.fromSide || (from?.virtualProxy ? connectionStartSide(from) : "out");
+      const target = connectingTargetId ? byId(connectingTargetId) : null;
+      if (target) return sourceSide === "out" ? edgeRoutePoints(from, target) : draftConnectionRoute(from, target, sourceSide);
+      const a = nodeCenter(from, sourceSide);
+      const b = snapPointToGrid(connecting.to);
+      const stepX = sourceSide === "in" ? -GRID_SIZE * 2 : GRID_SIZE * 2;
+      return [
+        a,
+        { x: a.x + stepX, y: a.y },
+        { x: a.x + stepX, y: b.y },
+        b
+      ];
+    }
+
+    function updateConnectingPreview() {
+      if (!connecting) return false;
+      const points = connectingPreviewPoints();
+      if (!points?.length) return false;
+      let temp = wiresEl.querySelector(".temp-edge");
+      if (!temp) {
+        temp = svgEl("path", { d: "", class: "temp-edge" });
+        wiresEl.appendChild(temp);
+      }
+      temp.setAttribute("d", pathFromPoints(points));
+      document.querySelectorAll(".node.drop-target").forEach(el => {
+        el.classList.toggle("drop-target", el.dataset.id === connectingTargetId);
+      });
+      if (connectingTargetId) {
+        const targetEl = nodeElement(connectingTargetId);
+        if (targetEl) targetEl.classList.add("drop-target");
+      }
+      return true;
     }
 
     function liveDoglegRoutePoints(from, to) {
@@ -8272,7 +8311,7 @@
         const target = connectionTargetAtWorldPoint(connecting.to);
         const nextTargetId = target?.id || null;
         if (nextTargetId !== connectingTargetId) connectingTargetId = nextTargetId;
-        scheduleDraw();
+        updateConnectingPreview();
       }
     }
 
