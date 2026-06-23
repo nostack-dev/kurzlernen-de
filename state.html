@@ -8366,6 +8366,216 @@
       return "Response: " + label;
     }
 
+    function dataPathLabel(path, fallback = "Value") {
+      const raw = String(path || "").split(".").filter(Boolean).pop() || fallback;
+      const spaced = raw
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/[_-]+/g, " ")
+        .trim();
+      return (spaced || fallback).replace(/^./, ch => ch.toUpperCase());
+    }
+
+    function isScalarDataValue(value) {
+      return value == null || ["string", "number", "boolean"].includes(typeof value);
+    }
+
+    function collectScalarDataLeaves(value, prefix = "", out = [], depth = 0) {
+      if (depth > 7 || out.length > 80) return out;
+      if (Array.isArray(value)) {
+        if (!value.length) return out;
+        const sample = value.find(item => item && typeof item === "object") ?? value[0];
+        collectScalarDataLeaves(sample, prefix, out, depth + 1);
+        return out;
+      }
+      if (isScalarDataValue(value)) {
+        if (prefix) out.push({ path: prefix, value });
+        return out;
+      }
+      if (!value || typeof value !== "object") return out;
+      Object.entries(value).slice(0, 50).forEach(([key, child]) => {
+        collectScalarDataLeaves(child, prefix ? prefix + "." + key : key, out, depth + 1);
+      });
+      return out;
+    }
+
+    function looksLikeImagePath(path) {
+      return /\b(image|images|img|thumbnail|thumb|photo|picture|avatar|cover|poster|logo|icon|media|src)\b/i.test(String(path || ""));
+    }
+
+    function looksLikeImageValue(value) {
+      const text = String(value || "").trim();
+      if (!text) return false;
+      if (/^data:image\//i.test(text)) return true;
+      if (/\.(png|jpe?g|gif|webp|avif|svg)(?:[?#].*)?$/i.test(text)) return true;
+      return /^https?:\/\//i.test(text) && /\b(image|img|photo|thumb|cover|avatar|cdn|cloudinary|unsplash|picsum)\b/i.test(text);
+    }
+
+    function dataFieldScore(entry, kind) {
+      const path = String(entry?.path || "");
+      const name = path.split(".").pop() || path;
+      const value = entry?.value;
+      const text = String(value ?? "");
+      let score = 0;
+      if (kind === "image") {
+        if (looksLikeImagePath(path)) score += 70;
+        if (looksLikeImageValue(value)) score += 90;
+      } else if (kind === "title") {
+        if (/\b(title|name|label|headline|heading|product|subject|caption)\b/i.test(name)) score += 80;
+        if (/\b(slug|id|uuid|url|image|description|desc|body|content)\b/i.test(name)) score -= 45;
+        if (typeof value === "string" && text.length > 0 && text.length <= 72) score += 18;
+      } else if (kind === "price") {
+        if (/\b(price|amount|cost|total|value|rate|fee|salary|budget|balance)\b/i.test(name)) score += 80;
+        if (typeof value === "number" || /^\s*[$€£]?\s*\d+(?:[.,]\d+)?\s*[$€£]?\s*$/.test(text)) score += 24;
+      } else if (kind === "description") {
+        if (/\b(description|desc|summary|body|text|content|details|about|bio)\b/i.test(name)) score += 85;
+        if (typeof value === "string" && text.length >= 60) score += 24;
+        if (/\b(id|uuid|slug|url|image|price|amount)\b/i.test(name)) score -= 35;
+      } else if (kind === "extra") {
+        if (/\b(id|uuid|url|image|description|desc|body|content)\b/i.test(name)) score -= 40;
+        if (typeof value === "string" && text.length > 0 && text.length <= 48) score += 22;
+        if (typeof value === "number" || typeof value === "boolean") score += 18;
+        if (/\b(category|brand|type|status|rating|stock|count)\b/i.test(path)) score += 24;
+      }
+      return score;
+    }
+
+    function bestDataLeaf(leaves, kind, used = new Set()) {
+      return leaves
+        .filter(entry => entry?.path && !used.has(entry.path))
+        .map(entry => ({ entry, score: dataFieldScore(entry, kind) }))
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score || a.entry.path.localeCompare(b.entry.path))[0]?.entry || null;
+    }
+
+    function pickDerivedRepeatFields(sample) {
+      const leaves = collectScalarDataLeaves(sample).filter(entry => entry.path);
+      const used = new Set();
+      const image = bestDataLeaf(leaves, "image", used);
+      if (image) used.add(image.path);
+      const title = bestDataLeaf(leaves, "title", used);
+      if (title) used.add(title.path);
+      const price = bestDataLeaf(leaves, "price", used);
+      if (price) used.add(price.path);
+      const description = bestDataLeaf(leaves, "description", used);
+      if (description) used.add(description.path);
+      const extras = leaves
+        .filter(entry => !used.has(entry.path))
+        .map(entry => ({ entry, score: dataFieldScore(entry, "extra") }))
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score || a.entry.path.localeCompare(b.entry.path))
+        .slice(0, 2)
+        .map(item => item.entry);
+      return { image, title, price, description, extras };
+    }
+
+    function repeatBinding(alias, path) {
+      const cleanAlias = normalizeContextPath(alias || "item", "item") || "item";
+      const cleanPath = normalizeContextPath(path || "", "");
+      return `{{${cleanAlias}${cleanPath ? "." + cleanPath : ""}}}`;
+    }
+
+    function componentForDataField(path, value, alias = "item") {
+      const binding = repeatBinding(alias, path);
+      const label = dataPathLabel(path, "Value");
+      if (looksLikeImagePath(path) || looksLikeImageValue(value)) {
+        return { id: uid("c"), type: "image", text: "", url: binding, generatedFromRepeat: true };
+      }
+      if (dataFieldScore({ path, value }, "title") >= 70) {
+        return { id: uid("c"), type: "heading", text: binding, url: "", generatedFromRepeat: true };
+      }
+      return { id: uid("c"), type: "text", text: `${label}: ${binding}`, variant: "field", url: "", generatedFromRepeat: true };
+    }
+
+    function derivedRepeatComponents(sample, alias = "item") {
+      const fields = pickDerivedRepeatFields(sample || {});
+      const components = [];
+      if (fields.image) {
+        components.push({
+          id: uid("c"),
+          type: "image",
+          text: fields.title ? repeatBinding(alias, fields.title.path) : "",
+          url: repeatBinding(alias, fields.image.path),
+          generatedFromRepeat: true
+        });
+      }
+      if (fields.title) {
+        components.push({ id: uid("c"), type: "heading", text: repeatBinding(alias, fields.title.path), url: "", generatedFromRepeat: true });
+      }
+      if (fields.price) {
+        components.push({
+          id: uid("c"),
+          type: "text",
+          text: `${dataPathLabel(fields.price.path, "Price")}: ${repeatBinding(alias, fields.price.path)}`,
+          variant: "field",
+          url: "",
+          generatedFromRepeat: true
+        });
+      }
+      if (fields.description) {
+        components.push({ id: uid("c"), type: "text", text: repeatBinding(alias, fields.description.path), url: "", generatedFromRepeat: true });
+      }
+      for (const extra of fields.extras) {
+        components.push({
+          id: uid("c"),
+          type: "text",
+          text: `${dataPathLabel(extra.path, "Value")}: ${repeatBinding(alias, extra.path)}`,
+          variant: "field",
+          url: "",
+          generatedFromRepeat: true
+        });
+      }
+      if (!components.length) {
+        components.push({ id: uid("c"), type: "text", text: "Item {{i}}", variant: "field", url: "", generatedFromRepeat: true });
+      }
+      return components;
+    }
+
+    function repeatSampleForPath(path, owner = null) {
+      const key = normalizeContextPath(path, "");
+      if (!key) return null;
+      const sources = [];
+      if (isPlainObject(latestRuntimeContext)) sources.push(latestRuntimeContext);
+      if (owner) sources.push(normalizeDataObject(owner.data));
+      for (const state of model.states || []) sources.push(normalizeDataObject(state.data));
+      for (const source of sources) {
+        const value = jsonValueAtPath(source, key);
+        if (value !== undefined) return Array.isArray(value) ? (value.find(item => item && typeof item === "object") ?? value[0] ?? null) : value;
+      }
+      const dataSource = owner ? normalizeDataSource(owner.dataSource || owner.fetch) : normalizeDataSource(null);
+      if (key.endsWith(".data") && /products/i.test(String(dataSource.url || ""))) {
+        return { id: 1, title: "Product name", price: 42, description: "Short product description.", images: ["https://example.com/product.jpg"] };
+      }
+      if (key.endsWith(".data")) {
+        return { title: "Item title", description: "Readable description.", image: "https://example.com/image.jpg", value: 1 };
+      }
+      return null;
+    }
+
+    function isGeneratedRepeatComponent(component) {
+      if (component?.generatedFromRepeat) return true;
+      const text = String(component?.text || "");
+      const url = String(component?.url || "");
+      const combined = text + "\n" + url;
+      if (/Fetches structured data when this state is entered|Set the endpoint in Data source|bind loading|bind success/i.test(combined)) return true;
+      if (combined === "{{fetch.data}}" || combined === "{{item}}" || combined === "Item: {{item}}") return true;
+      return /{{item(?:\.|\})/.test(combined) && ["image", "heading", "text", "note"].includes(component?.type || "text");
+    }
+
+    function shouldReplaceRepeatComponents(components) {
+      const normalized = normalizeComponents(components);
+      return !normalized.length || normalized.every(isGeneratedRepeatComponent);
+    }
+
+    function applyDerivedRepeatComponents(owner, repeatPath, root = null, force = false) {
+      if (!owner || !normalizeContextPath(repeatPath, "")) return false;
+      if (!force && !shouldReplaceRepeatComponents(owner.components)) return false;
+      const repeat = normalizeRepeatConfig(owner.repeat);
+      const sample = repeatSampleForPath(repeatPath, owner);
+      owner.components = derivedRepeatComponents(sample, repeat.as || "item");
+      if (root) renderComponentEditors(owner, null, root, { skipLiveStateSync: true });
+      return true;
+    }
+
     function ensureFetchContainerState(parent, dataSource) {
       const existing = statesInLayer(parent.id).find(child => String(child.title || "").toLowerCase() === "fetch");
       const fetchState = existing || makeState(nextChildPosition(parent.id).x, nextChildPosition(parent.id).y, "Fetch", parent.id);
@@ -8402,7 +8612,7 @@
         const title = responseStateTitle(path);
         const key = title.toLowerCase();
         const binding = Array.isArray(selectedValue)
-          ? (path ? `{{item.${path}}}` : "{{item}}")
+          ? (path ? repeatBinding("item", path) : "")
           : (path ? `{{${target}.data.${path}}}` : `{{${target}.data}}`);
         let child = existingByTitle.get(key);
         if (!child) {
@@ -8413,13 +8623,10 @@
           created += 1;
         }
         child.components = Array.isArray(selectedValue) && !path
-          ? [
-              { id: uid("c"), type: "image", text: "{{item.title}}", url: "{{item.images.0}}" },
-              { id: uid("c"), type: "heading", text: "{{item.title}}", url: "" },
-              { id: uid("c"), type: "text", text: "Price: {{item.price}}", variant: "field", url: "" },
-              { id: uid("c"), type: "text", text: "{{item.description}}", url: "" }
-            ]
-          : [{ id: uid("c"), type: "text", text: binding }];
+          ? derivedRepeatComponents(sample, "item")
+          : [Array.isArray(selectedValue)
+              ? componentForDataField(path, jsonValueAtPath(sample, path), "item")
+              : { id: uid("c"), type: "text", text: binding, generatedFromRepeat: true }];
         child.body = "";
         child.subscriptions = [Array.isArray(selectedValue) ? `${target}.data` : (path ? `${target}.data.${path}` : `${target}.data`)];
       }
@@ -8537,28 +8744,30 @@
         if (!key || map.has(key)) return;
         map.set(key, label);
       };
-      const collectArrayOptions = (value, prefix, map, depth = 0) => {
+      const collectArrayOptions = (value, prefix, map, depth = 0, label = "Data array") => {
         if (!prefix || depth > 5 || map.size > 160) return;
         if (Array.isArray(value)) {
-          addOption(map, prefix, "Runtime array");
-          if (value.length) collectArrayOptions(value[0], prefix, map, depth + 1);
+          addOption(map, prefix, label);
+          if (value.length) collectArrayOptions(value[0], prefix, map, depth + 1, label);
           return;
         }
         if (!value || typeof value !== "object") return;
         Object.entries(value).slice(0, 40).forEach(([key, child]) => {
-          collectArrayOptions(child, prefix ? prefix + "." + key : key, map, depth + 1);
+          collectArrayOptions(child, prefix ? prefix + "." + key : key, map, depth + 1, label);
         });
       };
       const refreshOptions = () => {
         const map = new Map();
         if (isPlainObject(latestRuntimeContext)) {
-          Object.entries(latestRuntimeContext).forEach(([key, value]) => collectArrayOptions(value, key, map));
+          Object.entries(latestRuntimeContext).forEach(([key, value]) => collectArrayOptions(value, key, map, 0, "Runtime array"));
         }
         for (const state of model.states || []) {
+          const stateLabel = state.title || state.id;
+          Object.entries(normalizeDataObject(state.data)).forEach(([key, value]) => collectArrayOptions(value, key, map, 0, `${stateLabel} data array`));
           const source = normalizeDataSource(state.dataSource || state.fetch);
-          if (String(source.url || "").trim()) addOption(map, normalizeContextPath(source.target, "fetch") + ".data", `${state.title || state.id} fetch data`);
+          if (String(source.url || "").trim()) addOption(map, normalizeContextPath(source.target, "fetch") + ".data", `${stateLabel} fetch data`);
           const repeat = normalizeRepeatConfig(state.repeat);
-          if (repeat.path) addOption(map, repeat.path, `${state.title || state.id} repeat`);
+          if (repeat.path) addOption(map, repeat.path, `${stateLabel} repeat`);
         }
         if (owner.repeat?.path) addOption(map, owner.repeat.path, "Current repeat");
         const current = normalizeContextPath(path.value || owner.repeat?.path, "");
@@ -8585,13 +8794,19 @@
       path.value = owner.repeat.path;
       as.value = "item";
       index.value = "i";
+      let previousRepeatPath = normalizeContextPath(owner.repeat.path, "");
       const update = (persist = true) => {
+        const oldPath = previousRepeatPath;
         owner.repeat = normalizeRepeatConfig({ path: path.value, as: "item", index: "i" });
         as.value = owner.repeat.as;
         index.value = owner.repeat.index;
         preview.textContent = owner.repeat.path ? `Repeating ${owner.repeat.path}` : "";
         preview.hidden = !owner.repeat.path;
         preview.className = "condition-preview compact-repeat-preview" + (owner.repeat.path ? " ok" : " empty");
+        if (persist && owner.repeat.path && owner.repeat.path !== oldPath) {
+          applyDerivedRepeatComponents(owner, owner.repeat.path, root, false);
+        }
+        previousRepeatPath = normalizeContextPath(owner.repeat.path, "");
         if (persist) persistOwner(`${historyPrefix}:repeat`);
       };
       path.onfocus = refreshOptions;
@@ -9206,34 +9421,22 @@
         if (repeatPathInput) repeatPathInput.value = s.repeat.path;
         if (repeatAsInput) repeatAsInput.value = s.repeat.as;
         if (repeatIndexInput) repeatIndexInput.value = s.repeat.index;
-        const binding = itemPath ? `{{${s.repeat.as}.${itemPath}}}` : "";
-        const labelKey = (itemPath.split(".").filter(Boolean).slice(-1)[0] || "item");
-        const prettyLabel = labelKey.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/^./, ch => ch.toUpperCase());
-        const text = itemPath ? `${prettyLabel}: ${binding}` : "";
         const isFetchPlaceholder = value => /Fetches structured data when this state is entered|Set the endpoint in Data source|bind loading|bind success/i.test(String(value || ""));
         if (isFetchPlaceholder(s.body)) s.body = "";
         s.components = normalizeComponents(s.components).filter(component =>
           !isFetchPlaceholder(component.text) &&
           !isFetchPlaceholder(component.url) &&
-          component.text !== "{{fetch.data}}" &&
-          component.text !== "{{item}}" &&
-          component.text !== "Item: {{item}}"
+          component.text !== "{{fetch.data}}"
         );
         if (!itemPath) {
-          const defaults = [
-            { type: "image", text: `{{${s.repeat.as}.title}}`, url: `{{${s.repeat.as}.images.0}}` },
-            { type: "heading", text: `{{${s.repeat.as}.title}}`, url: "" },
-            { type: "text", text: `Price: {{${s.repeat.as}.price}}`, variant: "field", url: "" },
-            { type: "text", text: `{{${s.repeat.as}.description}}`, url: "" }
-          ];
-          for (const component of defaults) {
-            if (!s.components.some(existing => existing.type === component.type && existing.text === component.text && existing.url === component.url)) {
-              s.components.push({ id: uid("c"), ...component });
-            }
+          applyDerivedRepeatComponents(s, dataPrefix, root, true);
+        } else {
+          const sample = repeatSampleForPath(dataPrefix, s);
+          const sampleValue = sample ? jsonValueAtPath(sample, itemPath) : undefined;
+          const component = componentForDataField(itemPath, sampleValue, s.repeat.as);
+          if (!s.components.some(existing => existing.text === component.text && existing.url === component.url && existing.type === component.type)) {
+            s.components.push(component);
           }
-          renderComponentEditors(s, null, root, { skipLiveStateSync: true });
-        } else if (!s.components.some(component => component.text === text || component.text === binding || component.url === binding)) {
-          s.components.push({ id: uid("c"), type: "text", text, variant: "field" });
           renderComponentEditors(s, null, root, { skipLiveStateSync: true });
         }
         saveModel("state:global-fetch-field:" + s.id);

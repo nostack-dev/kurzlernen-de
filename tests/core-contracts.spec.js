@@ -96,6 +96,17 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("grid-template-columns: minmax(0, 1fr) auto");
   });
 
+  test("repeat sources derive readable components from array samples @smoke", () => {
+    const html = stateHtml();
+
+    expect(html).toContain("function derivedRepeatComponents");
+    expect(html).toContain("function pickDerivedRepeatFields");
+    expect(html).toContain("function repeatSampleForPath");
+    expect(html).toContain("generatedFromRepeat");
+    expect(html).toContain("applyDerivedRepeatComponents(owner, owner.repeat.path, root, false)");
+    expect(html).toContain("derivedRepeatComponents(sample, \"item\")");
+  });
+
   test("fetch runtime uses one fresh active run, not a response cache @smoke", () => {
     const html = stateHtml();
 
