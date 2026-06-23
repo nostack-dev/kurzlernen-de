@@ -2534,6 +2534,41 @@
       align-items: stretch;
     }
 
+
+    .component-editor {
+      transition: border-color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .component-editor.dragging {
+      opacity: .55;
+      transform: scale(.992);
+    }
+    .component-editor.drop-before {
+      border-top: 3px solid var(--accent);
+      padding-top: 10px;
+    }
+    .component-editor.drop-after {
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 10px;
+    }
+    .component-drag-handle {
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      min-height: 28px;
+      padding: 0;
+      border-radius: 999px;
+      background: rgba(148,163,184,.14);
+      color: #cbd5e1;
+      box-shadow: none;
+      cursor: grab;
+      touch-action: none;
+      font-size: 15px;
+      line-height: 1;
+    }
+    .component-drag-handle:active {
+      cursor: grabbing;
+    }
+
   </style>
 </head>
 <body>
@@ -7638,6 +7673,25 @@
         draw();
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
+      let draggingComponentId = null;
+      const clearComponentDropMarks = () => {
+        list.querySelectorAll(".component-editor.drop-before,.component-editor.drop-after").forEach(el => el.classList.remove("drop-before", "drop-after"));
+      };
+      const moveComponentBefore = (dragId, targetId, after = false) => {
+        if (!dragId || !targetId || dragId === targetId) return false;
+        const components = normalizeComponents(s.components);
+        const fromIndex = components.findIndex(component => component.id === dragId);
+        let toIndex = components.findIndex(component => component.id === targetId);
+        if (fromIndex < 0 || toIndex < 0) return false;
+        const [moved] = components.splice(fromIndex, 1);
+        if (fromIndex < toIndex) toIndex -= 1;
+        components.splice(after ? toIndex + 1 : toIndex, 0, moved);
+        s.components = components;
+        persistOwner("state:component-order:" + dragId);
+        if (!options.skipLiveStateSync) scheduleSync(false);
+        rerender();
+        return true;
+      };
       const saveComponent = component => {
         if (!options.skipLiveStateSync) {
           const liveState = byId(s.id);
@@ -7667,34 +7721,48 @@
       for (const component of s.components) {
         const item = document.createElement("div");
         item.className = "component-editor";
+        item.addEventListener("dragover", evt => {
+          if (!draggingComponentId || draggingComponentId === component.id) return;
+          evt.preventDefault();
+          const rect = item.getBoundingClientRect();
+          const after = evt.clientY > rect.top + rect.height / 2;
+          clearComponentDropMarks();
+          item.classList.add(after ? "drop-after" : "drop-before");
+          evt.dataTransfer.dropEffect = "move";
+        });
+        item.addEventListener("dragleave", evt => {
+          if (!item.contains(evt.relatedTarget)) item.classList.remove("drop-before", "drop-after");
+        });
+        item.addEventListener("drop", evt => {
+          if (!draggingComponentId || draggingComponentId === component.id) return;
+          evt.preventDefault();
+          const rect = item.getBoundingClientRect();
+          const after = evt.clientY > rect.top + rect.height / 2;
+          const dragId = evt.dataTransfer.getData("text/plain") || draggingComponentId;
+          moveComponentBefore(dragId, component.id, after);
+        });
         const head = document.createElement("div");
         head.className = "component-editor-head";
         const label = document.createElement("span");
         label.textContent = componentTitle(component.type);
         label.className = "component-editor-title";
-        const moveComponent = delta => {
-          const index = s.components.indexOf(component);
-          const nextIndex = index + delta;
-          if (index < 0 || nextIndex < 0 || nextIndex >= s.components.length) return;
-          [s.components[index], s.components[nextIndex]] = [s.components[nextIndex], s.components[index]];
-          persistOwner("state:component-order:" + component.id);
-          if (!options.skipLiveStateSync) scheduleSync(false);
-          rerender();
-        };
-        const moveUp = document.createElement("button");
-        moveUp.type = "button";
-        moveUp.className = "component-editor-action icon-action";
-        moveUp.textContent = "↑";
-        moveUp.title = "Move up";
-        moveUp.disabled = s.components.indexOf(component) <= 0;
-        moveUp.onclick = () => moveComponent(-1);
-        const moveDown = document.createElement("button");
-        moveDown.type = "button";
-        moveDown.className = "component-editor-action icon-action";
-        moveDown.textContent = "↓";
-        moveDown.title = "Move down";
-        moveDown.disabled = s.components.indexOf(component) >= s.components.length - 1;
-        moveDown.onclick = () => moveComponent(1);
+        const dragHandle = document.createElement("button");
+        dragHandle.type = "button";
+        dragHandle.className = "component-drag-handle";
+        dragHandle.textContent = "⋮⋮";
+        dragHandle.title = "Drag to reorder";
+        dragHandle.draggable = true;
+        dragHandle.addEventListener("dragstart", evt => {
+          draggingComponentId = component.id;
+          item.classList.add("dragging");
+          evt.dataTransfer.effectAllowed = "move";
+          evt.dataTransfer.setData("text/plain", component.id);
+        });
+        dragHandle.addEventListener("dragend", () => {
+          draggingComponentId = null;
+          item.classList.remove("dragging");
+          clearComponentDropMarks();
+        });
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "component-editor-action danger";
@@ -7706,7 +7774,7 @@
         });
         const actions = document.createElement("div");
         actions.className = "component-editor-actions";
-        actions.append(moveUp, moveDown, remove);
+        actions.append(dragHandle, remove);
         head.append(label, actions);
         item.appendChild(head);
         if (component.type !== "divider") {
