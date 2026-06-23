@@ -8306,6 +8306,7 @@
       for (const state of states) addSvgStatePorts(state);
 
       applyRuntimeEdgePulses();
+      applyRuntimeStatePulses();
       updateSelectionActions();
       requestMapCanvasPaint();
     }
@@ -12471,8 +12472,11 @@
     });
 
     var RUNTIME_EDGE_PULSE_MS = 1220;
+    var RUNTIME_STATE_ENTER_PULSE_MS = 1120;
+    var RUNTIME_STATE_EXIT_PULSE_MS = 820;
     var runtimePulseSerial = 0;
     var activeRuntimeEdgePulses = new Map();
+    var activeRuntimeStatePulses = new Map();
 
     function applyRuntimeEdgePulses() {
       if (!(activeRuntimeEdgePulses instanceof Map)) activeRuntimeEdgePulses = new Map();
@@ -12545,26 +12549,84 @@
       return side === "input" ? portX <= nodeX : portX >= nodeX;
     }
 
+    function runtimeStatePulseDuration(mode) {
+      return mode === "exit" ? RUNTIME_STATE_EXIT_PULSE_MS : RUNTIME_STATE_ENTER_PULSE_MS;
+    }
+
+    function runtimeStatePulseClass(mode) {
+      return mode === "exit" ? "runtime-exit" : "runtime-enter";
+    }
+
+    function runtimeStatePulseKey(id, mode, portSide) {
+      return `${id}:${mode}:${portSide || ""}`;
+    }
+
+    function runtimeStatePulseElements(id, portSide) {
+      const elements = [];
+      const node = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(id)}"]`);
+      if (node) elements.push(node);
+      getPortOverlay().querySelectorAll(`.svg-port[data-state-id="${cssEscapeValue(id)}"]`).forEach(el => {
+        if (runtimePortMatchesSide(el, node, portSide)) elements.push(el);
+      });
+      return elements;
+    }
+
+    function cleanupRuntimeStatePulse(id, token, pulseClass, portSide) {
+      for (const el of runtimeStatePulseElements(id, portSide)) {
+        if (el.dataset.runtimeStatePulseToken !== token) continue;
+        el.classList.remove(pulseClass);
+        el.style.animationDelay = "";
+        delete el.dataset.runtimeStatePulseToken;
+      }
+    }
+
+    function applyRuntimeStatePulses() {
+      if (!(activeRuntimeStatePulses instanceof Map)) activeRuntimeStatePulses = new Map();
+      const now = performance.now();
+      for (const [key, pulse] of [...activeRuntimeStatePulses]) {
+        if (!pulse || pulse.until <= now) {
+          activeRuntimeStatePulses.delete(key);
+          if (pulse) cleanupRuntimeStatePulse(pulse.id, pulse.token, pulse.pulseClass, pulse.portSide);
+          continue;
+        }
+        const duration = runtimeStatePulseDuration(pulse.mode);
+        const elapsed = Math.max(0, Math.min(duration, now - (pulse.started || now)));
+        for (const el of runtimeStatePulseElements(pulse.id, pulse.portSide)) {
+          if (el.dataset.runtimeStatePulseToken === pulse.token && el.classList.contains(pulse.pulseClass)) continue;
+          el.classList.remove("runtime-enter", "runtime-exit");
+          el.style.animationDelay = elapsed ? `-${elapsed}ms` : "";
+          void el.getBoundingClientRect();
+          el.dataset.runtimeStatePulseToken = pulse.token;
+          el.classList.add("runtime", pulse.pulseClass);
+        }
+      }
+    }
+
     function pulseRuntimeState(stateId, mode = "enter", portSide = null) {
       const id = String(stateId || "");
       if (!id) return;
-      const pulseClass = mode === "exit" ? "runtime-exit" : "runtime-enter";
+      const pulseClass = runtimeStatePulseClass(mode);
+      const token = String(++runtimePulseSerial);
+      if (!(activeRuntimeStatePulses instanceof Map)) activeRuntimeStatePulses = new Map();
+      const started = performance.now();
+      const key = runtimeStatePulseKey(id, mode, portSide);
+      activeRuntimeStatePulses.set(key, {
+        id,
+        mode,
+        portSide,
+        pulseClass,
+        token,
+        started,
+        until: started + runtimeStatePulseDuration(mode)
+      });
       requestAnimationFrame(() => {
-        const elements = [];
-        const node = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(id)}"]`);
-        if (node) elements.push(node);
-        getPortOverlay().querySelectorAll(`.svg-port[data-state-id="${cssEscapeValue(id)}"]`).forEach(el => {
-          if (runtimePortMatchesSide(el, node, portSide)) elements.push(el);
-        });
-        for (const el of elements) {
-          el.classList.remove("runtime-enter", "runtime-exit");
-          void el.getBoundingClientRect();
-          if (mode === "enter") el.classList.add("runtime");
-          el.classList.add(pulseClass);
-          setTimeout(() => {
-            if (el.dataset.id === id || el.dataset.stateId === id) el.classList.remove(pulseClass);
-          }, mode === "exit" ? 820 : 1120);
-        }
+        applyRuntimeStatePulses();
+        setTimeout(() => {
+          const pulse = activeRuntimeStatePulses.get(key);
+          if (pulse?.token !== token) return;
+          activeRuntimeStatePulses.delete(key);
+          cleanupRuntimeStatePulse(id, token, pulseClass, portSide);
+        }, runtimeStatePulseDuration(mode) + 80);
       });
     }
 

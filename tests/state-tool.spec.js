@@ -875,17 +875,23 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("step_one");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
+    await expect(page.locator('[data-id="step_one"]')).toHaveClass(/runtime-enter/);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="step_one"][data-port-side="in"]')).toHaveClass(/runtime-enter/);
 
     await app.getByRole("button", { name: "Continue" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_two");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
     await expect(page.locator('[data-id="step_two"]')).toHaveClass(/active/);
+    await expect(page.locator('[data-id="step_one"]')).toHaveClass(/runtime-exit/);
+    await expect(page.locator('[data-id="step_two"]')).toHaveClass(/runtime-enter/);
 
     await app.getByRole("button", { name: "Finish" }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
     await expect(page.locator('[data-id="step_two"]')).toHaveCount(0);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
+    await expect(page.locator('[data-id="done"]')).toHaveClass(/runtime-enter/);
+    await expect(page.locator('.edge[data-edge-id="lesson_done"]')).toHaveClass(/runtime-pulse/);
   });
 
   test("keeps transition wires scoped to the opened state canvas @smoke", async ({ page }) => {
