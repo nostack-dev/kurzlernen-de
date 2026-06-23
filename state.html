@@ -465,9 +465,8 @@
     }
     .edge.runtime,
     .edge.runtime-pulse {
-      stroke: var(--runtime);
       stroke-width: 4;
-      filter: drop-shadow(0 0 7px rgba(34,197,94,.46));
+      filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc));
     }
 
     .edge.runtime-pulse {
@@ -497,8 +496,7 @@
 
     .edge-arrow.runtime,
     .edge-arrow.runtime-pulse {
-      fill: var(--runtime);
-      filter: drop-shadow(0 0 7px rgba(34,197,94,.56));
+      filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc));
     }
 
     .edge-arrow.runtime-pulse {
@@ -528,15 +526,15 @@
     }
 
     @keyframes edgePulse {
-      0% { stroke-width: 9; stroke-dashoffset: 54; filter: drop-shadow(0 0 14px rgba(34,197,94,.9)); opacity: .92; }
-      58% { stroke-width: 5.4; stroke-dashoffset: 0; filter: drop-shadow(0 0 18px rgba(56,189,248,.65)); opacity: 1; }
-      100% { stroke-width: 4; stroke-dashoffset: -18; filter: drop-shadow(0 0 7px rgba(34,197,94,.46)); opacity: 1; }
+      0% { stroke-width: 9; stroke-dashoffset: 54; filter: drop-shadow(0 0 15px var(--edge-color, #5f8dbc)); opacity: 1; }
+      58% { stroke-width: 5.6; stroke-dashoffset: 0; filter: drop-shadow(0 0 20px var(--edge-color, #5f8dbc)); opacity: 1; }
+      100% { stroke-width: 4; stroke-dashoffset: -18; filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc)); opacity: 1; }
     }
 
     @keyframes edgeArrowPulse {
-      0% { opacity: .88; filter: drop-shadow(0 0 14px rgba(34,197,94,.9)); }
-      52% { opacity: 1; filter: drop-shadow(0 0 18px rgba(56,189,248,.7)); }
-      100% { opacity: 1; filter: drop-shadow(0 0 7px rgba(34,197,94,.56)); }
+      0% { opacity: 1; filter: drop-shadow(0 0 15px var(--edge-color, #5f8dbc)); }
+      52% { opacity: 1; filter: drop-shadow(0 0 20px var(--edge-color, #5f8dbc)); }
+      100% { opacity: 1; filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc)); }
     }
 
     @keyframes stateEnterPulse {
