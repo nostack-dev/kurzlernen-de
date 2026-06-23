@@ -2569,6 +2569,88 @@
       cursor: grabbing;
     }
 
+
+    /* Compact planning UI: keep the editor readable without turning every control into documentation. */
+    .state-explorer {
+      --explorer-card-pad: 8px;
+    }
+
+    .state-explorer .template-description,
+    .state-explorer .template-meta,
+    .state-explorer .template-body,
+    .state-explorer .component-preset-description {
+      display: none !important;
+    }
+
+    .component-preset-card,
+    .state-template-card {
+      min-height: 0 !important;
+      padding: var(--explorer-card-pad) !important;
+      gap: 6px !important;
+    }
+
+    .template-title {
+      line-height: 1.15 !important;
+      margin-bottom: 0 !important;
+    }
+
+    .state-explorer-section-title,
+    .state-explorer-group-title {
+      margin-bottom: 6px !important;
+      font-size: 11px !important;
+      letter-spacing: .08em !important;
+    }
+
+    .global-state-subscribe-head span,
+    .data-source-panel .small span,
+    .global-state-subscribe .hint,
+    .state-id-line {
+      display: none !important;
+    }
+
+    .global-state-subscribe,
+    .data-source-panel,
+    .component-list {
+      gap: 8px !important;
+    }
+
+    .data-source-panel.repeat-panel {
+      padding: 10px !important;
+    }
+
+    .data-source-panel.repeat-panel .field {
+      margin-bottom: 0 !important;
+    }
+
+    .condition-preview.compact-repeat-preview {
+      margin-top: 6px !important;
+      padding: 7px 9px !important;
+      font-size: 11px !important;
+    }
+
+    .inspector-section-title {
+      margin: 12px 0 7px;
+      color: #dbeafe;
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .component-editor {
+      padding: 10px !important;
+      gap: 8px !important;
+    }
+
+    .component-editor-head {
+      margin-bottom: 6px !important;
+    }
+
+    .component-editor .field {
+      gap: 6px !important;
+      margin: 0 !important;
+    }
+
   </style>
 </head>
 <body>
@@ -7828,7 +7910,7 @@
       if (!s.components.length) {
         const empty = document.createElement("div");
         empty.className = "component-empty";
-        empty.textContent = "No direct content on this state. Use the State Explorer presets as child states when this state should contain Text, Heading, Image, List, Link, Sound, Note, or Divider.";
+        empty.textContent = "No content yet. Add a preset from the Explorer or create child states inside this state.";
         list.appendChild(empty);
         return;
       }
@@ -8455,10 +8537,9 @@
         owner.repeat = normalizeRepeatConfig({ path: path.value, as: "item", index: "i" });
         as.value = owner.repeat.as;
         index.value = owner.repeat.index;
-        preview.textContent = owner.repeat.path
-          ? `Repeats this state's content for each item in {{${owner.repeat.path}}}. Add fields with + in Global State JSON.`
-          : "No repeat. This state renders once.";
-        preview.classList.toggle("empty", !owner.repeat.path);
+        preview.textContent = owner.repeat.path ? `Repeating ${owner.repeat.path}` : "";
+        preview.hidden = !owner.repeat.path;
+        preview.className = "condition-preview compact-repeat-preview" + (owner.repeat.path ? " ok" : " empty");
         if (persist) persistOwner(`${historyPrefix}:repeat`);
       };
       path.onfocus = refreshOptions;
@@ -8927,7 +9008,7 @@
         <div class="field"><label>Title</label><input id="pTitle"></div>
         <div class="global-state-subscribe">
           <div class="global-state-subscribe-head">
-            <div>Global State JSON<span>Endpoint prefetched in diesen State. Plus rechts abonniert und rendert Fetch-Felder.</span></div>
+            <div>Data<span>Pick paths with +. Fetch fields can render as content.</span></div>
             <div id="pSubscriptionCount" class="global-state-subscribe-count">0</div>
           </div>
           <div class="field"><label>Fetch endpoint</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
@@ -8940,19 +9021,19 @@
           <div id="pSubscriptionTree" class="global-state-json"></div>
           <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
           <textarea id="pSubscriptions" hidden></textarea>
-          <div class="hint">Klick + rechts neben einem JSON-Pfad. Bei fetch.data Feldern wird daraus direkt State-Content.</div>
+          <div class="hint">+ subscribes a path. Fetch data fields can become content.</div>
         </div>
         <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel">
-          <div class="small"><b>Repeat content</b><br><span>Optional: render this state's content once per item from a Global State array.</span></div>
-          <div class="field"><label>Repeat over</label><select id="pRepeatPath"></select></div>
+        <div class="data-source-panel repeat-panel">
+          <div class="small"><b>Repeat</b><br><span>Render content once per selected array item.</span></div>
+          <div class="field"><label>Source</label><select id="pRepeatPath"></select></div>
           <input id="pRepeatAs" type="hidden" value="item">
           <input id="pRepeatIndex" type="hidden" value="i">
           <div id="pRepeatPreview" class="condition-preview empty"></div>
         </div>
-        <div class="small">State content</div>
+        <div class="inspector-section-title">Content</div>
         <div id="pComponents" class="component-list"></div>
-        <div class="small">State id: <b>${escapeHtml(s.id)}</b></div>
+        <div class="small state-id-line">ID: <b>${escapeHtml(s.id)}</b></div>
         <div class="row" style="margin-top:10px">
           <button id="pInitial">Set initial</button>
           <button id="pDuplicate">Duplicate</button>
