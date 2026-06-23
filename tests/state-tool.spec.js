@@ -554,6 +554,8 @@ test.describe("State Blueprint tool", () => {
 
   test("navigates into nested state canvases and keeps child states inside their parent @smoke", async ({ page }) => {
     await openTool(page);
+    await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
 
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
@@ -584,7 +586,8 @@ test.describe("State Blueprint tool", () => {
     expect(childNode.isolation).toBe("isolate");
 
     await page.locator("#layerBack").click();
-    await expect(page.locator("#layerFrame")).toBeHidden();
+    await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(6);
@@ -657,8 +660,9 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="out"]`)).toHaveCount(1);
 
     await page.locator("#layerBack").click();
-    await expect(page.locator("#layerFrame")).toBeHidden();
-    await expect(page.locator("#layerHud")).toBeHidden();
+    await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator("#layerHud")).toBeVisible();
   });
 
   test("rewires projected parent entry by dragging it to another child state @smoke", async ({ page }) => {
@@ -770,7 +774,8 @@ test.describe("State Blueprint tool", () => {
     expect(innerEdgeId).toBeTruthy();
 
     await page.locator("#layerBack").click();
-    await expect(page.locator("#layerFrame")).toBeHidden();
+    await expect(page.locator("#layerFrame")).toBeVisible();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
     await expect(page.locator(".edge[data-edge-id]")).toHaveCount(rootEdgeCount);
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(0);
 
@@ -3722,6 +3727,143 @@ test.describe("State Blueprint tool", () => {
     expect(definition.stateTemplates[0].components[0].text).toBe("Reusable note");
   });
 
+  test("imports state components and presets without losing render mappings @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const stateComponent = {
+      kind: "state-blueprint-component",
+      schemaVersion: 1,
+      app: "State Blueprint",
+      exportedAt: "2026-06-23T00:00:00.000Z",
+      component: {
+        type: "state",
+        state: {
+          id: "portable_state",
+          title: "Portable State",
+          body: "",
+          components: [{ id: "portable_text", type: "text", text: "Portable text", url: "" }],
+          data: {},
+          dataSource: { url: "", target: "fetch", select: "", timeoutMs: 8000, retries: 2 },
+          repeat: { path: "", as: "item", index: "i" },
+          dataWires: [],
+          subscriptions: [],
+          boundary: { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false },
+          x: 120,
+          y: 160
+        }
+      }
+    };
+
+    await openStateInspector(page, "login");
+    await page.locator("#pImportState").scrollIntoViewIfNeeded();
+    let chooser = page.waitForEvent("filechooser");
+    await page.locator("#pImportState").click();
+    await (await chooser).setFiles({
+      name: "portable-state.state-component.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(stateComponent))
+    });
+    await expect(nodeByTitle(page, "Portable State")).toBeVisible();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.some(state => state.title === "Portable State");
+    }).toBe(true);
+
+    const presetComponent = {
+      kind: "state-blueprint-component",
+      schemaVersion: 1,
+      app: "State Blueprint",
+      exportedAt: "2026-06-23T00:00:00.000Z",
+      component: {
+        type: "preset",
+        template: {
+          id: "portable_fetch",
+          rootStateId: "portable_fetch",
+          title: "Portable Fetch",
+          body: "",
+          components: [],
+          data: {},
+          dataSource: { url: "", target: "fetch", select: "", timeoutMs: 8000, retries: 2 },
+          repeat: { path: "fetch.data", as: "item", index: "i" },
+          dataWires: [
+            { id: "wire_title", sourcePath: "fetch.data.title", scopePath: "fetch.data", itemPath: "title", role: "title", componentType: "heading", label: "Title" }
+          ],
+          subscriptions: ["fetch.data.title"],
+          boundary: { entryId: "", exitId: "", entryDisabled: false, exitDisabled: false },
+          states: [],
+          transitions: []
+        }
+      }
+    };
+
+    await page.locator("#pImportState").scrollIntoViewIfNeeded();
+    chooser = page.waitForEvent("filechooser");
+    await page.locator("#pImportState").click();
+    await (await chooser).setFiles({
+      name: "portable-fetch.state-component.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(presetComponent))
+    });
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Portable Fetch");
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      const imported = templates.find(template => template.title === "Portable Fetch");
+      return {
+        dataWire: imported?.dataWires?.[0]?.sourcePath || "",
+        subscription: imported?.subscriptions?.[0] || "",
+        boundary: imported?.boundary?.entryDisabled
+      };
+    }).toEqual({ dataWire: "fetch.data.title", subscription: "fetch.data.title", boundary: false });
+
+    await page.locator("#pTemplateUse").click();
+    await expect(nodeByTitle(page, "Portable Fetch")).toBeVisible();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const imported = model.states.find(state => state.title === "Portable Fetch");
+      return imported?.dataWires?.[0]?.sourcePath || "";
+    }).toBe("fetch.data.title");
+  });
+
+  test("reorders component rows with the editor drag handle @smoke", async ({ page }) => {
+    await openTool(page);
+    await page.evaluate(() => {
+      const state = model.states.find(item => item.id === "login");
+      state.components = [
+        { id: "component_heading", type: "heading", text: "Heading", url: "" },
+        { id: "component_text", type: "text", text: "Text", url: "" },
+        { id: "component_note", type: "note", text: "Note", url: "" }
+      ];
+      saveModel("test:component-order");
+      draw();
+    });
+    await openStateInspector(page, "login");
+
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    const targetBox = await visibleBox(componentEditor(page, "Note"));
+    await componentEditor(page, "Heading").locator(".component-drag-handle").dispatchEvent("dragstart", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true
+    });
+    await componentEditor(page, "Note").dispatchEvent("dragover", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + targetBox.height - 4
+    });
+    await componentEditor(page, "Note").dispatchEvent("drop", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + targetBox.height - 4
+    });
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "login").components.map(component => component.id);
+    }).toEqual(["component_text", "component_note", "component_heading"]);
+  });
+
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {
     await openTool(page);
 
@@ -3805,5 +3947,23 @@ test.describe("State Blueprint tool", () => {
     expect(html).not.toContain("speechRate");
     expect(html).not.toContain("Vorlesen");
     expect(html).not.toContain("SpeechSynthesis");
+  });
+
+  test("downloads a valid formal definition from a blank canvas @smoke", async ({ page }) => {
+    await page.addInitScript(key => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+    }, STORAGE_KEY);
+    await page.goto("/state.html");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+
+    const saveDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save" }).click();
+    const definition = JSON.parse(fs.readFileSync(await (await saveDownload).path(), "utf8"));
+    expect(definition.kind).toBe("state-blueprint-definition");
+    expect(definition.model.initial).toBe("");
+    expect(definition.model.states).toEqual([]);
+    expect(definition.model.transitions).toEqual([]);
   });
 });

@@ -2972,7 +2972,7 @@
     </details>
     <div class="status" id="runtimeState">app: start</div>
   </div>
-  <input id="fileLoad" type="file" accept="application/json,.json,.state.json" hidden="">
+  <input id="fileLoad" type="file" accept="application/json,.json,.state.json,.state-component.json" hidden="">
   <div id="modalBackdrop" class="modal-backdrop" hidden="">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
       <h2 id="modalTitle"></h2>
@@ -3217,6 +3217,7 @@
     let stateExplorerCollapsed = uiState.stateExplorerCollapsed;
     let stateTemplates = loadStateTemplates();
     let stateTemplateDrag = null;
+    let pendingLoadIntent = "definition";
     let editingTemplateId = null;
     let inspectorStateId = null;
     let inspectorEdgeId = null;
@@ -3468,6 +3469,7 @@
             dataSource: normalizeDataSource(state.dataSource || state.fetch),
             repeat: normalizeRepeatConfig(state.repeat),
             dataWires: normalizeDataWires(state.dataWires),
+            subscriptions: normalizeSubscriptions(state.subscriptions),
             boundary: normalizeBoundaryConfig(state.boundary),
             x: Number.isFinite(x) ? x : 120,
             y: Number.isFinite(y) ? y : 120
@@ -3510,6 +3512,8 @@
           dataSource: normalizeDataSource(item.dataSource || item.fetch),
           repeat: normalizeRepeatConfig(item.repeat),
           dataWires: normalizeDataWires(item.dataWires),
+          subscriptions: normalizeSubscriptions(item.subscriptions),
+          boundary: normalizeBoundaryConfig(item.boundary),
           rootStateId: String(item.rootStateId || item.sourceStateId || item.id || ""),
           states: snapshotTemplateStates(item),
           transitions: snapshotTemplateTransitions(item)
@@ -3936,7 +3940,7 @@
       assertPlainObject(source, "definition.model");
       if (source.version !== DEFINITION_SCHEMA_VERSION) throw new Error("definition.model.version must be 2.");
       assertString(source.name, "definition.model.name");
-      assertString(source.initial, "definition.model.initial");
+      const initial = assertString(source.initial, "definition.model.initial", { allowEmpty: true });
       if (!Array.isArray(source.states)) throw new Error("definition.model.states must be an array.");
       if (!Array.isArray(source.transitions)) throw new Error("definition.model.transitions must be an array.");
 
@@ -3965,7 +3969,8 @@
         };
       });
 
-      if (source.initial && !ids.has(source.initial)) throw new Error("definition.model.initial must reference an existing state.");
+      if (states.length && !initial) throw new Error("definition.model.initial must reference an existing state.");
+      if (initial && !ids.has(initial)) throw new Error("definition.model.initial must reference an existing state.");
       const rootBoundary = normalizeBoundaryConfig(source.boundary);
       if (rootBoundary.entryId) {
         const entry = states.find(item => item.id === rootBoundary.entryId);
@@ -4031,7 +4036,7 @@
       return {
         version: DEFINITION_SCHEMA_VERSION,
         name: source.name,
-        initial: source.initial,
+        initial,
         boundary: rootBoundary,
         states,
         transitions
@@ -4065,6 +4070,8 @@
             dataSource: validateDataSource(state.dataSource, `${statePath}.dataSource`),
             repeat: validateRepeatConfig(state.repeat, `${statePath}.repeat`),
             dataWires: validateDataWires(state.dataWires, `${statePath}.dataWires`),
+            subscriptions: normalizeSubscriptions(state.subscriptions),
+            boundary: normalizeBoundaryConfig(state.boundary),
             parentId: parentId || rootStateId || id,
             x: assertFiniteNumber(state.x, `${statePath}.x`),
             y: assertFiniteNumber(state.y, `${statePath}.y`)
@@ -4080,6 +4087,10 @@
           const to = assertString(transition.to, `${transitionPath}.to`);
           if (!stateIds.has(from)) throw new Error(`${transitionPath}.from must reference a preset state.`);
           if (!stateIds.has(to)) throw new Error(`${transitionPath}.to must reference a preset state.`);
+          const groupEntryId = "groupEntryId" in transition ? assertString(transition.groupEntryId, `${transitionPath}.groupEntryId`, { allowEmpty: true }) : "";
+          const groupExitId = "groupExitId" in transition ? assertString(transition.groupExitId, `${transitionPath}.groupExitId`, { allowEmpty: true }) : "";
+          if (groupEntryId && !stateIds.has(groupEntryId)) throw new Error(`${transitionPath}.groupEntryId must reference a preset state.`);
+          if (groupExitId && !stateIds.has(groupExitId)) throw new Error(`${transitionPath}.groupExitId must reference a preset state.`);
           return {
             id: assertString(transition.id, `${transitionPath}.id`),
             from,
@@ -4089,7 +4100,9 @@
             triggerType: normalizeTransitionTriggerType(transition),
             triggerEvent: normalizeTransitionEvent(transition.triggerEvent || transition.trigger || transition.eventName || ""),
             timerMs: normalizeTransitionTimerMs(transition.timerMs),
-            set: validateDataObject(transition.set, `${transitionPath}.set`)
+            set: validateDataObject(transition.set, `${transitionPath}.set`),
+            groupEntryId,
+            groupExitId
           };
         });
         return {
@@ -4101,6 +4114,8 @@
           dataSource: validateDataSource(template.dataSource, `${itemPath}.dataSource`),
           repeat: validateRepeatConfig(template.repeat, `${itemPath}.repeat`),
           dataWires: validateDataWires(template.dataWires, `${itemPath}.dataWires`),
+          subscriptions: normalizeSubscriptions(template.subscriptions),
+          boundary: normalizeBoundaryConfig(template.boundary),
           rootStateId: rootStateId || id,
           states,
           transitions
@@ -4289,6 +4304,13 @@
     }
 
     function requestLoadBlueprintFile() {
+      pendingLoadIntent = "definition";
+      fileLoadEl.value = "";
+      fileLoadEl.click();
+    }
+
+    function requestImportComponentFile() {
+      pendingLoadIntent = "component";
       fileLoadEl.value = "";
       fileLoadEl.click();
     }
@@ -4332,14 +4354,110 @@
       return validateBlueprintDefinition(data);
     }
 
+    function parseJsonImportText(text) {
+      try {
+        return JSON.parse(text);
+      } catch (_) {
+        throw new Error("Import expects a formal .state.json or .state-component.json file.");
+      }
+    }
+
+    function uniqueStateTemplateId(base = "tpl") {
+      const normalized = normalizeId(base || "tpl");
+      const ids = new Set(stateTemplates.map(template => template.id));
+      let id = normalized;
+      let index = 2;
+      while (ids.has(id)) id = `${normalized}_${index++}`;
+      return id;
+    }
+
+    function validateComponentExportDefinition(data) {
+      assertPlainObject(data, "component import");
+      if (data.kind !== COMPONENT_EXPORT_KIND) throw new Error(`component import kind must be "${COMPONENT_EXPORT_KIND}".`);
+      if (data.schemaVersion !== COMPONENT_EXPORT_SCHEMA_VERSION) throw new Error("component import schemaVersion must be 1.");
+      assertPlainObject(data.component, "component import.component");
+      const type = assertString(data.component.type, "component import.component.type");
+      if (type === "state") {
+        assertPlainObject(data.component.state, "component import.component.state");
+        assertString(data.component.state.id, "component import.component.state.id");
+        assertString(data.component.state.title, "component import.component.state.title");
+        return {
+          type,
+          state: stateExportSnapshot({
+            ...data.component.state,
+            parentId: null
+          })
+        };
+      }
+      if (type === "preset") {
+        assertPlainObject(data.component.template, "component import.component.template");
+        return {
+          type,
+          template: validateStateTemplatesDefinition([data.component.template], "component import.component.template")[0]
+        };
+      }
+      throw new Error("component import.component.type must be state or preset.");
+    }
+
+    function templateFromStateComponentSnapshot(state) {
+      const snapshot = stateExportSnapshot({ ...state, parentId: null });
+      return snapshotStateTemplates([{
+        id: uid("tpl"),
+        rootStateId: snapshot.id,
+        title: snapshot.title,
+        body: "",
+        components: snapshot.components,
+        data: snapshot.data,
+        dataSource: snapshot.dataSource,
+        repeat: snapshot.repeat,
+        dataWires: snapshot.dataWires,
+        subscriptions: snapshot.subscriptions,
+        boundary: snapshot.boundary,
+        states: [],
+        transitions: []
+      }])[0];
+    }
+
+    function importStateTemplateComponent(template) {
+      const copy = snapshotStateTemplates([template])[0];
+      copy.id = uniqueStateTemplateId(copy.id || copy.title || "tpl");
+      stateTemplates = [copy, ...stateTemplates].slice(0, 40);
+      editingTemplateId = copy.id;
+      stateExplorerCollapsed = false;
+      saveStateTemplates("template:import:" + copy.id);
+      applyStateExplorerCollapsed();
+      renderStateExplorer();
+      showTemplateInspector(copy, { focus: false });
+      return copy;
+    }
+
+    function importComponentDefinition(definition) {
+      const component = validateComponentExportDefinition(definition);
+      if (component.type === "preset") {
+        importStateTemplateComponent(component.template);
+        return;
+      }
+      const template = templateFromStateComponentSnapshot(component.state);
+      addTemplateToCurrentLayer(template);
+    }
+
     function loadBlueprintFile(file) {
       if (!file) return;
+      const intent = pendingLoadIntent;
+      pendingLoadIntent = "definition";
       const reader = new FileReader();
       reader.onload = async () => {
         try {
-          importBlueprintDefinition(parseBlueprintDefinitionText(String(reader.result || "")));
+          const text = String(reader.result || "");
+          const data = parseJsonImportText(text);
+          if (data?.kind === COMPONENT_EXPORT_KIND) {
+            importComponentDefinition(data);
+          } else {
+            if (intent === "component") throw new Error("Import component expects a .state-component.json export.");
+            importBlueprintDefinition(validateBlueprintDefinition(data));
+          }
         } catch (err) {
-          await modalAlert(err?.message || "Could not load blueprint definition.", "Load failed");
+          await modalAlert(err?.message || "Could not load blueprint definition.", intent === "component" ? "Import failed" : "Load failed");
         }
       };
       reader.readAsText(file);
@@ -7719,11 +7837,11 @@
 
     function updateLayerFrame(states) {
       const parent = currentLayerContainer();
-      if (!parent || parent.rootLayer) {
+      if (!parent) {
         layerFrameEl.style.display = "none";
         layerHudEl.hidden = true;
         layerBackEl.hidden = true;
-        layerFrameLabelEl.textContent = parent?.rootLayer ? "Root" : "";
+        layerFrameLabelEl.textContent = "";
         return;
       }
       const padX = GRID_SIZE * 4;
@@ -8506,6 +8624,7 @@
           dragHandle.title = "Drag to change render order";
           dragHandle.draggable = true;
           dragHandle.addEventListener("dragstart", evt => {
+            evt.stopPropagation();
             draggingDataWireId = wire.id;
             row.classList.add("dragging");
             evt.dataTransfer.effectAllowed = "move";
@@ -8611,6 +8730,7 @@
         dragHandle.title = "Drag to reorder";
         dragHandle.draggable = true;
         dragHandle.addEventListener("dragstart", evt => {
+          evt.stopPropagation();
           draggingComponentId = component.id;
           item.classList.add("dragging");
           evt.dataTransfer.effectAllowed = "move";
@@ -10038,6 +10158,7 @@
           <button id="pInitial">Set initial</button>
           <button id="pDuplicate">Duplicate</button>
           <button id="pExportState">Export component</button>
+          <button id="pImportState">Import component</button>
         </div>
         <div class="row" style="margin-top:8px">
           <button id="pDelete" class="danger">Delete</button>
@@ -10537,6 +10658,7 @@
         showNodeInspector(copy, { forceOpen: true });
       };
       root.querySelector("#pExportState").onclick = () => exportStateComponentFile(s);
+      root.querySelector("#pImportState").onclick = requestImportComponentFile;
       root.querySelector("#pDelete").onclick = () => {
         selected = selectionFromParts([s.id], []);
         deleteSelectedItems();
@@ -10595,6 +10717,7 @@
         <div class="row" style="margin-top:10px">
           <button id="pTemplateUse">Use on canvas</button>
           <button id="pTemplateExport">Export component</button>
+          <button id="pTemplateImport">Import component</button>
           <button id="pTemplateDelete" class="danger">Delete preset</button>
         </div>
       `;
@@ -10637,6 +10760,7 @@
       renderComponentEditors(template, null, root, componentOptions);
       root.querySelector("#pTemplateUse").onclick = () => addTemplateAtViewport(template);
       root.querySelector("#pTemplateExport").onclick = () => exportTemplateComponentFile(template);
+      root.querySelector("#pTemplateImport").onclick = requestImportComponentFile;
       root.querySelector("#pTemplateDelete").onclick = () => { void deleteStateTemplate(template.id); };
       renderStateExplorer();
       setupEditorAccessibility(root, opts.focus !== false, {
@@ -11163,6 +11287,7 @@
       s.data = normalizeDataObject(template.data);
       s.dataSource = normalizeDataSource(template.dataSource || template.fetch);
       s.repeat = normalizeRepeatConfig(template.repeat);
+      s.dataWires = normalizeDataWires(template.dataWires);
       s.subscriptions = normalizeSubscriptions(template.subscriptions);
       s.boundary = normalizeBoundaryConfig(template.boundary);
       return s;
@@ -11184,6 +11309,7 @@
         next.data = normalizeDataObject(child.data);
         next.dataSource = normalizeDataSource(child.dataSource || child.fetch);
         next.repeat = normalizeRepeatConfig(child.repeat);
+        next.dataWires = normalizeDataWires(child.dataWires);
         next.subscriptions = normalizeSubscriptions(child.subscriptions);
         next.boundary = normalizeBoundaryConfig(child.boundary);
         states.push(next);
@@ -12291,7 +12417,7 @@
 
     window.__stateNativeDragBlocked = true;
     document.addEventListener("dragstart", evt => {
-      if (evt.target?.closest?.(".state-template-card, .component-preset-card, [data-template-id]")) return;
+      if (evt.target?.closest?.(".state-template-card, .component-preset-card, [data-template-id], .component-drag-handle")) return;
       if (evt.target?.closest?.(".map, .node, .wires, svg, img, .preview, .inspector, .component-editor")) {
         evt.preventDefault();
         evt.stopPropagation();
