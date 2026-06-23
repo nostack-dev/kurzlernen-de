@@ -95,6 +95,22 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("dataSourceRuns.");
   });
 
+  test("generated runtime writes global state through the bus @smoke", () => {
+    const appHtml = generatedAppHtml();
+
+    expect(appHtml).toContain('function runtimeSet(path, value, opts = {})');
+    expect(appHtml).toContain('runtimeSet("fetched", result?.done ? Boolean(result && result.ok) : null');
+    expect(appHtml).toContain('detail?.source === "fetch" && detail?.type === "change"');
+    expect(appHtml).toContain('runtimeSet("state.current", runtimeTarget || ""');
+    expect(appHtml).toContain('runtimeSet(v.name, sanitizeValue(readContextPathRaw(v.name), v)');
+    expect(appHtml).not.toContain("Object.assign(context");
+    expect(appHtml).not.toContain('silent: true, source: "fetch"');
+    expect(appHtml).not.toContain("context[repeat.as] =");
+    expect(appHtml).not.toContain("delete context[repeat.as]");
+    expect(appHtml).not.toContain("context[v.name] = sanitizeValue");
+    expect(appHtml).not.toContain('setValueAtPath(context, "state.current"');
+  });
+
   test("only Delete removes selected graph items, Backspace does not @smoke", () => {
     const html = stateHtml();
 
