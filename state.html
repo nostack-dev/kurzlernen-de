@@ -8509,7 +8509,7 @@
           if (repeat.path) addOption(map, repeat.path, `${state.title || state.id} repeat`);
         }
         if (owner.repeat?.path) addOption(map, owner.repeat.path, "Current repeat");
-        const current = normalizeContextPath(path.value, "");
+        const current = normalizeContextPath(path.value || owner.repeat?.path, "");
         path.innerHTML = "";
         const empty = document.createElement("option");
         empty.value = "";

@@ -198,4 +198,30 @@ test.describe("Core browser contracts", () => {
     await expect(repeat.locator("option", { hasText: "No repeat" })).toBeVisible();
     await expect(page.locator("#pRepeatPathList")).toHaveCount(0);
   });
+
+  test("repeat over keeps a saved selection when the inspector opens @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Repeat Selection Smoke",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 120,
+          y: 160,
+          data: { items: [{ title: "One" }] },
+          repeat: { path: "items", as: "item", index: "i" },
+          components: [{ id: "c_item", type: "text", text: "{{item.title}}" }]
+        }
+      ],
+      transitions: []
+    });
+
+    await page.locator('[data-id="start"]').click();
+
+    await expect(page.locator("#pRepeatPath")).toHaveValue("items");
+    await expect(page.locator("#pRepeatPreview")).toContainText("items");
+  });
 });
