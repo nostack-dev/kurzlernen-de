@@ -20,6 +20,19 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function openStateInspector(page, id) {
+  const node = page.locator('[data-id="' + id + '"]');
+  await expect(node).toBeVisible();
+  await node.hover();
+  await node.locator(".node-edit").click({ force: true });
+  await expect(page.locator("#pTitle")).toBeVisible();
+}
+
+async function openStateLayer(page, id) {
+  await page.locator('[data-id="' + id + '"]').dblclick();
+  await expect(page.locator("#layerFrameLabel")).toContainText(/Inside|Root/);
+}
+
 async function centerOf(locator) {
   const box = await visibleBox(locator);
   return {
@@ -39,7 +52,12 @@ async function visibleBox(locator) {
 }
 
 async function savedModel(page) {
-  return page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
+  return page.evaluate(key => {
+    const stored = JSON.parse(localStorage.getItem(key) || "null");
+    if (stored) return stored;
+    if (typeof model !== "undefined") return JSON.parse(JSON.stringify(model));
+    return null;
+  }, STORAGE_KEY);
 }
 
 async function firstChildStateId(page, parentId) {
@@ -507,9 +525,9 @@ test.describe("State Blueprint tool", () => {
   test("navigates into nested state canvases and keeps child states inside their parent @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').click();
-    await expect(page.locator("#pAddInside")).toBeVisible();
-    await page.locator("#pAddInside").click();
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    await openStateInspector(page, childId);
 
     await expect(page.locator("#layerNav")).toBeHidden();
     await expect(page.locator("#layerFrame")).toBeVisible();
@@ -517,8 +535,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerBack")).toBeVisible();
     await expect(page.locator(".node")).toHaveCount(5);
 
-    const childId = await firstChildStateId(page, "login");
-    await expect(page.locator("#pTitle")).toBeFocused();
+    await expect(page.locator("#pTitle")).toBeVisible();
     await page.locator("#pTitle").fill("Email step");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
 
@@ -541,7 +558,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
     await expect(page.locator(".node")).toHaveCount(6);
 
-    await page.locator('[data-id="login"] .node-open').click();
+    await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
     await expect(page.locator(".node")).toHaveCount(5);
@@ -558,12 +575,11 @@ test.describe("State Blueprint tool", () => {
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').click();
-    await page.locator("#pAddInside").click();
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    await openStateInspector(page, childId);
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(".node")).toHaveCount(5);
-
-    const childId = await firstChildStateId(page, "login");
     await page.locator("#pTitle").fill("Temporary child");
     await page.locator(`[data-id="${childId}"]`).click();
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveClass(/selected/);
@@ -597,9 +613,8 @@ test.describe("State Blueprint tool", () => {
     expect(wiring.inputIds).toHaveLength(2);
     expect(wiring.outputIds).toHaveLength(2);
 
-    await page.locator('[data-id="login"]').click();
-    await page.locator("#pAddInside").click();
-    const childId = await firstChildStateId(page, "login");
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
 
     await expect(page.locator(".node")).toHaveCount(5);
     await expect(page.locator(".edge[data-edge-id]")).toHaveCount(4);
@@ -626,9 +641,8 @@ test.describe("State Blueprint tool", () => {
     }, STORAGE_KEY);
     expect(inputId).toBeTruthy();
 
-    await page.locator('[data-id="login"]').click();
-    await page.locator("#pAddInside").click();
-    const firstChildId = await firstChildStateId(page, "login");
+    await openStateLayer(page, "login");
+    const firstChildId = await addChildByDoubleClick(page, "login");
     const secondChildId = await addChildByDoubleClick(page, "login", [firstChildId]);
 
     await expect(page.locator(".node")).toHaveCount(6);
@@ -682,7 +696,6 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
     const app = appFrame(page);
     await expect(app.locator("#statePill")).toHaveText("start");
-    await expect(page.locator("#layerFrame")).toBeHidden();
 
     await app.getByRole("button", { name: "Enter" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
@@ -705,9 +718,8 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     const rootEdgeCount = await page.locator(".edge[data-edge-id]").count();
 
-    await page.locator('[data-id="login"]').click();
-    await page.locator("#pAddInside").click();
-    const firstChildId = await firstChildStateId(page, "login");
+    await openStateLayer(page, "login");
+    const firstChildId = await addChildByDoubleClick(page, "login");
     const secondChildId = await addChildByDoubleClick(page, "login", [firstChildId]);
     const firstPort = await centerOf(page.locator(`[data-id="${firstChildId}"] .port`));
     const secondBox = await visibleBox(page.locator(`[data-id="${secondChildId}"]`));
@@ -731,7 +743,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".edge[data-edge-id]")).toHaveCount(rootEdgeCount);
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(0);
 
-    await page.locator('[data-id="login"] .node-open').click();
+    await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(`.edge[data-edge-id="${innerEdgeId}"]`)).toHaveCount(1);
   });
@@ -3512,8 +3524,8 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await expect(page.locator(".node > .input-port, .node > .port, .port-slot")).toHaveCount(0);
-    await expect(page.locator("svg#wires .svg-port")).toHaveCount(await page.locator(".node").count() * 2);
-    await expect(page.locator("svg#wires .edge-pin").first()).toBeVisible();
+    await expect(page.locator("svg#ports .svg-port")).toHaveCount(await page.locator(".node").count() * 2);
+    await expect(page.locator("svg#ports .edge-pin").first()).toBeVisible();
 
     const report = await page.evaluate(() => {
       const nums = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);

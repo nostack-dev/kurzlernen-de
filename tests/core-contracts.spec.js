@@ -40,6 +40,14 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function openStateInspector(page, id) {
+  const node = page.locator('[data-id="' + id + '"]');
+  await expect(node).toBeVisible();
+  await node.hover();
+  await node.locator(".node-edit").click({ force: true });
+  await expect(page.locator("#pTitle")).toBeVisible();
+}
+
 async function openTool(page) {
   await page.addInitScript(key => {
     for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
@@ -280,7 +288,7 @@ test.describe("Core browser contracts", () => {
   test("state editor exposes global-state path subscriptions without output editing @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').click();
+    await openStateInspector(page, "login");
     await page.locator("#pDataCard summary").click();
 
     await expect(page.getByText("Global State JSON")).toBeVisible();
@@ -301,7 +309,9 @@ test.describe("Core browser contracts", () => {
   test("component text editors insert global-state bindings from a picker @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="auth_start"]').click();
+    await openStateInspector(page, "auth_start");
+    const textInput = page.locator(".component-editor textarea, .component-editor input").first();
+    await textInput.focus();
 
     const picker = page.locator("#pComponents .template-binding-picker").first();
     await expect(picker).toBeVisible();
@@ -314,7 +324,7 @@ test.describe("Core browser contracts", () => {
   test("global state json tree branches can collapse and expand @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="auth_start"]').click();
+    await openStateInspector(page, "auth_start");
     await page.locator("#pDataCard summary").click();
 
     const tree = page.locator("#pSubscriptionTree");
@@ -333,7 +343,7 @@ test.describe("Core browser contracts", () => {
   test("repeat over is selected from derived candidates, not typed as free text @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="auth_start"]').click();
+    await openStateInspector(page, "auth_start");
     await page.locator("#pDataCard summary").click();
 
     const repeat = page.locator("#pRepeatPath");

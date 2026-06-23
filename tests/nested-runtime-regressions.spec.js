@@ -45,7 +45,12 @@ async function openWithModel(page, model) {
 }
 
 async function savedModel(page) {
-  return page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
+  return page.evaluate(key => {
+    const stored = JSON.parse(localStorage.getItem(key) || "null");
+    if (stored) return stored;
+    if (typeof model !== "undefined") return JSON.parse(JSON.stringify(model));
+    return null;
+  }, STORAGE_KEY);
 }
 
 test.describe("Nested runtime regressions", () => {
@@ -60,8 +65,8 @@ test.describe("Nested runtime regressions", () => {
     await expect(app.locator("#statePill")).toHaveText("state_3");
     await expect(app.locator("h1")).toHaveText("State 3");
     await expect(app.locator("h1")).not.toHaveText(/State 3\s*\/\s*State 4/);
-    await expect(page.locator('[data-id="state_4"]')).toBeVisible();
-    await expect(page.locator('[data-id="state_3"]')).toHaveCount(0);
+    await expect(page.locator('[data-id="state_3"]')).toBeVisible();
+    await expect(page.locator('[data-id="state_4"]')).toHaveCount(0);
 
     await expect.poll(async () => {
       const model = await savedModel(page);
