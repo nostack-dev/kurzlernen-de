@@ -2401,7 +2401,7 @@
 
     .data-wire-row {
       display: grid;
-      grid-template-columns: 28px minmax(0, 1fr) minmax(112px, auto) auto;
+      grid-template-columns: 28px minmax(0, 1fr);
       gap: 8px;
       align-items: center;
       padding: 8px;
@@ -2411,7 +2411,7 @@
     }
 
     .data-wire-row.compact {
-      grid-template-columns: 24px minmax(0, 1fr) minmax(108px, auto) auto;
+      grid-template-columns: 24px minmax(0, 1fr);
     }
 
     .data-wire-index {
@@ -2456,10 +2456,12 @@
       flex-wrap: wrap;
       gap: 5px;
       min-width: 0;
+      overflow: hidden;
     }
 
     .data-wire-chip {
-      max-width: 100%;
+      max-width: min(100%, 148px);
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -2496,11 +2498,26 @@
     }
 
     .data-wire-row select {
-      min-width: 104px;
+      width: 100%;
+      min-width: 0;
       min-height: 30px;
       padding: 4px 7px;
       border-radius: 9px;
       font-size: 12px;
+    }
+
+    .data-wire-controls {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(108px, 1fr) auto;
+      gap: 7px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .data-wire-controls .component-editor-actions {
+      justify-content: flex-end;
+      min-width: 0;
     }
 
     .data-wire-row button {
@@ -2682,8 +2699,10 @@
       display: inline-flex;
       align-items: center;
       justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 5px;
       flex: 0 0 auto;
+      min-width: 0;
     }
     .component-editor-action {
       width: auto;
@@ -2754,11 +2773,11 @@
       padding-bottom: 10px;
     }
     .component-drag-handle {
-      width: 28px;
-      min-width: 28px;
+      width: auto;
+      min-width: 34px;
       height: 28px;
       min-height: 28px;
-      padding: 0;
+      padding: 0 8px;
       border-radius: 999px;
       background: rgba(148,163,184,.14);
       color: #cbd5e1;
@@ -2843,10 +2862,22 @@
     .component-editor {
       padding: 10px !important;
       gap: 8px !important;
+      min-width: 0 !important;
     }
 
     .component-editor-head {
+      grid-template-columns: minmax(0, 1fr) minmax(0, auto) !important;
       margin-bottom: 6px !important;
+    }
+
+    .component-editor-head .component-editor-actions {
+      max-width: 100%;
+    }
+
+    .component-editor-head .component-type-select {
+      min-width: 112px;
+      max-width: 148px;
+      flex-basis: 132px;
     }
 
     .component-editor .field {
@@ -8466,6 +8497,8 @@
           };
           const actions = document.createElement("div");
           actions.className = "component-editor-actions";
+          const controls = document.createElement("div");
+          controls.className = "data-wire-controls";
           const dragHandle = document.createElement("button");
           dragHandle.type = "button";
           dragHandle.className = "component-drag-handle";
@@ -8493,7 +8526,8 @@
             rerender();
           });
           actions.append(dragHandle, remove);
-          row.append(order, main, role, actions);
+          controls.append(role, actions);
+          row.append(order, main, controls);
           wireList.appendChild(row);
         });
         panel.append(title, wireList);

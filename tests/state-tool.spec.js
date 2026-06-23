@@ -3562,6 +3562,87 @@ test.describe("State Blueprint tool", () => {
     }).toBeGreaterThan(0);
   });
 
+  test("keeps data-wire render controls from overlapping in the state editor @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Render layout",
+      initial: "state_3",
+      states: [{
+        id: "state_3",
+        title: "State 3",
+        body: "",
+        x: 220,
+        y: 220,
+        components: [],
+        subscriptions: ["catalog.item"],
+        dataWires: [
+          { id: "wire_image", sourcePath: "catalog.item.image", role: "image", componentType: "image", label: "Image" },
+          { id: "wire_title", sourcePath: "catalog.item.title", role: "title", componentType: "heading", label: "Title" },
+          { id: "wire_price", sourcePath: "catalog.item.price", role: "price", componentType: "text", label: "Price" },
+          { id: "wire_description", sourcePath: "catalog.item.description", role: "description", componentType: "text", label: "Description" },
+          { id: "wire_category", sourcePath: "catalog.item.category", role: "field", componentType: "text", label: "Category" }
+        ]
+      }],
+      transitions: []
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await openStateInspector(page, "state_3");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3")?.dataWires?.length || 0;
+    }).toBe(5);
+
+    const rows = page.locator(".data-wire-render-panel .data-wire-row");
+    await expect(rows).toHaveCount(5);
+    await expect(rows.first().locator(".data-wire-controls")).toBeVisible();
+
+    const report = await rows.evaluateAll(rowEls => {
+      const rectOf = el => {
+        const rect = el.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height };
+      };
+      const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+        * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      const pairReport = elements => {
+        const rects = elements.map(el => ({ selector: el.className || el.tagName, rect: rectOf(el) }));
+        const overlaps = [];
+        for (let i = 0; i < rects.length; i += 1) {
+          for (let j = i + 1; j < rects.length; j += 1) {
+            const area = overlap(rects[i].rect, rects[j].rect);
+            if (area > 1) overlaps.push({ a: rects[i].selector, b: rects[j].selector, area });
+          }
+        }
+        return overlaps;
+      };
+      return rowEls.map(row => {
+        const rowRect = rectOf(row);
+        const directChildren = [...row.children];
+        const controls = row.querySelector(".data-wire-controls");
+        const controlChildren = controls ? [...controls.children] : [];
+        const allChildren = [...row.querySelectorAll(".data-wire-index, .data-wire-main, .data-wire-controls, select, button")];
+        return {
+          childOverlaps: pairReport(directChildren),
+          controlOverlaps: pairReport(controlChildren),
+          outside: allChildren
+            .map(el => ({ selector: el.className || el.tagName, rect: rectOf(el) }))
+            .filter(item => item.rect.left < rowRect.left - 1 || item.rect.right > rowRect.right + 1 || item.rect.top < rowRect.top - 1 || item.rect.bottom > rowRect.bottom + 1)
+        };
+      });
+    });
+
+    for (const row of report) {
+      expect(row.childOverlaps).toEqual([]);
+      expect(row.controlOverlaps).toEqual([]);
+      expect(row.outside).toEqual([]);
+    }
+  });
+
   test("keeps visible ports in a single svg coordinate system @smoke", async ({ page }) => {
     await openTool(page);
 
