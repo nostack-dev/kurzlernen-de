@@ -231,7 +231,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("dataWiresFromRepeatSample(sample, scopePath)");
     expect(html).toContain("push(fields.image, \"image\", \"image\", \"Image\")");
     expect(html).toContain('filter(part => !/^\\d+$/.test(part))');
-    expect(html).toContain('const childPrefix = prefix && isScalarDataValue(sample) ? prefix + ".0" : prefix;');
+    expect(html).toContain('const childPrefix = prefix ? prefix + ".0" : "";');
     expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
     expect(appHtml).toContain("function runtimeColumnarRepeatEntries");
     expect(appHtml).toContain("function runtimeRepeatValueItems");

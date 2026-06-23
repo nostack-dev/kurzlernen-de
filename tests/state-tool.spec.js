@@ -3732,6 +3732,110 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
+  test("keeps data-wire paths and render order editable from both state editor lists @smoke", async ({ page }) => {
+    const imageUrl = "https://example.com/original.png";
+    const altImageUrl = "https://example.com/alt.png";
+    const model = {
+      version: 2,
+      name: "Render mapping editor",
+      initial: "state_3",
+      states: [{
+        id: "state_3",
+        title: "State 3",
+        body: "",
+        x: 220,
+        y: 220,
+        data: {
+          catalog: {
+            item: {
+              image: imageUrl,
+              altImage: altImageUrl,
+              images: [{ url: "https://example.com/from-array.png" }],
+              title: "Ada Chair",
+              price: "$42",
+              description: "Compact and sturdy",
+              category: "Furniture"
+            }
+          }
+        },
+        subscriptions: ["catalog.item"],
+        dataWires: [
+          { id: "wire_image", sourcePath: "catalog.item.image", role: "image", componentType: "image", label: "Image" },
+          { id: "wire_title", sourcePath: "catalog.item.title", role: "title", componentType: "heading", label: "Title" },
+          { id: "wire_price", sourcePath: "catalog.item.price", role: "price", componentType: "text", label: "Price" },
+          { id: "wire_description", sourcePath: "catalog.item.description", role: "description", componentType: "text", label: "Description" },
+          { id: "wire_category", sourcePath: "catalog.item.category", role: "field", componentType: "text", label: "Category" }
+        ]
+      }],
+      transitions: []
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await openStateInspector(page, "state_3");
+
+    await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", imageUrl);
+    const renderRows = page.locator(".data-wire-render-panel .data-wire-row");
+    await expect(renderRows).toHaveCount(5);
+    const renderPathSelect = renderRows.first().locator('select[aria-label="Source path"]');
+    await expect(renderPathSelect.locator('option[value="catalog.item.images.0.url"]')).toHaveCount(1);
+    await renderPathSelect.selectOption("catalog.item.altImage");
+    await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", altImageUrl);
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      const state = stored.states.find(item => item.id === "state_3");
+      return state.dataWires.find(wire => wire.id === "wire_image")?.sourcePath;
+    }).toBe("catalog.item.altImage");
+
+    await page.locator("#pDataCard").evaluate(el => { el.open = true; });
+    const stateRows = page.locator("#pDataWireList .data-wire-row");
+    await expect(stateRows).toHaveCount(5);
+    let dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    let targetBox = await visibleBox(stateRows.nth(2));
+    await stateRows.first().dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
+    await stateRows.nth(2).dispatchEvent("dragover", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + targetBox.height - 4
+    });
+    await stateRows.nth(2).dispatchEvent("drop", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + targetBox.height - 4
+    });
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.id);
+    }).toEqual(["wire_title", "wire_price", "wire_image", "wire_description", "wire_category"]);
+
+    dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    const refreshedRenderRows = page.locator(".data-wire-render-panel .data-wire-row");
+    targetBox = await visibleBox(refreshedRenderRows.nth(4));
+    await refreshedRenderRows.first().dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
+    await refreshedRenderRows.nth(4).dispatchEvent("dragover", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + targetBox.height - 4
+    });
+    await refreshedRenderRows.nth(4).dispatchEvent("drop", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + targetBox.height - 4
+    });
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.id);
+    }).toEqual(["wire_price", "wire_image", "wire_description", "wire_category", "wire_title"]);
+  });
+
   test("keeps visible ports in a single svg coordinate system @smoke", async ({ page }) => {
     await openTool(page);
 
