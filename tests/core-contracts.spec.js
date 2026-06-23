@@ -75,9 +75,13 @@ test.describe("Core source contracts", () => {
   test("generated runtime keeps user content clean and event-driven @smoke", () => {
     const appHtml = generatedAppHtml();
     const actionHandler = appHtml.match(/button\.onclick = \(\) => \{[\s\S]*?\n\s*\};/);
+    const html = stateHtml();
 
     expect(appHtml).not.toContain("No outgoing transitions");
     expect(appHtml).not.toContain("Play default chime");
+    expect(html).not.toContain('text: "{{fetch.data}}"');
+    expect(html).not.toContain('text: "{{item}}"');
+    expect(html).not.toContain('text: "Item: {{item}}"');
     expect(actionHandler?.[0] || "").toContain("emitRuntimeEvent");
     expect(actionHandler?.[0] || "").not.toContain("followTransition");
   });

@@ -7668,15 +7668,28 @@
           body: "",
           components: [
             {
-              id: "builtin_fetch_data_note",
-              type: "note",
-              text: "Fetches structured data when this state is entered. Set the endpoint in Data source, then bind {{fetch.status}}, {{fetch.ok}}, {{fetch.data}} or {{fetch.error}}.",
+              id: "builtin_fetch_data_image",
+              type: "image",
+              text: "{{item.title}}",
+              url: "{{item.images.0}}"
+            },
+            {
+              id: "builtin_fetch_data_title",
+              type: "heading",
+              text: "{{item.title}}",
               url: ""
             },
             {
-              id: "builtin_fetch_data_list",
-              type: "list",
-              text: "{{fetch.data}}",
+              id: "builtin_fetch_data_price",
+              type: "text",
+              text: "Price: {{item.price}}",
+              variant: "field",
+              url: ""
+            },
+            {
+              id: "builtin_fetch_data_description",
+              type: "text",
+              text: "{{item.description}}",
               url: ""
             }
           ],
@@ -8367,7 +8380,14 @@
           existingByTitle.set(key, child);
           created += 1;
         }
-        child.components = [{ type: "text", text: binding }];
+        child.components = Array.isArray(selectedValue) && !path
+          ? [
+              { id: uid("c"), type: "image", text: "{{item.title}}", url: "{{item.images.0}}" },
+              { id: uid("c"), type: "heading", text: "{{item.title}}", url: "" },
+              { id: uid("c"), type: "text", text: "Price: {{item.price}}", variant: "field", url: "" },
+              { id: uid("c"), type: "text", text: "{{item.description}}", url: "" }
+            ]
+          : [{ id: uid("c"), type: "text", text: binding }];
         child.body = "";
         child.subscriptions = [Array.isArray(selectedValue) ? `${target}.data` : (path ? `${target}.data.${path}` : `${target}.data`)];
       }
@@ -9154,14 +9174,33 @@
         if (repeatPathInput) repeatPathInput.value = s.repeat.path;
         if (repeatAsInput) repeatAsInput.value = s.repeat.as;
         if (repeatIndexInput) repeatIndexInput.value = s.repeat.index;
-        const binding = itemPath ? `{{${s.repeat.as}.${itemPath}}}` : `{{${s.repeat.as}}}`;
+        const binding = itemPath ? `{{${s.repeat.as}.${itemPath}}}` : "";
         const labelKey = (itemPath.split(".").filter(Boolean).slice(-1)[0] || "item");
         const prettyLabel = labelKey.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/^./, ch => ch.toUpperCase());
-        const text = `${prettyLabel}: ${binding}`;
+        const text = itemPath ? `${prettyLabel}: ${binding}` : "";
         const isFetchPlaceholder = value => /Fetches structured data when this state is entered|Set the endpoint in Data source|bind loading|bind success/i.test(String(value || ""));
         if (isFetchPlaceholder(s.body)) s.body = "";
-        s.components = normalizeComponents(s.components).filter(component => !isFetchPlaceholder(component.text) && !isFetchPlaceholder(component.url));
-        if (!s.components.some(component => component.text === text || component.text === binding || component.url === binding)) {
+        s.components = normalizeComponents(s.components).filter(component =>
+          !isFetchPlaceholder(component.text) &&
+          !isFetchPlaceholder(component.url) &&
+          component.text !== "{{fetch.data}}" &&
+          component.text !== "{{item}}" &&
+          component.text !== "Item: {{item}}"
+        );
+        if (!itemPath) {
+          const defaults = [
+            { type: "image", text: `{{${s.repeat.as}.title}}`, url: `{{${s.repeat.as}.images.0}}` },
+            { type: "heading", text: `{{${s.repeat.as}.title}}`, url: "" },
+            { type: "text", text: `Price: {{${s.repeat.as}.price}}`, variant: "field", url: "" },
+            { type: "text", text: `{{${s.repeat.as}.description}}`, url: "" }
+          ];
+          for (const component of defaults) {
+            if (!s.components.some(existing => existing.type === component.type && existing.text === component.text && existing.url === component.url)) {
+              s.components.push({ id: uid("c"), ...component });
+            }
+          }
+          renderComponentEditors(s, null, root, { skipLiveStateSync: true });
+        } else if (!s.components.some(component => component.text === text || component.text === binding || component.url === binding)) {
           s.components.push({ id: uid("c"), type: "text", text, variant: "field" });
           renderComponentEditors(s, null, root, { skipLiveStateSync: true });
         }
