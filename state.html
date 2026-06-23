@@ -4703,7 +4703,7 @@
         const sample = repeatSampleForPath(scope.scopePath, owner);
         return scope.itemPath && sample ? jsonValueAtPath(sample, scope.itemPath) : sample;
       }
-      return readValueAtPath(latestRuntimeContext, key);
+      return jsonValueAtPath(latestRuntimeContext, key);
     }
 
     function inferDataWireRole(path, value) {
