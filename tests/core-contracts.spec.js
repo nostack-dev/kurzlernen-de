@@ -126,6 +126,10 @@ test.describe("Core source contracts", () => {
 
     expect(html).toContain("function derivedRepeatComponents");
     expect(html).toContain("function pickDerivedRepeatFields");
+    expect(html).toContain("function imagePathSpecificityScore");
+    expect(html).toContain("category|categories|brand|manufacturer");
+    expect(appHtml).toContain("function runtimeImagePathSpecificityScore");
+    expect(appHtml).toContain("runtimeImagePathSpecificityScore(path)");
     expect(html).toContain("function repeatSampleForPath");
     expect(html).toContain("function repeatComponentMeta");
     expect(html).toContain("function columnarRepeatEntries");
