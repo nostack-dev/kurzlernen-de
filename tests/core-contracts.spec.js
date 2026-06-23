@@ -171,4 +171,15 @@ test.describe("Core browser contracts", () => {
     await tree.locator(".global-state-json-collapse").first().click();
     await expect.poll(async () => tree.locator(".global-state-json-line").count()).toBeGreaterThan(collapsed);
   });
+
+  test("repeat over is selected from derived candidates, not typed as free text @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="auth_start"]').click();
+
+    const repeat = page.locator("#pRepeatPath");
+    await expect(repeat).toHaveJSProperty("tagName", "SELECT");
+    await expect(repeat.locator("option", { hasText: "No repeat" })).toBeVisible();
+    await expect(page.locator("#pRepeatPathList")).toHaveCount(0);
+  });
 });

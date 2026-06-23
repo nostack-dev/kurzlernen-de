@@ -8396,7 +8396,7 @@
       const as = root.querySelector("#pRepeatAs");
       const index = root.querySelector("#pRepeatIndex");
       const preview = root.querySelector("#pRepeatPreview");
-      const optionList = root.querySelector("#pRepeatPathList");
+      const optionList = null;
       if (!path || !as || !index || !preview) return;
       const addOption = (map, value, label = "Global State array") => {
         const key = normalizeContextPath(value, "");
@@ -8416,7 +8416,6 @@
         });
       };
       const refreshOptions = () => {
-        if (!optionList) return;
         const map = new Map();
         if (isPlainObject(latestRuntimeContext)) {
           Object.entries(latestRuntimeContext).forEach(([key, value]) => collectArrayOptions(value, key, map));
@@ -8428,13 +8427,25 @@
           if (repeat.path) addOption(map, repeat.path, `${state.title || state.id} repeat`);
         }
         if (owner.repeat?.path) addOption(map, owner.repeat.path, "Current repeat");
-        optionList.innerHTML = "";
+        const current = normalizeContextPath(path.value, "");
+        path.innerHTML = "";
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "No repeat";
+        path.appendChild(empty);
         [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 120).forEach(([value, label]) => {
           const option = document.createElement("option");
           option.value = value;
-          option.label = label;
-          optionList.appendChild(option);
+          option.textContent = `${value} (${label})`;
+          path.appendChild(option);
         });
+        if (current && !map.has(current)) {
+          const option = document.createElement("option");
+          option.value = current;
+          option.textContent = `${current} (Current repeat)`;
+          path.appendChild(option);
+        }
+        path.value = current;
       };
       owner.repeat = normalizeRepeatConfig(owner.repeat);
       path.value = owner.repeat.path;
@@ -8451,7 +8462,7 @@
         if (persist) persistOwner(`${historyPrefix}:repeat`);
       };
       path.onfocus = refreshOptions;
-      path.oninput = () => update(true);
+      path.onchange = () => update(true);
       path.onblur = () => { lastHistoryKey = null; refreshOptions(); };
       refreshOptions();
       update(false);
@@ -8934,7 +8945,7 @@
         <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
           <div class="small"><b>Repeat content</b><br><span>Optional: render this state's content once per item from a Global State array.</span></div>
-          <div class="field"><label>Repeat over</label><input id="pRepeatPath" list="pRepeatPathList" placeholder="fetch.data"><datalist id="pRepeatPathList"></datalist></div>
+          <div class="field"><label>Repeat over</label><select id="pRepeatPath"></select></div>
           <input id="pRepeatAs" type="hidden" value="item">
           <input id="pRepeatIndex" type="hidden" value="i">
           <div id="pRepeatPreview" class="condition-preview empty"></div>
