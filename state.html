@@ -8633,22 +8633,11 @@
         draw();
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
-      const autoCreateRepeatComponents = () => {
-        const autoRepeatChanged = autoDeriveRepeatForOwner(s, null, false);
-        const repeat = normalizeRepeatConfig(s.repeat);
-        if (!repeat.path) {
-          if (autoRepeatChanged) {
-            saveModel("state:auto-repeat-clean:" + s.id);
-            if (!options.skipLiveStateSync) scheduleSync(false);
-          }
-          return;
-        }
-        const changed = applyDerivedDataWires(s, repeat.path, root, false);
-        if (!changed && !autoRepeatChanged) return;
-        saveModel(changed ? "state:auto-data-wire:" + s.id : "state:auto-repeat:" + s.id);
+      const autoCleaned = clearAutoRepeatForUnboundOwner(s);
+      if (autoCleaned) {
+        saveModel("state:auto-repeat-clean:" + s.id);
         if (!options.skipLiveStateSync) scheduleSync(false);
-      };
-      autoCreateRepeatComponents();
+      }
       let draggingComponentId = null;
       const clearComponentDropMarks = () => {
         list.querySelectorAll(".component-editor.drop-before,.component-editor.drop-after").forEach(el => el.classList.remove("drop-before", "drop-after"));
@@ -9214,7 +9203,6 @@
       const select = root.querySelector("#pDataSourceSelect");
       const preview = root.querySelector("#pDataSourcePreview");
       const inspect = root.querySelector("#pDataSourceInspect");
-      const openMapper = root.querySelector("#pOpenFetchMapper");
       if (!url || !target || !select || !preview) return;
       owner.dataSource = normalizeDataSource(owner.dataSource || owner.fetch);
       url.value = owner.dataSource.url;
@@ -9258,88 +9246,7 @@
       };
       url.oninput = target.oninput = select.oninput = () => update(true);
       url.onblur = target.onblur = select.onblur = () => { lastHistoryKey = null; };
-      if (openMapper) openMapper.onclick = () => openFetchMapper(owner, root, persistOwner, historyPrefix);
       update(false);
-    }
-
-    function persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix = "state") {
-      const modalUrl = modal.querySelector("#pDataSourceUrl");
-      const modalTarget = modal.querySelector("#pDataSourceTarget");
-      const modalSelect = modal.querySelector("#pDataSourceSelect");
-      const ownerUrl = ownerRoot.querySelector("#pDataSourceUrl");
-      const ownerTarget = ownerRoot.querySelector("#pDataSourceTarget");
-      const ownerSelect = ownerRoot.querySelector("#pDataSourceSelect");
-      const preview = ownerRoot.querySelector("#pDataSourcePreview");
-      if (!modalUrl || !modalTarget || !modalSelect) return normalizeDataSource(owner.dataSource || owner.fetch);
-      const next = normalizeDataSource({
-        ...normalizeDataSource(owner.dataSource || owner.fetch),
-        url: modalUrl.value,
-        target: modalTarget.value,
-        select: modalSelect.value
-      });
-      owner.dataSource = next;
-      if (ownerUrl) ownerUrl.value = next.url;
-      if (ownerTarget) ownerTarget.value = next.target;
-      if (ownerSelect) ownerSelect.value = next.select;
-      if (preview) {
-        preview.textContent = dataSourcePreviewText(next, modalTarget.value, modalSelect.value);
-        preview.classList.toggle("empty", !String(next.url || "").trim());
-      }
-      persistOwner(`${historyPrefix}:data-source`);
-      scheduleSync(false);
-      return next;
-    }
-
-    async function detectFetchMapperJson(modal) {
-      const urlInput = modal.querySelector("#pDataSourceUrl");
-      const inspect = modal.querySelector("#pDataSourceInspect");
-      const raw = String(urlInput?.value || "").trim();
-      if (!inspect) return null;
-      if (!raw) {
-        inspect.textContent = "Paste an endpoint URL or raw JSON.";
-        inspect.classList.remove("empty");
-        return null;
-      }
-      if (raw.startsWith("{") || raw.startsWith("[")) {
-        try {
-          return JSON.parse(raw);
-        } catch (err) {
-          inspect.textContent = "Pasted string is not valid JSON: " + err.message;
-          inspect.classList.remove("empty");
-          return null;
-        }
-      }
-      const requestUrl = safeEditorFetchUrl(raw);
-      if (!requestUrl) {
-        inspect.textContent = "Endpoint must be http(s), relative URL, or raw JSON.";
-        inspect.classList.remove("empty");
-        return null;
-      }
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
-      try {
-        const response = await fetch(requestUrl, {
-          headers: { Accept: "application/json" },
-          cache: "no-store",
-          credentials: "same-origin",
-          signal: controller.signal
-        });
-        return await response.json();
-      } catch (err) {
-        inspect.textContent = (err?.name === "AbortError")
-          ? "Inspect timed out. The app will still try at runtime."
-          : "Could not inspect JSON. Check CORS, URL, or whether the endpoint returns JSON.";
-        inspect.classList.remove("empty");
-        return null;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-
-    function responseStateTitle(path) {
-      const clean = String(path || "value").replace(/\[[^\]]*\]/g, "").split(".").filter(Boolean);
-      const label = clean.length ? clean.slice(-2).join(" / ") : "value";
-      return "Response: " + label;
     }
 
     function dataPathLabel(path, fallback = "Value") {
@@ -9709,19 +9616,8 @@
 
     function autoDeriveRepeatForOwner(owner, root = null, persist = false) {
       const cleaned = clearAutoRepeatForUnboundOwner(owner);
-      if (!ownerHasAutoRepeatSource(owner)) {
-        if (cleaned && persist) saveModel("state:auto-repeat-clean:" + owner.id);
-        return cleaned;
-      }
-      const currentRepeat = normalizeRepeatConfig(owner.repeat);
-      if (currentRepeat.manual && currentRepeat.path) return cleaned;
-      const repeatPath = autoRepeatPathForOwner(owner);
-      if (!repeatPath) return cleaned;
-      const previousPath = currentRepeat.path;
-      owner.repeat = normalizeRepeatConfig({ path: repeatPath, as: "item", index: "i" });
-      applyDerivedRepeatComponents(owner, repeatPath, root, false);
-      if (persist && repeatPath !== previousPath) saveModel("state:auto-repeat:" + owner.id);
-      return cleaned || repeatPath !== previousPath;
+      if (cleaned && persist) saveModel("state:auto-repeat-clean:" + owner.id);
+      return cleaned;
     }
     function isGeneratedRepeatComponent(component, repeatPath = "") {
       return Boolean(component?.generatedFromRepeat);
@@ -9733,161 +9629,7 @@
     }
 
     function applyDerivedRepeatComponents(owner, repeatPath, root = null, force = false) {
-      return applyDerivedDataWires(owner, repeatPath, root, force);
-    }
-
-    function ensureFetchContainerState(parent, dataSource) {
-      const existing = statesInLayer(parent.id).find(child => String(child.title || "").toLowerCase() === "fetch");
-      const fetchState = existing || makeState(nextChildPosition(parent.id).x, nextChildPosition(parent.id).y, "Fetch", parent.id);
-      if (!existing) model.states.push(fetchState);
-      fetchState.title = "Fetch";
-      fetchState.dataSource = normalizeDataSource(dataSource);
-      fetchState.subscriptions = [normalizeContextPath(fetchState.dataSource.target, "fetch") + ".data"];
-      return fetchState;
-    }
-
-    function addFetchResponseStates(owner, modal, json, persistOwner, historyPrefix = "state") {
-      const parent = byId(owner.id);
-      const status = modal.querySelector("#pFetchTreeStatus");
-      if (!parent) {
-        if (status) status.textContent = "Only saved states can receive fetch child states.";
-        return;
-      }
-      const dataSource = persistFetchMapperSource(owner, stateInspectorBodyEl, modal, persistOwner, historyPrefix);
-      const selectedPath = normalizeContextPath(modal.querySelector("#pDataSourceSelect")?.value || "", "");
-      const selectedValue = selectedPath ? jsonValueAtPath(json, selectedPath) : json;
-      const sample = Array.isArray(selectedValue) ? (selectedValue[0] ?? {}) : selectedValue;
-      const leafPaths = collectLeafPaths(sample).slice(0, 18);
-      const paths = leafPaths.length ? leafPaths : [""];
-      const fetchState = ensureFetchContainerState(parent, dataSource);
-      const target = normalizeContextPath(dataSource.target, "fetch");
-      if (Array.isArray(selectedValue)) {
-        fetchState.repeat = normalizeRepeatConfig({ path: `${target}.data`, as: "item", index: "i" });
-      } else {
-        fetchState.repeat = normalizeRepeatConfig(null);
-      }
-      const existingByTitle = new Map(statesInLayer(fetchState.id).map(child => [String(child.title || "").toLowerCase(), child]));
-      let created = 0;
-      for (const path of paths) {
-        const title = responseStateTitle(path);
-        const key = title.toLowerCase();
-        const value = Array.isArray(selectedValue)
-          ? (path ? jsonValueAtPath(sample, path) : sample)
-          : (path ? jsonValueAtPath(selectedValue, path) : selectedValue);
-        let child = existingByTitle.get(key);
-        if (!child) {
-          const pos = nextChildPosition(fetchState.id);
-          child = makeState(pos.x, pos.y, title, fetchState.id);
-          model.states.push(child);
-          existingByTitle.set(key, child);
-          created += 1;
-        }
-        child.components = Array.isArray(selectedValue) && !path
-          ? derivedRepeatComponents(sample, "item")
-          : [componentForDataField(path || (target + ".data"), value, "item")];
-        child.body = "";
-        child.subscriptions = [Array.isArray(selectedValue) ? `${target}.data` : (path ? `${target}.data.${path}` : `${target}.data`)];
-      }
-      selected = selectionFromParts([parent.id], []);
-      saveModel(`${historyPrefix}:fetch-automap:${parent.id}`);
-      draw();
-      renderChildJumpList(parent, stateInspectorBodyEl);
-      syncToApp(false);
-      if (status) status.textContent = `${created ? "Created" : "Updated"} ${paths.length} response states under Fetch.`;
-    }
-
-    function renderFetchTreeActions(owner, ownerRoot, modal, persistOwner, historyPrefix, json) {
-      const existing = modal.querySelector("#pFetchTreeActions");
-      if (existing) existing.remove();
-      const actions = document.createElement("div");
-      actions.id = "pFetchTreeActions";
-      actions.className = "fetch-tree-actions";
-      const title = document.createElement("div");
-      title.className = "small";
-      title.innerHTML = "<b>State tree</b><br>Use the selected JSON path to create/update child states below a Fetch child.";
-      const row = document.createElement("div");
-      row.className = "row";
-      const add = document.createElement("button");
-      add.type = "button";
-      add.textContent = "Add response as Fetch child states";
-      const status = document.createElement("div");
-      status.id = "pFetchTreeStatus";
-      status.className = "condition-preview empty";
-      add.onclick = () => addFetchResponseStates(owner, modal, json, persistOwner, historyPrefix);
-      row.appendChild(add);
-      actions.append(title, row, status);
-      modal.querySelector("#pDataSourceInspect")?.after(actions);
-    }
-
-    function openFetchMapper(owner, ownerRoot, persistOwner, historyPrefix = "state") {
-      const DEFAULT_FETCH_PREVIEW_URL = "https://api.escuelajs.co/api/v1/products";
-      const source = normalizeDataSource(owner.dataSource || owner.fetch);
-      const backdrop = document.createElement("div");
-      backdrop.className = "fetch-mapper-backdrop";
-      backdrop.innerHTML = `
-        <div class="fetch-mapper-modal" role="dialog" aria-modal="true" aria-label="Fetch automap">
-          <div class="fetch-mapper-head">
-          <div><h3>Fetch automap</h3><p>Fetch schreibt in den globalState. Klick ein Response-Feld an, dann bekommt dieser State diesen Daten-Scope und rendert ihn.</p></div>
-            <button class="fetch-mapper-close" type="button">Close</button>
-          </div>
-          <div class="fetch-mapper-grid">
-            <div class="field"><label>Endpoint / JSON</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
-            <input id="pDataSourceTarget" type="hidden" value="fetch">
-            <input id="pDataSourceSelect" type="hidden">
-          </div>
-          <div class="row">
-            <button id="pFetchDetect" type="button">Refresh response</button>
-          </div>
-          <div id="pDataSourceStatus" class="condition-preview empty">Noch kein Feld hinzugefügt. Klick + neben einem Response-Feld.</div>
-          <div id="pMappedFetchFields" class="fetch-mapped-fields"></div>
-          <div id="pDataSourceInspect" class="json-inspect empty">Endpoint einfügen. Die Response erscheint automatisch als klickbarer JSON-Baum.</div>
-        </div>
-      `;
-      const modal = backdrop.querySelector(".fetch-mapper-modal");
-      const url = modal.querySelector("#pDataSourceUrl");
-      const target = modal.querySelector("#pDataSourceTarget");
-      const select = modal.querySelector("#pDataSourceSelect");
-      const inspect = modal.querySelector("#pDataSourceInspect");
-      url.value = source.url || DEFAULT_FETCH_PREVIEW_URL;
-      target.value = source.target || "fetch";
-      select.value = source.select;
-      const close = () => backdrop.remove();
-      backdrop.querySelector(".fetch-mapper-close").onclick = close;
-      backdrop.addEventListener("mousedown", evt => { if (evt.target === backdrop) close(); });
-      let detectTimer = 0;
-      let detectRun = 0;
-      const runDetect = async () => {
-        clearTimeout(detectTimer);
-        const raw = url.value.trim();
-        if (!raw) {
-          inspect.textContent = "Endpoint einfügen, dann Response-Feld anklicken.";
-          inspect.classList.add("empty");
-          return;
-        }
-        const run = ++detectRun;
-        inspect.textContent = raw.startsWith("{") || raw.startsWith("[") ? "Parsing JSON..." : "Fetching JSON...";
-        inspect.classList.remove("empty");
-        const json = await detectFetchMapperJson(modal);
-        if (!json || run !== detectRun) return;
-        renderJsonInspect(owner, modal, persistOwner, json, { status: "detected", contentType: "application/json" }, { ownerRoot, historyPrefix });
-      };
-      const scheduleDetect = () => {
-        clearTimeout(detectTimer);
-        const raw = url.value.trim();
-        if (!raw) {
-          inspect.textContent = "Endpoint einfügen. Die Response erscheint automatisch als klickbarer JSON-Baum.";
-          inspect.classList.add("empty");
-          return;
-        }
-        inspect.textContent = "Detecting response...";
-        inspect.classList.remove("empty");
-        detectTimer = setTimeout(runDetect, 500);
-      };
-      modal.querySelector("#pFetchDetect").onclick = runDetect;
-      url.addEventListener("input", scheduleDetect);
-      document.body.appendChild(backdrop);
-      url.focus({ preventScroll: true });
-      if (url.value.trim()) scheduleDetect();
+      return false;
     }
 
     function bindRepeatEditor(owner, root, persistOwner, historyPrefix = "state") {
@@ -10027,6 +9769,53 @@
       }
     }
 
+    async function detectDataSourcePreviewJson(root) {
+      const inspect = root.querySelector("#pDataSourceInspect");
+      const urlInput = root.querySelector("#pDataSourceUrl");
+      const raw = String(urlInput?.value || "").trim();
+      if (!raw) return null;
+      if (raw.startsWith("{") || raw.startsWith("[")) {
+        try {
+          return JSON.parse(raw);
+        } catch (err) {
+          if (inspect) {
+            inspect.textContent = "Pasted string is not valid JSON: " + err.message;
+            inspect.classList.remove("empty");
+          }
+          return null;
+        }
+      }
+      const requestUrl = safeEditorFetchUrl(raw);
+      if (!requestUrl) {
+        if (inspect) {
+          inspect.textContent = "Endpoint must be http(s), relative URL, or raw JSON.";
+          inspect.classList.remove("empty");
+        }
+        return null;
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(requestUrl, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal
+        });
+        return await response.json();
+      } catch (err) {
+        if (inspect) {
+          inspect.textContent = (err?.name === "AbortError")
+            ? "Preview timed out. The app will still try at runtime."
+            : "Could not preview JSON. Check CORS, URL, or whether the endpoint returns JSON.";
+          inspect.classList.remove("empty");
+        }
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
     function jsonValueAtPath(value, path) {
       const parts = String(path || "").split(".").filter(Boolean);
       let current = value;
@@ -10074,13 +9863,8 @@
       const select = root.querySelector("#pDataSourceSelect");
       const target = root.querySelector("#pDataSourceTarget");
       const ownerRoot = opts.ownerRoot || root;
-      const repeatPath = ownerRoot.querySelector("#pRepeatPath");
-      const repeatAs = ownerRoot.querySelector("#pRepeatAs");
-      const ownerUrl = ownerRoot.querySelector("#pDataSourceUrl");
       const ownerTarget = ownerRoot.querySelector("#pDataSourceTarget");
       const ownerSelect = ownerRoot.querySelector("#pDataSourceSelect");
-      const status = root.querySelector("#pDataSourceStatus") || ownerRoot.querySelector("#pDataSourceStatus");
-      const mappedList = root.querySelector("#pMappedFetchFields");
       if (!inspect || !select || !target) return;
       const maxRows = 140;
       const rootIsArray = Array.isArray(json);
@@ -10120,232 +9904,13 @@
         return typeof value === "string" && (/^https?:\/\/.*\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(value) || /(^|\.)(image|images|img|photo|picture|thumbnail|avatar|icon)(\.|$)/i.test(path));
       };
       const isLinkValue = value => typeof value === "string" && /^https?:\/\//i.test(value);
-      const syncOwnerInputs = () => {
-        if (ownerUrl) ownerUrl.value = root.querySelector("#pDataSourceUrl")?.value || ownerUrl.value;
-        if (ownerTarget) ownerTarget.value = target.value;
-        if (ownerSelect) ownerSelect.value = select.value;
-      };
-      const saveMappedOrder = historyKey => {
-        renderComponentEditors(owner, null, ownerRoot, { skipLiveStateSync: true });
-        persistOwner(historyKey || ((opts.historyPrefix || "state") + ":fetch-order:" + owner.id));
-        draw();
-        syncToApp(true);
-      };
-      const renderMappedFields = () => {
-        if (!mappedList) return;
-        mappedList.innerHTML = "";
-        const mapped = normalizeDataWires(owner.dataWires).map((wire, index) => ({ wire, index }));
-        if (!mapped.length) {
-          const empty = document.createElement("div");
-          empty.className = "fetch-mapped-empty";
-          empty.textContent = "Noch kein Render-Mapping. Klick + im JSON-Baum; der State rendert den Pfad dann ueber globalState.";
-          mappedList.appendChild(empty);
-          return;
-        }
-        const title = document.createElement("div");
-        title.className = "data-wire-render-title";
-        title.innerHTML = "<strong>Mapped render</strong><span>Same order as State render</span>";
-        mappedList.appendChild(title);
-        let draggingMappedWireId = null;
-        const clearMappedMarks = () => mappedList.querySelectorAll(".data-wire-row.drop-before,.data-wire-row.drop-after").forEach(row => row.classList.remove("drop-before", "drop-after"));
-        const moveMappedWire = (dragId, targetId, after = false) => {
-          if (!dragId || !targetId || dragId === targetId) return false;
-          const wires = normalizeDataWires(owner.dataWires);
-          const fromIndex = wires.findIndex(wire => wire.id === dragId);
-          let toIndex = wires.findIndex(wire => wire.id === targetId);
-          if (fromIndex < 0 || toIndex < 0) return false;
-          const moved = wires.splice(fromIndex, 1)[0];
-          if (fromIndex < toIndex) toIndex -= 1;
-          wires.splice(after ? toIndex + 1 : toIndex, 0, moved);
-          owner.dataWires = wires;
-          saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-order:" + owner.id);
-          renderMappedFields();
-          return true;
-        };
-        mapped.forEach((item, mappedIndex) => {
-          const row = document.createElement("div");
-          row.className = "data-wire-row compact draggable";
-          row.draggable = true;
-          row.addEventListener("dragstart", evt => {
-            if (evt.target?.closest?.("select, button")) {
-              evt.preventDefault();
-              return;
-            }
-            draggingMappedWireId = item.wire.id;
-            row.classList.add("dragging");
-            if (evt.dataTransfer) {
-              evt.dataTransfer.effectAllowed = "move";
-              evt.dataTransfer.setData("text/plain", item.wire.id);
-            }
-          });
-          row.addEventListener("dragend", () => {
-            draggingMappedWireId = null;
-            row.classList.remove("dragging");
-            clearMappedMarks();
-          });
-          row.addEventListener("dragover", evt => {
-            if (!draggingMappedWireId || draggingMappedWireId === item.wire.id) return;
-            evt.preventDefault();
-            clearMappedMarks();
-            const rect = row.getBoundingClientRect();
-            row.classList.add(evt.clientY > rect.top + rect.height / 2 ? "drop-after" : "drop-before");
-          });
-          row.addEventListener("dragleave", evt => {
-            if (!row.contains(evt.relatedTarget)) row.classList.remove("drop-before", "drop-after");
-          });
-          row.addEventListener("drop", evt => {
-            if (!draggingMappedWireId || draggingMappedWireId === item.wire.id) return;
-            evt.preventDefault();
-            const rect = row.getBoundingClientRect();
-            moveMappedWire(evt.dataTransfer?.getData("text/plain") || draggingMappedWireId, item.wire.id, evt.clientY > rect.top + rect.height / 2);
-          });
-          const order = document.createElement("span");
-          order.className = "data-wire-index";
-          order.textContent = String(mappedIndex + 1);
-          const main = document.createElement("div");
-          main.className = "data-wire-main";
-          const name = document.createElement("strong");
-          name.textContent = dataWireRenderLabel(item.wire);
-          const meta = document.createElement("div");
-          meta.className = "data-wire-meta";
-          const sub = document.createElement("span");
-          sub.className = "data-wire-chip active";
-          sub.textContent = "sub " + dataWireSubscriptionLabel(item.wire);
-          const shown = document.createElement("span");
-          shown.className = "data-wire-chip";
-          shown.textContent = dataWireRoleLabel(item.wire.role) + " · " + dataWireScopeLabel(item.wire);
-          meta.append(sub, shown);
-          main.append(name, meta);
-          const pathSelect = document.createElement("select");
-          pathSelect.setAttribute("aria-label", "Source path");
-          const pathOptions = dataWireCandidatePaths(owner, [item.wire.sourcePath]);
-          if (!pathOptions.some(option => option.path === item.wire.sourcePath)) pathOptions.unshift({ path: item.wire.sourcePath, source: "mapped" });
-          pathOptions.forEach(pathOption => {
-            const option = document.createElement("option");
-            option.value = pathOption.path;
-            option.textContent = pathOption.path + (pathOption.source ? " · " + pathOption.source : "");
-            if (pathOption.path === item.wire.sourcePath) option.selected = true;
-            pathSelect.appendChild(option);
-          });
-          pathSelect.onchange = () => {
-            if (updateDataWirePath(owner, item.wire.id, pathSelect.value)) {
-              saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-path:" + owner.id);
-            }
-            renderMappedFields();
-          };
-          const role = document.createElement("select");
-          DATA_WIRE_ROLES.forEach(roleName => {
-            const option = document.createElement("option");
-            option.value = roleName;
-            option.textContent = dataWireRoleLabel(roleName);
-            if (roleName === item.wire.role) option.selected = true;
-            role.appendChild(option);
-          });
-          role.onchange = () => {
-            const wires = normalizeDataWires(owner.dataWires);
-            wires[item.index] = { ...wires[item.index], role: normalizeDataWireRole(role.value), componentType: normalizeDataWireComponentType("", role.value) };
-            owner.dataWires = normalizeDataWires(wires);
-            saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-role:" + owner.id);
-            renderMappedFields();
-          };
-          const remove = document.createElement("button");
-          remove.type = "button";
-          remove.className = "danger data-wire-remove";
-          remove.textContent = "x";
-          remove.title = "Remove mapping";
-          remove.setAttribute("aria-label", "Remove mapping");
-          remove.onclick = () => {
-            owner.dataWires = normalizeDataWires(owner.dataWires).filter((_, index) => index !== item.index);
-            saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-remove:" + owner.id);
-            renderMappedFields();
-          };
-          const controls = document.createElement("div");
-          controls.className = "data-wire-controls";
-          controls.append(pathSelect, role, remove);
-          row.append(order, main, controls);
-          mappedList.appendChild(row);
-        });
-      };
-      const persistPick = () => {
-        if (opts.ownerRoot && opts.ownerRoot !== root) {
-          persistFetchMapperSource(owner, opts.ownerRoot, root, persistOwner, opts.historyPrefix || "state");
-        } else {
-          owner.dataSource = normalizeDataSource({
-            ...(owner.dataSource || {}),
-            url: root.querySelector("#pDataSourceUrl")?.value || owner.dataSource?.url || "",
-            target: target.value,
-            select: select.value
-          });
-          syncOwnerInputs();
-          persistOwner("fetch:automap");
-          scheduleSync(false);
-        }
-      };
-      const appendAutomappedComponent = (path, value, fromRootArrayItem) => {
-        const cleanPath = normalizeBindingPath(path || "", "");
-        const store = targetName();
-        const scopePath = store + ".data";
-        const sourcePath = cleanPath ? scopePath + "." + cleanPath : scopePath;
-        const componentValue = fromRootArrayItem && cleanPath ? jsonValueAtPath(sample, cleanPath) : value;
-        const wire = dataWireFromPath(owner, sourcePath, componentValue, { scopePath, itemPath: cleanPath });
-        const added = upsertDataWire(owner, wire);
-        owner.subscriptions = normalizeSubscriptions([...(owner.subscriptions || []), wire.scopePath || wire.sourcePath]);
-        const subscriptionInput = ownerRoot.querySelector("#pSubscriptions");
-        if (subscriptionInput) {
-          subscriptionInput.value = owner.subscriptions.join("\n");
-          subscriptionInput.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        owner.components = normalizeComponents(owner.components).filter(component => !component.generatedFromRepeat && !component.generatedFromDataWire);
-        renderComponentEditors(owner, null, ownerRoot, { skipLiveStateSync: true });
-        persistOwner((opts.historyPrefix || "state") + ":data-wire:" + owner.id);
-        draw();
-        syncToApp(true);
-        renderMappedFields();
-        return added;
-      };
-      const pickPath = (path, value, fromRootArrayItem = false) => {
-        const cleanPath = normalizeContextPath(path || "", "");
-        const store = targetName();
-        target.value = store;
-        select.value = rootIsArray && fromRootArrayItem ? "" : cleanPath;
-        const selectedValue = rootIsArray && fromRootArrayItem ? json : (cleanPath ? jsonValueAtPath(json, cleanPath) : json);
-        const repeats = rootIsArray && fromRootArrayItem ? true : Array.isArray(selectedValue);
-        if (repeatAs && !repeatAs.value.trim()) {
-          repeatAs.value = "item";
-          repeatAs.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        if (repeatPath) {
-          repeatPath.value = repeats ? store + ".data" : "";
-          repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        select.dispatchEvent(new Event("input", { bubbles: true }));
-        const subscriptionPath = normalizeContextPath(store + ".data", "fetch.data");
-        const currentSubscriptions = Array.isArray(owner.subscriptions) ? owner.subscriptions : [];
-        owner.subscriptions = Array.from(new Set([
-          ...currentSubscriptions.map(path => normalizeContextPath(path, "")).filter(Boolean),
-          subscriptionPath
-        ]));
-        const subscriptionInput = ownerRoot.querySelector("#pSubscriptions");
-        if (subscriptionInput) {
-          subscriptionInput.value = owner.subscriptions.join("\n");
-          subscriptionInput.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        persistPick();
-        const added = appendAutomappedComponent(cleanPath, value, rootIsArray && fromRootArrayItem);
-        renderMappedFields();
-        if (status) {
-          status.classList.remove("empty");
-          status.textContent = (added ? "Added " : "Already mapped ") + dataPathLabel(cleanPath || subscriptionPath, "field");
-        }
-      };
-
       const title = document.createElement("div");
       title.className = "json-inspect-title";
       title.textContent = rootIsArray ? "Response array: " + json.length + " items" : "Response JSON";
       inspect.appendChild(title);
       const metaLine = document.createElement("div");
       metaLine.className = "fetch-json-meta";
-      metaLine.innerHTML = "<span>Click + to render a response field.</span><span>State trigger: fetch on enter, fields resolve from global JSON.</span>";
+      metaLine.innerHTML = "<span>Preview only. Add render rows from the Render mapping panel.</span><span>State trigger: fetch on enter, fields resolve from global JSON.</span>";
       inspect.appendChild(metaLine);
 
       const tree = document.createElement("div");
@@ -10360,21 +9925,7 @@
         const code = document.createElement("div");
         code.className = "fetch-json-code";
         code.innerHTML = "<span class=\"fetch-json-path\">" + escapeHtml(pathLabel(path)) + "</span> <span>" + escapeHtml(label) + "</span> <span class=\"fetch-json-value\">" + escapeHtml(shortValue(value)) + "</span>";
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "fetch-json-pick";
-        button.textContent = "+";
-        button.title = "Render " + pathLabel(path);
-        button.onclick = evt => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          pickPath(path, value, fromRootArrayItem);
-        };
-        line.onclick = evt => {
-          if (evt.target === button) return;
-          pickPath(path, value, fromRootArrayItem);
-        };
-        line.append(code, button);
+        line.append(code);
         tree.appendChild(line);
       };
       const walk = (value, basePath, depth, fromRootArrayItem) => {
@@ -10657,7 +10208,7 @@
         if (!wires.length) {
           const empty = document.createElement("div");
           empty.className = "fetch-mapped-empty";
-          empty.textContent = "Noch kein Render-Mapping. Klick + an einem globalState-Pfad oder einer Fetch-Response-Gruppe.";
+          empty.textContent = "Noch kein Render-Mapping. Wähle einen globalState-Pfad oder nutze + Add render im Render-Bereich.";
           dataWireList.appendChild(empty);
           return;
         }
@@ -10977,7 +10528,7 @@
           renderGlobalStateSubscribeMap();
           return;
         }
-        const json = await detectFetchMapperJson(root);
+        const json = await detectDataSourcePreviewJson(root);
         if (!json) return;
         const targetPath = normalizeContextPath(source.target, "fetch");
         const selected = source.select ? jsonValueAtPath(json, source.select) : json;
@@ -11061,15 +10612,6 @@
         <div class="field"><label>Preset title</label><input id="pTitle"></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel fetch-source-panel">
-          <div class="small"><b>Fetch automap</b></div>
-          <div id="pDataSourcePreview" class="condition-preview empty"></div>
-          <div class="row"><button id="pOpenFetchMapper" type="button">Open fetch automap</button></div>
-          <input id="pDataSourceUrl" type="hidden">
-          <input id="pDataSourceTarget" type="hidden">
-          <input id="pDataSourceSelect" type="hidden">
-          <div id="pDataSourceInspect" class="json-inspect empty" hidden>Open fetch automap to inspect arrays and fields.</div>
-        </div>
         <div class="data-source-panel">
           <div class="small"><b>Repeat content</b></div>
           <div class="field"><label>Repeat path</label><input id="pRepeatPath" placeholder="fetch.data"></div>

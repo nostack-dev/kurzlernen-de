@@ -199,7 +199,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain('const key = normalizeBindingPath(path, "");');
   });
 
-  test("repeat sources derive readable components from array samples @smoke", () => {
+  test("repeat sources offer readable candidates without auto-mapping render rows @smoke", () => {
     const html = stateHtml();
     const appHtml = generatedAppHtml();
 
@@ -219,7 +219,6 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function collectRepeatArrayCandidates");
     expect(html).toContain("function repeatCandidatesForOwner");
     expect(html).toContain("function autoRepeatPathForOwner");
-    expect(html).toContain("autoDeriveRepeatForOwner(s, null, false)");
     expect(html).toContain("manual: Boolean(source.manual)");
     expect(html).toContain("fetch response assumption");
     expect(html).toContain("function applyDerivedDataWires");
@@ -231,8 +230,11 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
     expect(html).toContain("Listen werden aus dem State-Daten-Scope");
-    expect(html).toContain("autoCreateRepeatComponents");
-    expect(html).toContain("applyDerivedDataWires(s, repeat.path, root, false)");
+    expect(html).not.toContain("autoCreateRepeatComponents");
+    expect(html).not.toContain("autoDeriveRepeatForOwner(s, null, false)");
+    expect(html).not.toContain("applyDerivedDataWires(s, repeat.path, root, false)");
+    expect(html).not.toContain("Fetch automap");
+    expect(html).not.toContain("Open fetch automap");
     expect(html).toContain("dataWiresFromRepeatSample(sample, scopePath)");
     expect(html).toContain("push(fields.image, \"image\", \"image\", \"Image\")");
     expect(html).toContain('filter(part => !/^\\d+$/.test(part))');

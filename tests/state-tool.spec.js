@@ -3813,6 +3813,58 @@ test.describe("State Blueprint tool", () => {
     }
   });
 
+  test("does not rehydrate deleted fetch render mappings from repeat defaults @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "No automap",
+      initial: "state_3",
+      states: [{
+        id: "state_3",
+        title: "State 3",
+        body: "",
+        x: 220,
+        y: 220,
+        components: [],
+        data: {
+          fetch: {
+            data: [{
+              image: "https://example.com/product.png",
+              title: "Ada Chair",
+              price: 42,
+              description: "Compact and sturdy"
+            }]
+          }
+        },
+        dataSource: { url: "https://example.com/products.json", target: "fetch", select: "" },
+        repeat: { path: "fetch.data", as: "item", index: "i" },
+        subscriptions: ["fetch.data"],
+        dataWires: []
+      }],
+      transitions: []
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await openStateInspector(page, "state_3");
+
+    await expect(page.locator(".data-wire-render-panel .data-wire-row")).toHaveCount(0);
+    await expect(page.locator("#pDataWireList .data-wire-row")).toHaveCount(0);
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3")?.dataWires?.length || 0;
+    }).toBe(0);
+
+    await page.locator("#pTitle").fill("Still empty");
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3")?.dataWires?.length || 0;
+    }).toBe(0);
+  });
+
   test("keeps data-wire paths and render order editable from both state editor lists @smoke", async ({ page }) => {
     const imageUrl = "https://example.com/original.png";
     const altImageUrl = "https://example.com/alt.png";
