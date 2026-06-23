@@ -656,6 +656,40 @@ test.describe("State Blueprint tool", () => {
     const directFlow = await gridGeometryReport(page);
     expect(directFlow.paths).toHaveLength(4);
     expect(directFlow.paths.every(path => path.points.length >= 2)).toBe(true);
+    const projectionPorts = await page.evaluate(({ inputIds, outputIds }) => {
+      const nums = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      const pathPoints = value => {
+        const values = nums(value);
+        const points = [];
+        for (let i = 0; i < values.length; i += 2) points.push({ x: values[i], y: values[i + 1] });
+        return points;
+      };
+      const portPoint = selector => {
+        const transform = document.querySelector(selector)?.getAttribute("transform") || "";
+        const values = nums(transform);
+        return { x: values[0], y: values[1] };
+      };
+      const inputProxyId = document.querySelector('.node.boundary-input')?.dataset.id || "";
+      const outputProxyId = document.querySelector('.node.boundary-output')?.dataset.id || "";
+      const inputPort = portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(inputProxyId)}"][data-port-side="out"]`);
+      const outputPort = portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(outputProxyId)}"][data-port-side="in"]`);
+      const edgePoints = id => pathPoints(document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)?.getAttribute("d") || "");
+      return {
+        inputProxyId,
+        outputProxyId,
+        inputPort,
+        outputPort,
+        inputStarts: inputIds.map(id => edgePoints(id)[0]),
+        outputEnds: outputIds.map(id => {
+          const points = edgePoints(id);
+          return points[points.length - 1];
+        })
+      };
+    }, wiring);
+    expect(projectionPorts.inputProxyId).toBeTruthy();
+    expect(projectionPorts.outputProxyId).toBeTruthy();
+    for (const point of projectionPorts.inputStarts) expect(point).toMatchObject(projectionPorts.inputPort);
+    for (const point of projectionPorts.outputEnds) expect(point).toMatchObject(projectionPorts.outputPort);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="out"]`)).toHaveCount(1);
 
@@ -745,6 +779,8 @@ test.describe("State Blueprint tool", () => {
 
     await app.getByRole("button", { name: "Finish" }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator('[data-id="step_two"]')).toHaveCount(0);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
   });
 
@@ -788,6 +824,12 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("step_two");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
     await expect(page.locator('[data-id="step_two"]')).toHaveClass(/active/);
+
+    await app.getByRole("button", { name: "Finish" }).click();
+    await expect(app.locator("#statePill")).toHaveText("done");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+    await expect(page.locator('[data-id="step_two"]')).toHaveCount(0);
+    await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
   });
 
   test("keeps transition wires scoped to the opened state canvas @smoke", async ({ page }) => {

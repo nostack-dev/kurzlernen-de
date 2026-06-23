@@ -264,11 +264,17 @@
 
     .workspace.inspector-collapsed .inspector {
       grid-template-rows: 42px;
+      pointer-events: none;
     }
 
     .workspace.inspector-collapsed .inspector-title {
       justify-content: center;
       padding: 0;
+      pointer-events: none;
+    }
+
+    .workspace.inspector-collapsed #btnToggleInspector {
+      pointer-events: auto;
     }
 
     .workspace.inspector-collapsed .inspector-title-text,
@@ -1032,7 +1038,8 @@
     }
 
     #ports .svg-port,
-    #ports .edge-pin {
+    #ports .edge-pin,
+    #ports .edge-tip-hit {
       pointer-events: auto;
     }
 
@@ -6501,6 +6508,16 @@
       return polylinePoint(routePoints, 0.82);
     }
 
+    function clampEdgeHandleToViewport(point, margin = 18) {
+      if (!point || !mapEl || !camera.scale) return point;
+      const rect = mapEl.getBoundingClientRect();
+      if (!rect.width || !rect.height) return point;
+      return {
+        x: clamp(point.x, (margin - camera.x) / camera.scale, (rect.width - margin - camera.x) / camera.scale),
+        y: clamp(point.y, (margin - camera.y) / camera.scale, (rect.height - margin - camera.y) / camera.scale)
+      };
+    }
+
     function midPointForRoute(routePoints) {
       return polylinePoint(routePoints, 0.5);
     }
@@ -7368,6 +7385,7 @@
     // Per-frame route table — populated fresh at the start of every draw() call.
     // Never persisted across frames. No caching, no snapshots.
     let _frameRoutes = new Map();
+    let _frameRouteTransitions = new Map();
 
     function recordRouteMetric(name, amount = 1) {
       window.__stateBlueprintRouteMetrics = window.__stateBlueprintRouteMetrics || {};
@@ -7375,8 +7393,21 @@
       if (metrics && typeof metrics === "object") metrics[name] = (metrics[name] || 0) + amount;
     }
 
-    function edgeOrder(transitionId) {
-      const index = model.transitions.findIndex(item => item.id === transitionId);
+    function transitionRouteKey(transition) {
+      if (transition?.projection) {
+        return `projection:${transition.projection.parentId}:${transition.projection.side}:${transition.projection.transitionId}`;
+      }
+      return String(transition?.id || "");
+    }
+
+    function frameRouteTransition(routeKey) {
+      return _frameRouteTransitions.get(routeKey) || model.transitions.find(item => item.id === routeKey) || null;
+    }
+
+    function edgeOrder(routeKey) {
+      const transition = frameRouteTransition(routeKey);
+      const source = projectedTransitionSource(transition);
+      const index = model.transitions.findIndex(item => item.id === source?.id);
       return index < 0 ? Number.MAX_SAFE_INTEGER : index;
     }
 
@@ -7450,7 +7481,7 @@
     }
 
     function safeLaneCoordinate(points, segment, slotIndex) {
-      const transition = model.transitions.find(item => item.id === segment.transitionId);
+      const transition = frameRouteTransition(segment.transitionId);
       for (let attempt = 0; attempt < 12; attempt++) {
         const coordinate = segment.coordinate + laneSlot(slotIndex + attempt) * GRID_SIZE;
         if (!coordinateKeepsPortApproach(points, segment, coordinate)) continue;
@@ -7486,7 +7517,7 @@
         }
       }
       for (const [id, points] of current) {
-        const transition = model.transitions.find(item => item.id === id);
+        const transition = frameRouteTransition(id);
         if (!transition || routeIsClear(points, transition)) continue;
         const from = byId(transition.from);
         const to = byId(transition.to);
@@ -7504,17 +7535,21 @@
     function computeFrameRoutes() {
       recordRouteMetric("finalRouteBuilds");
       const routes = new Map();
+      _frameRouteTransitions = new Map();
       for (const transition of visibleTransitions()) {
         const from = byId(transition.from);
         const to = byId(transition.to);
-        if (from && to) routes.set(transition.id, baseEdgeRoutePoints(from, to, transition));
+        if (!from || !to) continue;
+        const routeKey = transitionRouteKey(transition);
+        _frameRouteTransitions.set(routeKey, transition);
+        routes.set(routeKey, baseEdgeRoutePoints(from, to, transition));
       }
       return resolveRouteOverlaps(routes);
     }
 
     function edgeRoutePoints(from, to, transition = null) {
       if (!transition) return baseEdgeRoutePoints(from, to, transition);
-      return _frameRoutes.get(transition.id) || baseEdgeRoutePoints(from, to, transition);
+      return _frameRoutes.get(transitionRouteKey(transition)) || baseEdgeRoutePoints(from, to, transition);
     }
 
     function polylinePoint(points, ratio) {
@@ -7548,7 +7583,9 @@
     }
 
     function edgeTipHandlePoint(from, to, transition = null) {
-      return polylinePoint(edgeRoutePoints(from, to, transition), 0.82);
+      const ratio = transition?.projection?.side === "input" ? 0.92 : transition?.projection?.side === "output" ? 0.08 : 0.82;
+      const point = polylinePoint(edgeRoutePoints(from, to, transition), ratio);
+      return transition?.projection ? clampEdgeHandleToViewport(point) : point;
     }
 
     function arrowPathForPoints(points) {
@@ -7887,7 +7924,7 @@
 
       nodesEl.innerHTML = "";
       wiresEl.querySelectorAll(".edge,.edge-arrow,.hit,.edge-label,.edge-tip-hit,.edge-pin,.temp-edge").forEach(el => el.remove());
-      getPortOverlay().querySelectorAll(".svg-port,.edge-pin").forEach(el => el.remove());
+      getPortOverlay().querySelectorAll(".svg-port,.edge-pin,.edge-tip-hit").forEach(el => el.remove());
       const edgeTipHits = [];
       runtimeStateEl.textContent = "app: " + (currentAppState || "—");
 
@@ -7901,7 +7938,7 @@
         const edgeStyle = `--edge-color: ${edgeColor(t)}`;
 
         const hit = svgEl("path", { d: pathD, class: "hit", style: edgeStyle, "data-edge-id": t.id });
-        attachEdgeInteractions(hit, t);
+        attachEdgeInteractions(hit, t, Boolean(t.projection));
         appendEdgeHit(hit);
 
         const classes = ["edge"];
@@ -7981,7 +8018,7 @@
         edgeTipHits.push(tipHit);
       }
 
-      for (const tipHit of edgeTipHits) wiresEl.appendChild(tipHit);
+      for (const tipHit of edgeTipHits) getPortOverlay().appendChild(tipHit);
 
       if (connecting) {
         const from = byId(connecting.from);
@@ -11695,7 +11732,8 @@
         blockLayerEntryAfterPointerAction(1000);
         const dropPoint = screenToWorld(evt);
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
-        const targetNode = connectingTargetId ? byId(connectingTargetId) : (connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId));
+        const dropTargetNode = connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId);
+        const targetNode = connecting.projection ? (dropTargetNode || byId(connectingTargetId)) : (connectingTargetId ? byId(connectingTargetId) : dropTargetNode);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
         const wasRewire = Boolean(connecting.edgeId);
