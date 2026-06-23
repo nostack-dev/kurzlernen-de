@@ -1102,6 +1102,25 @@
       pointer-events: auto;
     }
 
+    .svg-port-symbol {
+      fill: none;
+      stroke: var(--edge-color, #5f8dbc);
+      stroke-width: 3.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
+      filter: drop-shadow(0 0 5px rgba(15, 23, 42, .55));
+    }
+
+    .svg-port-input .svg-port-symbol {
+      stroke-width: 3.35;
+    }
+
+    .svg-port-output .svg-port-symbol {
+      stroke-width: 3.65;
+    }
+
     .svg-port.runtime.svg-port-input .svg-port-socket,
     .svg-port.runtime[data-port-side="in"] .svg-port-socket,
     .svg-port.runtime[data-slot="input"],
@@ -1128,6 +1147,11 @@
     .runtime.port-slot-output.svg-port .svg-port-plug {
       fill: var(--runtime, #22c55e) !important;
       stroke: #07111f !important;
+      filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
+    }
+
+    .svg-port.runtime .svg-port-symbol {
+      stroke: var(--runtime, #22c55e);
       filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
     }
 
@@ -1159,8 +1183,16 @@
       fill: var(--accent) !important;
     }
 
+    .svg-port-output:hover .svg-port-symbol {
+      stroke: var(--accent);
+    }
+
     .map.connecting .svg-port-input .svg-port-socket {
       stroke: var(--accent) !important;
+    }
+
+    .map.connecting .svg-port-input .svg-port-symbol {
+      stroke: var(--accent);
     }
 
 
@@ -6641,27 +6673,13 @@
       });
       if (side === "out") {
         port.appendChild(svgEl("path", {
-          d: "M-3 -5 H7 Q13 -5 13 0 Q13 5 7 5 H-3 Z",
-          class: "svg-port-plug svg-port-shape"
-        }));
-        port.appendChild(svgEl("circle", {
-          cx: -3,
-          cy: 0,
-          r: 4.8,
-          class: "svg-port-plug svg-port-shape"
+          d: "M-12 0 H-7 M-7 0 C-3 -4 2 -7 11 -8 M-7 0 C-3 4 2 7 11 8",
+          class: "svg-port-symbol svg-port-output-symbol"
         }));
       } else {
-        port.appendChild(svgEl("circle", {
-          cx: 0,
-          cy: 0,
-          r: 9,
-          class: "svg-port-socket svg-port-shape"
-        }));
-        port.appendChild(svgEl("circle", {
-          cx: 0,
-          cy: 0,
-          r: 3.3,
-          class: "svg-port-socket-hole"
+        port.appendChild(svgEl("path", {
+          d: "M-11 -8 C-2 -7 3 -4 7 0 C3 4 -2 7 -11 8 M7 0 H12",
+          class: "svg-port-symbol svg-port-input-symbol"
         }));
       }
       port.appendChild(svgEl("circle", {
