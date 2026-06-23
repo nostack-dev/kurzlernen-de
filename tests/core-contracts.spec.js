@@ -281,6 +281,7 @@ test.describe("Core browser contracts", () => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
+    await page.locator("#pDataCard summary").click();
 
     await expect(page.getByText("Global State JSON")).toBeVisible();
     await expect(page.locator("#pSubscriptionTree")).toBeVisible();
@@ -302,7 +303,7 @@ test.describe("Core browser contracts", () => {
 
     await page.locator('[data-id="auth_start"]').click();
 
-    const picker = page.locator(".template-binding-picker").first();
+    const picker = page.locator("#pComponents .template-binding-picker").first();
     await expect(picker).toBeVisible();
     await picker.locator("select").selectOption("state.current");
     await picker.getByRole("button", { name: "Connect" }).click();
@@ -314,6 +315,7 @@ test.describe("Core browser contracts", () => {
     await openTool(page);
 
     await page.locator('[data-id="auth_start"]').click();
+    await page.locator("#pDataCard summary").click();
 
     const tree = page.locator("#pSubscriptionTree");
     const before = await tree.locator(".global-state-json-line").count();
@@ -332,6 +334,7 @@ test.describe("Core browser contracts", () => {
     await openTool(page);
 
     await page.locator('[data-id="auth_start"]').click();
+    await page.locator("#pDataCard summary").click();
 
     const repeat = page.locator("#pRepeatPath");
     await expect(repeat).toHaveJSProperty("tagName", "SELECT");

@@ -12,7 +12,7 @@ async function openTool(page) {
   }, STORAGE_KEY);
   await page.goto("/state.html");
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-  await expect(page.locator(".node")).toHaveCount(6);
+  await expect(page.locator(".node")).toHaveCount(8);
   await expect(appFrame(page).locator("#statePill")).toHaveText("auth_start");
 }
 
