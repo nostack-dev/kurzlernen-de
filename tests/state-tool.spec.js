@@ -748,6 +748,48 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
   });
 
+  test("selecting a composite state follows its child layer on the first runtime update @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Selected Composite Runtime Flow",
+      initial: "start",
+      states: [
+        { id: "start", title: "Start", body: "", x: 96, y: 160 },
+        { id: "lesson", title: "Lesson", body: "", x: 360, y: 160 },
+        { id: "done", title: "Done", body: "", x: 660, y: 160 },
+        { id: "step_one", parentId: "lesson", title: "Step One", body: "", x: 120, y: 120 },
+        { id: "step_two", parentId: "lesson", title: "Step Two", body: "", x: 420, y: 120 }
+      ],
+      transitions: [
+        { id: "start_lesson", from: "start", to: "lesson", label: "Enter", condition: "" },
+        { id: "step_one_two", from: "step_one", to: "step_two", label: "Continue", condition: "" },
+        { id: "lesson_done", from: "lesson", to: "done", label: "Finish", condition: "" }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("start");
+
+    await page.locator('[data-id="lesson"]').click();
+    await expect(app.locator("#statePill")).toHaveText("lesson");
+    await app.getByRole("button", { name: "Step One" }).click();
+    await expect(app.locator("#statePill")).toHaveText("step_one");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
+    await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
+
+    await app.getByRole("button", { name: "Continue" }).click();
+    await expect(app.locator("#statePill")).toHaveText("step_two");
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
+    await expect(page.locator('[data-id="step_two"]')).toHaveClass(/active/);
+  });
+
   test("keeps transition wires scoped to the opened state canvas @smoke", async ({ page }) => {
     await openTool(page);
     const rootEdgeCount = await page.locator(".edge[data-edge-id]").count();

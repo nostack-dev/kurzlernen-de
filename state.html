@@ -12234,14 +12234,19 @@
       currentAppState = data.current || null;
       latestRuntimeContext = isPlainObject(data.context) ? JSON.parse(JSON.stringify(data.context)) : {};
       if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
+      const pendingStartId = pendingAppStartStateId;
+      const pendingStartResolvedToDescendant = Boolean(pendingStartId && currentAppState && isDescendant(pendingStartId, currentAppState));
       if (
         pendingAppStartStateId === currentAppState ||
-        (pendingAppStartStateId && currentAppState && isDescendant(pendingAppStartStateId, currentAppState))
+        pendingStartResolvedToDescendant
       ) {
         pendingAppStartStateId = null;
       }
       lastAppTransitionId = data.transitionId || null;
-      if (lastAppTransitionId && Date.now() >= suppressRuntimeLayerFollowUntil) runtimeLayerFollowEnabled = true;
+      if (lastAppTransitionId || pendingStartResolvedToDescendant) {
+        runtimeLayerFollowEnabled = true;
+        suppressRuntimeLayerFollowUntil = 0;
+      }
       const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
       const runtimeState = byId(currentAppState);
       const runtimeLayerId = runtimeState?.parentId || null;
