@@ -9805,7 +9805,7 @@
         if (ownerSelect) ownerSelect.value = select.value;
       };
       const componentBindingText = component => String(component?.url || component?.text || "");
-      const isAutomappedComponent = component => /\{\{\s*(?:item|fetch\.data)/i.test(componentBindingText(component));
+      const isAutomappedComponent = component => /\{\{\s*(?:item|fetch\.data)\b/i.test(componentBindingText(component));
       const componentDisplayLabel = component => {
         const raw = componentBindingText(component);
         const text = String(component?.text || raw || "Mapped field");

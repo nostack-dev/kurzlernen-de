@@ -160,11 +160,11 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function dataWiresFromRepeatSample");
     expect(html).toContain("generatedFromDataWire");
     expect(html).not.toContain("Auto data part");
-    expect(html).toContain("Data wires");
+    expect(html).toContain("Render mapping");
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
-    expect(html).toContain("Lists are detected from fetch/global state");
+    expect(html).toContain("Listen werden aus dem State-Daten-Scope");
     expect(html).toContain("autoCreateRepeatComponents");
     expect(html).toContain("applyDerivedDataWires(s, repeat.path, root, false)");
     expect(html).toContain("dataWiresFromRepeatSample(sample, scopePath)");
@@ -214,8 +214,8 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function dataWireComponentsForState");
     expect(html).toContain("function applyDerivedDataWires");
     expect(html).toContain("dataWires: normalizeDataWires");
-    expect(html).toContain("Data wires");
-    expect(html).toContain("+ verbindet JSON-Pfade direkt mit Render-Parts");
+    expect(html).toContain("Render mapping");
+    expect(html).toContain("Mappe State-Daten-Scope auf Image, Heading, Text");
     expect(html).toContain("components: [],");
     expect(appHtml).toContain("function normalizeDataWire(value)");
     expect(appHtml).toContain("function runtimeDataWireComponentsForState");
@@ -284,7 +284,7 @@ test.describe("Core browser contracts", () => {
 
     await expect(page.getByText("Global State JSON")).toBeVisible();
     await expect(page.locator("#pSubscriptionTree")).toBeVisible();
-    await expect(page.locator("#pSubscriptionAdd")).toBeVisible();
+    await expect(page.locator("#pSubscriptionAdd")).toBeHidden();
     await expect(page.locator("#pOutputs")).toHaveCount(0);
   });
 
@@ -305,7 +305,7 @@ test.describe("Core browser contracts", () => {
     const picker = page.locator(".template-binding-picker").first();
     await expect(picker).toBeVisible();
     await picker.locator("select").selectOption("state.current");
-    await picker.getByRole("button", { name: "+" }).click();
+    await picker.getByRole("button", { name: "Connect" }).click();
 
     await expect(page.locator(".component-editor textarea").first()).toHaveValue(/{{state\.current}}/);
   });
