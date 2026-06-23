@@ -7611,6 +7611,25 @@
         head.className = "component-editor-head";
         const label = document.createElement("span");
         label.textContent = componentTitle(component.type);
+        const moveComponent = delta => {
+          const index = s.components.indexOf(component);
+          const nextIndex = index + delta;
+          if (index < 0 || nextIndex < 0 || nextIndex >= s.components.length) return;
+          [s.components[index], s.components[nextIndex]] = [s.components[nextIndex], s.components[index]];
+          persistOwner("state:component-order:" + component.id);
+          if (!options.skipLiveStateSync) scheduleSync(false);
+          rerender();
+        };
+        const moveUp = document.createElement("button");
+        moveUp.type = "button";
+        moveUp.textContent = "Up";
+        moveUp.disabled = s.components.indexOf(component) <= 0;
+        moveUp.onclick = () => moveComponent(-1);
+        const moveDown = document.createElement("button");
+        moveDown.type = "button";
+        moveDown.textContent = "Down";
+        moveDown.disabled = s.components.indexOf(component) >= s.components.length - 1;
+        moveDown.onclick = () => moveComponent(1);
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "danger";
@@ -7620,7 +7639,7 @@
           persistOwner("state:components:" + s.id);
           rerender(null);
         });
-        head.append(label, remove);
+        head.append(label, moveUp, moveDown, remove);
         item.appendChild(head);
         if (component.type !== "divider") {
           if (component.type === "list") {
@@ -8123,21 +8142,64 @@
       const as = root.querySelector("#pRepeatAs");
       const index = root.querySelector("#pRepeatIndex");
       const preview = root.querySelector("#pRepeatPreview");
+      const optionList = root.querySelector("#pRepeatPathList");
       if (!path || !as || !index || !preview) return;
+      const addOption = (map, value, label = "Global State array") => {
+        const key = normalizeContextPath(value, "");
+        if (!key || map.has(key)) return;
+        map.set(key, label);
+      };
+      const collectArrayOptions = (value, prefix, map, depth = 0) => {
+        if (!prefix || depth > 5 || map.size > 160) return;
+        if (Array.isArray(value)) {
+          addOption(map, prefix, "Runtime array");
+          if (value.length) collectArrayOptions(value[0], prefix, map, depth + 1);
+          return;
+        }
+        if (!value || typeof value !== "object") return;
+        Object.entries(value).slice(0, 40).forEach(([key, child]) => {
+          collectArrayOptions(child, prefix ? prefix + "." + key : key, map, depth + 1);
+        });
+      };
+      const refreshOptions = () => {
+        if (!optionList) return;
+        const map = new Map();
+        if (isPlainObject(latestRuntimeContext)) {
+          Object.entries(latestRuntimeContext).forEach(([key, value]) => collectArrayOptions(value, key, map));
+        }
+        for (const state of model.states || []) {
+          const source = normalizeDataSource(state.dataSource || state.fetch);
+          if (String(source.url || "").trim()) addOption(map, normalizeContextPath(source.target, "fetch") + ".data", `${state.title || state.id} fetch data`);
+          const repeat = normalizeRepeatConfig(state.repeat);
+          if (repeat.path) addOption(map, repeat.path, `${state.title || state.id} repeat`);
+        }
+        if (owner.repeat?.path) addOption(map, owner.repeat.path, "Current repeat");
+        optionList.innerHTML = "";
+        [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 120).forEach(([value, label]) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.label = label;
+          optionList.appendChild(option);
+        });
+      };
       owner.repeat = normalizeRepeatConfig(owner.repeat);
       path.value = owner.repeat.path;
-      as.value = owner.repeat.as;
-      index.value = owner.repeat.index;
+      as.value = "item";
+      index.value = "i";
       const update = (persist = true) => {
-        owner.repeat = normalizeRepeatConfig({ path: path.value, as: as.value, index: index.value });
+        owner.repeat = normalizeRepeatConfig({ path: path.value, as: "item", index: "i" });
+        as.value = owner.repeat.as;
+        index.value = owner.repeat.index;
         preview.textContent = owner.repeat.path
-          ? `Render this state's content for each item in {{${owner.repeat.path}}}; use {{${owner.repeat.as}.field}} and {{${owner.repeat.index}}}.`
+          ? `Repeats this state's content for each item in {{${owner.repeat.path}}}. Add fields with + in Global State JSON.`
           : "No repeat. This state renders once.";
         preview.classList.toggle("empty", !owner.repeat.path);
         if (persist) persistOwner(`${historyPrefix}:repeat`);
       };
-      path.oninput = as.oninput = index.oninput = () => update(true);
-      path.onblur = as.onblur = index.onblur = () => { lastHistoryKey = null; };
+      path.onfocus = refreshOptions;
+      path.oninput = () => update(true);
+      path.onblur = () => { lastHistoryKey = null; refreshOptions(); };
+      refreshOptions();
       update(false);
     }
 
@@ -8598,8 +8660,6 @@
       root.innerHTML = `
         <h3>State</h3>
         <div class="field"><label>Title</label><input id="pTitle"></div>
-        <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
-        <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="global-state-subscribe">
           <div class="global-state-subscribe-head">
             <div>Global State JSON<span>Endpoint prefetched in diesen State. Plus rechts abonniert und rendert Fetch-Felder.</span></div>
@@ -8619,12 +8679,10 @@
         </div>
         <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
-          <div class="small"><b>Repeat content</b></div>
-          <div class="field"><label>Repeat path</label><input id="pRepeatPath" placeholder="fetch.data"></div>
-          <div class="row">
-            <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
-            <div class="field"><label>Index name</label><input id="pRepeatIndex" placeholder="i"></div>
-          </div>
+          <div class="small"><b>Repeat content</b><br><span>Optional: render this state's content once per item from a Global State array.</span></div>
+          <div class="field"><label>Repeat over</label><input id="pRepeatPath" list="pRepeatPathList" placeholder="fetch.data"><datalist id="pRepeatPathList"></datalist></div>
+          <input id="pRepeatAs" type="hidden" value="item">
+          <input id="pRepeatIndex" type="hidden" value="i">
           <div id="pRepeatPreview" class="condition-preview empty"></div>
         </div>
         <div class="small">State content</div>
@@ -8640,8 +8698,8 @@
         </div>
       `;
       const title = root.querySelector("#pTitle");
-      const data = root.querySelector("#pData");
-      const dataPreview = root.querySelector("#pDataPreview");
+      const data = null;
+      const dataPreview = null;
       const subscriptions = root.querySelector("#pSubscriptions");
       const subscriptionsPreview = root.querySelector("#pSubscriptionsPreview");
       const subscriptionCount = root.querySelector("#pSubscriptionCount");
@@ -8652,22 +8710,10 @@
       const subscriptionAdd = root.querySelector("#pSubscriptionAdd");
       title.value = s.title || "";
       title.addEventListener("focus", () => title.select());
-      data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
       const updateDataPreview = () => {
-        try {
-          const parsed = JSON.parse(data.value || "{}");
-          if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
-          s.data = normalizeDataObject(parsed);
-          dataPreview.textContent = Object.keys(s.data).length ? "Data saved. Use {{key}} in text fields." : "No data defaults.";
-          dataPreview.classList.toggle("empty", !Object.keys(s.data).length);
-          saveModel("state:data:" + s.id);
-          scheduleSync(false);
-          renderGlobalStateSubscribeMap();
-        } catch (err) {
-          dataPreview.textContent = err.message || "Invalid JSON.";
-          dataPreview.classList.remove("empty");
-        }
+        s.data = normalizeDataObject(s.data);
+        renderGlobalStateSubscribeMap();
       };
       const updateSubscriptionsPreview = (persist = true) => {
         const paths = normalizeSubscriptions(subscriptions.value.split(/[\n,]+/));
@@ -8904,7 +8950,6 @@
         saveModel("state:title:" + s.id);
         draw();
       };
-      data.oninput = updateDataPreview;
       subscriptionAdd.onclick = () => {
         toggleGlobalStatePath(subscriptionCustom.value);
         subscriptionCustom.value = "";
@@ -8922,7 +8967,7 @@
       subscriptions.oninput = () => updateSubscriptionsPreview(true);
       updateDataPreview();
       updateSubscriptionsPreview(false);
-      title.onblur = data.onblur = () => { lastHistoryKey = null; };
+      title.onblur = () => { lastHistoryKey = null; };
       bindDataSourceEditor(s, root, historyKey => {
         saveModel(`${historyKey}:${s.id}`);
         scheduleSync(false);
