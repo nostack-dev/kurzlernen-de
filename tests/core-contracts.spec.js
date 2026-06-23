@@ -358,6 +358,120 @@ test.describe("Core browser contracts", () => {
     await expect(app.locator("h1")).toHaveText("Play sound");
   });
 
+  test("boundary exit states keep direct buttons and share edge colors @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Boundary Exit Buttons",
+      initial: "exit_child",
+      states: [
+        { id: "parent", title: "Parent", body: "", components: [], data: {}, boundary: { entryId: "entry_child", exitId: "exit_child", entryDisabled: false, exitDisabled: false }, x: 120, y: 160 },
+        { id: "outside", title: "Outside", body: "", components: [], data: {}, x: 420, y: 160 },
+        { id: "entry_child", title: "Entry Child", body: "", components: [], data: {}, parentId: "parent", x: 120, y: 120 },
+        { id: "exit_child", title: "Exit Child", body: "", components: [], data: {}, parentId: "parent", x: 420, y: 120 },
+        { id: "direct_a", title: "Direct A", body: "", components: [], data: {}, parentId: "parent", x: 720, y: 48 },
+        { id: "direct_b", title: "Direct B", body: "", components: [], data: {}, parentId: "parent", x: 720, y: 216 }
+      ],
+      transitions: [
+        { id: "t_intro", from: "entry_child", to: "exit_child", label: "To Exit", condition: "", triggerType: "button", set: {} },
+        { id: "t_direct_a", from: "exit_child", to: "direct_a", label: "Direct A", condition: "", triggerType: "button", set: {} },
+        { id: "t_direct_b", from: "exit_child", to: "direct_b", label: "Direct B", condition: "", triggerType: "button", set: {} },
+        { id: "t_parent_exit", from: "parent", to: "outside", label: "Parent Out", condition: "", triggerType: "button", groupExitId: "exit_child", set: {} }
+      ]
+    });
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("exit_child");
+    await expect(app.getByRole("button", { name: "Direct A" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Direct B" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Parent Out" })).toBeVisible();
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(3);
+
+    const buttonColors = await app.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
+      buttons.map(button => [
+        button.dataset.transitionId,
+        getComputedStyle(button).getPropertyValue("--button-color").trim()
+      ])
+    ));
+
+    const edgeColorFor = async id => {
+      const edge = page.locator(`.edge[data-edge-id="${id}"]`);
+      await expect(edge).toHaveCount(1);
+      return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    };
+    await page.locator('[data-id="parent"]').dblclick();
+    await expect(page.locator('[data-id="exit_child"]')).toBeVisible();
+
+    const edgeColors = {
+      t_direct_a: await edgeColorFor("t_direct_a"),
+      t_direct_b: await edgeColorFor("t_direct_b"),
+      t_parent_exit: await edgeColorFor("t_parent_exit")
+    };
+
+    expect(buttonColors.t_direct_a).toBe(edgeColors.t_direct_a);
+    expect(buttonColors.t_direct_b).toBe(edgeColors.t_direct_b);
+    expect(buttonColors.t_parent_exit).toBe(edgeColors.t_parent_exit);
+  });
+
+  test("boundary exit states include parent outs through output ports @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Nested Output Port Buttons",
+      initial: "exit_child",
+      states: [
+        { id: "grand", title: "Grand", body: "", components: [], data: {}, boundary: { entryId: "parent", exitId: "parent", entryDisabled: false, exitDisabled: false }, x: 120, y: 160 },
+        { id: "done", title: "Done", body: "", components: [], data: {}, x: 420, y: 160 },
+        { id: "parent", title: "Parent", body: "", components: [], data: {}, parentId: "grand", boundary: { entryId: "entry_child", exitId: "exit_child", entryDisabled: false, exitDisabled: false }, x: 120, y: 160 },
+        { id: "sibling_a", title: "Sibling A", body: "", components: [], data: {}, parentId: "grand", x: 420, y: 80 },
+        { id: "sibling_b", title: "Sibling B", body: "", components: [], data: {}, parentId: "grand", x: 420, y: 240 },
+        { id: "entry_child", title: "Entry Child", body: "", components: [], data: {}, parentId: "parent", x: 120, y: 120 },
+        { id: "exit_child", title: "Exit Child", body: "", components: [], data: {}, parentId: "parent", x: 420, y: 120 }
+      ],
+      transitions: [
+        { id: "entry_exit", from: "entry_child", to: "exit_child", label: "To Exit", condition: "", triggerType: "button", set: {} },
+        { id: "parent_to_a", from: "parent", to: "sibling_a", label: "Sibling A", condition: "", triggerType: "button", groupExitId: "exit_child", set: {} },
+        { id: "parent_to_b", from: "parent", to: "sibling_b", label: "Sibling B", condition: "", triggerType: "button", groupExitId: "exit_child", set: {} },
+        { id: "boundary-flow:grand:output", from: "parent", to: "proxy:grand:output", label: "OUT", condition: "", triggerType: "button", boundaryFlow: { parentId: "grand", side: "output", stateId: "parent" }, set: {} },
+        { id: "grand_done", from: "grand", to: "done", label: "Done", condition: "", triggerType: "button", groupExitId: "parent", set: {} }
+      ]
+    });
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("exit_child");
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(3);
+    await expect(app.getByRole("button", { name: "Sibling A" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Sibling B" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Done" })).toBeVisible();
+
+    const buttonColors = await app.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
+      buttons.map(button => [
+        button.dataset.transitionId,
+        getComputedStyle(button).getPropertyValue("--button-color").trim()
+      ])
+    ));
+
+    const edgeColorFor = async id => {
+      const edge = page.locator(`.edge[data-edge-id="${id}"]`);
+      await expect(edge).toHaveCount(1);
+      return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    };
+    const rootDoneColor = await edgeColorFor("grand_done");
+
+    await app.getByRole("button", { name: "Done" }).click();
+    await expect(app.locator("#statePill")).toHaveText("done");
+
+    await page.locator('[data-id="grand"]').dblclick();
+    await expect(page.locator('[data-id="parent"]')).toBeVisible();
+    const edgeColors = {
+      parent_to_a: await edgeColorFor("parent_to_a"),
+      parent_to_b: await edgeColorFor("parent_to_b"),
+      grand_done: rootDoneColor
+    };
+
+    expect(buttonColors.parent_to_a).toBe(edgeColors.parent_to_a);
+    expect(buttonColors.parent_to_b).toBe(edgeColors.parent_to_b);
+    expect(buttonColors.grand_done).toBe(edgeColors.grand_done);
+  });
+
   test("state editor exposes global-state path subscriptions without output editing @smoke", async ({ page }) => {
     await openTool(page);
 
