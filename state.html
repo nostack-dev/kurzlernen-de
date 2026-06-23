@@ -1261,6 +1261,102 @@
       margin: 0;
     }
 
+    .fetch-source-panel .row {
+      margin-top: 6px;
+    }
+
+    .fetch-mapper-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(2, 6, 23, .72);
+      backdrop-filter: blur(10px);
+    }
+
+    .fetch-mapper-modal {
+      width: min(760px, calc(100vw - 32px));
+      max-height: min(820px, calc(100vh - 32px));
+      overflow: auto;
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid rgba(56,189,248,.34);
+      border-radius: 18px;
+      background: linear-gradient(180deg, #0b1728, #07111f);
+      box-shadow: 0 28px 90px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .fetch-mapper-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .fetch-mapper-head h3 {
+      margin: 0;
+      color: #f8fbff;
+      font-size: 18px;
+    }
+
+    .fetch-mapper-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .fetch-mapper-close {
+      min-height: 34px;
+      padding: 6px 10px;
+      background: rgba(148,163,184,.14);
+      background-image: none;
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .fetch-mapper-grid {
+      display: grid;
+      grid-template-columns: 1fr 180px 160px;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .fetch-mapper-grid .field {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      align-items: stretch;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .fetch-mapper-grid input {
+      width: 100%;
+    }
+
+    .fetch-tree-actions {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid rgba(245,158,11,.28);
+      border-radius: 13px;
+      background: rgba(245,158,11,.08);
+    }
+
+    .fetch-tree-actions .row {
+      margin: 0;
+    }
+
+    @media (max-width: 760px) {
+      .fetch-mapper-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .json-inspect {
       display: grid;
       gap: 8px;
@@ -7269,6 +7365,7 @@
       const select = root.querySelector("#pDataSourceSelect");
       const preview = root.querySelector("#pDataSourcePreview");
       const inspect = root.querySelector("#pDataSourceInspect");
+      const openMapper = root.querySelector("#pOpenFetchMapper");
       if (!url || !target || !select || !preview) return;
       owner.dataSource = normalizeDataSource(owner.dataSource || owner.fetch);
       url.value = owner.dataSource.url;
@@ -7290,7 +7387,7 @@
         scheduleInspect();
       };
       const scheduleInspect = () => {
-        if (!inspect) return;
+        if (!inspect || inspect.hidden) return;
         clearTimeout(inspectTimer);
         if (!url.value.trim()) {
           inspect.textContent = "Paste a JSON endpoint to inspect arrays and fields.";
@@ -7304,7 +7401,216 @@
       };
       url.oninput = target.oninput = select.oninput = () => update(true);
       url.onblur = target.onblur = select.onblur = () => { lastHistoryKey = null; };
+      if (openMapper) openMapper.onclick = () => openFetchMapper(owner, root, persistOwner, historyPrefix);
       update(false);
+    }
+
+    function persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix = "state") {
+      const modalUrl = modal.querySelector("#pDataSourceUrl");
+      const modalTarget = modal.querySelector("#pDataSourceTarget");
+      const modalSelect = modal.querySelector("#pDataSourceSelect");
+      const ownerUrl = ownerRoot.querySelector("#pDataSourceUrl");
+      const ownerTarget = ownerRoot.querySelector("#pDataSourceTarget");
+      const ownerSelect = ownerRoot.querySelector("#pDataSourceSelect");
+      const preview = ownerRoot.querySelector("#pDataSourcePreview");
+      if (!modalUrl || !modalTarget || !modalSelect) return normalizeDataSource(owner.dataSource || owner.fetch);
+      const next = normalizeDataSource({
+        ...normalizeDataSource(owner.dataSource || owner.fetch),
+        url: modalUrl.value,
+        target: modalTarget.value,
+        select: modalSelect.value
+      });
+      owner.dataSource = next;
+      if (ownerUrl) ownerUrl.value = next.url;
+      if (ownerTarget) ownerTarget.value = next.target;
+      if (ownerSelect) ownerSelect.value = next.select;
+      if (preview) {
+        preview.textContent = dataSourcePreviewText(next, modalTarget.value, modalSelect.value);
+        preview.classList.toggle("empty", !String(next.url || "").trim());
+      }
+      persistOwner(`${historyPrefix}:data-source`);
+      scheduleSync(false);
+      return next;
+    }
+
+    async function detectFetchMapperJson(modal) {
+      const urlInput = modal.querySelector("#pDataSourceUrl");
+      const inspect = modal.querySelector("#pDataSourceInspect");
+      const raw = String(urlInput?.value || "").trim();
+      if (!inspect) return null;
+      if (!raw) {
+        inspect.textContent = "Paste an endpoint URL or raw JSON.";
+        inspect.classList.remove("empty");
+        return null;
+      }
+      if (raw.startsWith("{") || raw.startsWith("[")) {
+        try {
+          return JSON.parse(raw);
+        } catch (err) {
+          inspect.textContent = "Pasted string is not valid JSON: " + err.message;
+          inspect.classList.remove("empty");
+          return null;
+        }
+      }
+      const requestUrl = safeEditorFetchUrl(raw);
+      if (!requestUrl) {
+        inspect.textContent = "Endpoint must be http(s), relative URL, or raw JSON.";
+        inspect.classList.remove("empty");
+        return null;
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(requestUrl, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal
+        });
+        return await response.json();
+      } catch (err) {
+        inspect.textContent = (err?.name === "AbortError")
+          ? "Inspect timed out. The app will still try at runtime."
+          : "Could not inspect JSON. Check CORS, URL, or whether the endpoint returns JSON.";
+        inspect.classList.remove("empty");
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function responseStateTitle(path) {
+      const clean = String(path || "value").replace(/\[[^\]]*\]/g, "").split(".").filter(Boolean);
+      const label = clean.length ? clean.slice(-2).join(" / ") : "value";
+      return "Response: " + label;
+    }
+
+    function ensureFetchContainerState(parent, dataSource) {
+      const existing = statesInLayer(parent.id).find(child => String(child.title || "").toLowerCase() === "fetch");
+      const fetchState = existing || makeState(nextChildPosition(parent.id).x, nextChildPosition(parent.id).y, "Fetch", parent.id);
+      if (!existing) model.states.push(fetchState);
+      fetchState.title = "Fetch";
+      fetchState.dataSource = normalizeDataSource(dataSource);
+      fetchState.subscriptions = [normalizeContextPath(fetchState.dataSource.target, "fetch") + ".data"];
+      return fetchState;
+    }
+
+    function addFetchResponseStates(owner, modal, json, persistOwner, historyPrefix = "state") {
+      const parent = byId(owner.id);
+      const status = modal.querySelector("#pFetchTreeStatus");
+      if (!parent) {
+        if (status) status.textContent = "Only saved states can receive fetch child states.";
+        return;
+      }
+      const dataSource = persistFetchMapperSource(owner, stateInspectorBodyEl, modal, persistOwner, historyPrefix);
+      const selectedPath = normalizeContextPath(modal.querySelector("#pDataSourceSelect")?.value || "", "");
+      const selectedValue = selectedPath ? jsonValueAtPath(json, selectedPath) : json;
+      const sample = Array.isArray(selectedValue) ? (selectedValue[0] ?? {}) : selectedValue;
+      const leafPaths = collectLeafPaths(sample).slice(0, 18);
+      const paths = leafPaths.length ? leafPaths : [""];
+      const fetchState = ensureFetchContainerState(parent, dataSource);
+      const target = normalizeContextPath(dataSource.target, "fetch");
+      if (Array.isArray(selectedValue)) {
+        fetchState.repeat = normalizeRepeatConfig({ path: `${target}.data`, as: "item", index: "i" });
+      } else {
+        fetchState.repeat = normalizeRepeatConfig(null);
+      }
+      const existingByTitle = new Map(statesInLayer(fetchState.id).map(child => [String(child.title || "").toLowerCase(), child]));
+      let created = 0;
+      for (const path of paths) {
+        const title = responseStateTitle(path);
+        const key = title.toLowerCase();
+        const binding = Array.isArray(selectedValue)
+          ? (path ? `{{item.${path}}}` : "{{item}}")
+          : (path ? `{{${target}.data.${path}}}` : `{{${target}.data}}`);
+        let child = existingByTitle.get(key);
+        if (!child) {
+          const pos = nextChildPosition(fetchState.id);
+          child = makeState(pos.x, pos.y, title, fetchState.id);
+          model.states.push(child);
+          existingByTitle.set(key, child);
+          created += 1;
+        }
+        child.components = [{ type: "text", text: binding }];
+        child.body = "";
+        child.subscriptions = [Array.isArray(selectedValue) ? `${target}.data` : (path ? `${target}.data.${path}` : `${target}.data`)];
+      }
+      selected = selectionFromParts([parent.id], []);
+      saveModel(`${historyPrefix}:fetch-automap:${parent.id}`);
+      draw();
+      renderChildJumpList(parent, stateInspectorBodyEl);
+      syncToApp(false);
+      if (status) status.textContent = `${created ? "Created" : "Updated"} ${paths.length} response states under Fetch.`;
+    }
+
+    function renderFetchTreeActions(owner, ownerRoot, modal, persistOwner, historyPrefix, json) {
+      const existing = modal.querySelector("#pFetchTreeActions");
+      if (existing) existing.remove();
+      const actions = document.createElement("div");
+      actions.id = "pFetchTreeActions";
+      actions.className = "fetch-tree-actions";
+      const title = document.createElement("div");
+      title.className = "small";
+      title.innerHTML = "<b>State tree</b><br>Use the selected JSON path to create/update child states below a Fetch child.";
+      const row = document.createElement("div");
+      row.className = "row";
+      const add = document.createElement("button");
+      add.type = "button";
+      add.textContent = "Add response as Fetch child states";
+      const status = document.createElement("div");
+      status.id = "pFetchTreeStatus";
+      status.className = "condition-preview empty";
+      add.onclick = () => addFetchResponseStates(owner, modal, json, persistOwner, historyPrefix);
+      row.appendChild(add);
+      actions.append(title, row, status);
+      modal.querySelector("#pDataSourceInspect")?.after(actions);
+    }
+
+    function openFetchMapper(owner, ownerRoot, persistOwner, historyPrefix = "state") {
+      const source = normalizeDataSource(owner.dataSource || owner.fetch);
+      const backdrop = document.createElement("div");
+      backdrop.className = "fetch-mapper-backdrop";
+      backdrop.innerHTML = `
+        <div class="fetch-mapper-modal" role="dialog" aria-modal="true" aria-label="Fetch automap">
+          <div class="fetch-mapper-head">
+            <div><h3>Fetch automap</h3><p>Endpoint oder JSON einfügen, Struktur erkennen, dann als State-Tree unter Fetch übernehmen.</p></div>
+            <button class="fetch-mapper-close" type="button">Close</button>
+          </div>
+          <div class="fetch-mapper-grid">
+            <div class="field"><label>Endpoint / JSON</label><input id="pDataSourceUrl" placeholder="https://... or paste JSON here"></div>
+            <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
+            <div class="field"><label>JSON path</label><input id="pDataSourceSelect" placeholder="items"></div>
+          </div>
+          <div class="row">
+            <button id="pFetchDetect" type="button">Detect response</button>
+            <button id="pFetchSave" type="button">Save fetch</button>
+          </div>
+          <div id="pDataSourceInspect" class="json-inspect empty">Detect response to inspect arrays and fields.</div>
+        </div>
+      `;
+      const modal = backdrop.querySelector(".fetch-mapper-modal");
+      const url = modal.querySelector("#pDataSourceUrl");
+      const target = modal.querySelector("#pDataSourceTarget");
+      const select = modal.querySelector("#pDataSourceSelect");
+      url.value = source.url;
+      target.value = source.target;
+      select.value = source.select;
+      const close = () => backdrop.remove();
+      backdrop.querySelector(".fetch-mapper-close").onclick = close;
+      backdrop.addEventListener("mousedown", evt => { if (evt.target === backdrop) close(); });
+      modal.querySelector("#pFetchSave").onclick = () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
+      modal.querySelector("#pFetchDetect").onclick = async () => {
+        const inspect = modal.querySelector("#pDataSourceInspect");
+        inspect.textContent = "Inspecting JSON...";
+        inspect.classList.remove("empty");
+        const json = await detectFetchMapperJson(modal);
+        if (!json) return;
+        persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
+        renderJsonInspect(owner, modal, persistOwner, json, { status: "detected", contentType: "application/json" });
+        renderFetchTreeActions(owner, ownerRoot, modal, persistOwner, historyPrefix, json);
+      };
+      document.body.appendChild(backdrop);
+      url.focus({ preventScroll: true });
     }
 
     function bindRepeatEditor(owner, root, persistOwner, historyPrefix = "state") {
@@ -7618,13 +7924,14 @@
           <div class="hint">* beobachtet den ganzen Global State. Einzelpfade beobachten nur genau diesen Pfad.</div>
         </div>
         <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel">
-          <div class="small"><b>Fetch JSON</b></div>
-          <div class="field"><label>Endpoint URL</label><input id="pDataSourceUrl" placeholder="https://... or paste JSON here"></div>
-          <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
-          <div class="field"><label>JSON path</label><input id="pDataSourceSelect" placeholder="items"></div>
+        <div class="data-source-panel fetch-source-panel">
+          <div class="small"><b>Fetch automap</b></div>
           <div id="pDataSourcePreview" class="condition-preview empty"></div>
-          <div id="pDataSourceInspect" class="json-inspect">Paste a JSON endpoint to inspect arrays and fields.</div>
+          <div class="row"><button id="pOpenFetchMapper" type="button">Open fetch automap</button></div>
+          <input id="pDataSourceUrl" type="hidden">
+          <input id="pDataSourceTarget" type="hidden">
+          <input id="pDataSourceSelect" type="hidden">
+          <div id="pDataSourceInspect" class="json-inspect empty" hidden>Open fetch automap to inspect arrays and fields.</div>
         </div>
         <div class="data-source-panel">
           <div class="small"><b>Repeat content</b></div>
@@ -7915,13 +8222,14 @@
         <div class="field"><label>Preset title</label><input id="pTitle"></div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel">
-          <div class="small"><b>Fetch JSON</b></div>
-          <div class="field"><label>Endpoint URL</label><input id="pDataSourceUrl" placeholder="https://... or paste JSON here"></div>
-          <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
-          <div class="field"><label>JSON path</label><input id="pDataSourceSelect" placeholder="items"></div>
+        <div class="data-source-panel fetch-source-panel">
+          <div class="small"><b>Fetch automap</b></div>
           <div id="pDataSourcePreview" class="condition-preview empty"></div>
-          <div id="pDataSourceInspect" class="json-inspect">Paste a JSON endpoint to inspect arrays and fields.</div>
+          <div class="row"><button id="pOpenFetchMapper" type="button">Open fetch automap</button></div>
+          <input id="pDataSourceUrl" type="hidden">
+          <input id="pDataSourceTarget" type="hidden">
+          <input id="pDataSourceSelect" type="hidden">
+          <div id="pDataSourceInspect" class="json-inspect empty" hidden>Open fetch automap to inspect arrays and fields.</div>
         </div>
         <div class="data-source-panel">
           <div class="small"><b>Repeat content</b></div>
