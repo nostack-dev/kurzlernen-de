@@ -10142,6 +10142,15 @@
       mapEl.focus({ preventScroll: true });
     }
 
+    function eventTargetsCanvasForDelete(evt) {
+      const target = evt.target;
+      if (isEditableTarget(target)) return false;
+      if (target?.closest?.(".state-explorer, .inspector, .modal-backdrop, button, input, textarea, select, [contenteditable]")) return false;
+      const active = document.activeElement;
+      if (active && active !== document.body && active !== mapEl && !mapEl.contains(active)) return false;
+      return target === mapEl || mapEl.contains(target) || active === mapEl || mapEl.contains(active);
+    }
+
     function keepCanvasFocusAfterTransitionSelect(edgeId) {
       const focusCanvas = () => {
         if (inspectorEdgeId !== edgeId) return;
@@ -11174,13 +11183,7 @@
         pasteSelectionClipboard();
         return;
       }
-      if (isEditableTarget(evt.target)) {
-        if (evt.key === "Delete" && deleteActiveSelection()) {
-          evt.preventDefault();
-          evt.stopImmediatePropagation();
-        }
-        return;
-      }
+      if (isEditableTarget(evt.target)) return;
       if (evt.key === "Enter" && selectedNodeId) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
@@ -11197,7 +11200,7 @@
         draw();
         return;
       }
-      if (evt.key === "Delete" && deleteActiveSelection()) {
+      if (evt.key === "Delete" && eventTargetsCanvasForDelete(evt) && deleteActiveSelection()) {
         evt.preventDefault();
         evt.stopImmediatePropagation();
         return;
