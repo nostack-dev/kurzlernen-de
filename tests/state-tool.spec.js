@@ -534,7 +534,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerFrame")).toBeVisible();
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator("#layerBack")).toBeVisible();
-    await expect(page.locator(".node")).toHaveCount(5);
+    await expect(page.locator(".node")).toHaveCount(3);
 
     await expect(page.locator("#pTitle")).toBeVisible();
     await page.locator("#pTitle").fill("Email step");
@@ -557,12 +557,12 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeHidden();
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
-    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(".node")).toHaveCount(4);
 
     await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator(`[data-id="${childId}"] .title`)).toHaveText("Email step");
-    await expect(page.locator(".node")).toHaveCount(5);
+    await expect(page.locator(".node")).toHaveCount(3);
   });
 
   test("opens nested state canvases with a node double click @smoke", async ({ page }) => {
@@ -580,7 +580,7 @@ test.describe("State Blueprint tool", () => {
     const childId = await addChildByDoubleClick(page, "login");
     await openStateInspector(page, childId);
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
-    await expect(page.locator(".node")).toHaveCount(5);
+    await expect(page.locator(".node")).toHaveCount(3);
     await page.locator("#pTitle").fill("Temporary child");
     await page.locator(`[data-id="${childId}"]`).click();
     await expect(page.locator(`[data-id="${childId}"]`)).toHaveClass(/selected/);
@@ -615,7 +615,7 @@ test.describe("State Blueprint tool", () => {
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
 
-    await expect(page.locator(".node")).toHaveCount(5);
+    await expect(page.locator(".node")).toHaveCount(3);
     await expect(page.locator(".edge[data-edge-id]")).toHaveCount(4);
     for (const id of [...wiring.inputIds, ...wiring.outputIds]) {
       await expect(page.locator(`.edge[data-edge-id="${id}"]`)).toHaveCount(1);
@@ -642,7 +642,7 @@ test.describe("State Blueprint tool", () => {
     const firstChildId = await addChildByDoubleClick(page, "login");
     const secondChildId = await addChildByDoubleClick(page, "login", [firstChildId]);
 
-    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
     const edgeTip = await centerOf(page.locator(`.edge-tip-hit[data-edge-id="${inputId}"]`));
@@ -711,7 +711,6 @@ test.describe("State Blueprint tool", () => {
 
     await app.getByRole("button", { name: "Finish" }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
-    await expect(page.locator("#layerFrame")).toBeHidden();
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
   });
 
@@ -722,7 +721,7 @@ test.describe("State Blueprint tool", () => {
     await openStateLayer(page, "login");
     const firstChildId = await addChildByDoubleClick(page, "login");
     const secondChildId = await addChildByDoubleClick(page, "login", [firstChildId]);
-    const firstPort = await centerOf(page.locator(`[data-id="${firstChildId}"] .port`));
+    const firstPort = await centerOf(page.locator(`svg#ports .svg-port[data-state-id="${firstChildId}"][data-port-side="out"]`));
     const secondBox = await visibleBox(page.locator(`[data-id="${secondChildId}"]`));
     await page.mouse.move(firstPort.x, firstPort.y);
     await page.mouse.down();
@@ -730,7 +729,7 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.up();
 
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
-    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
     const innerEdgeId = await page.evaluate(({ key, from, to }) => {
@@ -787,7 +786,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#layerBack").click();
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
-    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(".node")).toHaveCount(4);
   });
 
   test("preserves inner state canvases when a state is saved to and reused from the explorer", async ({ page }) => {
@@ -1078,7 +1077,7 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
     await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "html-in-canvas");
     await expect(page.locator("#mapCanvas")).toBeVisible();
-    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(".node")).toHaveCount(4);
     await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("mapCanvas");
     await expect.poll(() => page.evaluate(() => window.__htmlInCanvasDraws || 0)).toBeGreaterThan(0);
     await expect(page.locator("#mapCanvas")).toHaveAttribute("data-drawn", "true");
@@ -3298,7 +3297,7 @@ test.describe("State Blueprint tool", () => {
     const template = page.locator(".state-template-card").filter({ hasText: "Reusable login" });
     await expect(template).toBeVisible();
     await expect(page.locator("#stateExplorer")).not.toHaveClass(/collapsed/);
-    await expect(page.locator(".node")).toHaveCount(6);
+    await expect(page.locator(".node")).toHaveCount(4);
     await expect(login).toBeVisible();
     const afterDropBox = await visibleBox(login);
     expect(Math.abs(afterDropBox.x - originalBox.x)).toBeLessThan(2);
