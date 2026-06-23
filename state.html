@@ -1058,6 +1058,66 @@
       animation: portExitPulse .78s ease-out;
     }
 
+    .svg-port[data-side="input"],
+    .svg-port[data-port-side="input"],
+    .svg-port[data-slot="input"],
+    .svg-port[data-kind="input"],
+    .svg-port[data-type="input"],
+    .svg-port[data-role="input"],
+    .svg-port.input,
+    .svg-port.input-port,
+    .input-port.svg-port {
+      fill: var(--canvas-bg, #07111f) !important;
+      stroke: var(--edge-color, #5f8dbc) !important;
+      stroke-width: 3.2 !important;
+      filter: drop-shadow(0 0 5px rgba(15, 23, 42, .55));
+    }
+
+    .svg-port[data-side="output"],
+    .svg-port[data-port-side="output"],
+    .svg-port[data-slot="output"],
+    .svg-port[data-kind="output"],
+    .svg-port[data-type="output"],
+    .svg-port[data-role="output"],
+    .svg-port.output,
+    .svg-port.output-port,
+    .svg-port.port-slot-output,
+    .port-slot-output.svg-port {
+      fill: var(--edge-color, #5f8dbc) !important;
+      stroke: #07111f !important;
+      stroke-width: 2.4 !important;
+      filter: drop-shadow(0 0 6px rgba(15, 23, 42, .58));
+    }
+
+    .svg-port.runtime[data-side="input"],
+    .svg-port.runtime[data-port-side="input"],
+    .svg-port.runtime[data-slot="input"],
+    .svg-port.runtime[data-kind="input"],
+    .svg-port.runtime[data-type="input"],
+    .svg-port.runtime[data-role="input"],
+    .svg-port.runtime.input,
+    .svg-port.runtime.input-port,
+    .runtime.input-port.svg-port {
+      fill: var(--canvas-bg, #07111f) !important;
+      stroke: var(--runtime, #22c55e) !important;
+      filter: drop-shadow(0 0 9px rgba(34, 197, 94, .72));
+    }
+
+    .svg-port.runtime[data-side="output"],
+    .svg-port.runtime[data-port-side="output"],
+    .svg-port.runtime[data-slot="output"],
+    .svg-port.runtime[data-kind="output"],
+    .svg-port.runtime[data-type="output"],
+    .svg-port.runtime[data-role="output"],
+    .svg-port.runtime.output,
+    .svg-port.runtime.output-port,
+    .svg-port.runtime.port-slot-output,
+    .runtime.port-slot-output.svg-port {
+      fill: var(--runtime, #22c55e) !important;
+      stroke: #07111f !important;
+      filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
+    }
+
     @keyframes portEnterPulse {
       0% { r: 7px; opacity: .75; filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
       42% { r: 12px; opacity: 1; filter: drop-shadow(0 0 13px rgba(34,197,94,.9)); }
