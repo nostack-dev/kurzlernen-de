@@ -163,7 +163,10 @@ test.describe("Core source contracts", () => {
 
     expect(appHtml).toContain("function transitionIsButtonAction");
     expect(appHtml).toContain("const actionTransitions = transitions.filter(transitionIsButtonAction)");
-    expect(html).toContain('label: "Next", condition: "", triggerType: "button", triggerEvent: "", set: {}');
+    expect(html).toContain("function defaultTransitionLabel");
+    expect(html).toContain("label: defaultTransitionLabel({ from: connecting.from, to: targetId })");
+    expect(appHtml).toContain("function runtimeTransitionLabel");
+    expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
   });
 
   test("list item editors use non-overlapping layout classes @smoke", () => {

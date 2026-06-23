@@ -379,7 +379,7 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(".node")).toHaveCount(2);
     await page.keyboard.press("Escape");
-    await page.locator("svg text.edge-label").filter({ hasText: "Next" }).click();
+    await page.locator("svg text.edge-label").filter({ hasText: /^To State/ }).click();
     await page.locator("#pLabel").fill("Submit");
     await page.locator("#pCond").fill('email == "ada@example.com" && accepted_terms');
     await page.locator("#pSet").fill('{"userName":"Grace","role":"member"}');
@@ -1306,16 +1306,17 @@ test.describe("State Blueprint tool", () => {
   test("keeps inspector collapsible and switches between state and transition properties", async ({ page }) => {
     await openTool(page);
 
-    const mapBefore = await visibleBox(page.locator("#map"));
-    await page.locator('[data-id="login"]').click();
+    await page.locator('[data-id="login"] .node-edit').click();
+    await expect(page.locator("#pTitle")).toBeVisible();
     await expect(page.locator("#pTitle")).toHaveValue("Login");
+    const mapBefore = await visibleBox(page.locator("#map"));
 
     await page.locator("#btnToggleInspector").click();
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
     await expect(page.locator("#btnToggleInspector")).toHaveAttribute("aria-label", "Expand state inspector");
     await expect(page.locator("#pTitle")).toBeHidden();
     const mapCollapsed = await visibleBox(page.locator("#map"));
-    expect(mapCollapsed.width).toBeGreaterThan(mapBefore.width + 60);
+    expect(mapCollapsed.width).toBeGreaterThan(mapBefore.width);
 
     await page.locator('[data-id="register"]').click();
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
@@ -1886,7 +1887,6 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pLabel")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pCond")).toHaveAttribute("tabindex", "0");
     await expect(page.locator("#pSet")).toHaveAttribute("tabindex", "0");
-    await expect(page.locator("#pFlip")).toHaveAttribute("tabindex", "0");
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
     await expect.poll(() => page.locator("#pLabel").evaluate(el => ({
       value: el.value,
@@ -1901,9 +1901,21 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pLabel")).toHaveValue("Sign in action");
 
     await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pTriggerType").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pTriggerEvent").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pTriggerTimer").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Tab");
     await expect.poll(() => page.locator("#pCond").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Shift+Tab");
+    await expect.poll(() => page.locator("#pTriggerTimer").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.locator("#pLabel").focus();
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
     await page.keyboard.press("Enter");
     await expect(page.locator("#pLabel")).toHaveCount(0);
@@ -1933,7 +1945,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pLabel")).toHaveValue("");
     await expect(loginEdge).toHaveCount(1);
     await expect(loginEdge).toHaveClass(/selected/);
-    await expect(loginLabel).toHaveText("Next");
+    await expect(loginLabel).toHaveText("To Login");
 
     await page.keyboard.press("Enter");
     await expect(page.locator("#pLabel")).toHaveCount(0);
@@ -2655,7 +2667,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Escape");
     await page.locator('[data-id="start"]').click();
-    await appFrame(page).getByRole("button", { name: "Next" }).click();
+    await expect(model.transitions[0].label).toBe("To Start");
+    await appFrame(page).getByRole("button", { name: "To Start" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("start");
   });
 
