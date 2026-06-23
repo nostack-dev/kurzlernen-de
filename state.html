@@ -2681,6 +2681,19 @@
       padding: 0;
       font-size: 13px;
     }
+    .component-type-select {
+      width: auto !important;
+      min-width: 124px;
+      max-width: 168px;
+      min-height: 28px;
+      height: 28px;
+      padding: 2px 26px 2px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 850;
+      line-height: 1;
+      flex: 0 1 150px;
+    }
     .component-editor .field {
       display: grid;
       grid-template-columns: minmax(74px, .28fr) minmax(0, 1fr);
@@ -8251,6 +8264,18 @@
       return "";
     }
 
+    function freshComponentPreset(type, id = uid("c")) {
+      const nextType = componentPresetTypes().includes(type) ? type : "text";
+      const component = {
+        id,
+        type: nextType,
+        text: defaultComponentText(nextType),
+        url: defaultComponentUrl(nextType)
+      };
+      if (nextType === "list") component.items = normalizeListItems(null, component.text);
+      return component;
+    }
+
     function bindImmediateButton(button, fn) {
       let pointerHandledAt = 0;
       button.addEventListener("pointerdown", evt => {
@@ -8324,6 +8349,26 @@
           }
         }
         persistOwner("state:component:" + component.id);
+      };
+      const changeComponentPreset = async (component, nextType, selectEl) => {
+        const currentType = component.type;
+        if (!componentPresetTypes().includes(nextType) || nextType === currentType) return;
+        if (selectEl) selectEl.value = currentType;
+        const ok = await modalConfirm(
+          `Diese Content-Unit von ${componentTitle(currentType)} zu ${componentTitle(nextType)} wechseln? Vorhandene Inhalte werden überschrieben und die Component startet frisch.`,
+          "Component wechseln",
+          { confirmText: "Wechseln", cancelText: "Abbrechen", danger: true }
+        );
+        if (!ok) return;
+        const components = normalizeComponents(s.components);
+        const index = components.findIndex(item => item.id === component.id);
+        if (index < 0) return;
+        const fresh = freshComponentPreset(nextType, component.id);
+        components[index] = fresh;
+        s.components = components;
+        persistOwner("state:component-type:" + component.id);
+        if (!options.skipLiveStateSync) scheduleSync(false);
+        rerender({ componentId: fresh.id, listIndex: 0 });
       };
       const bindingPathValue = (value, path) => {
         const parts = normalizeContextPath(path, "").split(".").filter(Boolean);
@@ -8498,6 +8543,27 @@
         const label = document.createElement("span");
         label.textContent = componentTitle(component.type);
         label.className = "component-editor-title";
+        const typeSwitcher = document.createElement("select");
+        typeSwitcher.className = "component-type-select";
+        typeSwitcher.title = "Change component preset";
+        typeSwitcher.setAttribute("aria-label", "Change component preset");
+        const currentTypeSupported = componentPresetTypes().includes(component.type);
+        if (!currentTypeSupported) {
+          const current = document.createElement("option");
+          current.value = component.type;
+          current.textContent = componentTitle(component.type);
+          current.disabled = true;
+          current.selected = true;
+          typeSwitcher.appendChild(current);
+        }
+        componentPresetTypes().forEach(type => {
+          const option = document.createElement("option");
+          option.value = type;
+          option.textContent = componentTitle(type);
+          if (type === component.type) option.selected = true;
+          typeSwitcher.appendChild(option);
+        });
+        typeSwitcher.onchange = () => changeComponentPreset(component, typeSwitcher.value, typeSwitcher);
         const dragHandle = document.createElement("button");
         dragHandle.type = "button";
         dragHandle.className = "component-drag-handle";
@@ -8526,7 +8592,7 @@
         });
         const actions = document.createElement("div");
         actions.className = "component-editor-actions";
-        actions.append(dragHandle, remove);
+        actions.append(typeSwitcher, dragHandle, remove);
         head.append(label, actions);
         item.appendChild(head);
         if (component.type !== "divider") {
