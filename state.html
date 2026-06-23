@@ -9044,6 +9044,7 @@
         subscriptions.value = normalizeSubscriptions(paths).join("\n");
         updateSubscriptionsPreview(true);
       };
+      const collapsedGlobalJsonPaths = new Set();
       const addGlobalFetchPathToState = path => {
         const source = normalizeDataSource(s.dataSource || s.fetch);
         const target = normalizeContextPath(source.target, "fetch");
@@ -9144,13 +9145,35 @@
           if (isRecord(value)) return "{}";
           return JSON.stringify(value);
         };
-        const appendJsonLine = (depth, code, path = "") => {
+        const appendJsonLine = (depth, code, path = "", options = {}) => {
           const row = document.createElement("div");
           row.className = "global-state-json-line" + (path && active.has(path) ? " active" : "");
           if (path) row.dataset.path = path;
           const text = document.createElement("span");
           text.className = "global-state-json-code";
-          text.textContent = "  ".repeat(depth) + code;
+          if (options.collapsible) {
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "global-state-json-collapse";
+            toggle.textContent = options.collapsed ? ">" : "v";
+            toggle.title = options.collapsed ? "Expand JSON branch" : "Collapse JSON branch";
+            toggle.style.minHeight = "20px";
+            toggle.style.height = "20px";
+            toggle.style.width = "22px";
+            toggle.style.padding = "0";
+            toggle.style.margin = "0 4px 0 0";
+            toggle.style.borderRadius = "7px";
+            toggle.style.fontSize = "11px";
+            toggle.style.lineHeight = "1";
+            toggle.onclick = evt => {
+              evt.preventDefault();
+              evt.stopPropagation();
+              if (typeof options.onToggle === "function") options.onToggle();
+            };
+            text.append(document.createTextNode("  ".repeat(depth)), toggle, document.createTextNode(code));
+          } else {
+            text.textContent = "  ".repeat(depth) + "   " + code;
+          }
           row.appendChild(text);
           if (path) {
             const button = document.createElement("button");
@@ -9171,7 +9194,22 @@
         const renderAny = (value, path = "", depth = 0, label = "", comma = "") => {
           const prefix = label ? JSON.stringify(label) + ": " : "";
           if (Array.isArray(value)) {
-            appendJsonLine(depth, prefix + "[" + (value.length ? " // " + value.length : ""), path || "*");
+            const collapseKey = path || "$root";
+            const collapsed = collapsedGlobalJsonPaths.has(collapseKey);
+            appendJsonLine(depth, prefix + "[" + (value.length ? " // " + value.length : ""), path || "*", {
+              collapsible: value.length > 0,
+              collapsed,
+              onToggle: () => {
+                if (collapsedGlobalJsonPaths.has(collapseKey)) collapsedGlobalJsonPaths.delete(collapseKey);
+                else collapsedGlobalJsonPaths.add(collapseKey);
+                renderGlobalStateSubscribeMap();
+              }
+            });
+            if (collapsed) {
+              appendJsonLine(depth + 1, "...", "");
+              appendJsonLine(depth, "]" + comma, "");
+              return;
+            }
             const limit = Math.min(value.length, 6);
             value.slice(0, limit).forEach((child, index) => {
               const childPath = path ? path + "." + index : String(index);
@@ -9184,7 +9222,22 @@
           }
           if (isRecord(value)) {
             const entries = Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
-            appendJsonLine(depth, prefix + "{", path || "*");
+            const collapseKey = path || "$root";
+            const collapsed = collapsedGlobalJsonPaths.has(collapseKey);
+            appendJsonLine(depth, prefix + "{", path || "*", {
+              collapsible: entries.length > 0,
+              collapsed,
+              onToggle: () => {
+                if (collapsedGlobalJsonPaths.has(collapseKey)) collapsedGlobalJsonPaths.delete(collapseKey);
+                else collapsedGlobalJsonPaths.add(collapseKey);
+                renderGlobalStateSubscribeMap();
+              }
+            });
+            if (collapsed) {
+              appendJsonLine(depth + 1, "...", "");
+              appendJsonLine(depth, "}" + comma, "");
+              return;
+            }
             entries.forEach(([key, child], index) => {
               const childPath = path ? path + "." + key : key;
               const childComma = index === entries.length - 1 ? "" : ",";

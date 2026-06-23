@@ -153,4 +153,22 @@ test.describe("Core browser contracts", () => {
 
     await expect(page.locator(".component-editor textarea").first()).toHaveValue(/{{state\.current}}/);
   });
+
+  test("global state json tree branches can collapse and expand @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="auth_start"]').click();
+
+    const tree = page.locator("#pSubscriptionTree");
+    const before = await tree.locator(".global-state-json-line").count();
+    const toggle = tree.locator(".global-state-json-collapse").first();
+    await expect(toggle).toBeVisible();
+
+    await toggle.click();
+    await expect.poll(async () => tree.locator(".global-state-json-line").count()).toBeLessThan(before);
+    const collapsed = await tree.locator(".global-state-json-line").count();
+
+    await tree.locator(".global-state-json-collapse").first().click();
+    await expect.poll(async () => tree.locator(".global-state-json-line").count()).toBeGreaterThan(collapsed);
+  });
 });
