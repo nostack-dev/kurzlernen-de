@@ -8529,7 +8529,7 @@
         if (wiredComponents.length) {
           const info = document.createElement("div");
           info.className = "component-empty";
-          info.textContent = "Content renders from Data Wires.";
+          info.textContent = "Combined render from this State's globalState scope.";
           const wireList = document.createElement("div");
           wireList.className = "fetch-mapped-fields";
           wiredComponents.forEach(component => {
@@ -8551,7 +8551,19 @@
         }
         const empty = document.createElement("div");
         empty.className = "component-empty";
-        empty.textContent = "No content yet. Add a preset from the Explorer or create child states inside this state.";
+        const text = document.createElement("div");
+        text.textContent = "No render mapping yet. Pick a globalState group or field in State data, then assign it to image, heading, text, price, etc.";
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "component-editor-action";
+        action.textContent = "Map State data";
+        action.onclick = () => {
+          const card = root.querySelector("#pDataCard");
+          if (card) card.open = true;
+          const tree = root.querySelector("#pSubscriptionTree");
+          if (tree) tree.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        };
+        empty.append(text, action);
         list.appendChild(empty);
         return;
       }
@@ -10071,7 +10083,7 @@
               <div id="pSubscriptionPaths" class="global-state-path-grid" hidden></div>
               <div id="pSubscriptionTree" class="global-state-json"></div>
               <div class="data-wire-panel">
-                <div class="small"><b>Rendered state data</b><br><span>Diese Felder kommen aus dem State-Daten-Scope. Drag sortiert die Render-Reihenfolge.</span></div>
+                <div class="small"><b>Render mapping</b><br><span>Mappe State-Daten-Scope auf Image, Heading, Text usw. Drag sortiert die Render-Reihenfolge.</span></div>
                 <div id="pDataWireList" class="data-wire-list"></div>
               </div>
               <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
@@ -10088,7 +10100,7 @@
             </div>
           </div>
         </details>
-        <div class="inspector-section-title">Content</div>
+        <div class="inspector-section-title">Render</div>
         <div id="pComponents" class="component-list"></div>
         <div class="small state-id-line">ID: <b>${escapeHtml(s.id)}</b></div>
         <div class="row" style="margin-top:10px">
@@ -10252,7 +10264,7 @@
         if (!wires.length) {
           const empty = document.createElement("div");
           empty.className = "fetch-mapped-empty";
-          empty.textContent = "Noch keine Renderfelder. Klick + an einem JSON-Pfad.";
+          empty.textContent = "Noch kein Render-Mapping. Klick + an einem globalState-Pfad oder einer Fetch-Response-Gruppe.";
           dataWireList.appendChild(empty);
           return;
         }
@@ -10287,7 +10299,7 @@
           const name = document.createElement("strong");
           name.textContent = wire.label || dataPathLabel(wire.itemPath || wire.sourcePath);
           const code = document.createElement("code");
-          code.textContent = wire.scopePath ? wire.scopePath + " -> item." + (wire.itemPath || "*") : wire.sourcePath;
+          code.textContent = wire.scopePath ? wire.scopePath + " -> " + (wire.itemPath ? "item." + wire.itemPath : "item") : wire.sourcePath;
           main.append(name, code);
           const role = document.createElement("select");
           DATA_WIRE_ROLES.forEach(item => {
