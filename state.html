@@ -8313,12 +8313,18 @@
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
       const autoCreateRepeatComponents = () => {
-        autoDeriveRepeatForOwner(s, null, false);
+        const autoRepeatChanged = autoDeriveRepeatForOwner(s, null, false);
         const repeat = normalizeRepeatConfig(s.repeat);
-        if (!repeat.path) return;
+        if (!repeat.path) {
+          if (autoRepeatChanged) {
+            saveModel("state:auto-repeat-clean:" + s.id);
+            if (!options.skipLiveStateSync) scheduleSync(false);
+          }
+          return;
+        }
         const changed = applyDerivedDataWires(s, repeat.path, root, false);
-        if (!changed) return;
-        saveModel("state:auto-data-wire:" + s.id);
+        if (!changed && !autoRepeatChanged) return;
+        saveModel(changed ? "state:auto-data-wire:" + s.id : "state:auto-repeat:" + s.id);
         if (!options.skipLiveStateSync) scheduleSync(false);
       };
       autoCreateRepeatComponents();
@@ -9228,18 +9234,50 @@
       return out;
     }
 
+    function ownerHasAutoRepeatSource(owner) {
+      if (!owner) return false;
+      const repeat = normalizeRepeatConfig(owner.repeat);
+      if (repeat.path) return true;
+      const source = normalizeDataSource(owner.dataSource || owner.fetch);
+      return Boolean(String(source.url || "").trim());
+    }
+
+    function clearAutoRepeatForUnboundOwner(owner) {
+      if (!owner || ownerHasAutoRepeatSource(owner)) return false;
+      let changed = false;
+      const repeat = normalizeRepeatConfig(owner.repeat);
+      if (!repeat.manual && repeat.path) {
+        owner.repeat = normalizeRepeatConfig(null);
+        changed = true;
+      }
+      const wires = normalizeDataWires(owner.dataWires);
+      const kept = wires.filter(wire => {
+        const sourcePath = String(wire.sourcePath || "");
+        const scopePath = String(wire.scopePath || "");
+        return !(sourcePath === "fetch" || sourcePath.startsWith("fetch.") || scopePath === "fetch" || scopePath.startsWith("fetch."));
+      });
+      if (kept.length !== wires.length) {
+        owner.dataWires = kept;
+        changed = true;
+      }
+      return changed;
+    }
+
     function repeatCandidatesForOwner(owner) {
       const candidates = [];
       if (!owner) return candidates;
       const source = normalizeDataSource(owner.dataSource || owner.fetch);
       const target = normalizeContextPath(source.target, "fetch");
-      if (isPlainObject(latestRuntimeContext)) {
+      const allowExternalCandidates = ownerHasAutoRepeatSource(owner);
+      if (allowExternalCandidates && isPlainObject(latestRuntimeContext)) {
         Object.entries(latestRuntimeContext).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, "runtime"));
       }
       Object.entries(normalizeDataObject(owner.data)).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, "state"));
-      for (const state of model.states || []) {
-        if (state === owner) continue;
-        Object.entries(normalizeDataObject(state.data)).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, state.title || state.id || "state"));
+      if (allowExternalCandidates) {
+        for (const state of model.states || []) {
+          if (state === owner) continue;
+          Object.entries(normalizeDataObject(state.data)).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, state.title || state.id || "state"));
+        }
       }
       const current = normalizeRepeatConfig(owner.repeat).path;
       if (current) candidates.push({ path: current, source: "current", score: normalizeRepeatConfig(owner.repeat).manual ? 1000 : 10, assumed: false });
@@ -9256,6 +9294,7 @@
     }
 
     function autoRepeatCandidateForOwner(owner) {
+      if (!ownerHasAutoRepeatSource(owner)) return null;
       return repeatCandidatesForOwner(owner)[0] || null;
     }
 
@@ -9265,15 +9304,20 @@
     }
 
     function autoDeriveRepeatForOwner(owner, root = null, persist = false) {
+      const cleaned = clearAutoRepeatForUnboundOwner(owner);
+      if (!ownerHasAutoRepeatSource(owner)) {
+        if (cleaned && persist) saveModel("state:auto-repeat-clean:" + owner.id);
+        return cleaned;
+      }
       const currentRepeat = normalizeRepeatConfig(owner.repeat);
-      if (currentRepeat.manual && currentRepeat.path) return false;
+      if (currentRepeat.manual && currentRepeat.path) return cleaned;
       const repeatPath = autoRepeatPathForOwner(owner);
-      if (!repeatPath) return false;
+      if (!repeatPath) return cleaned;
       const previousPath = currentRepeat.path;
       owner.repeat = normalizeRepeatConfig({ path: repeatPath, as: "item", index: "i" });
       applyDerivedRepeatComponents(owner, repeatPath, root, false);
       if (persist && repeatPath !== previousPath) saveModel("state:auto-repeat:" + owner.id);
-      return repeatPath !== previousPath;
+      return cleaned || repeatPath !== previousPath;
     }
 
     function templateTouchesContextPath(value, path) {
