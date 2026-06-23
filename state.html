@@ -4810,6 +4810,16 @@
       latestRuntimeContext.fetched = null;
     }
 
+    function applyEditorDataSourceResult(targetPath, result) {
+      const target = normalizeContextPath(targetPath, "fetch");
+      if (!isPlainObject(latestRuntimeContext)) latestRuntimeContext = {};
+      setEditorContextPath(latestRuntimeContext, target, {
+        ...emptyDataSourceResult(),
+        ...(isPlainObject(result) ? result : {})
+      });
+      latestRuntimeContext.fetched = Boolean(result && result.done && result.ok);
+    }
+
     function normalizeRepeatConfig(value) {
       const source = isPlainObject(value) ? value : {};
       return {
@@ -9506,7 +9516,10 @@
           applyDerivedRepeatComponents(owner, owner.repeat.path, root, false);
         }
         previousRepeatPath = normalizeContextPath(owner.repeat.path, "");
-        if (persist && owner.repeat.path !== oldPath) persistOwner(`${historyPrefix}:repeat:auto`);
+        if (persist && owner.repeat.path !== oldPath) {
+          persistOwner(`${historyPrefix}:repeat:auto`);
+          scheduleSync(false);
+        }
       };
       path.onchange = () => {
         owner.repeat = path.value
@@ -9666,6 +9679,23 @@
       inspect.classList.remove("empty");
 
       const targetName = () => normalizeContextPath(target.value || ownerTarget?.value || owner.dataSource?.target || "fetch", "fetch");
+      const selectedFromSource = normalizeDataSource({
+        ...normalizeDataSource(owner.dataSource || owner.fetch),
+        target: target.value || ownerTarget?.value || owner.dataSource?.target,
+        select: select.value || ownerSelect?.value || owner.dataSource?.select
+      });
+      const selectedJson = selectedFromSource.select ? jsonValueAtPath(json, selectedFromSource.select) : json;
+      applyEditorDataSourceResult(targetName(), {
+        status: "preview",
+        loading: false,
+        done: true,
+        ok: true,
+        data: selectedJson === undefined ? null : selectedJson,
+        error: "",
+        statusCode: Number(meta.status) || 0,
+        count: Array.isArray(selectedJson) ? selectedJson.length : (selectedJson === null || selectedJson === undefined ? 0 : 1),
+        url: selectedFromSource.url
+      });
       const shortValue = value => {
         if (Array.isArray(value)) return "Array[" + value.length + "]";
         if (value && typeof value === "object") return "Object{" + Object.keys(value).length + "}";
@@ -10412,14 +10442,7 @@
         if (!json) return;
         const targetPath = normalizeContextPath(source.target, "fetch");
         const selected = source.select ? jsonValueAtPath(json, source.select) : json;
-        const nextContext = isPlainObject(latestRuntimeContext) ? JSON.parse(JSON.stringify(latestRuntimeContext)) : {};
-        const parts = targetPath.split(".").filter(Boolean);
-        let cursor = nextContext;
-        parts.slice(0, -1).forEach(part => {
-          if (!cursor[part] || typeof cursor[part] !== "object" || Array.isArray(cursor[part])) cursor[part] = {};
-          cursor = cursor[part];
-        });
-        cursor[parts[parts.length - 1] || "fetch"] = {
+        applyEditorDataSourceResult(targetPath, {
           status: "preview",
           loading: false,
           done: true,
@@ -10428,9 +10451,13 @@
           count: Array.isArray(selected) ? selected.length : (selected === null || selected === undefined ? 0 : 1),
           error: "",
           url: source.url
-        };
-        latestRuntimeContext = nextContext;
+        });
         renderGlobalStateSubscribeMap();
+        bindRepeatEditor(s, root, historyKey => {
+          saveModel(`${historyKey}:${s.id}`);
+          scheduleSync(false);
+        }, "state");
+        renderComponentEditors(s, null, root);
       };
       root.querySelector("#pRefreshFetchPreview")?.addEventListener("click", refreshFetchPreview);
       root.querySelector("#pDataSourceUrl")?.addEventListener("change", refreshFetchPreview);
