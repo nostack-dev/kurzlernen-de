@@ -2651,6 +2651,71 @@
       margin: 0 !important;
     }
 
+    .list-item-editor {
+      display: grid !important;
+      gap: 8px !important;
+      min-width: 0 !important;
+      padding: 10px !important;
+      margin-top: 8px !important;
+      border: 1px solid rgba(49, 95, 140, .28) !important;
+      border-radius: 10px !important;
+      background: rgba(2, 6, 23, .16) !important;
+    }
+
+    .list-item-head {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto !important;
+      align-items: center !important;
+      gap: 8px !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+    }
+
+    .list-item-head select {
+      width: 100% !important;
+      min-width: 0 !important;
+      min-height: 32px !important;
+      height: 32px !important;
+      padding: 4px 8px !important;
+      border-radius: 8px !important;
+      font-size: 12px !important;
+    }
+
+    .list-item-head button {
+      min-width: 64px !important;
+      min-height: 32px !important;
+      height: 32px !important;
+      padding: 4px 10px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+    }
+
+    .list-item-field {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      gap: 5px !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border-top: 0 !important;
+    }
+
+    .list-item-field label {
+      margin: 0 !important;
+      font-size: 10px !important;
+      line-height: 1.2 !important;
+    }
+
+    .list-item-field input,
+    .list-item-field textarea {
+      width: 100% !important;
+      min-width: 0 !important;
+      min-height: 34px !important;
+      height: auto !important;
+      padding: 6px 8px !important;
+      border-radius: 8px !important;
+    }
+
   </style>
 </head>
 <body>
@@ -8001,26 +8066,11 @@
             component.items.forEach((itemVal, index) => {
               const row = document.createElement("div");
               row.className = "list-item-editor";
-              row.style.border = "1px solid rgba(49, 95, 140, 0.2)";
-              row.style.borderRadius = "8px";
-              row.style.padding = "8px";
-              row.style.marginTop = "6px";
-              row.style.background = "rgba(2, 6, 23, 0.1)";
 
               const itemHead = document.createElement("div");
-              itemHead.className = "component-editor-head";
-              itemHead.style.marginBottom = "4px";
+              itemHead.className = "list-item-head";
 
               const typeSelect = document.createElement("select");
-              typeSelect.style.minHeight = "28px";
-              typeSelect.style.height = "28px";
-              typeSelect.style.padding = "2px 6px";
-              typeSelect.style.borderRadius = "6px";
-              typeSelect.style.fontSize = "12px";
-              typeSelect.style.width = "auto";
-              typeSelect.style.backgroundColor = "#091827";
-              typeSelect.style.borderColor = "#294c72";
-              typeSelect.style.color = "#e5f0ff";
 
               const types = [
                 { value: "text", label: "Text" },
@@ -8047,10 +8097,6 @@
               del.type = "button";
               del.className = "danger";
               del.textContent = "Delete";
-              del.style.minHeight = "28px";
-              del.style.height = "28px";
-              del.style.padding = "2px 8px";
-              del.style.fontSize = "11px";
               bindImmediateButton(del, () => {
                 component.items.splice(index, 1);
                 writeItems();
@@ -8062,19 +8108,12 @@
 
               if (itemVal.type !== "divider") {
                 const textField = document.createElement("div");
-                textField.className = "field";
-                textField.style.margin = "4px 0";
+                textField.className = "field list-item-field";
                 const label = document.createElement("label");
                 label.textContent = itemVal.type === "image" ? "Alt text" : itemVal.type === "link" || itemVal.type === "sound" ? "Label" : "Text";
-                label.style.fontSize = "10px";
-                label.style.marginBottom = "2px";
 
                 const input = document.createElement("input");
                 input.value = itemVal.text || "";
-                input.style.minHeight = "32px";
-                input.style.height = "32px";
-                input.style.padding = "4px 8px";
-                input.style.borderRadius = "6px";
                 input.placeholder = label.textContent;
                 input.dataset.componentId = component.id;
                 input.dataset.listIndex = String(index);
@@ -8090,19 +8129,12 @@
 
               if (itemVal.type === "image" || itemVal.type === "link" || itemVal.type === "sound") {
                 const urlField = document.createElement("div");
-                urlField.className = "field";
-                urlField.style.margin = "4px 0";
+                urlField.className = "field list-item-field";
                 const label = document.createElement("label");
                 label.textContent = itemVal.type === "image" ? "Image URL" : itemVal.type === "sound" ? "Sound URL (optional)" : "URL";
-                label.style.fontSize = "10px";
-                label.style.marginBottom = "2px";
 
                 const input = document.createElement("input");
                 input.value = itemVal.url || "";
-                input.style.minHeight = "32px";
-                input.style.height = "32px";
-                input.style.padding = "4px 8px";
-                input.style.borderRadius = "6px";
                 input.placeholder = itemVal.type === "sound" ? "empty = generated sound on state enter" : "https://...";
                 input.oninput = () => {
                   itemVal.url = input.value;

@@ -86,6 +86,16 @@ test.describe("Core source contracts", () => {
     expect(actionHandler?.[0] || "").not.toContain("followTransition");
   });
 
+  test("list item editors use non-overlapping layout classes @smoke", () => {
+    const html = stateHtml();
+
+    expect(html).toContain('itemHead.className = "list-item-head"');
+    expect(html).toContain('textField.className = "field list-item-field"');
+    expect(html).toContain('urlField.className = "field list-item-field"');
+    expect(html).toContain(".list-item-head");
+    expect(html).toContain("grid-template-columns: minmax(0, 1fr) auto");
+  });
+
   test("fetch runtime uses one fresh active run, not a response cache @smoke", () => {
     const html = stateHtml();
 
