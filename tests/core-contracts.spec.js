@@ -127,9 +127,15 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function derivedRepeatComponents");
     expect(html).toContain("function pickDerivedRepeatFields");
     expect(html).toContain("function repeatSampleForPath");
+    expect(html).toContain("function repeatComponentMeta");
     expect(html).toContain("generatedFromRepeat");
+    expect(html).toContain("dataPath: normalizeBindingPath(component.dataPath ||");
+    expect(html).toContain("component.generatedFromRepeat");
+    expect(html).toContain("Auto data part");
+    expect(html).toContain("autoCreateRepeatComponents");
     expect(html).toContain("applyDerivedRepeatComponents(owner, owner.repeat.path, root, false)");
     expect(html).toContain("derivedRepeatComponents(sample, \"item\")");
+    expect(html).toContain("...repeatComponentMeta(fields.image.path, \"image\", \"Image\")");
     expect(html).toContain("function templateTouchesContextPath");
     expect(html).toContain('const childPrefix = prefix && isScalarDataValue(sample) ? prefix + ".0" : prefix;');
     expect(appHtml).toContain("function runtimeDerivedRepeatComponents");

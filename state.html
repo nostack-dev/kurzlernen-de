@@ -1461,6 +1461,31 @@
       flex: 0 0 auto;
       border-radius: 9px;
     }
+    .component-data-part {
+      border: 1px solid rgba(47, 107, 94, 0.18);
+      border-radius: 12px;
+      background: rgba(47, 107, 94, 0.07);
+      color: var(--muted);
+      display: grid;
+      gap: 3px;
+      font-size: 12px;
+      line-height: 1.35;
+      padding: 9px 10px;
+    }
+
+    .component-data-part strong {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .component-data-part code {
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
     .template-binding-status {
       grid-column: 1 / -1;
       min-width: 0;
@@ -4378,6 +4403,10 @@
             url: String(component.url || ""),
             variant: String(component.variant || "")
           };
+          if (component.generatedFromRepeat) norm.generatedFromRepeat = true;
+          if (component.dataPath) norm.dataPath = normalizeBindingPath(component.dataPath, "");
+          if (component.dataRole) norm.dataRole = String(component.dataRole || "").slice(0, 40);
+          if (component.dataLabel) norm.dataLabel = String(component.dataLabel || "").slice(0, 80);
           if (component.type === "list") {
             norm.items = normalizeListItems(component.items, component.text);
           }
@@ -7937,6 +7966,18 @@
         draw();
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
+      const autoCreateRepeatComponents = () => {
+        const repeat = normalizeRepeatConfig(s.repeat);
+        if (!repeat.path) return;
+        const current = normalizeComponents(s.components);
+        const needsAutoParts = !current.length || current.every(component => !component.generatedFromRepeat && isGeneratedRepeatComponent(component, repeat.path));
+        if (!needsAutoParts) return;
+        const sample = repeatSampleForPath(repeat.path, s);
+        s.components = derivedRepeatComponents(sample, repeat.as || "item");
+        saveModel("state:auto-repeat:" + s.id);
+        if (!options.skipLiveStateSync) scheduleSync(false);
+      };
+      autoCreateRepeatComponents();
       let draggingComponentId = null;
       const clearComponentDropMarks = () => {
         list.querySelectorAll(".component-editor.drop-before,.component-editor.drop-after").forEach(el => el.classList.remove("drop-before", "drop-after"));
@@ -8104,6 +8145,60 @@
         refreshStatus();
         container.appendChild(picker);
       };
+      const repeatConfig = normalizeRepeatConfig(s.repeat);
+      const autoDataRoleLabel = role => ({
+        image: "Image",
+        title: "Title",
+        price: "Price",
+        description: "Description",
+        field: "Field",
+        item: "Item"
+      })[role] || "Field";
+      const inferredAutoDataRole = component => {
+        if (component.dataRole) return component.dataRole;
+        if (component.type === "image") return "image";
+        if (component.type === "heading") return "title";
+        return component.variant === "field" ? "field" : "description";
+      };
+      const autoDataPathForComponent = component => {
+        const explicit = normalizeBindingPath(component.dataPath || "", "");
+        if (explicit) return explicit;
+        const template = component.type === "image" || component.type === "link" || component.type === "sound"
+          ? component.url
+          : component.text;
+        const binding = bindingPathFromText(template);
+        const alias = repeatConfig.as || "item";
+        if (binding === alias) return "";
+        if (binding.startsWith(alias + ".")) return normalizeBindingPath(binding.slice(alias.length + 1), "");
+        return "";
+      };
+      const autoDataInfoForComponent = component => {
+        if (!repeatConfig.path) return null;
+        if (!component.generatedFromRepeat && !isGeneratedRepeatComponent(component, repeatConfig.path)) return null;
+        const role = inferredAutoDataRole(component);
+        const roleLabel = autoDataRoleLabel(role);
+        const dataPath = autoDataPathForComponent(component);
+        return {
+          role,
+          roleLabel,
+          dataPath,
+          label: component.dataLabel || dataPathLabel(dataPath, roleLabel)
+        };
+      };
+      const appendAutoDataPart = (target, info) => {
+        const card = document.createElement("div");
+        card.className = "component-data-part";
+        const title = document.createElement("strong");
+        title.textContent = `Auto data part · ${info.roleLabel}`;
+        const source = document.createElement("span");
+        source.textContent = info.dataPath
+          ? `${info.label} from each repeated item`
+          : "Whole repeated item";
+        const path = document.createElement("code");
+        path.textContent = info.dataPath || repeatConfig.as || "item";
+        card.append(title, source, path);
+        target.appendChild(card);
+      };
       if (!s.components.length) {
         const empty = document.createElement("div");
         empty.className = "component-empty";
@@ -8170,6 +8265,12 @@
         actions.append(dragHandle, remove);
         head.append(label, actions);
         item.appendChild(head);
+        const autoDataInfo = autoDataInfoForComponent(component);
+        if (autoDataInfo) {
+          appendAutoDataPart(item, autoDataInfo);
+          list.appendChild(item);
+          continue;
+        }
         if (component.type !== "divider") {
           if (component.type === "list") {
             const field = document.createElement("div");
@@ -8594,16 +8695,26 @@
       return `{{${cleanAlias}${cleanPath ? "." + cleanPath : ""}}}`;
     }
 
+    function repeatComponentMeta(path, role, fallback = "Value") {
+      const cleanPath = normalizeBindingPath(path || "", "");
+      return {
+        generatedFromRepeat: true,
+        dataPath: cleanPath,
+        dataRole: String(role || "").slice(0, 40),
+        dataLabel: dataPathLabel(cleanPath, fallback)
+      };
+    }
+
     function componentForDataField(path, value, alias = "item") {
       const binding = repeatBinding(alias, path);
       const label = dataPathLabel(path, "Value");
       if (looksLikeImagePath(path) || looksLikeImageValue(value)) {
-        return { id: uid("c"), type: "image", text: "", url: binding, generatedFromRepeat: true };
+        return { id: uid("c"), type: "image", text: "", url: binding, ...repeatComponentMeta(path, "image", "Image") };
       }
       if (dataFieldScore({ path, value }, "title") >= 70) {
-        return { id: uid("c"), type: "heading", text: binding, url: "", generatedFromRepeat: true };
+        return { id: uid("c"), type: "heading", text: binding, url: "", ...repeatComponentMeta(path, "title", "Title") };
       }
-      return { id: uid("c"), type: "text", text: `${label}: ${binding}`, variant: "field", url: "", generatedFromRepeat: true };
+      return { id: uid("c"), type: "text", text: `${label}: ${binding}`, variant: "field", url: "", ...repeatComponentMeta(path, "field", label) };
     }
 
     function derivedRepeatComponents(sample, alias = "item") {
@@ -8615,11 +8726,11 @@
           type: "image",
           text: fields.title ? repeatBinding(alias, fields.title.path) : "",
           url: repeatBinding(alias, fields.image.path),
-          generatedFromRepeat: true
+          ...repeatComponentMeta(fields.image.path, "image", "Image")
         });
       }
       if (fields.title) {
-        components.push({ id: uid("c"), type: "heading", text: repeatBinding(alias, fields.title.path), url: "", generatedFromRepeat: true });
+        components.push({ id: uid("c"), type: "heading", text: repeatBinding(alias, fields.title.path), url: "", ...repeatComponentMeta(fields.title.path, "title", "Title") });
       }
       if (fields.price) {
         components.push({
@@ -8628,11 +8739,11 @@
           text: `${dataPathLabel(fields.price.path, "Price")}: ${repeatBinding(alias, fields.price.path)}`,
           variant: "field",
           url: "",
-          generatedFromRepeat: true
+          ...repeatComponentMeta(fields.price.path, "price", "Price")
         });
       }
       if (fields.description) {
-        components.push({ id: uid("c"), type: "text", text: repeatBinding(alias, fields.description.path), url: "", generatedFromRepeat: true });
+        components.push({ id: uid("c"), type: "text", text: repeatBinding(alias, fields.description.path), url: "", ...repeatComponentMeta(fields.description.path, "description", "Description") });
       }
       for (const extra of fields.extras) {
         components.push({
@@ -8641,11 +8752,11 @@
           text: `${dataPathLabel(extra.path, "Value")}: ${repeatBinding(alias, extra.path)}`,
           variant: "field",
           url: "",
-          generatedFromRepeat: true
+          ...repeatComponentMeta(extra.path, "field", "Value")
         });
       }
       if (!components.length) {
-        components.push({ id: uid("c"), type: "text", text: "Item {{i}}", variant: "field", url: "", generatedFromRepeat: true });
+        components.push({ id: uid("c"), type: "text", text: "Item {{i}}", variant: "field", url: "", generatedFromRepeat: true, dataRole: "item", dataLabel: "Item" });
       }
       return components;
     }
