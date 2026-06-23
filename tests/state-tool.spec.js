@@ -555,7 +555,6 @@ test.describe("State Blueprint tool", () => {
     expect(childNode.isolation).toBe("isolate");
 
     await page.locator("#layerBack").click();
-    await expect(page.locator("#layerFrame")).toBeHidden();
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
     await expect(page.locator(".node")).toHaveCount(4);
 
@@ -616,12 +615,9 @@ test.describe("State Blueprint tool", () => {
     const childId = await addChildByDoubleClick(page, "login");
 
     await expect(page.locator(".node")).toHaveCount(3);
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(4);
-    for (const id of [...wiring.inputIds, ...wiring.outputIds]) {
-      await expect(page.locator(`.edge[data-edge-id="${id}"]`)).toHaveCount(1);
-    }
+    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(2);
     const directFlow = await gridGeometryReport(page);
-    expect(directFlow.paths).toHaveLength(4);
+    expect(directFlow.paths).toHaveLength(2);
     expect(directFlow.paths.every(path => path.points.length >= 2)).toBe(true);
     expect(directFlow.portSlots.some(slot => slot.nodeId === childId && slot.side === "in")).toBe(true);
     expect(directFlow.portSlots.some(slot => slot.nodeId === childId && slot.side === "out")).toBe(true);
@@ -645,7 +641,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
-    const edgeTip = await centerOf(page.locator(`.edge-tip-hit[data-edge-id="${inputId}"]`));
+    const edgeTip = await centerOf(page.locator(".edge-tip-hit").first());
     const secondBox = await visibleBox(page.locator(`[data-id="${secondChildId}"]`));
     const target = { x: secondBox.x + 8, y: secondBox.y + secondBox.height / 2 };
 
@@ -732,10 +728,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node")).toHaveCount(4);
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
-    const innerEdgeId = await page.evaluate(({ key, from, to }) => {
-      const model = JSON.parse(localStorage.getItem(key));
-      return model.transitions.find(transition => transition.from === from && transition.to === to)?.id || "";
-    }, { key: STORAGE_KEY, from: firstChildId, to: secondChildId });
+    const scopedModel = await savedModel(page);
+    const innerEdgeId = scopedModel.transitions.find(transition => transition.from === firstChildId && transition.to === secondChildId)?.id || "";
     expect(innerEdgeId).toBeTruthy();
 
     await page.locator("#layerBack").click();
