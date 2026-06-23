@@ -100,6 +100,9 @@ test.describe("Core source contracts", () => {
 
     expect(appHtml).not.toContain("No outgoing transitions");
     expect(appHtml).not.toContain("Play default chime");
+    expect(appHtml).not.toContain("{{");
+    expect(html).not.toContain("{{");
+    expect(html).not.toContain("legacyDefaultTransitionEvent");
     expect(html).not.toContain('text: "{{fetch.data}}"');
     expect(html).not.toContain('text: "{{item}}"');
     expect(html).not.toContain('text: "Item: {{item}}"');
@@ -126,18 +129,21 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("grid-template-columns: minmax(0, 1fr) auto");
   });
 
-  test("component data insert picker stays wide and aligned @smoke", () => {
+  test("component data rendering stays wired through global-state paths @smoke", () => {
     const html = stateHtml();
 
-    expect(html).toContain(".template-binding-picker");
-    expect(html).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(html).toContain(".global-state-json");
+    expect(html).toContain(".global-state-json-toggle");
+    expect(html).toContain(".data-wire-row");
+    expect(html).toContain("Render mapping");
+    expect(html).toContain("Global State JSON");
     expect(html).toContain(".component-editor input");
-    expect(html).toContain(".template-binding-picker select");
-    expect(html).toContain(".template-binding-picker button");
     expect(html).toContain("function normalizeBindingPath");
-    expect(html).toContain("const connectTemplateBinding");
-    expect(html).toContain("Connect data...");
-    expect(html).toContain("Choose a field; no template syntax typing needed.");
+    expect(html).toContain("function dataWireDisplayValue");
+    expect(html).toContain("function dataWireUrlValue");
+    expect(html).not.toContain(".template-binding-picker");
+    expect(html).not.toContain("const connectTemplateBinding");
+    expect(html).not.toContain("Connect data...");
     expect(html).toContain('const key = normalizeBindingPath(path, "");');
   });
 
@@ -178,16 +184,18 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("dataWiresFromRepeatSample(sample, scopePath)");
     expect(html).toContain("push(fields.image, \"image\", \"image\", \"Image\")");
     expect(html).toContain('filter(part => !/^\\d+$/.test(part))');
-    expect(html).toContain("function templateTouchesContextPath");
     expect(html).toContain('const childPrefix = prefix && isScalarDataValue(sample) ? prefix + ".0" : prefix;');
     expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
     expect(appHtml).toContain("function runtimeColumnarRepeatEntries");
     expect(appHtml).toContain("function runtimeRepeatValueItems");
     expect(appHtml).toContain("const repeated = runtimeRepeatValueItems(repeatedValue)");
     expect(appHtml).toContain("function runtimeDataWireComponentsForState");
+    expect(appHtml).toContain("function runtimeDataWireDisplayValue");
+    expect(appHtml).toContain("function runtimeDataWireUrlValue");
     expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
-    expect(appHtml).toContain("runtimeComponentIsRawDataDump");
-    expect(appHtml).toContain("runtimeTemplateTouchesPath");
+    expect(appHtml).not.toContain("runtimeComponentIsRawDataDump");
+    expect(appHtml).not.toContain("runtimeTemplateTouchesPath");
+    expect(appHtml).not.toContain("{{");
     expect(appHtml).toContain('prefix + ".0"');
     expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
@@ -225,8 +233,12 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("Render mapping");
     expect(html).toContain("Mappe State-Daten-Scope auf Image, Heading, Text");
     expect(html).toContain("components: [],");
+    expect(html).toContain("function dataWireDisplayValue");
+    expect(html).toContain("function dataWireUrlValue");
     expect(appHtml).toContain("function normalizeDataWire(value)");
     expect(appHtml).toContain("function runtimeDataWireComponentsForState");
+    expect(appHtml).toContain("function runtimeDataWireDisplayValue");
+    expect(appHtml).toContain("function runtimeDataWireUrlValue");
     expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
     expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
@@ -306,19 +318,18 @@ test.describe("Core browser contracts", () => {
     expect(html).toContain(".inspector-collapse[open] .inspector-collapse-summary::after");
   });
 
-  test("component text editors insert global-state bindings from a picker @smoke", async ({ page }) => {
+  test("global-state json paths create data-wire render mappings @smoke", async ({ page }) => {
     await openTool(page);
 
     await openStateInspector(page, "auth_start");
-    const textInput = page.locator(".component-editor textarea, .component-editor input").first();
-    await textInput.focus();
+    await page.locator("#pDataCard summary").click();
 
-    const picker = page.locator("#pComponents .template-binding-picker").first();
-    await expect(picker).toBeVisible();
-    await picker.locator("select").selectOption("state.current");
-    await picker.getByRole("button", { name: "Connect" }).click();
+    const stateCurrent = page.locator('#pSubscriptionTree [data-path="state.current"]');
+    await expect(stateCurrent).toBeVisible();
+    await stateCurrent.locator(".global-state-json-toggle").click();
 
-    await expect(page.locator(".component-editor textarea").first()).toHaveValue(/{{state\.current}}/);
+    await expect(page.locator("#pDataWireList .data-wire-row").filter({ hasText: "state.current" })).toBeVisible();
+    await expect(page.locator("#pComponents .template-binding-picker")).toHaveCount(0);
   });
 
   test("global state json tree branches can collapse and expand @smoke", async ({ page }) => {
