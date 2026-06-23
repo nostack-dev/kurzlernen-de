@@ -9762,7 +9762,28 @@
       });
     }
 
-    function pulseRuntimeState(stateId, mode = "enter") {
+    function runtimePortMatchesSide(port, node, side) {
+      if (!side) return true;
+      const sideLabel = [
+        port.dataset.side,
+        port.dataset.portSide,
+        port.dataset.slot,
+        port.dataset.kind,
+        port.dataset.type,
+        port.dataset.role,
+        port.className?.baseVal || port.className || ""
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (side === "input" && /\b(input|in|target|entry|left)\b/.test(sideLabel)) return true;
+      if (side === "output" && /\b(output|out|source|exit|right)\b/.test(sideLabel)) return true;
+      if (!node) return true;
+      const portBox = port.getBoundingClientRect();
+      const nodeBox = node.getBoundingClientRect();
+      const portX = portBox.left + portBox.width / 2;
+      const nodeX = nodeBox.left + nodeBox.width / 2;
+      return side === "input" ? portX <= nodeX : portX >= nodeX;
+    }
+
+    function pulseRuntimeState(stateId, mode = "enter", portSide = null) {
       const id = String(stateId || "");
       if (!id) return;
       const pulseClass = mode === "exit" ? "runtime-exit" : "runtime-enter";
@@ -9770,7 +9791,9 @@
         const elements = [];
         const node = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(id)}"]`);
         if (node) elements.push(node);
-        getPortOverlay().querySelectorAll(`.svg-port[data-state-id="${cssEscapeValue(id)}"]`).forEach(el => elements.push(el));
+        getPortOverlay().querySelectorAll(`.svg-port[data-state-id="${cssEscapeValue(id)}"]`).forEach(el => {
+          if (runtimePortMatchesSide(el, node, portSide)) elements.push(el);
+        });
         for (const el of elements) {
           el.classList.remove("runtime-enter", "runtime-exit");
           void el.getBoundingClientRect();
@@ -9813,12 +9836,13 @@
       }
       const stateChanged = previousAppState !== currentAppState;
       draw();
-      if (stateChanged) {
-        if (previousAppState) pulseRuntimeState(previousAppState, "exit");
-        if (currentAppState) pulseRuntimeState(currentAppState, "enter");
-      } else if (currentAppState && lastAppTransitionId) {
-        pulseRuntimeState(currentAppState, "enter");
-      }
+        if (stateChanged) {
+          if (previousAppState) pulseRuntimeState(previousAppState, "exit", "output");
+          if (currentAppState) pulseRuntimeState(currentAppState, "enter", "input");
+        } else if (currentAppState && lastAppTransitionId) {
+          pulseRuntimeState(currentAppState, "exit", "output");
+          pulseRuntimeState(currentAppState, "enter", "input");
+        }
       if (lastAppTransitionId) {
         const id = lastAppTransitionId;
         pulseRuntimeTransition(id);
