@@ -4,6 +4,32 @@ const { test, expect } = require("@playwright/test");
 
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 
+function defaultTestModel() {
+  return {
+    version: 2,
+    name: "Standard Auth Flow",
+    initial: "auth_start",
+    states: [
+      { id: "auth_start", title: "Auth start", body: "", components: [{ id: "c_auth_start", type: "text", text: "User chooses login or registration.", url: "" }], x: 90, y: 210 },
+      { id: "login", title: "Login", body: "", components: [{ id: "c_login", type: "text", text: "Email and password are entered.", url: "" }], x: 360, y: 100 },
+      { id: "register", title: "Register", body: "", components: [{ id: "c_register", type: "text", text: "Create a new account with email and accepted terms.", url: "" }], x: 360, y: 320 },
+      { id: "error", title: "Error", body: "", components: [{ id: "c_error", type: "text", text: "Invalid credentials or registration data.", url: "" }], x: 630, y: 320 },
+      { id: "logged_in", title: "Logged in", body: "", components: [{ id: "c_logged_in", type: "text", text: "Authenticated app area.", url: "" }], x: 900, y: 100 },
+      { id: "logged_out", title: "Logged out", body: "", components: [{ id: "c_logged_out", type: "text", text: "Session ended. User can return to login.", url: "" }], x: 900, y: 320 }
+    ],
+    transitions: [
+      { id: "t_auth_login", from: "auth_start", to: "login", label: "Login", condition: "", set: {} },
+      { id: "t_auth_register", from: "auth_start", to: "register", label: "Registrieren", condition: "", set: {} },
+      { id: "t_login_success", from: "login", to: "logged_in", label: "Einloggen", condition: "email == \"user@example.com\" && password == \"secret123\"", set: {} },
+      { id: "t_login_error", from: "login", to: "error", label: "Fehler", condition: "", set: {} },
+      { id: "t_register_success", from: "register", to: "logged_in", label: "Account erstellen", condition: "email == \"new@example.com\" && accepted_terms", set: {} },
+      { id: "t_register_error", from: "register", to: "error", label: "Fehler", condition: "", set: {} },
+      { id: "t_logout", from: "logged_in", to: "logged_out", label: "Logout", condition: "", set: {} },
+      { id: "t_relogin", from: "logged_out", to: "login", label: "Wieder einloggen", condition: "", set: {} },
+      { id: "t_error_back", from: "error", to: "auth_start", label: "Zurueck", condition: "", set: {} }
+    ]
+  };
+}
 function stateHtml() {
   return fs.readFileSync(path.join(process.cwd(), "state.html"), "utf8");
 }
