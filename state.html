@@ -463,7 +463,17 @@
       stroke-width: 3.4;
       filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
     }
-    .edge.runtime { stroke: var(--runtime); stroke-width: 4; animation: edgePulse .85s ease-out; }
+    .edge.runtime,
+    .edge.runtime-pulse {
+      stroke: var(--runtime);
+      stroke-width: 4;
+      filter: drop-shadow(0 0 7px rgba(34,197,94,.46));
+    }
+
+    .edge.runtime-pulse {
+      stroke-dasharray: 18 10;
+      animation: edgePulse .95s ease-out;
+    }
 
     .edge-arrow {
       fill: var(--edge-color, #5f8dbc);
@@ -485,8 +495,14 @@
       filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
     }
 
-    .edge-arrow.runtime {
+    .edge-arrow.runtime,
+    .edge-arrow.runtime-pulse {
       fill: var(--runtime);
+      filter: drop-shadow(0 0 7px rgba(34,197,94,.56));
+    }
+
+    .edge-arrow.runtime-pulse {
+      animation: edgeArrowPulse .95s ease-out;
     }
 
     .edge-pin {
@@ -512,8 +528,15 @@
     }
 
     @keyframes edgePulse {
-      0% { stroke-width: 8; filter: drop-shadow(0 0 10px rgba(34,197,94,.75)); }
-      100% { stroke-width: 4; filter: none; }
+      0% { stroke-width: 8; stroke-dashoffset: 42; filter: drop-shadow(0 0 13px rgba(34,197,94,.86)); }
+      72% { stroke-dashoffset: 0; }
+      100% { stroke-width: 4; stroke-dashoffset: -8; filter: drop-shadow(0 0 7px rgba(34,197,94,.46)); }
+    }
+
+    @keyframes edgeArrowPulse {
+      0% { opacity: 1; filter: drop-shadow(0 0 14px rgba(34,197,94,.9)); }
+      45% { opacity: .72; }
+      100% { opacity: 1; filter: drop-shadow(0 0 7px rgba(34,197,94,.56)); }
     }
 
     .temp-edge {
@@ -9657,6 +9680,23 @@
       }
     });
 
+    function pulseRuntimeTransition(edgeId) {
+      const id = String(edgeId || "");
+      if (!id) return;
+      requestAnimationFrame(() => {
+        const elements = [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
+          .filter(el => el.dataset.edgeId === id);
+        for (const el of elements) {
+          el.classList.remove("runtime-pulse");
+          void el.getBoundingClientRect();
+          el.classList.add("runtime", "runtime-pulse");
+          setTimeout(() => {
+            if (el.dataset.edgeId === id) el.classList.remove("runtime-pulse");
+          }, 980);
+        }
+      });
+    }
+
     window.addEventListener("message", evt => {
       const data = evt.data || {};
       if (data.type === "STATE_BLUEPRINT_SHORTCUT") {
@@ -9688,6 +9728,7 @@
       draw();
       if (lastAppTransitionId) {
         const id = lastAppTransitionId;
+        pulseRuntimeTransition(id);
         setTimeout(() => {
           if (lastAppTransitionId === id) {
             lastAppTransitionId = null;
