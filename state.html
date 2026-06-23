@@ -2371,6 +2371,72 @@
       color: #86efac;
     }
 
+
+    .fetch-json-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 10px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .fetch-json-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 10px;
+      padding: 6px 8px;
+      background: rgba(15, 23, 42, 0.04);
+      cursor: pointer;
+    }
+    .fetch-json-line:hover {
+      border-color: rgba(34, 197, 94, 0.46);
+      background: rgba(34, 197, 94, 0.08);
+    }
+    .fetch-json-code {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #dbeafe;
+    }
+    .fetch-json-path {
+      color: #86efac;
+      font-weight: 900;
+    }
+    .fetch-json-value {
+      color: #94a3b8;
+    }
+    .fetch-json-pick {
+      width: 28px;
+      height: 28px;
+      min-height: 28px;
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      border-radius: 999px;
+      padding: 0;
+      background: #dcfce7;
+      color: #166534;
+      font-weight: 950;
+      cursor: pointer;
+      box-shadow: none;
+    }
+    .fetch-json-pick:hover {
+      background: #22c55e;
+      color: #052e16;
+      box-shadow: 0 0 0 4px rgba(34,197,94,.14);
+    }
+    .fetch-json-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
   </style>
 </head>
 <body>
@@ -7948,44 +8014,70 @@
       backdrop.innerHTML = `
         <div class="fetch-mapper-modal" role="dialog" aria-modal="true" aria-label="Fetch automap">
           <div class="fetch-mapper-head">
-            <div><h3>Fetch automap</h3><p>Endpoint oder JSON einfügen, Struktur erkennen, dann als State-Tree unter Fetch übernehmen.</p></div>
+            <div><h3>Fetch automap</h3><p>Endpoint einfügen, echte JSON-Response laden, dann Felder direkt als State-Content anklicken.</p></div>
             <button class="fetch-mapper-close" type="button">Close</button>
           </div>
           <div class="fetch-mapper-grid">
-            <div class="field"><label>Endpoint / JSON</label><input id="pDataSourceUrl" placeholder="https://... or paste JSON here"></div>
+            <div class="field"><label>Endpoint / JSON</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
             <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
-            <div class="field"><label>JSON path</label><input id="pDataSourceSelect" placeholder="items"></div>
+            <div class="field"><label>Selected path</label><input id="pDataSourceSelect" placeholder="empty = whole response"></div>
           </div>
           <div class="row">
             <button id="pFetchDetect" type="button">Detect response</button>
             <button id="pFetchSave" type="button">Save fetch</button>
           </div>
-          <div id="pDataSourceInspect" class="json-inspect empty">Detect response to inspect arrays and fields.</div>
+          <div id="pDataSourceInspect" class="json-inspect empty">Paste an endpoint. The response tree appears here automatically.</div>
         </div>
       `;
       const modal = backdrop.querySelector(".fetch-mapper-modal");
       const url = modal.querySelector("#pDataSourceUrl");
       const target = modal.querySelector("#pDataSourceTarget");
       const select = modal.querySelector("#pDataSourceSelect");
+      const inspect = modal.querySelector("#pDataSourceInspect");
       url.value = source.url;
       target.value = source.target;
       select.value = source.select;
       const close = () => backdrop.remove();
       backdrop.querySelector(".fetch-mapper-close").onclick = close;
       backdrop.addEventListener("mousedown", evt => { if (evt.target === backdrop) close(); });
-      modal.querySelector("#pFetchSave").onclick = () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
-      modal.querySelector("#pFetchDetect").onclick = async () => {
-        const inspect = modal.querySelector("#pDataSourceInspect");
-        inspect.textContent = "Inspecting JSON...";
+      let detectTimer = 0;
+      let detectRun = 0;
+      const runDetect = async () => {
+        clearTimeout(detectTimer);
+        const raw = url.value.trim();
+        if (!raw) {
+          inspect.textContent = "Paste a JSON endpoint first.";
+          inspect.classList.add("empty");
+          return;
+        }
+        const run = ++detectRun;
+        inspect.textContent = raw.startsWith("{") || raw.startsWith("[") ? "Parsing JSON..." : "Fetching JSON...";
         inspect.classList.remove("empty");
         const json = await detectFetchMapperJson(modal);
-        if (!json) return;
+        if (!json || run !== detectRun) return;
         persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
-        renderJsonInspect(owner, modal, persistOwner, json, { status: "detected", contentType: "application/json" });
-        renderFetchTreeActions(owner, ownerRoot, modal, persistOwner, historyPrefix, json);
+        renderJsonInspect(owner, modal, persistOwner, json, { status: "detected", contentType: "application/json" }, { ownerRoot, historyPrefix });
       };
+      const scheduleDetect = () => {
+        clearTimeout(detectTimer);
+        const raw = url.value.trim();
+        if (!raw) {
+          inspect.textContent = "Paste an endpoint. The response tree appears here automatically.";
+          inspect.classList.add("empty");
+          return;
+        }
+        inspect.textContent = "Detecting response...";
+        inspect.classList.remove("empty");
+        detectTimer = setTimeout(runDetect, 500);
+      };
+      modal.querySelector("#pFetchSave").onclick = () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
+      modal.querySelector("#pFetchDetect").onclick = runDetect;
+      url.addEventListener("input", scheduleDetect);
+      target.addEventListener("input", () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix));
+      select.addEventListener("input", () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix));
       document.body.appendChild(backdrop);
       url.focus({ preventScroll: true });
+      if (url.value.trim()) scheduleDetect();
     }
 
     function bindRepeatEditor(owner, root, persistOwner, historyPrefix = "state") {
@@ -8137,114 +8229,185 @@
       if (statusEl) statusEl.textContent = `Copied ${binding}`;
     }
 
-    function renderJsonInspect(owner, root, persistOwner, json, meta) {
+    function renderJsonInspect(owner, root, persistOwner, json, meta = {}, opts = {}) {
       const inspect = root.querySelector("#pDataSourceInspect");
       const select = root.querySelector("#pDataSourceSelect");
       const target = root.querySelector("#pDataSourceTarget");
-      const repeatPath = root.querySelector("#pRepeatPath");
-      const repeatAs = root.querySelector("#pRepeatAs");
+      const ownerRoot = opts.ownerRoot || root;
+      const repeatPath = ownerRoot.querySelector("#pRepeatPath");
+      const repeatAs = ownerRoot.querySelector("#pRepeatAs");
+      const ownerUrl = ownerRoot.querySelector("#pDataSourceUrl");
+      const ownerTarget = ownerRoot.querySelector("#pDataSourceTarget");
+      const ownerSelect = ownerRoot.querySelector("#pDataSourceSelect");
+      const status = root.querySelector("#pDataSourceStatus") || ownerRoot.querySelector("#pDataSourceStatus");
       if (!inspect || !select || !target) return;
+      const maxRows = 140;
+      const rootIsArray = Array.isArray(json);
+      const sample = rootIsArray ? (json[0] === undefined ? null : json[0]) : json;
+      let rows = 0;
       inspect.innerHTML = "";
       inspect.classList.remove("empty");
 
+      const targetName = () => normalizeContextPath(target.value || ownerTarget?.value || owner.dataSource?.target || "fetch", "fetch");
+      const shortValue = value => {
+        if (Array.isArray(value)) return "Array[" + value.length + "]";
+        if (value && typeof value === "object") return "Object{" + Object.keys(value).length + "}";
+        const text = JSON.stringify(value);
+        if (!text) return String(value);
+        return text.length > 82 ? text.slice(0, 79) + "..." : text;
+      };
+      const pathLabel = path => path || "response";
+      const isImageValue = (path, value) => {
+        if (Array.isArray(value)) value = value[0];
+        return typeof value === "string" && (/^https?:\/\/.*\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(value) || /(^|\.)(image|images|img|photo|picture|thumbnail|avatar|icon)(\.|$)/i.test(path));
+      };
+      const isLinkValue = value => typeof value === "string" && /^https?:\/\//i.test(value);
+      const bindingFor = (path, fromRootArrayItem, value) => {
+        const clean = normalizeContextPath(path || "", "");
+        const store = targetName();
+        const itemName = normalizeContextIdentifier(repeatAs?.value || "item", "item");
+        if (fromRootArrayItem) {
+          if (Array.isArray(value) && value.length && isImageValue(clean, value)) return "{{" + itemName + "." + clean + ".0}}";
+          return clean ? "{{" + itemName + "." + clean + "}}" : "{{" + itemName + "}}";
+        }
+        return "{{" + store + ".data}}";
+      };
+      const syncOwnerInputs = () => {
+        if (ownerUrl) ownerUrl.value = root.querySelector("#pDataSourceUrl")?.value || ownerUrl.value;
+        if (ownerTarget) ownerTarget.value = target.value;
+        if (ownerSelect) ownerSelect.value = select.value;
+      };
+      const persistPick = () => {
+        if (opts.ownerRoot && opts.ownerRoot !== root) {
+          persistFetchMapperSource(owner, opts.ownerRoot, root, persistOwner, opts.historyPrefix || "state");
+        } else {
+          owner.dataSource = normalizeDataSource({
+            ...(owner.dataSource || {}),
+            url: root.querySelector("#pDataSourceUrl")?.value || owner.dataSource?.url || "",
+            target: target.value,
+            select: select.value
+          });
+          syncOwnerInputs();
+          persistOwner("fetch:automap");
+          scheduleSync(false);
+        }
+      };
+      const appendAutomappedComponent = (path, value, binding, fromRootArrayItem) => {
+        const cleanPath = normalizeContextPath(path || "", "");
+        const componentValue = fromRootArrayItem && cleanPath ? jsonValueAtPath(sample, cleanPath) : value;
+        const existing = normalizeComponents(owner.components).some(component => component.text === binding || component.url === binding);
+        if (existing) return false;
+        let component;
+        if (isImageValue(cleanPath, componentValue)) {
+          component = { id: uid("c"), type: "image", text: cleanPath || "image", url: binding };
+        } else if (isLinkValue(componentValue) && !isImageValue(cleanPath, componentValue)) {
+          component = { id: uid("c"), type: "link", text: cleanPath || binding, url: binding };
+        } else if (/^(title|name|heading|headline|label)$/i.test(cleanPath.split(".").pop() || "")) {
+          component = { id: uid("c"), type: "heading", text: binding };
+        } else {
+          component = { id: uid("c"), type: "text", text: binding };
+        }
+        owner.components = [...normalizeComponents(owner.components), component];
+        renderComponentEditors(owner, null, ownerRoot, { skipLiveStateSync: true });
+        persistOwner((opts.historyPrefix || "state") + ":fetch-binding:" + owner.id);
+        draw();
+        syncToApp(true);
+        return true;
+      };
+      const pickPath = (path, value, fromRootArrayItem = false) => {
+        const cleanPath = normalizeContextPath(path || "", "");
+        const store = targetName();
+        target.value = store;
+        select.value = rootIsArray && fromRootArrayItem ? "" : cleanPath;
+        const selectedValue = rootIsArray && fromRootArrayItem ? json : (cleanPath ? jsonValueAtPath(json, cleanPath) : json);
+        const repeats = rootIsArray && fromRootArrayItem ? true : Array.isArray(selectedValue);
+        if (repeatAs && !repeatAs.value.trim()) {
+          repeatAs.value = "item";
+          repeatAs.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        if (repeatPath) {
+          repeatPath.value = repeats ? store + ".data" : "";
+          repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        persistPick();
+        const binding = bindingFor(cleanPath, rootIsArray && fromRootArrayItem, value);
+        const added = appendAutomappedComponent(cleanPath, value, binding, rootIsArray && fromRootArrayItem);
+        insertBinding(ownerRoot, binding, status);
+        if (status) status.textContent = (added ? "Added " : "Already mapped ") + binding;
+      };
+
       const title = document.createElement("div");
       title.className = "json-inspect-title";
-      title.textContent = `JSON ${meta.status}${meta.contentType ? " · " + meta.contentType.split(";")[0] : ""}`;
+      title.textContent = rootIsArray ? "Response array: " + json.length + " items" : "Response JSON";
       inspect.appendChild(title);
+      const metaLine = document.createElement("div");
+      metaLine.className = "fetch-json-meta";
+      metaLine.innerHTML = "<span>Click + to render a response path.</span><span>Runtime: refetch on state enter into <b>" + escapeHtml(targetName()) + ".data</b></span>";
+      inspect.appendChild(metaLine);
 
-      const arrays = collectArrayPaths(json).filter((item, index, list) =>
-        list.findIndex(other => other.path === item.path) === index
-      );
-      const arrayBox = document.createElement("div");
-      arrayBox.className = "json-path-list";
-      if (arrays.length) {
-        for (const item of arrays.slice(0, 12)) {
-          const pathLabel = item.path || "(root array)";
-          const use = document.createElement("button");
-          use.type = "button";
-          use.className = "json-path-chip";
-          use.textContent = `Use ${pathLabel} (${item.count})`;
-          use.onclick = () => {
-            select.value = item.path;
-            select.dispatchEvent(new Event("input", { bubbles: true }));
-          };
-          arrayBox.appendChild(use);
-          if (repeatPath && repeatAs) {
-            const repeat = document.createElement("button");
-            repeat.type = "button";
-            repeat.className = "json-path-chip";
-            repeat.textContent = `Repeat ${pathLabel}`;
-            repeat.onclick = () => {
-              select.value = item.path;
-              select.dispatchEvent(new Event("input", { bubbles: true }));
-              repeatPath.value = `${normalizeContextPath(target.value, "fetch")}.data`;
-              if (!repeatAs.value.trim()) repeatAs.value = "item";
-              repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
-            };
-            arrayBox.appendChild(repeat);
-
-            const derive = document.createElement("button");
-            derive.type = "button";
-            derive.className = "json-path-chip";
-            derive.style.borderColor = "rgba(245,158,11,.4)";
-            derive.style.color = "#fde68a";
-            derive.style.background = "rgba(245,158,11,.08)";
-            derive.textContent = `Auto-derive layout`;
-            derive.onclick = () => {
-              select.value = item.path;
-              select.dispatchEvent(new Event("input", { bubbles: true }));
-              const targetPrefix = normalizeContextPath(target.value, "fetch");
-              repeatPath.value = `${targetPrefix}.data`;
-              if (!repeatAs.value.trim()) repeatAs.value = "item";
-              repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
-              const arrayVal = jsonValueAtPath(json, item.path);
-              if (Array.isArray(arrayVal) && arrayVal.length) {
-                const sample = arrayVal[0];
-                const derived = deriveComponentsFromJson(sample, repeatAs.value);
-                if (derived.length) {
-                  owner.components = derived;
-                  renderComponentEditors(owner, null, root, {});
-                  persistOwner("state:components:auto-derived:" + owner.id);
-                  draw();
-                  syncToApp(true);
-                }
-              }
-            };
-            arrayBox.appendChild(derive);
-          }
+      const tree = document.createElement("div");
+      tree.className = "fetch-json-tree";
+      inspect.appendChild(tree);
+      const appendLine = (depth, label, path, value, fromRootArrayItem) => {
+        if (rows >= maxRows) return;
+        rows += 1;
+        const line = document.createElement("div");
+        line.className = "fetch-json-line";
+        line.style.marginLeft = Math.min(depth * 14, 70) + "px";
+        const code = document.createElement("div");
+        code.className = "fetch-json-code";
+        code.innerHTML = "<span class=\"fetch-json-path\">" + escapeHtml(pathLabel(path)) + "</span> <span>" + escapeHtml(label) + "</span> <span class=\"fetch-json-value\">" + escapeHtml(shortValue(value)) + "</span>";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "fetch-json-pick";
+        button.textContent = "+";
+        button.title = "Render " + pathLabel(path);
+        button.onclick = evt => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          pickPath(path, value, fromRootArrayItem);
+        };
+        line.onclick = evt => {
+          if (evt.target === button) return;
+          pickPath(path, value, fromRootArrayItem);
+        };
+        line.append(code, button);
+        tree.appendChild(line);
+      };
+      const walk = (value, basePath, depth, fromRootArrayItem) => {
+        if (rows >= maxRows) return;
+        if (Array.isArray(value)) {
+          appendLine(depth, "[]", basePath, value, fromRootArrayItem);
+          const first = value[0];
+          if (first && typeof first === "object") walk(first, basePath, depth + 1, false);
+          else if (first !== undefined) appendLine(depth + 1, "0:", basePath ? basePath + ".0" : "0", first, fromRootArrayItem);
+          return;
         }
+        if (value && typeof value === "object") {
+          Object.keys(value).slice(0, 80).forEach(key => {
+            const childPath = basePath ? basePath + "." + key : key;
+            const child = value[key];
+            appendLine(depth, key + ":", childPath, child, fromRootArrayItem);
+            if (child && typeof child === "object") walk(child, childPath, depth + 1, fromRootArrayItem);
+          });
+          return;
+        }
+        appendLine(depth, "value", basePath, value, fromRootArrayItem);
+      };
+
+      appendLine(0, rootIsArray ? "whole array" : "whole response", "", json, rootIsArray);
+      if (rootIsArray) {
+        if (sample && typeof sample === "object") walk(sample, "", 1, true);
+        else if (sample !== null) appendLine(1, "0:", "0", sample, true);
       } else {
-        arrayBox.textContent = "No arrays found. Bind fields directly with {{fetch.data.field}}.";
+        walk(json, "", 1, false);
       }
-      inspect.appendChild(arrayBox);
-
-      const selected = jsonValueAtPath(json, select.value);
-      const sample = selected === undefined ? json : selected;
-      const selectedIsArray = Array.isArray(sample);
-      const leafPaths = collectLeafPaths(sample).slice(0, 18);
-      if (leafPaths.length) {
-        const bindingTitle = document.createElement("div");
-        bindingTitle.className = "json-inspect-title";
-        bindingTitle.textContent = selectedIsArray ? "Item bindings" : "Data bindings";
-        inspect.appendChild(bindingTitle);
-        const status = document.createElement("div");
-        status.className = "small";
-        const chips = document.createElement("div");
-        chips.className = "binding-chip-list";
-        const repeatName = normalizeContextIdentifier(repeatAs?.value || "item", "item");
-        const targetName = normalizeContextPath(target.value, "fetch");
-        for (const path of leafPaths) {
-          const binding = selectedIsArray ? `{{${repeatName}.${path}}}` : `{{${targetName}.data.${path}}}`;
-          const chip = document.createElement("button");
-          chip.type = "button";
-          chip.className = "binding-chip";
-          chip.textContent = binding;
-          chip.onmousedown = evt => evt.preventDefault();
-          chip.onclick = () => insertBinding(root, binding, status);
-          chips.appendChild(chip);
-        }
-        inspect.appendChild(chips);
-        inspect.appendChild(status);
+      if (rows >= maxRows) {
+        const more = document.createElement("div");
+        more.className = "small";
+        more.textContent = "Response is large, showing the first " + maxRows + " paths.";
+        inspect.appendChild(more);
       }
     }
 
