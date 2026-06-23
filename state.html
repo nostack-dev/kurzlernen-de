@@ -2512,6 +2512,14 @@
       font-weight: 800;
     }
 
+    .data-wire-add {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px;
+      align-items: center;
+      margin: 0 0 8px;
+    }
+
     .data-wire-row select {
       width: 100%;
       min-width: 0;
@@ -8683,14 +8691,49 @@
         field: "Field",
         item: "Item"
       })[role] || "Field";
+      const addRenderMappingFromPath = path => {
+        const key = normalizeBindingPath(path, "");
+        if (!key) return false;
+        const wire = dataWireFromPath(s, key, dataWirePathValue(s, key));
+        if (!wire) return false;
+        const added = upsertDataWire(s, wire);
+        const subscriptionPath = wire.scopePath || wire.sourcePath;
+        if (subscriptionPath) s.subscriptions = normalizeSubscriptions([...(s.subscriptions || []), subscriptionPath]);
+        persistDataWireEditor("state:data-wire-render-add:" + s.id);
+        return added;
+      };
       const renderDataWireEditorRows = () => {
         const wires = normalizeDataWires(s.dataWires);
-        if (!wires.length) return 0;
+        const addOptions = dataWireCandidatePaths(s);
+        if (!wires.length && !addOptions.length) return 0;
         const panel = document.createElement("section");
         panel.className = "data-wire-panel data-wire-render-panel";
         const title = document.createElement("div");
         title.className = "data-wire-render-title";
-        title.innerHTML = "<strong>Data from globalState</strong><span>Drag rows = render order</span>";
+        title.innerHTML = "<strong>Data from globalState</strong><span>Add or drag rows</span>";
+        panel.append(title);
+        if (addOptions.length) {
+          const addRow = document.createElement("div");
+          addRow.className = "data-wire-add";
+          const addSelect = document.createElement("select");
+          addSelect.setAttribute("aria-label", "Add render path");
+          addOptions.forEach(item => {
+            const option = document.createElement("option");
+            option.value = item.path;
+            option.textContent = item.path + (item.source ? " · " + item.source : "");
+            addSelect.appendChild(option);
+          });
+          const addButton = document.createElement("button");
+          addButton.type = "button";
+          addButton.className = "component-editor-action";
+          addButton.textContent = "+ Add render";
+          addButton.onclick = () => {
+            if (addRenderMappingFromPath(addSelect.value)) rerender();
+            else rerender();
+          };
+          addRow.append(addSelect, addButton);
+          panel.append(addRow);
+        }
         const wireList = document.createElement("div");
         wireList.className = "data-wire-list";
         wires.forEach((wire, index) => {
@@ -8824,9 +8867,9 @@
           row.append(order, main, controls);
           wireList.appendChild(row);
         });
-        panel.append(title, wireList);
+        panel.append(wireList);
         list.appendChild(panel);
-        return wires.length;
+        return wires.length || addOptions.length;
       };
       const renderedDataWireRows = renderDataWireEditorRows();
       if (!s.components.length) {

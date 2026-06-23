@@ -3754,7 +3754,8 @@ test.describe("State Blueprint tool", () => {
               title: "Ada Chair",
               price: "$42",
               description: "Compact and sturdy",
-              category: "Furniture"
+              category: "Furniture",
+              badge: "New"
             }
           }
         },
@@ -3779,8 +3780,17 @@ test.describe("State Blueprint tool", () => {
     await openStateInspector(page, "state_3");
 
     await expect(appFrame(page).locator(".component-image")).toHaveAttribute("src", imageUrl);
+    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Add render path"]');
+    await expect(addRenderSelect.locator('option[value="catalog.item.badge"]')).toHaveCount(1);
+    await addRenderSelect.selectOption("catalog.item.badge");
+    await page.locator(".data-wire-render-panel").getByRole("button", { name: "+ Add render" }).click();
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.sourcePath);
+    }).toContain("catalog.item.badge");
+
     const renderRows = page.locator(".data-wire-render-panel .data-wire-row");
-    await expect(renderRows).toHaveCount(5);
+    await expect(renderRows).toHaveCount(6);
     const renderPathSelect = renderRows.first().locator('select[aria-label="Source path"]');
     await expect(renderPathSelect.locator('option[value="catalog.item.images.0.url"]')).toHaveCount(1);
     await renderPathSelect.selectOption("catalog.item.altImage");
@@ -3793,7 +3803,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator("#pDataCard").evaluate(el => { el.open = true; });
     const stateRows = page.locator("#pDataWireList .data-wire-row");
-    await expect(stateRows).toHaveCount(5);
+    await expect(stateRows).toHaveCount(6);
     let dataTransfer = await page.evaluateHandle(() => new DataTransfer());
     let targetBox = await visibleBox(stateRows.nth(2));
     await stateRows.first().dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
@@ -3811,20 +3821,20 @@ test.describe("State Blueprint tool", () => {
     });
     await expect.poll(async () => {
       const stored = await savedModel(page);
-      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.id);
-    }).toEqual(["wire_title", "wire_price", "wire_image", "wire_description", "wire_category"]);
+      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.sourcePath);
+    }).toEqual(["catalog.item.title", "catalog.item.price", "catalog.item.altImage", "catalog.item.description", "catalog.item.category", "catalog.item.badge"]);
 
     dataTransfer = await page.evaluateHandle(() => new DataTransfer());
     const refreshedRenderRows = page.locator(".data-wire-render-panel .data-wire-row");
-    targetBox = await visibleBox(refreshedRenderRows.nth(4));
+    targetBox = await visibleBox(refreshedRenderRows.nth(5));
     await refreshedRenderRows.first().dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
-    await refreshedRenderRows.nth(4).dispatchEvent("dragover", {
+    await refreshedRenderRows.nth(5).dispatchEvent("dragover", {
       dataTransfer,
       bubbles: true,
       cancelable: true,
       clientY: targetBox.y + targetBox.height - 4
     });
-    await refreshedRenderRows.nth(4).dispatchEvent("drop", {
+    await refreshedRenderRows.nth(5).dispatchEvent("drop", {
       dataTransfer,
       bubbles: true,
       cancelable: true,
@@ -3832,8 +3842,8 @@ test.describe("State Blueprint tool", () => {
     });
     await expect.poll(async () => {
       const stored = await savedModel(page);
-      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.id);
-    }).toEqual(["wire_price", "wire_image", "wire_description", "wire_category", "wire_title"]);
+      return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.sourcePath);
+    }).toEqual(["catalog.item.price", "catalog.item.altImage", "catalog.item.description", "catalog.item.category", "catalog.item.badge", "catalog.item.title"]);
   });
 
   test("keeps visible ports in a single svg coordinate system @smoke", async ({ page }) => {
