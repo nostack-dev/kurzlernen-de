@@ -5530,6 +5530,26 @@
       else model.transitions = model.transitions.filter(transition => transition.id !== outputId);
     }
 
+    function wireFirstChildToBoundary(parent, state) {
+      if (!parent || !state) return false;
+      const childParentId = layerChildParentId(parent);
+      if (stateParentId(state) !== childParentId) return false;
+      const children = model.states.filter(item => !item.virtualProxy && stateParentId(item) === childParentId);
+      if (children.length !== 1 || children[0]?.id !== state.id) return false;
+      const boundary = normalizeBoundaryConfig(parent.rootLayer ? model.boundary : parent.boundary);
+      let changed = false;
+      if (!boundary.entryDisabled && !boundary.entryId) {
+        setBoundaryEndpoint(parent, "input", state.id);
+        changed = true;
+      }
+      if (!boundary.exitDisabled && !boundary.exitId) {
+        setBoundaryEndpoint(parent, "output", state.id);
+        changed = true;
+      }
+      if (changed) ensureDefaultBoundaryTransitions(parent, children);
+      return changed;
+    }
+
     function boundaryParentFromFlow(flow) {
       if (!flow?.parentId) return null;
       return flow.parentId === ROOT_LAYER_ID ? rootLayerContainer() : byId(flow.parentId);
@@ -11680,6 +11700,7 @@
       const instance = instantiateStateTemplate(template, position.x, position.y, parent.id);
       model.states.push(...instance.states);
       model.transitions.push(...instance.transitions);
+      wireFirstChildToBoundary(parent, instance.root);
       selected = selectionFromParts([parent.id], []);
       saveModel("layer:add-child:" + parent.id);
       draw();
@@ -11698,6 +11719,7 @@
       const position = nextChildPosition(parent.id);
       const s = makeState(position.x, position.y, nextStateTitle(), parent.id);
       model.states.push(s);
+      wireFirstChildToBoundary(parent, s);
       selected = selectionFromParts([parent.id], []);
       saveModel("layer:add-child:" + parent.id);
       draw();
@@ -11844,6 +11866,7 @@
       const title = nextStateTitle();
       const s = makeState(x - nodeWidth({ title }) / 2, y - NODE_H / 2, title, layerBeforeCreate);
       model.states.push(s);
+      if (layerBeforeCreate) wireFirstChildToBoundary(byId(layerBeforeCreate), s);
       selected = selectionFromParts([s.id], []);
       lastCreatedStateId = s.id;
       lastCreatedStateTime = Date.now();
@@ -12163,6 +12186,7 @@
             model.states.push(s);
             const parent = currentLayerContainer();
             setBoundaryEndpoint(parent, "input", s.id);
+            wireFirstChildToBoundary(parent, s);
             ensureDefaultBoundaryTransitions(parent, statesInLayer(currentLayerId));
             selected = selectionFromParts([s.id], []);
             saveModel();

@@ -710,6 +710,18 @@ test.describe("State Blueprint tool", () => {
     await openStateLayer(page, "login");
     const childId = await addChildByDoubleClick(page, "login");
     const boundaryInputId = "boundary-flow:login:input";
+    const boundaryOutputId = "boundary-flow:login:output";
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      return {
+        entryId: parent?.boundary?.entryId || "",
+        exitId: parent?.boundary?.exitId || "",
+        inputFlow: model.transitions.some(transition => transition.id === boundaryInputId && transition.to === childId),
+        outputFlow: model.transitions.some(transition => transition.id === boundaryOutputId && transition.from === childId)
+      };
+    }).toEqual({ entryId: childId, exitId: childId, inputFlow: true, outputFlow: true });
 
     await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
     await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(1);
