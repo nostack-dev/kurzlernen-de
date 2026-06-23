@@ -133,11 +133,24 @@ test.describe("Core browser contracts", () => {
   test("state editor exposes global-state path subscriptions without output editing @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="auth_start"]').click();
+    await page.locator('[data-id="login"]').click();
 
     await expect(page.getByText("Global State JSON")).toBeVisible();
     await expect(page.locator("#pSubscriptionTree")).toBeVisible();
     await expect(page.locator("#pSubscriptionAdd")).toBeVisible();
     await expect(page.locator("#pOutputs")).toHaveCount(0);
+  });
+
+  test("component text editors insert global-state bindings from a picker @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="auth_start"]').click();
+
+    const picker = page.locator(".template-binding-picker").first();
+    await expect(picker).toBeVisible();
+    await picker.locator("select").selectOption("state.current");
+    await picker.getByRole("button", { name: "+" }).click();
+
+    await expect(page.locator(".component-editor textarea").first()).toHaveValue(/{{state\.current}}/);
   });
 });

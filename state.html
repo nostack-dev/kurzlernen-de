@@ -7711,6 +7711,120 @@
         }
         persistOwner("state:component:" + component.id);
       };
+      const bindingPathValue = (value, path) => {
+        const parts = normalizeContextPath(path, "").split(".").filter(Boolean);
+        let node = value;
+        for (const part of parts) {
+          if (node == null) return undefined;
+          node = Array.isArray(node) && /^\d+$/.test(part) ? node[Number(part)] : node[part];
+        }
+        return node;
+      };
+      const addTextBindingCandidate = (map, path, source = "Global state", type = "value") => {
+        const key = normalizeContextPath(path, "");
+        if (!key || key === "*" || map.has(key)) return;
+        map.set(key, { path: key, source, type });
+      };
+      const textBindingCandidates = () => {
+        const map = new Map();
+        const repeat = normalizeRepeatConfig(s.repeat);
+        if (repeat.path) {
+          addTextBindingCandidate(map, repeat.as, "Repeat item", "object");
+          addTextBindingCandidate(map, repeat.index, "Repeat index", "number");
+          const repeated = bindingPathValue(latestRuntimeContext, repeat.path);
+          const sample = Array.isArray(repeated)
+            ? repeated.find(item => isPlainObject(item)) ?? repeated[0]
+            : null;
+          const repeatFields = [];
+          if (sample !== null && sample !== undefined) {
+            collectDataPathSuggestions(sample, repeat.as, "Repeat item", repeatFields);
+            repeatFields.forEach(item => addTextBindingCandidate(map, item.path, item.source, item.type));
+          }
+        }
+        normalizeSubscriptions(s.subscriptions).forEach(path => addTextBindingCandidate(map, path, "Subscribed", "value"));
+        conditionDataSuggestions({ from: s.id, to: s.id }).forEach(item => addTextBindingCandidate(map, item.path, item.source, item.type));
+        const source = normalizeDataSource(s.dataSource || s.fetch);
+        if (String(source.url || "").trim()) {
+          const target = normalizeContextPath(source.target, "fetch");
+          addTextBindingCandidate(map, `${target}.status`, "Fetch", "number");
+          addTextBindingCandidate(map, `${target}.ok`, "Fetch", "boolean");
+          addTextBindingCandidate(map, `${target}.error`, "Fetch", "text");
+          addTextBindingCandidate(map, `${target}.data`, "Fetch", "value");
+        }
+        if (isPlainObject(latestRuntimeContext)) {
+          const runtime = [];
+          Object.entries(latestRuntimeContext).forEach(([key, value]) => collectDataPathSuggestions(value, key, "Runtime", runtime));
+          runtime.forEach(item => addTextBindingCandidate(map, item.path, item.source, item.type));
+        }
+        const rank = path => {
+          if (path.startsWith("item.")) return 0;
+          if (path === "item") return 1;
+          if (path.startsWith("fetch.data.")) return 2;
+          if (path === "fetch.data") return 3;
+          if (path.startsWith("fetch.")) return 4;
+          if (path.startsWith("state.")) return 5;
+          return 9;
+        };
+        return Array.from(map.values())
+          .sort((a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path))
+          .slice(0, 120);
+      };
+      const insertTemplateBinding = (input, path) => {
+        const key = normalizeContextPath(path, "");
+        if (!key) return;
+        const token = `{{${key}}}`;
+        const start = Number.isFinite(input.selectionStart) ? input.selectionStart : input.value.length;
+        const end = Number.isFinite(input.selectionEnd) ? input.selectionEnd : start;
+        const before = input.value.slice(0, start);
+        const after = input.value.slice(end);
+        const prefix = before && !/[\s([{'"=]$/.test(before) ? " " : "";
+        const suffix = after && !/^[\s.,;:!?)}\]'"]/.test(after) ? " " : "";
+        input.setRangeText(prefix + token + suffix, start, end, "end");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus({ preventScroll: true });
+      };
+      const appendTemplateBindingPicker = (container, input) => {
+        const candidates = textBindingCandidates();
+        if (!candidates.length) return;
+        const picker = document.createElement("div");
+        picker.className = "template-binding-picker";
+        picker.style.display = "grid";
+        picker.style.gridTemplateColumns = "minmax(0, 1fr) auto";
+        picker.style.gap = "6px";
+        picker.style.marginTop = "6px";
+        const select = document.createElement("select");
+        select.setAttribute("aria-label", "Insert global state field");
+        select.style.minHeight = "32px";
+        select.style.height = "32px";
+        select.style.padding = "4px 8px";
+        select.style.borderRadius = "8px";
+        select.style.fontSize = "12px";
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "Insert data...";
+        select.appendChild(empty);
+        candidates.forEach(item => {
+          const option = document.createElement("option");
+          option.value = item.path;
+          option.textContent = `${item.path} (${item.source})`;
+          select.appendChild(option);
+        });
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "component-editor-action";
+        add.textContent = "+";
+        add.title = "Insert selected data field";
+        add.style.minHeight = "32px";
+        add.style.height = "32px";
+        add.style.padding = "2px 10px";
+        bindImmediateButton(add, () => {
+          if (!select.value) return;
+          insertTemplateBinding(input, select.value);
+          select.value = "";
+        });
+        picker.append(select, add);
+        container.appendChild(picker);
+      };
       if (!s.components.length) {
         const empty = document.createElement("div");
         empty.className = "component-empty";
@@ -7875,6 +7989,7 @@
                 };
                 input.onblur = () => { lastHistoryKey = null; draw(); };
                 textField.append(label, input);
+                appendTemplateBindingPicker(textField, input);
                 row.appendChild(textField);
               }
 
@@ -7900,6 +8015,7 @@
                 };
                 input.onblur = () => { lastHistoryKey = null; draw(); };
                 urlField.append(label, input);
+                appendTemplateBindingPicker(urlField, input);
                 row.appendChild(urlField);
               }
 
@@ -7935,6 +8051,7 @@
             };
             input.onblur = () => { lastHistoryKey = null; draw(); };
             field.append(fieldLabel, input);
+            appendTemplateBindingPicker(field, input);
             item.appendChild(field);
           }
         }
@@ -7952,6 +8069,7 @@
           };
           input.onblur = () => { lastHistoryKey = null; draw(); };
           field.append(fieldLabel, input);
+          appendTemplateBindingPicker(field, input);
           item.appendChild(field);
         }
         list.appendChild(item);
