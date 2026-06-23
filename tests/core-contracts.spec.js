@@ -165,9 +165,16 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("let dataSourceRunSerial = 0");
     expect(html).toContain("let activeDataSourceRun = null");
     expect(html).toContain("await ensureStateDataSource(s)");
+    expect(html).toContain("function resetEditorDataSourceContext");
+    expect(html).toContain("sourceChanged = dataSourceSignature(previous) !== dataSourceSignature(next)");
+    expect(html).toContain("resetEditorDataSourceContext(previous.target)");
     expect(html).toContain("data: null");
     expect(html).toContain("count: 0");
     expect(html).toContain("error: \"\"");
+    expect(appHtml).toContain("function changedDataSourceTargets");
+    expect(appHtml).toContain("function resetDataSourceContextTargets");
+    expect(appHtml).toContain("if (changedTargets.length) resetDataSourceContextTargets(changedTargets)");
+    expect(appHtml).toContain('screen.innerHTML = ""');
     expect(html).not.toContain("dataSourceRuns = new Map");
     expect(html).not.toContain("dataSourceRuns.");
   });
