@@ -9803,18 +9803,25 @@
       }
     });
 
+    let runtimePulseSerial = 0;
+
     function pulseRuntimeTransition(edgeId) {
       const id = String(edgeId || "");
       if (!id) return;
+      const token = String(++runtimePulseSerial);
       requestAnimationFrame(() => {
         const elements = [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
           .filter(el => el.dataset.edgeId === id);
         for (const el of elements) {
           el.classList.remove("runtime-pulse");
           void el.getBoundingClientRect();
+          el.dataset.runtimePulseToken = token;
           el.classList.add("runtime", "runtime-pulse");
           setTimeout(() => {
-            if (el.dataset.edgeId === id) el.classList.remove("runtime-pulse");
+            if (el.dataset.edgeId === id && el.dataset.runtimePulseToken === token) {
+              el.classList.remove("runtime-pulse");
+              delete el.dataset.runtimePulseToken;
+            }
           }, 1220);
         }
       });
