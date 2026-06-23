@@ -86,6 +86,15 @@ test.describe("Core source contracts", () => {
     expect(actionHandler?.[0] || "").not.toContain("followTransition");
   });
 
+  test("generated runtime keeps normal Next transitions visible as buttons @smoke", () => {
+    const html = stateHtml();
+    const appHtml = generatedAppHtml();
+
+    expect(appHtml).toContain("function transitionIsButtonAction");
+    expect(appHtml).toContain("const actionTransitions = transitions.filter(transitionIsButtonAction)");
+    expect(html).toContain('label: "Next", condition: "", triggerType: "button", triggerEvent: "", set: {}');
+  });
+
   test("list item editors use non-overlapping layout classes @smoke", () => {
     const html = stateHtml();
 
