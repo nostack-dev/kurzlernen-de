@@ -105,6 +105,16 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("grid-template-columns: minmax(0, 1fr) auto");
   });
 
+  test("component data insert picker stays wide and aligned @smoke", () => {
+    const html = stateHtml();
+
+    expect(html).toContain(".template-binding-picker");
+    expect(html).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(html).toContain(".component-editor input");
+    expect(html).toContain(".template-binding-picker select");
+    expect(html).toContain(".template-binding-picker button");
+  });
+
   test("repeat sources derive readable components from array samples @smoke", () => {
     const html = stateHtml();
     const appHtml = generatedAppHtml();
