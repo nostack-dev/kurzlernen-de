@@ -2441,13 +2441,30 @@
 
     .data-wire-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      gap: 7px;
+      grid-template-columns: 28px minmax(0, 1fr) minmax(112px, auto) auto;
+      gap: 8px;
       align-items: center;
-      padding: 7px;
+      padding: 8px;
       border: 1px solid rgba(148, 163, 184, .22);
       border-radius: 12px;
       background: rgba(15, 23, 42, .44);
+    }
+
+    .data-wire-row.compact {
+      grid-template-columns: 24px minmax(0, 1fr) minmax(108px, auto) auto;
+    }
+
+    .data-wire-index {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(34, 197, 94, .28);
+      background: rgba(34, 197, 94, .12);
+      color: #bbf7d0;
+      font-size: 11px;
+      font-weight: 950;
     }
 
     .data-wire-row.dragging { opacity: .55; }
@@ -2472,6 +2489,50 @@
       color: var(--muted);
       font-size: 11px;
       overflow-wrap: anywhere;
+    }
+
+    .data-wire-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .data-wire-chip {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border: 1px solid rgba(148, 163, 184, .18);
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: rgba(2, 6, 23, .28);
+      color: #cbd5e1;
+      font-size: 10.5px;
+      font-weight: 800;
+    }
+
+    .data-wire-chip.active {
+      border-color: rgba(34, 197, 94, .35);
+      background: rgba(34, 197, 94, .12);
+      color: #bbf7d0;
+    }
+
+    .data-wire-render-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 8px;
+      color: #bbf7d0;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .data-wire-render-title span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
     }
 
     .data-wire-row select {
@@ -4584,6 +4645,38 @@
           return true;
         })
         .slice(0, 80);
+    }
+
+    function dataWireRoleLabel(role) {
+      return ({
+        image: "Image",
+        title: "Heading",
+        price: "Price",
+        description: "Text",
+        field: "Field",
+        link: "Link",
+        sound: "Sound",
+        note: "Note"
+      })[normalizeDataWireRole(role, "field")] || "Field";
+    }
+
+    function dataWireRenderLabel(wire) {
+      const clean = normalizeDataWire(wire);
+      if (!clean) return "Global State field";
+      return clean.label || dataPathLabel(clean.itemPath || clean.sourcePath, dataWireRoleLabel(clean.role));
+    }
+
+    function dataWireScopeLabel(wire) {
+      const clean = normalizeDataWire(wire);
+      if (!clean) return "globalState";
+      if (clean.scopePath) return clean.scopePath + (clean.itemPath ? " / item." + clean.itemPath : " / item");
+      return clean.sourcePath || "globalState";
+    }
+
+    function dataWireSubscriptionLabel(wire) {
+      const clean = normalizeDataWire(wire);
+      if (!clean) return "Not subscribed";
+      return clean.scopePath || clean.sourcePath || "globalState";
     }
 
     function dataWireScopeForPath(owner, path) {
@@ -8347,6 +8440,30 @@
         rerender();
         return true;
       };
+      let draggingDataWireId = null;
+      const clearDataWireDropMarks = () => {
+        list.querySelectorAll(".data-wire-row.drop-before,.data-wire-row.drop-after").forEach(el => el.classList.remove("drop-before", "drop-after"));
+      };
+      const persistDataWireEditor = historyKey => {
+        s.dataWires = normalizeDataWires(s.dataWires);
+        persistOwner(historyKey);
+        if (!options.skipLiveStateSync) scheduleSync(false);
+        if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
+      };
+      const moveDataWireBefore = (dragId, targetId, after = false) => {
+        if (!dragId || !targetId || dragId === targetId) return false;
+        const wires = normalizeDataWires(s.dataWires);
+        const fromIndex = wires.findIndex(wire => wire.id === dragId);
+        let toIndex = wires.findIndex(wire => wire.id === targetId);
+        if (fromIndex < 0 || toIndex < 0) return false;
+        const [moved] = wires.splice(fromIndex, 1);
+        if (fromIndex < toIndex) toIndex -= 1;
+        wires.splice(after ? toIndex + 1 : toIndex, 0, moved);
+        s.dataWires = wires;
+        persistDataWireEditor("state:data-wire-render-order:" + s.id);
+        rerender();
+        return true;
+      };
       const saveComponent = component => {
         if (!options.skipLiveStateSync) {
           const liveState = byId(s.id);
@@ -8524,31 +8641,111 @@
         field: "Field",
         item: "Item"
       })[role] || "Field";
-      if (!s.components.length) {
-        const wiredComponents = dataWireComponentsForState(s, repeatConfig);
-        if (wiredComponents.length) {
-          const info = document.createElement("div");
-          info.className = "component-empty";
-          info.textContent = "Combined render from this State's globalState scope.";
-          const wireList = document.createElement("div");
-          wireList.className = "fetch-mapped-fields";
-          wiredComponents.forEach(component => {
-            const row = document.createElement("div");
-            row.className = "fetch-mapped-row";
-            const label = document.createElement("div");
-            label.className = "fetch-mapped-label";
-            label.textContent = component.dataLabel || componentTitle(component.type);
-            const role = document.createElement("span");
-            role.className = "small";
-            role.textContent = component.dataRole || component.type;
-            const path = document.createElement("code");
-            path.textContent = component.dataPath || bindingPathFromText(component.text || component.url) || component.type;
-            row.append(label, role, path);
-            wireList.appendChild(row);
+      const renderDataWireEditorRows = () => {
+        const wires = normalizeDataWires(s.dataWires);
+        if (!wires.length) return 0;
+        const panel = document.createElement("section");
+        panel.className = "data-wire-panel data-wire-render-panel";
+        const title = document.createElement("div");
+        title.className = "data-wire-render-title";
+        title.innerHTML = "<strong>Data from globalState</strong><span>Drag rows = render order</span>";
+        const wireList = document.createElement("div");
+        wireList.className = "data-wire-list";
+        wires.forEach((wire, index) => {
+          const row = document.createElement("div");
+          row.className = "data-wire-row compact";
+          row.dataset.dataWireId = wire.id;
+          row.addEventListener("dragover", evt => {
+            if (!draggingDataWireId || draggingDataWireId === wire.id) return;
+            evt.preventDefault();
+            const rect = row.getBoundingClientRect();
+            const after = evt.clientY > rect.top + rect.height / 2;
+            clearDataWireDropMarks();
+            row.classList.add(after ? "drop-after" : "drop-before");
+            evt.dataTransfer.dropEffect = "move";
           });
-          list.append(info, wireList);
-          return;
-        }
+          row.addEventListener("dragleave", evt => {
+            if (!row.contains(evt.relatedTarget)) row.classList.remove("drop-before", "drop-after");
+          });
+          row.addEventListener("drop", evt => {
+            if (!draggingDataWireId || draggingDataWireId === wire.id) return;
+            evt.preventDefault();
+            const rect = row.getBoundingClientRect();
+            const after = evt.clientY > rect.top + rect.height / 2;
+            moveDataWireBefore(evt.dataTransfer.getData("text/plain") || draggingDataWireId, wire.id, after);
+          });
+          const order = document.createElement("span");
+          order.className = "data-wire-index";
+          order.textContent = String(index + 1);
+          const main = document.createElement("div");
+          main.className = "data-wire-main";
+          const name = document.createElement("strong");
+          name.textContent = dataWireRenderLabel(wire);
+          const meta = document.createElement("div");
+          meta.className = "data-wire-meta";
+          const sub = document.createElement("span");
+          sub.className = "data-wire-chip active";
+          sub.textContent = "sub " + dataWireSubscriptionLabel(wire);
+          const shown = document.createElement("span");
+          shown.className = "data-wire-chip";
+          shown.textContent = "show " + dataWireScopeLabel(wire);
+          meta.append(sub, shown);
+          main.append(name, meta);
+          const role = document.createElement("select");
+          role.setAttribute("aria-label", "Render as");
+          DATA_WIRE_ROLES.forEach(item => {
+            const option = document.createElement("option");
+            option.value = item;
+            option.textContent = dataWireRoleLabel(item);
+            if (item === wire.role) option.selected = true;
+            role.appendChild(option);
+          });
+          role.onchange = () => {
+            s.dataWires = normalizeDataWires(s.dataWires).map(item => item.id === wire.id
+              ? { ...item, role: normalizeDataWireRole(role.value), componentType: normalizeDataWireComponentType("", role.value) }
+              : item);
+            persistDataWireEditor("state:data-wire-render-role:" + s.id);
+            rerender();
+          };
+          const actions = document.createElement("div");
+          actions.className = "component-editor-actions";
+          const dragHandle = document.createElement("button");
+          dragHandle.type = "button";
+          dragHandle.className = "component-drag-handle";
+          dragHandle.textContent = "Drag";
+          dragHandle.title = "Drag to change render order";
+          dragHandle.draggable = true;
+          dragHandle.addEventListener("dragstart", evt => {
+            draggingDataWireId = wire.id;
+            row.classList.add("dragging");
+            evt.dataTransfer.effectAllowed = "move";
+            evt.dataTransfer.setData("text/plain", wire.id);
+          });
+          dragHandle.addEventListener("dragend", () => {
+            draggingDataWireId = null;
+            row.classList.remove("dragging");
+            clearDataWireDropMarks();
+          });
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "component-editor-action danger";
+          remove.textContent = "Delete";
+          bindImmediateButton(remove, () => {
+            s.dataWires = normalizeDataWires(s.dataWires).filter(item => item.id !== wire.id);
+            persistDataWireEditor("state:data-wire-render-remove:" + s.id);
+            rerender();
+          });
+          actions.append(dragHandle, remove);
+          row.append(order, main, role, actions);
+          wireList.appendChild(row);
+        });
+        panel.append(title, wireList);
+        list.appendChild(panel);
+        return wires.length;
+      };
+      const renderedDataWireRows = renderDataWireEditorRows();
+      if (!s.components.length) {
+        if (renderedDataWireRows) return;
         const empty = document.createElement("div");
         empty.className = "component-empty";
         const text = document.createElement("div");
@@ -9824,40 +10021,47 @@
         if (!mapped.length) {
           const empty = document.createElement("div");
           empty.className = "fetch-mapped-empty";
-          empty.textContent = "Noch keine Data-Wires. Klick + im JSON-Baum.";
+          empty.textContent = "Noch kein Render-Mapping. Klick + im JSON-Baum; der State rendert den Pfad dann ueber globalState.";
           mappedList.appendChild(empty);
           return;
         }
         const title = document.createElement("div");
-        title.className = "small";
-        title.innerHTML = "<b>Data wires</b> · Reihenfolge = Render-Reihenfolge";
+        title.className = "data-wire-render-title";
+        title.innerHTML = "<strong>Mapped render</strong><span>Same order as State render</span>";
         mappedList.appendChild(title);
         mapped.forEach((item, mappedIndex) => {
           const row = document.createElement("div");
-          row.className = "fetch-mapped-row";
-          const label = document.createElement("div");
-          label.className = "fetch-mapped-label";
-          label.textContent = (item.wire.label || dataPathLabel(item.wire.itemPath || item.wire.sourcePath)) + " · " + item.wire.role;
-          const up = document.createElement("button");
-          up.type = "button";
-          up.textContent = "Up";
-          up.disabled = mappedIndex === 0;
-          up.onclick = () => {
+          row.className = "data-wire-row compact";
+          const order = document.createElement("span");
+          order.className = "data-wire-index";
+          order.textContent = String(mappedIndex + 1);
+          const main = document.createElement("div");
+          main.className = "data-wire-main";
+          const name = document.createElement("strong");
+          name.textContent = dataWireRenderLabel(item.wire);
+          const meta = document.createElement("div");
+          meta.className = "data-wire-meta";
+          const sub = document.createElement("span");
+          sub.className = "data-wire-chip active";
+          sub.textContent = "sub " + dataWireSubscriptionLabel(item.wire);
+          const shown = document.createElement("span");
+          shown.className = "data-wire-chip";
+          shown.textContent = dataWireRoleLabel(item.wire.role) + " · " + dataWireScopeLabel(item.wire);
+          meta.append(sub, shown);
+          main.append(name, meta);
+          const role = document.createElement("select");
+          DATA_WIRE_ROLES.forEach(roleName => {
+            const option = document.createElement("option");
+            option.value = roleName;
+            option.textContent = dataWireRoleLabel(roleName);
+            if (roleName === item.wire.role) option.selected = true;
+            role.appendChild(option);
+          });
+          role.onchange = () => {
             const wires = normalizeDataWires(owner.dataWires);
-            [wires[item.index], wires[item.index - 1]] = [wires[item.index - 1], wires[item.index]];
-            owner.dataWires = wires;
-            saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-up:" + owner.id);
-            renderMappedFields();
-          };
-          const down = document.createElement("button");
-          down.type = "button";
-          down.textContent = "Down";
-          down.disabled = mappedIndex === mapped.length - 1;
-          down.onclick = () => {
-            const wires = normalizeDataWires(owner.dataWires);
-            [wires[item.index], wires[item.index + 1]] = [wires[item.index + 1], wires[item.index]];
-            owner.dataWires = wires;
-            saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-down:" + owner.id);
+            wires[item.index] = { ...wires[item.index], role: normalizeDataWireRole(role.value), componentType: normalizeDataWireComponentType("", role.value) };
+            owner.dataWires = normalizeDataWires(wires);
+            saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-role:" + owner.id);
             renderMappedFields();
           };
           const remove = document.createElement("button");
@@ -9869,7 +10073,7 @@
             saveMappedOrder((opts.historyPrefix || "state") + ":data-wire-remove:" + owner.id);
             renderMappedFields();
           };
-          row.append(label, up, down, remove);
+          row.append(order, main, role, remove);
           mappedList.appendChild(row);
         });
       };
@@ -10268,11 +10472,15 @@
           dataWireList.appendChild(empty);
           return;
         }
+        const title = document.createElement("div");
+        title.className = "data-wire-render-title";
+        title.innerHTML = "<strong>State render</strong><span>Drag here or in Render below</span>";
+        dataWireList.appendChild(title);
         let draggingWireId = null;
         const clearMarks = () => dataWireList.querySelectorAll(".data-wire-row.drop-before,.data-wire-row.drop-after").forEach(row => row.classList.remove("drop-before", "drop-after"));
-        wires.forEach(wire => {
+        wires.forEach((wire, index) => {
           const row = document.createElement("div");
-          row.className = "data-wire-row";
+          row.className = "data-wire-row compact";
           row.draggable = true;
           row.addEventListener("dragstart", evt => {
             draggingWireId = wire.id;
@@ -10294,18 +10502,29 @@
             moveDataWire(evt.dataTransfer.getData("text/plain") || draggingWireId, wire.id, evt.clientY > rect.top + rect.height / 2);
           });
           row.addEventListener("dragend", () => { draggingWireId = null; row.classList.remove("dragging"); clearMarks(); });
+          const order = document.createElement("span");
+          order.className = "data-wire-index";
+          order.textContent = String(index + 1);
           const main = document.createElement("div");
           main.className = "data-wire-main";
           const name = document.createElement("strong");
-          name.textContent = wire.label || dataPathLabel(wire.itemPath || wire.sourcePath);
-          const code = document.createElement("code");
-          code.textContent = wire.scopePath ? wire.scopePath + " -> " + (wire.itemPath ? "item." + wire.itemPath : "item") : wire.sourcePath;
-          main.append(name, code);
+          name.textContent = dataWireRenderLabel(wire);
+          const meta = document.createElement("div");
+          meta.className = "data-wire-meta";
+          const sub = document.createElement("span");
+          sub.className = "data-wire-chip active";
+          sub.textContent = "sub " + dataWireSubscriptionLabel(wire);
+          const shown = document.createElement("span");
+          shown.className = "data-wire-chip";
+          shown.textContent = "show " + dataWireScopeLabel(wire);
+          meta.append(sub, shown);
+          main.append(name, meta);
           const role = document.createElement("select");
+          role.setAttribute("aria-label", "Render as");
           DATA_WIRE_ROLES.forEach(item => {
             const option = document.createElement("option");
             option.value = item;
-            option.textContent = item;
+            option.textContent = dataWireRoleLabel(item);
             if (item === wire.role) option.selected = true;
             role.appendChild(option);
           });
@@ -10323,7 +10542,7 @@
             persistDataWires("state:data-wire-remove:" + s.id);
             renderGlobalStateSubscribeMap();
           };
-          row.append(main, role, remove);
+          row.append(order, main, role, remove);
           dataWireList.appendChild(row);
         });
       }
