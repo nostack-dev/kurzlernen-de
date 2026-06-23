@@ -167,6 +167,8 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("label: defaultTransitionLabel({ from: connecting.from, to: targetId })");
     expect(appHtml).toContain("function runtimeTransitionLabel");
     expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
+    expect(appHtml).toContain("function runtimeTransitionHue");
+    expect(appHtml).toContain("applyRuntimeTransitionButtonStyle(button, t)");
   });
 
   test("list item editors use non-overlapping layout classes @smoke", () => {
@@ -338,10 +340,17 @@ test.describe("Core browser contracts", () => {
     });
 
     const app = appFrame(page);
-    await expect(app.getByRole("button", { name: /^Next$/ })).toBeVisible();
-    await expect(app.getByRole("button", { name: /^Next2$/ })).toBeVisible();
+    const next = app.getByRole("button", { name: /^Next$/ });
+    const next2 = app.getByRole("button", { name: /^Next2$/ });
+    await expect(next).toBeVisible();
+    await expect(next2).toBeVisible();
+    const buttonColors = await Promise.all([
+      next.evaluate(el => getComputedStyle(el).backgroundColor),
+      next2.evaluate(el => getComputedStyle(el).backgroundColor)
+    ]);
+    expect(buttonColors[0]).not.toBe(buttonColors[1]);
 
-    await app.getByRole("button", { name: /^Next2$/ }).click();
+    await next2.click();
 
     await expect(app.locator("#statePill")).toHaveText("sound");
     await expect(app.locator("h1")).toHaveText("Play sound");
