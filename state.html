@@ -8525,6 +8525,30 @@
         item: "Item"
       })[role] || "Field";
       if (!s.components.length) {
+        const wiredComponents = dataWireComponentsForState(s, repeatConfig);
+        if (wiredComponents.length) {
+          const info = document.createElement("div");
+          info.className = "component-empty";
+          info.textContent = "Content renders from Data Wires.";
+          const wireList = document.createElement("div");
+          wireList.className = "fetch-mapped-fields";
+          wiredComponents.forEach(component => {
+            const row = document.createElement("div");
+            row.className = "fetch-mapped-row";
+            const label = document.createElement("div");
+            label.className = "fetch-mapped-label";
+            label.textContent = component.dataLabel || componentTitle(component.type);
+            const role = document.createElement("span");
+            role.className = "small";
+            role.textContent = component.dataRole || component.type;
+            const path = document.createElement("code");
+            path.textContent = component.dataPath || bindingPathFromText(component.text || component.url) || component.type;
+            row.append(label, role, path);
+            wireList.appendChild(row);
+          });
+          list.append(info, wireList);
+          return;
+        }
         const empty = document.createElement("div");
         empty.className = "component-empty";
         empty.textContent = "No content yet. Add a preset from the Explorer or create child states inside this state.";
