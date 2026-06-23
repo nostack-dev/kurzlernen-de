@@ -1038,15 +1038,11 @@
     }
 
     .svg-port {
-      fill: #94a3b8;
-      stroke: #06121f;
-      stroke-width: 3px;
-      vector-effect: non-scaling-stroke;
+      overflow: visible;
       pointer-events: auto;
     }
 
     .svg-port.runtime {
-      fill: var(--runtime);
       filter: drop-shadow(0 0 7px rgba(34,197,94,.62));
     }
 
@@ -1058,75 +1054,92 @@
       animation: portExitPulse .78s ease-out;
     }
 
-    .svg-port[data-side="input"],
-    .svg-port[data-port-side="input"],
+    .svg-port-input .svg-port-socket,
+    .svg-port[data-port-side="in"] .svg-port-socket,
     .svg-port[data-slot="input"],
     .svg-port[data-kind="input"],
     .svg-port[data-type="input"],
     .svg-port[data-role="input"],
-    .svg-port.input,
-    .svg-port.input-port,
-    .input-port.svg-port {
+    .svg-port.input .svg-port-socket,
+    .svg-port.input-port .svg-port-socket,
+    .input-port.svg-port .svg-port-socket {
       fill: var(--canvas-bg, #07111f) !important;
       stroke: var(--edge-color, #5f8dbc) !important;
       stroke-width: 3.2 !important;
+      vector-effect: non-scaling-stroke;
       filter: drop-shadow(0 0 5px rgba(15, 23, 42, .55));
     }
 
-    .svg-port[data-side="output"],
-    .svg-port[data-port-side="output"],
+    .svg-port-output .svg-port-plug,
+    .svg-port[data-port-side="out"] .svg-port-plug,
     .svg-port[data-slot="output"],
     .svg-port[data-kind="output"],
     .svg-port[data-type="output"],
     .svg-port[data-role="output"],
-    .svg-port.output,
-    .svg-port.output-port,
-    .svg-port.port-slot-output,
-    .port-slot-output.svg-port {
+    .svg-port.output .svg-port-plug,
+    .svg-port.output-port .svg-port-plug,
+    .svg-port.port-slot-output .svg-port-plug,
+    .port-slot-output.svg-port .svg-port-plug {
       fill: var(--edge-color, #5f8dbc) !important;
       stroke: #07111f !important;
       stroke-width: 2.4 !important;
+      vector-effect: non-scaling-stroke;
       filter: drop-shadow(0 0 6px rgba(15, 23, 42, .58));
     }
 
-    .svg-port.runtime[data-side="input"],
-    .svg-port.runtime[data-port-side="input"],
+    .svg-port-input .svg-port-socket-hole,
+    .svg-port[data-port-side="in"] .svg-port-socket-hole {
+      fill: #020617;
+      stroke: rgba(148, 163, 184, .45);
+      stroke-width: 1.6;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
+    }
+
+    .svg-port .svg-port-hit {
+      fill: transparent;
+      stroke: transparent;
+      pointer-events: auto;
+    }
+
+    .svg-port.runtime.svg-port-input .svg-port-socket,
+    .svg-port.runtime[data-port-side="in"] .svg-port-socket,
     .svg-port.runtime[data-slot="input"],
     .svg-port.runtime[data-kind="input"],
     .svg-port.runtime[data-type="input"],
     .svg-port.runtime[data-role="input"],
-    .svg-port.runtime.input,
-    .svg-port.runtime.input-port,
-    .runtime.input-port.svg-port {
+    .svg-port.runtime.input .svg-port-socket,
+    .svg-port.runtime.input-port .svg-port-socket,
+    .runtime.input-port.svg-port .svg-port-socket {
       fill: var(--canvas-bg, #07111f) !important;
       stroke: var(--runtime, #22c55e) !important;
       filter: drop-shadow(0 0 9px rgba(34, 197, 94, .72));
     }
 
-    .svg-port.runtime[data-side="output"],
-    .svg-port.runtime[data-port-side="output"],
+    .svg-port.runtime.svg-port-output .svg-port-plug,
+    .svg-port.runtime[data-port-side="out"] .svg-port-plug,
     .svg-port.runtime[data-slot="output"],
     .svg-port.runtime[data-kind="output"],
     .svg-port.runtime[data-type="output"],
     .svg-port.runtime[data-role="output"],
-    .svg-port.runtime.output,
-    .svg-port.runtime.output-port,
-    .svg-port.runtime.port-slot-output,
-    .runtime.port-slot-output.svg-port {
+    .svg-port.runtime.output .svg-port-plug,
+    .svg-port.runtime.output-port .svg-port-plug,
+    .svg-port.runtime.port-slot-output .svg-port-plug,
+    .runtime.port-slot-output.svg-port .svg-port-plug {
       fill: var(--runtime, #22c55e) !important;
       stroke: #07111f !important;
       filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
     }
 
     @keyframes portEnterPulse {
-      0% { r: 7px; opacity: .75; filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
-      42% { r: 12px; opacity: 1; filter: drop-shadow(0 0 13px rgba(34,197,94,.9)); }
-      100% { r: 8px; opacity: 1; filter: drop-shadow(0 0 7px rgba(34,197,94,.62)); }
+      0% { opacity: .78; filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
+      42% { opacity: 1; filter: drop-shadow(0 0 14px rgba(34,197,94,.92)); }
+      100% { opacity: 1; filter: drop-shadow(0 0 7px rgba(34,197,94,.62)); }
     }
 
     @keyframes portExitPulse {
-      0% { r: 10px; opacity: 1; filter: drop-shadow(0 0 10px rgba(148,163,184,.52)); }
-      100% { r: 8px; opacity: .82; filter: none; }
+      0% { opacity: 1; filter: drop-shadow(0 0 10px rgba(148,163,184,.52)); }
+      100% { opacity: .84; filter: none; }
     }
 
     .svg-port-output {
@@ -1139,8 +1152,15 @@
 
     .svg-port-output:hover,
     .map.connecting .svg-port-input {
-      fill: var(--accent);
       filter: drop-shadow(0 0 6px rgba(56,189,248,.7));
+    }
+
+    .svg-port-output:hover .svg-port-plug {
+      fill: var(--accent) !important;
+    }
+
+    .map.connecting .svg-port-input .svg-port-socket {
+      stroke: var(--accent) !important;
     }
 
 
@@ -6597,11 +6617,15 @@
       if (!state) return;
       const overlay = document.getElementById("ports");
       if (!overlay) return;
-      overlay.querySelectorAll(`.svg-port[data-state-id="${CSS.escape(state.id)}"]`).forEach(circle => {
-        const side = circle.dataset.portSide || "out";
+      overlay.querySelectorAll(`.svg-port[data-state-id="${CSS.escape(state.id)}"]`).forEach(port => {
+        const side = port.dataset.portSide || "out";
         const point = svgStatePortPoint(state, side);
-        circle.setAttribute("cx", point.x);
-        circle.setAttribute("cy", point.y);
+        if (port.tagName.toLowerCase() === "g") {
+          port.setAttribute("transform", `translate(${point.x} ${point.y})`);
+        } else {
+          port.setAttribute("cx", point.x);
+          port.setAttribute("cy", point.y);
+        }
       });
     }
 
@@ -6609,24 +6633,53 @@
       const point = svgStatePortPoint(state, side);
       const classes = ["svg-port", side === "out" ? "svg-port-output" : "svg-port-input"];
       if (state.id === currentAppState) classes.push("runtime");
-      const circle = svgEl("circle", {
-        cx: point.x,
-        cy: point.y,
-        r: 8,
+      const port = svgEl("g", {
+        transform: `translate(${point.x} ${point.y})`,
         class: classes.join(" "),
         "data-state-id": state.id,
         "data-port-side": side
       });
+      if (side === "out") {
+        port.appendChild(svgEl("path", {
+          d: "M-3 -5 H7 Q13 -5 13 0 Q13 5 7 5 H-3 Z",
+          class: "svg-port-plug svg-port-shape"
+        }));
+        port.appendChild(svgEl("circle", {
+          cx: -3,
+          cy: 0,
+          r: 4.8,
+          class: "svg-port-plug svg-port-shape"
+        }));
+      } else {
+        port.appendChild(svgEl("circle", {
+          cx: 0,
+          cy: 0,
+          r: 9,
+          class: "svg-port-socket svg-port-shape"
+        }));
+        port.appendChild(svgEl("circle", {
+          cx: 0,
+          cy: 0,
+          r: 3.3,
+          class: "svg-port-socket-hole"
+        }));
+      }
+      port.appendChild(svgEl("circle", {
+        cx: 0,
+        cy: 0,
+        r: 15,
+        class: "svg-port-hit"
+      }));
       const canStartConnection = side === "out" || (state.virtualProxy?.side === "output" && side === "in");
       if (canStartConnection) {
         const startSide = side === "in" ? "in" : "out";
-        circle.addEventListener("mousedown", evt => {
+        port.addEventListener("mousedown", evt => {
           if (Date.now() - lastTouchAt < 700) return;
           if (evt.button !== 0) return;
           evt.preventDefault();
           startConnection(evt, state, startSide);
         });
-        circle.addEventListener("pointerdown", evt => {
+        port.addEventListener("pointerdown", evt => {
           if (!isTouchPointer(evt)) return;
           evt.preventDefault();
           lastTouchAt = Date.now();
@@ -6635,14 +6688,14 @@
           startConnection(evt, state, startSide);
         });
       }
-      circle.addEventListener("click", evt => {
+      port.addEventListener("click", evt => {
         evt.preventDefault();
         evt.stopPropagation();
         focusCanvasForSelection();
         setSingleSelection("node", state.id);
         showNodeInspector(state, { focus: false });
       });
-      getPortOverlay().appendChild(circle);
+      getPortOverlay().appendChild(port);
     }
 
     function updateLayerFrame(states) {
@@ -6947,6 +7000,7 @@
       }
       for (const state of states) addSvgStatePorts(state);
 
+      applyRuntimeEdgePulses();
       updateSelectionActions();
       requestMapCanvasPaint();
     }
@@ -9803,27 +9857,52 @@
       }
     });
 
-    let runtimePulseSerial = 0;
+    var RUNTIME_EDGE_PULSE_MS = 1220;
+    var runtimePulseSerial = 0;
+    var activeRuntimeEdgePulses = new Map();
+
+    function applyRuntimeEdgePulses() {
+      if (!(activeRuntimeEdgePulses instanceof Map)) activeRuntimeEdgePulses = new Map();
+      const now = performance.now();
+      for (const [id, pulse] of [...activeRuntimeEdgePulses]) {
+        if (!pulse || pulse.until <= now) {
+          activeRuntimeEdgePulses.delete(id);
+          continue;
+        }
+        const elements = [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
+          .filter(el => el.dataset.edgeId === id);
+        for (const el of elements) {
+          if (el.dataset.runtimePulseToken === pulse.token && el.classList.contains("runtime-pulse")) continue;
+          el.classList.remove("runtime-pulse");
+          void el.getBoundingClientRect();
+          el.dataset.runtimePulseToken = pulse.token;
+          el.classList.add("runtime", "runtime-pulse");
+        }
+      }
+    }
 
     function pulseRuntimeTransition(edgeId) {
       const id = String(edgeId || "");
       if (!id) return;
       const token = String(++runtimePulseSerial);
+      if (!(activeRuntimeEdgePulses instanceof Map)) activeRuntimeEdgePulses = new Map();
+      activeRuntimeEdgePulses.set(id, {
+        token,
+        until: performance.now() + RUNTIME_EDGE_PULSE_MS
+      });
       requestAnimationFrame(() => {
-        const elements = [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
-          .filter(el => el.dataset.edgeId === id);
-        for (const el of elements) {
-          el.classList.remove("runtime-pulse");
-          void el.getBoundingClientRect();
-          el.dataset.runtimePulseToken = token;
-          el.classList.add("runtime", "runtime-pulse");
-          setTimeout(() => {
-            if (el.dataset.edgeId === id && el.dataset.runtimePulseToken === token) {
+        applyRuntimeEdgePulses();
+        setTimeout(() => {
+          const pulse = activeRuntimeEdgePulses.get(id);
+          if (pulse?.token !== token) return;
+          activeRuntimeEdgePulses.delete(id);
+          [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
+            .filter(el => el.dataset.edgeId === id && el.dataset.runtimePulseToken === token)
+            .forEach(el => {
               el.classList.remove("runtime-pulse");
               delete el.dataset.runtimePulseToken;
-            }
-          }, 1220);
-        }
+            });
+        }, RUNTIME_EDGE_PULSE_MS + 80);
       });
     }
 
