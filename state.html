@@ -2474,6 +2474,66 @@
       box-shadow: none;
     }
 
+
+    .component-editor-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .component-editor-head > span:first-child,
+    .component-editor-head .component-editor-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .component-editor-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 5px;
+      flex: 0 0 auto;
+    }
+    .component-editor-action {
+      width: auto;
+      min-width: 0;
+      min-height: 28px;
+      height: 28px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      line-height: 1;
+      box-shadow: none;
+      white-space: nowrap;
+    }
+    .component-editor-action.icon-action {
+      width: 28px;
+      padding: 0;
+      font-size: 13px;
+    }
+    .component-editor .field {
+      display: grid;
+      grid-template-columns: minmax(74px, .28fr) minmax(0, 1fr);
+      align-items: start;
+      gap: 8px;
+    }
+    .component-editor input:not([type="checkbox"]),
+    .component-editor textarea,
+    .component-editor select {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .component-editor textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+    .component-editor .row {
+      align-items: stretch;
+    }
+
   </style>
 </head>
 <body>
@@ -7611,6 +7671,7 @@
         head.className = "component-editor-head";
         const label = document.createElement("span");
         label.textContent = componentTitle(component.type);
+        label.className = "component-editor-title";
         const moveComponent = delta => {
           const index = s.components.indexOf(component);
           const nextIndex = index + delta;
@@ -7622,24 +7683,31 @@
         };
         const moveUp = document.createElement("button");
         moveUp.type = "button";
-        moveUp.textContent = "Up";
+        moveUp.className = "component-editor-action icon-action";
+        moveUp.textContent = "↑";
+        moveUp.title = "Move up";
         moveUp.disabled = s.components.indexOf(component) <= 0;
         moveUp.onclick = () => moveComponent(-1);
         const moveDown = document.createElement("button");
         moveDown.type = "button";
-        moveDown.textContent = "Down";
+        moveDown.className = "component-editor-action icon-action";
+        moveDown.textContent = "↓";
+        moveDown.title = "Move down";
         moveDown.disabled = s.components.indexOf(component) >= s.components.length - 1;
         moveDown.onclick = () => moveComponent(1);
         const remove = document.createElement("button");
         remove.type = "button";
-        remove.className = "danger";
+        remove.className = "component-editor-action danger";
         remove.textContent = "Delete";
         bindImmediateButton(remove, () => {
           s.components = s.components.filter(item => item.id !== component.id);
           persistOwner("state:components:" + s.id);
           rerender(null);
         });
-        head.append(label, moveUp, moveDown, remove);
+        const actions = document.createElement("div");
+        actions.className = "component-editor-actions";
+        actions.append(moveUp, moveDown, remove);
+        head.append(label, actions);
         item.appendChild(head);
         if (component.type !== "divider") {
           if (component.type === "list") {
