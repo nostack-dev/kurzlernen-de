@@ -156,19 +156,19 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("autoDeriveRepeatForOwner(s, null, false)");
     expect(html).toContain("manual: Boolean(source.manual)");
     expect(html).toContain("fetch response assumption");
-    expect(html).toContain("generatedFromRepeat");
-    expect(html).toContain("dataPath: normalizeBindingPath(component.dataPath ||");
-    expect(html).toContain("component.generatedFromRepeat");
-    expect(html).toContain("Auto data part");
-    expect(html).toContain("Auto detected list:");
-    expect(html).toContain("Assumed repeat path:");
-    expect(html).toContain("Manual repeat path:");
-    expect(html).toContain("through global state");
+    expect(html).toContain("function applyDerivedDataWires");
+    expect(html).toContain("function dataWiresFromRepeatSample");
+    expect(html).toContain("generatedFromDataWire");
+    expect(html).not.toContain("Auto data part");
+    expect(html).toContain("Data wires");
+    expect(html).toContain("applyDerivedDataWires");
+    expect(html).toContain("upsertDataWire");
+    expect(html).toContain("runtimeDataWireComponentsForState");
     expect(html).toContain("Lists are detected from fetch/global state");
     expect(html).toContain("autoCreateRepeatComponents");
-    expect(html).toContain("applyDerivedRepeatComponents(owner, owner.repeat.path, root, false)");
-    expect(html).toContain("derivedRepeatComponents(sample, \"item\")");
-    expect(html).toContain("...repeatComponentMeta(fields.image.path, \"image\", \"Image\")");
+    expect(html).toContain("applyDerivedDataWires(s, repeat.path, root, false)");
+    expect(html).toContain("dataWiresFromRepeatSample(sample, scopePath)");
+    expect(html).toContain("push(fields.image, \"image\", \"image\", \"Image\")");
     expect(html).toContain('filter(part => !/^\\d+$/.test(part))');
     expect(html).toContain("function templateTouchesContextPath");
     expect(html).toContain('const childPrefix = prefix && isScalarDataValue(sample) ? prefix + ".0" : prefix;');
@@ -176,15 +176,17 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeColumnarRepeatEntries");
     expect(appHtml).toContain("function runtimeRepeatValueItems");
     expect(appHtml).toContain("const repeated = runtimeRepeatValueItems(repeatedValue)");
-    expect(appHtml).toContain("function readableRepeatComponentsForRuntime");
+    expect(appHtml).toContain("function runtimeDataWireComponentsForState");
+    expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
     expect(appHtml).toContain("runtimeComponentIsRawDataDump");
     expect(appHtml).toContain("runtimeTemplateTouchesPath");
     expect(appHtml).toContain('prefix + ".0"');
-    expect(appHtml).toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
+    expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
   test("fetch runtime uses one fresh active run, not a response cache @smoke", () => {
     const html = stateHtml();
+    const appHtml = generatedAppHtml();
 
     expect(html).toContain("let dataSourceRunSerial = 0");
     expect(html).toContain("let activeDataSourceRun = null");
@@ -201,6 +203,24 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain('screen.innerHTML = ""');
     expect(html).not.toContain("dataSourceRuns = new Map");
     expect(html).not.toContain("dataSourceRuns.");
+  });
+
+  test("data wires drive rendered content through global state @smoke", () => {
+    const html = stateHtml();
+    const appHtml = generatedAppHtml();
+
+    expect(html).toContain("function normalizeDataWire(value)");
+    expect(html).toContain("function dataWireFromPath");
+    expect(html).toContain("function dataWireComponentsForState");
+    expect(html).toContain("function applyDerivedDataWires");
+    expect(html).toContain("dataWires: normalizeDataWires");
+    expect(html).toContain("Data wires");
+    expect(html).toContain("+ verbindet JSON-Pfade direkt mit Render-Parts");
+    expect(html).toContain("components: [],");
+    expect(appHtml).toContain("function normalizeDataWire(value)");
+    expect(appHtml).toContain("function runtimeDataWireComponentsForState");
+    expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
+    expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
   test("generated runtime writes global state through the bus @smoke", () => {
