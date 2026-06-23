@@ -113,6 +113,11 @@ test.describe("Core source contracts", () => {
     expect(html).toContain(".component-editor input");
     expect(html).toContain(".template-binding-picker select");
     expect(html).toContain(".template-binding-picker button");
+    expect(html).toContain("function normalizeBindingPath");
+    expect(html).toContain("const connectTemplateBinding");
+    expect(html).toContain("Connect data...");
+    expect(html).toContain("Choose a field; no template syntax typing needed.");
+    expect(html).toContain('const key = normalizeBindingPath(path, "");');
   });
 
   test("repeat sources derive readable components from array samples @smoke", () => {

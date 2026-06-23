@@ -1461,6 +1461,16 @@
       flex: 0 0 auto;
       border-radius: 9px;
     }
+    .template-binding-status {
+      grid-column: 1 / -1;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .list-item-editor {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -4392,6 +4402,12 @@
       const text = String(path || "").trim();
       if (!text) return fallback;
       return /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(text) ? text : fallback;
+    }
+
+    function normalizeBindingPath(path, fallback = "") {
+      const text = String(path || "").trim();
+      if (!text) return fallback;
+      return /^[a-zA-Z_][a-zA-Z0-9_]*(\.(?:[a-zA-Z_][a-zA-Z0-9_]*|\d+))*$/.test(text) ? text : fallback;
     }
 
     function normalizeContextIdentifier(text, fallback = "item") {
@@ -7969,7 +7985,7 @@
         return node;
       };
       const addTextBindingCandidate = (map, path, source = "Global state", type = "value") => {
-        const key = normalizeContextPath(path, "");
+        const key = normalizeBindingPath(path, "");
         if (!key || key === "*" || map.has(key)) return;
         map.set(key, { path: key, source, type });
       };
@@ -8017,8 +8033,19 @@
           .sort((a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path))
           .slice(0, 120);
       };
+      const bindingPathFromText = value => {
+        const match = String(value || "").match(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.(?:[a-zA-Z_][a-zA-Z0-9_]*|\d+))*)\s*\}\}/);
+        return match ? match[1] : "";
+      };
+      const connectTemplateBinding = (input, path) => {
+        const key = normalizeBindingPath(path, "");
+        if (!key) return;
+        input.value = `{{${key}}}`;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus({ preventScroll: true });
+      };
       const insertTemplateBinding = (input, path) => {
-        const key = normalizeContextPath(path, "");
+        const key = normalizeBindingPath(path, "");
         if (!key) return;
         const token = `{{${key}}}`;
         const start = Number.isFinite(input.selectionStart) ? input.selectionStart : input.value.length;
@@ -8036,41 +8063,45 @@
         if (!candidates.length) return;
         const picker = document.createElement("div");
         picker.className = "template-binding-picker";
-        picker.style.display = "grid";
-        picker.style.gridTemplateColumns = "minmax(0, 1fr) auto";
-        picker.style.gap = "6px";
-        picker.style.marginTop = "6px";
         const select = document.createElement("select");
-        select.setAttribute("aria-label", "Insert global state field");
-        select.style.minHeight = "32px";
-        select.style.height = "32px";
-        select.style.padding = "4px 8px";
-        select.style.borderRadius = "8px";
-        select.style.fontSize = "12px";
+        select.setAttribute("aria-label", "Connect data field");
         const empty = document.createElement("option");
         empty.value = "";
-        empty.textContent = "Insert data...";
+        empty.textContent = "Connect data...";
         select.appendChild(empty);
         candidates.forEach(item => {
           const option = document.createElement("option");
           option.value = item.path;
-          option.textContent = `${item.path} (${item.source})`;
+          option.textContent = `${dataPathLabel(item.path, item.path)} · ${item.source}`;
           select.appendChild(option);
         });
         const add = document.createElement("button");
         add.type = "button";
         add.className = "component-editor-action";
-        add.textContent = "+";
-        add.title = "Insert selected data field";
-        add.style.minHeight = "32px";
-        add.style.height = "32px";
-        add.style.padding = "2px 10px";
+        add.textContent = "Connect";
+        add.title = "Connect selected data field";
+        const status = document.createElement("div");
+        status.className = "template-binding-status";
+        const refreshStatus = () => {
+          const current = bindingPathFromText(input.value);
+          select.value = current && candidates.some(item => item.path === current) ? current : "";
+          status.textContent = current
+            ? `Connected to ${dataPathLabel(current, current)}`
+            : "Choose a field; no template syntax typing needed.";
+        };
+        select.onchange = () => {
+          if (!select.value) return;
+          connectTemplateBinding(input, select.value);
+          refreshStatus();
+        };
         bindImmediateButton(add, () => {
           if (!select.value) return;
-          insertTemplateBinding(input, select.value);
-          select.value = "";
+          connectTemplateBinding(input, select.value);
+          refreshStatus();
         });
-        picker.append(select, add);
+        input.addEventListener("input", refreshStatus);
+        picker.append(select, add, status);
+        refreshStatus();
         container.appendChild(picker);
       };
       if (!s.components.length) {
@@ -8559,7 +8590,7 @@
 
     function repeatBinding(alias, path) {
       const cleanAlias = normalizeContextPath(alias || "item", "item") || "item";
-      const cleanPath = normalizeContextPath(path || "", "");
+      const cleanPath = normalizeBindingPath(path || "", "");
       return `{{${cleanAlias}${cleanPath ? "." + cleanPath : ""}}}`;
     }
 
@@ -9970,7 +10001,11 @@
       if (!prefix || out.length > 80 || depth > 5) return out;
       if (Array.isArray(value)) {
         out.push({ path: prefix, source: sourceLabel, type: "array" });
-        if (value.length) collectDataPathSuggestions(value[0], prefix, sourceLabel + " item", out, depth + 1);
+        if (value.length) {
+          const sample = value.find(item => item && typeof item === "object") ?? value[0];
+          const childPrefix = sample == null || ["string", "number", "boolean"].includes(typeof sample) ? prefix + ".0" : prefix;
+          collectDataPathSuggestions(sample, childPrefix, sourceLabel + " item", out, depth + 1);
+        }
         return out;
       }
       if (!isPlainObject(value)) {
