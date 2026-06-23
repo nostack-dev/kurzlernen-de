@@ -189,6 +189,15 @@ test.describe("Core browser contracts", () => {
     await expect(page.locator("#pOutputs")).toHaveCount(0);
   });
 
+  test("state data card stays collapsible instead of always noisy @smoke", () => {
+    const html = stateHtml();
+
+    expect(html).toContain('<details class="inspector-collapse data-card" id="pDataCard">');
+    expect(html).toContain('<summary class="inspector-collapse-summary">');
+    expect(html).toContain('<div class="inspector-collapse-body">');
+    expect(html).toContain(".inspector-collapse[open] .inspector-collapse-summary::after");
+  });
+
   test("component text editors insert global-state bindings from a picker @smoke", async ({ page }) => {
     await openTool(page);
 

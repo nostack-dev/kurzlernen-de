@@ -1331,6 +1331,61 @@
     .row { display: flex; gap: 8px; align-items: center; }
     .row button { flex: 1; }
     .small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+    .inspector-collapse {
+      margin: 10px 0;
+      border: 1px solid #244766;
+      border-radius: 12px;
+      background: #071421;
+      overflow: hidden;
+    }
+    .inspector-collapse-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 9px 10px;
+      cursor: pointer;
+      color: #dbeafe;
+      font-size: 12px;
+      font-weight: 950;
+      list-style: none;
+      user-select: none;
+    }
+    .inspector-collapse-summary::-webkit-details-marker {
+      display: none;
+    }
+    .inspector-collapse-summary::after {
+      content: ">";
+      color: #7dd3fc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 950;
+      transition: transform .14s ease;
+    }
+    .inspector-collapse[open] .inspector-collapse-summary::after {
+      transform: rotate(90deg);
+    }
+    .inspector-collapse-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .inspector-collapse-title span:first-child {
+      color: #e0f2fe;
+    }
+    .inspector-collapse-title span:last-child {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .inspector-collapse-body {
+      display: grid;
+      gap: 8px;
+      padding: 0 10px 10px;
+    }
     .component-toolbar {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9281,31 +9336,41 @@
       root.innerHTML = `
         <h3>State</h3>
         <div class="field"><label>Title</label><input id="pTitle"></div>
-        <div class="global-state-subscribe">
-          <div class="global-state-subscribe-head">
-            <div>Data<span>Pick paths with +. Fetch fields can render as content.</span></div>
-            <div id="pSubscriptionCount" class="global-state-subscribe-count">0</div>
+        <details class="inspector-collapse data-card" id="pDataCard">
+          <summary class="inspector-collapse-summary">
+            <span class="inspector-collapse-title">
+              <span>Data</span>
+              <span>Global state, fetch, repeat</span>
+            </span>
+            <span id="pSubscriptionCount" class="global-state-subscribe-count">0</span>
+          </summary>
+          <div class="inspector-collapse-body">
+            <div class="global-state-subscribe">
+              <div class="global-state-subscribe-head">
+                <div>Global State JSON<span>Pick paths with +. Fetch fields can render as content.</span></div>
+              </div>
+              <div class="field"><label>Fetch endpoint</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
+              <div class="row"><button id="pRefreshFetchPreview" type="button">Refresh preview</button></div>
+              <div id="pDataSourcePreview" class="condition-preview empty"></div>
+              <input id="pDataSourceTarget" type="hidden" value="fetch">
+              <input id="pDataSourceSelect" type="hidden">
+              <div id="pDataSourceInspect" class="json-inspect empty" hidden></div>
+              <div id="pSubscriptionPaths" class="global-state-path-grid" hidden></div>
+              <div id="pSubscriptionTree" class="global-state-json"></div>
+              <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
+              <textarea id="pSubscriptions" hidden></textarea>
+              <div class="hint">+ subscribes a path. Fetch data fields can become content.</div>
+            </div>
+            <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
+            <div class="data-source-panel repeat-panel">
+              <div class="small"><b>Repeat</b><br><span>Render content once per selected array item.</span></div>
+              <div class="field"><label>Source</label><select id="pRepeatPath"></select></div>
+              <input id="pRepeatAs" type="hidden" value="item">
+              <input id="pRepeatIndex" type="hidden" value="i">
+              <div id="pRepeatPreview" class="condition-preview empty"></div>
+            </div>
           </div>
-          <div class="field"><label>Fetch endpoint</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
-          <div class="row"><button id="pRefreshFetchPreview" type="button">Refresh preview</button></div>
-          <div id="pDataSourcePreview" class="condition-preview empty"></div>
-          <input id="pDataSourceTarget" type="hidden" value="fetch">
-          <input id="pDataSourceSelect" type="hidden">
-          <div id="pDataSourceInspect" class="json-inspect empty" hidden></div>
-          <div id="pSubscriptionPaths" class="global-state-path-grid" hidden></div>
-          <div id="pSubscriptionTree" class="global-state-json"></div>
-          <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
-          <textarea id="pSubscriptions" hidden></textarea>
-          <div class="hint">+ subscribes a path. Fetch data fields can become content.</div>
-        </div>
-        <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel repeat-panel">
-          <div class="small"><b>Repeat</b><br><span>Render content once per selected array item.</span></div>
-          <div class="field"><label>Source</label><select id="pRepeatPath"></select></div>
-          <input id="pRepeatAs" type="hidden" value="item">
-          <input id="pRepeatIndex" type="hidden" value="i">
-          <div id="pRepeatPreview" class="condition-preview empty"></div>
-        </div>
+        </details>
         <div class="inspector-section-title">Content</div>
         <div id="pComponents" class="component-list"></div>
         <div class="small state-id-line">ID: <b>${escapeHtml(s.id)}</b></div>
