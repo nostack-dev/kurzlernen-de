@@ -2304,6 +2304,73 @@
     .map.panning #wires .edge-tip-hit {
       filter: none !important;
     }
+
+    .global-state-json {
+      display: grid;
+      gap: 2px;
+      max-height: min(420px, 46vh);
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid rgba(148,163,184,.22);
+      border-radius: 12px;
+      background: rgba(2,6,23,.52);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .global-state-json-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 28px;
+      align-items: center;
+      gap: 8px;
+      min-height: 24px;
+      border-radius: 8px;
+      color: #cbd5e1;
+    }
+
+    .global-state-json-line[data-path] {
+      padding-right: 2px;
+    }
+
+    .global-state-json-line[data-path]:hover {
+      background: rgba(56,189,248,.08);
+      color: #e0f2fe;
+    }
+
+    .global-state-json-line.active {
+      background: rgba(34,197,94,.1);
+      color: #dcfce7;
+    }
+
+    .global-state-json-code {
+      min-width: 0;
+      overflow: hidden;
+      white-space: pre;
+      text-overflow: ellipsis;
+    }
+
+    .global-state-json-toggle {
+      width: 24px;
+      height: 22px;
+      min-height: 22px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid rgba(56,189,248,.35);
+      background: rgba(15,23,42,.74);
+      color: #7dd3fc;
+      font-size: 13px;
+      font-weight: 950;
+      line-height: 1;
+      box-shadow: none;
+    }
+
+    .global-state-json-line.active .global-state-json-toggle {
+      border-color: rgba(34,197,94,.5);
+      background: rgba(34,197,94,.18);
+      color: #86efac;
+    }
+
   </style>
 </head>
 <body>
@@ -8223,14 +8290,14 @@
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="global-state-subscribe">
           <div class="global-state-subscribe-head">
-            <div>Global State Subscribe<span>Klick Pfade an, die dieser State beobachten soll.</span></div>
+            <div>Global State JSON<span>Plus rechts neben einem Pfad abonniert diesen State auf genau diesen JSON-Pfad.</span></div>
             <div id="pSubscriptionCount" class="global-state-subscribe-count">0</div>
           </div>
-          <div id="pSubscriptionPaths" class="global-state-path-grid"></div>
-          <div id="pSubscriptionTree" class="global-state-tree"></div>
-          <div class="field global-state-custom-row"><label>Pfad</label><input id="pSubscriptionCustom" list="pSubscriptionList" placeholder="user.loggedIn"><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button">Add</button></div>
+          <div id="pSubscriptionPaths" class="global-state-path-grid" hidden></div>
+          <div id="pSubscriptionTree" class="global-state-json"></div>
+          <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
           <textarea id="pSubscriptions" hidden></textarea>
-          <div class="hint">* beobachtet den ganzen Global State. Einzelpfade beobachten nur genau diesen Pfad.</div>
+          <div class="hint">Klick + rechts neben einer JSON-Zeile. ✓ bedeutet: dieser Pfad ist abonniert.</div>
         </div>
         <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
         <div class="data-source-panel fetch-source-panel">
@@ -8387,95 +8454,91 @@
         subscriptionTree.innerHTML = "";
         subscriptionList.innerHTML = "";
         const suggestions = collectKnownGlobalStatePaths();
-        for (const item of suggestions.slice(0, 160)) {
+        for (const item of suggestions.slice(0, 200)) {
           const option = document.createElement("option");
           option.value = item.path;
           option.label = `${item.source} · ${item.type}`;
           subscriptionList.appendChild(option);
         }
-        const activePaths = Array.from(active);
-        if (activePaths.length) {
-          for (const path of activePaths) {
-            const chip = document.createElement("button");
-            chip.type = "button";
-            chip.className = "global-state-path active" + (path === "*" ? " global-state-path-all" : "");
-            chip.textContent = path;
-            chip.title = "Click to unsubscribe";
-            chip.onclick = () => toggleGlobalStatePath(path);
-            subscriptionPaths.appendChild(chip);
-          }
-        } else {
-          const empty = document.createElement("div");
-          empty.className = "hint";
-          empty.textContent = "Noch nichts abonniert.";
-          subscriptionPaths.appendChild(empty);
-        }
 
-        const rootNode = { key: "", path: "", item: null, children: new Map() };
-        const ensureNode = (path, item) => {
-          const clean = String(path || "").trim();
-          if (!clean) return;
-          const parts = clean === "*" ? ["*"] : clean.split(".").filter(Boolean);
-          let node = rootNode;
-          let currentPath = "";
-          for (const part of parts) {
-            currentPath = currentPath ? `${currentPath}.${part}` : part;
-            if (!node.children.has(part)) node.children.set(part, { key: part, path: currentPath, item: null, children: new Map() });
-            node = node.children.get(part);
-          }
-          node.item = item || node.item || { path: clean, source: "global", type: "value" };
+        const previewValueFor = item => {
+          const type = String(item?.type || "value");
+          if (type === "boolean") return false;
+          if (type === "number" || type === "timestamp") return 0;
+          if (type === "text") return "";
+          if (type === "array") return [];
+          return {};
         };
-        for (const item of suggestions.slice(0, 160)) {
-          ensureNode(item.path, item);
-          if (item.path !== "*") {
-            const parts = item.path.split(".").filter(Boolean);
-            for (let i = 1; i < parts.length; i++) {
-              ensureNode(parts.slice(0, i).join("."), { path: parts.slice(0, i).join("."), source: "group", type: "object" });
+        const isRecord = value => value && typeof value === "object" && !Array.isArray(value);
+        const preview = {};
+        const setPreviewPath = (path, value) => {
+          const parts = String(path || "").split(".").filter(Boolean);
+          if (!parts.length) return;
+          let node = preview;
+          for (let i = 0; i < parts.length; i += 1) {
+            const key = parts[i];
+            const last = i === parts.length - 1;
+            if (last) {
+              if (!isRecord(node[key])) node[key] = value;
+            } else {
+              if (!isRecord(node[key])) node[key] = {};
+              node = node[key];
             }
           }
-        }
-        const renderNode = (node, depth = 0) => {
-          const children = Array.from(node.children.values()).sort((a, b) => {
-            if (a.key === "*") return -1;
-            if (b.key === "*") return 1;
-            return a.key.localeCompare(b.key);
-          });
-          for (const child of children) {
-            const isActive = active.has(child.path);
-            const row = document.createElement("div");
-            row.className = "global-state-tree-row" + (isActive ? " active" : "");
-            row.style.paddingLeft = `${6 + depth * 13}px`;
-            const toggle = document.createElement("button");
-            toggle.type = "button";
-            toggle.className = "global-state-tree-toggle";
-            toggle.textContent = isActive ? "✓" : "+";
-            toggle.title = isActive ? "Unsubscribe" : "Subscribe";
-            toggle.onclick = () => toggleGlobalStatePath(child.path);
-            const label = document.createElement("div");
-            label.className = "global-state-tree-path";
-            label.textContent = child.key === "*" ? "* entire global state" : child.key;
-            label.title = child.path;
-            const meta = document.createElement("span");
-            meta.className = "global-state-tree-meta";
-            meta.textContent = child.item ? `${child.path} · ${child.item.source} · ${child.item.type}` : child.path;
-            label.appendChild(meta);
-            const type = document.createElement("span");
-            type.className = "global-state-subscribe-count";
-            type.textContent = child.item?.type || (child.children.size ? "object" : "value");
-            row.append(toggle, label, type);
-            subscriptionTree.appendChild(row);
-            renderNode(child, depth + 1);
-          }
         };
-        renderNode(rootNode);
-        if (!subscriptionTree.children.length) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "global-state-path global-state-path-all";
-          button.textContent = "+ * entire global state";
-          button.onclick = () => toggleGlobalStatePath("*");
-          subscriptionTree.appendChild(button);
-        }
+        suggestions
+          .filter(item => item.path && item.path !== "*")
+          .slice(0, 200)
+          .forEach(item => setPreviewPath(item.path, previewValueFor(item)));
+        if (!Object.keys(preview).length) setPreviewPath("state.current", "");
+
+        const jsonValue = value => {
+          if (Array.isArray(value)) return "[]";
+          if (isRecord(value)) return "{}";
+          return JSON.stringify(value);
+        };
+        const appendJsonLine = (depth, code, path = "") => {
+          const row = document.createElement("div");
+          row.className = "global-state-json-line" + (path && active.has(path) ? " active" : "");
+          if (path) row.dataset.path = path;
+          const text = document.createElement("span");
+          text.className = "global-state-json-code";
+          text.textContent = "  ".repeat(depth) + code;
+          row.appendChild(text);
+          if (path) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "global-state-json-toggle";
+            button.textContent = active.has(path) ? "✓" : "+";
+            button.title = active.has(path) ? "Unsubscribe " + path : "Subscribe " + path;
+            button.onclick = evt => {
+              evt.preventDefault();
+              toggleGlobalStatePath(path);
+            };
+            row.appendChild(button);
+          } else {
+            row.appendChild(document.createElement("span"));
+          }
+          subscriptionTree.appendChild(row);
+        };
+        const renderObject = (obj, path = "", depth = 0, label = "") => {
+          const entries = Object.entries(obj).sort(([a], [b]) => a.localeCompare(b));
+          if (!path) appendJsonLine(depth, "{", "*");
+          else appendJsonLine(depth, JSON.stringify(label) + ": {", path);
+          entries.forEach(([key, value], index) => {
+            const childPath = path ? path + "." + key : key;
+            const comma = index === entries.length - 1 ? "" : ",";
+            if (isRecord(value) && Object.keys(value).length) {
+              renderObject(value, childPath, depth + 1, key);
+              const closeRow = subscriptionTree.lastElementChild;
+              if (closeRow && comma) closeRow.querySelector(".global-state-json-code").textContent += comma;
+            } else {
+              appendJsonLine(depth + 1, JSON.stringify(key) + ": " + jsonValue(value) + comma, childPath);
+            }
+          });
+          appendJsonLine(depth, "}", "");
+        };
+        renderObject(preview);
       }
       title.oninput = () => {
         s.title = title.value;
