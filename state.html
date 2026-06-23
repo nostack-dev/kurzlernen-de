@@ -9464,7 +9464,7 @@
       backdrop.innerHTML = `
         <div class="fetch-mapper-modal" role="dialog" aria-modal="true" aria-label="Fetch automap">
           <div class="fetch-mapper-head">
-            <div><h3>Fetch automap</h3><p>Dieser State fetched beim Betreten. Klick ein Response-Feld an, dann wird es als UI gerendert.</p></div>
+          <div><h3>Fetch automap</h3><p>Fetch schreibt in den globalState. Klick ein Response-Feld an, dann bekommt dieser State diesen Daten-Scope und rendert ihn.</p></div>
             <button class="fetch-mapper-close" type="button">Close</button>
           </div>
           <div class="fetch-mapper-grid">
@@ -9882,7 +9882,14 @@
         const scopePath = store + ".data";
         const sourcePath = cleanPath ? scopePath + "." + cleanPath : scopePath;
         const componentValue = fromRootArrayItem && cleanPath ? jsonValueAtPath(sample, cleanPath) : value;
-        const added = upsertDataWire(owner, dataWireFromPath(owner, sourcePath, componentValue, { scopePath, itemPath: cleanPath }));
+        const wire = dataWireFromPath(owner, sourcePath, componentValue, { scopePath, itemPath: cleanPath });
+        const added = upsertDataWire(owner, wire);
+        owner.subscriptions = normalizeSubscriptions([...(owner.subscriptions || []), wire.scopePath || wire.sourcePath]);
+        const subscriptionInput = ownerRoot.querySelector("#pSubscriptions");
+        if (subscriptionInput) {
+          subscriptionInput.value = owner.subscriptions.join("\n");
+          subscriptionInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
         owner.components = normalizeComponents(owner.components).filter(component => !component.generatedFromRepeat && !component.generatedFromDataWire);
         renderComponentEditors(owner, null, ownerRoot, { skipLiveStateSync: true });
         persistOwner((opts.historyPrefix || "state") + ":data-wire:" + owner.id);
@@ -10045,15 +10052,15 @@
         <details class="inspector-collapse data-card" id="pDataCard">
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
-              <span>Data</span>
-              <span>Global state, fetch, repeat</span>
+              <span>State data</span>
+              <span>none, full, or selected globalState paths</span>
             </span>
             <span id="pSubscriptionCount" class="global-state-subscribe-count">0</span>
           </summary>
           <div class="inspector-collapse-body">
             <div class="global-state-subscribe">
               <div class="global-state-subscribe-head">
-                <div>Global State JSON<span>Pick paths with +. Fetch fields can render as content.</span></div>
+                <div>Global State JSON<span>+ gibt diesem State genau diesen Daten-Scope.</span></div>
               </div>
               <div class="field"><label>Fetch endpoint</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
               <div class="row"><button id="pRefreshFetchPreview" type="button">Refresh preview</button></div>
@@ -10064,16 +10071,16 @@
               <div id="pSubscriptionPaths" class="global-state-path-grid" hidden></div>
               <div id="pSubscriptionTree" class="global-state-json"></div>
               <div class="data-wire-panel">
-                <div class="small"><b>Data wires</b><br><span>+ verbindet JSON-Pfade direkt mit Render-Parts. Drag sortiert die Render-Reihenfolge.</span></div>
+                <div class="small"><b>Rendered state data</b><br><span>Diese Felder kommen aus dem State-Daten-Scope. Drag sortiert die Render-Reihenfolge.</span></div>
                 <div id="pDataWireList" class="data-wire-list"></div>
               </div>
               <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
               <textarea id="pSubscriptions" hidden></textarea>
-              <div class="hint">+ subscribes a path. Fetch data fields can become content.</div>
+              <div class="hint">Ein State hat entweder keinen globalState, den ganzen globalState (*) oder ausgewählte Pfade.</div>
             </div>
             <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
             <div class="data-source-panel repeat-panel">
-              <div class="small"><b>Auto repeat</b><br><span>Lists are detected from fetch/global state and rendered once per item.</span></div>
+              <div class="small"><b>Auto repeat</b><br><span>Listen werden aus dem State-Daten-Scope erkannt und pro Item gerendert.</span></div>
               <div class="field"><label>Detected list</label><select id="pRepeatPath"></select></div>
               <input id="pRepeatAs" type="hidden" value="item">
               <input id="pRepeatIndex" type="hidden" value="i">
@@ -10117,7 +10124,9 @@
         s.subscriptions = paths;
         subscriptions.value = paths.join("\n");
         subscriptionsPreview.className = "condition-preview" + (paths.length ? " ok" : " empty");
-        subscriptionsPreview.textContent = paths.length ? "Beobachtet: " + paths.join(", ") : "Keine Subscriptions.";
+        subscriptionsPreview.textContent = paths.length
+          ? (paths.includes("*") ? "State data scope: full globalState (*)" : "State data scope: " + paths.join(", "))
+          : "State data scope: none";
         renderGlobalStateSubscribeMap();
         if (!persist) return;
         saveModel("state:subscriptions:" + s.id);
@@ -10187,6 +10196,18 @@
         subscriptions.value = normalizeSubscriptions(paths).join("\n");
         updateSubscriptionsPreview(true);
       };
+      const ensureStateDataScopePath = path => {
+        const key = normalizeContextPath(path, "");
+        if (!key) return false;
+        const active = normalizeSubscriptions(s.subscriptions);
+        if (active.includes("*") || active.includes(key)) return false;
+        s.subscriptions = normalizeSubscriptions([...active, key]);
+        subscriptions.value = s.subscriptions.join("\n");
+        subscriptionsPreview.className = "condition-preview ok";
+        subscriptionsPreview.textContent = "State data scope: " + s.subscriptions.join(", ");
+        subscriptionCount.textContent = String(s.subscriptions.length);
+        return true;
+      };
       const collapsedGlobalJsonPaths = new Set();
       const dataWireSet = () => new Set(normalizeDataWires(s.dataWires).map(wire => wire.sourcePath));
       const persistDataWires = (historyKey = "state:data-wire:" + s.id) => {
@@ -10197,7 +10218,9 @@
         syncToApp(true);
       };
       const upsertDataWireForPath = (path, value = undefined) => {
-        const added = upsertDataWire(s, dataWireFromPath(s, path, value));
+        const wire = dataWireFromPath(s, path, value);
+        const added = upsertDataWire(s, wire);
+        ensureStateDataScopePath(wire.scopePath || wire.sourcePath);
         persistDataWires("state:data-wire:add:" + s.id);
         renderDataWireList();
         return added;
@@ -10229,7 +10252,7 @@
         if (!wires.length) {
           const empty = document.createElement("div");
           empty.className = "fetch-mapped-empty";
-          empty.textContent = "Noch keine Data-Wires. Klick + an einem JSON-Pfad.";
+          empty.textContent = "Noch keine Renderfelder. Klick + an einem JSON-Pfad.";
           dataWireList.appendChild(empty);
           return;
         }
