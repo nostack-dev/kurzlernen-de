@@ -699,6 +699,50 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerHud")).toBeVisible();
   });
 
+  test("keeps unprojected boundary proxy edges when only one parent side has wiring @smoke", async ({ page }) => {
+    await openTool(page);
+    await page.evaluate(() => {
+      model.transitions = model.transitions.filter(transition => transition.to !== "login");
+      saveModel("test:asymmetric-boundary-proxy");
+      draw();
+    });
+
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    const boundaryInputId = "boundary-flow:login:input";
+
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(1);
+    await expect(page.locator(`.edge[data-edge-id="t_login_error"]`)).toHaveCount(1);
+
+    const boundaryRoute = await page.evaluate(({ boundaryInputId, childId }) => {
+      const nums = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      const points = value => {
+        const values = nums(value);
+        const out = [];
+        for (let i = 0; i < values.length; i += 2) out.push({ x: values[i], y: values[i + 1] });
+        return out;
+      };
+      const portPoint = selector => {
+        const values = nums(document.querySelector(selector)?.getAttribute("transform") || "");
+        return { x: values[0], y: values[1] };
+      };
+      const inputProxyId = document.querySelector(".node.boundary-input")?.dataset.id || "";
+      const route = points(document.querySelector(`.edge[data-edge-id="${CSS.escape(boundaryInputId)}"]`)?.getAttribute("d") || "");
+      return {
+        inputProxyId,
+        start: route[0],
+        end: route[route.length - 1],
+        proxyOut: portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(inputProxyId)}"][data-port-side="out"]`),
+        childIn: portPoint(`svg#ports .svg-port[data-state-id="${CSS.escape(childId)}"][data-port-side="in"]`)
+      };
+    }, { boundaryInputId, childId });
+    expect(boundaryRoute.inputProxyId).toBeTruthy();
+    expect(boundaryRoute.start).toMatchObject(boundaryRoute.proxyOut);
+    expect(boundaryRoute.end.x).toBe(boundaryRoute.childIn.x);
+    expect(Math.abs(boundaryRoute.end.y - boundaryRoute.childIn.y)).toBeLessThanOrEqual(GRID_SIZE);
+  });
+
   test("rewires projected parent entry by dragging it to another child state @smoke", async ({ page }) => {
     await openTool(page);
 

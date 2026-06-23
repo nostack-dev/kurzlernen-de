@@ -5291,7 +5291,10 @@
     function visibleTransitions() {
       const base = transitionsInLayer(currentLayerId);
       const projected = projectedParentTransitions(currentLayerId);
-      const visibleBase = projected.length ? base.filter(transition => !transition.boundaryFlow) : base;
+      const projectedSides = new Set(projected.map(transition => transition.projection?.side).filter(Boolean));
+      const visibleBase = projectedSides.size
+        ? base.filter(transition => !transition.boundaryFlow || !projectedSides.has(transition.boundaryFlow.side))
+        : base;
       return [...visibleBase, ...projected];
     }
 
