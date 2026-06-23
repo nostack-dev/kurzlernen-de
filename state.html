@@ -7967,6 +7967,7 @@
       });
       const rerender = request => renderComponentEditors(s, request, root, options);
       const autoCreateRepeatComponents = () => {
+        autoDeriveRepeatForOwner(s, null, false);
         const repeat = normalizeRepeatConfig(s.repeat);
         if (!repeat.path) return;
         const current = normalizeComponents(s.components);
@@ -8587,7 +8588,8 @@
     }
 
     function dataPathLabel(path, fallback = "Value") {
-      const raw = String(path || "").split(".").filter(Boolean).pop() || fallback;
+      const parts = String(path || "").split(".").filter(Boolean).filter(part => !/^\d+$/.test(part));
+      const raw = parts.pop() || fallback;
       const spaced = raw
         .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
         .replace(/[_-]+/g, " ")
@@ -8780,6 +8782,61 @@
         return { title: "Item title", description: "Readable description.", image: "https://example.com/image.jpg", value: 1 };
       }
       return null;
+    }
+
+    function collectRepeatArrayCandidates(value, prefix, out = [], depth = 0, source = "data") {
+      if (!prefix || depth > 5 || out.length > 120) return out;
+      if (Array.isArray(value)) {
+        const sample = value.find(item => item && typeof item === "object") ?? value[0];
+        let score = 20;
+        if (sample && typeof sample === "object") score += 60;
+        if (/\b(data|items|products|results|rows|list|entries)\b/i.test(prefix)) score += 30;
+        if (/\.data$/i.test(prefix)) score += 50;
+        out.push({ path: prefix, source, score });
+        if (sample && typeof sample === "object") {
+          Object.entries(sample).slice(0, 30).forEach(([key, child]) => {
+            collectRepeatArrayCandidates(child, prefix + "." + key, out, depth + 1, source);
+          });
+        }
+        return out;
+      }
+      if (!value || typeof value !== "object") return out;
+      Object.entries(value).slice(0, 40).forEach(([key, child]) => {
+        collectRepeatArrayCandidates(child, prefix ? prefix + "." + key : key, out, depth + 1, source);
+      });
+      return out;
+    }
+
+    function autoRepeatPathForOwner(owner) {
+      if (!owner) return "";
+      const source = normalizeDataSource(owner.dataSource || owner.fetch);
+      const target = normalizeContextPath(source.target, "fetch");
+      if (String(source.url || "").trim()) return `${target}.data`;
+      const candidates = [];
+      if (isPlainObject(latestRuntimeContext)) {
+        Object.entries(latestRuntimeContext).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, "runtime"));
+      }
+      Object.entries(normalizeDataObject(owner.data)).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, "state"));
+      for (const state of model.states || []) {
+        if (state === owner) continue;
+        Object.entries(normalizeDataObject(state.data)).forEach(([key, value]) => collectRepeatArrayCandidates(value, key, candidates, 0, state.title || state.id || "state"));
+      }
+      const current = normalizeRepeatConfig(owner.repeat).path;
+      if (current) candidates.push({ path: current, source: "current", score: 10 });
+      const best = candidates
+        .filter(item => normalizeContextPath(item.path, ""))
+        .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))[0];
+      return best?.path || "";
+    }
+
+    function autoDeriveRepeatForOwner(owner, root = null, persist = false) {
+      const repeatPath = autoRepeatPathForOwner(owner);
+      if (!repeatPath) return false;
+      const previousPath = normalizeRepeatConfig(owner.repeat).path;
+      owner.repeat = normalizeRepeatConfig({ path: repeatPath, as: "item", index: "i" });
+      applyDerivedRepeatComponents(owner, repeatPath, root, false);
+      if (persist && repeatPath !== previousPath) saveModel("state:auto-repeat:" + owner.id);
+      return repeatPath !== previousPath;
     }
 
     function templateTouchesContextPath(value, path) {
@@ -8976,82 +9033,33 @@
       const as = root.querySelector("#pRepeatAs");
       const index = root.querySelector("#pRepeatIndex");
       const preview = root.querySelector("#pRepeatPreview");
-      const optionList = null;
       if (!path || !as || !index || !preview) return;
-      const addOption = (map, value, label = "Global State array") => {
-        const key = normalizeContextPath(value, "");
-        if (!key || map.has(key)) return;
-        map.set(key, label);
-      };
-      const collectArrayOptions = (value, prefix, map, depth = 0, label = "Data array") => {
-        if (!prefix || depth > 5 || map.size > 160) return;
-        if (Array.isArray(value)) {
-          addOption(map, prefix, label);
-          if (value.length) collectArrayOptions(value[0], prefix, map, depth + 1, label);
-          return;
-        }
-        if (!value || typeof value !== "object") return;
-        Object.entries(value).slice(0, 40).forEach(([key, child]) => {
-          collectArrayOptions(child, prefix ? prefix + "." + key : key, map, depth + 1, label);
-        });
-      };
-      const refreshOptions = () => {
-        const map = new Map();
-        if (isPlainObject(latestRuntimeContext)) {
-          Object.entries(latestRuntimeContext).forEach(([key, value]) => collectArrayOptions(value, key, map, 0, "Runtime array"));
-        }
-        for (const state of model.states || []) {
-          const stateLabel = state.title || state.id;
-          Object.entries(normalizeDataObject(state.data)).forEach(([key, value]) => collectArrayOptions(value, key, map, 0, `${stateLabel} data array`));
-          const source = normalizeDataSource(state.dataSource || state.fetch);
-          if (String(source.url || "").trim()) addOption(map, normalizeContextPath(source.target, "fetch") + ".data", `${stateLabel} fetch data`);
-          const repeat = normalizeRepeatConfig(state.repeat);
-          if (repeat.path) addOption(map, repeat.path, `${stateLabel} repeat`);
-        }
-        if (owner.repeat?.path) addOption(map, owner.repeat.path, "Current repeat");
-        const current = normalizeContextPath(path.value || owner.repeat?.path, "");
-        path.innerHTML = "";
-        const empty = document.createElement("option");
-        empty.value = "";
-        empty.textContent = "No repeat";
-        path.appendChild(empty);
-        [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 120).forEach(([value, label]) => {
-          const option = document.createElement("option");
-          option.value = value;
-          option.textContent = `${value} (${label})`;
-          path.appendChild(option);
-        });
-        if (current && !map.has(current)) {
-          const option = document.createElement("option");
-          option.value = current;
-          option.textContent = `${current} (Current repeat)`;
-          path.appendChild(option);
-        }
-        path.value = current;
-      };
       owner.repeat = normalizeRepeatConfig(owner.repeat);
-      path.value = owner.repeat.path;
       as.value = "item";
       index.value = "i";
+      path.hidden = true;
+      path.innerHTML = "";
       let previousRepeatPath = normalizeContextPath(owner.repeat.path, "");
       const update = (persist = true) => {
         const oldPath = previousRepeatPath;
-        owner.repeat = normalizeRepeatConfig({ path: path.value, as: "item", index: "i" });
+        const detectedPath = autoRepeatPathForOwner(owner);
+        owner.repeat = detectedPath
+          ? normalizeRepeatConfig({ path: detectedPath, as: "item", index: "i" })
+          : normalizeRepeatConfig(null);
+        path.value = owner.repeat.path;
         as.value = owner.repeat.as;
         index.value = owner.repeat.index;
-        preview.textContent = owner.repeat.path ? `Repeating ${owner.repeat.path}` : "";
-        preview.hidden = !owner.repeat.path;
+        preview.textContent = owner.repeat.path
+          ? `Auto detected list: ${owner.repeat.path}. Content parts are generated from each item.`
+          : "No repeatable list detected yet. Add a fetch endpoint or global-state array.";
+        preview.hidden = false;
         preview.className = "condition-preview compact-repeat-preview" + (owner.repeat.path ? " ok" : " empty");
-        if (persist && owner.repeat.path && owner.repeat.path !== oldPath) {
+        if (owner.repeat.path && owner.repeat.path !== oldPath) {
           applyDerivedRepeatComponents(owner, owner.repeat.path, root, false);
         }
         previousRepeatPath = normalizeContextPath(owner.repeat.path, "");
-        if (persist) persistOwner(`${historyPrefix}:repeat`);
+        if (persist && owner.repeat.path !== oldPath) persistOwner(`${historyPrefix}:repeat:auto`);
       };
-      path.onfocus = refreshOptions;
-      path.onchange = () => update(true);
-      path.onblur = () => { lastHistoryKey = null; refreshOptions(); };
-      refreshOptions();
       update(false);
     }
 
@@ -9539,8 +9547,8 @@
             </div>
             <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
             <div class="data-source-panel repeat-panel">
-              <div class="small"><b>Repeat</b><br><span>Render content once per selected array item.</span></div>
-              <div class="field"><label>Source</label><select id="pRepeatPath"></select></div>
+              <div class="small"><b>Auto repeat</b><br><span>Lists are detected from fetch/global state and rendered once per item.</span></div>
+              <div class="field" hidden><label>Source</label><select id="pRepeatPath"></select></div>
               <input id="pRepeatAs" type="hidden" value="item">
               <input id="pRepeatIndex" type="hidden" value="i">
               <div id="pRepeatPreview" class="condition-preview empty"></div>
