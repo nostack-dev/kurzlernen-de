@@ -1129,9 +1129,7 @@
 
     .svg-port-crescent {
       fill: var(--edge-color, #5f8dbc);
-      transform: rotate(180deg);
-      transform-box: fill-box;
-      transform-origin: center;
+      fill-rule: evenodd;
     }
 
     .svg-port-input .svg-port-symbol {
@@ -2411,70 +2409,60 @@
           <div class="template-body">Heading state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Heading</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_text">
           <div class="template-title">Text</div>
           <div class="template-body">Text state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Text</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_image">
           <div class="template-title">Image</div>
           <div class="template-body">Image state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Image</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_list">
           <div class="template-title">List</div>
           <div class="template-body">List state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ List</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_link">
           <div class="template-title">Link</div>
           <div class="template-body">Link state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Link</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_sound">
           <div class="template-title">Play sound</div>
           <div class="template-body">Play sound state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Play sound</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_note">
           <div class="template-title">Note</div>
           <div class="template-body">Note state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Note</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_component_divider">
           <div class="template-title">Divider</div>
           <div class="template-body">Divider state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Divider</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_fetch_data">
           <div class="template-title">Fetch data</div>
           <div class="template-body">Fetch data state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Fetch data</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_while_loop">
           <div class="template-title">While loop</div>
           <div class="template-body">While loop state preset</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ While loop</button>
-            <button class="template-inside" type="button" title="Add inside the selected state">Inside</button>
           </div>
         </div></div><div class="state-explorer-section user" data-template-group="user"><div class="state-template-empty">Drag a canvas state here, or use + Add preset for a custom state.</div></div></div>
       </div>
@@ -6787,8 +6775,9 @@
         }));
       } else {
         port.appendChild(svgEl("path", {
-          d: "M-5.6 -7.5 A7.5 7.5 0 1 1 -5.6 7.5 A4.7 4.7 0 1 0 -5.6 -7.5 Z",
-          class: "svg-port-crescent svg-port-input-symbol"
+          d: "M7.5 -7.5 A7.5 7.5 0 1 0 7.5 7.5 L2.5 7.5 A5 5 0 1 1 2.5 -7.5 Z",
+          class: "svg-port-crescent svg-port-input-symbol",
+          "fill-rule": "evenodd"
         }));
       }
       port.appendChild(svgEl("circle", {
@@ -8272,22 +8261,6 @@
         </div>
         <div class="small">State content</div>
         <div id="pComponents" class="component-list"></div>
-        <div class="inner-state-panel">
-          <div class="inner-state-panel-title">
-            <span>Inside this state</span>
-            <span id="pInnerCount"></span>
-          </div>
-          <div id="pInnerDropZone" class="inner-state-dropzone">Drop a State Explorer preset here to place it inside this state. Components are states too.</div>
-          <div id="pChildJumpList" class="child-jump-list"></div>
-          <div class="field" style="margin: 8px 0 4px;">
-            <label style="font-size: 10px; margin-bottom: 2px; text-transform: uppercase; font-weight: 900; color: var(--muted); letter-spacing: .05em;">Child state type</label>
-            <select id="pChildType" style="min-height: 34px; height: 34px; border-radius: 8px; font-size: 12px;"></select>
-          </div>
-          <div class="row">
-            <button id="pEnterLayer" type="button">Open canvas</button>
-            <button id="pAddInside" type="button">+ Add child</button>
-          </div>
-        </div>
         <div class="small">State id: <b>${escapeHtml(s.id)}</b></div>
         <div class="row" style="margin-top:10px">
           <button id="pInitial">Set initial</button>
@@ -8313,26 +8286,7 @@
       title.addEventListener("focus", () => title.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
-      root.querySelector("#pInnerCount").textContent = childStateCount(s.id) === 1 ? "1 state" : `${childStateCount(s.id)} states`;
-      renderChildJumpList(s, root);
-      const innerDropZone = root.querySelector("#pInnerDropZone");
-      innerDropZone.addEventListener("dragover", evt => {
-        if (!hasTemplateDrag(evt)) return;
-        evt.preventDefault();
-        evt.dataTransfer.dropEffect = "copy";
-        innerDropZone.classList.add("drag-over");
-      });
-      innerDropZone.addEventListener("dragleave", evt => {
-        if (!innerDropZone.contains(evt.relatedTarget)) innerDropZone.classList.remove("drag-over");
-      });
-      innerDropZone.addEventListener("drop", evt => {
-        const templateId = evt.dataTransfer.getData("text/state-template-id");
-        if (!templateId) return;
-        evt.preventDefault();
-        innerDropZone.classList.remove("drag-over");
-        addTemplateInside(templateId, s.id, { enter: false, selectTitle: false });
-      });
-      const updateDataPreview = () => {
+      const updateDataPreview = () => {      const updateDataPreview = () => {
         try {
           const parsed = JSON.parse(data.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
@@ -8565,28 +8519,7 @@
         scheduleSync(false);
       }, "state");
       renderComponentEditors(s, null, root);
-      const childTypeSelect = root.querySelector("#pChildType");
-      if (childTypeSelect) {
-        childTypeSelect.innerHTML = '<option value="blank">Blank State</option>';
-        builtinStateTemplates().forEach(template => {
-          const opt = document.createElement("option");
-          opt.value = template.id;
-          opt.textContent = template.title;
-          childTypeSelect.appendChild(opt);
-        });
-      }
-      const enterLayerButton = root.querySelector("#pEnterLayer");
-      enterLayerButton.textContent = "Double-click state to open";
-      enterLayerButton.disabled = true;
-      root.querySelector("#pAddInside").onclick = () => {
-        const typeValue = childTypeSelect ? childTypeSelect.value : "blank";
-        if (typeValue === "blank") {
-          addBlankStateInside(s.id, { enter: false, selectTitle: false });
-        } else {
-          addTemplateInside(typeValue, s.id, { enter: false, selectTitle: false });
-        }
-      };
-      root.querySelector("#pInitial").onclick = () => {
+      root.querySelector("#pInitial").onclick = () => {      root.querySelector("#pInitial").onclick = () => {
         model.initial = s.id;
         saveModel();
         draw();
@@ -9372,7 +9305,6 @@
           <div class="template-body"></div>
           <div class="template-actions">
             <button class="template-use" type="button">+ ${escapeHtml(template.title)}</button>
-            <button class="template-inside" type="button">Inside</button>
           </div>
         `;
         card.querySelector(".template-title").textContent = template.title;
@@ -9384,18 +9316,6 @@
         card.querySelector(".template-use").onclick = evt => {
           evt.stopPropagation();
           addTemplateToCurrentLayer(template);
-        };
-        const insideButton = card.querySelector(".template-inside");
-        insideButton.title = "Add inside the selected state";
-        insideButton.onclick = evt => {
-          evt.stopPropagation();
-          const targetId = singleSelectedNodeId();
-          const target = targetId ? byId(targetId) : null;
-          if (!target) {
-            void modalAlert("Select a state first, then add this preset inside it.", "No state selected");
-            return;
-          }
-          addTemplateInside(template.id, target.id, { enter: false, selectTitle: false });
         };
         card.addEventListener("dblclick", evt => {
           if (evt.target.closest("button, input, textarea")) return;
@@ -10564,11 +10484,6 @@
         count.textContent = transitions.length ? String(transitions.length) + " out" : "no out";
         head.append(title, count);
         section.appendChild(head);
-
-        const help = document.createElement("div");
-        help.className = "continuation-help";
-        help.textContent = "Jeder Eintrag ist genau ein echter Out-Port und eine echte Transition. Neue States bekommen keinen heimlichen Out.";
-        section.appendChild(help);
 
         const list = document.createElement("div");
         list.className = "continuation-list";
