@@ -106,9 +106,12 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("generatedFromRepeat");
     expect(html).toContain("applyDerivedRepeatComponents(owner, owner.repeat.path, root, false)");
     expect(html).toContain("derivedRepeatComponents(sample, \"item\")");
+    expect(html).toContain("function templateTouchesContextPath");
     expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
     expect(appHtml).toContain("function readableRepeatComponentsForRuntime");
     expect(appHtml).toContain("runtimeComponentIsRawDataDump");
+    expect(appHtml).toContain("runtimeTemplateTouchesPath");
+    expect(appHtml).toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
   test("fetch runtime uses one fresh active run, not a response cache @smoke", () => {
