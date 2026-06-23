@@ -1115,13 +1115,13 @@
 
     .svg-port-moon,
     .svg-port-crescent {
-      stroke: #07111f;
-      stroke-width: 2.6;
+      stroke: none;
+      stroke-width: 0;
       stroke-linecap: round;
       stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
       pointer-events: none;
-      filter: drop-shadow(0 0 6px rgba(15, 23, 42, .58));
+      filter: drop-shadow(0 0 5px rgba(15, 23, 42, .42));
     }
 
     .svg-port-moon {
@@ -1129,9 +1129,7 @@
     }
 
     .svg-port-crescent {
-      fill: var(--canvas-bg, #07111f);
-      stroke: var(--edge-color, #5f8dbc);
-      stroke-width: 3.1;
+      fill: var(--edge-color, #5f8dbc);
     }
 
     .svg-port-input .svg-port-symbol {
@@ -1178,13 +1176,11 @@
 
     .svg-port.runtime .svg-port-moon {
       fill: var(--runtime, #22c55e);
-      stroke: #07111f;
       filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
     }
 
     .svg-port.runtime .svg-port-crescent {
-      fill: var(--canvas-bg, #07111f);
-      stroke: var(--runtime, #22c55e);
+      fill: var(--runtime, #22c55e);
       filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
     }
 
@@ -1233,7 +1229,7 @@
     }
 
     .map.connecting .svg-port-input .svg-port-crescent {
-      stroke: var(--accent);
+      fill: var(--accent);
     }
 
 
@@ -6784,12 +6780,12 @@
         port.appendChild(svgEl("circle", {
           cx: 0,
           cy: 0,
-          r: 8.5,
+          r: 7.5,
           class: "svg-port-moon svg-port-output-symbol"
         }));
       } else {
         port.appendChild(svgEl("path", {
-          d: "M7.5 -9.5 A10 10 0 1 0 7.5 9.5 A6.2 6.2 0 1 1 7.5 -9.5 Z",
+          d: "M-5.6 -7.5 A7.5 7.5 0 1 1 -5.6 7.5 A4.7 4.7 0 1 0 -5.6 -7.5 Z",
           class: "svg-port-crescent svg-port-input-symbol"
         }));
       }
