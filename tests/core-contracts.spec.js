@@ -120,6 +120,26 @@ test.describe("Core source contracts", () => {
     }
   });
 
+  test("state tool text stays UTF-8 clean @smoke", () => {
+    const html = stateHtml();
+    const mojibakePattern = new RegExp("[\\u00c2\\u00c3\\ufffd]|\\u00e2(?:[\\u0080-\\u00bf]|[^\\x00-\\x7f])");
+
+    expect(html).not.toMatch(mojibakePattern);
+  });
+
+  test("generated blank runtime starts without editor-only helpers @smoke", async ({ page }) => {
+    await page.goto("/state.html");
+    await page.evaluate(key => localStorage.removeItem(key), STORAGE_KEY);
+
+    const pageErrors = [];
+    page.on("pageerror", error => pageErrors.push(error.message));
+
+    const appUrl = await page.evaluate(html => URL.createObjectURL(new Blob([html], { type: "text/html" })), generatedAppHtml());
+    await page.goto(appUrl);
+    await expect(page.locator("#appName")).toHaveText("Untitled Flow");
+    expect(pageErrors).toEqual([]);
+  });
+
   test("generated runtime keeps user content clean and event-driven @smoke", () => {
     const appHtml = generatedAppHtml();
     const actionHandler = appHtml.match(/button\.onclick = \(\) => \{[\s\S]*?\n\s*\};/);
