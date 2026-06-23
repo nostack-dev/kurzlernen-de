@@ -116,10 +116,12 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("applyDerivedRepeatComponents(owner, owner.repeat.path, root, false)");
     expect(html).toContain("derivedRepeatComponents(sample, \"item\")");
     expect(html).toContain("function templateTouchesContextPath");
+    expect(html).toContain('const childPrefix = prefix && isScalarDataValue(sample) ? prefix + ".0" : prefix;');
     expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
     expect(appHtml).toContain("function readableRepeatComponentsForRuntime");
     expect(appHtml).toContain("runtimeComponentIsRawDataDump");
     expect(appHtml).toContain("runtimeTemplateTouchesPath");
+    expect(appHtml).toContain('prefix + ".0"');
     expect(appHtml).toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
