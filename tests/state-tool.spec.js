@@ -683,13 +683,19 @@ test.describe("State Blueprint tool", () => {
         outputEnds: outputIds.map(id => {
           const points = edgePoints(id);
           return points[points.length - 1];
-        })
+        }),
+        inputStrokes: inputIds.map(id => getComputedStyle(document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)).stroke),
+        outputStrokes: outputIds.map(id => getComputedStyle(document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)).stroke)
       };
     }, wiring);
     expect(projectionPorts.inputProxyId).toBeTruthy();
     expect(projectionPorts.outputProxyId).toBeTruthy();
-    for (const point of projectionPorts.inputStarts) expect(point).toMatchObject(projectionPorts.inputPort);
-    for (const point of projectionPorts.outputEnds) expect(point).toMatchObject(projectionPorts.outputPort);
+    for (const point of projectionPorts.inputStarts) expect(point.x).toBe(projectionPorts.inputPort.x);
+    for (const point of projectionPorts.outputEnds) expect(point.x).toBe(projectionPorts.outputPort.x);
+    expect(new Set(projectionPorts.inputStarts.map(point => point.y)).size).toBe(projectionPorts.inputStarts.length);
+    expect(new Set(projectionPorts.outputEnds.map(point => point.y)).size).toBe(projectionPorts.outputEnds.length);
+    expect(new Set(projectionPorts.inputStrokes).size).toBe(projectionPorts.inputStrokes.length);
+    expect(new Set(projectionPorts.outputStrokes).size).toBe(projectionPorts.outputStrokes.length);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="in"]`)).toHaveCount(1);
     await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="out"]`)).toHaveCount(1);
 

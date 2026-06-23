@@ -7074,7 +7074,9 @@
 
     function edgeColor(transition, layerId = currentLayerId) {
       const source = projectedTransitionSource(transition);
-      const index = Math.max(0, transitionsInLayer(layerId).findIndex(item => item.id === source?.id));
+      const projectedParent = transition?.projection?.parentId ? byId(transition.projection.parentId) : null;
+      const colorLayerId = projectedParent ? projectedParent.parentId || null : layerId;
+      const index = Math.max(0, transitionsInLayer(colorLayerId).findIndex(item => item.id === source?.id));
       const hue = (195 + index * 137.508) % 360;
       return `hsl(${hue.toFixed(1)} 84% 62%)`;
     }
@@ -7158,10 +7160,13 @@
 
     function edgePortPoint(state, side, transition = null) {
       const anchor = nodeCenter(state, side);
-      if (state?.virtualProxy) return anchor;
       if (!transition) return anchor;
       const transitions = orderedPortTransitions(state.id, side);
       const index = transitions.findIndex(item => item.id === transition.id);
+      if (state?.virtualProxy) {
+        const offset = index >= 0 ? laneSlot(index) * GRID_SIZE : 0;
+        return { x: anchor.x, y: snapToGrid(anchor.y + offset) };
+      }
       let y = anchor.y;
       if (index >= 0) y = state.y + PORT_ANCHOR_Y + PORT_SLOT_GAP * (index + 1);
       y = Math.min(state.y + nodeHeight(state) - 10, Math.max(state.y + 10, y));
