@@ -8008,6 +8008,7 @@
     }
 
     function openFetchMapper(owner, ownerRoot, persistOwner, historyPrefix = "state") {
+      const DEFAULT_FETCH_PREVIEW_URL = "https://api.escuelajs.co/api/v1/products";
       const source = normalizeDataSource(owner.dataSource || owner.fetch);
       const backdrop = document.createElement("div");
       backdrop.className = "fetch-mapper-backdrop";
@@ -8034,7 +8035,7 @@
       const target = modal.querySelector("#pDataSourceTarget");
       const select = modal.querySelector("#pDataSourceSelect");
       const inspect = modal.querySelector("#pDataSourceInspect");
-      url.value = source.url;
+      url.value = source.url || DEFAULT_FETCH_PREVIEW_URL;
       target.value = source.target;
       select.value = source.select;
       const close = () => backdrop.remove();
@@ -8055,7 +8056,6 @@
         inspect.classList.remove("empty");
         const json = await detectFetchMapperJson(modal);
         if (!json || run !== detectRun) return;
-        persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
         renderJsonInspect(owner, modal, persistOwner, json, { status: "detected", contentType: "application/json" }, { ownerRoot, historyPrefix });
       };
       const scheduleDetect = () => {
