@@ -4078,7 +4078,7 @@
       const selectValid = isContextPath(rawSelect, { allowEmpty: true });
       if (!targetValid) return "Store at must be a dotted context path like fetch or users.result.";
       if (!selectValid) return "JSON path must be empty or a dotted response path like items.";
-      return `On state enter: fetch JSON into {{${source.target}}}. Components use {{${source.target}.data}}, transitions can check ${source.target}.ok or ${source.target}.count.`;
+      return `This state fetches JSON on enter. Click response fields in Automap to render them as UI; transitions can still react to ${source.target}.ok or ${source.target}.count.`;
     }
 
     function cloneComponents(components) {
@@ -8015,19 +8015,18 @@
       backdrop.innerHTML = `
         <div class="fetch-mapper-modal" role="dialog" aria-modal="true" aria-label="Fetch automap">
           <div class="fetch-mapper-head">
-            <div><h3>Fetch automap</h3><p>Endpoint einfügen, echte JSON-Response laden, dann Felder direkt als State-Content anklicken.</p></div>
+            <div><h3>Fetch automap</h3><p>Dieser State fetched beim Betreten. Klick ein Response-Feld an, dann wird es als UI gerendert.</p></div>
             <button class="fetch-mapper-close" type="button">Close</button>
           </div>
           <div class="fetch-mapper-grid">
             <div class="field"><label>Endpoint / JSON</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
-            <div class="field"><label>Store at</label><input id="pDataSourceTarget" placeholder="fetch"></div>
-            <div class="field"><label>Selected path</label><input id="pDataSourceSelect" placeholder="empty = whole response"></div>
+            <input id="pDataSourceTarget" type="hidden" value="fetch">
+            <input id="pDataSourceSelect" type="hidden">
           </div>
           <div class="row">
-            <button id="pFetchDetect" type="button">Detect response</button>
-            <button id="pFetchSave" type="button">Save fetch</button>
+            <button id="pFetchDetect" type="button">Refresh response</button>
           </div>
-          <div id="pDataSourceInspect" class="json-inspect empty">Paste an endpoint. The response tree appears here automatically.</div>
+          <div id="pDataSourceInspect" class="json-inspect empty">Endpoint einfügen. Die Response erscheint automatisch als klickbarer JSON-Baum.</div>
         </div>
       `;
       const modal = backdrop.querySelector(".fetch-mapper-modal");
@@ -8036,7 +8035,7 @@
       const select = modal.querySelector("#pDataSourceSelect");
       const inspect = modal.querySelector("#pDataSourceInspect");
       url.value = source.url || DEFAULT_FETCH_PREVIEW_URL;
-      target.value = source.target;
+      target.value = source.target || "fetch";
       select.value = source.select;
       const close = () => backdrop.remove();
       backdrop.querySelector(".fetch-mapper-close").onclick = close;
@@ -8047,7 +8046,7 @@
         clearTimeout(detectTimer);
         const raw = url.value.trim();
         if (!raw) {
-          inspect.textContent = "Paste a JSON endpoint first.";
+          inspect.textContent = "Endpoint einfügen, dann Response-Feld anklicken.";
           inspect.classList.add("empty");
           return;
         }
@@ -8062,7 +8061,7 @@
         clearTimeout(detectTimer);
         const raw = url.value.trim();
         if (!raw) {
-          inspect.textContent = "Paste an endpoint. The response tree appears here automatically.";
+          inspect.textContent = "Endpoint einfügen. Die Response erscheint automatisch als klickbarer JSON-Baum.";
           inspect.classList.add("empty");
           return;
         }
@@ -8070,11 +8069,8 @@
         inspect.classList.remove("empty");
         detectTimer = setTimeout(runDetect, 500);
       };
-      modal.querySelector("#pFetchSave").onclick = () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix);
       modal.querySelector("#pFetchDetect").onclick = runDetect;
       url.addEventListener("input", scheduleDetect);
-      target.addEventListener("input", () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix));
-      select.addEventListener("input", () => persistFetchMapperSource(owner, ownerRoot, modal, persistOwner, historyPrefix));
       document.body.appendChild(backdrop);
       url.focus({ preventScroll: true });
       if (url.value.trim()) scheduleDetect();
@@ -8345,7 +8341,7 @@
       inspect.appendChild(title);
       const metaLine = document.createElement("div");
       metaLine.className = "fetch-json-meta";
-      metaLine.innerHTML = "<span>Click + to render a response path.</span><span>Runtime: refetch on state enter into <b>" + escapeHtml(targetName()) + ".data</b></span>";
+      metaLine.innerHTML = "<span>Click + to render a response field.</span><span>State trigger: fetch on enter, fields resolve from global JSON.</span>";
       inspect.appendChild(metaLine);
 
       const tree = document.createElement("div");
@@ -8466,9 +8462,9 @@
         </div>
         <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
         <div class="data-source-panel fetch-source-panel">
-          <div class="small"><b>Fetch automap</b></div>
+          <div class="small"><b>Fetch on enter</b></div>
           <div id="pDataSourcePreview" class="condition-preview empty"></div>
-          <div class="row"><button id="pOpenFetchMapper" type="button">Open fetch automap</button></div>
+          <div class="row"><button id="pOpenFetchMapper" type="button">Add fetch content</button></div>
           <input id="pDataSourceUrl" type="hidden">
           <input id="pDataSourceTarget" type="hidden">
           <input id="pDataSourceSelect" type="hidden">
