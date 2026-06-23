@@ -31,11 +31,12 @@ function defaultTestModel() {
   };
 }
 async function openTool(page) {
-  await page.addInitScript(key => {
-    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+  await page.addInitScript(({ key, model }) => {
+    for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
-  }, STORAGE_KEY);
+    localStorage.setItem(key, JSON.stringify(model));
+  }, { key: STORAGE_KEY, model: defaultTestModel() });
   await page.goto("/state.html");
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
   await expect(page.locator(".node")).toHaveCount(8);
@@ -79,8 +80,8 @@ async function visibleBox(locator) {
 
 async function savedModel(page) {
   return page.evaluate(key => {
-    const stored = JSON.parse(localStorage.getItem(key) || "null");
-    if (stored) return stored;
+    const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+    if (stored) return stored.model || stored;
     if (typeof model !== "undefined") return JSON.parse(JSON.stringify(model));
     return null;
   }, STORAGE_KEY);
@@ -88,7 +89,8 @@ async function savedModel(page) {
 
 async function firstChildStateId(page, parentId) {
   const id = await page.evaluate(({ key, parentId }) => {
-    const model = JSON.parse(localStorage.getItem(key));
+    const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+    const model = stored?.model || stored;
     return model.states.find(state => state.parentId === parentId)?.id || "";
   }, { key: STORAGE_KEY, parentId });
   expect(id).toBeTruthy();
@@ -383,7 +385,8 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#pSet").fill('{"userName":"Grace","role":"member"}');
 
     const createdStateId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.states.find(state => !state.parentId && state.id !== "start").id;
     }, STORAGE_KEY);
 
@@ -474,7 +477,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -516,7 +519,7 @@ test.describe("State Blueprint tool", () => {
     ];
 
     await page.addInitScript(({ key, model, templates }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -583,7 +586,8 @@ test.describe("State Blueprint tool", () => {
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeHidden();
     await expect(page.locator('[data-id="login"] .layer-badge')).toHaveText("1 state");
-    await expect(page.locator(".node")).toHaveCount(4);
+    await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(6);
 
     await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
@@ -649,8 +653,8 @@ test.describe("State Blueprint tool", () => {
     const directFlow = await gridGeometryReport(page);
     expect(directFlow.paths).toHaveLength(4);
     expect(directFlow.paths.every(path => path.points.length >= 2)).toBe(true);
-    expect(directFlow.portSlots.some(slot => slot.nodeId === childId && slot.side === "in")).toBe(true);
-    expect(directFlow.portSlots.some(slot => slot.nodeId === childId && slot.side === "out")).toBe(true);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="in"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="out"]`)).toHaveCount(1);
 
     await page.locator("#layerBack").click();
     await expect(page.locator("#layerFrame")).toBeHidden();
@@ -711,7 +715,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -759,7 +763,8 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(`[data-id="${firstChildId}"]`)).toBeVisible();
     await expect(page.locator(`[data-id="${secondChildId}"]`)).toBeVisible();
     const innerEdgeId = await page.evaluate(({ key, from, to }) => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.transitions.find(transition => transition.from === from && transition.to === to)?.id || "";
     }, { key: STORAGE_KEY, from: firstChildId, to: secondChildId });
     expect(innerEdgeId).toBeTruthy();
@@ -1051,7 +1056,7 @@ test.describe("State Blueprint tool", () => {
 
   test("keeps the DOM and SVG map renderer as the fallback path", async ({ page }) => {
     await page.addInitScript(key => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       const nativeGetContext = HTMLCanvasElement.prototype.getContext;
@@ -1075,7 +1080,7 @@ test.describe("State Blueprint tool", () => {
 
   test("uses HTML-in-Canvas when drawElementImage is available", async ({ page }) => {
     await page.addInitScript(key => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       const drawElementImage = function(element, x, y) {
@@ -1462,6 +1467,7 @@ test.describe("State Blueprint tool", () => {
     };
     await page.addInitScript(({ key, model }) => {
       localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
@@ -1520,6 +1526,7 @@ test.describe("State Blueprint tool", () => {
     };
     await page.addInitScript(({ key, model }) => {
       localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
@@ -1556,6 +1563,7 @@ test.describe("State Blueprint tool", () => {
     };
     await page.addInitScript(({ key, model }) => {
       localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
@@ -1594,6 +1602,7 @@ test.describe("State Blueprint tool", () => {
     };
     await page.addInitScript(({ key, model }) => {
       localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
@@ -1638,6 +1647,7 @@ test.describe("State Blueprint tool", () => {
     };
     await page.addInitScript(({ key, model }) => {
       localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
@@ -1925,7 +1935,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -2053,7 +2063,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -2113,7 +2123,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -2174,7 +2184,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -2253,7 +2263,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -2335,7 +2345,7 @@ test.describe("State Blueprint tool", () => {
     };
 
     await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
       localStorage.setItem(key, JSON.stringify(model));
@@ -2581,7 +2591,8 @@ test.describe("State Blueprint tool", () => {
   test("reroutes an existing transition from the arrowhead with Alt-drag", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
     }, STORAGE_KEY);
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
@@ -2605,7 +2616,8 @@ test.describe("State Blueprint tool", () => {
   test("reroutes an existing transition into a self-loop from the arrowhead", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
     }, STORAGE_KEY);
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
@@ -2824,7 +2836,8 @@ test.describe("State Blueprint tool", () => {
       draw();
     });
     const loginEdgeId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
     }, STORAGE_KEY);
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
@@ -2854,7 +2867,8 @@ test.describe("State Blueprint tool", () => {
     await page.setViewportSize({ width: 390, height: 820 });
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
     }, STORAGE_KEY);
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
@@ -3151,6 +3165,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.addInitScript(({ key, model }) => {
       localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
       localStorage.removeItem(`${key}.camera`);
       localStorage.removeItem(`${key}.previewCollapsed`);
       localStorage.removeItem(`${key}.stateExplorer`);
@@ -3231,7 +3246,8 @@ test.describe("State Blueprint tool", () => {
   test("shift-click toggles mixed selections and undo redo restores empty-canvas deselection", async ({ page }) => {
     await openTool(page);
     const loginEdgeId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
       return model.transitions.find(t => t.from === "auth_start" && t.label === "Login").id;
     }, STORAGE_KEY);
     const login = page.locator('[data-id="login"]');

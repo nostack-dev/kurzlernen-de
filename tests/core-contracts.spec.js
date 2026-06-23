@@ -75,18 +75,19 @@ async function openStateInspector(page, id) {
 }
 
 async function openTool(page) {
-  await page.addInitScript(key => {
-    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+  await page.addInitScript(({ key, model }) => {
+    for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
-  }, STORAGE_KEY);
+    localStorage.setItem(key, JSON.stringify(model));
+  }, { key: STORAGE_KEY, model: defaultTestModel() });
   await page.goto("/state.html");
   await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
 }
 
 async function openWithModel(page, model) {
   await page.addInitScript(({ key, model }) => {
-    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+    for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
     localStorage.setItem(key, JSON.stringify(model));

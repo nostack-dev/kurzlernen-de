@@ -35,7 +35,7 @@ function nestedCompositeModel() {
 
 async function openWithModel(page, model) {
   await page.addInitScript(({ key, model }) => {
-    for (const name of [key, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+    for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
       localStorage.removeItem(name);
     }
     localStorage.setItem(key, JSON.stringify(model));
@@ -46,8 +46,8 @@ async function openWithModel(page, model) {
 
 async function savedModel(page) {
   return page.evaluate(key => {
-    const stored = JSON.parse(localStorage.getItem(key) || "null");
-    if (stored) return stored;
+    const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+    if (stored) return stored.model || stored;
     if (typeof model !== "undefined") return JSON.parse(JSON.stringify(model));
     return null;
   }, STORAGE_KEY);

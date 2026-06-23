@@ -3321,14 +3321,12 @@
       evt.stopPropagation();
       if (!isTouchPointer(evt)) return;
       evt.preventDefault();
-      if (Date.now() < suppressLayerExitUntil) return;
-      exitCurrentLayer();
+      exitCurrentLayer({ force: true });
     });
     layerBackEl.addEventListener("click", evt => {
       evt.preventDefault();
       evt.stopPropagation();
-      if (Date.now() < suppressLayerExitUntil) return;
-      exitCurrentLayer();
+      exitCurrentLayer({ force: true });
     });
 
     function loadModel() {
@@ -5426,7 +5424,7 @@
 
     function enterStateLayer(stateId, opts = {}) {
       if (opts.source !== "node-dblclick") return;
-      if (!opts.force && Date.now() < suppressExplicitLayerEnterUntil) return;
+      if (!opts.force && !opts.explicit && Date.now() < suppressExplicitLayerEnterUntil) return;
       if (!opts.force && !opts.explicit && Date.now() < suppressLayerEnterUntil) return;
       const state = byId(stateId);
       if (!state || state.virtualProxy) return;
@@ -5451,8 +5449,8 @@
       lastTouchNodeTap = null;
     }
 
-    function exitCurrentLayer() {
-      if (Date.now() < suppressLayerExitUntil) return;
+    function exitCurrentLayer(opts = {}) {
+      if (!opts.force && Date.now() < suppressLayerExitUntil) return;
       const parent = byId(currentLayerId)?.parentId || null;
       navigateToLayer(parent, "layer:exit", { fit: true });
     }
@@ -7690,10 +7688,11 @@
 
     function updateLayerFrame(states) {
       const parent = currentLayerContainer();
-      if (!parent) {
+      if (!parent || parent.rootLayer) {
         layerFrameEl.style.display = "none";
         layerHudEl.hidden = true;
-        layerFrameLabelEl.textContent = "";
+        layerBackEl.hidden = true;
+        layerFrameLabelEl.textContent = parent?.rootLayer ? "Root" : "";
         return;
       }
       const padX = GRID_SIZE * 4;
@@ -11368,8 +11367,6 @@
       lastCreatedStateId = s.id;
       lastCreatedStateTime = Date.now();
       lastTouchNodeTap = null;
-      suppressLayerExitUntil = Date.now() + 800;
-      suppressLayerEnterUntil = Date.now() + 500;
       suppressRuntimeLayerFollowUntil = Date.now() + 1200;
       saveModel();
       currentLayerId = layerBeforeCreate && byId(layerBeforeCreate) ? layerBeforeCreate : null;
