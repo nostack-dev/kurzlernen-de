@@ -8328,6 +8328,17 @@
           repeatPath.dispatchEvent(new Event("input", { bubbles: true }));
         }
         select.dispatchEvent(new Event("input", { bubbles: true }));
+        const subscriptionPath = normalizeContextPath(store + ".data", "fetch.data");
+        const currentSubscriptions = Array.isArray(owner.subscriptions) ? owner.subscriptions : [];
+        owner.subscriptions = Array.from(new Set([
+          ...currentSubscriptions.map(path => normalizeContextPath(path, "")).filter(Boolean),
+          subscriptionPath
+        ]));
+        const subscriptionInput = ownerRoot.querySelector("#pSubscriptions");
+        if (subscriptionInput) {
+          subscriptionInput.value = owner.subscriptions.join("\n");
+          subscriptionInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
         persistPick();
         const binding = bindingFor(cleanPath, rootIsArray && fromRootArrayItem, value);
         const added = appendAutomappedComponent(cleanPath, value, binding, rootIsArray && fromRootArrayItem);
