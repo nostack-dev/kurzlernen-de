@@ -62,6 +62,19 @@ async function openWithModel(page, model) {
 }
 
 test.describe("Core source contracts", () => {
+  test("APP_HTML string keeps nested script end tags escaped @smoke", () => {
+    const html = stateHtml();
+    const marker = 'const APP_HTML = "';
+    const start = html.indexOf(marker);
+    expect(start, "APP_HTML declaration exists").toBeGreaterThanOrEqual(0);
+    const appUrlIndex = html.indexOf('const APP_URL', start);
+    expect(appUrlIndex, "APP_URL follows APP_HTML").toBeGreaterThan(start);
+    const rawLiteral = html.slice(start, appUrlIndex);
+
+    expect(rawLiteral).toContain('<\\/script>');
+    expect(rawLiteral).not.toContain('</script>');
+  });
+
   test("generated self-contained app script stays syntactically valid @smoke", () => {
     const appHtml = generatedAppHtml();
     const scripts = [...appHtml.matchAll(/<script>\s*([\s\S]*?)<\/script>/gi)].map(match => match[1]);
