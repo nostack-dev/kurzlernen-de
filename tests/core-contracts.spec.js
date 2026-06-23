@@ -128,6 +128,10 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function pickDerivedRepeatFields");
     expect(html).toContain("function repeatSampleForPath");
     expect(html).toContain("function repeatComponentMeta");
+    expect(html).toContain("function columnarRepeatEntries");
+    expect(html).toContain("function columnarRepeatItems");
+    expect(html).toContain("function repeatValueItems");
+    expect(html).toContain("isColumnarRepeatObject(value)");
     expect(html).toContain("function repeatCandidateDataScore");
     expect(html).toContain("function collectRepeatArrayCandidates");
     expect(html).toContain("function repeatCandidatesForOwner");
@@ -152,6 +156,9 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function templateTouchesContextPath");
     expect(html).toContain('const childPrefix = prefix && isScalarDataValue(sample) ? prefix + ".0" : prefix;');
     expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
+    expect(appHtml).toContain("function runtimeColumnarRepeatEntries");
+    expect(appHtml).toContain("function runtimeRepeatValueItems");
+    expect(appHtml).toContain("const repeated = runtimeRepeatValueItems(repeatedValue)");
     expect(appHtml).toContain("function readableRepeatComponentsForRuntime");
     expect(appHtml).toContain("runtimeComponentIsRawDataDump");
     expect(appHtml).toContain("runtimeTemplateTouchesPath");
