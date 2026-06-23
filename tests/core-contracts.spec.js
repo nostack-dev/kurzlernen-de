@@ -98,6 +98,7 @@ test.describe("Core source contracts", () => {
 
   test("repeat sources derive readable components from array samples @smoke", () => {
     const html = stateHtml();
+    const appHtml = generatedAppHtml();
 
     expect(html).toContain("function derivedRepeatComponents");
     expect(html).toContain("function pickDerivedRepeatFields");
@@ -105,6 +106,9 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("generatedFromRepeat");
     expect(html).toContain("applyDerivedRepeatComponents(owner, owner.repeat.path, root, false)");
     expect(html).toContain("derivedRepeatComponents(sample, \"item\")");
+    expect(appHtml).toContain("function runtimeDerivedRepeatComponents");
+    expect(appHtml).toContain("function readableRepeatComponentsForRuntime");
+    expect(appHtml).toContain("runtimeComponentIsRawDataDump");
   });
 
   test("fetch runtime uses one fresh active run, not a response cache @smoke", () => {
