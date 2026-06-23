@@ -1066,7 +1066,7 @@
       stroke: var(--edge-color, #5f8dbc) !important;
       stroke-width: 3.2 !important;
       vector-effect: non-scaling-stroke;
-      filter: drop-shadow(0 0 5px rgba(15, 23, 42, .55));
+      filter: none;
     }
 
     .svg-port-output .svg-port-plug,
@@ -1083,7 +1083,7 @@
       stroke: #07111f !important;
       stroke-width: 2.4 !important;
       vector-effect: non-scaling-stroke;
-      filter: drop-shadow(0 0 6px rgba(15, 23, 42, .58));
+      filter: none;
     }
 
     .svg-port-input .svg-port-socket-hole,
@@ -1109,7 +1109,7 @@
       stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
       pointer-events: none;
-      filter: drop-shadow(0 0 5px rgba(15, 23, 42, .55));
+      filter: none;
     }
 
     .svg-port-moon,
@@ -1120,7 +1120,7 @@
       stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
       pointer-events: none;
-      filter: drop-shadow(0 0 5px rgba(15, 23, 42, .42));
+      filter: none;
     }
 
     .svg-port-moon {
@@ -1151,7 +1151,7 @@
     .runtime.input-port.svg-port .svg-port-socket {
       fill: var(--canvas-bg, #07111f) !important;
       stroke: var(--runtime, #22c55e) !important;
-      filter: drop-shadow(0 0 9px rgba(34, 197, 94, .72));
+      filter: none;
     }
 
     .svg-port.runtime.svg-port-output .svg-port-plug,
@@ -1166,33 +1166,33 @@
     .runtime.port-slot-output.svg-port .svg-port-plug {
       fill: var(--runtime, #22c55e) !important;
       stroke: #07111f !important;
-      filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
+      filter: none;
     }
 
     .svg-port.runtime .svg-port-symbol {
       stroke: var(--runtime, #22c55e);
-      filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
+      filter: none;
     }
 
     .svg-port.runtime .svg-port-moon {
       fill: var(--runtime, #22c55e);
-      filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
+      filter: none;
     }
 
     .svg-port.runtime .svg-port-crescent {
       fill: var(--runtime, #22c55e);
-      filter: drop-shadow(0 0 10px rgba(34, 197, 94, .75));
+      filter: none;
     }
 
     @keyframes portEnterPulse {
-      0% { opacity: .78; filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
-      42% { opacity: 1; filter: drop-shadow(0 0 14px rgba(34,197,94,.92)); }
-      100% { opacity: 1; filter: drop-shadow(0 0 7px rgba(34,197,94,.62)); }
+      0% { opacity: .72; }
+      42% { opacity: 1; }
+      100% { opacity: 1; }
     }
 
     @keyframes portExitPulse {
-      0% { opacity: 1; filter: drop-shadow(0 0 10px rgba(148,163,184,.52)); }
-      100% { opacity: .84; filter: none; }
+      0% { opacity: 1; }
+      100% { opacity: .84; }
     }
 
     .svg-port-output {
@@ -1201,23 +1201,6 @@
 
     .svg-port-input {
       cursor: default;
-    }
-
-    .svg-port-output:hover,
-    .map.connecting .svg-port-input {
-      filter: drop-shadow(0 0 6px rgba(56,189,248,.7));
-    }
-
-    .svg-port-output:hover .svg-port-plug {
-      fill: var(--accent) !important;
-    }
-
-    .svg-port-output:hover .svg-port-symbol {
-      stroke: var(--accent);
-    }
-
-    .svg-port-output:hover .svg-port-moon {
-      fill: var(--accent);
     }
 
     .map.connecting .svg-port-input .svg-port-socket {
@@ -1230,6 +1213,12 @@
 
     .map.connecting .svg-port-input .svg-port-moon {
       fill: var(--accent);
+      filter: drop-shadow(0 0 7px rgba(56,189,248,.72));
+    }
+
+    .svg-port.connecting-source-port .svg-port-moon {
+      fill: var(--accent);
+      filter: drop-shadow(0 0 7px rgba(56,189,248,.72));
     }
 
 
@@ -6760,6 +6749,8 @@
       const point = svgStatePortPoint(state, side);
       const classes = ["svg-port", side === "out" ? "svg-port-output" : "svg-port-input"];
       if (state.id === currentAppState) classes.push("runtime");
+      const sourceSide = connecting?.fromSide || "out";
+      if (connecting?.from === state.id && side === sourceSide) classes.push("connecting-source-port");
       const port = svgEl("g", {
         transform: `translate(${point.x} ${point.y})`,
         class: classes.join(" "),
