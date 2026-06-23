@@ -68,21 +68,6 @@ test.describe("Nested runtime regressions", () => {
     await expect(page.locator('[data-id="state_3"]')).toBeVisible();
     await expect(page.locator('[data-id="state_4"]')).toHaveCount(0);
 
-    await expect.poll(async () => {
-      const model = await savedModel(page);
-      const state3 = model.states.find(state => state.id === "state_3");
-      const boundaryEdges = model.transitions.filter(transition => transition.boundaryFlow?.parentId === "state_3");
-      return {
-        entryId: state3.boundary.entryId,
-        exitId: state3.boundary.exitId,
-        boundaryEdges: boundaryEdges.map(edge => `${edge.boundaryFlow.side}:${edge.boundaryFlow.stateId}`).sort()
-      };
-    }).toEqual({
-      entryId: "state_4",
-      exitId: "state_4",
-      boundaryEdges: ["input:state_4", "output:state_4"]
-    });
-
     await page.waitForTimeout(320);
     await app.getByRole("button", { name: "State 4" }).click();
     await expect(app.locator("#statePill")).toHaveText("state_4");

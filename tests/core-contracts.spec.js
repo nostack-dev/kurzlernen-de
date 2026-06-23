@@ -348,7 +348,7 @@ test.describe("Core browser contracts", () => {
 
     const repeat = page.locator("#pRepeatPath");
     await expect(repeat).toHaveJSProperty("tagName", "SELECT");
-    await expect(repeat.locator("option", { hasText: "No repeat" })).toBeVisible();
+    await expect(repeat.locator("option", { hasText: /No repeat|No repeated list/ })).toHaveCount(1);
     await expect(page.locator("#pRepeatPathList")).toHaveCount(0);
   });
 

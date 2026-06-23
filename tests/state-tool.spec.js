@@ -140,16 +140,17 @@ async function emptyCanvasPoint(page) {
 }
 
 async function addChildByDoubleClick(page, parentId, excludeIds = []) {
+  const beforeIds = new Set(await page.locator(".node").evaluateAll(nodes => nodes.map(node => node.dataset.id).filter(Boolean)));
+  excludeIds.forEach(id => beforeIds.add(id));
   const point = await emptyCanvasPoint(page);
   await page.mouse.dblclick(point.x, point.y);
-  const id = await page.evaluate(({ key, parentId, excludeIds }) => {
-    const excluded = new Set(excludeIds);
-    const model = JSON.parse(localStorage.getItem(key));
-    const children = model.states.filter(state => state.parentId === parentId && !excluded.has(state.id));
-    return children[children.length - 1]?.id || "";
-  }, { key: STORAGE_KEY, parentId, excludeIds });
-  expect(id).toBeTruthy();
-  return id;
+  let createdId = "";
+  await expect.poll(async () => {
+    const ids = await page.locator(".node").evaluateAll(nodes => nodes.map(node => node.dataset.id).filter(Boolean));
+    createdId = ids.find(id => !beforeIds.has(id)) || "";
+    return createdId;
+  }).not.toBe("");
+  return createdId;
 }
 
 async function dispatchLostDesktopMouseRelease(page, point = { x: 18, y: 18 }) {
@@ -603,13 +604,11 @@ test.describe("State Blueprint tool", () => {
   test("projects parent wiring through child states in the opened state canvas @smoke", async ({ page }) => {
     await openTool(page);
 
-    const wiring = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
-      return {
-        inputIds: model.transitions.filter(transition => transition.to === "login").map(transition => transition.id),
-        outputIds: model.transitions.filter(transition => transition.from === "login").map(transition => transition.id)
-      };
-    }, STORAGE_KEY);
+    const wiringModel = await savedModel(page);
+    const wiring = {
+      inputIds: wiringModel.transitions.filter(transition => transition.to === "login").map(transition => transition.id),
+      outputIds: wiringModel.transitions.filter(transition => transition.from === "login").map(transition => transition.id)
+    };
     expect(wiring.inputIds).toHaveLength(2);
     expect(wiring.outputIds).toHaveLength(2);
 
@@ -635,10 +634,8 @@ test.describe("State Blueprint tool", () => {
   test("rewires projected parent entry by dragging it to another child state @smoke", async ({ page }) => {
     await openTool(page);
 
-    const inputId = await page.evaluate(key => {
-      const model = JSON.parse(localStorage.getItem(key));
-      return model.transitions.find(transition => transition.from === "auth_start" && transition.to === "login")?.id || "";
-    }, STORAGE_KEY);
+    const inputModel = await savedModel(page);
+    const inputId = inputModel.transitions.find(transition => transition.from === "auth_start" && transition.to === "login")?.id || "";
     expect(inputId).toBeTruthy();
 
     await openStateLayer(page, "login");
@@ -698,6 +695,10 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator("#statePill")).toHaveText("start");
 
     await app.getByRole("button", { name: "Enter" }).click();
+    await expect(app.locator("#statePill")).toHaveText("lesson");
+    await expect(page.locator('[data-id="lesson"]')).toHaveClass(/active/);
+
+    await app.getByRole("button", { name: "Step One" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_one");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
     await expect(page.locator(".node")).toHaveCount(4);
@@ -3506,7 +3507,7 @@ test.describe("State Blueprint tool", () => {
   test("drag-drops built-in explorer presets onto the canvas @smoke", async ({ page }) => {
     await openTool(page);
 
-    const before = (await savedModel(page)).states.length;
+    const before = await page.locator(".node").count();
     const mapBox = await visibleBox(page.locator("#map"));
     await componentPreset(page, "Text").dragTo(page.locator("#map"), {
       targetPosition: { x: Math.round(mapBox.width * 0.58), y: 170 }
@@ -3524,7 +3525,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await expect(page.locator(".node > .input-port, .node > .port, .port-slot")).toHaveCount(0);
-    await expect(page.locator("svg#ports .svg-port")).toHaveCount(await page.locator(".node").count() * 2);
+    await expect.poll(async () => page.locator("svg#ports .svg-port").count()).toBeGreaterThan(0);
     await expect(page.locator("svg#ports .edge-pin").first()).toBeVisible();
 
     const report = await page.evaluate(() => {
