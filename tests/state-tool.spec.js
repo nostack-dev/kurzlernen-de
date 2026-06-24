@@ -3658,6 +3658,85 @@ test.describe("State Blueprint tool", () => {
     expect(metrics.obstacleSearches || 0).toBe(0);
   });
 
+  test("updates layer bounds and boundary proxy pins during live state drag @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Live boundary drag",
+      initial: "left",
+      states: [
+        { id: "left", title: "Left", body: "", x: 96, y: 192 },
+        { id: "right", title: "Right", body: "", x: 504, y: 192 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Next", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+      window.__stateBlueprintRouteMetrics = {};
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:output"]')).toHaveCount(1);
+
+    const liveBoundaryGeometry = () => page.evaluate(() => {
+      const nums = value => (String(value || "").match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      const frame = document.querySelector("#layerFrame");
+      const proxy = document.querySelector('.node.boundary-output[data-id="proxy:__root__:output:__boundary_output"]');
+      const port = document.querySelector('svg#ports .svg-port[data-state-id="proxy:__root__:output:__boundary_output"][data-port-side="in"]');
+      const pin = document.querySelector('.edge-pin[data-edge-id="boundary-flow:__root__:output"][data-edge-pin="in"]');
+      const edge = document.querySelector('.edge[data-edge-id="boundary-flow:__root__:output"]');
+      const points = nums(edge?.getAttribute("d") || "");
+      const portPoint = nums(port?.getAttribute("transform") || "");
+      return {
+        frameTop: Number.parseFloat(frame?.style.top || "0"),
+        frameHeight: Number.parseFloat(frame?.style.height || "0"),
+        proxyTop: Number.parseFloat(proxy?.style.top || "0"),
+        portX: portPoint[0],
+        portY: portPoint[1],
+        pinX: Number.parseFloat(pin?.getAttribute("cx") || "0"),
+        pinY: Number.parseFloat(pin?.getAttribute("cy") || "0"),
+        edgeEndX: points[points.length - 2],
+        edgeEndY: points[points.length - 1]
+      };
+    });
+
+    const before = await liveBoundaryGeometry();
+    const rightBox = await visibleBox(page.locator('[data-id="right"]'));
+    const start = { x: rightBox.x + rightBox.width / 2, y: rightBox.y + rightBox.height / 2 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.evaluate(() => { window.__stateBlueprintRouteMetrics = {}; });
+    await page.mouse.move(start.x + 96, start.y + 216, { steps: 16 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+
+    const duringDrag = await liveBoundaryGeometry();
+    expect(duringDrag.frameHeight).toBeGreaterThan(before.frameHeight);
+    expect(duringDrag.proxyTop).not.toBe(before.proxyTop);
+    expect(duringDrag.portY).not.toBe(before.portY);
+    expect(duringDrag.pinY).not.toBe(before.pinY);
+    expect(duringDrag.pinX).toBe(duringDrag.portX);
+    expect(duringDrag.pinY).toBe(duringDrag.portY);
+    expect(duringDrag.edgeEndX).toBe(duringDrag.portX);
+    expect(duringDrag.edgeEndY).toBe(duringDrag.portY);
+    const metrics = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
+    expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
+
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRouteMetrics.finalRouteBuilds || 0)).toBeGreaterThan(0);
+    const afterRelease = await liveBoundaryGeometry();
+    expect(afterRelease.frameHeight).toBe(duringDrag.frameHeight);
+    expect(afterRelease.proxyTop).toBe(duringDrag.proxyTop);
+    expect(afterRelease.portY).toBe(duringDrag.portY);
+    expect(afterRelease.pinY).toBe(duringDrag.pinY);
+  });
+
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
     await openTool(page);
 

@@ -6767,6 +6767,18 @@
       return true;
     }
 
+    function updateLiveDraggedLayerGeometry(state) {
+      updateLayerFrame(statesInLayer(currentLayerId));
+      syncBoundaryProxies(currentLayerContainer(), statesInLayer(currentLayerId));
+      const layerId = currentLayerId || null;
+      for (const proxy of _virtualNodes.values()) {
+        if (proxy.virtualProxy?.layerId !== layerId) continue;
+        updateNodeElementPosition(proxy);
+        updateSvgStatePortPositions(proxy);
+      }
+      if (state) updateSvgStatePortPositions(state);
+    }
+
     function updateDraggedStateEdges(stateId) {
       _frameRoutes = computeFrameRoutes({
         metricName: "liveDragRouteBuilds",
@@ -6792,20 +6804,23 @@
       const endPin = routePoints[routePoints.length - 1];
       const tip = edgeTipHandlePointForRoute(routePoints);
       const selector = `[data-edge-id="${cssEscapeValue(transition.id)}"]`;
-      for (const el of wiresEl.querySelectorAll(selector)) {
+      for (const el of [...wiresEl.querySelectorAll(selector), ...getPortOverlay().querySelectorAll(selector)]) {
         if (el.matches("path.hit,path.edge")) el.setAttribute("d", pathD);
         else if (el.matches("path.edge-arrow")) el.setAttribute("d", arrowD);
         else if (el.matches("text.edge-label")) {
           el.setAttribute("x", String(middle.x));
           el.setAttribute("y", String(middle.y));
         } else if (el.matches("circle.edge-pin")) {
-          if (el.dataset.pin === "start") {
+          if (el.dataset.edgePin === "out" || el.dataset.pin === "start") {
             el.setAttribute("cx", String(startPin.x));
             el.setAttribute("cy", String(startPin.y));
           } else {
             el.setAttribute("cx", String(endPin.x));
             el.setAttribute("cy", String(endPin.y));
           }
+        } else if (el.matches("circle.edge-tip-hit")) {
+          el.setAttribute("cx", String(tip.x));
+          el.setAttribute("cy", String(tip.y));
         } else if (el.matches("rect.edge-tip-hit")) {
           el.setAttribute("x", String(tip.x - 12));
           el.setAttribute("y", String(tip.y - 12));
@@ -11992,7 +12007,7 @@
 
         if (positionChanged || (!wasMoved && dragging.moved)) {
           if (updateNodeElementPosition(s)) {
-            updateSvgStatePortPositions(s);
+            updateLiveDraggedLayerGeometry(s);
             updateDraggedStateEdges(s.id);
           }
         }
