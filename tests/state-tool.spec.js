@@ -1087,6 +1087,19 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).getByText("Manual note for Ada")).toBeVisible();
   });
 
+  test("syncs render editor changes to preview without reloading the state @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateInspector(page, "auth_start");
+
+    await expect(appFrame(page).getByText("User chooses login or registration.")).toBeVisible();
+    await componentEditor(page, "Text").locator("textarea").fill("Live render update");
+    await expect(appFrame(page).getByText("Live render update")).toBeVisible();
+
+    await componentEditor(page, "Text").getByRole("button", { name: "Delete" }).click();
+    await expect(appFrame(page).getByText("Live render update")).toHaveCount(0);
+    await expect(appFrame(page).getByRole("button", { name: "Login" })).toBeVisible();
+  });
+
   test("persists every state component field across reopening and renders them in the app", async ({ page }) => {
     await openTool(page);
     const imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=";
