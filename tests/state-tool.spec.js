@@ -176,6 +176,13 @@ async function emptyCanvasPoint(page) {
 async function addChildByDoubleClick(page, parentId, excludeIds = []) {
   const beforeIds = new Set(await page.locator(".node").evaluateAll(nodes => nodes.map(node => node.dataset.id).filter(Boolean)));
   excludeIds.forEach(id => beforeIds.add(id));
+  await expect.poll(async () => page.evaluate(() => {
+    try {
+      return Date.now() >= suppressEmptyCanvasDblClickUntil;
+    } catch (_) {
+      return true;
+    }
+  })).toBe(true);
   const point = await emptyCanvasPoint(page);
   await page.mouse.dblclick(point.x, point.y);
   let createdId = "";
@@ -185,6 +192,41 @@ async function addChildByDoubleClick(page, parentId, excludeIds = []) {
     return createdId;
   }).not.toBe("");
   return createdId;
+}
+
+async function dragComponentEditorBefore(page, sourceTitle, targetTitle) {
+  await expect(componentEditor(page, sourceTitle)).toBeVisible();
+  await expect(componentEditor(page, targetTitle)).toBeVisible();
+  const moved = await page.evaluate(({ sourceTitle, targetTitle }) => {
+    const rowTitle = row => row.querySelector(".component-editor-title")?.textContent?.trim() ||
+      row.querySelector(".component-editor-head span")?.textContent?.trim() ||
+      "";
+    const rows = [...document.querySelectorAll(".component-editor")];
+    const source = rows.find(row => rowTitle(row) === sourceTitle);
+    const target = rows.find(row => rowTitle(row) === targetTitle);
+    const handle = source?.querySelector(".component-drag-handle");
+    if (!source || !target || !handle) return false;
+    const dataTransfer = new DataTransfer();
+    const dispatchDrag = (element, type, clientY) => {
+      const rect = element.getBoundingClientRect();
+      const event = new DragEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer,
+        clientX: rect.left + Math.min(12, Math.max(1, rect.width / 2)),
+        clientY
+      });
+      return element.dispatchEvent(event);
+    };
+    const sourceRect = source.getBoundingClientRect();
+    dispatchDrag(handle, "dragstart", sourceRect.top + 4);
+    const targetRect = target.getBoundingClientRect();
+    dispatchDrag(target, "dragover", targetRect.top + 2);
+    dispatchDrag(target, "drop", targetRect.top + 2);
+    dispatchDrag(handle, "dragend", sourceRect.top + 4);
+    return true;
+  }, { sourceTitle, targetTitle });
+  expect(moved).toBe(true);
 }
 
 async function dispatchLostDesktopMouseRelease(page, point = { x: 18, y: 18 }) {
@@ -4288,25 +4330,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
     await openStateInspector(page, "auth_start");
 
-    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
-    const targetBox = await visibleBox(componentEditor(page, "Text"));
-    await componentEditor(page, "Button: Login").locator(".component-drag-handle").dispatchEvent("dragstart", {
-      dataTransfer,
-      bubbles: true,
-      cancelable: true
-    });
-    await componentEditor(page, "Text").dispatchEvent("dragover", {
-      dataTransfer,
-      bubbles: true,
-      cancelable: true,
-      clientY: targetBox.y + 4
-    });
-    await componentEditor(page, "Text").dispatchEvent("drop", {
-      dataTransfer,
-      bubbles: true,
-      cancelable: true,
-      clientY: targetBox.y + 4
-    });
+    await dragComponentEditorBefore(page, "Button: Login", "Text");
 
     await expect.poll(async () => {
       const model = await savedModel(page);
