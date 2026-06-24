@@ -761,6 +761,30 @@ test.describe("State Blueprint tool", () => {
     expect(Math.abs(boundaryRoute.end.y - boundaryRoute.childIn.y)).toBeLessThanOrEqual(GRID_SIZE);
   });
 
+  test("selects output proxy references without creating new transitions @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateLayer(page, "login");
+    await addChildByDoubleClick(page, "login");
+    await expect(page.locator(`.edge[data-edge-id="t_login_success"]`)).toHaveCount(1);
+
+    const before = await savedModel(page);
+    const outputProxyId = await page.locator(".node.boundary-output").getAttribute("data-id");
+    expect(outputProxyId).toBeTruthy();
+    const port = page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`);
+    const point = await centerOf(port);
+    await page.mouse.click(point.x, point.y);
+
+    await expect.poll(async () => page.evaluate(() => ({
+      selectedEdge: selected?.edges?.[0] || "",
+      stateCount: model.states.length,
+      transitionCount: model.transitions.length
+    }))).toEqual({
+      selectedEdge: "t_login_success",
+      stateCount: before.states.length,
+      transitionCount: before.transitions.length
+    });
+  });
+
   test("rewires projected parent entry by dragging it to another child state @smoke", async ({ page }) => {
     await openTool(page);
 
@@ -4191,8 +4215,63 @@ test.describe("State Blueprint tool", () => {
 
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.find(state => state.id === "login").components.map(component => component.id);
+      return model.states.find(state => state.id === "login").components
+        .filter(component => component.type !== "transitionButton")
+        .map(component => component.id);
     }).toEqual(["component_text", "component_note", "component_heading"]);
+  });
+
+  test("shows outgoing transition buttons in the render editor without mutating components @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateInspector(page, "auth_start");
+
+    await expect(componentEditor(page, "Text")).toBeVisible();
+    await expect(componentEditor(page, "Button: Login")).toBeVisible();
+    await expect(componentEditor(page, "Button: Registrieren")).toBeVisible();
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "auth_start").components.map(component => component.type);
+    }).toEqual(["text"]);
+  });
+
+  test("persists dragged transition buttons as render items and renders them in order @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateInspector(page, "auth_start");
+
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    const targetBox = await visibleBox(componentEditor(page, "Text"));
+    await componentEditor(page, "Button: Login").locator(".component-drag-handle").dispatchEvent("dragstart", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true
+    });
+    await componentEditor(page, "Text").dispatchEvent("dragover", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + 4
+    });
+    await componentEditor(page, "Text").dispatchEvent("drop", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: targetBox.y + 4
+    });
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.states.find(state => state.id === "auth_start").components.map(component =>
+        component.type === "transitionButton" ? component.transitionId : component.type
+      );
+    }).toEqual(["t_auth_login", "text", "t_auth_register"]);
+
+    await expect.poll(async () => appFrame(page).locator("#screen").evaluate(screen => {
+      const stack = screen.querySelector(".component-stack");
+      return [...(stack?.children || [])].map(child =>
+        child.querySelector("button[data-transition-id]")?.dataset.transitionId || child.textContent.trim()
+      );
+    })).toEqual(["t_auth_login", "User chooses login or registration.", "t_auth_register"]);
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {
