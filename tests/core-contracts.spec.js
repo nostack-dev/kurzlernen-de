@@ -354,8 +354,8 @@ test.describe("Core source contracts", () => {
 
     expect(html).toContain("@keyframes activeStateBreath");
     expect(html).toContain("@keyframes activeSelectedStateBreath");
-    expect(html).toContain("@keyframes activeStateDot");
-    expect(html).toContain(".node.active::after");
+    expect(html).not.toContain("@keyframes activeStateDot");
+    expect(html).not.toContain(".node.active::after");
     expect(html).toContain("animation: activeStateBreath 2.35s ease-in-out infinite");
     expect(html).toContain("animation: activeSelectedStateBreath 2.35s ease-in-out infinite");
     expect(html).toContain("stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1)");
