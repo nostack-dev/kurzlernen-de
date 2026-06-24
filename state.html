@@ -543,34 +543,92 @@
       100% { opacity: 1; filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc)); }
     }
 
+    @keyframes activeStateBreath {
+      0%, 100% {
+        box-shadow:
+          0 0 0 5px rgba(34,197,94,.18),
+          0 0 0 12px rgba(34,197,94,.08),
+          0 0 28px rgba(34,197,94,.28),
+          0 14px 30px rgba(0,0,0,.38),
+          inset 0 1px 0 rgba(255,255,255,.15);
+      }
+      50% {
+        box-shadow:
+          0 0 0 7px rgba(34,197,94,.24),
+          0 0 0 17px rgba(34,197,94,.12),
+          0 0 44px rgba(34,197,94,.48),
+          0 18px 40px rgba(0,0,0,.46),
+          inset 0 1px 0 rgba(255,255,255,.18);
+      }
+    }
+
+    @keyframes activeSelectedStateBreath {
+      0%, 100% {
+        box-shadow:
+          0 0 0 4px rgba(245,158,11,.22),
+          0 0 0 11px rgba(34,197,94,.16),
+          0 0 32px rgba(34,197,94,.34),
+          0 14px 34px rgba(0,0,0,.42),
+          inset 0 1px 0 rgba(255,255,255,.15);
+      }
+      50% {
+        box-shadow:
+          0 0 0 5px rgba(245,158,11,.28),
+          0 0 0 16px rgba(34,197,94,.22),
+          0 0 48px rgba(34,197,94,.52),
+          0 18px 42px rgba(0,0,0,.48),
+          inset 0 1px 0 rgba(255,255,255,.18);
+      }
+    }
+
+    @keyframes activeStateDot {
+      0%, 100% { opacity: .72; transform: scale(.82); }
+      50% { opacity: 1; transform: scale(1.18); }
+    }
+
     @keyframes stateEnterPulse {
       0% {
-        transform: none;
-        filter: brightness(1);
-        box-shadow: 0 0 0 0 rgba(34,197,94,0), 0 10px 24px rgba(0,0,0,.34);
-      }
-      38% {
-        transform: none;
-        filter: brightness(1.18) saturate(1.18);
+        filter: brightness(1) saturate(1);
+        outline-color: rgba(34,197,94,.1);
         box-shadow:
-          0 0 0 8px rgba(34,197,94,.16),
-          0 0 30px rgba(34,197,94,.38),
-          0 16px 34px rgba(0,0,0,.42),
-          inset 0 1px 0 rgba(255,255,255,.16);
+          0 0 0 0 rgba(34,197,94,0),
+          0 8px 18px rgba(0,0,0,.28),
+          inset 0 1px 0 rgba(255,255,255,.1);
+      }
+      30% {
+        filter: brightness(1.32) saturate(1.25);
+        outline-color: rgba(134,239,172,1);
+        box-shadow:
+          0 0 0 9px rgba(34,197,94,.3),
+          0 0 0 22px rgba(34,197,94,.16),
+          0 0 58px rgba(34,197,94,.7),
+          0 18px 46px rgba(0,0,0,.52),
+          inset 0 1px 0 rgba(255,255,255,.24);
       }
       100% {
-        transform: none;
-        filter: brightness(1);
+        filter: brightness(1.05) saturate(1.08);
+        outline-color: rgba(134,239,172,.92);
+        box-shadow:
+          0 0 0 5px rgba(34,197,94,.18),
+          0 0 0 12px rgba(34,197,94,.08),
+          0 0 28px rgba(34,197,94,.28),
+          0 14px 30px rgba(0,0,0,.38),
+          inset 0 1px 0 rgba(255,255,255,.15);
       }
     }
 
     @keyframes stateExitPulse {
       0% {
-        filter: brightness(1.08);
-        box-shadow: 0 0 0 5px rgba(148,163,184,.18), 0 10px 24px rgba(0,0,0,.34);
+        filter: brightness(1.08) saturate(1.05);
+        outline-color: rgba(148,163,184,.5);
+        box-shadow:
+          0 0 0 8px rgba(148,163,184,.2),
+          0 0 28px rgba(148,163,184,.24),
+          0 10px 24px rgba(0,0,0,.34);
       }
       100% {
-        filter: brightness(.92);
+        filter: brightness(.88) saturate(.86);
+        outline-color: rgba(148,163,184,0);
         box-shadow: 0 8px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.1);
       }
     }
@@ -661,27 +719,65 @@
       box-shadow: 0 0 0 5px rgba(245,158,11,.16), 0 8px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.1);
     }
     .node.active {
-      border-color: var(--runtime);
-      outline: 3px solid rgba(34,197,94,.72);
-      outline-offset: 3px;
-      box-shadow: 0 0 0 6px rgba(34,197,94,.14), 0 10px 24px rgba(0,0,0,.34);
+      border-color: #86efac;
+      outline: 2px solid rgba(134,239,172,.92);
+      outline-offset: 5px;
+      background:
+        linear-gradient(135deg, rgba(34,197,94,.22), transparent 44%),
+        #12345a;
+      box-shadow:
+        0 0 0 5px rgba(34,197,94,.18),
+        0 0 0 12px rgba(34,197,94,.08),
+        0 0 28px rgba(34,197,94,.28),
+        0 14px 30px rgba(0,0,0,.38),
+        inset 0 1px 0 rgba(255,255,255,.15);
+      animation: activeStateBreath 2.35s ease-in-out infinite;
+    }
+
+    .node.active::after {
+      content: "";
+      position: absolute;
+      top: 9px;
+      right: 10px;
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      background: #86efac;
+      border: 2px solid #052e16;
+      box-shadow:
+        0 0 0 4px rgba(34,197,94,.22),
+        0 0 18px rgba(134,239,172,.72);
+      pointer-events: none;
+      animation: activeStateDot 1.35s ease-in-out infinite;
     }
 
     .node.runtime-enter {
-      animation: stateEnterPulse 1.08s cubic-bezier(.16, 1, .3, 1);
+      animation:
+        stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1),
+        activeStateBreath 2.35s ease-in-out 1.34s infinite;
     }
 
     .node.runtime-exit {
-      animation: stateExitPulse .78s ease-out;
+      animation: stateExitPulse .88s ease-out;
     }
 
     .node.active.selected {
       border-color: var(--selected);
       outline: 2px solid var(--selected);
+      outline-offset: 4px;
       box-shadow:
         0 0 0 5px rgba(245,158,11,.22),
-        0 0 0 10px rgba(34,197,94,.16),
-        0 10px 24px rgba(0,0,0,.34);
+        0 0 0 12px rgba(34,197,94,.16),
+        0 0 38px rgba(34,197,94,.38),
+        0 14px 34px rgba(0,0,0,.42),
+        inset 0 1px 0 rgba(255,255,255,.15);
+      animation: activeSelectedStateBreath 2.35s ease-in-out infinite;
+    }
+
+    .node.active.selected.runtime-enter {
+      animation:
+        stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1),
+        activeSelectedStateBreath 2.35s ease-in-out 1.34s infinite;
     }
 
     .node.inner-drop-target {
@@ -717,6 +813,7 @@
     }
 
     .node.boundary-proxy.selected,
+    .node.boundary-proxy.active,
     .node.boundary-proxy:focus,
     .node.boundary-proxy:focus-visible {
       border-color: transparent;
@@ -724,14 +821,20 @@
       box-shadow: none;
       outline: none;
       transform: none;
+      animation: none;
     }
 
     .node.boundary-proxy.selected,
+    .node.boundary-proxy.active,
     .node.boundary-proxy:focus,
     .node.boundary-proxy:focus-visible {
       outline: none !important;
       box-shadow: none !important;
       transform: none !important;
+    }
+
+    .node.boundary-proxy.active::after {
+      display: none;
     }
 
     .node.boundary-proxy.has-input-slots > .input-port,
@@ -1049,15 +1152,23 @@
     }
 
     .svg-port.runtime {
-      filter: drop-shadow(0 0 7px rgba(34,197,94,.62));
+      filter: drop-shadow(0 0 10px rgba(34,197,94,.75));
+    }
+
+    .svg-port.runtime .svg-port-hit {
+      fill: rgba(34,197,94,.1);
+      stroke: rgba(134,239,172,.78);
+      stroke-width: 2.4;
+      vector-effect: non-scaling-stroke;
+      animation: activePortBreath 1.9s ease-in-out infinite;
     }
 
     .svg-port.runtime-enter {
-      animation: portEnterPulse 1.08s cubic-bezier(.16, 1, .3, 1);
+      animation: portEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1);
     }
 
     .svg-port.runtime-exit {
-      animation: portExitPulse .78s ease-out;
+      animation: portExitPulse .88s ease-out;
     }
 
     .svg-port-input .svg-port-socket,
@@ -1191,15 +1302,26 @@
       filter: none;
     }
 
+    @keyframes activePortBreath {
+      0%, 100% {
+        opacity: .82;
+        stroke-width: 2.2;
+      }
+      50% {
+        opacity: 1;
+        stroke-width: 3.2;
+      }
+    }
+
     @keyframes portEnterPulse {
-      0% { opacity: .72; }
-      42% { opacity: 1; }
-      100% { opacity: 1; }
+      0% { opacity: .72; filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
+      38% { opacity: 1; filter: drop-shadow(0 0 18px rgba(134,239,172,.92)); }
+      100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(34,197,94,.75)); }
     }
 
     @keyframes portExitPulse {
-      0% { opacity: 1; }
-      100% { opacity: .84; }
+      0% { opacity: 1; filter: drop-shadow(0 0 12px rgba(148,163,184,.65)); }
+      100% { opacity: .82; filter: drop-shadow(0 0 2px rgba(148,163,184,.18)); }
     }
 
     .svg-port-output {
@@ -12313,8 +12435,8 @@
     });
 
     var RUNTIME_EDGE_PULSE_MS = 1220;
-    var RUNTIME_STATE_ENTER_PULSE_MS = 1120;
-    var RUNTIME_STATE_EXIT_PULSE_MS = 820;
+    var RUNTIME_STATE_ENTER_PULSE_MS = 1420;
+    var RUNTIME_STATE_EXIT_PULSE_MS = 920;
     var runtimePulseSerial = 0;
     var activeRuntimeEdgePulses = new Map();
     var activeRuntimeStatePulses = new Map();
