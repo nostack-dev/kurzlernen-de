@@ -654,6 +654,57 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerBack")).toBeVisible();
   });
 
+  test("keeps root boundary proxies enabled unless the root boundary is explicitly disabled @smoke", async ({ page }) => {
+    const rootFlowModel = boundary => ({
+      version: 2,
+      name: "Root Boundary Contract",
+      initial: "left",
+      ...(boundary ? { boundary } : {}),
+      states: [
+        { id: "left", title: "Left", body: "", components: [], x: 96, y: 192 },
+        { id: "right", title: "Right", body: "", components: [], x: 504, y: 192 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Next", condition: "", set: {} }
+      ]
+    });
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model: rootFlowModel(null) });
+    await page.goto("/state.html");
+
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('.node.boundary-input[data-id="proxy:__root__:input:__boundary_input"]')).toHaveCount(1);
+    await expect(page.locator('.node.boundary-output[data-id="proxy:__root__:output:__boundary_output"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="left_to_right"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:input"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:output"]')).toHaveCount(1);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="proxy:__root__:input:__boundary_input"][data-port-side="out"]')).toHaveCount(1);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="proxy:__root__:output:__boundary_output"][data-port-side="in"]')).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => ({
+      entryId: model.boundary?.entryId || "",
+      exitId: model.boundary?.exitId || "",
+      inputFlow: model.transitions.some(transition => transition.id === "boundary-flow:__root__:input" && transition.from === "proxy:__root__:input:__boundary_input"),
+      outputFlow: model.transitions.some(transition => transition.id === "boundary-flow:__root__:output" && transition.to === "proxy:__root__:output:__boundary_output")
+    }))).toEqual({ entryId: "left", exitId: "right", inputFlow: true, outputFlow: true });
+
+    await page.evaluate(model => loadEditorModel(model, false), rootFlowModel({
+      entryId: "",
+      exitId: "",
+      entryDisabled: true,
+      exitDisabled: true
+    }));
+    await expect(page.locator(".node")).toHaveCount(2);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(0);
+    await expect(page.locator('.edge[data-edge-id="left_to_right"]')).toHaveCount(1);
+    await expect(page.locator('[data-edge-id^="boundary-flow:"]')).toHaveCount(0);
+  });
+
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
     await openTool(page);
 
