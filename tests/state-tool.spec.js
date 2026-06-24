@@ -56,8 +56,20 @@ async function openStateInspector(page, id) {
 }
 
 async function openStateLayer(page, id) {
-  await page.locator('[data-id="' + id + '"]').dblclick();
-  await expect(page.locator("#layerFrameLabel")).toContainText(/Inside|Root/);
+  const node = page.locator('[data-id="' + id + '"]');
+  await expect(node).toBeVisible();
+  const title = (await node.locator(".title").textContent())?.trim() || id;
+  const expectedLabel = `Inside ${title}`;
+  const label = page.locator("#layerFrameLabel");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await node.dblclick();
+    try {
+      await expect(label).toHaveText(expectedLabel, { timeout: 2000 });
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
 }
 
 async function centerOf(locator) {
@@ -858,6 +870,68 @@ test.describe("State Blueprint tool", () => {
     expect(boundaryRoute.start).toMatchObject(boundaryRoute.proxyOut);
     expect(boundaryRoute.end.x).toBe(boundaryRoute.childIn.x);
     expect(Math.abs(boundaryRoute.end.y - boundaryRoute.childIn.y)).toBeLessThanOrEqual(GRID_SIZE);
+  });
+
+  test("keeps boundary input anchors after deleting a selected boundary flow @smoke", async ({ page }) => {
+    await openTool(page);
+    const parentInputIds = await savedModel(page).then(model =>
+      model.transitions.filter(transition => transition.to === "login").map(transition => transition.id)
+    );
+    expect(parentInputIds).toHaveLength(2);
+
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    const boundaryInputId = "boundary-flow:login:input";
+    const inputProxyId = "proxy:login:input:__boundary_input";
+
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+
+    const removedParentInputs = await page.evaluate(parentInputIds => {
+      selected = selectionFromParts([], parentInputIds);
+      return deleteSelectedItems();
+    }, parentInputIds);
+    expect(removedParentInputs).toBe(true);
+
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${childId}"][data-port-side="in"]`)).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      const boundary = parent?.boundary || {};
+      return {
+        entryId: boundary.entryId || "",
+        entryDisabled: Boolean(boundary.entryDisabled),
+        inputFlow: model.transitions.some(transition =>
+          transition.id === boundaryInputId &&
+          transition.from === inputProxyId &&
+          transition.to === childId
+        )
+      };
+    }).toEqual({ entryId: childId, entryDisabled: false, inputFlow: true });
+
+    const ignoredAnchorDelete = await page.evaluate(boundaryInputId => {
+      selected = selectionFromParts([], [boundaryInputId]);
+      return deleteSelectedItems();
+    }, boundaryInputId);
+    expect(ignoredAnchorDelete).toBe(true);
+
+    await expect(page.locator(`.edge[data-edge-id="${boundaryInputId}"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      const boundary = parent?.boundary || {};
+      return {
+        entryId: boundary.entryId || "",
+        entryDisabled: Boolean(boundary.entryDisabled),
+        inputFlow: model.transitions.some(transition =>
+          transition.id === boundaryInputId &&
+          transition.from === inputProxyId &&
+          transition.to === childId
+        )
+      };
+    }).toEqual({ entryId: childId, entryDisabled: false, inputFlow: true });
   });
 
   test("selects output proxy references without creating new transitions @smoke", async ({ page }) => {
@@ -3656,6 +3730,75 @@ test.describe("State Blueprint tool", () => {
     expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
     expect(metrics.sparseRouteSearches).toBeGreaterThan(0);
     expect(metrics.obstacleSearches || 0).toBe(0);
+  });
+
+  test("keeps dense fallback live routes from running behind state boxes @smoke", async ({ page }) => {
+    const states = [
+      { id: "source", title: "Source", body: "", x: 96, y: 240 },
+      { id: "target", title: "Target", body: "", x: 1128, y: 240 }
+    ];
+    let obstacleIndex = 0;
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 5; col++) {
+        states.push({
+          id: `obstacle_${obstacleIndex++}`,
+          title: `Obstacle ${obstacleIndex}`,
+          body: "",
+          x: 336 + col * 144,
+          y: 72 + row * 96
+        });
+      }
+    }
+    const routeModel = {
+      version: 2,
+      name: "Dense fallback route",
+      initial: "source",
+      states,
+      transitions: [
+        { id: "source_to_target", from: "source", to: "target", label: "Target", condition: "" }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+      window.__stateBlueprintRouteMetrics = {};
+    }, { key: STORAGE_KEY, model: routeModel });
+    await page.goto("/state.html");
+    await expect(page.locator('.edge[data-edge-id="source_to_target"]')).toHaveCount(1);
+
+    const sourceBox = await visibleBox(page.locator('[data-id="source"]'));
+    const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.evaluate(() => { window.__stateBlueprintRouteMetrics = {}; });
+    await page.mouse.move(start.x + 24, start.y, { steps: 8 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+
+    const report = await gridGeometryReport(page);
+    const route = report.paths.find(path => path.id === "source_to_target");
+    expect(route).toBeTruthy();
+    expect(route.allSegmentsOrthogonal).toBe(true);
+    const blockingNodes = report.nodes.filter(node =>
+      !["source", "target"].includes(node.id) &&
+      !String(node.id || "").startsWith("proxy:")
+    );
+    for (const node of blockingNodes) {
+      for (const segment of route.segments) {
+        expect(segmentIntersectsNode(segment, node, 0)).toBe(false);
+      }
+    }
+    expect(route.points.some(point => point.y < Math.min(...blockingNodes.map(node => node.top)))).toBe(true);
+    const metrics = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
+    expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
+    expect(metrics.sparseRouteSearches).toBeGreaterThan(0);
+    expect(metrics.obstacleSearches || 0).toBe(0);
+
+    await page.mouse.up();
   });
 
   test("updates layer bounds and boundary proxy pins during live state drag @smoke", async ({ page }) => {

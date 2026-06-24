@@ -5620,6 +5620,11 @@
         boundaryFlowInfoFromProxyId(transition?.to);
     }
 
+    function isBoundaryAnchorFlow(edgeId) {
+      const flow = boundaryFlowInfoFromId(edgeId);
+      return Boolean(flow && edgeId === layerBoundaryFlowId(flow.parentId, flow.side));
+    }
+
     function defaultGroupEntryChild(parentId) {
       const children = statesInLayer(parentId)
         .slice()
@@ -6533,8 +6538,19 @@
       const edgeIds = [...new Set([...(selected.edges || []), ...selectedEdgeIdList()])];
       const removable = ids.filter(id => byId(id));
       const removeEdges = new Set(edgeIds);
+      for (const edgeId of [...removeEdges]) {
+        if (isBoundaryAnchorFlow(edgeId)) removeEdges.delete(edgeId);
+      }
       const removedNodes = removable.length ? removeStatesById(removable) : false;
-      if (!removedNodes && !removeEdges.size) return false;
+      if (!removedNodes && !removeEdges.size) {
+        if (edgeIds.some(isBoundaryAnchorFlow)) {
+          selected = null;
+          showEmptyInspector();
+          draw();
+          return true;
+        }
+        return false;
+      }
       if (removeEdges.size) {
         const boundaryIds = [];
         for (const edgeId of removeEdges) {
@@ -6550,6 +6566,7 @@
     }
 
     function deleteBoundaryFlowById(edgeId) {
+      if (isBoundaryAnchorFlow(edgeId)) return false;
       const transition = model.transitions.find(t => t.id === edgeId);
       const flow = boundaryFlowInfoFromTransition(transition, edgeId);
       if (!flow) return false;
@@ -7430,13 +7447,19 @@
       ];
     }
 
-    function ensureLeftInputApproach(points) {
+    function leftInputApproachRoutes(points) {
       const compact = compactRoutePoints(points || []);
-      if (compact.length < 2) return compact;
+      if (compact.length < 2) return [compact];
       const end = compact[compact.length - 1];
       const before = compact[compact.length - 2];
-      if (before.y === end.y && before.x < end.x) return compact;
       const approachX = snapToGrid(end.x - GRID_SIZE * 2);
+      const routes = [];
+      const pushRoute = route => {
+        const compactRoute = compactRoutePoints(route);
+        const key = compactRoute.map(point => `${point.x},${point.y}`).join("|");
+        if (!routes.some(item => item.key === key)) routes.push({ key, route: compactRoute });
+      };
+      if (before.y === end.y && before.x < end.x) pushRoute(compact);
       if (before.y === end.y && before.x >= end.x) {
         const escapeX = snapToGrid(Math.max(before.x, end.x) + GRID_SIZE * 2);
         const laneY = snapToGrid(end.y - GRID_SIZE * 2);
@@ -7449,14 +7472,27 @@
           { x: approachX, y: end.y },
           end
         );
-        return compactRoutePoints(next);
+        pushRoute(next);
+        return routes.map(item => item.route);
       }
-      const next = compact.slice(0, -1);
-      const last = next[next.length - 1];
-      if (!last || last.x !== approachX || last.y !== before.y) next.push({ x: approachX, y: before.y });
-      if (before.y !== end.y) next.push({ x: approachX, y: end.y });
-      next.push(end);
-      return compactRoutePoints(next);
+      const rebuildPrefix = before.y === end.y && before.x < end.x ? compact.slice(0, -2) : compact.slice(0, -1);
+      const prefix = rebuildPrefix.length ? rebuildPrefix : compact.slice(0, 1);
+      const approachSteps = [2, 1, 3, 4, 5, 6, 8, 10, 12];
+      for (const steps of approachSteps) {
+        const x = snapToGrid(end.x - GRID_SIZE * steps);
+        if (x >= end.x) continue;
+        const next = prefix.slice();
+        const last = next[next.length - 1];
+        if (!last || last.x !== x) next.push({ x, y: last?.y ?? end.y });
+        if ((next[next.length - 1]?.y ?? end.y) !== end.y) next.push({ x, y: end.y });
+        next.push(end);
+        pushRoute(next);
+      }
+      return routes.map(item => item.route);
+    }
+
+    function ensureLeftInputApproach(points) {
+      return leftInputApproachRoutes(points)[0] || compactRoutePoints(points || []);
     }
 
     function directRoutePoints(from, to, transition = null) {
@@ -7564,8 +7600,103 @@
       return !routeIntersectsBlockingState(points, transition, margin);
     }
 
+    function clearLeftInputRoute(points, transition, margin = ROUTE_NODE_CLEARANCE) {
+      const route = ensureLeftInputApproach(points);
+      if (routeIsClear(route, transition, margin)) return route;
+      for (const variant of leftInputApproachRoutes(points)) {
+        if (routeIsClear(variant, transition, margin)) return variant;
+      }
+      return null;
+    }
+
     function pointInBox(point, box) {
       return point.x > box.x1 && point.x < box.x2 && point.y > box.y1 && point.y < box.y2;
+    }
+
+    function routeLength(points) {
+      const compact = compactRoutePoints(points || []);
+      let total = 0;
+      for (let i = 1; i < compact.length; i++) {
+        total += Math.abs(compact[i].x - compact[i - 1].x) + Math.abs(compact[i].y - compact[i - 1].y);
+      }
+      return total;
+    }
+
+    function routeBendCount(points) {
+      const segments = routeSegments(points);
+      let bends = 0;
+      for (let i = 1; i < segments.length; i++) {
+        if (segments[i].orientation !== segments[i - 1].orientation) bends += 1;
+      }
+      return bends;
+    }
+
+    function fallbackEnvelopeRoutePoints(from, to, transition = null) {
+      const routeTransition = transition || { from: from.id, to: to.id };
+      const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const startApproach = edgeApproachPoint(from, "out", transition);
+      const goalApproach = edgeApproachPoint(to, "in", transition);
+      const boxes = routeBlockingBoxes(routeTransition, ROUTE_NODE_CLEARANCE);
+      if (!boxes.length) return clearLeftInputRoute([startPort, startApproach, goalApproach, goalPort], routeTransition);
+      const blockers = boxes;
+      const minX = Math.min(startPort.x, goalPort.x, ...blockers.map(box => box.x1));
+      const maxX = Math.max(startPort.x, goalPort.x, ...blockers.map(box => box.x2));
+      const minY = Math.min(startPort.y, goalPort.y, ...blockers.map(box => box.y1));
+      const maxY = Math.max(startPort.y, goalPort.y, ...blockers.map(box => box.y2));
+      const yLanes = [
+        floorToGrid(minY - GRID_SIZE * 2),
+        floorToGrid(minY - GRID_SIZE * 4),
+        ceilToGrid(maxY + GRID_SIZE * 2),
+        ceilToGrid(maxY + GRID_SIZE * 4)
+      ];
+      const xLanes = [
+        floorToGrid(minX - GRID_SIZE * 2),
+        floorToGrid(minX - GRID_SIZE * 4),
+        ceilToGrid(maxX + GRID_SIZE * 2),
+        ceilToGrid(maxX + GRID_SIZE * 4)
+      ];
+      const outputXs = [2, 1, 0, 3, 4, 6]
+        .map(steps => snapToGrid(startPort.x + GRID_SIZE * steps))
+        .filter(x => x >= startPort.x && x > WORLD_MIN_X && x < WORLD_MAX_X);
+      const inputXs = [2, 1, 3, 4, 5, 6, 8, 10, 12]
+        .map(steps => snapToGrid(goalPort.x - GRID_SIZE * steps))
+        .filter(x => x <= goalPort.x && x > WORLD_MIN_X && x < WORLD_MAX_X);
+      const candidates = [];
+      for (const laneY of yLanes) {
+        if (laneY <= WORLD_MIN_Y || laneY >= WORLD_MAX_Y) continue;
+        for (const outputX of outputXs) {
+          for (const inputX of inputXs) {
+            candidates.push(compactRoutePoints([
+              startPort,
+              { x: outputX, y: startPort.y },
+              { x: outputX, y: laneY },
+              { x: inputX, y: laneY },
+              { x: inputX, y: goalPort.y },
+              goalPort
+            ]));
+          }
+        }
+      }
+      for (const laneX of xLanes) {
+        if (laneX <= WORLD_MIN_X || laneX >= WORLD_MAX_X) continue;
+        for (const outputX of outputXs) {
+          for (const inputX of inputXs) {
+            candidates.push(compactRoutePoints([
+              startPort,
+              { x: outputX, y: startPort.y },
+              { x: laneX, y: startPort.y },
+              { x: laneX, y: goalPort.y },
+              { x: inputX, y: goalPort.y },
+              goalPort
+            ]));
+          }
+        }
+      }
+      return candidates
+        .map(route => clearLeftInputRoute(route, routeTransition, 0))
+        .filter(Boolean)
+        .sort((a, b) => routeLength(a) - routeLength(b) || routeBendCount(a) - routeBendCount(b))[0] || null;
     }
 
     function routeSearchBounds(start, goal) {
@@ -7951,15 +8082,22 @@
       const routeTransition = transition || { from: from.id, to: to.id };
       const allowObstacleSearch = options.allowObstacleSearch !== false;
       const direct = directRoutePoints(from, to, transition);
-      if (direct) return ensureLeftInputApproach(direct);
+      const clearDirect = direct ? clearLeftInputRoute(direct, routeTransition) : null;
+      if (clearDirect) return clearDirect;
       const portStub = portStubRoutePoints(from, to, transition);
-      if (portStub) return ensureLeftInputApproach(portStub);
+      const clearPortStub = portStub ? clearLeftInputRoute(portStub, routeTransition) : null;
+      if (clearPortStub) return clearPortStub;
       const forwardBend = forwardBendRoutePoints(from, to, transition);
-      if (forwardBend) return ensureLeftInputApproach(forwardBend);
+      const clearForwardBend = forwardBend ? clearLeftInputRoute(forwardBend, routeTransition) : null;
+      if (clearForwardBend) return clearForwardBend;
       const dogleg = doglegRoutePoints(from, to, transition);
-      if (routeIsClear(dogleg, routeTransition)) return ensureLeftInputApproach(dogleg);
-      if (!allowObstacleSearch) return ensureLeftInputApproach(dogleg);
-      return ensureLeftInputApproach(obstacleAvoidingRoutePoints(from, to, transition, options) || dogleg);
+      const clearDogleg = clearLeftInputRoute(dogleg, routeTransition);
+      if (clearDogleg) return clearDogleg;
+      const envelope = fallbackEnvelopeRoutePoints(from, to, transition);
+      if (!allowObstacleSearch) return envelope || ensureLeftInputApproach(dogleg);
+      const obstacle = obstacleAvoidingRoutePoints(from, to, transition, options);
+      const clearObstacle = obstacle ? clearLeftInputRoute(obstacle, routeTransition) : null;
+      return clearObstacle || envelope || ensureLeftInputApproach(dogleg);
     }
 
     function routeSegments(points) {
