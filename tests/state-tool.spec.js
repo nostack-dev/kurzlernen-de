@@ -872,6 +872,52 @@ test.describe("State Blueprint tool", () => {
     expect(Math.abs(boundaryRoute.end.y - boundaryRoute.childIn.y)).toBeLessThanOrEqual(GRID_SIZE);
   });
 
+  test("renders explicit layer frame comments without defaulting to state titles @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await openStateLayer(page, "login");
+    await expect(page.locator("#layerFrameComment")).toBeHidden();
+    await page.locator("#layerBack").click();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Root");
+
+    await openStateInspector(page, "login");
+    await expect(page.locator("#pLayerTitle")).toHaveValue("");
+    await expect(page.locator("#pLayerNote")).toHaveValue("");
+    await page.locator("#pLayerTitle").fill("Credential gate");
+    await page.locator("#pLayerNote").fill("Validate identity before app access.");
+
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const state = model.states.find(item => item.id === "login");
+      return {
+        title: state?.boundary?.title || "",
+        note: state?.boundary?.note || ""
+      };
+    }).toEqual({
+      title: "Credential gate",
+      note: "Validate identity before app access."
+    });
+
+    await page.locator("#pEnterLayer").click();
+    await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
+    await expect(page.locator("#layerFrameComment")).toBeVisible();
+    await expect(page.locator("#layerFrameCommentTitle")).toHaveText("Credential gate");
+    await expect(page.locator("#layerFrameCommentBody")).toHaveText("Validate identity before app access.");
+    await expect(page.locator("#layerFrameComment")).not.toContainText("Login");
+
+    const commentBlock = await page.evaluate(() => {
+      const box = layerFrameCommentBox(0);
+      return {
+        box,
+        routedAsBlocker: routeBlockingBoxes({ from: "", to: "" }, 0).some(item => item.id === "__layer_frame_comment")
+      };
+    });
+    expect(commentBlock.box).toBeTruthy();
+    expect(commentBlock.box.x2).toBeGreaterThan(commentBlock.box.x1);
+    expect(commentBlock.box.y2).toBeGreaterThan(commentBlock.box.y1);
+    expect(commentBlock.routedAsBlocker).toBe(true);
+  });
+
   test("keeps boundary input anchors after deleting a selected boundary flow @smoke", async ({ page }) => {
     await openTool(page);
     const parentInputIds = await savedModel(page).then(model =>

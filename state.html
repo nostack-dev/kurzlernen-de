@@ -376,6 +376,41 @@
       box-shadow: inset 0 0 0 1px rgba(245,158,11,.18), 0 20px 50px rgba(0,0,0,.18);
     }
 
+    .layer-frame-comment {
+      position: absolute;
+      z-index: 6;
+      display: grid;
+      gap: 4px;
+      max-width: 520px;
+      padding: 10px 13px 11px;
+      pointer-events: none;
+      border: 1px solid rgba(245,158,11,.44);
+      border-radius: 12px;
+      background: rgba(7,19,33,.94);
+      box-shadow: 0 16px 36px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.06);
+      color: #fef3c7;
+      overflow-wrap: anywhere;
+    }
+
+    .layer-frame-comment[hidden] {
+      display: none;
+    }
+
+    .layer-frame-comment-title {
+      color: #fff7ed;
+      font-size: 22px;
+      line-height: 1.12;
+      font-weight: 950;
+    }
+
+    .layer-frame-comment-body {
+      color: #fcd34d;
+      font-size: 13px;
+      line-height: 1.35;
+      font-weight: 750;
+      white-space: pre-wrap;
+    }
+
     .layer-hud {
       position: absolute;
       z-index: 35;
@@ -3049,6 +3084,10 @@
       <div id="mapScene" class="map-scene">
         <div id="world" style="width: 30000px; height: 24000px; transform: translate(782px, 267px) scale(1);">
         <div id="layerFrame" class="layer-frame" style="display: block; left: 24px; top: 72px; width: 360px; height: 288px;"></div>
+        <div id="layerFrameComment" class="layer-frame-comment" hidden>
+          <div id="layerFrameCommentTitle" class="layer-frame-comment-title"></div>
+          <div id="layerFrameCommentBody" class="layer-frame-comment-body"></div>
+        </div>
           <svg id="wires" viewBox="-10000 -8000 30000 24000" style="left: -10000px; top: -8000px; width: 30000px; height: 24000px;">
             <defs>
               <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
@@ -3202,6 +3241,9 @@
     const mapSceneEl = document.getElementById("mapScene");
     const layerHudEl = document.getElementById("layerHud");
     const layerFrameEl = document.getElementById("layerFrame");
+    const layerFrameCommentEl = document.getElementById("layerFrameComment");
+    const layerFrameCommentTitleEl = document.getElementById("layerFrameCommentTitle");
+    const layerFrameCommentBodyEl = document.getElementById("layerFrameCommentBody");
     const layerBackEl = document.getElementById("layerBack");
     const layerFrameLabelEl = document.getElementById("layerFrameLabel");
     const worldEl = document.getElementById("world");
@@ -5078,7 +5120,9 @@
         entryId: String(source.entryId || ""),
         exitId: String(source.exitId || ""),
         entryDisabled: Boolean(source.entryDisabled),
-        exitDisabled: Boolean(source.exitDisabled)
+        exitDisabled: Boolean(source.exitDisabled),
+        title: String(source.title || source.layerTitle || ""),
+        note: String(source.note || source.comment || "")
       };
     }
 
@@ -7581,9 +7625,12 @@
     }
 
     function routeBlockingBoxes(transition, margin = 0) {
-      return visibleStates()
+      const boxes = visibleStates()
         .filter(state => state.id !== transition?.from && state.id !== transition?.to)
         .map(state => stateBox(state, margin));
+      const commentBox = layerFrameCommentBox(margin);
+      if (commentBox) boxes.push(commentBox);
+      return boxes;
     }
 
     function routeIntersectsBlockingState(points, transition, margin = 0) {
@@ -8474,6 +8521,55 @@
       return { left, top, width, height, right: left + width, bottom: top + height };
     }
 
+    function layerFrameCommentBox(margin = 0) {
+      if (!layerFrameCommentEl || layerFrameCommentEl.hidden) return null;
+      const left = Number.parseFloat(layerFrameCommentEl.style.left);
+      const top = Number.parseFloat(layerFrameCommentEl.style.top);
+      const width = layerFrameCommentEl.offsetWidth || Number.parseFloat(layerFrameCommentEl.style.width);
+      const height = layerFrameCommentEl.offsetHeight || Number.parseFloat(layerFrameCommentEl.style.height);
+      if (![left, top, width, height].every(Number.isFinite)) return null;
+      return {
+        id: "__layer_frame_comment",
+        x1: left - margin,
+        y1: top - margin,
+        x2: left + width + margin,
+        y2: top + height + margin
+      };
+    }
+
+    function layerFrameAnnotation(parent) {
+      const boundary = normalizeBoundaryConfig(parent?.rootLayer ? model.boundary : parent?.boundary);
+      return {
+        title: boundary.title.trim(),
+        note: boundary.note.trim()
+      };
+    }
+
+    function updateLayerFrameComment(parent, frameLeft, frameTop, frameWidth) {
+      if (!layerFrameCommentEl) return;
+      const annotation = layerFrameAnnotation(parent);
+      if (!annotation.title && !annotation.note) {
+        layerFrameCommentEl.hidden = true;
+        layerFrameCommentTitleEl.textContent = "";
+        layerFrameCommentBodyEl.textContent = "";
+        return;
+      }
+      layerFrameCommentTitleEl.hidden = !annotation.title;
+      layerFrameCommentBodyEl.hidden = !annotation.note;
+      layerFrameCommentTitleEl.textContent = annotation.title;
+      layerFrameCommentBodyEl.textContent = annotation.note;
+      layerFrameCommentEl.hidden = false;
+      const maxWidth = Math.max(GRID_SIZE * 10, Math.min(GRID_SIZE * 22, frameWidth - GRID_SIZE * 2));
+      const left = frameLeft + GRID_SIZE;
+      layerFrameCommentEl.style.maxWidth = maxWidth + "px";
+      layerFrameCommentEl.style.left = left + "px";
+      layerFrameCommentEl.style.top = "0px";
+      const height = layerFrameCommentEl.offsetHeight || GRID_SIZE * 2;
+      const outsideTop = frameTop - height - Math.round(GRID_SIZE * 0.75);
+      const top = outsideTop > WORLD_MIN_Y + GRID_SIZE ? outsideTop : frameTop + GRID_SIZE;
+      layerFrameCommentEl.style.top = top + "px";
+    }
+
     function addPortSlot(nodeEl, state, transition, side, edgeSelection) {
       const point = edgePortPoint(state, side, transition);
       const slot = document.createElement("div");
@@ -8650,6 +8746,7 @@
       const parent = currentLayerContainer();
       if (!parent) {
         layerFrameEl.style.display = "none";
+        if (layerFrameCommentEl) layerFrameCommentEl.hidden = true;
         layerHudEl.hidden = true;
         layerBackEl.hidden = true;
         layerFrameLabelEl.textContent = "";
@@ -8662,11 +8759,16 @@
       const minY = states.length ? Math.min(...states.map(state => state.y)) : fallbackCenter.y - GRID_SIZE * 5;
       const maxX = states.length ? Math.max(...states.map(state => state.x + nodeWidth(state))) : fallbackCenter.x + GRID_SIZE * 8;
       const maxY = states.length ? Math.max(...states.map(state => state.y + nodeHeight(state))) : fallbackCenter.y + GRID_SIZE * 5;
+      const frameLeft = snapToGrid(minX - padX);
+      const frameTop = snapToGrid(minY - padY);
+      const frameWidth = snapToGrid(maxX - minX + padX * 2);
+      const frameHeight = snapToGrid(maxY - minY + padY * 2);
       layerFrameEl.style.display = "block";
-      layerFrameEl.style.left = snapToGrid(minX - padX) + "px";
-      layerFrameEl.style.top = snapToGrid(minY - padY) + "px";
-      layerFrameEl.style.width = snapToGrid(maxX - minX + padX * 2) + "px";
-      layerFrameEl.style.height = snapToGrid(maxY - minY + padY * 2) + "px";
+      layerFrameEl.style.left = frameLeft + "px";
+      layerFrameEl.style.top = frameTop + "px";
+      layerFrameEl.style.width = frameWidth + "px";
+      layerFrameEl.style.height = frameHeight + "px";
+      updateLayerFrameComment(parent, frameLeft, frameTop, frameWidth);
       layerHudEl.hidden = false;
       layerBackEl.hidden = Boolean(parent.rootLayer);
       layerFrameLabelEl.textContent = parent.rootLayer ? "Root" : `Inside ${parent.title || parent.id}`;
@@ -10646,6 +10748,11 @@
       root.innerHTML = `
         <h3>State</h3>
         <div class="field"><label>Title</label><input id="pTitle"></div>
+        <div class="data-source-panel layer-comment-panel">
+          <div class="small"><b>Layer frame</b></div>
+          <div class="field"><label>Layer title</label><input id="pLayerTitle" placeholder="Process name"></div>
+          <div class="field"><label>Comment</label><textarea id="pLayerNote" rows="2" spellcheck="false" placeholder="Optional note"></textarea></div>
+        </div>
         <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
@@ -10712,6 +10819,8 @@
         </div>
       `;
       const title = root.querySelector("#pTitle");
+      const layerTitle = root.querySelector("#pLayerTitle");
+      const layerNote = root.querySelector("#pLayerNote");
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
       const subscriptions = root.querySelector("#pSubscriptions");
@@ -10723,8 +10832,12 @@
       const subscriptionList = root.querySelector("#pSubscriptionList");
       const subscriptionAdd = root.querySelector("#pSubscriptionAdd");
       const dataWireList = root.querySelector("#pDataWireList");
+      s.boundary = normalizeBoundaryConfig(s.boundary);
       title.value = s.title || "";
+      layerTitle.value = s.boundary.title || "";
+      layerNote.value = s.boundary.note || "";
       title.addEventListener("focus", () => title.select());
+      layerTitle.addEventListener("focus", () => layerTitle.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
       const updateDataPreview = (persist = true) => {
@@ -11170,6 +11283,15 @@
         saveModel("state:title:" + s.id);
         draw();
       };
+      const persistLayerFrameComment = () => {
+        s.boundary = normalizeBoundaryConfig(s.boundary);
+        s.boundary.title = layerTitle.value;
+        s.boundary.note = layerNote.value;
+        saveModel("state:layer-frame:" + s.id);
+        draw();
+      };
+      layerTitle.oninput = persistLayerFrameComment;
+      layerNote.oninput = persistLayerFrameComment;
       data.oninput = () => updateDataPreview(true);
       subscriptionAdd.onclick = () => {
         toggleGlobalStatePath(subscriptionCustom.value);
@@ -11188,7 +11310,7 @@
       subscriptions.oninput = () => updateSubscriptionsPreview(true);
       updateDataPreview(false);
       updateSubscriptionsPreview(false);
-      title.onblur = data.onblur = () => { lastHistoryKey = null; };
+      title.onblur = layerTitle.onblur = layerNote.onblur = data.onblur = () => { lastHistoryKey = null; };
       bindDataSourceEditor(s, root, historyKey => {
         saveModel(`${historyKey}:${s.id}`);
         scheduleSync(false);
