@@ -4608,6 +4608,17 @@ test.describe("State Blueprint tool", () => {
     await expect(componentEditor(page, "Button: Login")).toBeVisible();
     await expect(componentEditor(page, "Button: Registrieren")).toBeVisible();
 
+    const editorButtonColorFor = async transitionId => page
+      .locator(`.component-editor[data-transition-id="${transitionId}"]`)
+      .evaluate(el => getComputedStyle(el).getPropertyValue("--transition-button-color").trim());
+    const edgeColorFor = async transitionId => {
+      const edge = page.locator(`.edge[data-edge-id="${transitionId}"]`);
+      await expect(edge).toHaveCount(1);
+      return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    };
+    await expect.poll(() => editorButtonColorFor("t_auth_login")).toBe(await edgeColorFor("t_auth_login"));
+    await expect.poll(() => editorButtonColorFor("t_auth_register")).toBe(await edgeColorFor("t_auth_register"));
+
     await expect.poll(async () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "auth_start").components.map(component => component.type);
@@ -4633,6 +4644,20 @@ test.describe("State Blueprint tool", () => {
         child.querySelector("button[data-transition-id]")?.dataset.transitionId || child.textContent.trim()
       );
     })).toEqual(["t_auth_login", "User chooses login or registration.", "t_auth_register"]);
+
+    const previewButtonColors = await appFrame(page).locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
+      buttons.map(button => [
+        button.dataset.transitionId,
+        getComputedStyle(button).getPropertyValue("--button-color").trim()
+      ])
+    ));
+    const edgeColorFor = async transitionId => {
+      const edge = page.locator(`.edge[data-edge-id="${transitionId}"]`);
+      await expect(edge).toHaveCount(1);
+      return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    };
+    expect(previewButtonColors.t_auth_login).toBe(await edgeColorFor("t_auth_login"));
+    expect(previewButtonColors.t_auth_register).toBe(await edgeColorFor("t_auth_register"));
   });
 
   test("persists data-wire render rows between components and transition buttons @smoke", async ({ page }) => {

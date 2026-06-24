@@ -165,9 +165,14 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("const actionTransitions = transitions.filter(transitionIsButtonAction)");
     expect(html).toContain("function defaultTransitionLabel");
     expect(html).toContain("label: defaultTransitionLabel({ from: connecting.from, to: targetId })");
+    expect(html).toContain("function transitionColorInLayer");
+    expect(html).toContain("function actionTransitionColor");
+    expect(html).toContain('item.classList.add("transition-button-render")');
+    expect(html).toContain('item.style.setProperty("--transition-button-color", actionTransitionColor(actionTransition, s))');
     expect(appHtml).toContain("function runtimeTransitionLabel");
     expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
     expect(appHtml).toContain("function runtimeTransitionHue");
+    expect(appHtml).not.toContain("const globalIndex = model.transitions.findIndex");
     expect(appHtml).toContain("applyRuntimeTransitionButtonStyle(button, t)");
   });
 
