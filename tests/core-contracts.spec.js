@@ -364,6 +364,27 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("@keyframes activePortBreath");
     expect(html).toContain("portEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1)");
   });
+
+  test("runtime transition flow pulse is frame-time driven @smoke", () => {
+    const html = stateHtml();
+    const pulseBody = html.slice(
+      html.indexOf("function pulseRuntimeTransition(edgeId)"),
+      html.indexOf("function runtimePortMatchesSide")
+    );
+
+    expect(html).toContain("var runtimeEdgePulseFrame = 0");
+    expect(html).toContain("function tickRuntimeEdgePulses(now)");
+    expect(html).toContain("function applyRuntimeEdgePulseStyle(el, pulse, now)");
+    expect(html).toContain("requestAnimationFrame(tickRuntimeEdgePulses)");
+    expect(html).toContain("const elapsed = Math.max(0, now - (pulse.started || now))");
+    expect(html).not.toContain("@keyframes edgePulse");
+    expect(html).not.toContain("@keyframes edgeArrowPulse");
+    expect(html).not.toContain("animation: edgePulse");
+    expect(html).not.toContain("animation: edgeArrowPulse");
+    expect(pulseBody).not.toContain("setTimeout");
+    expect(pulseBody).not.toContain("getBoundingClientRect");
+    expect(pulseBody).not.toContain("animationDelay");
+  });
 });
 
 test.describe("Core browser contracts", () => {

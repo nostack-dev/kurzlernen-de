@@ -476,8 +476,8 @@
     }
 
     .edge.runtime-pulse {
-      stroke-dasharray: 18 10;
-      animation: edgePulse 1.18s cubic-bezier(.16, 1, .3, 1);
+      stroke-dasharray: 22 14;
+      stroke-linecap: round;
     }
 
     .edge-arrow {
@@ -505,10 +505,6 @@
       filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc));
     }
 
-    .edge-arrow.runtime-pulse {
-      animation: edgeArrowPulse 1.18s cubic-bezier(.16, 1, .3, 1);
-    }
-
     .edge-pin {
       opacity: 0;
       fill: var(--edge-color, #5f8dbc);
@@ -529,18 +525,6 @@
       stroke: var(--edge-color, #5f8dbc);
       stroke-width: 3;
       filter: drop-shadow(0 0 8px var(--edge-color, #5f8dbc));
-    }
-
-    @keyframes edgePulse {
-      0% { stroke-width: 9; stroke-dashoffset: 54; filter: drop-shadow(0 0 15px var(--edge-color, #5f8dbc)); opacity: 1; }
-      58% { stroke-width: 5.6; stroke-dashoffset: 0; filter: drop-shadow(0 0 20px var(--edge-color, #5f8dbc)); opacity: 1; }
-      100% { stroke-width: 4; stroke-dashoffset: -18; filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc)); opacity: 1; }
-    }
-
-    @keyframes edgeArrowPulse {
-      0% { opacity: 1; filter: drop-shadow(0 0 15px var(--edge-color, #5f8dbc)); }
-      52% { opacity: 1; filter: drop-shadow(0 0 20px var(--edge-color, #5f8dbc)); }
-      100% { opacity: 1; filter: drop-shadow(0 0 7px var(--edge-color, #5f8dbc)); }
     }
 
     @keyframes activeStateBreath {
@@ -6892,12 +6876,15 @@
     }
 
     function updateDraggedStateEdges(stateId) {
-      recordRouteMetric("liveDragRouteBuilds");
+      _frameRoutes = computeFrameRoutes({
+        metricName: "liveDragRouteBuilds",
+        allowDenseGridSearch: false
+      });
       for (const transition of visibleTransitions()) {
         const from = byId(transition.from);
         const to = byId(transition.to);
         if (!from || !to) continue;
-        const pts = liveDoglegRoutePoints(from, to);
+        const pts = edgeRoutePoints(from, to, transition);
         updateTransitionElements(transition, pts);
       }
     }
@@ -6932,35 +6919,6 @@
           el.setAttribute("y", String(tip.y - 12));
         }
       }
-    }
-
-    function liveDoglegRoutePoints(from, to) {
-      const a = nodeCenter(from, "out");
-      const b = nodeCenter(to, "in");
-      if (from.id === to.id) {
-        const loopTop = snapToGrid(from.y - GRID_SIZE * 3);
-        return [
-          a,
-          { x: a.x + GRID_SIZE * 2, y: a.y },
-          { x: a.x + GRID_SIZE * 2, y: loopTop },
-          { x: b.x - GRID_SIZE * 2, y: loopTop },
-          { x: b.x - GRID_SIZE * 2, y: b.y },
-          b
-        ];
-      }
-      if (b.x - a.x >= GRID_SIZE * 4) {
-        const mx = snapToGrid((a.x + b.x) / 2);
-        return [a, { x: mx, y: a.y }, { x: mx, y: b.y }, b];
-      }
-      const my = snapToGrid((a.y + b.y) / 2);
-      return [
-        a,
-        { x: a.x + GRID_SIZE * 2, y: a.y },
-        { x: a.x + GRID_SIZE * 2, y: my },
-        { x: b.x - GRID_SIZE * 2, y: my },
-        { x: b.x - GRID_SIZE * 2, y: b.y },
-        b
-      ];
     }
 
     function edgeTipHandlePointForRoute(routePoints) {
@@ -7582,6 +7540,43 @@
       return routeIsClear(direct, transition || { from: from.id, to: to.id }) ? direct : null;
     }
 
+    function portStubRouteCandidates(from, to, transition = null) {
+      if (from.id === to.id) return [];
+      const a = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const b = snapPointToGrid(edgePortPoint(to, "in", transition));
+      if (b.x - a.x < GRID_SIZE * 3) return [];
+      const candidates = [];
+      const pushCandidate = points => {
+        const route = compactRoutePoints(points);
+        if (route.length >= 2) candidates.push(route);
+      };
+      const outX = snapToGrid(a.x + GRID_SIZE * 2);
+      const inX = snapToGrid(b.x - GRID_SIZE * 2);
+      if (outX > a.x && outX < b.x) {
+        pushCandidate([
+          a,
+          { x: outX, y: a.y },
+          { x: outX, y: b.y },
+          b
+        ]);
+      }
+      if (inX > a.x && inX < b.x && inX !== outX) {
+        pushCandidate([
+          a,
+          { x: inX, y: a.y },
+          { x: inX, y: b.y },
+          b
+        ]);
+      }
+      return candidates;
+    }
+
+    function portStubRoutePoints(from, to, transition = null) {
+      const routeTransition = transition || { from: from.id, to: to.id };
+      return portStubRouteCandidates(from, to, transition)
+        .find(route => routeIsClear(route, routeTransition)) || null;
+    }
+
     function forwardBendRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
       const a = snapPointToGrid(edgePortPoint(from, "out", transition));
@@ -7661,7 +7656,216 @@
       };
     }
 
-    function obstacleAvoidingRoutePoints(from, to, transition = null) {
+    function boxesIntersect(a, b) {
+      return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+    }
+
+    function sparseRouteSearchBounds(startPort, start, goal, goalPort, boxes) {
+      const pad = GRID_SIZE * 8;
+      let bounds = {
+        x1: Math.min(startPort.x, start.x, goal.x, goalPort.x) - pad,
+        y1: Math.min(startPort.y, start.y, goal.y, goalPort.y) - pad,
+        x2: Math.max(startPort.x, start.x, goal.x, goalPort.x) + pad,
+        y2: Math.max(startPort.y, start.y, goal.y, goalPort.y) + pad
+      };
+      for (let pass = 0; pass < 2; pass++) {
+        for (const box of boxes) {
+          if (!boxesIntersect(bounds, box)) continue;
+          bounds.x1 = Math.min(bounds.x1, box.x1 - GRID_SIZE * 2);
+          bounds.y1 = Math.min(bounds.y1, box.y1 - GRID_SIZE * 2);
+          bounds.x2 = Math.max(bounds.x2, box.x2 + GRID_SIZE * 2);
+          bounds.y2 = Math.max(bounds.y2, box.y2 + GRID_SIZE * 2);
+        }
+      }
+      return {
+        minX: floorToGrid(Math.max(WORLD_MIN_X, bounds.x1)),
+        maxX: ceilToGrid(Math.min(WORLD_MAX_X, bounds.x2)),
+        minY: floorToGrid(Math.max(WORLD_MIN_Y, bounds.y1)),
+        maxY: ceilToGrid(Math.min(WORLD_MAX_Y, bounds.y2))
+      };
+    }
+
+    function sparseObstacleRoutePoints(from, to, transition = null) {
+      recordRouteMetric("sparseRouteSearches");
+      const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
+      const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
+      const startApproach = edgeApproachPoint(from, "out", transition);
+      const goalApproach = edgeApproachPoint(to, "in", transition);
+      const start = startPort;
+      const goal = goalPort;
+      const routeTransition = transition || { from: from.id, to: to.id };
+      const boxes = routeBlockingBoxes(routeTransition, GRID_SIZE);
+      const bounds = sparseRouteSearchBounds(startPort, startApproach, goalApproach, goalPort, boxes);
+      const relevantBoxes = boxes.filter(box => boxesIntersect({
+        x1: bounds.minX,
+        y1: bounds.minY,
+        x2: bounds.maxX,
+        y2: bounds.maxY
+      }, box));
+
+      const xs = new Set();
+      const ys = new Set();
+      const addX = value => {
+        const x = snapToGrid(value);
+        if (Number.isFinite(x) && x >= bounds.minX && x <= bounds.maxX) xs.add(x);
+      };
+      const addY = value => {
+        const y = snapToGrid(value);
+        if (Number.isFinite(y) && y >= bounds.minY && y <= bounds.maxY) ys.add(y);
+      };
+      [startPort.x, startApproach.x, goalApproach.x, goalPort.x, (startPort.x + goalPort.x) / 2].forEach(addX);
+      [startPort.y, startApproach.y, goalApproach.y, goalPort.y, (startPort.y + goalPort.y) / 2].forEach(addY);
+      for (const box of relevantBoxes) {
+        [
+          floorToGrid(box.x1 - GRID_SIZE),
+          floorToGrid(box.x1),
+          ceilToGrid(box.x2),
+          ceilToGrid(box.x2 + GRID_SIZE)
+        ].forEach(addX);
+        [
+          floorToGrid(box.y1 - GRID_SIZE),
+          floorToGrid(box.y1),
+          ceilToGrid(box.y2),
+          ceilToGrid(box.y2 + GRID_SIZE)
+        ].forEach(addY);
+      }
+
+      const sortedXs = [...xs].sort((a, b) => a - b);
+      const sortedYs = [...ys].sort((a, b) => a - b);
+      if (!sortedXs.length || !sortedYs.length || sortedXs.length * sortedYs.length > 3600) return null;
+
+      const pointKey = point => `${point.x},${point.y}`;
+      const startKey = pointKey(start);
+      const goalKey = pointKey(goal);
+      const parsePoint = key => {
+        const [x, y] = key.split(",").map(Number);
+        return { x, y };
+      };
+      const pointIsBlocked = point =>
+        pointKey(point) !== startKey &&
+        pointKey(point) !== goalKey &&
+        relevantBoxes.some(box => pointInBox(point, box));
+      const segmentClear = (a, b) => !relevantBoxes.some(box => segmentIntersectsBox(a, b, box));
+
+      const points = new Map();
+      const rows = new Map();
+      const cols = new Map();
+      for (const y of sortedYs) {
+        for (const x of sortedXs) {
+          const point = { x, y };
+          if (pointIsBlocked(point)) continue;
+          const key = pointKey(point);
+          points.set(key, point);
+          if (!rows.has(y)) rows.set(y, []);
+          if (!cols.has(x)) cols.set(x, []);
+          rows.get(y).push(key);
+          cols.get(x).push(key);
+        }
+      }
+      if (!points.has(startKey) || !points.has(goalKey)) return null;
+      for (const keys of rows.values()) keys.sort((a, b) => points.get(a).x - points.get(b).x);
+      for (const keys of cols.values()) keys.sort((a, b) => points.get(a).y - points.get(b).y);
+
+      const neighbors = key => {
+        const point = points.get(key);
+        if (!point) return [];
+        const out = [];
+        const row = rows.get(point.y) || [];
+        const col = cols.get(point.x) || [];
+        const rowIndex = row.indexOf(key);
+        const colIndex = col.indexOf(key);
+        const push = (nextKey, direction) => {
+          const next = points.get(nextKey);
+          if (next && segmentClear(point, next)) out.push({ key: nextKey, direction, length: Math.abs(next.x - point.x) + Math.abs(next.y - point.y) });
+        };
+        if (rowIndex > 0) push(row[rowIndex - 1], "h");
+        if (rowIndex >= 0 && rowIndex < row.length - 1) push(row[rowIndex + 1], "h");
+        if (colIndex > 0) push(col[colIndex - 1], "v");
+        if (colIndex >= 0 && colIndex < col.length - 1) push(col[colIndex + 1], "v");
+        return out;
+      };
+
+      const stateKey = (key, direction) => `${key}|${direction || ""}`;
+      const statePointKey = key => key.split("|")[0];
+      const stateDirection = key => key.split("|")[1] || "";
+      const heuristic = key => {
+        const point = points.get(key);
+        return Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y);
+      };
+      const heap = [];
+      const scores = new Map();
+      const cameFrom = new Map();
+      const heapScore = key => scores.get(key) ?? Infinity;
+      const heapPush = key => {
+        heap.push(key);
+        let index = heap.length - 1;
+        while (index > 0) {
+          const parent = (index - 1) >> 1;
+          if (heapScore(heap[index]) >= heapScore(heap[parent])) break;
+          const tmp = heap[index]; heap[index] = heap[parent]; heap[parent] = tmp;
+          index = parent;
+        }
+      };
+      const heapPop = () => {
+        if (!heap.length) return null;
+        const top = heap[0];
+        const bottom = heap.pop();
+        if (heap.length) {
+          heap[0] = bottom;
+          let index = 0;
+          while ((index << 1) + 1 < heap.length) {
+            let left = (index << 1) + 1;
+            let right = left + 1;
+            let best = left;
+            if (right < heap.length && heapScore(heap[right]) < heapScore(heap[left])) best = right;
+            if (heapScore(heap[index]) <= heapScore(heap[best])) break;
+            const tmp = heap[index]; heap[index] = heap[best]; heap[best] = tmp;
+            index = best;
+          }
+        }
+        return top;
+      };
+
+      const startStateKey = stateKey(startKey, "");
+      const gScores = new Map([[startStateKey, 0]]);
+      scores.set(startStateKey, heuristic(startKey));
+      heapPush(startStateKey);
+      const closed = new Set();
+      let found = "";
+      const bendPenalty = GRID_SIZE * 4;
+
+      while (heap.length && closed.size < 8000) {
+        const current = heapPop();
+        if (closed.has(current)) continue;
+        closed.add(current);
+        const currentPointKey = statePointKey(current);
+        if (currentPointKey === goalKey) {
+          found = current;
+          break;
+        }
+        const currentDirection = stateDirection(current);
+        for (const next of neighbors(currentPointKey)) {
+          const turnCost = currentDirection && currentDirection !== next.direction ? bendPenalty : 0;
+          const nextState = stateKey(next.key, next.direction);
+          const tentative = (gScores.get(current) ?? Infinity) + next.length + turnCost;
+          if (tentative >= (gScores.get(nextState) ?? Infinity)) continue;
+          cameFrom.set(nextState, current);
+          gScores.set(nextState, tentative);
+          scores.set(nextState, tentative + heuristic(next.key));
+          heapPush(nextState);
+        }
+      }
+      if (!found) return null;
+      const route = [];
+      for (let walk = found; walk; walk = cameFrom.get(walk)) {
+        route.unshift(points.get(statePointKey(walk)));
+        if (walk === startStateKey) break;
+      }
+      const routed = ensureLeftInputApproach(compactRoutePoints(route));
+      return routeIsClear(routed, routeTransition) ? routed : null;
+    }
+
+    function denseGridObstacleRoutePoints(from, to, transition = null) {
       recordRouteMetric("obstacleSearches");
       const startPort = snapPointToGrid(edgePortPoint(from, "out", transition));
       const goalPort = snapPointToGrid(edgePortPoint(to, "in", transition));
@@ -7808,15 +8012,26 @@
       return null;
     }
 
-    function baseEdgeRoutePoints(from, to, transition = null) {
+    function obstacleAvoidingRoutePoints(from, to, transition = null, options = {}) {
+      const sparse = options.allowSparseObstacleSearch === false ? null : sparseObstacleRoutePoints(from, to, transition);
+      if (sparse) return sparse;
+      if (options.allowDenseGridSearch === false) return null;
+      return denseGridObstacleRoutePoints(from, to, transition);
+    }
+
+    function baseEdgeRoutePoints(from, to, transition = null, options = {}) {
       const routeTransition = transition || { from: from.id, to: to.id };
+      const allowObstacleSearch = options.allowObstacleSearch !== false;
       const direct = directRoutePoints(from, to, transition);
       if (direct) return ensureLeftInputApproach(direct);
+      const portStub = portStubRoutePoints(from, to, transition);
+      if (portStub) return ensureLeftInputApproach(portStub);
       const forwardBend = forwardBendRoutePoints(from, to, transition);
       if (forwardBend) return ensureLeftInputApproach(forwardBend);
       const dogleg = doglegRoutePoints(from, to, transition);
       if (routeIsClear(dogleg, routeTransition)) return ensureLeftInputApproach(dogleg);
-      return ensureLeftInputApproach(obstacleAvoidingRoutePoints(from, to, transition) || dogleg);
+      if (!allowObstacleSearch) return ensureLeftInputApproach(dogleg);
+      return ensureLeftInputApproach(obstacleAvoidingRoutePoints(from, to, transition, options) || dogleg);
     }
 
     function routeSegments(points) {
@@ -7956,7 +8171,8 @@
       return coordinateKeepsPortApproach(points, segment, fallback) ? fallback : segment.coordinate;
     }
 
-    function resolveRouteOverlaps(routes) {
+    function resolveRouteOverlaps(routes, options = {}) {
+      const allowObstacleSearch = options.allowObstacleSearch !== false;
       let current = new Map([...routes].map(([id, points]) => [id, points.map(point => ({ ...point }))]));
       for (let pass = 0; pass < 8; pass++) {
         const groups = overlappingRouteGroups(current);
@@ -7983,9 +8199,10 @@
       for (const [id, points] of current) {
         const transition = frameRouteTransition(id);
         if (!transition || routeIsClear(points, transition)) continue;
+        if (!allowObstacleSearch) continue;
         const from = byId(transition.from);
         const to = byId(transition.to);
-        const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition) : null;
+        const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition, options) : null;
         if (rerouted) current.set(id, ensureLeftInputApproach(rerouted));
       }
       for (const [id, points] of current) {
@@ -7994,10 +8211,10 @@
       return current;
     }
 
-    // Compute all transition routes fresh — full A* for every edge, then resolve overlaps.
-    // Called once at the start of every draw() and stored in _frameRoutes.
-    function computeFrameRoutes() {
-      recordRouteMetric("finalRouteBuilds");
+    // Compute all transition routes fresh for the current frame; the map is not persisted.
+    function computeFrameRoutes(options = {}) {
+      const metricName = options.metricName || "finalRouteBuilds";
+      if (metricName) recordRouteMetric(metricName);
       const routes = new Map();
       _frameRouteTransitions = new Map();
       for (const transition of visibleTransitions()) {
@@ -8006,9 +8223,9 @@
         if (!from || !to) continue;
         const routeKey = transitionRouteKey(transition);
         _frameRouteTransitions.set(routeKey, transition);
-        routes.set(routeKey, baseEdgeRoutePoints(from, to, transition));
+        routes.set(routeKey, baseEdgeRoutePoints(from, to, transition, options));
       }
-      return resolveRouteOverlaps(routes);
+      return resolveRouteOverlaps(routes, options);
     }
 
     function edgeRoutePoints(from, to, transition = null) {
@@ -12439,28 +12656,79 @@
     var RUNTIME_STATE_EXIT_PULSE_MS = 920;
     var runtimePulseSerial = 0;
     var activeRuntimeEdgePulses = new Map();
+    var runtimeEdgePulseFrame = 0;
     var activeRuntimeStatePulses = new Map();
 
-    function applyRuntimeEdgePulses() {
+    function runtimePulseEase(t) {
+      const clamped = clamp(t, 0, 1);
+      return 1 - Math.pow(1 - clamped, 3);
+    }
+
+    function runtimeEdgePulseElements(id) {
+      return [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
+        .filter(el => el.dataset.edgeId === id);
+    }
+
+    function cleanupRuntimeEdgePulse(id, token = "") {
+      for (const el of runtimeEdgePulseElements(id)) {
+        if (token && el.dataset.runtimePulseToken !== token) continue;
+        el.classList.remove("runtime-pulse");
+        if (lastAppTransitionId !== id) el.classList.remove("runtime");
+        el.style.strokeDasharray = "";
+        el.style.strokeDashoffset = "";
+        el.style.strokeWidth = "";
+        el.style.filter = "";
+        el.style.opacity = "";
+        delete el.dataset.runtimePulseToken;
+      }
+    }
+
+    function applyRuntimeEdgePulseStyle(el, pulse, now) {
+      const elapsed = Math.max(0, now - (pulse.started || now));
+      const progress = clamp(elapsed / RUNTIME_EDGE_PULSE_MS, 0, 1);
+      const eased = runtimePulseEase(progress);
+      el.dataset.runtimePulseToken = pulse.token;
+      el.classList.add("runtime", "runtime-pulse");
+      if (el.classList.contains("edge")) {
+        const dashTravel = 144;
+        const pulseWidth = 4 + (1 - eased) * 4.5;
+        const glow = 7 + Math.sin(progress * Math.PI) * 13;
+        el.style.strokeDasharray = "22 14";
+        el.style.strokeDashoffset = String((-dashTravel * progress).toFixed(2));
+        el.style.strokeWidth = pulseWidth.toFixed(2);
+        el.style.filter = `drop-shadow(0 0 ${glow.toFixed(1)}px var(--edge-color, #5f8dbc))`;
+        el.style.opacity = "1";
+      } else if (el.classList.contains("edge-arrow")) {
+        const glow = 7 + Math.sin(progress * Math.PI) * 13;
+        el.style.filter = `drop-shadow(0 0 ${glow.toFixed(1)}px var(--edge-color, #5f8dbc))`;
+        el.style.opacity = "1";
+      }
+    }
+
+    function applyRuntimeEdgePulses(now = performance.now()) {
       if (!(activeRuntimeEdgePulses instanceof Map)) activeRuntimeEdgePulses = new Map();
-      const now = performance.now();
       for (const [id, pulse] of [...activeRuntimeEdgePulses]) {
         if (!pulse || pulse.until <= now) {
           activeRuntimeEdgePulses.delete(id);
+          if (lastAppTransitionId === id) lastAppTransitionId = null;
+          if (pulse) cleanupRuntimeEdgePulse(id, pulse.token);
           continue;
         }
-        const elements = [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
-          .filter(el => el.dataset.edgeId === id);
-        for (const el of elements) {
-          if (el.dataset.runtimePulseToken === pulse.token && el.classList.contains("runtime-pulse")) continue;
-          el.classList.remove("runtime-pulse");
-          const elapsed = Math.max(0, Math.min(RUNTIME_EDGE_PULSE_MS, now - (pulse.started || now)));
-          el.style.animationDelay = elapsed ? `-${elapsed}ms` : "";
-          void el.getBoundingClientRect();
-          el.dataset.runtimePulseToken = pulse.token;
-          el.classList.add("runtime", "runtime-pulse");
-        }
+        for (const el of runtimeEdgePulseElements(id)) applyRuntimeEdgePulseStyle(el, pulse, now);
       }
+    }
+
+    function tickRuntimeEdgePulses(now) {
+      runtimeEdgePulseFrame = 0;
+      applyRuntimeEdgePulses(now);
+      if (activeRuntimeEdgePulses instanceof Map && activeRuntimeEdgePulses.size) {
+        runtimeEdgePulseFrame = requestAnimationFrame(tickRuntimeEdgePulses);
+      }
+    }
+
+    function scheduleRuntimeEdgePulses() {
+      if (runtimeEdgePulseFrame) return;
+      runtimeEdgePulseFrame = requestAnimationFrame(tickRuntimeEdgePulses);
     }
 
     function pulseRuntimeTransition(edgeId) {
@@ -12469,26 +12737,14 @@
       const token = String(++runtimePulseSerial);
       if (!(activeRuntimeEdgePulses instanceof Map)) activeRuntimeEdgePulses = new Map();
       const started = performance.now();
+      cleanupRuntimeEdgePulse(id);
       activeRuntimeEdgePulses.set(id, {
         token,
         started,
         until: started + RUNTIME_EDGE_PULSE_MS
       });
-      requestAnimationFrame(() => {
-        applyRuntimeEdgePulses();
-        setTimeout(() => {
-          const pulse = activeRuntimeEdgePulses.get(id);
-          if (pulse?.token !== token) return;
-          activeRuntimeEdgePulses.delete(id);
-          [...wiresEl.querySelectorAll(".edge,.edge-arrow")]
-            .filter(el => el.dataset.edgeId === id && el.dataset.runtimePulseToken === token)
-            .forEach(el => {
-              el.classList.remove("runtime-pulse");
-              el.style.animationDelay = "";
-              delete el.dataset.runtimePulseToken;
-            });
-        }, RUNTIME_EDGE_PULSE_MS + 80);
-      });
+      applyRuntimeEdgePulses(started);
+      scheduleRuntimeEdgePulses();
     }
 
     function runtimePortMatchesSide(port, node, side) {
@@ -12630,22 +12886,15 @@
       }
       const stateChanged = previousAppState !== currentAppState;
       draw();
-        if (stateChanged) {
-          if (previousAppState) pulseRuntimeState(previousAppState, "exit", "output");
-          if (currentAppState) pulseRuntimeState(currentAppState, "enter", "input");
-        } else if (currentAppState && lastAppTransitionId) {
-          pulseRuntimeState(currentAppState, "exit", "output");
-          pulseRuntimeState(currentAppState, "enter", "input");
-        }
+      if (stateChanged) {
+        if (previousAppState) pulseRuntimeState(previousAppState, "exit", "output");
+        if (currentAppState) pulseRuntimeState(currentAppState, "enter", "input");
+      } else if (currentAppState && lastAppTransitionId) {
+        pulseRuntimeState(currentAppState, "exit", "output");
+        pulseRuntimeState(currentAppState, "enter", "input");
+      }
       if (lastAppTransitionId) {
-        const id = lastAppTransitionId;
-        pulseRuntimeTransition(id);
-        setTimeout(() => {
-          if (lastAppTransitionId === id) {
-            lastAppTransitionId = null;
-            draw();
-          }
-        }, 1260);
+        pulseRuntimeTransition(lastAppTransitionId);
       }
     });
 
@@ -12671,6 +12920,9 @@
       pendingAppStartStateId = null;
       lastAppTransitionId = null;
       hoveredEdgeId = null;
+      if (runtimeEdgePulseFrame) cancelAnimationFrame(runtimeEdgePulseFrame);
+      runtimeEdgePulseFrame = 0;
+      activeRuntimeEdgePulses = new Map();
       runtimeLayerFollowEnabled = false;
       suppressLayerEnterUntil = 0;
       suppressExplicitLayerEnterUntil = 0;

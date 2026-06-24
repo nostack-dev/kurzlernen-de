@@ -969,7 +969,11 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="step_two"]')).toHaveCount(0);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/active/);
     await expect(page.locator('[data-id="done"]')).toHaveClass(/runtime-enter/);
-    await expect(page.locator('.edge[data-edge-id="lesson_done"]')).toHaveClass(/runtime-pulse/);
+    const doneEdge = page.locator('.edge[data-edge-id="lesson_done"]');
+    await expect(doneEdge).toHaveClass(/runtime-pulse/);
+    await expect(doneEdge).toHaveCSS("animation-name", "none");
+    const firstDashOffset = await doneEdge.evaluate(el => el.style.strokeDashoffset);
+    await expect.poll(() => doneEdge.evaluate(el => el.style.strokeDashoffset)).not.toBe(firstDashOffset);
   });
 
   test("keeps transition wires scoped to the opened state canvas @smoke", async ({ page }) => {
@@ -1776,7 +1780,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: directModel });
     await page.goto("/state.html");
-    await expect(page.locator(".node")).toHaveCount(2);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
 
     const report = await gridGeometryReport(page);
     const route = report.paths.find(path => path.id === "left_to_right");
@@ -1813,7 +1817,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: nearDirectModel });
     await page.goto("/state.html");
-    await expect(page.locator(".node")).toHaveCount(2);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
 
     const report = await gridGeometryReport(page);
     const route = report.paths.find(path => path.id === "left_to_right");
@@ -1827,6 +1831,44 @@ test.describe("State Blueprint tool", () => {
     expect(route.horizontalSegments).toHaveLength(2);
     expect(route.points.every(point => point.y >= Math.min(startY, endY) && point.y <= Math.max(startY, endY))).toBe(true);
     expect(report.arrows.find(arrow => arrow.id === "left_to_right")?.fill).toBe(route.stroke);
+  });
+
+  test("keeps clear offset transitions on a long port-stub route", async ({ page }) => {
+    const offsetModel = {
+      version: 2,
+      name: "Clean offset route",
+      initial: "left",
+      states: [
+        { id: "left", title: "Left", body: "", x: 96, y: 96 },
+        { id: "right", title: "Right", body: "", x: 744, y: 384 }
+      ],
+      transitions: [
+        { id: "left_to_right", from: "left", to: "right", label: "Clean", condition: "" }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+    }, { key: STORAGE_KEY, model: offsetModel });
+    await page.goto("/state.html");
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
+
+    const report = await gridGeometryReport(page);
+    const route = report.paths.find(path => path.id === "left_to_right");
+
+    expect(route).toBeTruthy();
+    expect(route.points).toHaveLength(4);
+    expect(route.verticalSegments).toHaveLength(1);
+    expect(route.horizontalSegments).toHaveLength(2);
+
+    const [start, outStub, inputLane, end] = route.points;
+    expect(outStub).toEqual({ x: start.x + GRID_SIZE * 2, y: start.y });
+    expect(inputLane).toEqual({ x: outStub.x, y: end.y });
+    expect(route.horizontalSegments.some(segment => segment.max - segment.min >= GRID_SIZE * 18)).toBe(true);
   });
 
   test("routes transition cables around state bounding boxes", async ({ page }) => {
@@ -1852,7 +1894,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: obstacleModel });
     await page.goto("/state.html");
-    await expect(page.locator(".node")).toHaveCount(3);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(3);
 
     const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
     const transition = model.transitions.find(item => item.id === "left_to_right");
@@ -1897,7 +1939,7 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: clearanceModel });
     await page.goto("/state.html");
-    await expect(page.locator(".node")).toHaveCount(3);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(3);
 
     const [report, model] = await Promise.all([gridGeometryReport(page), savedModel(page)]);
     const transition = model.transitions.find(item => item.id === "left_to_right");
@@ -3428,8 +3470,16 @@ test.describe("State Blueprint tool", () => {
       window.__stateBlueprintRouteMetrics = {};
     }, { key: STORAGE_KEY, model });
     await page.goto("/state.html");
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(20);
-    await expect(page.locator('[data-id="hub"] .port-slot')).toHaveCount(20);
+    for (const transition of transitions) {
+      await expect(page.locator(`.edge[data-edge-id="${transition.id}"]`)).toHaveCount(1);
+    }
+    const initialReport = await gridGeometryReport(page);
+    const hubPins = transitions.map(transition => {
+      const side = transition.to === "hub" ? "in" : "out";
+      return initialReport.pins.find(pin => pin.id === transition.id && pin.side === side);
+    });
+    expect(hubPins.every(Boolean)).toBe(true);
+    expect(new Set(hubPins.map(pin => `${pin.x},${pin.y}`)).size).toBe(20);
 
     const hubBox = await visibleBox(page.locator('[data-id="hub"]'));
     const start = { x: hubBox.x + hubBox.width / 2, y: hubBox.y + hubBox.height / 2 };
@@ -3446,7 +3496,113 @@ test.describe("State Blueprint tool", () => {
 
     await page.mouse.up();
     await expect.poll(() => page.evaluate(() => window.__stateBlueprintRouteMetrics.finalRouteBuilds || 0)).toBeGreaterThan(0);
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(20);
+    for (const transition of transitions) {
+      await expect(page.locator(`.edge[data-edge-id="${transition.id}"]`)).toHaveCount(1);
+    }
+  });
+
+  test("keeps clear live state-drag routes identical to the released frame @smoke", async ({ page }) => {
+    const routeModel = {
+      version: 2,
+      name: "Stable drag routes",
+      initial: "source",
+      states: [
+        { id: "source", title: "Source", body: "", x: 120, y: 240 },
+        { id: "top", title: "Top", body: "", x: 696, y: 96 },
+        { id: "bottom", title: "Bottom", body: "", x: 696, y: 408 }
+      ],
+      transitions: [
+        { id: "source_to_top", from: "source", to: "top", label: "Top", condition: "" },
+        { id: "source_to_bottom", from: "source", to: "bottom", label: "Bottom", condition: "" }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+      window.__stateBlueprintRouteMetrics = {};
+    }, { key: STORAGE_KEY, model: routeModel });
+    await page.goto("/state.html");
+    for (const transition of routeModel.transitions) {
+      await expect(page.locator(`.edge[data-edge-id="${transition.id}"]`)).toHaveCount(1);
+    }
+
+    const sourceBox = await visibleBox(page.locator('[data-id="source"]'));
+    const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.evaluate(() => { window.__stateBlueprintRouteMetrics = {}; });
+    await page.mouse.move(start.x + 168, start.y + 96, { steps: 12 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+
+    const transitionIds = routeModel.transitions.map(transition => transition.id);
+    const duringDrag = await page.evaluate(ids => Object.fromEntries(ids.map(id => [
+      id,
+      document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)?.getAttribute("d") || ""
+    ])), transitionIds);
+
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRouteMetrics.finalRouteBuilds || 0)).toBeGreaterThan(0);
+    const afterRelease = await page.evaluate(ids => Object.fromEntries(ids.map(id => [
+      id,
+      document.querySelector(`.edge[data-edge-id="${CSS.escape(id)}"]`)?.getAttribute("d") || ""
+    ])), transitionIds);
+    const metrics = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
+
+    expect(duringDrag).toEqual(afterRelease);
+    expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
+    expect(metrics.obstacleSearches || 0).toBe(0);
+  });
+
+  test("keeps obstacle-rerouted live drags identical without dense grid search @smoke", async ({ page }) => {
+    const routeModel = {
+      version: 2,
+      name: "Sparse drag routes",
+      initial: "source",
+      states: [
+        { id: "source", title: "Source", body: "", x: 96, y: 96 },
+        { id: "obstacle", title: "Obstacle", body: "", x: 384, y: 144 },
+        { id: "target", title: "Target", body: "", x: 720, y: 96 }
+      ],
+      transitions: [
+        { id: "source_to_target", from: "source", to: "target", label: "Target", condition: "" }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+      window.__stateBlueprintRouteMetrics = {};
+    }, { key: STORAGE_KEY, model: routeModel });
+    await page.goto("/state.html");
+    await expect(page.locator('.edge[data-edge-id="source_to_target"]')).toHaveCount(1);
+
+    const sourceBox = await visibleBox(page.locator('[data-id="source"]'));
+    const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.evaluate(() => { window.__stateBlueprintRouteMetrics = {}; });
+    await page.mouse.move(start.x + 48, start.y + 48, { steps: 14 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+
+    const duringDrag = await page.locator('.edge[data-edge-id="source_to_target"]').getAttribute("d");
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.__stateBlueprintRouteMetrics.finalRouteBuilds || 0)).toBeGreaterThan(0);
+    const afterRelease = await page.locator('.edge[data-edge-id="source_to_target"]').getAttribute("d");
+    const metrics = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
+
+    expect(duringDrag).toBe(afterRelease);
+    expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
+    expect(metrics.sparseRouteSearches).toBeGreaterThan(0);
+    expect(metrics.obstacleSearches || 0).toBe(0);
   });
 
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
