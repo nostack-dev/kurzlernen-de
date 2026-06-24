@@ -111,6 +111,12 @@ function componentEditor(page, title) {
   });
 }
 
+function dataRenderRows(page) {
+  return page.locator(".component-editor").filter({
+    has: page.locator(".component-editor-title").filter({ hasText: /^Data: / })
+  });
+}
+
 function componentPreset(page, title) {
   return page.locator(".component-preset-card").filter({
     has: page.locator(".template-title").filter({ hasText: new RegExp(`^${title}$`) })
@@ -3805,7 +3811,7 @@ test.describe("State Blueprint tool", () => {
       return stored.states.find(state => state.id === "state_3")?.dataWires?.length || 0;
     }).toBe(5);
 
-    const rows = page.locator(".data-wire-render-panel .data-wire-row");
+    const rows = dataRenderRows(page);
     await expect(rows).toHaveCount(5);
     await expect(rows.first().locator(".data-wire-controls")).toBeVisible();
 
@@ -3832,7 +3838,7 @@ test.describe("State Blueprint tool", () => {
         const directChildren = [...row.children];
         const controls = row.querySelector(".data-wire-controls");
         const controlChildren = controls ? [...controls.children] : [];
-        const allChildren = [...row.querySelectorAll(".data-wire-index, .data-wire-main, .data-wire-controls, select, button")];
+        const allChildren = [...row.querySelectorAll(".component-editor-head, .field, .data-wire-controls, select, button")];
         return {
           childOverlaps: pairReport(directChildren),
           controlOverlaps: pairReport(controlChildren),
@@ -3888,7 +3894,7 @@ test.describe("State Blueprint tool", () => {
     await page.goto("/state.html");
     await openStateInspector(page, "state_3");
 
-    await expect(page.locator(".data-wire-render-panel .data-wire-row")).toHaveCount(0);
+    await expect(dataRenderRows(page)).toHaveCount(0);
     await expect(page.locator("#pDataWireList .data-wire-row")).toHaveCount(0);
     await expect.poll(async () => {
       const stored = await savedModel(page);
@@ -3959,7 +3965,7 @@ test.describe("State Blueprint tool", () => {
       return stored.states.find(state => state.id === "state_3").dataWires.map(wire => wire.sourcePath);
     }).toContain("catalog.item.badge");
 
-    const renderRows = page.locator(".data-wire-render-panel .data-wire-row");
+    const renderRows = dataRenderRows(page);
     await expect(renderRows).toHaveCount(6);
     const renderPathSelect = renderRows.first().locator('select[aria-label="Source path"]');
     await expect(renderPathSelect.locator('option[value="catalog.item.images.0.url"]')).toHaveCount(1);
@@ -3995,9 +4001,9 @@ test.describe("State Blueprint tool", () => {
     }).toEqual(["catalog.item.title", "catalog.item.price", "catalog.item.altImage", "catalog.item.description", "catalog.item.category", "catalog.item.badge"]);
 
     dataTransfer = await page.evaluateHandle(() => new DataTransfer());
-    const refreshedRenderRows = page.locator(".data-wire-render-panel .data-wire-row");
+    const refreshedRenderRows = dataRenderRows(page);
     targetBox = await visibleBox(refreshedRenderRows.nth(5));
-    await refreshedRenderRows.first().dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
+    await refreshedRenderRows.first().locator(".component-drag-handle").dispatchEvent("dragstart", { dataTransfer, bubbles: true, cancelable: true });
     await refreshedRenderRows.nth(5).dispatchEvent("dragover", {
       dataTransfer,
       bubbles: true,
@@ -4149,7 +4155,19 @@ test.describe("State Blueprint tool", () => {
           rootStateId: "portable_fetch",
           title: "Portable Fetch",
           body: "",
-          components: [],
+          components: [
+            { id: "slot_title", type: "dataWire", wireId: "wire_title", text: "", url: "" },
+            {
+              id: "portable_list",
+              type: "list",
+              text: "First\nDocs",
+              url: "",
+              items: [
+                { id: "li_first", type: "text", text: "First", url: "" },
+                { id: "li_docs", type: "link", text: "Docs", url: "https://example.com/docs" }
+              ]
+            }
+          ],
           data: {},
           dataSource: { url: "", target: "fetch", select: "", timeoutMs: 8000, retries: 2 },
           repeat: { path: "fetch.data", as: "item", index: "i" },
@@ -4176,20 +4194,38 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
       const imported = templates.find(template => template.title === "Portable Fetch");
+      const portableList = imported?.components?.find(component => component.id === "portable_list");
       return {
         dataWire: imported?.dataWires?.[0]?.sourcePath || "",
         subscription: imported?.subscriptions?.[0] || "",
-        boundary: imported?.boundary?.entryDisabled
+        boundary: imported?.boundary?.entryDisabled,
+        renderWire: imported?.components?.find(component => component.type === "dataWire")?.wireId || "",
+        listItemTypes: portableList?.items?.map(item => item.type) || []
       };
-    }).toEqual({ dataWire: "fetch.data.title", subscription: "fetch.data.title", boundary: false });
+    }).toEqual({
+      dataWire: "fetch.data.title",
+      subscription: "fetch.data.title",
+      boundary: false,
+      renderWire: "wire_title",
+      listItemTypes: ["text", "link"]
+    });
 
     await page.locator("#pTemplateUse").click();
     await expect(nodeByTitle(page, "Portable Fetch")).toBeVisible();
     await expect.poll(async () => {
       const model = await savedModel(page);
       const imported = model.states.find(state => state.title === "Portable Fetch");
-      return imported?.dataWires?.[0]?.sourcePath || "";
-    }).toBe("fetch.data.title");
+      const portableList = imported?.components?.find(component => component.type === "list");
+      return {
+        dataWire: imported?.dataWires?.[0]?.sourcePath || "",
+        renderWire: imported?.components?.find(component => component.type === "dataWire")?.wireId || "",
+        listItemTypes: portableList?.items?.map(item => item.type) || []
+      };
+    }).toEqual({
+      dataWire: "fetch.data.title",
+      renderWire: "wire_title",
+      listItemTypes: ["text", "link"]
+    });
   });
 
   test("reorders component rows with the editor drag handle @smoke", async ({ page }) => {
@@ -4285,6 +4321,88 @@ test.describe("State Blueprint tool", () => {
         child.querySelector("button[data-transition-id]")?.dataset.transitionId || child.textContent.trim()
       );
     })).toEqual(["t_auth_login", "User chooses login or registration.", "t_auth_register"]);
+  });
+
+  test("persists data-wire render rows between components and transition buttons @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Mixed render order",
+      initial: "state_3",
+      states: [
+        {
+          id: "state_3",
+          title: "State 3",
+          body: "",
+          x: 220,
+          y: 220,
+          components: [{ id: "manual_note", type: "note", text: "Manual note", url: "" }],
+          data: { catalog: { item: { title: "Ada Chair" } } },
+          subscriptions: ["catalog.item"],
+          dataWires: [
+            { id: "wire_title", sourcePath: "catalog.item.title", role: "title", componentType: "heading", label: "Title" }
+          ]
+        },
+        {
+          id: "state_done",
+          title: "Done",
+          body: "",
+          x: 520,
+          y: 220,
+          components: []
+        }
+      ],
+      transitions: [
+        { id: "t_next", from: "state_3", to: "state_done", label: "Continue", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(`${key}.editor`, JSON.stringify({ model }));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await openStateInspector(page, "state_3");
+
+    await expect(componentEditor(page, "Data: Title")).toBeVisible();
+    await expect(componentEditor(page, "Note")).toBeVisible();
+    await expect(componentEditor(page, "Button: Continue")).toBeVisible();
+
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    const noteBox = await visibleBox(componentEditor(page, "Note"));
+    await componentEditor(page, "Data: Title").locator(".component-drag-handle").dispatchEvent("dragstart", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true
+    });
+    await componentEditor(page, "Note").dispatchEvent("dragover", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: noteBox.y + noteBox.height - 4
+    });
+    await componentEditor(page, "Note").dispatchEvent("drop", {
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+      clientY: noteBox.y + noteBox.height - 4
+    });
+
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "state_3").components.map(component =>
+        component.type === "dataWire" ? component.wireId :
+          component.type === "transitionButton" ? component.transitionId :
+            component.id
+      );
+    }).toEqual(["manual_note", "wire_title", "t_next"]);
+
+    await expect.poll(async () => appFrame(page).locator("#screen").evaluate(screen => {
+      const stack = screen.querySelector(".component-stack");
+      return [...(stack?.children || [])].map(child =>
+        child.querySelector("button[data-transition-id]")?.dataset.transitionId || child.textContent.trim()
+      );
+    })).toEqual(["Manual note", "Ada Chair", "t_next"]);
   });
 
   test("keeps preview controls inside the viewport when opened, collapsed, and narrow", async ({ page }) => {

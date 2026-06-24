@@ -297,6 +297,32 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
+  test("data-wire render placeholders stay referential and ordered @smoke", () => {
+    const html = stateHtml();
+    const appHtml = generatedAppHtml();
+
+    expect(html).toContain('"transitionButton", "dataWire"');
+    expect(html).toContain('if (component.type === "dataWire") norm.wireId');
+    expect(html).toContain('component.type !== "dataWire" || wireIds.has(component.wireId)');
+    expect(html).toContain("const dataWireComponentId = wireId => `data-wire:${wireId}`");
+    expect(html).toContain('if (component.type === "dataWire") clean.wireId');
+    expect(html).toContain('type: "dataWire"');
+    expect(html).toContain("wireId: wire.id");
+    expect(html).toContain("function snapshotStateTemplates");
+    expect(html).toContain("components: migrateBodyToComponents(item.body, item.components || [])");
+    expect(html).toContain('if (component.type === "list") {');
+    expect(html).toContain("clone.items = normalizeListItems(component.items, component.text).map");
+
+    expect(appHtml).toContain('"transitionButton", "dataWire"');
+    expect(appHtml).toContain('if (component.type === "dataWire") norm.wireId');
+    expect(appHtml).toContain("function runtimeOrderedRenderComponentsForState");
+    expect(appHtml).toContain("const wireById = new Map(wireComponents.map(component => [component.wireId, component]))");
+    expect(appHtml).toContain('if (component.type === "dataWire")');
+    expect(appHtml).toContain("ordered.push(wireComponent)");
+    expect(appHtml).toContain("return [...unplacedWires, ...ordered]");
+    expect(appHtml).toContain("wireId: wire.id");
+  });
+
   test("generated runtime writes global state through the bus @smoke", () => {
     const appHtml = generatedAppHtml();
 
@@ -325,6 +351,49 @@ test.describe("Core source contracts", () => {
 });
 
 test.describe("Core browser contracts", () => {
+  test("runtime orders placed and unplaced data wires with transition buttons through events @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Runtime Render Order",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 120,
+          y: 160,
+          data: { catalog: { item: { badge: "Featured", title: "Ada Chair" } } },
+          dataWires: [
+            { id: "wire_badge", sourcePath: "catalog.item.badge", role: "field", componentType: "text", label: "Badge" },
+            { id: "wire_title", sourcePath: "catalog.item.title", role: "title", componentType: "heading", label: "Title" }
+          ],
+          components: [
+            { id: "manual_note", type: "note", text: "Manual note", url: "" },
+            { id: "slot_title", type: "dataWire", wireId: "wire_title", text: "", url: "" },
+            { id: "slot_next", type: "transitionButton", transitionId: "to_done", text: "", url: "" }
+          ]
+        },
+        { id: "done", title: "Done", body: "", x: 420, y: 160, components: [] }
+      ],
+      transitions: [
+        { id: "to_done", from: "start", to: "done", label: "Continue", condition: "", triggerType: "button", set: { visited: true } }
+      ]
+    });
+
+    const app = appFrame(page);
+    await expect.poll(async () => app.locator("#screen").evaluate(screen => {
+      const stack = screen.querySelector(".component-stack");
+      return [...(stack?.children || [])].map(child =>
+        child.querySelector("button[data-transition-id]")?.dataset.transitionId || child.textContent.trim()
+      );
+    })).toEqual(["Badge: Featured", "Manual note", "Ada Chair", "to_done"]);
+    await expect(app.locator("button[data-transition-id='to_done']")).toHaveCount(1);
+
+    await app.getByRole("button", { name: "Continue" }).click();
+    await expect(app.locator("#statePill")).toHaveText("done");
+  });
+
   test("multiple outgoing button transitions keep distinct event targets @smoke", async ({ page }) => {
     await openWithModel(page, {
       version: 2,
