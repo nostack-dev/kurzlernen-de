@@ -1113,26 +1113,6 @@
       pointer-events: auto;
     }
 
-    .svg-port.runtime {
-      filter: drop-shadow(0 0 10px rgba(34,197,94,.75));
-    }
-
-    .svg-port.runtime .svg-port-hit {
-      fill: rgba(34,197,94,.1);
-      stroke: rgba(134,239,172,.78);
-      stroke-width: 2.4;
-      vector-effect: non-scaling-stroke;
-      animation: activePortBreath 1.9s ease-in-out infinite;
-    }
-
-    .svg-port.runtime-enter {
-      animation: portEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1);
-    }
-
-    .svg-port.runtime-exit {
-      animation: portExitPulse .88s ease-out;
-    }
-
     .svg-port-input .svg-port-socket,
     .svg-port[data-port-side="in"] .svg-port-socket,
     .svg-port[data-slot="input"],
@@ -1218,72 +1198,6 @@
 
     .svg-port-output .svg-port-symbol {
       stroke-width: 3.65;
-    }
-
-    .svg-port.runtime.svg-port-input .svg-port-socket,
-    .svg-port.runtime[data-port-side="in"] .svg-port-socket,
-    .svg-port.runtime[data-slot="input"],
-    .svg-port.runtime[data-kind="input"],
-    .svg-port.runtime[data-type="input"],
-    .svg-port.runtime[data-role="input"],
-    .svg-port.runtime.input .svg-port-socket,
-    .svg-port.runtime.input-port .svg-port-socket,
-    .runtime.input-port.svg-port .svg-port-socket {
-      fill: var(--canvas-bg, #07111f) !important;
-      stroke: var(--runtime, #22c55e) !important;
-      filter: none;
-    }
-
-    .svg-port.runtime.svg-port-output .svg-port-plug,
-    .svg-port.runtime[data-port-side="out"] .svg-port-plug,
-    .svg-port.runtime[data-slot="output"],
-    .svg-port.runtime[data-kind="output"],
-    .svg-port.runtime[data-type="output"],
-    .svg-port.runtime[data-role="output"],
-    .svg-port.runtime.output .svg-port-plug,
-    .svg-port.runtime.output-port .svg-port-plug,
-    .svg-port.runtime.port-slot-output .svg-port-plug,
-    .runtime.port-slot-output.svg-port .svg-port-plug {
-      fill: var(--runtime, #22c55e) !important;
-      stroke: #07111f !important;
-      filter: none;
-    }
-
-    .svg-port.runtime .svg-port-symbol {
-      stroke: var(--runtime, #22c55e);
-      filter: none;
-    }
-
-    .svg-port.runtime .svg-port-moon {
-      fill: var(--runtime, #22c55e);
-      filter: none;
-    }
-
-    .svg-port.runtime .svg-port-crescent {
-      fill: var(--runtime, #22c55e);
-      filter: none;
-    }
-
-    @keyframes activePortBreath {
-      0%, 100% {
-        opacity: .82;
-        stroke-width: 2.2;
-      }
-      50% {
-        opacity: 1;
-        stroke-width: 3.2;
-      }
-    }
-
-    @keyframes portEnterPulse {
-      0% { opacity: .72; filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
-      38% { opacity: 1; filter: drop-shadow(0 0 18px rgba(134,239,172,.92)); }
-      100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(34,197,94,.75)); }
-    }
-
-    @keyframes portExitPulse {
-      0% { opacity: 1; filter: drop-shadow(0 0 12px rgba(148,163,184,.65)); }
-      100% { opacity: .82; filter: drop-shadow(0 0 2px rgba(148,163,184,.18)); }
     }
 
     .svg-port-output {
@@ -8487,7 +8401,6 @@
     function addSvgStatePort(state, side) {
       const point = svgStatePortPoint(state, side);
       const classes = ["svg-port", side === "out" ? "svg-port-output" : "svg-port-input"];
-      if (state.id === currentAppState) classes.push("runtime");
       const sourceSide = connecting?.fromSide || "out";
       if (connecting?.from === state.id && side === sourceSide) classes.push("connecting-source-port");
       const port = svgEl("g", {
@@ -12725,27 +12638,6 @@
       scheduleRuntimeEdgePulses();
     }
 
-    function runtimePortMatchesSide(port, node, side) {
-      if (!side) return true;
-      const sideLabel = [
-        port.dataset.side,
-        port.dataset.portSide,
-        port.dataset.slot,
-        port.dataset.kind,
-        port.dataset.type,
-        port.dataset.role,
-        port.className?.baseVal || port.className || ""
-      ].filter(Boolean).join(" ").toLowerCase();
-      if (side === "input" && /\b(input|in|target|entry|left)\b/.test(sideLabel)) return true;
-      if (side === "output" && /\b(output|out|source|exit|right)\b/.test(sideLabel)) return true;
-      if (!node) return true;
-      const portBox = port.getBoundingClientRect();
-      const nodeBox = node.getBoundingClientRect();
-      const portX = portBox.left + portBox.width / 2;
-      const nodeX = nodeBox.left + nodeBox.width / 2;
-      return side === "input" ? portX <= nodeX : portX >= nodeX;
-    }
-
     function runtimeStatePulseDuration(mode) {
       return mode === "exit" ? RUNTIME_STATE_EXIT_PULSE_MS : RUNTIME_STATE_ENTER_PULSE_MS;
     }
@@ -12762,9 +12654,6 @@
       const elements = [];
       const node = nodesEl.querySelector(`.node[data-id="${cssEscapeValue(id)}"]`);
       if (node) elements.push(node);
-      getPortOverlay().querySelectorAll(`.svg-port[data-state-id="${cssEscapeValue(id)}"]`).forEach(el => {
-        if (runtimePortMatchesSide(el, node, portSide)) elements.push(el);
-      });
       return elements;
     }
 

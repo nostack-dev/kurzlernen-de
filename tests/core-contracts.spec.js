@@ -360,16 +360,18 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("animation: activeSelectedStateBreath 2.35s ease-in-out infinite");
     expect(html).toContain("stateEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1)");
     expect(html).toContain("var RUNTIME_STATE_ENTER_PULSE_MS = 1420");
-    expect(html).toContain(".svg-port.runtime .svg-port-hit");
-    expect(html).toContain("@keyframes activePortBreath");
-    expect(html).toContain("portEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1)");
+    expect(html).not.toContain(".svg-port.runtime .svg-port-hit");
+    expect(html).not.toContain("@keyframes activePortBreath");
+    expect(html).not.toContain("portEnterPulse 1.34s cubic-bezier(.16, 1, .3, 1)");
+    expect(html).not.toContain("portExitPulse .88s ease-out");
+    expect(html).not.toContain('if (state.id === currentAppState) classes.push("runtime")');
   });
 
   test("runtime transition flow pulse is frame-time driven @smoke", () => {
     const html = stateHtml();
     const pulseBody = html.slice(
       html.indexOf("function pulseRuntimeTransition(edgeId)"),
-      html.indexOf("function runtimePortMatchesSide")
+      html.indexOf("function runtimeStatePulseDuration")
     );
 
     expect(html).toContain("var runtimeEdgePulseFrame = 0");

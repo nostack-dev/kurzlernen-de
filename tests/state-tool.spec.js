@@ -954,7 +954,9 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Lesson");
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/active/);
     await expect(page.locator('[data-id="step_one"]')).toHaveClass(/runtime-enter/);
-    await expect(page.locator('svg#ports .svg-port[data-state-id="step_one"][data-port-side="in"]')).toHaveClass(/runtime-enter/);
+    const stepOneInputPort = page.locator('svg#ports .svg-port[data-state-id="step_one"][data-port-side="in"]');
+    await expect(stepOneInputPort).toHaveCount(1);
+    await expect(stepOneInputPort).not.toHaveClass(/runtime-enter/);
 
     await app.getByRole("button", { name: "Continue" }).click();
     await expect(app.locator("#statePill")).toHaveText("step_two");
