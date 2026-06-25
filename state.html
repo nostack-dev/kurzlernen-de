@@ -3344,7 +3344,7 @@
         version: 2,
         name: "Untitled Flow",
         initial: "",
-        boundary: { entryId: "", exitId: "", entryDisabled: true, exitDisabled: true },
+        boundary: normalizeBoundaryConfig(null),
         states: [],
         transitions: []
       };
@@ -3355,7 +3355,7 @@
         version: 2,
         name: "Untitled Flow",
         initial: "start",
-        boundary: { entryId: "", exitId: "", entryDisabled: true, exitDisabled: true },
+        boundary: normalizeBoundaryConfig(null),
         states: [
           { id: "start", title: "Start", body: "", components: [], data: {}, x: 120, y: 168 }
         ],
@@ -5211,8 +5211,6 @@
         m.initial = "";
         m.boundary.entryId = "";
         m.boundary.exitId = "";
-        m.boundary.entryDisabled = true;
-        m.boundary.exitDisabled = true;
         currentAppState = null;
         currentLayerId = null;
         return m;
@@ -5923,12 +5921,7 @@
       model.transitions = model.transitions.filter(transition => !removeSet.has(transition.from) && !removeSet.has(transition.to));
       if (!model.states.length) {
         model.initial = "";
-        model.boundary = {
-          entryId: "",
-          exitId: "",
-          entryDisabled: true,
-          exitDisabled: true
-        };
+        model.boundary = normalizeBoundaryConfig(null);
         currentLayerId = null;
         currentAppState = null;
         pendingAppStartStateId = null;
@@ -12412,7 +12405,8 @@
         blockLayerEntryAfterPointerAction(1000);
         const dropPoint = screenToWorld(evt);
         const domTargetId = evt.target?.closest?.(".node")?.dataset?.id || "";
-        const dropTargetNode = connectionTargetAtWorldPoint(dropPoint) || byId(domTargetId);
+        const domTargetNode = byId(domTargetId);
+        const dropTargetNode = connectionTargetAtWorldPoint(dropPoint) || (domTargetNode?.id !== connecting.from ? domTargetNode : null);
         const targetNode = connecting.projection ? (dropTargetNode || byId(connectingTargetId)) : (connectingTargetId ? byId(connectingTargetId) : dropTargetNode);
         const targetId = targetNode?.id;
         const fromNode = byId(connecting.from);
@@ -12468,7 +12462,15 @@
             let t = rewireTransition || null;
             const duplicate = transitionBetween(groupRoute.from, groupRoute.to, t?.id || null);
             if (duplicate) {
-              if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
+              if (t) {
+                selected = selectionFromParts([], [t.id]);
+                connecting = null;
+                connectingTargetId = null;
+                mapEl.classList.remove("connecting");
+                draw();
+                showEdgeInspector(t, { focus: false });
+                return;
+              }
               t = duplicate;
               t.groupEntryId = groupRoute.groupEntryId;
               t.groupExitId = groupRoute.groupExitId;
@@ -12504,14 +12506,12 @@
           const duplicate = transitionBetween(connecting.from, targetId, t?.id || null);
           if (duplicate) {
             if (t) {
-              model.transitions = model.transitions.filter(item => item.id !== t.id);
-              t = duplicate;
               selected = selectionFromParts([], [t.id]);
-              saveModel();
               connecting = null;
               connectingTargetId = null;
               mapEl.classList.remove("connecting");
               draw();
+              showEdgeInspector(t, { focus: false });
               return;
             }
             t = duplicate;
@@ -12572,6 +12572,7 @@
           }
           const rewireTransition = connecting.edgeId ? model.transitions.find(item => item.id === connecting.edgeId && !item.boundaryFlow) : null;
           let t = rewireTransition || null;
+          model.states.push(s);
           const duplicate = transitionBetween(connecting.from, s.id, t?.id || null);
           if (duplicate) {
             if (t) model.transitions = model.transitions.filter(item => item.id !== t.id);
@@ -12582,7 +12583,6 @@
             t = { id: uid("t"), from: connecting.from, to: s.id, label: defaultTransitionLabel({ from: connecting.from, to: s.id }), condition: "", triggerType: "button", triggerEvent: "", set: {} };
             model.transitions.push(t);
           }
-          model.states.push(s);
           selected = selectionFromParts([s.id], []);
           saveModel();
           connecting = null;

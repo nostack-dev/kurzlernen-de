@@ -90,6 +90,10 @@ async function visibleBox(locator) {
   return box;
 }
 
+function statePort(page, stateId, side) {
+  return page.locator(`svg#ports .svg-port[data-state-id="${stateId}"][data-port-side="${side}"]`);
+}
+
 async function savedModel(page) {
   return page.evaluate(key => {
     const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
@@ -392,13 +396,22 @@ function segmentIntersectsNode(segment, node, margin = 0) {
     Math.max(segment.min, y1) < Math.min(segment.max, y2);
 }
 
+function userTransitions(model) {
+  return model.transitions.filter(transition =>
+    !transition.boundaryFlow &&
+    !String(transition.from || "").startsWith("proxy:") &&
+    !String(transition.to || "").startsWith("proxy:")
+  );
+}
+
 test.describe("State Blueprint tool", () => {
   test("creates a complete state machine from the UI with data, templates, conditions, sets, preview, and export", async ({ page }) => {
     await openTool(page);
     await page.getByRole("button", { name: "New" }).click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
-    await expect(page.locator(".node")).toHaveCount(1);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
     await expect(page.locator('[data-id="start"]')).toBeVisible();
 
     await page.locator('[data-id="start"]').click();
@@ -430,14 +443,15 @@ test.describe("State Blueprint tool", () => {
     await componentEditor(page, "Note").locator("textarea").fill("Stored from state.data: {{userName}}");
     await page.keyboard.press("Alt+ArrowLeft");
 
-    const startPort = await centerOf(page.locator('[data-id="start"] .port'));
+    const startPort = await centerOf(statePort(page, "start", "out"));
     const map = await page.locator("#map").boundingBox();
     await page.mouse.move(startPort.x, startPort.y);
     await page.mouse.down();
     await page.mouse.move(map.x + 430, map.y + 230, { steps: 12 });
     await page.mouse.up();
 
-    await expect(page.locator(".node")).toHaveCount(2);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
     await page.keyboard.press("Escape");
     await page.locator("svg text.edge-label").filter({ hasText: /^To State/ }).click();
     await page.locator("#pLabel").fill("Submit");
@@ -661,7 +675,7 @@ test.describe("State Blueprint tool", () => {
   test("opens nested state canvases with a node double click @smoke", async ({ page }) => {
     await openTool(page);
 
-    await page.locator('[data-id="login"]').dblclick();
+    await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator("#layerBack")).toBeVisible();
   });
@@ -715,6 +729,46 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(0);
     await expect(page.locator('.edge[data-edge-id="left_to_right"]')).toHaveCount(1);
     await expect(page.locator('[data-edge-id^="boundary-flow:"]')).toHaveCount(0);
+  });
+
+  test("keeps root boundary proxies enabled on new and first blank states @smoke", async ({ page }) => {
+    await openTool(page);
+    await page.getByRole("button", { name: "New" }).click();
+    await page.getByRole("button", { name: "Neu starten" }).click();
+
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('.node.boundary-input[data-id="proxy:__root__:input:__boundary_input"]')).toHaveCount(1);
+    await expect(page.locator('.node.boundary-output[data-id="proxy:__root__:output:__boundary_output"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:input"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:output"]')).toHaveCount(1);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="proxy:__root__:input:__boundary_input"][data-port-side="out"]')).toHaveCount(1);
+    await expect(page.locator('svg#ports .svg-port[data-state-id="proxy:__root__:output:__boundary_output"][data-port-side="in"]')).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => ({
+      entryDisabled: Boolean(model.boundary?.entryDisabled),
+      exitDisabled: Boolean(model.boundary?.exitDisabled),
+      entryId: model.boundary?.entryId || "",
+      exitId: model.boundary?.exitId || ""
+    }))).toEqual({ entryDisabled: false, exitDisabled: false, entryId: "start", exitId: "start" });
+
+    await page.evaluate(() => loadEditorModel(blankModel(), true));
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(0);
+    const point = await emptyCanvasPoint(page);
+    await page.mouse.dblclick(point.x, point.y);
+
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:input"]')).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id="boundary-flow:__root__:output"]')).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => ({
+      entryDisabled: Boolean(model.boundary?.entryDisabled),
+      exitDisabled: Boolean(model.boundary?.exitDisabled),
+      entryId: model.boundary?.entryId || "",
+      exitId: model.boundary?.exitId || ""
+    }))).toEqual(await page.evaluate(() => {
+      const id = model.states.find(state => !state.parentId)?.id || "";
+      return { entryDisabled: false, exitDisabled: false, entryId: id, exitId: id };
+    }));
   });
 
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
@@ -2909,7 +2963,7 @@ test.describe("State Blueprint tool", () => {
 
   test("creates a new state by dragging a transition to empty canvas", async ({ page }) => {
     await openTool(page);
-    const start = await centerOf(page.locator('[data-id="auth_start"] .port'));
+    const start = await centerOf(statePort(page, "auth_start", "out"));
     const map = await page.locator("#map").boundingBox();
 
     await page.mouse.move(start.x, start.y);
@@ -2948,8 +3002,8 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "New" }).click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
-    const output = await centerOf(page.locator('[data-id="start"] .port'));
-    const input = await centerOf(page.locator('[data-id="start"] .input-port'));
+    const output = await centerOf(statePort(page, "start", "out"));
+    const input = await centerOf(statePort(page, "start", "in"));
 
     await page.mouse.move(output.x, output.y);
     await page.mouse.down();
@@ -2957,14 +3011,16 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.move(input.x, input.y, { steps: 10 });
     await page.mouse.up();
 
-    await expect(page.locator(".node")).toHaveCount(1);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
     const model = await savedModel(page);
-    expect(model.transitions).toHaveLength(1);
-    expect(model.transitions[0]).toMatchObject({ from: "start", to: "start" });
+    const transitions = userTransitions(model);
+    expect(transitions).toHaveLength(1);
+    expect(transitions[0]).toMatchObject({ from: "start", to: "start" });
 
-    const edge = page.locator(`.edge[data-edge-id="${model.transitions[0].id}"]`);
+    const edge = page.locator(`.edge[data-edge-id="${transitions[0].id}"]`);
     await expect(edge).toBeVisible();
-    const labelY = Number(await page.locator(`.edge-label[data-edge-id="${model.transitions[0].id}"]`).getAttribute("y"));
+    const labelY = Number(await page.locator(`.edge-label[data-edge-id="${transitions[0].id}"]`).getAttribute("y"));
     const path = await edge.getAttribute("d");
     const numbers = path.match(/-?\d+(?:\.\d+)?/g).map(Number);
     const yValues = numbers.filter((_, index) => index % 2 === 1);
@@ -2973,7 +3029,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Escape");
     await page.locator('[data-id="start"]').click();
-    await expect(model.transitions[0].label).toBe("To Start");
+    await expect(transitions[0].label).toBe("To Start");
     await appFrame(page).getByRole("button", { name: "To Start" }).click();
     await expect(appFrame(page).locator("#statePill")).toHaveText("start");
   });
@@ -2985,24 +3041,25 @@ test.describe("State Blueprint tool", () => {
 
     await dragTransition(
       page,
-      page.locator('[data-id="auth_start"] .port'),
-      page.locator('[data-id="login"] .input-port')
+      statePort(page, "auth_start", "out"),
+      statePort(page, "login", "in")
     );
 
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(before.transitions.length);
+    await expect(page.locator('.edge[data-edge-id]:not([data-edge-id^="boundary-flow:"])')).toHaveCount(userTransitions(before).length);
     await expect.poll(async () => {
       const model = await savedModel(page);
+      const transitions = userTransitions(model);
       return {
-        total: model.transitions.length,
-        authToLogin: model.transitions.filter(t => t.from === "auth_start" && t.to === "login").length
+        total: transitions.length,
+        authToLogin: transitions.filter(t => t.from === "auth_start" && t.to === "login").length
       };
-    }).toEqual({ total: before.transitions.length, authToLogin: 1 });
+    }).toEqual({ total: userTransitions(before).length, authToLogin: 1 });
 
     await page.keyboard.press("Escape");
     const loginEdgeId = before.transitions.find(t => t.from === "auth_start" && t.to === "login").id;
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
     const start = await centerOf(arrowTip);
-    const duplicateTarget = await centerOf(page.locator('[data-id="register"] .input-port'));
+    const duplicateTarget = await centerOf(statePort(page, "register", "in"));
     await page.keyboard.down("Alt");
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
@@ -3011,29 +3068,31 @@ test.describe("State Blueprint tool", () => {
     await page.keyboard.up("Alt");
     await expect.poll(async () => {
       const model = await savedModel(page);
+      const transitions = userTransitions(model);
       return {
-        total: model.transitions.length,
-        loginTarget: model.transitions.find(t => t.id === loginEdgeId)?.to,
-        authToRegister: model.transitions.filter(t => t.from === "auth_start" && t.to === "register").length
+        total: transitions.length,
+        loginTarget: transitions.find(t => t.id === loginEdgeId)?.to,
+        authToRegister: transitions.filter(t => t.from === "auth_start" && t.to === "register").length
       };
-    }).toEqual({ total: before.transitions.length, loginTarget: "login", authToRegister: 1 });
+    }).toEqual({ total: userTransitions(before).length, loginTarget: "login", authToRegister: 1 });
 
     await page.getByRole("button", { name: "New" }).click();
     await page.getByRole("button", { name: "Neu starten" }).click();
-    const output = page.locator('[data-id="start"] .port');
-    const input = page.locator('[data-id="start"] .input-port');
+    const output = statePort(page, "start", "out");
+    const input = statePort(page, "start", "in");
     const outputCenter = await centerOf(output);
 
     await dragTransition(page, output, input, { x: outputCenter.x + 90, y: outputCenter.y - 120 });
     await page.keyboard.press("Escape");
     await dragTransition(page, output, input, { x: outputCenter.x + 90, y: outputCenter.y - 120 });
 
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(1);
+    await expect(page.locator('.edge[data-edge-id]:not([data-edge-id^="boundary-flow:"])')).toHaveCount(1);
     await expect.poll(async () => {
       const model = await savedModel(page);
+      const transitions = userTransitions(model);
       return {
-        total: model.transitions.length,
-        selfLoops: model.transitions.filter(t => t.from === "start" && t.to === "start").length
+        total: transitions.length,
+        selfLoops: transitions.filter(t => t.from === "start" && t.to === "start").length
       };
     }).toEqual({ total: 1, selfLoops: 1 });
   });
@@ -3043,8 +3102,9 @@ test.describe("State Blueprint tool", () => {
     await page.getByRole("button", { name: "New" }).click();
     await page.getByRole("button", { name: "Neu starten" }).click();
 
-    const output = await centerOf(page.locator('[data-id="start"] .port'));
-    const body = await centerOf(page.locator('[data-id="start"] .body'));
+    const output = await centerOf(statePort(page, "start", "out"));
+    const nodeBox = await visibleBox(page.locator('[data-id="start"]'));
+    const body = { x: nodeBox.x + nodeBox.width - 8, y: nodeBox.y + nodeBox.height / 2 };
 
     await page.mouse.move(output.x, output.y);
     await page.mouse.down();
@@ -3053,9 +3113,11 @@ test.describe("State Blueprint tool", () => {
 
     const model = await savedModel(page);
     expect(model.states).toHaveLength(1);
-    expect(model.transitions).toHaveLength(0);
-    await expect(page.locator(".node")).toHaveCount(1);
-    await expect(page.locator(".edge[data-edge-id]")).toHaveCount(0);
+    expect(userTransitions(model)).toHaveLength(0);
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('.edge[data-edge-id]:not([data-edge-id^="boundary-flow:"])')).toHaveCount(0);
+    await expect(page.locator('.edge[data-edge-id^="boundary-flow:"]')).toHaveCount(2);
   });
 
   test("reroutes an existing transition from the arrowhead with Alt-drag", async ({ page }) => {
@@ -3068,7 +3130,7 @@ test.describe("State Blueprint tool", () => {
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
     await expect(arrowTip).toBeVisible();
     const start = await centerOf(arrowTip);
-    const end = await centerOf(page.locator('[data-id="error"] .input-port'));
+    const end = await centerOf(statePort(page, "error", "in"));
 
     await page.keyboard.down("Alt");
     await page.mouse.move(start.x, start.y);
@@ -3092,7 +3154,7 @@ test.describe("State Blueprint tool", () => {
     }, STORAGE_KEY);
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
     const start = await centerOf(arrowTip);
-    const ownInput = await centerOf(page.locator('[data-id="auth_start"] .input-port'));
+    const ownInput = await centerOf(statePort(page, "auth_start", "in"));
 
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
@@ -3284,7 +3346,7 @@ test.describe("State Blueprint tool", () => {
     const label = page.locator("svg text.edge-label").filter({ hasText: "Login" });
     await expect(label).toHaveCount(1);
     const start = await centerOf(label);
-    const end = await centerOf(page.locator('[data-id="error"] .input-port'));
+    const end = await centerOf(statePort(page, "error", "in"));
 
     await page.keyboard.down("Alt");
     await page.mouse.move(start.x, start.y);
@@ -3313,7 +3375,7 @@ test.describe("State Blueprint tool", () => {
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
     await expect(arrowTip).toBeVisible();
     const start = await centerOf(arrowTip);
-    const end = await centerOf(page.locator('[data-id="register"] .input-port'));
+    const end = await centerOf(statePort(page, "register", "in"));
 
     await arrowTip.dispatchEvent("pointerdown", {
       bubbles: true,
@@ -3343,7 +3405,7 @@ test.describe("State Blueprint tool", () => {
     }, STORAGE_KEY);
     const arrowTip = page.locator(`circle.edge-tip-hit[data-edge-id="${loginEdgeId}"]`);
     const start = await centerOf(arrowTip);
-    const ownInput = await centerOf(page.locator('[data-id="auth_start"] .input-port'));
+    const ownInput = await centerOf(statePort(page, "auth_start", "in"));
 
     await arrowTip.dispatchEvent("pointerdown", {
       bubbles: true,
@@ -3963,7 +4025,7 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.up();
 
     const transitionsBefore = await savedModel(page).then(model => model.transitions.length);
-    const output = await centerOf(page.locator('[data-id="auth_start"] .port'));
+    const output = await centerOf(statePort(page, "auth_start", "out"));
     await page.mouse.move(output.x, output.y);
     await page.mouse.down();
     await page.mouse.move(output.x + 96, output.y + 42, { steps: 6 });
