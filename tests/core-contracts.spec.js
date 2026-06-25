@@ -191,6 +191,11 @@ test.describe("Core source contracts", () => {
 
     expect(html).toContain(".global-state-json");
     expect(html).toContain(".global-state-json-toggle");
+    expect(html).toContain(".global-state-key-card");
+    expect(html).toContain("toggleSubscriptionPath");
+    expect(html).toContain("toggleRenderPath");
+    expect(html).toContain("pTransitionKeyGrid");
+    expect(html).toContain("Bus key changed");
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Render mapping");
     expect(html).toContain("Global State JSON");
@@ -223,7 +228,11 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function repeatCandidateDataScore");
     expect(html).toContain("function collectRepeatArrayCandidates");
     expect(html).toContain("function repeatCandidatesForOwner");
-    expect(html).toContain("function autoRepeatPathForOwner");
+    expect(html).not.toContain("function autoRepeatPathForOwner");
+    expect(html).not.toContain("function autoRepeatCandidateForOwner");
+    expect(html).not.toContain("function ownerHasAutoRepeatSource");
+    expect(html).not.toContain("repeat:auto");
+    expect(html).not.toContain("Auto detected");
     expect(html).toContain("manual: Boolean(source.manual)");
     expect(html).toContain("fetch response assumption");
     expect(html).toContain("function applyDerivedDataWires");
@@ -234,9 +243,10 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("applyDerivedDataWires");
     expect(html).toContain("upsertDataWire");
     expect(html).toContain("runtimeDataWireComponentsForState");
-    expect(html).toContain("Listen werden aus dem State-Daten-Scope");
+    expect(html).toContain("Choose a repeated list from global state");
     expect(html).not.toContain("autoCreateRepeatComponents");
     expect(html).not.toContain("autoDeriveRepeatForOwner(s, null, false)");
+    expect(html).not.toContain("autoDeriveRepeatForOwner");
     expect(html).not.toContain("applyDerivedDataWires(s, repeat.path, root, false)");
     expect(html).not.toContain("Fetch automap");
     expect(html).not.toContain("Open fetch automap");
@@ -331,12 +341,37 @@ test.describe("Core source contracts", () => {
   test("generated runtime writes global state through the bus @smoke", () => {
     const appHtml = generatedAppHtml();
 
+    const directContextWrites = appHtml
+      .split("\n")
+      .map(line => line.trim())
+      .filter(line =>
+        /setValueAtPath\(context,/.test(line) ||
+        /\bcontext(?:\.[A-Za-z_$][\w$]*|\[[^\]]+\])\s*=/.test(line)
+      );
+
+    expect(directContextWrites).toEqual([
+      "setValueAtPath(context, targetPath, value);",
+      "setValueAtPath(context, \"lastChangedPath\", targetPath);",
+      "setValueAtPath(context, \"lastChangedAt\", Date.now());"
+    ]);
     expect(appHtml).toContain('function runtimeSet(path, value, opts = {})');
+    expect(appHtml).toContain("function writeRuntimeState(path, value, opts = {})");
+    expect(appHtml).toContain("function syncRuntimeCurrent");
+    expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
+    expect(appHtml).toContain('writeRuntimeState("lastEvent", name');
     expect(appHtml).toContain('runtimeSet("fetched", result?.done ? Boolean(result && result.ok) : null');
     expect(appHtml).toContain('detail?.source === "fetch" && detail?.type === "change"');
     expect(appHtml).toContain('runtimeSet("state.current", runtimeTarget || ""');
+    expect(appHtml).toContain('runtimeSet(targetPath, value, { source: "state-default"');
+    expect(appHtml).toContain('runtimeSet(targetPath, dataSourceResult({ status: "source-changed"');
     expect(appHtml).toContain('runtimeSet(v.name, sanitizeValue(readContextPathRaw(v.name), v)');
+    expect(appHtml).toContain("return { state: { current: m?.initial || \"\", previous: \"\", lastTransition: \"\" } };");
     expect(appHtml).not.toContain("Object.assign(context");
+    expect(appHtml).not.toContain("context[key] = value");
+    expect(appHtml).not.toContain("context.fetched = null");
+    expect(appHtml).not.toContain("context.lastEvent =");
+    expect(appHtml).not.toContain("context.lastChangedPath =");
+    expect(appHtml).not.toContain("context[v.name] = defaultValueFor");
     expect(appHtml).not.toContain('silent: true, source: "fetch"');
     expect(appHtml).not.toContain("context[repeat.as] =");
     expect(appHtml).not.toContain("delete context[repeat.as]");
@@ -591,7 +626,9 @@ test.describe("Core browser contracts", () => {
     await openStateInspector(page, "login");
     await page.locator("#pDataCard summary").click();
 
+    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Bus keys" }).first()).toBeVisible();
     await expect(page.getByText("Global State JSON")).toBeVisible();
+    await expect.poll(() => page.locator("#pSubscriptionPaths .global-state-key-card").count()).toBeGreaterThan(0);
     await expect(page.locator("#pSubscriptionTree")).toBeVisible();
     await expect(page.locator("#pSubscriptionAdd")).toBeHidden();
     await expect(page.locator("#pOutputs")).toHaveCount(0);
@@ -618,6 +655,11 @@ test.describe("Core browser contracts", () => {
 
     await expect(page.locator("#pDataWireList .data-wire-row").filter({ hasText: "state.current" })).toBeVisible();
     await expect(page.locator("#pComponents .template-binding-picker")).toHaveCount(0);
+    await expect.poll(async () => page.evaluate(key => {
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
+      return model.states.find(state => state.id === "auth_start")?.subscriptions || [];
+    }, STORAGE_KEY)).toEqual([]);
   });
 
   test("global state json tree branches can collapse and expand @smoke", async ({ page }) => {

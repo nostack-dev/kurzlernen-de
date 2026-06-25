@@ -578,6 +578,120 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions.find(transition => transition.id === "t_login").set.role).toBe("admin");
   });
 
+  test("state data defaults flow through the global bus and match change transitions @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Bus Matching",
+      initial: "seed",
+      states: [
+        {
+          id: "seed",
+          title: "Seed",
+          body: "",
+          x: 120,
+          y: 140,
+          data: { ready: true },
+          subscriptions: ["ready"],
+          components: [{ id: "seed_text", type: "text", text: "Waiting for ready", url: "" }]
+        },
+        {
+          id: "matched",
+          title: "Matched",
+          body: "",
+          x: 480,
+          y: 140,
+          data: {},
+          components: [{ id: "matched_text", type: "note", text: "Ready constellation matched", url: "" }]
+        }
+      ],
+      transitions: [
+        {
+          id: "ready_change",
+          from: "seed",
+          to: "matched",
+          label: "Ready",
+          condition: "ready",
+          set: {},
+          triggerType: "change",
+          triggerEvent: "change.ready"
+        }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="seed"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("matched");
+    await expect(app.getByText("Ready constellation matched")).toBeVisible();
+  });
+
+  test("transition bus key cards set change triggers and filters without mutating subscriptions @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Transition Bus Key Editor",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 120,
+          y: 180,
+          data: { ready: false },
+          components: [{ id: "c_start", type: "text", text: "Waiting", url: "" }]
+        },
+        {
+          id: "done",
+          title: "Done",
+          body: "",
+          x: 430,
+          y: 180,
+          components: [{ id: "c_done", type: "text", text: "Done", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "start_done", from: "start", to: "done", label: "Continue", condition: "", triggerType: "button", triggerEvent: "", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+
+    await page.locator("svg text.edge-label").filter({ hasText: "Continue" }).click();
+    const readyCard = page.locator('#pTransitionKeyGrid .global-state-key-card[data-path="ready"]');
+    await expect(readyCard).toBeVisible();
+
+    await readyCard.getByRole("button", { name: /Use change|On change/ }).click();
+    await expect(page.locator("#pTriggerType")).toHaveValue("change");
+    await expect(page.locator("#pTriggerEvent")).toHaveValue("change.ready");
+
+    await readyCard.getByRole("button", { name: /Condition|Filter set/ }).click();
+    await expect(page.locator("#pCond")).toHaveValue("ready");
+
+    const stored = await savedModel(page);
+    const transition = stored.transitions.find(item => item.id === "start_done");
+    const start = stored.states.find(item => item.id === "start");
+    expect(transition).toMatchObject({
+      triggerType: "change",
+      triggerEvent: "change.ready",
+      condition: "ready"
+    });
+    expect(start.subscriptions || []).toEqual([]);
+  });
+
   test("migrates legacy state and preset body fields into text components", async ({ page }) => {
     const legacyModel = {
       version: 2,
@@ -2512,13 +2626,9 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pDataSourceSelect")).toHaveValue("items");
     await expect(page.locator("#pRepeatPath")).toHaveValue("fetch.data");
     await expect(page.locator("#pRepeatAs")).toHaveValue("item");
-    await expect(page.locator(".binding-chip").filter({ hasText: "{{item.title}}" })).toBeVisible();
-
-    const note = componentEditor(page, "Note").locator("textarea");
-    await note.fill("");
-    await note.focus();
-    await page.locator(".binding-chip").filter({ hasText: "{{item.title}}" }).click();
-    await expect(note).toHaveValue("{{item.title}}");
+    await expect(dataRenderRows(page).filter({ hasText: "Data: Title" })).toBeVisible();
+    await expect(appFrame(page).getByRole("heading", { name: "Alpha" })).toBeVisible();
+    await expect(appFrame(page).getByRole("heading", { name: "Beta" })).toBeVisible();
 
     const model = await savedModel(page);
     const fetchState = model.states.find(state => state.title === "Fetch data");
@@ -2527,8 +2637,18 @@ test.describe("State Blueprint tool", () => {
       target: "fetch",
       select: "items"
     });
-    expect(fetchState.repeat).toEqual({ path: "fetch.data", as: "item", index: "i" });
-    expect(fetchState.components.find(component => component.type === "note").text).toBe("{{item.title}}");
+    expect(fetchState.repeat).toEqual({ path: "fetch.data", as: "item", index: "i", manual: true });
+    expect(fetchState.subscriptions || []).toEqual([]);
+    expect(fetchState.components).toEqual([]);
+    expect(fetchState.dataWires).toEqual([
+      expect.objectContaining({
+        sourcePath: "fetch.data.title",
+        scopePath: "fetch.data",
+        itemPath: "title",
+        role: "title",
+        componentType: "heading"
+      })
+    ]);
   });
 
   test("generated app treats JSON fetch results as FSM events and renders mapped content", async ({ page }) => {
