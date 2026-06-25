@@ -1426,6 +1426,42 @@
       gap: 8px;
       padding: 0 10px 10px;
     }
+    .inspector-subcollapse {
+      margin: 0;
+      border-color: rgba(148, 163, 184, .20);
+      background: rgba(2, 6, 23, .18);
+    }
+    .inspector-subcollapse .inspector-collapse-summary {
+      min-height: 38px;
+      padding: 8px 9px;
+    }
+    .inspector-status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      gap: 6px;
+    }
+    .inspector-status-pill {
+      min-width: 0;
+      padding: 7px 8px;
+      border: 1px solid rgba(148, 163, 184, .18);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, .42);
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 850;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .inspector-status-pill.active {
+      border-color: rgba(56, 189, 248, .36);
+      background: rgba(56, 189, 248, .10);
+      color: #dff7ff;
+    }
+    .inspector-inline-note {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
     .component-toolbar {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1724,7 +1760,7 @@
     .data-source-panel {
       display: grid;
       gap: 6px;
-      margin: 10px 0 12px;
+      margin: 0;
       padding: 10px;
       border: 1px solid rgba(56,189,248,.28);
       border-radius: 13px;
@@ -3249,7 +3285,7 @@
           </div>
         </div><div class="component-preset-card" data-template-kind="core" draggable="true" data-template-id="builtin_fetch_data">
           <div class="template-title">Fetch data</div>
-          <div class="template-body">Fetch data state preset</div>
+          <div class="template-body">Fetch JSON into global state</div>
           <div class="template-actions">
             <button class="template-use" type="button">+ Fetch data</button>
           </div>
@@ -5204,12 +5240,12 @@
     }
 
     function dataSourcePreviewText(source, rawTarget = source.target, rawSelect = source.select) {
-      if (!String(source.url || "").trim()) return "No data source. State data defaults still work as before.";
+      if (!String(source.url || "").trim()) return "Fetch is off. This state will not call an API on enter.";
       const targetValid = isContextPath(rawTarget);
       const selectValid = isContextPath(rawSelect, { allowEmpty: true });
-      if (!targetValid) return "Store at must be a dotted context path like fetch or users.result.";
-      if (!selectValid) return "JSON path must be empty or a dotted response path like items.";
-      return `This state fetches JSON on enter. Click response fields in Automap to render them as UI; transitions can still react to ${source.target}.ok or ${source.target}.count.`;
+      if (!targetValid) return "Write to must be a dotted globalState path like fetch or users.result.";
+      if (!selectValid) return "Response path must be empty or a dotted JSON path like items.";
+      return `On enter, this state writes ${source.target}.status, ${source.target}.ok, ${source.target}.count, and ${source.target}.data into globalState.`;
     }
 
     function cloneComponents(components) {
@@ -9179,9 +9215,15 @@
       const hiddenForKeyboard = el =>
         el.matches("[data-skip-tab='true'], [hidden], [type='hidden']") ||
         el.closest("[data-skip-tab='true']") ||
-        el.closest("[hidden]");
+        el.closest("[hidden]") ||
+        (el.closest("details:not([open])") && !el.closest("summary"));
       controls.forEach(el => {
         el.tabIndex = hiddenForKeyboard(el) ? -1 : 0;
+      });
+      root.querySelectorAll("details").forEach(details => {
+        if (details.dataset.accessibilityBound === "true") return;
+        details.dataset.accessibilityBound = "true";
+        details.addEventListener("toggle", () => setupEditorAccessibility(root, false, opts));
       });
       root.onkeydown = evt => {
         if (evt.key !== "Enter" || evt.isComposing || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return;
@@ -9357,21 +9399,16 @@
           title: "Fetch data",
           body: "",
           components: [],
-          dataWires: [
-            { id: "builtin_fetch_data_image_wire", sourcePath: "fetch.data.images.0", scopePath: "fetch.data", itemPath: "images.0", role: "image", componentType: "image", label: "Image" },
-            { id: "builtin_fetch_data_title_wire", sourcePath: "fetch.data.title", scopePath: "fetch.data", itemPath: "title", role: "title", componentType: "heading", label: "Title" },
-            { id: "builtin_fetch_data_price_wire", sourcePath: "fetch.data.price", scopePath: "fetch.data", itemPath: "price", role: "price", componentType: "text", label: "Price" },
-            { id: "builtin_fetch_data_description_wire", sourcePath: "fetch.data.description", scopePath: "fetch.data", itemPath: "description", role: "description", componentType: "text", label: "Description" }
-          ],
-          data: { fetched: false },
+          dataWires: [],
+          data: {},
           dataSource: {
-            url: "https://api.escuelajs.co/api/v1/products",
+            url: "",
             target: "fetch",
             select: "",
             timeoutMs: 8000,
             retries: 2
           },
-          repeat: { path: "fetch.data", as: "item", index: "i" },
+          repeat: normalizeRepeatConfig(null),
           builtIn: true
         },
         {
@@ -9619,7 +9656,7 @@
         panel.dataset.skipTab = "true";
         const title = document.createElement("div");
         title.className = "data-wire-render-title";
-        title.innerHTML = "<strong>Data from globalState</strong><span>Add render rows</span>";
+        title.innerHTML = "<strong>Render from globalState</strong><span>Add visible rows from data</span>";
         panel.append(title);
         const addRow = document.createElement("div");
         addRow.className = "data-wire-add";
@@ -9651,11 +9688,11 @@
         const empty = document.createElement("div");
         empty.className = "component-empty";
         const text = document.createElement("div");
-        text.textContent = "No render mapping yet. Pick a globalState group or field in State data, then assign it to image, heading, text, price, etc.";
+        text.textContent = "No render mapping yet. Pick a globalState field, then show it as image, heading, text, price, etc.";
         const action = document.createElement("button");
         action.type = "button";
         action.className = "component-editor-action";
-        action.textContent = "Map State data";
+        action.textContent = "Choose data";
         action.onclick = () => {
           const card = root.querySelector("#pDataCard");
           if (card) card.open = true;
@@ -10010,6 +10047,7 @@
       const select = root.querySelector("#pDataSourceSelect");
       const preview = root.querySelector("#pDataSourcePreview");
       const inspect = root.querySelector("#pDataSourceInspect");
+      const status = root.querySelector("#pFetchStatus");
       if (!url || !target || !select || !preview) return;
       owner.dataSource = normalizeDataSource(owner.dataSource || owner.fetch);
       url.value = owner.dataSource.url;
@@ -10034,6 +10072,11 @@
         }
         preview.textContent = dataSourcePreviewText(next, target.value, select.value);
         preview.classList.toggle("empty", !String(next.url || "").trim());
+        if (status) {
+          const hasSource = Boolean(String(next.url || "").trim());
+          status.textContent = hasSource ? `Fetch: ${next.target}.data` : "Fetch: off";
+          status.classList.toggle("active", hasSource);
+        }
         if (persist) persistOwner(`${historyPrefix}:data-source`);
         scheduleInspect();
       };
@@ -10041,7 +10084,7 @@
         if (!inspect || inspect.hidden) return;
         clearTimeout(inspectTimer);
         if (!url.value.trim()) {
-          inspect.textContent = "Paste a JSON endpoint to inspect arrays and fields.";
+          inspect.textContent = "Enter a JSON endpoint or paste JSON to inspect arrays and fields.";
           inspect.classList.add("empty");
           return;
         }
@@ -10401,6 +10444,7 @@
       const as = root.querySelector("#pRepeatAs");
       const index = root.querySelector("#pRepeatIndex");
       const preview = root.querySelector("#pRepeatPreview");
+      const status = root.querySelector("#pRepeatStatus");
       if (!path || !as || !index || !preview) return;
       owner.repeat = normalizeRepeatConfig(owner.repeat);
       as.value = "item";
@@ -10443,10 +10487,14 @@
         index.value = owner.repeat.index;
         const mode = owner.repeat.manual ? "Manual repeat path" : "Repeat path";
         preview.textContent = owner.repeat.path
-          ? `${mode}: ${owner.repeat.path}. Content parts are generated from each item through global state.`
+          ? `${mode}: ${owner.repeat.path}. Render rows read each item through globalState.`
           : "Choose a repeated list from global state or a fetched JSON array.";
         preview.hidden = false;
         preview.className = "condition-preview compact-repeat-preview" + (owner.repeat.path ? " ok" : " empty");
+        if (status) {
+          status.textContent = owner.repeat.path ? `Repeat: ${owner.repeat.path}` : "Repeat: off";
+          status.classList.toggle("active", Boolean(owner.repeat.path));
+        }
         if (owner.repeat.path && owner.repeat.path !== oldPath) {
           applyDerivedRepeatComponents(owner, owner.repeat.path, root, false);
         }
@@ -10719,7 +10767,7 @@
       inspect.appendChild(title);
       const metaLine = document.createElement("div");
       metaLine.className = "fetch-json-meta";
-      metaLine.innerHTML = "<span>Preview only. Add render rows from the Render mapping panel.</span><span>State trigger: fetch on enter, fields resolve from global JSON.</span>";
+      metaLine.innerHTML = "<span>Preview only. Use a response path or repeat a list to write the model.</span><span>At runtime, fetch writes into globalState; render rows read from that same state.</span>";
       inspect.appendChild(metaLine);
 
       const arrayPaths = collectArrayPaths(json)
@@ -10861,59 +10909,88 @@
           <div class="field"><label>Layer title</label><input id="pLayerTitle" placeholder="Process name"></div>
           <div class="field"><label>Comment</label><textarea id="pLayerNote" rows="2" spellcheck="false" placeholder="Optional note"></textarea></div>
         </div>
-        <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
-        <div id="pDataPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel">
-          <div class="small"><b>Fetch endpoint</b></div>
-          <div class="field"><label>URL</label><input id="pDataSourceUrl" placeholder="https://api.escuelajs.co/api/v1/products"></div>
-          <div class="row">
-            <div class="field"><label>Target</label><input id="pDataSourceTarget" value="fetch"></div>
-            <div class="field"><label>Select path</label><input id="pDataSourceSelect" placeholder="items"></div>
-          </div>
-          <div class="row"><button id="pRefreshFetchPreview" type="button" data-skip-tab="true">Refresh preview</button></div>
-          <div id="pDataSourcePreview" class="condition-preview empty"></div>
-          <div id="pDataSourceInspect" class="json-inspect empty"></div>
-        </div>
-        <div class="data-source-panel repeat-panel">
-          <div class="small"><b>Repeat list</b><br><span>Listen kommen aus dem gewaehlten globalState-Pfad oder aus dem Fetch-Inspect-Button.</span></div>
-          <div class="field"><label>List path</label><select id="pRepeatPath"></select></div>
-          <div class="row">
-            <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
-            <div class="field"><label>Index name</label><input id="pRepeatIndex" placeholder="i"></div>
-          </div>
-          <div id="pRepeatPreview" class="condition-preview empty"></div>
-        </div>
+        <div class="inspector-section-title">Render</div>
+        <div id="pComponents" class="component-list"></div>
         <details class="inspector-collapse data-card" id="pDataCard">
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
-              <span>State bus</span>
-              <span>choose the data constellation this state understands</span>
+              <span>Global state</span>
+              <span>choose data this state reads, writes, or renders</span>
             </span>
             <span id="pSubscriptionCount" class="global-state-subscribe-count">0</span>
           </summary>
           <div class="inspector-collapse-body">
+            <div class="inspector-status-grid">
+              <div id="pInitialDataStatus" class="inspector-status-pill">Initial values: none</div>
+              <div id="pFetchStatus" class="inspector-status-pill">Fetch: off</div>
+              <div id="pRepeatStatus" class="inspector-status-pill">Repeat: off</div>
+            </div>
+            <details class="inspector-collapse inspector-subcollapse" id="pDefaultsCard">
+              <summary class="inspector-collapse-summary">
+                <span class="inspector-collapse-title">
+                  <span>Initial values</span>
+                  <span>fill missing globalState keys on enter</span>
+                </span>
+              </summary>
+              <div class="inspector-collapse-body">
+                <div class="field"><label>Missing-key defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+                <div id="pDataPreview" class="condition-preview empty"></div>
+              </div>
+            </details>
+            <details class="inspector-collapse inspector-subcollapse" id="pFetchCard">
+              <summary class="inspector-collapse-summary">
+                <span class="inspector-collapse-title">
+                  <span>Fetch on enter</span>
+                  <span>optional API call that writes into globalState</span>
+                </span>
+              </summary>
+              <div class="inspector-collapse-body">
+                <div class="data-source-panel">
+                  <div class="field"><label>Endpoint or JSON</label><input id="pDataSourceUrl" placeholder="https://api.example.com/data.json or paste JSON"></div>
+                  <div class="row">
+                    <div class="field"><label>Write to</label><input id="pDataSourceTarget" value="fetch"></div>
+                    <div class="field"><label>Response path</label><input id="pDataSourceSelect" placeholder="items"></div>
+                  </div>
+                  <div class="row"><button id="pRefreshFetchPreview" type="button" data-skip-tab="true">Refresh preview</button></div>
+                  <div id="pDataSourcePreview" class="condition-preview empty"></div>
+                  <div id="pDataSourceInspect" class="json-inspect empty"></div>
+                </div>
+              </div>
+            </details>
+            <details class="inspector-collapse inspector-subcollapse" id="pRepeatCard">
+              <summary class="inspector-collapse-summary">
+                <span class="inspector-collapse-title">
+                  <span>Repeat render</span>
+                  <span>render one copy per item in a globalState list</span>
+                </span>
+              </summary>
+              <div class="inspector-collapse-body">
+                <div class="data-source-panel repeat-panel">
+                  <div class="field"><label>List path</label><select id="pRepeatPath"></select></div>
+                  <div class="row">
+                    <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
+                    <div class="field"><label>Index name</label><input id="pRepeatIndex" placeholder="i"></div>
+                  </div>
+                  <div id="pRepeatPreview" class="condition-preview empty"></div>
+                </div>
+              </div>
+            </details>
             <div class="global-state-subscribe">
               <div class="global-state-subscribe-head">
-                <div>Bus keys<span>Listen = State hoert darauf. Render = State zeigt den Wert.</span></div>
+                <div>Data choices<span>Listen makes transitions react. Render creates visible rows.</span></div>
               </div>
               <div id="pSubscriptionPaths" class="global-state-key-grid"></div>
               <div class="global-state-subscribe-head">
-                <div>Global State JSON<span>Details fuer rohe Pfade, wenn du sie brauchst.</span></div>
+                <div>Global state tree<span>Raw paths are here when you need exact keys.</span></div>
               </div>
               <div id="pSubscriptionTree" class="global-state-json"></div>
-              <div class="data-wire-panel">
-                <div class="small"><b>Render mapping</b><br><span>Mappe State-Daten-Scope auf Image, Heading, Text usw. Drag sortiert die Render-Reihenfolge.</span></div>
-                <div id="pDataWireList" class="data-wire-list"></div>
-              </div>
               <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
               <textarea id="pSubscriptions" hidden></textarea>
-              <div class="hint">Ein State hat entweder keinen globalState, den ganzen globalState (*) oder ausgewählte Pfade.</div>
+              <div class="hint">A state can listen to no data, selected paths, or the whole globalState (*).</div>
             </div>
             <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
           </div>
         </details>
-        <div class="inspector-section-title">Render</div>
-        <div id="pComponents" class="component-list"></div>
         <div class="row state-layer-actions" style="margin-top:10px">
           <button id="pEnterLayer" type="button">Enter layer</button>
         </div>
@@ -10942,6 +11019,7 @@
       const subscriptionCustom = root.querySelector("#pSubscriptionCustom");
       const subscriptionList = root.querySelector("#pSubscriptionList");
       const subscriptionAdd = root.querySelector("#pSubscriptionAdd");
+      const initialDataStatus = root.querySelector("#pInitialDataStatus");
       const dataWireList = root.querySelector("#pDataWireList");
       s.boundary = normalizeBoundaryConfig(s.boundary);
       title.value = s.title || "";
@@ -10951,6 +11029,19 @@
       layerTitle.addEventListener("focus", () => layerTitle.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
       subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
+      const dataCard = root.querySelector("#pDataCard");
+      const defaultsCard = root.querySelector("#pDefaultsCard");
+      const fetchCard = root.querySelector("#pFetchCard");
+      const repeatCard = root.querySelector("#pRepeatCard");
+      const hasInitialValues = Object.keys(normalizeDataObject(s.data)).length > 0;
+      const hasFetchSource = Boolean(String(normalizeDataSource(s.dataSource || s.fetch).url || "").trim());
+      const hasRepeatSource = Boolean(normalizeRepeatConfig(s.repeat).path);
+      if (hasInitialValues || hasFetchSource || hasRepeatSource || normalizeDataWires(s.dataWires).length || normalizeSubscriptions(s.subscriptions).length) {
+        if (dataCard) dataCard.open = true;
+      }
+      if (hasInitialValues && defaultsCard) defaultsCard.open = true;
+      if (hasFetchSource && fetchCard) fetchCard.open = true;
+      if (hasRepeatSource && repeatCard) repeatCard.open = true;
       const updateDataPreview = (persist = true) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
@@ -10958,7 +11049,13 @@
           s.data = normalizeDataObject(parsed);
           const keys = Object.keys(s.data);
           dataPreview.className = "condition-preview" + (keys.length ? " ok" : " empty");
-          dataPreview.textContent = keys.length ? "State data saved: " + keys.join(", ") : "No state data defaults.";
+          dataPreview.textContent = keys.length
+            ? "On enter, missing globalState keys are filled: " + keys.join(", ")
+            : "No initial globalState values.";
+          if (initialDataStatus) {
+            initialDataStatus.textContent = keys.length ? "Initial values: " + keys.join(", ") : "Initial values: none";
+            initialDataStatus.classList.toggle("active", Boolean(keys.length));
+          }
           if (persist) {
             saveModel("state:data:" + s.id);
             scheduleSync(false);
@@ -10976,7 +11073,7 @@
         subscriptionsPreview.className = "condition-preview" + (paths.length ? " ok" : " empty");
         subscriptionsPreview.textContent = paths.length
           ? (paths.includes("*") ? "Listening to all globalState changes (*)" : "Listening to: " + paths.join(", "))
-          : "No bus keys listened to.";
+          : "No data paths listened to.";
         renderGlobalStateSubscribeMap();
         if (!persist) return;
         saveModel("state:subscriptions:" + s.id);
@@ -11081,13 +11178,13 @@
         if (!wires.length) {
           const empty = document.createElement("div");
           empty.className = "fetch-mapped-empty";
-          empty.textContent = "Noch kein Render-Mapping. Wähle einen globalState-Pfad oder nutze + Add render im Render-Bereich.";
+          empty.textContent = "No render mapping yet. Choose a globalState path or use + Add render in Render.";
           dataWireList.appendChild(empty);
           return;
         }
         const title = document.createElement("div");
         title.className = "data-wire-render-title";
-        title.innerHTML = "<strong>State render</strong><span>Drag here or in Render below</span>";
+        title.innerHTML = "<strong>State render</strong><span>Drag in the Render section</span>";
         dataWireList.appendChild(title);
         let draggingWireId = null;
         const clearMarks = () => dataWireList.querySelectorAll(".data-wire-row.drop-before,.data-wire-row.drop-after").forEach(row => row.classList.remove("drop-before", "drop-after"));
@@ -11253,7 +11350,7 @@
         if (!visible.length) {
           const empty = document.createElement("div");
           empty.className = "condition-preview empty";
-          empty.textContent = "Add state data, fetch JSON, or set data on a transition to create bus keys.";
+          empty.textContent = "Add initial values, fetch JSON, or set data on a transition to create data choices.";
           subscriptionPaths.appendChild(empty);
           return;
         }
@@ -11597,10 +11694,10 @@
           <span>Edits here change the reusable preset only. Existing canvas states stay unchanged; new states created from this preset use this snapshot.</span>
         </div>
         <div class="field"><label>Preset title</label><input id="pTitle"></div>
-        <div class="field"><label>Data defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+        <div class="field"><label>Initial globalState values</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
         <div id="pDataPreview" class="condition-preview empty"></div>
         <div class="data-source-panel">
-          <div class="small"><b>Repeat content</b></div>
+          <div class="small"><b>Repeat render</b></div>
           <div class="field"><label>Repeat path</label><input id="pRepeatPath" placeholder="fetch.data"></div>
           <div class="row">
             <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
@@ -11633,7 +11730,7 @@
           const parsed = JSON.parse(data.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
           template.data = normalizeDataObject(parsed);
-          dataPreview.textContent = Object.keys(template.data).length ? "Preset data saved. Add fields through the Global State tree." : "No data defaults.";
+          dataPreview.textContent = Object.keys(template.data).length ? "Preset fills missing globalState keys on enter." : "No initial globalState values.";
           dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
           if (persist) persistTemplate("template:data:" + template.id);
         } catch (err) {
@@ -12915,9 +13012,14 @@
       evt.stopPropagation();
     }, { passive: true });
 
-    ["pointerdown", "pointermove", "pointerup", "pointercancel", "mousedown", "mousemove", "mouseup"].forEach(type => {
+    ["pointerdown", "pointermove", "pointercancel", "mousedown", "mousemove"].forEach(type => {
       stateExplorerEl.addEventListener(type, evt => {
         evt.stopPropagation();
+      }, { capture: true });
+    });
+    ["pointerup", "mouseup"].forEach(type => {
+      stateExplorerEl.addEventListener(type, evt => {
+        if (!dragging) evt.stopPropagation();
       }, { capture: true });
     });
 
@@ -13335,6 +13437,7 @@
       currentAppState = data.current || null;
       latestRuntimeContext = isPlainObject(data.context) ? JSON.parse(JSON.stringify(data.context)) : {};
       if (typeof refreshInspectorGlobalStateTree === "function") refreshInspectorGlobalStateTree();
+      const stateChanged = previousAppState !== currentAppState;
       const pendingStartId = pendingAppStartStateId;
       const pendingStartResolvedToDescendant = Boolean(pendingStartId && currentAppState && isDescendant(pendingStartId, currentAppState));
       if (
@@ -13344,12 +13447,13 @@
         pendingAppStartStateId = null;
       }
       lastAppTransitionId = data.transitionId || null;
-      if (lastAppTransitionId || pendingStartResolvedToDescendant) {
+      const runtimeState = byId(currentAppState);
+      const shouldFollowRuntimeState = Boolean(runtimeState && (lastAppTransitionId || pendingStartResolvedToDescendant || (previousAppState && stateChanged)));
+      if (shouldFollowRuntimeState) {
         runtimeLayerFollowEnabled = true;
         suppressRuntimeLayerFollowUntil = 0;
       }
       const allowRuntimeLayerFollow = runtimeLayerFollowEnabled && Date.now() >= suppressRuntimeLayerFollowUntil;
-      const runtimeState = byId(currentAppState);
       const runtimeLayerId = runtimeState?.parentId || null;
       if (allowRuntimeLayerFollow && runtimeState) {
         if (currentLayerId !== runtimeLayerId) {
@@ -13358,8 +13462,15 @@
         selected = selectionFromParts([runtimeState.id], []);
         updateSelectRect();
       }
-      const stateChanged = previousAppState !== currentAppState;
       draw();
+      if (allowRuntimeLayerFollow && runtimeState && shouldFollowRuntimeState) {
+        showNodeInspector(runtimeState, {
+          focus: false,
+          forceOpen: !inspectorCollapsedByUser,
+          manualOpen: false,
+          pulse: inspectorCollapsedByUser
+        });
+      }
       if (stateChanged) {
         if (previousAppState) pulseRuntimeState(previousAppState, "exit", "output");
         if (currentAppState) pulseRuntimeState(currentAppState, "enter", "input");
