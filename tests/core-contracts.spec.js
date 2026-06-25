@@ -331,6 +331,7 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeDataWireDisplayValue");
     expect(appHtml).toContain("function runtimeDataWireUrlValue");
     expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
+    expect(appHtml).toContain('const targetPath = runtimeNormalizeBindingPath(path, "")');
     expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
@@ -493,6 +494,47 @@ test.describe("Core browser contracts", () => {
 
     await app.getByRole("button", { name: "Continue" }).click();
     await expect(app.locator("#statePill")).toHaveText("done");
+  });
+
+  test("runtime repeat data wires resolve array-indexed item paths @smoke", async ({ page }) => {
+    const firstImage = "https://example.com/alpha.png";
+    const secondImage = "https://example.com/beta.png";
+    await openWithModel(page, {
+      version: 2,
+      name: "Repeat Images",
+      initial: "products",
+      states: [
+        {
+          id: "products",
+          title: "Products",
+          body: "",
+          x: 120,
+          y: 160,
+          data: {
+            catalog: {
+              items: [
+                { title: "Alpha", images: [firstImage] },
+                { title: "Beta", images: [secondImage] }
+              ]
+            }
+          },
+          repeat: { path: "catalog.items", as: "item", index: "i" },
+          dataWires: [
+            { id: "wire_image", sourcePath: "catalog.items.images.0", scopePath: "catalog.items", itemPath: "images.0", role: "image", componentType: "image", label: "Image" },
+            { id: "wire_title", sourcePath: "catalog.items.title", scopePath: "catalog.items", itemPath: "title", role: "title", componentType: "heading", label: "Title" }
+          ],
+          components: []
+        }
+      ],
+      transitions: []
+    });
+
+    const app = appFrame(page);
+    await expect(app.locator(".component-image")).toHaveCount(2);
+    await expect(app.locator(".component-image").nth(0)).toHaveAttribute("src", firstImage);
+    await expect(app.locator(".component-image").nth(1)).toHaveAttribute("src", secondImage);
+    await expect(app.getByRole("heading", { name: "Alpha" })).toBeVisible();
+    await expect(app.getByRole("heading", { name: "Beta" })).toBeVisible();
   });
 
   test("multiple outgoing button transitions keep distinct event targets @smoke", async ({ page }) => {

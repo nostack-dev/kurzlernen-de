@@ -2602,6 +2602,8 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("inspects JSON endpoints and wires array fields into repeated state content", async ({ page }) => {
+    const alphaImage = "https://example.com/alpha.png";
+    const betaImage = "https://example.com/beta.png";
     await page.route("https://api.example.test/lessons", route => route.fulfill({
       status: 200,
       headers: {
@@ -2610,8 +2612,8 @@ test.describe("State Blueprint tool", () => {
       },
       body: JSON.stringify({
         items: [
-          { title: "Alpha", url: "https://example.test/a" },
-          { title: "Beta", url: "https://example.test/b" }
+          { title: "Alpha", images: [alphaImage], url: "https://example.test/a" },
+          { title: "Beta", images: [betaImage], url: "https://example.test/b" }
         ]
       })
     }));
@@ -2629,6 +2631,9 @@ test.describe("State Blueprint tool", () => {
     await expect(dataRenderRows(page).filter({ hasText: "Data: Title" })).toBeVisible();
     await expect(appFrame(page).getByRole("heading", { name: "Alpha" })).toBeVisible();
     await expect(appFrame(page).getByRole("heading", { name: "Beta" })).toBeVisible();
+    await expect(appFrame(page).locator(".component-image")).toHaveCount(2);
+    await expect(appFrame(page).locator(".component-image").nth(0)).toHaveAttribute("src", alphaImage);
+    await expect(appFrame(page).locator(".component-image").nth(1)).toHaveAttribute("src", betaImage);
 
     const model = await savedModel(page);
     const fetchState = model.states.find(state => state.title === "Fetch data");
@@ -2640,7 +2645,15 @@ test.describe("State Blueprint tool", () => {
     expect(fetchState.repeat).toEqual({ path: "fetch.data", as: "item", index: "i", manual: true });
     expect(fetchState.subscriptions || []).toEqual([]);
     expect(fetchState.components).toEqual([]);
-    expect(fetchState.dataWires).toEqual([
+    expect(fetchState.dataWires).toHaveLength(2);
+    expect(fetchState.dataWires).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourcePath: "fetch.data.images.0",
+        scopePath: "fetch.data",
+        itemPath: "images.0",
+        role: "image",
+        componentType: "image"
+      }),
       expect.objectContaining({
         sourcePath: "fetch.data.title",
         scopePath: "fetch.data",
@@ -2648,7 +2661,7 @@ test.describe("State Blueprint tool", () => {
         role: "title",
         componentType: "heading"
       })
-    ]);
+    ]));
   });
 
   test("generated app treats JSON fetch results as FSM events and renders mapped content", async ({ page }) => {
