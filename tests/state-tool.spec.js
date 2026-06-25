@@ -3038,7 +3038,18 @@ test.describe("State Blueprint tool", () => {
 
     const theme = await app.locator("body").evaluate(body => {
       const styleOf = selector => getComputedStyle(document.querySelector(selector));
+      const colorToRgb = color => {
+        const probe = document.createElement("span");
+        probe.style.color = color;
+        document.body.appendChild(probe);
+        const rgb = getComputedStyle(probe).color;
+        probe.remove();
+        return rgb;
+      };
       const root = getComputedStyle(document.documentElement);
+      const buttonStyle = styleOf("button[data-transition-id]");
+      const buttonColor = buttonStyle.getPropertyValue("--button-color").trim();
+      const buttonStrongColor = buttonStyle.getPropertyValue("--button-color-strong").trim();
       return {
         colorScheme: root.colorScheme,
         rootBg: root.getPropertyValue("--bg").trim(),
@@ -3052,8 +3063,11 @@ test.describe("State Blueprint tool", () => {
         titleColor: styleOf("h1").color,
         pillBg: styleOf("#statePill").backgroundColor,
         pillColor: styleOf("#statePill").color,
-        buttonBg: styleOf("button").backgroundColor,
-        buttonColor: styleOf("button").color,
+        buttonBg: buttonStyle.backgroundColor,
+        buttonColor: buttonStyle.color,
+        buttonTransitionColor: colorToRgb(buttonColor),
+        buttonTransitionStrongColor: colorToRgb(buttonStrongColor),
+        buttonBackgroundImage: buttonStyle.backgroundImage,
         inputBg: styleOf(".typed-input").backgroundColor,
         inputColor: styleOf(".typed-input").color,
       };
@@ -3071,11 +3085,13 @@ test.describe("State Blueprint tool", () => {
       titleColor: "rgb(248, 251, 255)",
       pillBg: "rgb(7, 19, 33)",
       pillColor: "rgb(125, 211, 252)",
-      buttonBg: "rgb(56, 189, 248)",
       buttonColor: "rgb(3, 16, 31)",
+      buttonBackgroundImage: "none",
       inputBg: "rgb(2, 11, 22)",
       inputColor: "rgb(229, 240, 255)",
     });
+    expect(theme.buttonBg).toBe(theme.buttonTransitionColor);
+    expect(theme.buttonTransitionStrongColor).toBe(theme.buttonTransitionColor);
     expect(theme.fontFamily).toContain("Atkinson Hyperlegible");
     expect(theme.screenBg).not.toBe("rgb(255, 255, 255)");
     expect(theme.pillBg).not.toBe("rgb(255, 255, 255)");
@@ -5017,18 +5033,32 @@ test.describe("State Blueprint tool", () => {
     })).toEqual(["t_auth_login", "User chooses login or registration.", "t_auth_register"]);
 
     const previewButtonColors = await appFrame(page).locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
-      buttons.map(button => [
-        button.dataset.transitionId,
-        getComputedStyle(button).getPropertyValue("--button-color").trim()
-      ])
+      buttons.map(button => {
+        const style = getComputedStyle(button);
+        return [
+          button.dataset.transitionId,
+          {
+            color: style.getPropertyValue("--button-color").trim(),
+            strong: style.getPropertyValue("--button-color-strong").trim(),
+            backgroundImage: style.backgroundImage
+          }
+        ];
+      })
     ));
     const edgeColorFor = async transitionId => {
       const edge = page.locator(`.edge[data-edge-id="${transitionId}"]`);
       await expect(edge).toHaveCount(1);
       return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
     };
-    expect(previewButtonColors.t_auth_login).toBe(await edgeColorFor("t_auth_login"));
-    expect(previewButtonColors.t_auth_register).toBe(await edgeColorFor("t_auth_register"));
+    const edgeColors = {
+      t_auth_login: await edgeColorFor("t_auth_login"),
+      t_auth_register: await edgeColorFor("t_auth_register")
+    };
+    for (const [transitionId, edgeColor] of Object.entries(edgeColors)) {
+      expect(previewButtonColors[transitionId].color).toBe(edgeColor);
+      expect(previewButtonColors[transitionId].strong).toBe(edgeColor);
+      expect(previewButtonColors[transitionId].backgroundImage).toBe("none");
+    }
   });
 
   test("persists data-wire render rows between components and transition buttons @smoke", async ({ page }) => {

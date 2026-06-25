@@ -66,6 +66,22 @@ function appFrame(page) {
   return page.frameLocator("#appFrame");
 }
 
+async function transitionButtonStyles(frameLocator) {
+  return frameLocator.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
+    buttons.map(button => {
+      const style = getComputedStyle(button);
+      return [
+        button.dataset.transitionId,
+        {
+          color: style.getPropertyValue("--button-color").trim(),
+          strong: style.getPropertyValue("--button-color-strong").trim(),
+          backgroundImage: style.backgroundImage
+        }
+      ];
+    })
+  ));
+}
+
 async function openStateInspector(page, id) {
   const node = page.locator('[data-id="' + id + '"]');
   await expect(node).toBeVisible();
@@ -172,8 +188,14 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeTransitionLabel");
     expect(appHtml).toContain("button.textContent = runtimeTransitionLabel(t)");
     expect(appHtml).toContain("function runtimeTransitionHue");
+    expect(appHtml).toContain("function runtimeTransitionColor");
     expect(appHtml).not.toContain("const globalIndex = model.transitions.findIndex");
+    expect(appHtml).not.toContain('button.style.setProperty("--button-color-strong", `hsl(${hue} 84% 46%)`)');
     expect(appHtml).toContain("applyRuntimeTransitionButtonStyle(button, t)");
+    expect(appHtml).toContain('button.style.setProperty("--button-color-strong", color)');
+    expect(appHtml).toContain(".action:not(.invalid) button[data-transition-id]");
+    expect(appHtml).toContain("background-image: none;");
+    expect(appHtml).not.toContain('button.style.backgroundImage = "none"');
   });
 
   test("list item editors use non-overlapping layout classes @smoke", () => {
@@ -534,12 +556,7 @@ test.describe("Core browser contracts", () => {
     await expect(app.getByRole("button", { name: "Parent Out" })).toBeVisible();
     await expect(app.locator("button[data-transition-id]")).toHaveCount(3);
 
-    const buttonColors = await app.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
-      buttons.map(button => [
-        button.dataset.transitionId,
-        getComputedStyle(button).getPropertyValue("--button-color").trim()
-      ])
-    ));
+    const buttonStyles = await transitionButtonStyles(app);
 
     const edgeColorFor = async id => {
       const edge = page.locator(`.edge[data-edge-id="${id}"]`);
@@ -555,9 +572,67 @@ test.describe("Core browser contracts", () => {
       t_parent_exit: await edgeColorFor("t_parent_exit")
     };
 
-    expect(buttonColors.t_direct_a).toBe(edgeColors.t_direct_a);
-    expect(buttonColors.t_direct_b).toBe(edgeColors.t_direct_b);
-    expect(buttonColors.t_parent_exit).toBe(edgeColors.t_parent_exit);
+    for (const [transitionId, edgeColor] of Object.entries(edgeColors)) {
+      expect(buttonStyles[transitionId].color).toBe(edgeColor);
+      expect(buttonStyles[transitionId].strong).toBe(edgeColor);
+      expect(buttonStyles[transitionId].backgroundImage).toBe("none");
+    }
+  });
+
+  test("inner-state render buttons keep the exact fired transition color @smoke", async ({ page }) => {
+    await openWithModel(page, {
+      version: 2,
+      name: "Inner Button Colors",
+      initial: "inner_a",
+      states: [
+        { id: "shell", title: "Shell", body: "", components: [], data: {}, x: 120, y: 160 },
+        {
+          id: "inner_a",
+          title: "Inner A",
+          body: "",
+          components: [
+            { id: "button_to_b", type: "transitionButton", transitionId: "inner_to_b" },
+            { id: "text_inner", type: "text", text: "Choose an inner route.", url: "" },
+            { id: "button_to_c", type: "transitionButton", transitionId: "inner_to_c" }
+          ],
+          data: {},
+          parentId: "shell",
+          x: 120,
+          y: 120
+        },
+        { id: "inner_b", title: "Inner B", body: "", components: [], data: {}, parentId: "shell", x: 420, y: 72 },
+        { id: "inner_c", title: "Inner C", body: "", components: [], data: {}, parentId: "shell", x: 420, y: 216 }
+      ],
+      transitions: [
+        { id: "inner_to_b", from: "inner_a", to: "inner_b", label: "Inner B", condition: "", triggerType: "button", set: {} },
+        { id: "inner_to_c", from: "inner_a", to: "inner_c", label: "Inner C", condition: "", triggerType: "button", set: {} }
+      ]
+    });
+
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("inner_a");
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(2);
+    await expect(app.locator(".component-stack > *").first().locator("button[data-transition-id='inner_to_b']")).toBeVisible();
+    await expect(app.getByRole("button", { name: "Inner C" })).toBeVisible();
+    const buttonStyles = await transitionButtonStyles(app);
+
+    await page.locator('[data-id="shell"]').dblclick();
+    await expect(page.locator('[data-id="inner_a"]')).toBeVisible();
+    const edgeColorFor = async id => {
+      const edge = page.locator(`.edge[data-edge-id="${id}"]`);
+      await expect(edge).toHaveCount(1);
+      return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    };
+    const edgeColors = {
+      inner_to_b: await edgeColorFor("inner_to_b"),
+      inner_to_c: await edgeColorFor("inner_to_c")
+    };
+
+    for (const [transitionId, edgeColor] of Object.entries(edgeColors)) {
+      expect(buttonStyles[transitionId].color).toBe(edgeColor);
+      expect(buttonStyles[transitionId].strong).toBe(edgeColor);
+      expect(buttonStyles[transitionId].backgroundImage).toBe("none");
+    }
   });
 
   test("boundary exit states include parent outs through output ports @smoke", async ({ page }) => {
@@ -590,12 +665,7 @@ test.describe("Core browser contracts", () => {
     await expect(app.getByRole("button", { name: "Sibling B" })).toBeVisible();
     await expect(app.getByRole("button", { name: "Done" })).toBeVisible();
 
-    const buttonColors = await app.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
-      buttons.map(button => [
-        button.dataset.transitionId,
-        getComputedStyle(button).getPropertyValue("--button-color").trim()
-      ])
-    ));
+    const buttonStyles = await transitionButtonStyles(app);
 
     const edgeColorFor = async id => {
       const edge = page.locator(`.edge[data-edge-id="${id}"]`);
@@ -615,9 +685,11 @@ test.describe("Core browser contracts", () => {
       grand_done: rootDoneColor
     };
 
-    expect(buttonColors.parent_to_a).toBe(edgeColors.parent_to_a);
-    expect(buttonColors.parent_to_b).toBe(edgeColors.parent_to_b);
-    expect(buttonColors.grand_done).toBe(edgeColors.grand_done);
+    for (const [transitionId, edgeColor] of Object.entries(edgeColors)) {
+      expect(buttonStyles[transitionId].color).toBe(edgeColor);
+      expect(buttonStyles[transitionId].strong).toBe(edgeColor);
+      expect(buttonStyles[transitionId].backgroundImage).toBe("none");
+    }
   });
 
   test("state editor exposes global-state path subscriptions without output editing @smoke", async ({ page }) => {
