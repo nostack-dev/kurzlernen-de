@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kurzlernen</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+      background: #f6f6f6;
+      color: #222;
+    }
+    main {
+      width: 100%;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+    h1 { margin-top: 0; }
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-weight: 700;
+    }
+    .loading { background: #e8f0fe; color: #1a73e8; }
+    .ready { background: #e6f4ea; color: #137333; }
+    .error { background: #fce8e6; color: #c5221f; }
+    textarea, pre {
+      width: 100%;
+      min-height: 150px;
+      margin: 8px 0 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    textarea {
+      border: 1px solid #cfcfcf;
+      resize: vertical;
+    }
+    pre {
+      overflow-x: auto;
+      background: #282c34;
+      color: #abb2bf;
+      white-space: pre-wrap;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 18px;
+      background: #1a73e8;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:disabled { background: #bbb; cursor: not-allowed; }
+    .note { color: #666; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Kurzlernen</h1>
+    <p class="note">Eine einzelne HTML-Datei. Keine Beispiel-, Nutzer- oder JSON-Daten sind im Quelltext gespeichert.</p>
+
+    <div id="status" class="status loading">Prüfe WebGPU-Kompatibilität...</div>
+
+    <label for="input-data"><strong>Input</strong></label>
+    <textarea id="input-data" placeholder="Text oder API-Response hier einfügen"></textarea>
+
+    <button id="transform-btn" type="button" disabled>Transformieren</button>
+
+    <h2>Output</h2>
+    <pre id="output-data">{}</pre>
+  </main>
+
+  <script type="module">
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+    const MODEL_ID = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
+    const statusBox = document.getElementById("status");
+    const transformBtn = document.getElementById("transform-btn");
+    const inputData = document.getElementById("input-data");
+    const outputData = document.getElementById("output-data");
+
+    let engine = null;
+
+    function setStatus(text, type) {
+      statusBox.textContent = text;
+      statusBox.className = `status ${type}`;
+    }
+
+    async function init() {
+      if (!navigator.gpu) {
+        setStatus("Fehler: WebGPU wird von diesem Browser oder Gerät nicht unterstützt.", "error");
+        return;
+      }
+
+      try {
+        setStatus("Lade Modell und initialisiere lokalen Cache...", "loading");
+        engine = await webllm.CreateMLCEngine(MODEL_ID, {
+          initProgressCallback: (report) => setStatus(`Initialisierung: ${report.text}`, "loading")
+        });
+        setStatus("Bereit. Inferenz läuft lokal im Browser.", "ready");
+        transformBtn.disabled = false;
+      } catch (error) {
+        setStatus(`Fehler bei Modell-Initialisierung: ${error.message}`, "error");
+      }
+    }
+
+    async function transform() {
+      if (!engine) return;
+
+      const rawText = inputData.value.trim();
+      if (!rawText) {
+        outputData.textContent = "{}";
+        setStatus("Bitte zuerst Text einfügen.", "error");
+        return;
+      }
+
+      transformBtn.disabled = true;
+      outputData.textContent = "Verarbeite...";
+      setStatus("Pipeline aktiv...", "loading");
+
+      const messages = [{
+        role: "user",
+        content: `Task: Konvertiere den folgenden Text in ein strukturiertes Format mit englischen Keys.\n\nInput:\n${rawText}\n\nAusgabe als Key-Value-Paare im geschweiften Klammerformat, ohne Zusatztext, Erklärungen oder Markdown-Blöcke:`
+      }];
+
+      let response = null;
+
+      try {
+        response = await engine.chat.completions.create({
+          messages,
+          temperature: 0
+        });
+
+        let result = response.choices[0].message.content.trim();
+        result = result.replace(/```[a-z]*/gi, "").replace(/```/g, "").trim();
+
+        const parsed = JSON.parse(result);
+        outputData.textContent = JSON.stringify(parsed, null, 2);
+        setStatus("Bereit. Inferenz läuft lokal im Browser.", "ready");
+      } catch (error) {
+        const rawOutput = response?.choices?.[0]?.message?.content ?? "Keine Antwort generiert.";
+        outputData.textContent = `Fehler beim Parsen/Inferenz: ${error.message}\n\nRoh-Output des Modells:\n${rawOutput}`;
+        setStatus("Fehler während der Inferenz.", "error");
+      } finally {
+        transformBtn.disabled = false;
+      }
+    }
+
+    transformBtn.addEventListener("click", transform);
+    init();
+  </script>
+</body>
+</html>
