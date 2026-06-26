@@ -282,7 +282,15 @@ test.describe("Core source contracts", () => {
     expect(html).not.toContain("Fetch automap");
     expect(html).not.toContain("Open fetch automap");
     expect(html).not.toContain("api.escuelajs");
-    expect(html).toContain('title: "Fetch data"');
+    expect(html).toContain('title: "API list"');
+    expect(html).toContain('title: "Button (Knopf)"');
+    expect(html).toContain('dataPath: "$state"');
+    expect(html).toContain("function applyStateScopedTemplateBindings");
+    expect(html).toContain("function expandStateScopedDataObject");
+    expect(html).not.toContain("component.html");
+    expect(html).not.toContain('title: "Contact form"');
+    expect(html).not.toContain('title: "Login form"');
+    expect(html).not.toContain('title: "While loop"');
     expect(html).toContain("dataWires: [],");
     expect(html).toContain('url: ""');
     expect(html).toContain("dataWiresFromRepeatSample(sample, scopePath)");
@@ -297,6 +305,14 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeDataWireDisplayValue");
     expect(appHtml).toContain("function runtimeDataWireUrlValue");
     expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
+    expect(appHtml).toContain("function daisyScopePath");
+    expect(appHtml).toContain("function daisyWrite");
+    expect(appHtml).toContain("if (targetPath && readValueAtPath(context, targetPath) === undefined)");
+    expect(appHtml).toContain('runtimeSet(targetPath, value, { source: "state-default", notify: false');
+    expect(appHtml).toContain("pruneRemovedStateDataDefaults(previousModel, nextModel, oldContext)");
+    expect(appHtml).toContain("function pruneRemovedStateDataDefaults");
+    expect(appHtml).toContain("createDaisyComponentElement(component, ownerState, renderOptions)");
+    expect(appHtml).not.toContain("component.html");
     expect(appHtml).not.toContain("runtimeComponentIsRawDataDump");
     expect(appHtml).not.toContain("runtimeTemplateTouchesPath");
     expect(appHtml).not.toContain("{{");
@@ -304,13 +320,17 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("readableRepeatComponentsForRuntime(state.components, item, repeat.as, repeat.path)");
   });
 
-  test("fetch runtime uses one fresh active run, not a response cache @smoke", () => {
+  test("fetch runtime is an entry effect on the global bus, not a render/cache side effect @smoke", () => {
     const html = stateHtml();
     const appHtml = generatedAppHtml();
 
-    expect(html).toContain("let dataSourceRunSerial = 0");
-    expect(html).toContain("let activeDataSourceRun = null");
-    expect(html).toContain("await ensureStateDataSource(s)");
+    expect(appHtml).toContain("function runCurrentStateEntryEffects");
+    expect(appHtml).toContain("runCurrentStateEntryEffects({ fetch: true })");
+    expect(appHtml).toContain("currentDataSourceTargetChanged(changedTargets)");
+    expect(appHtml).toContain("function dataSourceEventBelongsToCurrentState");
+    expect(appHtml).toContain("dataSourceResultBelongsToEntry(currentResult, meta)");
+    expect(appHtml).toContain("activationId === stateActivationId");
+    expect(appHtml).not.toContain("await ensureStateDataSource(s)");
     expect(html).toContain("function resetEditorDataSourceContext");
     expect(html).toContain("sourceChanged = dataSourceSignature(previous) !== dataSourceSignature(next)");
     expect(html).toContain("resetEditorDataSourceContext(previous.target)");
@@ -323,6 +343,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain('screen.innerHTML = ""');
     expect(html).not.toContain("dataSourceRuns = new Map");
     expect(html).not.toContain("dataSourceRuns.");
+    expect(appHtml).not.toContain("let dataSourceRunSerial = 0");
+    expect(appHtml).not.toContain("let activeDataSourceRun = null");
   });
 
   test("data wires drive rendered content through global state @smoke", () => {
@@ -557,12 +579,12 @@ test.describe("Core browser contracts", () => {
       initial: "start",
       states: [
         { id: "start", title: "Start", body: "", components: [], data: {}, x: 120, y: 160 },
-        { id: "toast", title: "Show toast", body: "", components: [{ id: "c_toast", type: "toast", text: "Toast reached", variant: "info" }], data: {}, x: 420, y: 80 },
-        { id: "sound", title: "Play sound", body: "", components: [{ id: "c_sound", type: "sound", label: "Default chime", sound: "chime", autoplay: true }], data: {}, x: 420, y: 260 }
+        { id: "info", title: "Show info", body: "", components: [{ id: "c_info", type: "note", text: "Info branch reached" }], data: {}, x: 420, y: 80 },
+        { id: "note", title: "Show note", body: "", components: [{ id: "c_note", type: "note", text: "Reached second branch" }], data: {}, x: 420, y: 260 }
       ],
       transitions: [
-        { id: "t_next", from: "start", to: "toast", label: "Next", condition: "", set: {} },
-        { id: "t_next2", from: "start", to: "sound", label: "Next2", condition: "", set: {} }
+        { id: "t_next", from: "start", to: "info", label: "Next", condition: "", set: {} },
+        { id: "t_next2", from: "start", to: "note", label: "Next2", condition: "", set: {} }
       ]
     });
 
@@ -579,8 +601,8 @@ test.describe("Core browser contracts", () => {
 
     await next2.click();
 
-    await expect(app.locator("#statePill")).toHaveText("sound");
-    await expect(app.locator("h1")).toHaveText("Play sound");
+    await expect(app.locator("#statePill")).toHaveText("note");
+    await expect(app.locator("h1")).toHaveText("Show note");
   });
 
   test("boundary exit states keep direct buttons and share edge colors @smoke", async ({ page }) => {

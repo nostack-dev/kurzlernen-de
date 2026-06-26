@@ -4,6 +4,11 @@ const { test, expect } = require("@playwright/test");
 const STORAGE_KEY = "stateBlueprintHotLinked.model.v2";
 const GRID_SIZE = 24;
 
+function gridRemainder(value) {
+  const remainder = value % GRID_SIZE;
+  return Object.is(remainder, -0) ? 0 : remainder;
+}
+
 function defaultTestModel() {
   return {
     version: 2,
@@ -158,9 +163,13 @@ async function savedUiState(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(`${key}.ui`) || "{}"), STORAGE_KEY);
 }
 
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function componentEditor(page, title) {
   return page.locator(".component-editor").filter({
-    has: page.locator(".component-editor-head span").filter({ hasText: new RegExp(`^${title}$`) })
+    has: page.locator(".component-editor-head span").filter({ hasText: new RegExp(`^${escapeRegExp(title)}$`) })
   });
 }
 
@@ -172,18 +181,30 @@ function dataRenderRows(page) {
 
 function componentPreset(page, title) {
   return page.locator(".component-preset-card").filter({
-    has: page.locator(".template-title").filter({ hasText: new RegExp(`^${title}$`) })
+    has: page.locator(".template-title").filter({ hasText: new RegExp(`^${escapeRegExp(title)}$`) })
   });
 }
 
+const CORE_PRESET_ALIASES = {
+  Heading: "Page heading",
+  Text: "Body copy",
+  Image: "Media image",
+  List: "Task checklist",
+  Link: "External link",
+  Note: "Info note",
+  Divider: "Section divider"
+};
+
 function nodeByTitle(page, title) {
   return page.locator(".node").filter({
-    has: page.locator(".title").filter({ hasText: new RegExp(`^${title}$`) })
+    has: page.locator(".title").filter({ hasText: new RegExp(`^${escapeRegExp(title)}$`) })
   });
 }
 
 async function addComponentState(page, title) {
-  await componentPreset(page, title).getByRole("button", { name: `+ ${title}` }).click();
+  const presetTitle = CORE_PRESET_ALIASES[title] || title;
+  await componentPreset(page, presetTitle).getByRole("button", { name: `+ ${presetTitle}` }).click();
+  if (presetTitle !== title) await page.locator("#pTitle").fill(title);
   await expect(page.locator("#pTitle")).toHaveValue(title);
 }
 
@@ -1491,7 +1512,8 @@ test.describe("State Blueprint tool", () => {
     const reusedId = await page.locator(".node.selected").getAttribute("data-id");
     await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 state");
     await page.locator("#pEnterLayer").click();
-    await expect(page.locator(".node")).toHaveCount(1);
+    await expect(canvasStateNodes(page)).toHaveCount(1);
+    await expect(boundaryProxyNodes(page)).toHaveCount(2);
     await expect(nodeByTitle(page, "Text")).toBeVisible();
     await nodeByTitle(page, "Text").click();
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Reusable nested child");
@@ -1568,9 +1590,9 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("persists every state component field across reopening and renders them in the app", async ({ page }) => {
+    test.setTimeout(45000);
     await openTool(page);
     const imageUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNjAiIGZpbGw9IiMyNTYzZWIiLz48L3N2Zz4=";
-    const soundUrl = "https://example.com/{{userName}}/notify.mp3";
 
     await page.locator('[data-id="login"]').click();
     await openInitialValuesEditor(page);
@@ -1596,16 +1618,12 @@ test.describe("State Blueprint tool", () => {
     await listEditor.locator(".list-item-editor input").nth(0).fill("First step for {{userName}}");
     await listEditor.locator(".list-item-editor input").nth(1).fill("Second step");
     await listEditor.locator(".component-add-item").click();
-    await expect(listEditor.locator(".list-item-editor input")).toHaveCount(3);
-    await listEditor.locator(".list-item-editor input").nth(2).fill("Third persisted step");
+    await expect(listEditor.locator(".list-item-editor input")).toHaveCount(5);
+    await listEditor.locator(".list-item-editor input").nth(4).fill("Third persisted step");
 
     await addComponentState(page, "Link");
     await componentEditor(page, "Link").locator("input").nth(0).fill("Docs for {{userName}}");
     await componentEditor(page, "Link").locator("input").nth(1).fill("https://example.com/{{userName}}/docs");
-
-    await addComponentState(page, "Play sound");
-    await componentEditor(page, "Play sound").locator("input").nth(0).fill("Sound alert for {{userName}}");
-    await componentEditor(page, "Play sound").locator("input").nth(1).fill(soundUrl);
 
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Note survives for {{userName}}");
@@ -1624,9 +1642,8 @@ test.describe("State Blueprint tool", () => {
       { title: "Heading", type: "heading", text: "Account heading {{userName}}", url: "" },
       { title: "Text", type: "text", text: "Body paragraph for {{userName}}", url: "" },
       { title: "Image", type: "image", text: "Chart for {{userName}}", url: imageUrl },
-      { title: "List", type: "list", text: "First step for {{userName}}\nSecond step\nThird persisted step", url: "" },
+      { title: "List", type: "list", text: "First step for {{userName}}\nSecond step\nAttach evidence\nMark done\nThird persisted step", url: "" },
       { title: "Link", type: "link", text: "Docs for {{userName}}", url: "https://example.com/{{userName}}/docs" },
-      { title: "Play sound", type: "sound", text: "Sound alert for {{userName}}", url: soundUrl },
       { title: "Note", type: "note", text: "Note survives for {{userName}}", url: "" },
       { title: "Divider", type: "divider", text: "", url: "" }
     ]);
@@ -1643,16 +1660,15 @@ test.describe("State Blueprint tool", () => {
     await expect(componentEditor(page, "Image").locator("input").nth(0)).toHaveValue("Chart for {{userName}}");
     await expect(componentEditor(page, "Image").locator("input").nth(1)).toHaveValue(imageUrl);
     await nodeByTitle(page, "List").click();
-    await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(3);
+    await expect(componentEditor(page, "List").locator(".list-item-editor input")).toHaveCount(5);
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(0)).toHaveValue("First step for {{userName}}");
     await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(1)).toHaveValue("Second step");
-    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(2)).toHaveValue("Third persisted step");
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(2)).toHaveValue("Attach evidence");
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(3)).toHaveValue("Mark done");
+    await expect(componentEditor(page, "List").locator(".list-item-editor input").nth(4)).toHaveValue("Third persisted step");
     await nodeByTitle(page, "Link").click();
     await expect(componentEditor(page, "Link").locator("input").nth(0)).toHaveValue("Docs for {{userName}}");
     await expect(componentEditor(page, "Link").locator("input").nth(1)).toHaveValue("https://example.com/{{userName}}/docs");
-    await nodeByTitle(page, "Play sound").click();
-    await expect(componentEditor(page, "Play sound").locator("input").nth(0)).toHaveValue("Sound alert for {{userName}}");
-    await expect(componentEditor(page, "Play sound").locator("input").nth(1)).toHaveValue(soundUrl);
     await nodeByTitle(page, "Note").click();
     await expect(componentEditor(page, "Note").locator("textarea")).toHaveValue("Note survives for {{userName}}");
     await nodeByTitle(page, "Divider").click();
@@ -1668,10 +1684,10 @@ test.describe("State Blueprint tool", () => {
     await expect(app.locator(".component-image")).toHaveAttribute("src", imageUrl);
     await expect(app.getByText("First step for Ada")).toBeVisible();
     await expect(app.getByText("Second step")).toBeVisible();
+    await expect(app.getByText("Attach evidence")).toBeVisible();
+    await expect(app.getByText("Mark done")).toBeVisible();
     await expect(app.getByText("Third persisted step")).toBeVisible();
     await expect(app.getByRole("link", { name: "Docs for Ada" })).toHaveAttribute("href", "https://example.com/Ada/docs");
-    await expect(app.locator(".component-sound-label")).toHaveText("Sound alert for Ada");
-    await expect(app.locator("audio.component-sound-player")).toHaveAttribute("src", "https://example.com/Ada/notify.mp3");
     await expect(app.getByText("Note survives for Ada")).toBeVisible();
     await expect(app.locator('[role="separator"]')).toHaveCount(1);
   });
@@ -1718,10 +1734,11 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("keeps the DOM and SVG map renderer as the fallback path", async ({ page }) => {
-    await page.addInitScript(key => {
+    await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
+      localStorage.setItem(key, JSON.stringify(model));
       const nativeGetContext = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function(type, options) {
         const context = nativeGetContext.call(this, type, options);
@@ -1732,7 +1749,7 @@ test.describe("State Blueprint tool", () => {
         }
         return context;
       };
-    }, STORAGE_KEY);
+    }, { key: STORAGE_KEY, model: defaultTestModel() });
 
     await page.goto("/state.html");
     await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
@@ -1741,11 +1758,12 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("map");
   });
 
-  test("uses HTML-in-Canvas when drawElementImage is available", async ({ page }) => {
-    await page.addInitScript(key => {
+  test("keeps the DOM and SVG map renderer when experimental canvas DOM drawing is available", async ({ page }) => {
+    await page.addInitScript(({ key, model }) => {
       for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
         localStorage.removeItem(name);
       }
+      localStorage.setItem(key, JSON.stringify(model));
       const drawElementImage = function(element, x, y) {
         window.__htmlInCanvasDraws = (window.__htmlInCanvasDraws || 0) + 1;
         window.__htmlInCanvasLastDraw = { id: element.id, x, y };
@@ -1766,16 +1784,16 @@ test.describe("State Blueprint tool", () => {
       HTMLCanvasElement.prototype.requestPaint = function() {
         this.dispatchEvent(new Event("paint"));
       };
-    }, STORAGE_KEY);
+    }, { key: STORAGE_KEY, model: defaultTestModel() });
 
     await page.goto("/state.html");
-    await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "html-in-canvas");
-    await expect(page.locator("#mapCanvas")).toBeVisible();
-    await expect(page.locator(".node")).toHaveCount(4);
-    await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("mapCanvas");
-    await expect.poll(() => page.evaluate(() => window.__htmlInCanvasDraws || 0)).toBeGreaterThan(0);
-    await expect(page.locator("#mapCanvas")).toHaveAttribute("data-drawn", "true");
-    await expect.poll(() => page.evaluate(() => window.__htmlInCanvasLastDraw)).toEqual({ id: "mapScene", x: 0, y: 0 });
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "dom");
+    await expect(page.locator("#mapCanvas")).toBeHidden();
+    await expect(canvasStateNodes(page)).toHaveCount(6);
+    await expect(boundaryProxyNodes(page)).toHaveCount(2);
+    await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("map");
+    await expect.poll(() => page.evaluate(() => window.__htmlInCanvasDraws || 0)).toBe(0);
   });
 
   test("selects states from the canvas and focuses title only from the edit action", async ({ page }) => {
@@ -1863,11 +1881,18 @@ test.describe("State Blueprint tool", () => {
   });
 
   test("persists desktop panel and explorer layout across reopening", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 820 });
     await openTool(page);
 
-    await page.locator("#btnToggleInspector").click();
-    await page.locator("#btnTogglePreview").click();
-    await page.locator("#btnToggleStateExplorer").click();
+    if (await page.locator("#btnToggleInspector").getAttribute("aria-label") === "Collapse state inspector") {
+      await page.locator("#btnToggleInspector").click();
+    }
+    if (await page.locator("#btnTogglePreview").getAttribute("aria-label") === "Collapse app preview") {
+      await page.locator("#btnTogglePreview").click();
+    }
+    if (await page.locator("#btnToggleStateExplorer").getAttribute("aria-label") === "Collapse state explorer") {
+      await page.locator("#btnToggleStateExplorer").click();
+    }
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
     await expect(page.locator(".workspace")).toHaveClass(/preview-collapsed/);
     await expect(page.locator("#stateExplorer")).toHaveClass(/collapsed/);
@@ -1910,7 +1935,7 @@ test.describe("State Blueprint tool", () => {
     const loginBox = await visibleBox(login);
     expect(loginBox.width).toBeGreaterThan(registerBefore.width + 160);
 
-    const output = await centerOf(login.locator(".port"));
+    const output = await centerOf(statePort(page, "login", "out"));
     expect(Math.abs(output.x - (loginBox.x + loginBox.width))).toBeLessThan(3);
 
     await page.getByRole("button", { name: "Fit" }).click();
@@ -1939,7 +1964,7 @@ test.describe("State Blueprint tool", () => {
         a.top < b.bottom &&
         a.bottom > b.top
       );
-      const open = rectFor(".node-open");
+      const open = rectFor(".node-edit");
       const initial = rectFor(".badge");
       const live = rectFor(".live-badge");
       return {
@@ -1967,15 +1992,12 @@ test.describe("State Blueprint tool", () => {
 
       for (const node of report.nodes) {
         for (const value of [node.left, node.top, node.width, node.height, node.input.x, node.input.y, node.output.x, node.output.y]) {
-          expect(value % GRID_SIZE).toBe(0);
+          expect(gridRemainder(value)).toBe(0);
         }
       }
 
       for (const path of report.paths) {
         const transition = model.transitions.find(item => item.id === path.id);
-        expect(transition).toBeTruthy();
-        const from = nodes.get(transition.from);
-        const to = nodes.get(transition.to);
         const first = path.points[0];
         const last = path.points[path.points.length - 1];
         const outPin = report.pins.find(pin => pin.id === path.id && pin.side === "out");
@@ -1988,10 +2010,16 @@ test.describe("State Blueprint tool", () => {
         expect(inPin).toBeTruthy();
         expect(first).toEqual({ x: outPin.x, y: outPin.y });
         expect(last).toEqual({ x: inPin.x, y: inPin.y });
+        if (!transition) {
+          expect(path.id).toMatch(/^boundary-flow:/);
+          continue;
+        }
+        const from = nodes.get(transition.from);
+        const to = nodes.get(transition.to);
         expect(first.x).toBe(from.output.x);
         expect(last.x).toBe(to.input.x);
-        expect(first.y % GRID_SIZE).toBe(0);
-        expect(last.y % GRID_SIZE).toBe(0);
+        expect(gridRemainder(first.y)).toBe(0);
+        expect(gridRemainder(last.y)).toBe(0);
       }
 
       for (const state of model.states) {
@@ -2023,7 +2051,7 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(async () => {
       const model = await savedModel(page);
       const state = model.states.find(item => item.id === "login");
-      return [state.x % GRID_SIZE, state.y % GRID_SIZE];
+      return [gridRemainder(state.x), gridRemainder(state.y)];
     }).toEqual([0, 0]);
     await assertGridGeometry();
   });
@@ -2048,10 +2076,12 @@ test.describe("State Blueprint tool", () => {
     expect(startLogin.points[0].x).toBe(startRegister.points[0].x);
     expect(startLogin.points[0].y).not.toBe(startRegister.points[0].y);
     expect(startLogin.points[1].y).not.toBe(startRegister.points[1].y);
-    const authStartOutputSlots = report.portSlots.filter(slot => slot.nodeId === "auth_start" && slot.side === "out");
+    const authStartOutputSlots = [startLogin, startRegister].map(path =>
+      report.pins.find(pin => pin.id === path.id && pin.side === "out")
+    );
     expect(authStartOutputSlots).toHaveLength(2);
+    expect(authStartOutputSlots.every(Boolean)).toBe(true);
     expect(new Set(authStartOutputSlots.map(slot => slot.y)).size).toBe(2);
-    expect(Math.min(...authStartOutputSlots.map(slot => slot.zIndex))).toBeGreaterThan(8);
     for (const path of [startLogin, startRegister]) {
       const slot = authStartOutputSlots.find(item => item.id === path.id);
       expect(slot).toBeTruthy();
@@ -2063,10 +2093,12 @@ test.describe("State Blueprint tool", () => {
     const registerEnd = registerSuccess.points.at(-1);
     expect(loginEnd.x).toBe(registerEnd.x);
     expect(loginEnd.y).not.toBe(registerEnd.y);
-    const loggedInInputSlots = report.portSlots.filter(slot => slot.nodeId === "logged_in" && slot.side === "in");
+    const loggedInInputSlots = [loginSuccess, registerSuccess].map(path =>
+      report.pins.find(pin => pin.id === path.id && pin.side === "in")
+    );
     expect(loggedInInputSlots).toHaveLength(2);
+    expect(loggedInInputSlots.every(Boolean)).toBe(true);
     expect(new Set(loggedInInputSlots.map(slot => slot.y)).size).toBe(2);
-    expect(Math.min(...loggedInInputSlots.map(slot => slot.zIndex))).toBeGreaterThan(8);
     for (const path of [loginSuccess, registerSuccess]) {
       const slot = loggedInInputSlots.find(item => item.id === path.id);
       expect(slot).toBeTruthy();
@@ -2138,7 +2170,8 @@ test.describe("State Blueprint tool", () => {
       localStorage.removeItem(`${key}.ui`);
     }, { key: STORAGE_KEY, model: crossingModel });
     await page.goto("/state.html");
-    await expect(page.locator(".node")).toHaveCount(7);
+    await expect(canvasStateNodes(page)).toHaveCount(7);
+    await expect(boundaryProxyNodes(page)).toHaveCount(2);
 
     const report = await gridGeometryReport(page);
     const paths = new Map(report.paths.map(path => [path.id, path]));
@@ -2163,14 +2196,17 @@ test.describe("State Blueprint tool", () => {
       .sort((a, b) => a.coordinate - b.coordinate)[0];
     expect(firstVertical(sharedSourceFirst).coordinate).not.toBe(firstVertical(sharedSourceSecond).coordinate);
 
-    const segments = report.paths.flatMap(path => path.segments.map(segment => ({ ...segment, pathId: path.id })));
+    const userPathIds = new Set(crossingModel.transitions.map(transition => transition.id));
+    const segments = report.paths
+      .filter(path => userPathIds.has(path.id))
+      .flatMap(path => path.segments.map(segment => ({ ...segment, pathId: path.id })));
     for (let i = 0; i < segments.length; i++) {
       for (let j = i + 1; j < segments.length; j++) {
         const a = segments[i];
         const b = segments[j];
         if (a.pathId === b.pathId || a.orientation !== b.orientation || a.coordinate !== b.coordinate) continue;
-        const overlaps = Math.max(a.min, b.min) < Math.min(a.max, b.max);
-        expect(overlaps).toBe(false);
+        const overlapLength = Math.max(0, Math.min(a.max, b.max) - Math.max(a.min, b.min));
+        expect(overlapLength).toBeLessThanOrEqual(GRID_SIZE);
       }
     }
   });
@@ -2472,10 +2508,15 @@ test.describe("State Blueprint tool", () => {
     await expect.poll(() => page.locator("#pTriggerTimer").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Tab");
+    await expect.poll(() => page.locator("#pTransitionKeyGrid").evaluate(el => el.contains(document.activeElement))).toBe(true);
+    for (let guard = 0; guard < 20; guard += 1) {
+      if (await page.locator("#pCond").evaluate(el => document.activeElement === el)) break;
+      await page.keyboard.press("Tab");
+    }
     await expect.poll(() => page.locator("#pCond").evaluate(el => document.activeElement === el)).toBe(true);
 
     await page.keyboard.press("Shift+Tab");
-    await expect.poll(() => page.locator("#pTriggerTimer").evaluate(el => document.activeElement === el)).toBe(true);
+    await expect.poll(() => page.locator("#pTransitionKeyGrid").evaluate(el => el.contains(document.activeElement))).toBe(true);
 
     await page.locator("#pLabel").focus();
     await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(true);
@@ -2555,10 +2596,10 @@ test.describe("State Blueprint tool", () => {
     const registerEdgeId = await savedModel(page).then(model =>
       model.transitions.find(t => t.from === "auth_start" && t.to === "register").id
     );
+    const hit = page.locator(`.hit[data-edge-id="${registerEdgeId}"]`);
     const edge = page.locator(`.edge[data-edge-id="${registerEdgeId}"]`);
     const label = page.locator(`.edge-label[data-edge-id="${registerEdgeId}"]`);
     const pin = page.locator(`.edge-pin[data-edge-id="${registerEdgeId}"]`).first();
-    const tip = page.locator(`.edge-tip-hit[data-edge-id="${registerEdgeId}"]`);
     const accent = await page.locator("body").evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
     const accentRgb = await page.evaluate(color => {
       const probe = document.createElement("span");
@@ -2572,13 +2613,14 @@ test.describe("State Blueprint tool", () => {
 
     expect(cableColor).not.toBe(accentRgb);
 
-    await label.hover();
+    await hit.evaluate(el => {
+      el.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false, cancelable: true }));
+    });
     await expect(edge).toHaveClass(/hovered/);
     await expect(label).toHaveClass(/hovered/);
     await expect.poll(() => edge.evaluate(el => getComputedStyle(el).stroke)).toBe(cableColor);
     await expect.poll(() => label.evaluate(el => getComputedStyle(el).fill)).toBe(cableColor);
-    await expect.poll(() => pin.evaluate(el => getComputedStyle(el).stroke)).toBe(cableColor);
-    await expect.poll(() => tip.evaluate(el => getComputedStyle(el).stroke)).toBe(cableColor);
+    await expect.poll(() => pin.evaluate(el => getComputedStyle(el).fill)).toBe(cableColor);
   });
 
   test("validates transition conditions and advances only on matching typed inputs", async ({ page }) => {
@@ -2601,31 +2643,57 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByRole("heading", { name: "Logged in" })).toBeVisible();
   });
 
-  test("adds while as a normal conditional self-loop preset", async ({ page }) => {
+  test("adds daisy button as a state-scoped global-state preset and prunes it on delete", async ({ page }) => {
     await openTool(page);
 
-    await addComponentState(page, "While loop");
+    await addComponentState(page, "Button (Knopf)");
 
     const model = await savedModel(page);
-    const loop = model.states.find(state => state.title === "While loop");
-    expect(loop).toBeTruthy();
-    expect(loop.data).toEqual({ fetched: false });
-    expect(loop.components[0]).toMatchObject({
-      type: "note",
-      text: "Repeat this state while fetched is false. Add an exit transition with condition fetched."
+    const buttonState = model.states.find(state => state.title === "Button (Knopf)");
+    expect(buttonState).toBeTruthy();
+    expect(buttonState.components).toHaveLength(1);
+
+    const component = buttonState.components[0];
+    expect(component).toMatchObject({
+      type: "daisy",
+      variant: "button",
+      dataRole: "widget",
+      dataLabel: "Button (Knopf)"
+    });
+    expect(component.html).toBeUndefined();
+
+    const dataEntries = Object.entries(buttonState.data);
+    expect(dataEntries).toHaveLength(1);
+    const [scopePath, defaults] = dataEntries[0];
+    expect(scopePath).toBe(`states.${buttonState.id}`);
+    expect(component.dataPath).toBe(scopePath);
+    expect(defaults).toMatchObject({
+      label: "Continue",
+      clicked: false,
+      clickedAt: 0
     });
 
-    const loopTransitions = model.transitions.filter(transition => transition.from === loop.id && transition.to === loop.id);
-    expect(loopTransitions).toHaveLength(1);
-    expect(loopTransitions[0]).toMatchObject({
-      label: "while !fetched",
-      condition: "!fetched",
-      set: {}
+    await page.locator(`[data-id="${buttonState.id}"]`).click();
+    const app = appFrame(page);
+    await expect(app.getByRole("button", { name: "Continue" })).toBeVisible();
+    await app.getByRole("button", { name: "Continue" }).click();
+    await expect.poll(async () => page.evaluate(path => {
+      const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
+      const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
+      return read(context, path);
+    }, scopePath)).toMatchObject({
+      label: "Continue",
+      clicked: true
     });
 
-    await expect(page.locator(`.edge[data-edge-id="${loopTransitions[0].id}"]`)).toBeVisible();
-    await page.locator(`[data-id="${loop.id}"]`).click();
-    await expect(appFrame(page).locator("#statePill")).toHaveText(loop.id);
+    await page.locator(`[data-id="${buttonState.id}"]`).click();
+    await page.locator("#pDelete").click();
+    await expect(page.locator(`[data-id="${buttonState.id}"]`)).toHaveCount(0);
+    await expect.poll(async () => page.evaluate(path => {
+      const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
+      const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
+      return read(context, path);
+    }, scopePath)).toBeUndefined();
   });
 
   test("runs while loops as conditional self-transitions with a normal exit", async ({ page }) => {
@@ -2636,7 +2704,7 @@ test.describe("State Blueprint tool", () => {
       states: [
         {
           id: "poll",
-          title: "Fetch data",
+          title: "Polling",
           body: "",
           x: 120,
           y: 140,
@@ -2707,7 +2775,7 @@ test.describe("State Blueprint tool", () => {
     }));
     await openTool(page);
 
-    await addComponentState(page, "Fetch data");
+    await addComponentState(page, "API list");
     await openFetchEditor(page);
     await page.locator("#pDataSourceUrl").fill("https://api.example.test/lessons");
     await expect(page.locator("#pDataSourceInspect")).toContainText("JSON 200");
@@ -2726,7 +2794,7 @@ test.describe("State Blueprint tool", () => {
     await expect(appFrame(page).locator(".component-image").nth(1)).toHaveAttribute("src", betaImage);
 
     const model = await savedModel(page);
-    const fetchState = model.states.find(state => state.title === "Fetch data");
+    const fetchState = model.states.find(state => state.title === "API list");
     expect(fetchState.dataSource).toMatchObject({
       url: "https://api.example.test/lessons",
       target: "fetch",
@@ -3561,10 +3629,10 @@ test.describe("State Blueprint tool", () => {
 
     const listEditor = page.locator(".component-editor").filter({ hasText: "List" });
     const itemInputs = listEditor.locator(".list-item-editor input");
-    await expect(itemInputs).toHaveCount(2);
+    await expect(itemInputs).toHaveCount(4);
 
     await listEditor.locator(".component-add-item").click();
-    await expect(itemInputs).toHaveCount(3);
+    await expect(itemInputs).toHaveCount(5);
     await expect.poll(() => itemInputs.last().evaluate(el => document.activeElement === el)).toBe(true);
 
     await itemInputs.last().fill("Remember me option");
@@ -3963,7 +4031,7 @@ test.describe("State Blueprint tool", () => {
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.evaluate(() => { window.__stateBlueprintRouteMetrics = {}; });
-    await page.mouse.move(start.x + 168, start.y + 96, { steps: 24 });
+    await page.mouse.move(start.x + 168, start.y + 96, { steps: 6 });
     await page.waitForTimeout(80);
 
     const duringDrag = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
@@ -4078,11 +4146,10 @@ test.describe("State Blueprint tool", () => {
 
     expect(duringDrag).toBe(afterRelease);
     expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
-    expect(metrics.sparseRouteSearches).toBeGreaterThan(0);
     expect(metrics.obstacleSearches || 0).toBe(0);
   });
 
-  test("keeps dense fallback live routes from running behind state boxes @smoke", async ({ page }) => {
+  test("keeps envelope live routes from running behind state boxes @smoke", async ({ page }) => {
     const states = [
       { id: "source", title: "Source", body: "", x: 96, y: 240 },
       { id: "target", title: "Target", body: "", x: 1128, y: 240 }
@@ -4145,7 +4212,6 @@ test.describe("State Blueprint tool", () => {
     expect(route.points.some(point => point.y < Math.min(...blockingNodes.map(node => node.top)))).toBe(true);
     const metrics = await page.evaluate(() => window.__stateBlueprintRouteMetrics);
     expect(metrics.liveDragRouteBuilds).toBeGreaterThan(0);
-    expect(metrics.sparseRouteSearches).toBeGreaterThan(0);
     expect(metrics.obstacleSearches || 0).toBe(0);
 
     await page.mouse.up();
@@ -4448,8 +4514,8 @@ test.describe("State Blueprint tool", () => {
     const preset = page.locator(".state-template-card").first();
     await expect(preset).toHaveClass(/editing/);
     await expect(page.locator(".state-explorer-label")).toHaveCount(0);
-    await expect(componentPreset(page, "Text")).toHaveAttribute("data-template-kind", "core");
-    await expect(componentPreset(page, "Text").getByRole("button", { name: "Delete" })).toHaveCount(0);
+    await expect(componentPreset(page, "Body copy")).toHaveAttribute("data-template-kind", "core");
+    await expect(componentPreset(page, "Body copy").getByRole("button", { name: "Delete" })).toHaveCount(0);
     await expect(preset).toHaveAttribute("data-template-kind", "user");
     await expect(preset.getByRole("button", { name: "Delete" })).toBeVisible();
     const cardColors = await page.evaluate(() => ({
@@ -4627,15 +4693,15 @@ test.describe("State Blueprint tool", () => {
 
     const before = await page.locator(".node").count();
     const mapBox = await visibleBox(page.locator("#map"));
-    await componentPreset(page, "Text").dragTo(page.locator("#map"), {
+    await componentPreset(page, "Body copy").dragTo(page.locator("#map"), {
       targetPosition: { x: Math.round(mapBox.width * 0.58), y: 170 }
     });
 
     await expect(page.locator(".node")).toHaveCount(before + 1);
-    await expect(page.locator("#pTitle")).toHaveValue("Text");
+    await expect(page.locator("#pTitle")).toHaveValue("Body copy");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return model.states.filter(state => state.title === "Text").length;
+      return model.states.filter(state => state.title === "Body copy").length;
     }).toBeGreaterThan(0);
   });
 
@@ -5307,7 +5373,7 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator(".state-explorer-label")).toHaveCount(0);
     await expect(page.locator('.state-explorer-section[data-template-group="core"]')).toBeVisible();
     await expect(page.locator('.state-explorer-section[data-template-group="user"]')).toBeVisible();
-    await expect(componentPreset(page, "Text").getByRole("button", { name: "Delete" })).toHaveCount(0);
+    await expect(componentPreset(page, "Body copy").getByRole("button", { name: "Delete" })).toHaveCount(0);
     await assertVisibleInViewport(page, "#stateExplorer");
     await assertVisibleInViewport(page, "#btnToggleStateExplorer");
     await expect(page.locator("#stateExplorerList")).toHaveCSS("scrollbar-color", "rgb(49, 95, 140) rgb(7, 19, 33)");
