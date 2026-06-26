@@ -145,6 +145,12 @@ async function savedModel(page) {
   }, STORAGE_KEY);
 }
 
+async function runtimeContext(page) {
+  return page.evaluate(() => JSON.parse(JSON.stringify(
+    typeof latestRuntimeContext !== "undefined" && latestRuntimeContext ? latestRuntimeContext : {}
+  )));
+}
+
 async function firstChildStateId(page, parentId) {
   const id = await page.evaluate(({ key, parentId }) => {
     const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
@@ -719,6 +725,187 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="seed"]')).toBeVisible();
     await expect(app.locator("#statePill")).toHaveText("matched");
     await expect(app.getByText("Ready constellation matched")).toBeVisible();
+  });
+
+  test("state data defaults enter the runtime bus only on active state entry and never overwrite existing keys @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "State data entry contract",
+      initial: "start",
+      states: [
+        {
+          id: "start",
+          title: "Start",
+          body: "",
+          x: 120,
+          y: 140,
+          data: { startOnly: "start-default", shared: "start-default" },
+          components: [{ id: "c_start", type: "text", text: "Start {{startOnly}} {{shared}}", url: "" }]
+        },
+        {
+          id: "next",
+          title: "Next",
+          body: "",
+          x: 480,
+          y: 140,
+          data: { nextOnly: "next-default", shared: "next-default" },
+          components: [{ id: "c_next", type: "note", text: "Next {{startOnly}} {{nextOnly}} {{shared}}", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "go_next", from: "start", to: "next", label: "Go", condition: "", set: { shared: "transition-set" } }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("start");
+    await expect(app.getByText("Start start-default start-default")).toBeVisible();
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return {
+        startOnly: context.startOnly,
+        nextOnly: context.nextOnly,
+        shared: context.shared
+      };
+    }).toEqual({
+      startOnly: "start-default",
+      nextOnly: undefined,
+      shared: "start-default"
+    });
+
+    await app.getByRole("button", { name: "Go" }).click();
+    await expect(app.locator("#statePill")).toHaveText("next");
+    await expect(app.getByText("Next start-default next-default transition-set")).toBeVisible();
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return {
+        startOnly: context.startOnly,
+        nextOnly: context.nextOnly,
+        shared: context.shared
+      };
+    }).toEqual({
+      startOnly: "start-default",
+      nextOnly: "next-default",
+      shared: "transition-set"
+    });
+  });
+
+  test("state explorer preset data stays outside the runtime bus until the preset becomes a canvas state @smoke", async ({ page }) => {
+    await openTool(page, {
+      stateTemplates: [{
+        id: "tpl_runtime_contract",
+        rootStateId: "tpl_runtime_contract",
+        title: "Runtime contract preset",
+        body: "",
+        components: [{ id: "tpl_contract_text", type: "text", text: "Preset value {{presetOnly}}", url: "" }],
+        data: { presetOnly: "from-preset-template" },
+        states: [],
+        transitions: []
+      }]
+    });
+
+    await expect(page.locator(".state-template-card").filter({ hasText: "Runtime contract preset" })).toBeVisible();
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      const context = await runtimeContext(page);
+      return {
+        templateData: templates[0]?.data?.presetOnly,
+        runtimeValue: context.presetOnly
+      };
+    }).toEqual({
+      templateData: "from-preset-template",
+      runtimeValue: undefined
+    });
+
+    await page.locator(".state-template-card").filter({ hasText: "Runtime contract preset" }).getByRole("button", { name: "Use" }).click();
+    await expect(page.locator("#pTitle")).toHaveValue("Runtime contract preset");
+    await expect(appFrame(page).getByText("Preset value from-preset-template")).toBeVisible();
+    await expect.poll(async () => (await runtimeContext(page)).presetOnly).toBe("from-preset-template");
+  });
+
+  test("child states render as closed flow steps unless explicitly marked as parent components @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Closed Child Render Contract",
+      initial: "shell",
+      states: [
+        {
+          id: "shell",
+          title: "Shell",
+          body: "",
+          x: 120,
+          y: 160,
+          data: { shellOnly: "shell-default" },
+          components: [{ id: "shell_text", type: "text", text: "Parent shell {{shellOnly}}", url: "" }]
+        },
+        {
+          id: "inline_component",
+          parentId: "shell",
+          title: "Inline component",
+          body: "",
+          renderMode: "component",
+          x: 120,
+          y: 120,
+          data: { inlineOnly: "inline-default" },
+          components: [{ id: "inline_text", type: "note", text: "Inline block {{inlineOnly}}", url: "" }]
+        },
+        {
+          id: "child_step",
+          parentId: "shell",
+          title: "Child step",
+          body: "",
+          x: 420,
+          y: 120,
+          data: { childOnly: "child-default" },
+          components: [{ id: "child_text", type: "text", text: "Child step body {{childOnly}}", url: "" }]
+        }
+      ],
+      transitions: []
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="shell"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("shell");
+    await expect(app.getByText("Parent shell shell-default")).toBeVisible();
+    await expect(app.getByText("Inline block inline-default")).toBeVisible();
+    await expect(app.getByText("Child step body child-default")).toHaveCount(0);
+    await expect(app.getByRole("button", { name: "Child step" })).toBeVisible();
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return {
+        shellOnly: context.shellOnly,
+        inlineOnly: context.inlineOnly,
+        childOnly: context.childOnly
+      };
+    }).toEqual({
+      shellOnly: "shell-default",
+      inlineOnly: "inline-default",
+      childOnly: undefined
+    });
+
+    await app.getByRole("button", { name: "Child step" }).click();
+    await expect(app.locator("#statePill")).toHaveText("child_step");
+    await expect(app.getByText("Child step body child-default")).toBeVisible();
+    await expect(app.getByText("Parent shell shell-default")).toHaveCount(0);
+    await expect(app.getByText("Inline block inline-default")).toHaveCount(0);
+    await expect.poll(async () => (await runtimeContext(page)).childOnly).toBe("child-default");
   });
 
   test("transition bus key cards set change triggers and filters without mutating subscriptions @smoke", async ({ page }) => {
@@ -1690,6 +1877,69 @@ test.describe("State Blueprint tool", () => {
     await expect(app.getByRole("link", { name: "Docs for Ada" })).toHaveAttribute("href", "https://example.com/Ada/docs");
     await expect(app.getByText("Note survives for Ada")).toBeVisible();
     await expect(app.locator('[role="separator"]')).toHaveCount(1);
+  });
+
+  test("keeps the preview app in its flow after external link clicks @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "External Link Flow",
+      initial: "docs",
+      states: [
+        {
+          id: "docs",
+          title: "Docs",
+          body: "",
+          x: 120,
+          y: 160,
+          components: [{ id: "docs_link", type: "link", text: "Open docs", url: "https://example.com/docs" }]
+        },
+        {
+          id: "details",
+          title: "Details",
+          body: "",
+          x: 460,
+          y: 160,
+          components: [{ id: "details_text", type: "note", text: "Still inside the preview flow", url: "" }]
+        }
+      ],
+      transitions: [
+        { id: "to_details", from: "docs", to: "details", label: "Details", condition: "", set: {} }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await page.evaluate(() => {
+      window.__openedExternalUrls = [];
+      window.open = (url, target, features) => {
+        window.__openedExternalUrls.push({ url: String(url), target: String(target || ""), features: String(features || "") });
+        return { closed: false, postMessage() {}, focus() {} };
+      };
+    });
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="docs"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("docs");
+    await expect(app.getByRole("link", { name: "Open docs" })).toHaveAttribute("href", "https://example.com/docs");
+    const runtimeUrl = await app.locator("#statePill").evaluate(() => window.location.href);
+
+    await app.getByRole("link", { name: "Open docs" }).click();
+    await expect.poll(() => page.evaluate(() => window.__openedExternalUrls?.[0]?.url || "")).toBe("https://example.com/docs");
+    await expect(app.locator("#statePill")).toHaveText("docs");
+    await expect(app.getByRole("link", { name: "Open docs" })).toBeVisible();
+    await expect.poll(() => app.locator("#statePill").evaluate(() => window.location.href)).toBe(runtimeUrl);
+
+    await page.locator("#appFrame").evaluate(frame => {
+      frame.src = "data:text/html,<p>escaped external document</p>";
+    });
+    await page.locator('[data-id="details"]').click();
+    await expect(app.locator("#statePill")).toHaveText("details");
+    await expect(app.getByText("Still inside the preview flow")).toBeVisible();
   });
 
   test("preserves runtime inputs while editing the current state and clears them only on reset", async ({ page }) => {
