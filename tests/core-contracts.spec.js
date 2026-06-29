@@ -382,7 +382,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain('type: "dataWire"');
     expect(html).toContain("wireId: wire.id");
     expect(html).toContain("function snapshotStateTemplates");
-    expect(html).toContain("components: migrateBodyToComponents(item.body, item.components || [])");
+    expect(html).toContain("components: normalizeComponents(item.components || [])");
     expect(html).toContain('if (component.type === "list") {');
     expect(html).toContain("clone.items = normalizeListItems(component.items, component.text).map");
 
@@ -417,7 +417,7 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function syncRuntimeCurrent");
     expect(appHtml).toContain('writeRuntimeState("events." + name + ".detail", detail');
     expect(appHtml).toContain('writeRuntimeState("lastEvent", name');
-    expect(appHtml).toContain('runtimeSet("fetched", result?.done ? Boolean(result && result.ok) : null');
+    expect(appHtml).toContain("const handledChange = runtimeSet(target, result, { source: \"fetch\", eventName: \"change.\" + target })");
     expect(appHtml).toContain('detail?.source === "fetch" && detail?.type === "change"');
     expect(appHtml).toContain('runtimeSet("state.current", runtimeTarget || ""');
     expect(appHtml).toContain('runtimeSet(targetPath, value, { source: "state-default"');
@@ -426,7 +426,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("return { state: { current: m?.initial || \"\", previous: \"\", lastTransition: \"\" } };");
     expect(appHtml).not.toContain("Object.assign(context");
     expect(appHtml).not.toContain("context[key] = value");
-    expect(appHtml).not.toContain("context.fetched = null");
+    expect(appHtml).not.toContain('runtimeSet("fetched"');
+    expect(appHtml).not.toContain("context.fetched");
     expect(appHtml).not.toContain("context.lastEvent =");
     expect(appHtml).not.toContain("context.lastChangedPath =");
     expect(appHtml).not.toContain("context[v.name] = defaultValueFor");
@@ -435,6 +436,33 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("delete context[repeat.as]");
     expect(appHtml).not.toContain("context[v.name] = sanitizeValue");
     expect(appHtml).not.toContain('setValueAtPath(context, "state.current"');
+  });
+
+  test("canonical JSON and runtime contracts do not keep legacy aliases @smoke", () => {
+    const html = stateHtml();
+    const appHtml = generatedAppHtml();
+    const hostHtml = html.replace(/const APP_HTML = "((?:\\.|[^"\\])*)";/, 'const APP_HTML = "";');
+    const removedContracts = [
+      "migrateBodyToComponents",
+      "dataWireId",
+      "sourceStateId",
+      "latestRuntimeContext.fetched",
+      'runtimeSet("fetched"',
+      "s.fetch",
+      "state.fetch",
+      "template.fetch",
+      "component.dataWireId",
+      "transition?.trigger ||",
+      "t?.trigger ||",
+      "eventType",
+      "transition?.kind",
+      "t.event"
+    ];
+
+    for (const legacy of removedContracts) {
+      expect(hostHtml, `host should not contain ${legacy}`).not.toContain(legacy);
+      expect(appHtml, `runtime should not contain ${legacy}`).not.toContain(legacy);
+    }
   });
 
   test("only canvas-focused Delete removes selected graph items, Backspace does not @smoke", () => {

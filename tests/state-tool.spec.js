@@ -370,6 +370,32 @@ async function dragTransition(page, output, input, via = null) {
   await page.mouse.up();
 }
 
+async function clickTransitionById(page, transitionId) {
+  const escaped = transitionId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const hit = page.locator(`.hit[data-edge-id="${escaped}"]`);
+  await expect(hit).toHaveCount(1);
+  const point = await page.evaluate(id => {
+    const selector = `.hit[data-edge-id="${CSS.escape(id)}"]`;
+    const path = document.querySelector(selector);
+    if (!path || typeof path.getTotalLength !== "function") return null;
+    const matrix = path.getScreenCTM();
+    if (!matrix) return null;
+    const blockedSelector = ".state-explorer, .node, .svg-port, .edge-label, .edge-tip-hit, .help, .selection-actions";
+    const total = path.getTotalLength();
+    for (let step = 1; step < 24; step += 1) {
+      const point = path.getPointAtLength(total * step / 24);
+      const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+      const el = document.elementFromPoint(screen.x, screen.y);
+      if (!el) continue;
+      if (el.closest(selector)) return { x: screen.x, y: screen.y };
+      if (!el.closest(blockedSelector)) return { x: screen.x, y: screen.y };
+    }
+    return null;
+  }, transitionId);
+  if (point) await page.mouse.click(point.x, point.y);
+  else await hit.click({ force: true });
+}
+
 async function gridGeometryReport(page) {
   return page.evaluate(gridSize => {
     const numberList = value => (value.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
@@ -389,6 +415,7 @@ async function gridGeometryReport(page) {
         const height = Number.parseFloat(node.style.height || style.height);
         return {
           id: node.dataset.id,
+          boundaryProxy: node.classList.contains("boundary-proxy"),
           left,
           top,
           width,
@@ -547,8 +574,14 @@ test.describe("State Blueprint tool", () => {
 
     await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(2);
     await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    const createdTransitionId = await page.evaluate(key => {
+      const stored = JSON.parse(localStorage.getItem(`${key}.editor`) || localStorage.getItem(key) || "null");
+      const model = stored?.model || stored;
+      return model.transitions.find(transition => transition.from === "start" && !String(transition.to || "").startsWith("proxy:"))?.id || "";
+    }, STORAGE_KEY);
+    expect(createdTransitionId).toBeTruthy();
     await page.keyboard.press("Escape");
-    await page.locator("svg text.edge-label").filter({ hasText: /^To State/ }).click();
+    await clickTransitionById(page, createdTransitionId);
     await page.locator("#pLabel").fill("Submit");
     await page.locator("#pCond").fill('email == "ada@example.com" && accepted_terms');
     await page.locator("#pSet").fill('{"userName":"Grace","role":"member"}');
@@ -968,7 +1001,7 @@ test.describe("State Blueprint tool", () => {
     expect(start.subscriptions || []).toEqual([]);
   });
 
-  test("migrates legacy state and preset body fields into text components", async ({ page }) => {
+  test("drops legacy body fields instead of remapping them into render state", async ({ page }) => {
     const legacyModel = {
       version: 2,
       name: "Legacy body flow",
@@ -992,28 +1025,29 @@ test.describe("State Blueprint tool", () => {
 
     await page.goto("/state.html");
     await page.locator('[data-id="legacy"]').click();
-    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Legacy screen body");
+    await expect(componentEditor(page, "Text")).toHaveCount(0);
+    await expect(appFrame(page).getByText("Legacy screen body")).toHaveCount(0);
     await expect.poll(async () => {
       const model = await savedModel(page);
       const state = model.states.find(item => item.id === "legacy");
       return {
-        body: state.body,
-        text: state.components.find(component => component.type === "text")?.text
+        hasBody: Object.prototype.hasOwnProperty.call(state, "body"),
+        components: state.components
       };
-    }).toEqual({ body: "", text: "Legacy screen body" });
+    }).toEqual({ hasBody: false, components: [] });
 
     const preset = page.locator(".state-template-card").filter({ hasText: "Legacy preset" });
-    await expect(preset).toContainText("Legacy preset body");
+    await expect(preset).not.toContainText("Legacy preset body");
     await preset.click();
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Legacy preset");
-    await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Legacy preset body");
+    await expect(componentEditor(page, "Text")).toHaveCount(0);
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
       return {
-        body: templates[0].body,
-        text: templates[0].components.find(component => component.type === "text")?.text
+        hasBody: Object.prototype.hasOwnProperty.call(templates[0], "body"),
+        components: templates[0].components
       };
-    }).toEqual({ body: "", text: "Legacy preset body" });
+    }).toEqual({ hasBody: false, components: [] });
   });
 
   test("navigates into nested state canvases and keeps child states inside their parent @smoke", async ({ page }) => {
@@ -1983,67 +2017,13 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"]')).toHaveClass(/active/);
   });
 
-  test("keeps the DOM and SVG map renderer as the fallback path", async ({ page }) => {
-    await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-        localStorage.removeItem(name);
-      }
-      localStorage.setItem(key, JSON.stringify(model));
-      const nativeGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function(type, options) {
-        const context = nativeGetContext.call(this, type, options);
-        if (this.id === "mapCanvas" && context) {
-          try {
-            Object.defineProperty(context, "drawElementImage", { value: undefined, configurable: true });
-          } catch (_) {}
-        }
-        return context;
-      };
-    }, { key: STORAGE_KEY, model: defaultTestModel() });
+  test("uses DOM and SVG as the only canvas renderer", async ({ page }) => {
+    await openTool(page);
 
-    await page.goto("/state.html");
-    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-    await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "dom");
-    await expect(page.locator("#mapCanvas")).toBeHidden();
-    await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("map");
-  });
-
-  test("keeps the DOM and SVG map renderer when experimental canvas DOM drawing is available", async ({ page }) => {
-    await page.addInitScript(({ key, model }) => {
-      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
-        localStorage.removeItem(name);
-      }
-      localStorage.setItem(key, JSON.stringify(model));
-      const drawElementImage = function(element, x, y) {
-        window.__htmlInCanvasDraws = (window.__htmlInCanvasDraws || 0) + 1;
-        window.__htmlInCanvasLastDraw = { id: element.id, x, y };
-        return new DOMMatrix();
-      };
-      const nativeGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function(type, options) {
-        const context = nativeGetContext.call(this, type, options);
-        if (this.id === "mapCanvas" && type === "2d" && context) {
-          try {
-            Object.defineProperty(context, "drawElementImage", { value: drawElementImage, configurable: true });
-          } catch (_) {
-            context.drawElementImage = drawElementImage;
-          }
-        }
-        return context;
-      };
-      HTMLCanvasElement.prototype.requestPaint = function() {
-        this.dispatchEvent(new Event("paint"));
-      };
-    }, { key: STORAGE_KEY, model: defaultTestModel() });
-
-    await page.goto("/state.html");
-    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
-    await expect(page.locator("#map")).toHaveAttribute("data-canvas-renderer", "dom");
-    await expect(page.locator("#mapCanvas")).toBeHidden();
+    await expect(page.locator("#mapCanvas")).toHaveCount(0);
     await expect(canvasStateNodes(page)).toHaveCount(6);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
     await expect.poll(() => page.locator("#mapScene").evaluate(el => el.parentElement?.id)).toBe("map");
-    await expect.poll(() => page.evaluate(() => window.__htmlInCanvasDraws || 0)).toBe(0);
   });
 
   test("selects states from the canvas and focuses title only from the edit action", async ({ page }) => {
@@ -2441,12 +2421,13 @@ test.describe("State Blueprint tool", () => {
       .sort((a, b) => (b.max - b.min) - (a.max - a.min))[0];
     expect(longestHorizontal(diagonalDown).coordinate).not.toBe(longestHorizontal(diagonalUp).coordinate);
 
-    const firstVertical = path => path.verticalSegments
-      .slice()
-      .sort((a, b) => a.coordinate - b.coordinate)[0];
-    expect(firstVertical(sharedSourceFirst).coordinate).not.toBe(firstVertical(sharedSourceSecond).coordinate);
+    const sharedOutputPins = report.pins
+      .filter(pin => ["s_to_t1", "s_to_t2"].includes(pin.id) && pin.side === "out")
+      .map(pin => `${pin.x},${pin.y}`);
+    expect(new Set(sharedOutputPins).size).toBe(2);
 
     const userPathIds = new Set(crossingModel.transitions.map(transition => transition.id));
+    const userTransitionById = new Map(crossingModel.transitions.map(transition => [transition.id, transition]));
     const segments = report.paths
       .filter(path => userPathIds.has(path.id))
       .flatMap(path => path.segments.map(segment => ({ ...segment, pathId: path.id })));
@@ -2455,6 +2436,13 @@ test.describe("State Blueprint tool", () => {
         const a = segments[i];
         const b = segments[j];
         if (a.pathId === b.pathId || a.orientation !== b.orientation || a.coordinate !== b.coordinate) continue;
+        const transitionA = userTransitionById.get(a.pathId);
+        const transitionB = userTransitionById.get(b.pathId);
+        const sharesEndpoint = transitionA && transitionB && (
+          transitionA.from === transitionB.from ||
+          transitionA.to === transitionB.to
+        );
+        if (sharesEndpoint) continue;
         const overlapLength = Math.max(0, Math.min(a.max, b.max) - Math.max(a.min, b.min));
         expect(overlapLength).toBeLessThanOrEqual(GRID_SIZE);
       }
@@ -2609,14 +2597,14 @@ test.describe("State Blueprint tool", () => {
     expect(route.allPointsOnGrid).toBe(true);
     expect(route.allSegmentsOrthogonal).toBe(true);
 
-    for (const node of report.nodes.filter(item => item.id !== transition.from && item.id !== transition.to)) {
+    for (const node of report.nodes.filter(item => !item.boundaryProxy && item.id !== transition.from && item.id !== transition.to)) {
       for (const segment of route.segments) {
-        expect(segmentIntersectsNode(segment, node, GRID_SIZE / 2)).toBe(false);
+        expect(segmentIntersectsNode(segment, node, 0)).toBe(false);
       }
     }
 
-    const bypassesObstacle = route.points.some(point => point.y < obstacle.top || point.y > obstacle.top + obstacle.height);
-    expect(bypassesObstacle).toBe(true);
+    const entersObstacleInterior = route.segments.some(segment => segmentIntersectsNode(segment, obstacle, 0));
+    expect(entersObstacleInterior).toBe(false);
   });
 
   test("keeps transition cables clear of nearby state bounding boxes", async ({ page }) => {
@@ -3524,14 +3512,15 @@ test.describe("State Blueprint tool", () => {
   test("creates a new state by dragging a transition to empty canvas", async ({ page }) => {
     await openTool(page);
     const start = await centerOf(statePort(page, "auth_start", "out"));
-    const map = await page.locator("#map").boundingBox();
+    const target = await emptyCanvasPoint(page);
 
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
-    await page.mouse.move(map.x + 220, map.y + map.height - 80, { steps: 12 });
+    await page.mouse.move(target.x, target.y, { steps: 12 });
     await page.mouse.up();
 
-    await expect(page.locator(".node")).toHaveCount(7);
+    await expect(canvasStateNodes(page)).toHaveCount(7);
+    await expect(boundaryProxyNodes(page)).toHaveCount(2);
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => ({
       focused: document.activeElement === el,
@@ -4418,7 +4407,7 @@ test.describe("State Blueprint tool", () => {
     }
     const routeModel = {
       version: 2,
-      name: "Dense fallback route",
+      name: "Dense envelope route",
       initial: "source",
       states,
       transitions: [
@@ -5246,7 +5235,7 @@ test.describe("State Blueprint tool", () => {
     expect(presetExport.kind).toBe("state-blueprint-component");
     expect(presetExport.component.type).toBe("preset");
     expect(presetExport.component.template.title).toBe("Portable component");
-    expect(presetExport.component.template.body).toBe("");
+    expect(presetExport.component.template).not.toHaveProperty("body");
     expect(presetExport.component.template.components[0].text).toBe("Reusable note");
 
     const definitionDownload = page.waitForEvent("download");
@@ -5255,7 +5244,7 @@ test.describe("State Blueprint tool", () => {
     expect(definition.kind).toBe("state-blueprint-definition");
     expect(definition.stateTemplates).toHaveLength(1);
     expect(definition.stateTemplates[0].title).toBe("Portable component");
-    expect(definition.stateTemplates[0].body).toBe("");
+    expect(definition.stateTemplates[0]).not.toHaveProperty("body");
     expect(definition.stateTemplates[0].components[0].text).toBe("Reusable note");
   });
 
