@@ -2664,6 +2664,38 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
   });
 
+  test("keeps undo redo deterministic across unchanged saves", async ({ page }) => {
+    await openTool(page);
+    const undo = page.getByRole("button", { name: "Undo" });
+    const redo = page.getByRole("button", { name: "Redo" });
+
+    await expect(undo).toBeDisabled();
+    await expect(redo).toBeDisabled();
+    await page.evaluate(() => {
+      saveModel("test:noop");
+      saveModel("test:noop");
+      saveSelection("test:noop-selection");
+    });
+    await expect(undo).toBeDisabled();
+    await expect(redo).toBeDisabled();
+
+    await openStateInspector(page, "login");
+    await page.locator("#pTitle").fill("Sign in");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect(undo).toBeEnabled();
+    await expect(redo).toBeDisabled();
+
+    await undo.click();
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Login");
+    await expect(redo).toBeEnabled();
+    await page.evaluate(() => saveModel("test:noop-after-undo"));
+    await expect(redo).toBeEnabled();
+
+    await redo.click();
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in");
+    await expect(redo).toBeDisabled();
+  });
+
   test("keeps state editor focus and tab order predictable", async ({ page }) => {
     await openTool(page);
 
