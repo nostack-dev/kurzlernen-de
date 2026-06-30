@@ -5,8 +5,34 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
 jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run smoke tests
+        run: npm test
+
   deploy:
+    needs: smoke
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
