@@ -94,9 +94,7 @@ async function openStateLayer(page, id) {
   const expectedLabel = `Inside ${title}`;
   const label = page.locator("#layerFrameLabel");
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await node.click();
-    await expect(page.locator("#pEnterLayer")).toBeVisible();
-    await page.locator("#pEnterLayer").click();
+    await node.dblclick();
     try {
       await expect(label).toHaveText(expectedLabel, { timeout: 2000 });
       return;
@@ -209,7 +207,7 @@ function nodeByTitle(page, title) {
 
 async function addComponentState(page, title) {
   const presetTitle = CORE_PRESET_ALIASES[title] || title;
-  await componentPreset(page, presetTitle).getByRole("button", { name: `+ ${presetTitle}` }).click();
+  await componentPreset(page, presetTitle).getByRole("button", { name: `Add ${presetTitle}` }).click();
   if (presetTitle !== title) await page.locator("#pTitle").fill(title);
   await expect(page.locator("#pTitle")).toHaveValue(title);
 }
@@ -544,7 +542,7 @@ test.describe("State Blueprint tool", () => {
       return model.states.find(state => state.id === "start").data.profile?.tier;
     }).toBe("starter");
 
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "start");
     await addComponentState(page, "Heading");
     await componentEditor(page, "Heading").locator("input").fill("Welcome {{userName}}");
     await addComponentState(page, "Text");
@@ -594,7 +592,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator(`[data-id="${createdStateId}"]`).click();
     await page.locator("#pTitle").fill("Lesson ready");
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, createdStateId);
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Ready for {{userName}} as {{role}}");
     await page.keyboard.press("Alt+ArrowLeft");
@@ -1099,6 +1097,8 @@ test.describe("State Blueprint tool", () => {
   test("opens nested state canvases with a node double click @smoke", async ({ page }) => {
     await openTool(page);
 
+    await page.locator('[data-id="login"]').click();
+    await expect(page.locator("#pEnterLayer")).toHaveCount(0);
     await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator("#layerBack")).toBeVisible();
@@ -1376,7 +1376,7 @@ test.describe("State Blueprint tool", () => {
       note: "Validate identity before app access."
     });
 
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(page.locator("#layerFrameComment")).toBeVisible();
     await expect(page.locator("#layerFrameCommentTitle")).toHaveText("Credential gate");
@@ -1686,7 +1686,7 @@ test.describe("State Blueprint tool", () => {
     await login.dispatchEvent("drop", { dataTransfer, bubbles: true, cancelable: true });
 
     await expect(login.locator(".layer-badge")).toHaveText("1 state");
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await expect(page.locator("#layerFrameLabel")).toHaveText("Inside Login");
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(canvasStateNodes(page).locator(".title")).toHaveText("Inner lesson");
@@ -1712,7 +1712,7 @@ test.describe("State Blueprint tool", () => {
     await openTool(page);
 
     await page.locator('[data-id="login"]').click();
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await addComponentState(page, "Text");
     await componentEditor(page, "Text").locator("textarea").fill("Reusable nested child");
     const originalChildId = await page.locator(".node.selected").getAttribute("data-id");
@@ -1732,7 +1732,7 @@ test.describe("State Blueprint tool", () => {
     await preset.getByRole("button", { name: "Use" }).click();
     const reusedId = await page.locator(".node.selected").getAttribute("data-id");
     await expect(page.locator(`[data-id="${reusedId}"] .layer-badge`)).toHaveText("1 state");
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, reusedId);
     await expect(canvasStateNodes(page)).toHaveCount(1);
     await expect(boundaryProxyNodes(page)).toHaveCount(2);
     await expect(nodeByTitle(page, "Text")).toBeVisible();
@@ -1782,7 +1782,7 @@ test.describe("State Blueprint tool", () => {
       const model = await savedModel(page);
       return model.states.find(state => state.id === "login").data.userName;
     }).toBe("Ada");
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Manual note for {{userName}}");
 
@@ -1823,7 +1823,7 @@ test.describe("State Blueprint tool", () => {
       return model.states.find(state => state.id === "login").data.userName;
     }).toBe("Ada");
 
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await addComponentState(page, "Heading");
     await componentEditor(page, "Heading").locator("input").fill("Account heading {{userName}}");
 
@@ -1871,7 +1871,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.keyboard.press("Alt+ArrowLeft");
     await page.locator('[data-id="login"]').click();
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
 
     await nodeByTitle(page, "Heading").click();
     await expect(componentEditor(page, "Heading").locator("input")).toHaveValue("Account heading {{userName}}");
@@ -1988,7 +1988,7 @@ test.describe("State Blueprint tool", () => {
     await openInitialValuesEditor(page);
     await expect(page.locator("#pData")).toBeVisible();
     await page.locator("#pData").fill('{"helperText":"Resume safely"}');
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await addComponentState(page, "Note");
     await componentEditor(page, "Note").locator("textarea").fill("Helper: {{helperText}}");
     await page.keyboard.press("Alt+ArrowLeft");
@@ -3089,6 +3089,16 @@ test.describe("State Blueprint tool", () => {
     for (const title of navbarTitles) {
       await expect(componentPreset(page, title)).toHaveCount(1);
     }
+    const longNavbarPreset = componentPreset(page, "Navbar - search and dropdown");
+    await longNavbarPreset.scrollIntoViewIfNeeded();
+    await expect(longNavbarPreset.getByRole("button", { name: "Add Navbar - search and dropdown" })).toHaveText("+ Add");
+    await expect.poll(async () => longNavbarPreset.evaluate(card => {
+      const button = card.querySelector(".template-use");
+      if (!button) return false;
+      const cardRect = card.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      return buttonRect.left >= cardRect.left - 0.5 && buttonRect.right <= cardRect.right + 0.5;
+    })).toBe(true);
 
     const app = appFrame(page);
     const navbars = app.locator(".navbar");
@@ -3100,7 +3110,17 @@ test.describe("State Blueprint tool", () => {
     await expect(navbars.nth(3).locator("details ul.bg-base-100.rounded-t-none button")).toHaveCount(2);
     await expect(navbars.nth(4).locator("input.input.input-bordered")).toHaveAttribute("placeholder", "Search");
     await expect(navbars.nth(4).locator(".dropdown.dropdown-end .avatar img")).toBeVisible();
+    await expect(navbars.nth(4).locator(".dropdown-content")).toBeHidden();
+    await expect.poll(async () => navbars.nth(4).evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(90);
+    await expect.poll(async () => navbars.nth(4).evaluate(el => {
+      const bounds = el.getBoundingClientRect();
+      return [...el.querySelectorAll("input.input, .dropdown")].every(child => {
+        const rect = child.getBoundingClientRect();
+        return rect.left >= bounds.left - 0.5 && rect.right <= bounds.right + 0.5;
+      });
+    })).toBe(true);
     await expect(navbars.nth(5).locator(".indicator .badge-sm")).toHaveText("8");
+    await navbars.nth(5).locator(".dropdown.dropdown-end").first().hover();
     await expect(navbars.nth(5).locator(".card.dropdown-content .card-actions .btn-primary")).toHaveText("View cart");
     await expect(navbars.nth(6).locator(".navbar-center .btn.text-xl")).toHaveText("Center");
     await expect(navbars.nth(7)).toHaveClass(/bg-primary/);
@@ -3189,9 +3209,10 @@ test.describe("State Blueprint tool", () => {
     await openFetchEditor(page);
     await page.locator("#pDataSourceUrl").fill("https://api.example.test/lessons");
     await expect(page.locator("#pDataSourceInspect")).toContainText("JSON 200");
-    await expect(page.getByRole("button", { name: /Use items/ })).toBeVisible();
+    const itemsActions = page.locator(".fetch-json-meta").filter({ hasText: "items · 2 items" });
+    await expect(itemsActions.getByRole("button", { name: "Use as data" })).toBeVisible();
 
-    await page.getByRole("button", { name: /Repeat items/ }).click();
+    await itemsActions.getByRole("button", { name: "Repeat list" }).click();
     await openRepeatEditor(page);
     await expect(page.locator("#pDataSourceSelect")).toHaveValue("items");
     await expect(page.locator("#pRepeatPath")).toHaveValue("fetch.data");
@@ -3230,6 +3251,51 @@ test.describe("State Blueprint tool", () => {
         componentType: "heading"
       })
     ]));
+  });
+
+  test("fetch preview field actions create readable render mappings without template tokens", async ({ page }) => {
+    const alphaImage = "https://example.com/alpha.png";
+    const betaImage = "https://example.com/beta.png";
+    await page.route("https://api.example.test/products", route => route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        items: [
+          { title: "Alpha", images: [alphaImage], category: { creationAt: "2026-06-24T18:49:24.000Z" } },
+          { title: "Beta", images: [betaImage], category: { creationAt: "2026-06-25T18:49:24.000Z" } }
+        ]
+      })
+    }));
+    await openTool(page);
+
+    await addComponentState(page, "API list");
+    await openFetchEditor(page);
+    await page.locator("#pDataSourceUrl").fill("https://api.example.test/products");
+    await expect(page.locator("#pDataSourceInspect")).toContainText("items.images.0");
+    await expect(page.locator("#pDataSourceInspect")).toContainText("items.category.creationAt");
+
+    await page.locator(".fetch-json-line").filter({ hasText: "items.images.0" }).getByRole("button", { name: "Show image" }).click();
+    await page.locator(".fetch-json-line").filter({ hasText: "items.category.creationAt" }).getByRole("button", { name: "Show text" }).click();
+
+    await openRepeatEditor(page);
+    await expect(page.locator("#pRepeatPath")).toHaveValue("fetch.data.items");
+    await expect(dataRenderRows(page).filter({ hasText: "Data: Image" })).toBeVisible();
+    await expect(dataRenderRows(page).filter({ hasText: "Data: Creation At" })).toBeVisible();
+    await expect(appFrame(page).locator(".component-image")).toHaveCount(2);
+    await expect(appFrame(page).locator(".component-image").nth(0)).toHaveAttribute("src", alphaImage);
+    await expect(appFrame(page).getByText("Creation At: 2026-06-24T18:49:24.000Z")).toBeVisible();
+
+    const model = await savedModel(page);
+    const fetchState = model.states.find(state => state.title === "API list");
+    expect(fetchState.repeat).toEqual({ path: "fetch.data.items", as: "item", index: "i", manual: true });
+    expect(fetchState.dataWires.map(wire => wire.sourcePath)).toEqual([
+      "fetch.data.items.images.0",
+      "fetch.data.items.category.creationAt"
+    ]);
+    expect(JSON.stringify(fetchState.components || [])).not.toContain("{{");
   });
 
   test("generated app treats JSON fetch results as FSM events and renders mapped content", async ({ page }) => {
@@ -4035,7 +4101,7 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator('[data-id="login"]').click();
     await expect(page.locator("#pTitle")).toBeVisible();
-    await page.locator("#pEnterLayer").click();
+    await openStateLayer(page, "login");
     await addComponentState(page, "List");
 
     const listEditor = page.locator(".component-editor").filter({ hasText: "List" });
@@ -5661,6 +5727,94 @@ test.describe("State Blueprint tool", () => {
       expect(previewButtonColors[transitionId].strong).toBe(edgeColor);
       expect(previewButtonColors[transitionId].backgroundImage).toBe("none");
     }
+  });
+
+  test("keeps parent direct outs visible and orderable beside layer entry render buttons @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Parent out render order",
+      initial: "parent",
+      states: [
+        {
+          id: "parent",
+          title: "Parent",
+          body: "",
+          components: [{ id: "parent_text", type: "text", text: "Parent copy", url: "" }],
+          x: 180,
+          y: 180
+        },
+        { id: "entry", title: "Entry", body: "", components: [], parentId: "parent", x: 140, y: 140 },
+        { id: "target_a", title: "Target A", body: "", components: [], x: 520, y: 100 },
+        { id: "target_b", title: "Target B", body: "", components: [], x: 520, y: 260 }
+      ],
+      transitions: [
+        { id: "t_parent_a", from: "parent", to: "target_a", label: "Out A", condition: "", triggerType: "button", set: {} },
+        { id: "t_parent_b", from: "parent", to: "target_b", label: "Out B", condition: "", triggerType: "button", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('[data-id="parent"]')).toBeVisible();
+    await openStateInspector(page, "parent");
+
+    await expect(componentEditor(page, "Text")).toBeVisible();
+    await expect(componentEditor(page, "Button: Entry")).toBeVisible();
+    await expect(componentEditor(page, "Button: Out A")).toBeVisible();
+    await expect(componentEditor(page, "Button: Out B")).toBeVisible();
+
+    const app = appFrame(page);
+    await expect(app.locator("button[data-transition-id]")).toHaveCount(3);
+    await expect(app.getByRole("button", { name: "Entry" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Out A" })).toBeVisible();
+    await expect(app.getByRole("button", { name: "Out B" })).toBeVisible();
+
+    const editorButtonColorFor = async transitionId => page
+      .locator(`.component-editor[data-transition-id="${transitionId}"]`)
+      .evaluate(el => getComputedStyle(el).getPropertyValue("--transition-button-color").trim());
+    const edgeColorFor = async transitionId => {
+      const edge = page.locator(`.edge[data-edge-id="${transitionId}"]`);
+      await expect(edge).toHaveCount(1);
+      return edge.evaluate(el => getComputedStyle(el).getPropertyValue("--edge-color").trim());
+    };
+    const previewButtonColors = await app.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
+      buttons.map(button => {
+        const style = getComputedStyle(button);
+        return [
+          button.dataset.transitionId,
+          {
+            color: style.getPropertyValue("--button-color").trim(),
+            strong: style.getPropertyValue("--button-color-strong").trim()
+          }
+        ];
+      })
+    ));
+    for (const transitionId of ["t_parent_a", "t_parent_b"]) {
+      const edgeColor = await edgeColorFor(transitionId);
+      await expect.poll(() => editorButtonColorFor(transitionId)).toBe(edgeColor);
+      expect(previewButtonColors[transitionId].color).toBe(edgeColor);
+      expect(previewButtonColors[transitionId].strong).toBe(edgeColor);
+    }
+
+    await dragComponentEditorBefore(page, "Button: Out B", "Button: Out A");
+
+    await expect.poll(async () => {
+      const stored = await savedModel(page);
+      return stored.states.find(state => state.id === "parent").components.map(component =>
+        component.type === "transitionButton" ? component.transitionId : component.id
+      );
+    }).toEqual(["parent_text", "__runtime_enter_child:parent:entry", "t_parent_b", "t_parent_a"]);
+
+    await expect.poll(async () => app.locator("#screen").evaluate(screen => {
+      const stack = screen.querySelector(".component-stack");
+      return [...(stack?.children || [])].map(child =>
+        child.querySelector("button[data-transition-id]")?.textContent.trim() || child.textContent.trim()
+      );
+    })).toEqual(["Parent copy", "Entry", "Out B", "Out A"]);
   });
 
   test("persists data-wire render rows between components and transition buttons @smoke", async ({ page }) => {
