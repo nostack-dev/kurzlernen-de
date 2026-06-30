@@ -126,6 +126,19 @@ function statePort(page, stateId, side) {
   return page.locator(`svg#ports .svg-port[data-state-id="${stateId}"][data-port-side="${side}"]`);
 }
 
+function expectCleanPortApproach(route) {
+  expect(route.points.length).toBeGreaterThanOrEqual(2);
+  const start = route.points[0];
+  const afterStart = route.points[1];
+  const end = route.points.at(-1);
+  const beforeEnd = route.points.at(-2);
+
+  expect(afterStart.y).toBe(start.y);
+  expect(afterStart.x).toBeGreaterThanOrEqual(start.x + GRID_SIZE);
+  expect(beforeEnd.y).toBe(end.y);
+  expect(beforeEnd.x).toBeLessThanOrEqual(end.x - GRID_SIZE);
+}
+
 function canvasStateNodes(page) {
   return page.locator(".node:not(.boundary-proxy)");
 }
@@ -2236,6 +2249,7 @@ test.describe("State Blueprint tool", () => {
         expect(path.usesOnlyGridLines).toBe(true);
         expect(path.allPointsOnGrid).toBe(true);
         expect(path.allSegmentsOrthogonal).toBe(true);
+        expectCleanPortApproach(path);
         expect(outPin).toBeTruthy();
         expect(inPin).toBeTruthy();
         expect(first).toEqual({ x: outPin.x, y: outPin.y });
@@ -2478,6 +2492,7 @@ test.describe("State Blueprint tool", () => {
     const nodes = new Map(report.nodes.map(node => [node.id, node]));
 
     expect(route).toBeTruthy();
+    expectCleanPortApproach(route);
     expect(route.points).toHaveLength(2);
     expect(route.points[0]).toEqual(nodes.get("left").output);
     expect(route.points[1]).toEqual(nodes.get("right").input);
@@ -2517,6 +2532,7 @@ test.describe("State Blueprint tool", () => {
     const endY = nodes.get("right").input.y;
 
     expect(route).toBeTruthy();
+    expectCleanPortApproach(route);
     expect(route.points).toHaveLength(4);
     expect(route.verticalSegments).toHaveLength(1);
     expect(route.horizontalSegments).toHaveLength(2);
@@ -2552,6 +2568,7 @@ test.describe("State Blueprint tool", () => {
     const route = report.paths.find(path => path.id === "left_to_right");
 
     expect(route).toBeTruthy();
+    expectCleanPortApproach(route);
     expect(route.points).toHaveLength(4);
     expect(route.verticalSegments).toHaveLength(1);
     expect(route.horizontalSegments).toHaveLength(2);
@@ -2594,6 +2611,7 @@ test.describe("State Blueprint tool", () => {
     expect(transition).toBeTruthy();
     expect(route).toBeTruthy();
     expect(obstacle).toBeTruthy();
+    expectCleanPortApproach(route);
     expect(route.allPointsOnGrid).toBe(true);
     expect(route.allSegmentsOrthogonal).toBe(true);
 
@@ -2639,6 +2657,7 @@ test.describe("State Blueprint tool", () => {
 
     expect(route).toBeTruthy();
     expect(obstacle).toBeTruthy();
+    expectCleanPortApproach(route);
     expect(route.allSegmentsOrthogonal).toBe(true);
     for (const segment of route.segments) {
       expect(segmentIntersectsNode(segment, obstacle, GRID_SIZE / 2)).toBe(false);

@@ -7550,6 +7550,49 @@
       return leftInputApproachRoutes(points)[0] || compactRoutePoints(points || []);
     }
 
+    function cleanPortApproachRoute(points) {
+      let route = compactRoutePoints(points || []);
+      if (route.length < 2) return route;
+
+      const start = route[0];
+      const second = route[1];
+      const hasCleanOutput =
+        second &&
+        second.y === start.y &&
+        second.x >= start.x + GRID_SIZE;
+      if (!hasCleanOutput) {
+        const outputStub = { x: snapToGrid(start.x + GRID_SIZE * 2), y: start.y };
+        const outputLane = { x: outputStub.x, y: second?.y ?? start.y };
+        route = [start, outputStub, outputLane, ...route.slice(2)];
+      }
+
+      route = compactRoutePoints(route);
+      if (route.length < 2) return route;
+
+      const end = route[route.length - 1];
+      const beforeEnd = route[route.length - 2];
+      const hasCleanInput =
+        beforeEnd &&
+        beforeEnd.y === end.y &&
+        beforeEnd.x <= end.x - GRID_SIZE;
+      if (!hasCleanInput) {
+        const inputStub = { x: snapToGrid(end.x - GRID_SIZE * 2), y: end.y };
+        const prefix = route.slice(0, -1);
+        const last = prefix[prefix.length - 1];
+        if (last && last.x !== inputStub.x && last.y !== inputStub.y) {
+          prefix.push({ x: inputStub.x, y: last.y });
+        }
+        prefix.push(inputStub, end);
+        route = prefix;
+      }
+
+      return compactRoutePoints(route);
+    }
+
+    function ensureCleanPortApproach(points) {
+      return cleanPortApproachRoute(ensureLeftInputApproach(points));
+    }
+
     function directRoutePoints(from, to, transition = null) {
       if (from.id === to.id) return null;
       const a = edgePortPoint(from, "out", transition);
@@ -7682,10 +7725,11 @@
     }
 
     function clearLeftInputRoute(points, transition, margin = ROUTE_NODE_CLEARANCE) {
-      const route = ensureLeftInputApproach(points);
+      const route = ensureCleanPortApproach(points);
       if (routeIsClear(route, transition, margin)) return route;
       for (const variant of leftInputApproachRoutes(points)) {
-        if (routeIsClear(variant, transition, margin)) return variant;
+        const cleanVariant = cleanPortApproachRoute(variant);
+        if (routeIsClear(cleanVariant, transition, margin)) return cleanVariant;
       }
       return null;
     }
@@ -8006,7 +8050,7 @@
         route.unshift(points.get(statePointKey(walk)));
         if (walk === startStateKey) break;
       }
-      const routed = ensureLeftInputApproach(compactRoutePoints(route));
+      const routed = ensureCleanPortApproach(compactRoutePoints(route));
       return routeIsClear(routed, routeTransition) ? routed : null;
     }
 
@@ -8191,10 +8235,10 @@
         const envelope = envelopeRoutePoints(from, to, transition);
         if (envelope) return envelope;
       }
-      if (!allowObstacleSearch) return ensureLeftInputApproach(dogleg);
+      if (!allowObstacleSearch) return ensureCleanPortApproach(dogleg);
       const obstacle = obstacleAvoidingRoutePoints(from, to, transition, options);
       const clearObstacle = obstacle ? clearLeftInputRoute(obstacle, routeTransition) : null;
-      return clearObstacle || ensureLeftInputApproach(dogleg);
+      return clearObstacle || ensureCleanPortApproach(dogleg);
     }
 
     function routeSegments(points) {
@@ -8366,10 +8410,10 @@
         const from = byId(transition.from);
         const to = byId(transition.to);
         const rerouted = from && to ? obstacleAvoidingRoutePoints(from, to, transition, options) : null;
-        if (rerouted) current.set(id, ensureLeftInputApproach(rerouted));
+        if (rerouted) current.set(id, ensureCleanPortApproach(rerouted));
       }
       for (const [id, points] of current) {
-        current.set(id, ensureLeftInputApproach(points));
+        current.set(id, ensureCleanPortApproach(points));
       }
       return current;
     }
