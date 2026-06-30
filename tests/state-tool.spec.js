@@ -2961,11 +2961,23 @@ test.describe("State Blueprint tool", () => {
       clicked: false,
       clickedAt: 0
     });
+    const transition = model.transitions.find(item => item.from === buttonState.id);
+    expect(transition).toBeTruthy();
+    expect(transition).toMatchObject({
+      label: "Continue",
+      triggerType: "button",
+      set: { [`${scopePath}.clicked`]: true }
+    });
+    const nextState = model.states.find(state => state.id === transition.to);
+    expect(nextState).toBeTruthy();
+    expect(nextState.title).toBe("Next");
+    expect(nextState.parentId || null).toBe(buttonState.parentId || null);
 
     await page.locator(`[data-id="${buttonState.id}"]`).click();
     const app = appFrame(page);
     await expect(app.getByRole("button", { name: "Continue" })).toBeVisible();
     await app.getByRole("button", { name: "Continue" }).click();
+    await expect(app.locator("#statePill")).toHaveText(nextState.id);
     await expect.poll(async () => page.evaluate(path => {
       const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
       const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
@@ -4264,22 +4276,25 @@ test.describe("State Blueprint tool", () => {
     }).toBe("auth_start");
   });
 
-  test("ignores unmodified wheel navigation and zooms with Ctrl-wheel", async ({ page }) => {
+  test("zooms vertical wheel on the canvas and keeps horizontal wheel navigation untouched", async ({ page }) => {
     await openTool(page);
     const mapBox = await page.locator("#map").boundingBox();
     await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2);
-    const beforeWheel = await worldTransform(page);
+    const beforeWheel = await worldScale(page);
 
-    await page.mouse.wheel(120, 80);
-    await expect.poll(() => worldTransform(page)).toBe(beforeWheel);
+    await page.mouse.wheel(0, -180);
+    await expect.poll(() => worldScale(page)).toBeGreaterThan(beforeWheel);
 
-    const scaleBefore = await worldScale(page);
+    const beforeHorizontalWheel = await worldTransform(page);
+    await page.mouse.wheel(180, 0);
+    await expect.poll(() => worldTransform(page)).toBe(beforeHorizontalWheel);
+
+    const beforeCtrlWheel = await worldScale(page);
     await page.keyboard.down("Control");
     await page.mouse.wheel(0, -180);
     await page.keyboard.up("Control");
 
-    await expect.poll(() => worldScale(page)).toBeGreaterThan(scaleBefore);
-    expect(await worldTransform(page)).not.toBe(beforeWheel);
+    await expect.poll(() => worldScale(page)).toBeGreaterThan(beforeCtrlWheel);
   });
 
   test("accumulates tiny desktop pinch wheel deltas reliably", async ({ page }) => {
@@ -4822,6 +4837,82 @@ test.describe("State Blueprint tool", () => {
     expect(afterRelease.proxyTop).toBe(duringDrag.proxyTop);
     expect(afterRelease.portY).toBe(duringDrag.portY);
     expect(afterRelease.pinY).toBe(duringDrag.pinY);
+  });
+
+  test("keeps dragged node, svg ports, and edge pins on one world position through release @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Stable drag coordinates",
+      initial: "source",
+      states: [
+        { id: "source", title: "Source", body: "", x: 120, y: 192 },
+        { id: "target", title: "Target", body: "", x: 576, y: 192 }
+      ],
+      transitions: [
+        { id: "source_to_target", from: "source", to: "target", label: "Next", condition: "", set: {} }
+      ]
+    };
+    await page.addInitScript(({ key, model }) => {
+      localStorage.setItem(key, JSON.stringify(model));
+      localStorage.removeItem(`${key}.editor`);
+      localStorage.removeItem(`${key}.camera`);
+      localStorage.removeItem(`${key}.previewCollapsed`);
+      localStorage.removeItem(`${key}.stateExplorer`);
+      localStorage.removeItem(`${key}.ui`);
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+    await expect(page.locator('.edge[data-edge-id="source_to_target"]')).toHaveCount(1);
+
+    const dragGeometry = () => page.evaluate(() => {
+      const nums = value => (String(value || "").match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      const node = document.querySelector('.node[data-id="source"]');
+      const port = document.querySelector('svg#ports .svg-port[data-state-id="source"][data-port-side="out"]');
+      const pin = document.querySelector('.edge-pin[data-edge-id="source_to_target"][data-edge-pin="out"]');
+      const transform = String(node?.style.transform || "");
+      const translate = transform.match(/translate3d?\(\s*(-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px/i);
+      const tx = translate ? Number(translate[1]) : 0;
+      const ty = translate ? Number(translate[2]) : 0;
+      const left = Number.parseFloat(node?.style.left || "0");
+      const top = Number.parseFloat(node?.style.top || "0");
+      const width = Number.parseFloat(node?.style.width || "0");
+      const portPoint = nums(port?.getAttribute("transform") || "");
+      return {
+        stateX: node?.__state?.x,
+        stateY: node?.__state?.y,
+        visualLeft: left + tx,
+        visualTop: top + ty,
+        width,
+        transform,
+        portX: portPoint[0],
+        portY: portPoint[1],
+        pinX: Number.parseFloat(pin?.getAttribute("cx") || "0"),
+        pinY: Number.parseFloat(pin?.getAttribute("cy") || "0")
+      };
+    });
+    const expectAligned = geometry => {
+      expect(geometry.visualLeft).toBe(geometry.stateX);
+      expect(geometry.visualTop).toBe(geometry.stateY);
+      expect(geometry.portX).toBe(geometry.visualLeft + geometry.width);
+      expect(geometry.portY).toBe(geometry.visualTop + GRID_SIZE);
+      expect(geometry.pinX).toBe(geometry.portX);
+      expect(geometry.pinY).toBe(geometry.visualTop + GRID_SIZE * 2);
+    };
+
+    const sourceBox = await visibleBox(page.locator('[data-id="source"]'));
+    const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 144, start.y + 96, { steps: 12 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+    const duringDrag = await dragGeometry();
+    expect(duringDrag.transform).toContain("translate");
+    expectAligned(duringDrag);
+
+    await page.mouse.up();
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
+    const afterRelease = await dragGeometry();
+    expect(afterRelease.transform).toBe("");
+    expectAligned(afterRelease);
   });
 
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {

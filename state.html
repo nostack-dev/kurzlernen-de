@@ -6878,6 +6878,8 @@
       const el = nodeElement(state.id);
       if (!el) return false;
       if (dragging?.id === state.id) {
+        el.style.left = dragging.originalX + "px";
+        el.style.top = dragging.originalY + "px";
         el.style.transform = `translate3d(${state.x - dragging.originalX}px, ${state.y - dragging.originalY}px, 0)`;
       } else {
         el.style.left = state.x + "px";
@@ -6969,8 +6971,8 @@
     function shouldIgnoreMapWheel(evt) {
       const target = evt.target;
       if (target?.closest?.(".state-explorer, .inspector, input, textarea, select, button")) return true;
-      if (!(evt.ctrlKey || evt.metaKey)) return true;
-      return evt.shiftKey && Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
+      const horizontalIntent = Math.abs(evt.deltaX) > Math.abs(evt.deltaY);
+      return horizontalIntent && !(evt.ctrlKey || evt.metaKey);
     }
 
     function hasActiveCanvasMotion() {
@@ -9050,8 +9052,15 @@
           classes.push("inner-drop-target");
         }
         el.className = classes.join(" ");
-        el.style.left = s.x + "px";
-        el.style.top = s.y + "px";
+        if (dragging?.id === s.id) {
+          el.style.left = dragging.originalX + "px";
+          el.style.top = dragging.originalY + "px";
+          el.style.transform = `translate3d(${s.x - dragging.originalX}px, ${s.y - dragging.originalY}px, 0)`;
+        } else {
+          el.style.left = s.x + "px";
+          el.style.top = s.y + "px";
+          el.style.transform = "";
+        }
         el.style.width = nodeWidth(s) + "px";
         el.style.height = nodeHeight(s) + "px";
         el.dataset.id = s.id;
@@ -12571,6 +12580,40 @@
       state.components = normalizeComponents(state.components).map(component => expandStateScopedComponent(component, state));
     }
 
+    function rootDaisyFlowButtonComponent(state) {
+      return normalizeComponents(state?.components)
+        .find(component => component.type === "daisy" && String(component.variant || "").toLowerCase() === "button") || null;
+    }
+
+    function stateScopedComponentData(state, component) {
+      const path = normalizeBindingPath(component?.dataPath, "");
+      const value = path ? normalizeDataObject(state?.data)[path] : null;
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    }
+
+    function appendDefaultFlowForInteractivePreset(root, states, transitions) {
+      if (!root || transitions.some(transition => transition.from === root.id)) return;
+      const button = rootDaisyFlowButtonComponent(root);
+      if (!button) return;
+      const data = stateScopedComponentData(root, button);
+      const label = String(data.label || button.dataLabel || "Continue").trim() || "Continue";
+      const next = makeState(root.x + nodeWidth(root) + GRID_SIZE * 8, root.y, "Next", root.parentId || null);
+      const set = {};
+      const dataPath = normalizeBindingPath(button.dataPath, "");
+      if (dataPath) set[`${dataPath}.clicked`] = true;
+      states.push(next);
+      transitions.push({
+        id: uid("t"),
+        from: root.id,
+        to: next.id,
+        label,
+        condition: "",
+        triggerType: "button",
+        triggerEvent: "",
+        set
+      });
+    }
+
     function makeStateFromTemplate(template, x, y, parentId = currentLayerId) {
       const s = makeState(x, y, template.title || nextStateTitle(), parentId);
       s.renderMode = normalizeStateRenderMode(template.renderMode);
@@ -12633,6 +12676,7 @@
           };
         })
         .filter(Boolean);
+      appendDefaultFlowForInteractivePreset(root, states, transitions);
       return { root, states, transitions };
     }
 
