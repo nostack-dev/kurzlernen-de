@@ -1,0 +1,26 @@
+name: State Tool Tests
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run state tests
+        run: npm run test:full

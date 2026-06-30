@@ -3,7 +3,11 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "playwright test",
+    "test": "playwright test --grep @smoke --reporter=list",
+    "test:contracts": "playwright test tests/core-contracts.spec.js --reporter=list",
+    "test:state-explorer": "playwright test tests/state-tool.spec.js --grep \"drops state explorer presets|stores reusable states|adds and uses state explorer presets|updates, deletes|reuses state explorer presets|keeps state editor focus\" --reporter=list",
+    "test:state-render": "playwright test tests/core-contracts.spec.js --grep \"component data rendering|repeat sources|data wires drive|state editor exposes|state data card|global-state json paths|global state json tree|repeat over\" --reporter=list && playwright test tests/state-tool.spec.js --grep \"renders state data defaults|state data defaults flow|inspects JSON endpoints|keeps data-wire paths|shows outgoing transition buttons\" --reporter=list",
+    "test:full": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui"
   },
