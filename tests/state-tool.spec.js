@@ -2934,6 +2934,178 @@ test.describe("State Blueprint tool", () => {
     }, scopePath)).toBeUndefined();
   });
 
+  test("renders daisy toast as a passive bus message without an implicit button", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Toast (Kurzmeldung)");
+
+    const model = await savedModel(page);
+    const toastState = model.states.find(state => state.title === "Toast (Kurzmeldung)");
+    expect(toastState).toBeTruthy();
+
+    const component = toastState.components[0];
+    expect(component).toMatchObject({
+      type: "daisy",
+      variant: "toast",
+      dataRole: "widget",
+      dataLabel: "Toast (Kurzmeldung)"
+    });
+
+    const dataEntries = Object.entries(toastState.data);
+    expect(dataEntries).toHaveLength(1);
+    const [scopePath, defaults] = dataEntries[0];
+    expect(component.dataPath).toBe(scopePath);
+    expect(defaults).toMatchObject({
+      visible: true,
+      tone: "success",
+      message: "Saved"
+    });
+
+    await page.locator(`[data-id="${toastState.id}"]`).click();
+    const toast = appFrame(page).locator(".toast");
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText("Saved");
+    await expect(toast.getByRole("button")).toHaveCount(0);
+  });
+
+  test("renders daisy presets with official daisyUI class contracts and bus writes", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Daisy contracts",
+      initial: "widgets",
+      states: [
+        {
+          id: "widgets",
+          title: "Widgets",
+          body: "",
+          x: 160,
+          y: 160,
+          data: {
+            "states.widgets.navbar": { brand: "Workspace", selected: "Home", items: ["Home", "Settings"] },
+            "states.widgets.modal": { open: true, confirmed: false, title: "Confirm action", body: "This writes to globalState.", actionLabel: "Confirm" },
+            "states.widgets.toast": { visible: true, tone: "success", message: "Saved" },
+            "states.widgets.card": { title: "Card title", body: "Useful summary text.", actionLabel: "Open" },
+            "states.widgets.input": { label: "Name", value: "Ada" },
+            "states.widgets.progress": { value: 45, max: 100, label: "Progress" },
+            "states.widgets.table": { columns: ["Name", "Status"], rows: [["Ada", "Active"]] }
+          },
+          components: [
+            { id: "nav", type: "daisy", variant: "navbar", dataPath: "states.widgets.navbar", dataRole: "widget", dataLabel: "Navbar" },
+            { id: "modal", type: "daisy", variant: "modal", dataPath: "states.widgets.modal", dataRole: "widget", dataLabel: "Modal" },
+            { id: "toast", type: "daisy", variant: "toast", dataPath: "states.widgets.toast", dataRole: "widget", dataLabel: "Toast" },
+            { id: "card", type: "daisy", variant: "card", dataPath: "states.widgets.card", dataRole: "widget", dataLabel: "Card" },
+            { id: "input", type: "daisy", variant: "input", dataPath: "states.widgets.input", dataRole: "widget", dataLabel: "Input" },
+            { id: "progress", type: "daisy", variant: "progress", dataPath: "states.widgets.progress", dataRole: "widget", dataLabel: "Progress" },
+            { id: "table", type: "daisy", variant: "table", dataPath: "states.widgets.table", dataRole: "widget", dataLabel: "Table" }
+          ]
+        }
+      ],
+      transitions: []
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="widgets"]')).toBeVisible();
+    await expect(app.locator(".navbar.bg-base-100.shadow-sm .menu.menu-horizontal")).toBeVisible();
+    await expect(app.locator("dialog.modal[open] .modal-box .modal-action .btn.btn-primary")).toHaveText("Confirm");
+    await expect(app.locator(".toast.toast-top.toast-end .alert.alert-success")).toContainText("Saved");
+    await expect(app.locator(".card.bg-base-100.shadow-sm .card-body .card-actions .btn.btn-primary")).toHaveText("Open");
+    await expect(app.locator("input.input.input-bordered")).toHaveValue("Ada");
+    await expect(app.locator("progress.progress.progress-primary")).toHaveAttribute("value", "45");
+    await expect(app.locator("table.table")).toBeVisible();
+
+    await app.locator("dialog.modal[open] .modal-action .btn.btn-primary").click();
+    await expect.poll(async () => page.evaluate(() => {
+      const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
+      const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
+      return read(context, "states.widgets.modal");
+    })).toMatchObject({
+      confirmed: true,
+      open: false
+    });
+  });
+
+  test("offers and renders official daisy navbar variants as separate presets", async ({ page }) => {
+    const navbarTitles = [
+      "Navbar - title only",
+      "Navbar - title and icon",
+      "Navbar - icons start/end",
+      "Navbar - menu and submenu",
+      "Navbar - search and dropdown",
+      "Navbar - cart indicator and profile",
+      "Navbar - dropdown center logo",
+      "Navbar - colors"
+    ];
+    const data = {
+      "states.navs.title": { layout: "title-only", brand: "Solo" },
+      "states.navs.titleIcon": { layout: "title-icon", brand: "Icon", iconAction: "More" },
+      "states.navs.icons": { layout: "icons", brand: "Icons", menuAction: "Menu", iconAction: "More" },
+      "states.navs.menu": { layout: "menu-submenu", brand: "Menu", selected: "Link", items: ["Link"], parent: "Parent", submenu: ["Link 1", "Link 2"] },
+      "states.navs.search": { layout: "search-dropdown", brand: "Search", search: "", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" },
+      "states.navs.cart": { layout: "cart-profile", brand: "Cart", cartCount: 8, cartLabel: "Items", subtotal: "$999", actionLabel: "View cart", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" },
+      "states.navs.center": { layout: "center-logo", brand: "Center", menuItems: ["Homepage", "Portfolio", "About"], iconAction: "More" },
+      "states.navs.colors": { layout: "colors", brand: "Color", selected: "Dashboard", items: ["Dashboard", "Tasks", "Settings"], tone: "primary" }
+    };
+    const model = {
+      version: 2,
+      name: "Navbar variants",
+      initial: "navs",
+      states: [
+        {
+          id: "navs",
+          title: "Navbar variants",
+          body: "",
+          x: 160,
+          y: 160,
+          data,
+          components: Object.keys(data).map((path, index) => ({
+            id: `nav_${index}`,
+            type: "daisy",
+            variant: "navbar",
+            dataPath: path,
+            dataRole: "widget",
+            dataLabel: navbarTitles[index]
+          }))
+        }
+      ],
+      transitions: []
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    for (const title of navbarTitles) {
+      await expect(componentPreset(page, title)).toHaveCount(1);
+    }
+
+    const app = appFrame(page);
+    const navbars = app.locator(".navbar");
+    await expect(navbars).toHaveCount(8);
+    await expect(navbars.nth(0).locator(".btn.text-xl")).toHaveText("Solo");
+    await expect(navbars.nth(1).locator(".btn-square svg")).toHaveCount(1);
+    await expect(navbars.nth(2).locator(".btn-square svg")).toHaveCount(2);
+    await expect(navbars.nth(3).locator("details summary")).toHaveText("Parent");
+    await expect(navbars.nth(3).locator("details ul.bg-base-100.rounded-t-none button")).toHaveCount(2);
+    await expect(navbars.nth(4).locator("input.input.input-bordered")).toHaveAttribute("placeholder", "Search");
+    await expect(navbars.nth(4).locator(".dropdown.dropdown-end .avatar img")).toBeVisible();
+    await expect(navbars.nth(5).locator(".indicator .badge-sm")).toHaveText("8");
+    await expect(navbars.nth(5).locator(".card.dropdown-content .card-actions .btn-primary")).toHaveText("View cart");
+    await expect(navbars.nth(6).locator(".navbar-center .btn.text-xl")).toHaveText("Center");
+    await expect(navbars.nth(7)).toHaveClass(/bg-primary/);
+  });
+
   test("runs while loops as conditional self-transitions with a normal exit", async ({ page }) => {
     const model = {
       version: 2,
