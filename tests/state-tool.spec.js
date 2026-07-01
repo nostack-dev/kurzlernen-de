@@ -3433,6 +3433,41 @@ test.describe("State Blueprint tool", () => {
     await expect(toast.getByRole("button")).toHaveCount(0);
   });
 
+  test("materializes every built-in daisy preset as a scoped global-state contract @smoke", async ({ page }) => {
+    await openTool(page);
+
+    const audit = await page.evaluate(() => builtinStateTemplates()
+      .filter(template => (template.components || []).some(component => component.type === "daisy"))
+      .map((template, index) => {
+        const root = makeStateFromTemplate(template, 120 + index * 4, 120 + index * 4, null);
+        return {
+          title: template.title,
+          dataKeys: Object.keys(root.data || {}),
+          dataTypes: root.dataTypes || {},
+          components: (root.components || [])
+            .filter(component => component.type === "daisy")
+            .map(component => ({
+              variant: component.variant,
+              dataPath: component.dataPath,
+              data: component.data,
+              html: component.html
+            }))
+        };
+      }));
+
+    expect(audit.length).toBeGreaterThan(30);
+    for (const preset of audit) {
+      expect(preset.dataKeys, preset.title).toHaveLength(1);
+      const [scopePath] = preset.dataKeys;
+      expect(scopePath, preset.title).toMatch(/^states\.[a-z0-9_]+$/);
+      expect(preset.dataTypes[scopePath], preset.title).toBe("object");
+      expect(preset.components, preset.title).toHaveLength(1);
+      expect(preset.components[0].dataPath, preset.title).toBe(scopePath);
+      expect(preset.components[0].data, preset.title).toBeUndefined();
+      expect(preset.components[0].html, preset.title).toBeUndefined();
+    }
+  });
+
   test("autowires daisy countdown finished changes into a real FSM transition", async ({ page }) => {
     await openTool(page);
 
@@ -3577,6 +3612,61 @@ test.describe("State Blueprint tool", () => {
     }, { timeout: 5000 }).toBe(true);
     await expect(app.locator("#statePill")).toHaveText("done", { timeout: 5000 });
     await expect(app.getByText("Timer complete")).toBeVisible();
+  });
+
+  test("runs daisy carousel next and previous through scoped global-state index @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Carousel (Bilderkarussell)");
+    const model = await savedModel(page);
+    const carouselState = model.states.find(state => state.title === "Carousel (Bilderkarussell)");
+    expect(carouselState).toBeTruthy();
+    const scopePath = `states.${carouselState.id}`;
+    expect(carouselState.components[0]).toMatchObject({
+      type: "daisy",
+      variant: "carousel",
+      dataPath: scopePath
+    });
+    expect(carouselState.data[scopePath]).toMatchObject({
+      index: 0,
+      images: [
+        "https://picsum.photos/seed/state-1/640/360",
+        "https://picsum.photos/seed/state-2/640/360",
+        "https://picsum.photos/seed/state-3/640/360"
+      ]
+    });
+    expect(model.transitions.filter(transition => transition.from === carouselState.id)).toHaveLength(0);
+
+    const app = appFrame(page);
+    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", /state-1/);
+    await app.getByRole("button", { name: "Next" }).click();
+    await expect.poll(async () => (await runtimeContext(page)).states?.[carouselState.id]?.index).toBe(1);
+    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", /state-2/);
+
+    await app.getByRole("button", { name: "Prev" }).click();
+    await expect.poll(async () => (await runtimeContext(page)).states?.[carouselState.id]?.index).toBe(0);
+    await expect(app.locator(".daisy-carousel-image")).toHaveAttribute("src", /state-1/);
+  });
+
+  test("renders daisy steps active item from the scoped global-state current value @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Steps (Prozessschritte)");
+    const model = await savedModel(page);
+    const stepsState = model.states.find(state => state.title === "Steps (Prozessschritte)");
+    expect(stepsState).toBeTruthy();
+    const scopePath = `states.${stepsState.id}`;
+    expect(stepsState.components[0]).toMatchObject({
+      type: "daisy",
+      variant: "steps",
+      dataPath: scopePath
+    });
+
+    const app = appFrame(page);
+    await expect(app.locator("li.step-primary")).toHaveText("Build");
+    await app.locator("li.step", { hasText: "Ship" }).click();
+    await expect.poll(async () => (await runtimeContext(page)).states?.[stepsState.id]?.current).toBe("Ship");
+    await expect(app.locator("li.step-primary")).toHaveText("Ship");
   });
 
   test("keeps add render on user data instead of bus event or object branches @smoke", async ({ page }) => {

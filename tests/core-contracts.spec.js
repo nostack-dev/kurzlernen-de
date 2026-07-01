@@ -320,12 +320,17 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function runtimeDataWireUrlValue");
     expect(appHtml).toContain("runtimeDataWireComponentsForState(state, repeat)");
     expect(appHtml).toContain("function daisyScopePath");
+    expect(appHtml).toContain("function daisyScopeData");
+    expect(appHtml).toContain("readContextPathRaw(daisyScopePath(component))");
     expect(appHtml).toContain("function daisyWrite");
     expect(appHtml).toContain("if (targetPath && readValueAtPath(context, targetPath) === undefined)");
     expect(appHtml).toContain('runtimeSet(targetPath, value, { source: "state-default", notify: false');
     expect(appHtml).toContain("pruneRemovedStateDataDefaults(previousModel, nextModel, oldContext)");
     expect(appHtml).toContain("function pruneRemovedStateDataDefaults");
     expect(appHtml).toContain("createDaisyComponentElement(component, ownerState, renderOptions)");
+    expect(appHtml).not.toContain("component.data?.");
+    expect(appHtml).not.toContain("component.data ||");
+    expect(appHtml).not.toContain("component.data[");
     expect(appHtml).not.toContain("component.html");
     expect(appHtml).not.toContain(".showModal(");
     expect(appHtml).not.toContain('method="dialog"');
