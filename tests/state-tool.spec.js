@@ -5493,7 +5493,8 @@ test.describe("State Blueprint tool", () => {
     const dragGeometry = () => page.evaluate(() => {
       const nums = value => (String(value || "").match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
       const node = document.querySelector('.node[data-id="source"]');
-      const port = document.querySelector('svg#ports .svg-port[data-state-id="source"][data-port-side="out"]');
+      const inputPort = document.querySelector('svg#ports .svg-port[data-state-id="source"][data-port-side="in"]');
+      const outputPort = document.querySelector('svg#ports .svg-port[data-state-id="source"][data-port-side="out"]');
       const pin = document.querySelector('.edge-pin[data-edge-id="source_to_target"][data-edge-pin="out"]');
       const transform = String(node?.style.transform || "");
       const translate = transform.match(/translate3d?\(\s*(-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px/i);
@@ -5502,16 +5503,21 @@ test.describe("State Blueprint tool", () => {
       const left = Number.parseFloat(node?.style.left || "0");
       const top = Number.parseFloat(node?.style.top || "0");
       const width = Number.parseFloat(node?.style.width || "0");
-      const portPoint = nums(port?.getAttribute("transform") || "");
+      const height = Number.parseFloat(node?.style.height || "0");
+      const inputPortPoint = nums(inputPort?.getAttribute("transform") || "");
+      const outputPortPoint = nums(outputPort?.getAttribute("transform") || "");
       return {
         stateX: node?.__state?.x,
         stateY: node?.__state?.y,
         visualLeft: left + tx,
         visualTop: top + ty,
         width,
+        height,
         transform,
-        portX: portPoint[0],
-        portY: portPoint[1],
+        inputPortX: inputPortPoint[0],
+        inputPortY: inputPortPoint[1],
+        outputPortX: outputPortPoint[0],
+        outputPortY: outputPortPoint[1],
         pinX: Number.parseFloat(pin?.getAttribute("cx") || "0"),
         pinY: Number.parseFloat(pin?.getAttribute("cy") || "0")
       };
@@ -5519,10 +5525,12 @@ test.describe("State Blueprint tool", () => {
     const expectAligned = geometry => {
       expect(geometry.visualLeft).toBe(geometry.stateX);
       expect(geometry.visualTop).toBe(geometry.stateY);
-      expect(geometry.portX).toBe(geometry.visualLeft + geometry.width);
-      expect(geometry.portY).toBe(geometry.visualTop + GRID_SIZE);
-      expect(geometry.pinX).toBe(geometry.portX);
-      expect(geometry.pinY).toBe(geometry.visualTop + GRID_SIZE * 2);
+      expect(geometry.inputPortX).toBe(geometry.visualLeft);
+      expect(geometry.outputPortX).toBe(geometry.visualLeft + geometry.width);
+      expect(geometry.inputPortY).toBe(geometry.visualTop + geometry.height / 2);
+      expect(geometry.outputPortY).toBe(geometry.visualTop + geometry.height / 2);
+      expect(geometry.pinX).toBe(geometry.outputPortX);
+      expect(geometry.pinY).toBe(geometry.outputPortY);
     };
 
     const sourceBox = await visibleBox(page.locator('[data-id="source"]'));

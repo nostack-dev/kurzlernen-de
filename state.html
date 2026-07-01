@@ -7854,9 +7854,8 @@
     function nodeCenter(s, side) {
       const width = nodeWidth(s);
       const centerY = s.y + nodeHeight(s) / 2;
-      const portY = s.y + Math.min(Math.max(12, PORT_ANCHOR_Y), Math.max(12, nodeHeight(s) - 12));
-      if (side === "out") return { x: s.x + width, y: portY };
-      if (side === "in") return { x: s.x, y: portY };
+      if (side === "out") return { x: s.x + width, y: centerY };
+      if (side === "in") return { x: s.x, y: centerY };
       return { x: s.x + width / 2, y: centerY };
     }
 
