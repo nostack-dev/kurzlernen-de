@@ -212,6 +212,10 @@ const CORE_PRESET_ALIASES = {
   Divider: "Section divider"
 };
 
+function cssAttributeValue(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+}
+
 function nodeByTitle(page, title) {
   return page.locator(".node").filter({
     has: page.locator(".title").filter({ hasText: new RegExp(`^${escapeRegExp(title)}$`) })
@@ -220,7 +224,7 @@ function nodeByTitle(page, title) {
 
 async function addComponentState(page, title) {
   const presetTitle = CORE_PRESET_ALIASES[title] || title;
-  await componentPreset(page, presetTitle).getByRole("button", { name: `Add ${presetTitle}` }).click();
+  await page.locator(`.component-preset-card button.template-use[aria-label="Add ${cssAttributeValue(presetTitle)}"]`).click();
   if (presetTitle !== title) await page.locator("#pTitle").fill(title);
   await expect(page.locator("#pTitle")).toHaveValue(title);
 }
@@ -3031,6 +3035,113 @@ test.describe("State Blueprint tool", () => {
     await expect(toast.getByRole("button")).toHaveCount(0);
   });
 
+  test("autowires daisy countdown finished changes into a real FSM transition", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Countdown (Zaehler)");
+    const model = await savedModel(page);
+    const countdownState = model.states.find(state => state.title === "Countdown (Zaehler)");
+    expect(countdownState).toBeTruthy();
+
+    const scopePath = `states.${countdownState.id}`;
+    expect(countdownState.data[scopePath]).toMatchObject({
+      value: 30,
+      running: true,
+      finished: false,
+      startedAt: 0,
+      endsAt: 0
+    });
+    expect(countdownState.components[0]).toMatchObject({
+      type: "daisy",
+      variant: "countdown",
+      dataPath: scopePath
+    });
+
+    const doneTransition = model.transitions.find(transition => transition.from === countdownState.id && transition.label === "Done");
+    expect(doneTransition).toBeTruthy();
+    expect(doneTransition).toMatchObject({
+      triggerType: "change",
+      triggerEvent: `change.${scopePath}.finished`,
+      condition: `${scopePath}.finished == true`,
+      set: {}
+    });
+    const doneState = model.states.find(state => state.id === doneTransition.to);
+    expect(doneState).toMatchObject({ title: "Done", parentId: countdownState.parentId || null });
+  });
+
+  test("runs daisy countdown through global-state bus and finished transition @smoke", async ({ page }) => {
+    const model = {
+      version: 2,
+      name: "Countdown flow",
+      initial: "timer",
+      states: [
+        {
+          id: "timer",
+          title: "Countdown",
+          x: 160,
+          y: 160,
+          data: {
+            "states.timer": {
+              value: 1,
+              label: "Seconds left",
+              running: true,
+              finished: false,
+              startedAt: 0,
+              endsAt: 0
+            }
+          },
+          components: [
+            { id: "timer_countdown", type: "daisy", variant: "countdown", dataPath: "states.timer", dataRole: "widget", dataLabel: "Countdown" }
+          ]
+        },
+        {
+          id: "done",
+          title: "Done",
+          x: 480,
+          y: 160,
+          data: {},
+          components: [{ id: "done_text", type: "text", text: "Timer complete", url: "" }]
+        }
+      ],
+      transitions: [
+        {
+          id: "timer_done",
+          from: "timer",
+          to: "done",
+          label: "Done",
+          condition: "states.timer.finished == true",
+          triggerType: "change",
+          triggerEvent: "change.states.timer.finished",
+          set: {}
+        }
+      ]
+    };
+
+    await page.addInitScript(({ key, model }) => {
+      for (const name of [key, `${key}.editor`, `${key}.camera`, `${key}.previewCollapsed`, `${key}.stateExplorer`, `${key}.ui`]) {
+        localStorage.removeItem(name);
+      }
+      localStorage.setItem(key, JSON.stringify(model));
+    }, { key: STORAGE_KEY, model });
+    await page.goto("/state.html");
+
+    const app = appFrame(page);
+    await expect(page.locator('[data-id="timer"]')).toBeVisible();
+    await expect(app.locator("#statePill")).toHaveText("timer");
+    await expect(app.locator(".countdown")).toHaveText("1");
+
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return context.states?.timer?.value;
+    }, { timeout: 5000 }).toBe(0);
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return context.states?.timer?.finished;
+    }, { timeout: 5000 }).toBe(true);
+    await expect(app.locator("#statePill")).toHaveText("done", { timeout: 5000 });
+    await expect(app.getByText("Timer complete")).toBeVisible();
+  });
+
   test("keeps add render on user data instead of bus event or object branches @smoke", async ({ page }) => {
     await openTool(page);
 
@@ -3927,16 +4038,12 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toBeVisible();
     await expect.poll(() => page.locator("#pTitle").evaluate(el => ({
       focused: document.activeElement === el,
-      selectionStart: el.selectionStart,
-      selectionEnd: el.selectionEnd,
       value: el.value,
-      selectedAll: el.selectionStart === 0 && el.selectionEnd === el.value.length
     }))).toMatchObject({
-      focused: true,
-      selectionStart: 0,
-      selectedAll: true,
+      focused: false,
       value: expect.stringMatching(/^State \d+$/)
     });
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el || document.activeElement === document.body)).toBe(true);
 
     await page.keyboard.type("Steuern");
 
@@ -3947,6 +4054,45 @@ test.describe("State Blueprint tool", () => {
     expect(model.states.some(state => /^State \d+$/.test(state.title))).toBe(false);
     expect(model.transitions.some(t => t.from === "auth_start" && t.to === created.id)).toBeTruthy();
     await expect(page.locator(`[data-id="${created.id}"] .title`)).toHaveText("Steuern");
+    await expect(page.locator("#pTitle")).toHaveValue("Steuern");
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el || document.activeElement === document.body)).toBe(true);
+  });
+
+  test("renames selected states and transitions from canvas typing without stealing focus", async ({ page }) => {
+    await openTool(page);
+
+    await page.locator('[data-id="login"]').click();
+    await expect(page.locator("#pTitle")).toBeVisible();
+    await expect.poll(() => page.locator("#pTitle").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.type("Sign in step");
+    await expect(page.locator('[data-id="login"] .title')).toHaveText("Sign in step");
+    await expect(page.locator("#pTitle")).toHaveValue("Sign in step");
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
+
+    const loginEdgeId = await savedModel(page).then(model =>
+      model.transitions.find(t => t.from === "auth_start" && t.to === "login").id
+    );
+    await page.evaluate(id => {
+      selectEdge(id, 0, 0, { edit: false });
+    }, loginEdgeId);
+    await expect(page.locator("#pLabel")).toBeVisible();
+    await expect.poll(() => page.locator("#pLabel").evaluate(el => document.activeElement === el)).toBe(false);
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.type("Open login");
+    await expect(page.locator("#pLabel")).toHaveValue("Open login");
+    await expect(page.locator(`svg text.edge-label[data-edge-id="${loginEdgeId}"]`)).toHaveText("Open login");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return model.transitions.find(transition => transition.id === loginEdgeId)?.label;
+    }).toBe("Open login");
+    await expect.poll(() => page.locator("#map").evaluate(el => document.activeElement === el)).toBe(true);
+
+    await page.keyboard.press("Backspace");
+    await expect(page.locator("#pLabel")).toHaveValue("Open login");
+    await expect(page.locator(`.edge[data-edge-id="${loginEdgeId}"]`)).toHaveCount(1);
   });
 
   test("creates a clean self-loop by dragging a state's output back to its own input", async ({ page }) => {
@@ -6059,6 +6205,25 @@ test.describe("State Blueprint tool", () => {
         child.querySelector("button[data-transition-id]")?.textContent.trim() || child.textContent.trim()
       );
     })).toEqual(["Parent copy", "Entry", "Out B", "Out A"]);
+
+    await expect.poll(async () => {
+      const report = await gridGeometryReport(page);
+      const outPins = Object.fromEntries(report.pins
+        .filter(pin => pin.side === "out" && ["t_parent_a", "t_parent_b"].includes(pin.id))
+        .map(pin => [pin.id, pin.y]));
+      if (!Number.isFinite(outPins.t_parent_a) || !Number.isFinite(outPins.t_parent_b)) return false;
+      return outPins.t_parent_b < outPins.t_parent_a;
+    }).toBe(true);
+
+    const previewButtonColorsAfterDrag = await app.locator("button[data-transition-id]").evaluateAll(buttons => Object.fromEntries(
+      buttons.map(button => {
+        const style = getComputedStyle(button);
+        return [button.dataset.transitionId, style.getPropertyValue("--button-color").trim()];
+      })
+    ));
+    for (const transitionId of ["t_parent_a", "t_parent_b"]) {
+      expect(previewButtonColorsAfterDrag[transitionId]).toBe(await edgeColorFor(transitionId));
+    }
   });
 
   test("persists data-wire render rows between components and transition buttons @smoke", async ({ page }) => {
