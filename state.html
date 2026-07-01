@@ -12852,44 +12852,273 @@
       stateInspectorEl.classList.add("template-inspector");
       stateInspectorTitleEl.textContent = "Preset: " + (template.title || "State preset");
       root.innerHTML = `
-        <h3>Reusable State Component</h3>
+        <h3>Reusable Preset</h3>
         <div class="template-mode-note">
-          <strong>Preset properties</strong>
-          <span>Edits here change the reusable preset only. Existing canvas states stay unchanged; new states created from this preset use this snapshot.</span>
+          <strong>Build once, reuse anywhere</strong>
+          <span>Variables seed globalState when a state from this preset is entered. Existing canvas states stay unchanged.</span>
         </div>
         <div class="field"><label>Preset title</label><input id="pTitle"></div>
-        <div class="field"><label>Initial globalState values</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
-        <div id="pDataPreview" class="condition-preview empty"></div>
-        <div class="data-source-panel">
-          <div class="small"><b>Repeat render</b></div>
-          <div class="field"><label>Repeat path</label><input id="pRepeatPath" placeholder="fetch.data"></div>
-          <div class="row">
-            <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
-            <div class="field"><label>Index name</label><input id="pRepeatIndex" placeholder="i"></div>
+        <div class="state-variable-panel">
+          <div class="state-variable-head">
+            <div>Variables<span>Name, type, and default value for this preset.</span></div>
           </div>
-          <div id="pRepeatPreview" class="condition-preview empty"></div>
+          <div id="pTemplateStateVariableList" class="state-variable-list"></div>
+          <div class="state-variable-add">
+            <input id="pTemplateStateVariableName" list="pTemplateStateVariableNameList" placeholder="variableName">
+            <select id="pTemplateStateVariableType" aria-label="Variable type"></select>
+            <button id="pTemplateStateVariableAdd" type="button">+ Add</button>
+            <datalist id="pTemplateStateVariableNameList"></datalist>
+          </div>
         </div>
-        <div class="small">Preset state content</div>
+        <div id="pDataPreview" class="condition-preview empty"></div>
+        <details class="inspector-collapse inspector-subcollapse" id="pTemplateAdvancedDataCard">
+          <summary class="inspector-collapse-summary">
+            <span>
+              <strong>Advanced JSON</strong>
+              <em>Edit the same variables as raw data.</em>
+            </span>
+          </summary>
+          <div class="inspector-collapse-body">
+            <div class="field"><label>Initial globalState values</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+          </div>
+        </details>
+        <details class="inspector-collapse inspector-subcollapse" id="pTemplateRepeatCard">
+          <summary class="inspector-collapse-summary">
+            <span>
+              <strong>Repeat render</strong>
+              <em>Use when this preset renders a list.</em>
+            </span>
+          </summary>
+          <div class="inspector-collapse-body">
+            <div class="data-source-panel">
+              <div class="field"><label>Repeat path</label><input id="pRepeatPath" placeholder="fetch.data"></div>
+              <div class="row">
+                <div class="field"><label>Item name</label><input id="pRepeatAs" placeholder="item"></div>
+                <div class="field"><label>Index name</label><input id="pRepeatIndex" placeholder="i"></div>
+              </div>
+              <div id="pRepeatPreview" class="condition-preview empty"></div>
+            </div>
+          </div>
+        </details>
+        <div class="small"><b>Content</b></div>
         <div id="pComponents" class="component-list"></div>
-        <div class="component-empty">To compose reusable content, place State Explorer presets on the canvas, edit them as states, then drag the result back into the explorer.</div>
-        <div class="small">Preset id: <b>${escapeHtml(template.id)}</b></div>
+        <div class="component-empty">Edit complex preset content on the canvas, then drag the updated state back here.</div>
         <div class="row" style="margin-top:10px">
           <button id="pTemplateUse">Use on canvas</button>
           <button id="pTemplateExport">Export component</button>
           <button id="pTemplateImport">Import component</button>
           <button id="pTemplateDelete" class="danger">Delete preset</button>
         </div>
+        <details class="inspector-collapse inspector-subcollapse" id="pTemplateMetaCard">
+          <summary class="inspector-collapse-summary">
+            <span>
+              <strong>Preset info</strong>
+              <em>ID and storage details.</em>
+            </span>
+          </summary>
+          <div class="inspector-collapse-body">
+            <div class="small">Preset id: <b>${escapeHtml(template.id)}</b></div>
+          </div>
+        </details>
       `;
       const title = root.querySelector("#pTitle");
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
+      const stateVariableList = root.querySelector("#pTemplateStateVariableList");
+      const stateVariableName = root.querySelector("#pTemplateStateVariableName");
+      const stateVariableNameList = root.querySelector("#pTemplateStateVariableNameList");
+      const stateVariableType = root.querySelector("#pTemplateStateVariableType");
+      const stateVariableAdd = root.querySelector("#pTemplateStateVariableAdd");
+      const advancedDataCard = root.querySelector("#pTemplateAdvancedDataCard");
+      const repeatCard = root.querySelector("#pTemplateRepeatCard");
       const persistTemplate = (historyKey = "template:" + template.id) => {
         saveStateTemplates(historyKey);
         renderStateExplorer();
       };
       title.value = template.title || "";
       data.value = JSON.stringify(normalizeDataObject(template.data), null, 2);
-      const updateDataPreview = (persist = true) => {
+      STATE_VARIABLE_TYPES.forEach(type => {
+        const option = document.createElement("option");
+        option.value = type.value;
+        option.textContent = type.label;
+        stateVariableType.appendChild(option);
+      });
+      const renderTemplateVariableSuggestions = () => {
+        if (!stateVariableNameList) return;
+        stateVariableNameList.innerHTML = "";
+        const seen = new Set();
+        const add = (path, label = path) => {
+          const clean = normalizeBindingPath(path, "");
+          if (!clean || seen.has(clean) || isRuntimeBookkeepingPath(clean)) return;
+          seen.add(clean);
+          const option = document.createElement("option");
+          option.value = clean;
+          option.label = label;
+          stateVariableNameList.appendChild(option);
+        };
+        for (const state of model.states || []) {
+          const label = state.title || state.id || "state";
+          for (const key of Object.keys(normalizeDataObject(state.data))) add(key, label);
+        }
+        for (const transition of model.transitions || []) {
+          const label = transition.label || transition.id || "transition";
+          for (const key of Object.keys(normalizeDataObject(transition.set))) add(key, label);
+        }
+      };
+      const syncTemplateDataObject = (nextData, historyKey = "template:data:" + template.id, refreshVariables = true, nextTypes = template.dataTypes) => {
+        template.dataTypes = normalizeDataTypes(nextTypes, nextData);
+        data.value = JSON.stringify(normalizeDataObject(nextData), null, 2);
+        updateDataPreview(true, { historyKey, refreshVariables });
+      };
+      const renderTemplateVariableList = () => {
+        if (!stateVariableList) return;
+        const entries = Object.entries(normalizeDataObject(template.data));
+        stateVariableList.innerHTML = "";
+        if (!entries.length) {
+          const empty = document.createElement("div");
+          empty.className = "state-variable-empty";
+          empty.textContent = "No variables yet. Add one when this preset needs scoped globalState.";
+          stateVariableList.appendChild(empty);
+          return;
+        }
+        const makeTypeSelect = (path, value) => {
+          const select = document.createElement("select");
+          select.dataset.stateVariableType = "true";
+          select.setAttribute("aria-label", "Variable type");
+          const savedTypes = normalizeDataTypes(template.dataTypes, template.data);
+          const currentType = savedTypes[path] || inferStateVariableType(path, value);
+          STATE_VARIABLE_TYPES.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type.value;
+            option.textContent = type.label;
+            if (type.value === currentType) option.selected = true;
+            select.appendChild(option);
+          });
+          select.onchange = () => {
+            const next = normalizeDataObject(template.data);
+            const nextTypes = normalizeDataTypes(template.dataTypes, next);
+            nextTypes[path] = normalizeStateVariableType(select.value);
+            next[path] = coerceStateVariableValue(next[path], select.value);
+            syncTemplateDataObject(next, "template:data-variable-type:" + template.id + ":" + path, true, nextTypes);
+          };
+          return select;
+        };
+        const makeValueControl = (path, value, type) => {
+          let control;
+          const updateValue = nextValue => {
+            const next = normalizeDataObject(template.data);
+            next[path] = nextValue;
+            syncTemplateDataObject(next, "template:data-variable-value:" + template.id + ":" + path, false);
+          };
+          if (type === "boolean") {
+            control = document.createElement("input");
+            control.type = "checkbox";
+            control.checked = Boolean(value);
+            control.onchange = () => updateValue(control.checked);
+          } else if (type === "object" || type === "list") {
+            control = document.createElement("textarea");
+            control.spellcheck = false;
+            control.value = JSON.stringify(value, null, 2);
+            control.oninput = () => {
+              try {
+                const parsed = JSON.parse(control.value || (type === "list" ? "[]" : "{}"));
+                const valid = type === "list" ? Array.isArray(parsed) : isPlainObject(parsed);
+                if (!valid) throw new Error(type === "list" ? "Use a JSON array." : "Use a JSON object.");
+                control.classList.remove("invalid");
+                updateValue(parsed);
+              } catch (_) {
+                control.classList.add("invalid");
+              }
+            };
+          } else {
+            control = document.createElement("input");
+            control.type = type === "password" ? "password" : type === "email" ? "email" : type === "url" || type === "image" ? "url" : "text";
+            control.value = String(value ?? "");
+            if (type === "number") {
+              control.type = "text";
+              control.inputMode = "decimal";
+              control.value = String(value ?? 0);
+              control.oninput = () => {
+                const nextNumber = Number(control.value);
+                if (!Number.isFinite(nextNumber)) {
+                  control.classList.add("invalid");
+                  return;
+                }
+                control.classList.remove("invalid");
+                updateValue(nextNumber);
+              };
+            } else {
+              control.oninput = () => updateValue(control.value);
+            }
+          }
+          control.classList.add("state-variable-value-field");
+          control.dataset.stateVariableValue = "true";
+          return control;
+        };
+        entries.forEach(([path, value]) => {
+          const row = document.createElement("div");
+          row.className = "state-variable-row";
+          row.dataset.variablePath = path;
+          const name = document.createElement("input");
+          name.value = path;
+          name.dataset.stateVariableName = "true";
+          name.setAttribute("aria-label", "Variable name");
+          name.onchange = () => {
+            const nextPath = normalizeBindingPath(name.value, "");
+            const next = normalizeDataObject(template.data);
+            if (!nextPath || nextPath !== path && Object.prototype.hasOwnProperty.call(next, nextPath)) {
+              name.value = path;
+              name.classList.add("invalid");
+              return;
+            }
+            name.classList.remove("invalid");
+            if (nextPath === path) return;
+            const nextTypes = normalizeDataTypes(template.dataTypes, next);
+            if (Object.prototype.hasOwnProperty.call(nextTypes, path)) {
+              nextTypes[nextPath] = nextTypes[path];
+              delete nextTypes[path];
+            }
+            next[nextPath] = next[path];
+            delete next[path];
+            syncTemplateDataObject(next, "template:data-variable-rename:" + template.id + ":" + path, true, nextTypes);
+          };
+          const typeSelect = makeTypeSelect(path, value);
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "danger state-variable-remove";
+          remove.textContent = "x";
+          remove.title = "Remove variable";
+          remove.setAttribute("aria-label", "Remove variable " + path);
+          remove.onclick = () => {
+            const next = normalizeDataObject(template.data);
+            const nextTypes = normalizeDataTypes(template.dataTypes, next);
+            delete next[path];
+            delete nextTypes[path];
+            syncTemplateDataObject(next, "template:data-variable-remove:" + template.id + ":" + path, true, nextTypes);
+          };
+          const valueControl = makeValueControl(path, value, typeSelect.value);
+          row.append(name, typeSelect, remove, valueControl);
+          stateVariableList.appendChild(row);
+        });
+      };
+      const addTemplateStateVariable = () => {
+        const next = normalizeDataObject(template.data);
+        const type = normalizeStateVariableType(stateVariableType.value);
+        const requestedPath = normalizeBindingPath(stateVariableName.value, "");
+        const path = requestedPath || defaultStateVariablePath(type, next);
+        if (!path || Object.prototype.hasOwnProperty.call(next, path)) {
+          stateVariableName.classList.add("invalid");
+          return;
+        }
+        stateVariableName.classList.remove("invalid");
+        const nextTypes = normalizeDataTypes(template.dataTypes, next);
+        next[path] = defaultStateVariableValue(type);
+        nextTypes[path] = type;
+        syncTemplateDataObject(next, "template:data-variable-add:" + template.id + ":" + path, true, nextTypes);
+        stateVariableName.value = "";
+        setupEditorAccessibility(root, false);
+      };
+      const updateDataPreview = (persist = true, opts = {}) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
@@ -12897,10 +13126,12 @@
           template.dataTypes = normalizeDataTypes(template.dataTypes, template.data);
           dataPreview.textContent = Object.keys(template.data).length ? "Preset fills missing globalState keys on enter." : "No initial globalState values.";
           dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
-          if (persist) persistTemplate("template:data:" + template.id);
+          if (persist) persistTemplate(opts.historyKey || "template:data:" + template.id);
+          if (opts.refreshVariables !== false) renderTemplateVariableList();
         } catch (err) {
           dataPreview.textContent = err.message || "Invalid JSON.";
           dataPreview.classList.remove("empty");
+          if (advancedDataCard) advancedDataCard.open = true;
         }
       };
       title.oninput = () => {
@@ -12909,6 +13140,15 @@
         persistTemplate("template:title:" + template.id);
       };
       data.oninput = () => updateDataPreview(true);
+      stateVariableAdd.onclick = addTemplateStateVariable;
+      stateVariableName.addEventListener("keydown", evt => {
+        if (evt.key !== "Enter") return;
+        evt.preventDefault();
+        addTemplateStateVariable();
+      });
+      stateVariableName.addEventListener("input", () => stateVariableName.classList.remove("invalid"));
+      renderTemplateVariableSuggestions();
+      if (normalizeRepeatConfig(template.repeat).path && repeatCard) repeatCard.open = true;
       updateDataPreview(false);
       title.onblur = data.onblur = () => { lastHistoryKey = null; };
       bindDataSourceEditor(template, root, historyKey => persistTemplate("template:" + template.id + ":" + historyKey), "template");

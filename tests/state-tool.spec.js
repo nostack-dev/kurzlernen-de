@@ -5885,7 +5885,7 @@ test.describe("State Blueprint tool", () => {
     await expect(preset.locator(".template-title-input")).toHaveCount(0);
     await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Quick lesson");
     await expect(page.locator("#stateInspector")).toHaveClass(/template-inspector/);
-    await expect(page.locator("#stateInspectorBody")).toContainText("Reusable State Component");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Reusable Preset");
     await expect(page.locator("#stateInspectorBody")).toContainText("Existing canvas states stay unchanged");
     await expect.poll(async () => {
       const templates = await savedStateTemplates(page);
@@ -5906,6 +5906,79 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator("#pTitle")).toHaveValue("Quick lesson");
     await expect(componentEditor(page, "Text").locator("textarea")).toHaveValue("Hello {{role}}");
     await expect(appFrame(page).getByText("Hello mentor")).toBeVisible();
+  });
+
+  test("state explorer presets expose typed variables without forcing raw JSON editing", async ({ page }) => {
+    await openTool(page, {
+      stateTemplates: [{
+        id: "tpl_login_preset",
+        rootStateId: "tpl_login_preset",
+        title: "Login preset",
+        body: "",
+        components: [{ id: "tpl_login_text", type: "text", text: "Welcome {{email}}", url: "" }],
+        data: { email: "user@example.com" },
+        dataTypes: { email: "email" },
+        states: [],
+        transitions: []
+      }]
+    });
+
+    const preset = page.locator(".state-template-card").filter({ hasText: "Login preset" }).first();
+    await preset.click();
+    await expect(page.locator("#stateInspectorTitle")).toHaveText("Preset: Login preset");
+    await expect(page.locator("#stateInspectorBody")).toContainText("Reusable Preset");
+    await expect(page.locator("#pTemplateStateVariableList")).toBeVisible();
+    await expect(page.locator("#pTemplateAdvancedDataCard")).toBeVisible();
+    await expect(page.locator("#pData")).toBeHidden();
+
+    const emailRow = page.locator('.state-variable-row[data-variable-path="email"]');
+    await expect(emailRow.locator('[data-state-variable-name="true"]')).toHaveValue("email");
+    await expect(emailRow.locator('[data-state-variable-type="true"]')).toHaveValue("email");
+    await expect(emailRow.locator('[data-state-variable-value="true"]')).toHaveValue("user@example.com");
+
+    await page.locator("#pTemplateStateVariableName").fill("avatar");
+    await page.locator("#pTemplateStateVariableType").selectOption("image");
+    await page.locator("#pTemplateStateVariableAdd").click();
+
+    const avatarRow = page.locator('.state-variable-row[data-variable-path="avatar"]');
+    await expect(avatarRow.locator('[data-state-variable-type="true"]')).toHaveValue("image");
+    await avatarRow.locator('[data-state-variable-value="true"]').fill("https://example.com/avatar.png");
+
+    await expect.poll(async () => {
+      const templates = await savedStateTemplates(page);
+      return {
+        data: templates[0]?.data,
+        dataTypes: templates[0]?.dataTypes
+      };
+    }).toEqual({
+      data: {
+        email: "user@example.com",
+        avatar: "https://example.com/avatar.png"
+      },
+      dataTypes: {
+        email: "email",
+        avatar: "image"
+      }
+    });
+
+    await page.locator("#pTemplateUse").click();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const state = model.states.find(item => item.title === "Login preset");
+      return {
+        data: state?.data,
+        dataTypes: state?.dataTypes
+      };
+    }).toEqual({
+      data: {
+        email: "user@example.com",
+        avatar: "https://example.com/avatar.png"
+      },
+      dataTypes: {
+        email: "email",
+        avatar: "image"
+      }
+    });
   });
 
   test("updates, deletes, and undo-redo restores state explorer presets", async ({ page }) => {
