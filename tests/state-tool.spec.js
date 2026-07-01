@@ -1212,6 +1212,34 @@ test.describe("State Blueprint tool", () => {
     }));
   });
 
+  test("loads the full demo flow after starting a new canvas @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await page.getByRole("button", { name: "New" }).click();
+    await page.getByRole("button", { name: "Neu starten" }).click();
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(1);
+    await expect(page.locator('[data-id="start"]')).toBeVisible();
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return { name: model.name, initial: model.initial, states: model.states.length, transitions: model.transitions.length };
+    }).toEqual({ name: "Untitled Flow", initial: "start", states: 1, transitions: 2 });
+
+    await page.getByRole("button", { name: "Demo" }).click();
+    await page.getByRole("button", { name: "Demo laden" }).click();
+
+    await expect(page.locator(".node:not(.boundary-proxy)")).toHaveCount(6);
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator('[data-id="auth_start"]')).toBeVisible();
+    await expect(page.locator('[data-id="login"]')).toBeVisible();
+    await expect(page.locator('[data-id="logged_in"]')).toBeVisible();
+    await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveCount(1);
+    await expect(appFrame(page).locator("#statePill")).toHaveText("auth_start");
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      return { name: model.name, initial: model.initial, states: model.states.length, transitions: model.transitions.length };
+    }).toEqual({ name: "Standard Auth Flow", initial: "auth_start", states: 6, transitions: 11 });
+  });
+
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {
     await openTool(page);
 
