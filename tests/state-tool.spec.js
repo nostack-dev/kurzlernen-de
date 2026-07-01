@@ -3031,6 +3031,69 @@ test.describe("State Blueprint tool", () => {
     await expect(toast.getByRole("button")).toHaveCount(0);
   });
 
+  test("autowires daisy card actions into real FSM states and transition buttons @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Card (Karte)");
+    const model = await savedModel(page);
+    const cardState = model.states.find(state => state.title === "Card (Karte)");
+    const cardTransition = model.transitions.find(transition => transition.from === cardState.id && transition.label === "Open");
+    const cardTarget = model.states.find(state => state.id === cardTransition?.to);
+    expect(cardTransition).toBeTruthy();
+    expect(cardTransition.triggerType).toBe("button");
+    expect(cardTransition.set).toEqual({ [`states.${cardState.id}.clicked`]: true });
+    expect(cardTarget).toMatchObject({ title: "Open", parentId: cardState.parentId || null });
+    await page.locator(`[data-id="${cardState.id}"]`).click();
+    let app = appFrame(page);
+    await expect(app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Open" })).toBeVisible();
+    await app.locator(`button[data-transition-id="${cardTransition.id}"]`).click();
+    await expect(app.locator("#statePill")).toHaveText(cardTarget.id);
+  });
+
+  test("autowires daisy modal actions into real FSM states and transition buttons @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Modal (Dialogfenster)");
+    const model = await savedModel(page);
+    const modalState = model.states.find(state => state.title === "Modal (Dialogfenster)");
+    const modalTransition = model.transitions.find(transition => transition.from === modalState.id && transition.label === "Confirm");
+    const modalTarget = model.states.find(state => state.id === modalTransition?.to);
+    expect(modalTransition).toBeTruthy();
+    expect(modalTransition.set).toEqual({
+      [`states.${modalState.id}.confirmed`]: true,
+      [`states.${modalState.id}.open`]: false
+    });
+    expect(modalTarget).toMatchObject({ title: "Confirm", parentId: modalState.parentId || null });
+    const app = appFrame(page);
+    await app.getByRole("button", { name: "Confirm action" }).click();
+    await expect(app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`, { hasText: "Confirm" })).toBeVisible();
+    await app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`).click();
+    await expect(app.locator("#statePill")).toHaveText(modalTarget.id);
+  });
+
+  test("autowires daisy navbar actions into real FSM states and transition buttons @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Navbar - colors");
+    const model = await savedModel(page);
+    const navbarState = model.states.find(state => state.title === "Navbar - colors");
+    const navbarTransitions = model.transitions
+      .filter(transition => transition.from === navbarState.id)
+      .sort((a, b) => a.label.localeCompare(b.label));
+    expect(navbarTransitions.map(transition => transition.label)).toEqual(["Dashboard", "Settings", "Tasks"]);
+    const tasksTransition = navbarTransitions.find(transition => transition.label === "Tasks");
+    const tasksTarget = model.states.find(state => state.id === tasksTransition.to);
+    expect(tasksTransition.set).toEqual({
+      [`states.${navbarState.id}.selected`]: "Tasks",
+      [`states.${navbarState.id}.lastAction`]: "Tasks"
+    });
+    expect(tasksTarget).toMatchObject({ title: "Tasks", parentId: navbarState.parentId || null });
+    const app = appFrame(page);
+    await expect(app.locator(".navbar button[data-transition-id]")).toHaveCount(3);
+    await app.locator(`.navbar button[data-transition-id="${tasksTransition.id}"]`).click();
+    await expect(app.locator("#statePill")).toHaveText(tasksTarget.id);
+  });
+
   test("renders daisy presets with official daisyUI class contracts and bus writes", async ({ page }) => {
     const model = {
       version: 2,
