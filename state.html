@@ -9374,12 +9374,7 @@
           class: "svg-port-moon svg-port-input-symbol"
         }));
       }
-      port.appendChild(svgEl("circle", {
-        cx: 0,
-        cy: 0,
-        r: 15,
-        class: "svg-port-hit"
-      }));
+      appendSvgStatePortHit(port, state, side);
       const canStartConnection = side === "out";
       if (canStartConnection) {
         const startSide = side === "in" ? "in" : "out";
@@ -9420,6 +9415,29 @@
         showNodeProperties(state);
       });
       getPortOverlay().appendChild(port);
+    }
+
+    function appendSvgStatePortHit(port, state, side) {
+      if (state?.virtualProxy) {
+        port.appendChild(svgEl("circle", {
+          cx: 0,
+          cy: 0,
+          r: 15,
+          class: "svg-port-hit"
+        }));
+        return;
+      }
+      const inside = 8;
+      const outside = 18;
+      const height = 32;
+      port.appendChild(svgEl("rect", {
+        x: side === "out" ? -inside : -outside,
+        y: -height / 2,
+        width: inside + outside,
+        height,
+        rx: 10,
+        class: "svg-port-hit"
+      }));
     }
 
     function updateLayerFrame(states) {

@@ -5506,6 +5506,17 @@ test.describe("State Blueprint tool", () => {
       const height = Number.parseFloat(node?.style.height || "0");
       const inputPortPoint = nums(inputPort?.getAttribute("transform") || "");
       const outputPortPoint = nums(outputPort?.getAttribute("transform") || "");
+      const hitBox = port => {
+        const hit = port?.querySelector(".svg-port-hit");
+        return hit ? {
+          tag: hit.tagName.toLowerCase(),
+          x: Number.parseFloat(hit.getAttribute("x") || "0"),
+          y: Number.parseFloat(hit.getAttribute("y") || "0"),
+          width: Number.parseFloat(hit.getAttribute("width") || "0"),
+          height: Number.parseFloat(hit.getAttribute("height") || "0"),
+          rx: Number.parseFloat(hit.getAttribute("rx") || "0")
+        } : null;
+      };
       return {
         stateX: node?.__state?.x,
         stateY: node?.__state?.y,
@@ -5518,6 +5529,8 @@ test.describe("State Blueprint tool", () => {
         inputPortY: inputPortPoint[1],
         outputPortX: outputPortPoint[0],
         outputPortY: outputPortPoint[1],
+        inputHit: hitBox(inputPort),
+        outputHit: hitBox(outputPort),
         pinX: Number.parseFloat(pin?.getAttribute("cx") || "0"),
         pinY: Number.parseFloat(pin?.getAttribute("cy") || "0")
       };
@@ -5531,6 +5544,8 @@ test.describe("State Blueprint tool", () => {
       expect(geometry.outputPortY).toBe(geometry.visualTop + geometry.height / 2);
       expect(geometry.pinX).toBe(geometry.outputPortX);
       expect(geometry.pinY).toBe(geometry.outputPortY);
+      expect(geometry.inputHit).toMatchObject({ tag: "rect", x: -18, y: -16, width: 26, height: 32, rx: 10 });
+      expect(geometry.outputHit).toMatchObject({ tag: "rect", x: -8, y: -16, width: 26, height: 32, rx: 10 });
     };
 
     const sourceBox = await visibleBox(page.locator('[data-id="source"]'));
@@ -5548,6 +5563,19 @@ test.describe("State Blueprint tool", () => {
     const afterRelease = await dragGeometry();
     expect(afterRelease.transform).toBe("");
     expectAligned(afterRelease);
+
+    const draggedSourceBox = await visibleBox(page.locator('[data-id="source"]'));
+    const nearOutputInside = {
+      x: draggedSourceBox.x + draggedSourceBox.width - 14,
+      y: draggedSourceBox.y + draggedSourceBox.height / 2
+    };
+    await page.mouse.move(nearOutputInside.x, nearOutputInside.y);
+    await page.mouse.down();
+    await page.mouse.move(nearOutputInside.x + 80, nearOutputInside.y + 48, { steps: 8 });
+    await expect(page.locator("#map")).toHaveClass(/dragging-state/);
+    await expect(page.locator("#map")).not.toHaveClass(/connecting/);
+    await page.mouse.up();
+    await expect(page.locator("#map")).not.toHaveClass(/dragging-state/);
   });
 
   test("recovers desktop drag, pan, and connection gestures when mouseup is missed", async ({ page }) => {
