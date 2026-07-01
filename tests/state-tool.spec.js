@@ -737,6 +737,56 @@ test.describe("State Blueprint tool", () => {
     expect(definition.model.transitions.find(transition => transition.id === "t_login").set.role).toBe("admin");
   });
 
+  test("state initial values expose typed variables as a scoped global state view", async ({ page }) => {
+    const model = defaultTestModel();
+    const login = model.states.find(state => state.id === "login");
+    login.data = { email: "user@example.com", password: "secret123" };
+    login.dataTypes = { email: "email", password: "password" };
+
+    await openTool(page, { model });
+    await openStateInspector(page, "login");
+    await openInitialValuesEditor(page);
+
+    const emailRow = page.locator('.state-variable-row[data-variable-path="email"]');
+    const passwordRow = page.locator('.state-variable-row[data-variable-path="password"]');
+    await expect(emailRow.locator('[data-state-variable-name="true"]')).toHaveValue("email");
+    await expect(emailRow.locator('[data-state-variable-type="true"]')).toHaveValue("email");
+    await expect(emailRow.locator('[data-state-variable-value="true"]')).toHaveValue("user@example.com");
+    await expect(passwordRow.locator('[data-state-variable-name="true"]')).toHaveValue("password");
+    await expect(passwordRow.locator('[data-state-variable-type="true"]')).toHaveValue("password");
+    await expect(passwordRow.locator('[data-state-variable-value="true"]')).toHaveValue("secret123");
+    await expect(page.locator("#pData")).toHaveValue(/"email": "user@example.com"/);
+
+    await page.locator("#pStateVariableName").fill("avatar");
+    await page.locator("#pStateVariableType").selectOption("image");
+    await page.locator("#pStateVariableAdd").click();
+
+    const avatarRow = page.locator('.state-variable-row[data-variable-path="avatar"]');
+    await expect(avatarRow.locator('[data-state-variable-name="true"]')).toHaveValue("avatar");
+    await expect(avatarRow.locator('[data-state-variable-type="true"]')).toHaveValue("image");
+    await avatarRow.locator('[data-state-variable-value="true"]').fill("https://example.com/avatar.png");
+
+    await expect.poll(async () => {
+      const saved = await savedModel(page);
+      const state = saved.states.find(item => item.id === "login");
+      return {
+        data: state?.data,
+        dataTypes: state?.dataTypes
+      };
+    }).toEqual({
+      data: {
+        email: "user@example.com",
+        password: "secret123",
+        avatar: "https://example.com/avatar.png"
+      },
+      dataTypes: {
+        email: "email",
+        password: "password",
+        avatar: "image"
+      }
+    });
+  });
+
   test("state data defaults flow through the global bus and match change transitions @smoke", async ({ page }) => {
     const model = {
       version: 2,
@@ -1249,11 +1299,38 @@ test.describe("State Blueprint tool", () => {
     await expect(page.locator('[data-id="login"]')).toBeVisible();
     await expect(page.locator('[data-id="logged_in"]')).toBeVisible();
     await expect(page.locator('.edge[data-edge-id="t_auth_login"]')).toHaveCount(1);
-    await expect(appFrame(page).locator("#statePill")).toHaveText("auth_start");
+    const app = appFrame(page);
+    await expect(app.locator("#statePill")).toHaveText("auth_start");
+    await app.getByRole("button", { name: "Login" }).click();
+    await expect(app.locator("#statePill")).toHaveText("login");
+    await expect(app.getByText("Demo-Daten sind unten schon eingetragen.")).toBeVisible();
+    await expect(app.locator(".field").filter({ hasText: "email" }).locator("input")).toHaveValue("user@example.com");
+    await expect(app.locator(".field").filter({ hasText: "password" }).locator("input")).toHaveValue("secret123");
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return { email: context.email, password: context.password };
+    }).toEqual({ email: "user@example.com", password: "secret123" });
+    await app.getByRole("button", { name: "Einloggen" }).click();
+    await expect(app.locator("#statePill")).toHaveText("logged_in");
     await expect.poll(async () => {
       const model = await savedModel(page);
-      return { name: model.name, initial: model.initial, states: model.states.length, transitions: model.transitions.length };
-    }).toEqual({ name: "Standard Auth Flow", initial: "auth_start", states: 6, transitions: 11 });
+      const login = model.states.find(state => state.id === "login");
+      return {
+        name: model.name,
+        initial: model.initial,
+        states: model.states.length,
+        transitions: model.transitions.length,
+        loginData: login?.data,
+        loginDataTypes: login?.dataTypes
+      };
+    }).toEqual({
+      name: "Standard Auth Flow",
+      initial: "auth_start",
+      states: 6,
+      transitions: 11,
+      loginData: { email: "user@example.com", password: "secret123" },
+      loginDataTypes: { email: "email", password: "password" }
+    });
   });
 
   test("deletes selected substates with the same Delete key path as root states", async ({ page }) => {

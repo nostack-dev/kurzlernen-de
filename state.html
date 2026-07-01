@@ -1725,6 +1725,107 @@
       color: #bbf7d0;
     }
 
+    .state-variable-panel {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .state-variable-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .state-variable-head span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .state-variable-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .state-variable-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(86px, .65fr) auto;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+      padding: 7px;
+      border: 1px solid rgba(148, 163, 184, .18);
+      border-radius: 10px;
+      background: rgba(2, 6, 23, .22);
+    }
+
+    .state-variable-row input,
+    .state-variable-row select,
+    .state-variable-row textarea,
+    .state-variable-add input,
+    .state-variable-add select {
+      min-height: 34px;
+      width: 100%;
+      min-width: 0;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .state-variable-row textarea {
+      min-height: 58px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .state-variable-value-field {
+      grid-column: 1 / -1;
+    }
+
+    .state-variable-row input[type="checkbox"] {
+      width: 18px;
+      min-height: 18px;
+      justify-self: start;
+    }
+
+    .state-variable-remove {
+      min-width: 34px;
+      min-height: 34px;
+      padding: 0 8px;
+      border-radius: 8px;
+    }
+
+    .state-variable-add {
+      display: grid;
+      grid-template-columns: minmax(92px, 1fr) minmax(96px, .75fr) auto;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .state-variable-add button {
+      min-height: 34px;
+      padding: 6px 9px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .state-variable-empty {
+      padding: 8px;
+      border: 1px dashed rgba(148, 163, 184, .22);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
     .data-source-panel {
       display: grid;
       gap: 6px;
@@ -3648,10 +3749,16 @@
         initial: "auth_start",
         boundary: normalizeBoundaryConfig(null),
         states: [
-          { id: "auth_start", title: "Auth start", body: "", components: [{ id: "c_auth_start", type: "text", text: "User chooses login or registration.", url: "" }], data: {}, x: 90, y: 210 },
-          { id: "login", title: "Login", body: "", components: [{ id: "c_login", type: "text", text: "Email and password are entered.", url: "" }], data: {}, x: 360, y: 100 },
-          { id: "register", title: "Register", body: "", components: [{ id: "c_register", type: "text", text: "Create a new account with email and accepted terms.", url: "" }], data: {}, x: 360, y: 320 },
-          { id: "error", title: "Error", body: "", components: [{ id: "c_error", type: "text", text: "Invalid credentials or registration data.", url: "" }], data: {}, x: 630, y: 320 },
+          { id: "auth_start", title: "Auth start", body: "", components: [{ id: "c_auth_start", type: "text", text: "Waehle Login oder Registrierung. Die Demo-Daten sind jeweils schon eingetragen.", url: "" }], data: {}, x: 90, y: 210 },
+          { id: "login", title: "Login", body: "", components: [
+            { id: "c_login", type: "text", text: "Demo-Daten sind unten schon eingetragen.", url: "" },
+            { id: "c_login_hint", type: "note", text: "Klick auf Einloggen, um weiterzugehen. Gueltige Werte: user@example.com / secret123.", url: "" }
+          ], data: { email: "user@example.com", password: "secret123" }, dataTypes: { email: "email", password: "password" }, x: 360, y: 100 },
+          { id: "register", title: "Register", body: "", components: [
+            { id: "c_register", type: "text", text: "Demo-Registrierung ist unten schon eingetragen.", url: "" },
+            { id: "c_register_hint", type: "note", text: "Klick auf Account erstellen, um weiterzugehen. Gueltig: new@example.com und accepted_terms eingeschaltet.", url: "" }
+          ], data: { email: "new@example.com", accepted_terms: true }, dataTypes: { email: "email", accepted_terms: "boolean" }, x: 360, y: 320 },
+          { id: "error", title: "Error", body: "", components: [{ id: "c_error", type: "text", text: "Eine Demo-Bedingung passt nicht. Zurueck gehen und die vorbefuellten Werte nutzen.", url: "" }], data: {}, x: 630, y: 320 },
           { id: "logged_in", title: "Logged in", body: "", components: [{ id: "c_logged_in", type: "text", text: "Authenticated app area.", url: "" }], data: {}, x: 900, y: 100 },
           { id: "logged_out", title: "Logged out", body: "", components: [{ id: "c_logged_out", type: "text", text: "Session ended. User can return to login.", url: "" }], data: {}, x: 900, y: 320 }
         ],
@@ -4026,6 +4133,7 @@
             renderMode: normalizeStateRenderMode(state.renderMode),
             components: normalizeComponents(state.components || []),
             data: normalizeDataObject(state.data),
+            dataTypes: normalizeDataTypes(state.dataTypes, state.data),
             dataSource: normalizeDataSource(state.dataSource),
             repeat: normalizeRepeatConfig(state.repeat),
             dataWires: normalizeDataWires(state.dataWires),
@@ -4069,6 +4177,7 @@
           renderMode: normalizeStateRenderMode(item.renderMode),
           components: normalizeComponents(item.components || []),
           data: normalizeDataObject(item.data),
+          dataTypes: normalizeDataTypes(item.dataTypes, item.data),
           dataSource: normalizeDataSource(item.dataSource),
           repeat: normalizeRepeatConfig(item.repeat),
           dataWires: normalizeDataWires(item.dataWires),
@@ -4433,6 +4542,20 @@
       return JSON.parse(JSON.stringify(value));
     }
 
+    function validateDataTypesObject(value, path, data = {}) {
+      if (value === undefined) return {};
+      assertPlainObject(value, path);
+      const dataObject = normalizeDataObject(data);
+      const out = {};
+      for (const [key, typeValue] of Object.entries(value)) {
+        const cleanKey = validateBindingPath(key, `${path}.${key}`, { allowEmpty: false });
+        if (!Object.prototype.hasOwnProperty.call(dataObject, cleanKey)) continue;
+        const type = assertString(typeValue, `${path}.${key}`);
+        out[cleanKey] = normalizeStateVariableType(type);
+      }
+      return out;
+    }
+
     function validateContextPath(value, path, { allowEmpty = false, fallback = "fetch" } = {}) {
       if (value === undefined) return allowEmpty ? "" : fallback;
       const text = assertString(value, path, { allowEmpty }).trim();
@@ -4527,12 +4650,14 @@
         if (ids.has(id)) throw new Error(`${path}.id must be unique.`);
         ids.add(id);
         const parentId = "parentId" in state ? assertString(state.parentId, `${path}.parentId`, { allowEmpty: true }) : "";
+        const dataObject = validateDataObject(state.data, `${path}.data`);
         return {
           id,
           title: assertString(state.title, `${path}.title`),
           renderMode: normalizeStateRenderMode(state.renderMode),
           components: validateComponents(state.components, `${path}.components`),
-          data: validateDataObject(state.data, `${path}.data`),
+          data: dataObject,
+          dataTypes: validateDataTypesObject(state.dataTypes, `${path}.dataTypes`, dataObject),
           dataSource: validateDataSource(state.dataSource, `${path}.dataSource`),
           repeat: validateRepeatConfig(state.repeat, `${path}.repeat`),
           dataWires: validateDataWires(state.dataWires, `${path}.dataWires`),
@@ -4633,12 +4758,14 @@
           if (stateIds.has(stateId)) throw new Error(`${statePath}.id must be unique inside the preset.`);
           stateIds.add(stateId);
           const parentId = "parentId" in state ? assertString(state.parentId, `${statePath}.parentId`, { allowEmpty: true }) : "";
+          const dataObject = validateDataObject(state.data, `${statePath}.data`);
           return {
             id: stateId,
             title: assertString(state.title, `${statePath}.title`),
             renderMode: normalizeStateRenderMode(state.renderMode),
             components: validateComponents(state.components, `${statePath}.components`),
-            data: validateDataObject(state.data, `${statePath}.data`),
+            data: dataObject,
+            dataTypes: validateDataTypesObject(state.dataTypes, `${statePath}.dataTypes`, dataObject),
             dataSource: validateDataSource(state.dataSource, `${statePath}.dataSource`),
             repeat: validateRepeatConfig(state.repeat, `${statePath}.repeat`),
             dataWires: validateDataWires(state.dataWires, `${statePath}.dataWires`),
@@ -4677,12 +4804,14 @@
             groupExitId
           };
         });
+        const templateData = validateDataObject(template.data, `${itemPath}.data`);
         return {
           id,
           title: assertString(template.title, `${itemPath}.title`),
           renderMode: normalizeStateRenderMode(template.renderMode),
           components: validateComponents(template.components, `${itemPath}.components`),
-          data: validateDataObject(template.data, `${itemPath}.data`),
+          data: templateData,
+          dataTypes: validateDataTypesObject(template.dataTypes, `${itemPath}.dataTypes`, templateData),
           dataSource: validateDataSource(template.dataSource, `${itemPath}.dataSource`),
           repeat: validateRepeatConfig(template.repeat, `${itemPath}.repeat`),
           dataWires: validateDataWires(template.dataWires, `${itemPath}.dataWires`),
@@ -4781,6 +4910,7 @@
         renderMode: normalizeStateRenderMode(s.renderMode),
         components: normalizeComponents(s.components || []),
         data: normalizeDataObject(s.data),
+        dataTypes: normalizeDataTypes(s.dataTypes, s.data),
         dataSource: normalizeDataSource(s.dataSource),
         repeat: normalizeRepeatConfig(s.repeat),
         dataWires: normalizeDataWires(s.dataWires),
@@ -5135,6 +5265,24 @@
     function normalizeDataObject(value) {
       if (!isPlainObject(value)) return {};
       return JSON.parse(JSON.stringify(value));
+    }
+
+    function normalizeStateVariableType(value, fallback = "text") {
+      const type = String(value || "").trim();
+      return ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"].includes(type) ? type : fallback;
+    }
+
+    function normalizeDataTypes(value, data = {}) {
+      if (!isPlainObject(value)) return {};
+      const dataObject = normalizeDataObject(data);
+      const out = {};
+      for (const [path, type] of Object.entries(value)) {
+        const cleanPath = normalizeBindingPath(path, "");
+        if (cleanPath && Object.prototype.hasOwnProperty.call(dataObject, cleanPath)) {
+          out[cleanPath] = normalizeStateVariableType(type);
+        }
+      }
+      return out;
     }
 
     function normalizeContextPath(path, fallback = "fetch") {
@@ -5747,6 +5895,7 @@
         s.components = normalizeComponents(s.components);
         delete s.body;
         s.data = normalizeDataObject(s.data);
+        s.dataTypes = normalizeDataTypes(s.dataTypes, s.data);
         s.dataSource = normalizeDataSource(s.dataSource);
         s.repeat = normalizeRepeatConfig(s.repeat);
         s.dataWires = normalizeDataWires(s.dataWires);
@@ -7136,6 +7285,7 @@
         );
         copy.components = cloneComponents(snapshot.components);
         copy.data = normalizeDataObject(snapshot.data);
+        copy.dataTypes = normalizeDataTypes(snapshot.dataTypes, copy.data);
         copy.dataSource = normalizeDataSource(snapshot.dataSource);
         copy.repeat = normalizeRepeatConfig(snapshot.repeat);
         copy.subscriptions = normalizeSubscriptions(snapshot.subscriptions);
@@ -10778,6 +10928,72 @@
       return (spaced || fallback).replace(/^./, ch => ch.toUpperCase());
     }
 
+    const STATE_VARIABLE_TYPES = [
+      { value: "text", label: "Text" },
+      { value: "email", label: "Email" },
+      { value: "password", label: "Password" },
+      { value: "number", label: "Number" },
+      { value: "boolean", label: "Boolean" },
+      { value: "url", label: "URL" },
+      { value: "image", label: "Image" },
+      { value: "object", label: "Object" },
+      { value: "list", label: "List" }
+    ];
+
+    function inferStateVariableType(path, value) {
+      const key = String(path || "").toLowerCase();
+      if (typeof value === "boolean") return "boolean";
+      if (typeof value === "number") return "number";
+      if (Array.isArray(value)) return "list";
+      if (isPlainObject(value)) return "object";
+      const text = String(value ?? "");
+      if (/(^|[._-])(password|passwort|secret|token|pin)([._-]|$)/i.test(key)) return "password";
+      if (/(^|[._-])(email|e-mail|mail)([._-]|$)/i.test(key) || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(text)) return "email";
+      if (/(^|[._-])(image|img|photo|avatar|logo|icon|picture)([._-]|$)/i.test(key) || /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(text)) return "image";
+      if (/(^|[._-])(url|href|link|website)([._-]|$)/i.test(key) || /^https?:\/\//i.test(text)) return "url";
+      return "text";
+    }
+
+    function defaultStateVariableValue(type) {
+      if (type === "number") return 0;
+      if (type === "boolean") return false;
+      if (type === "object") return {};
+      if (type === "list") return [];
+      return "";
+    }
+
+    function defaultStateVariablePath(type, data = {}) {
+      const base = {
+        email: "email",
+        password: "password",
+        number: "count",
+        boolean: "accepted",
+        url: "url",
+        image: "imageUrl",
+        object: "profile",
+        list: "items",
+        text: "value"
+      }[type] || "value";
+      let path = base;
+      let index = 2;
+      while (Object.prototype.hasOwnProperty.call(data, path)) {
+        path = base + index;
+        index += 1;
+      }
+      return path;
+    }
+
+    function coerceStateVariableValue(value, type) {
+      if (type === "boolean") return Boolean(value);
+      if (type === "number") {
+        const next = Number(value);
+        return Number.isFinite(next) ? next : 0;
+      }
+      if (type === "object") return isPlainObject(value) ? value : {};
+      if (type === "list") return Array.isArray(value) ? value : [];
+      return String(value ?? "");
+    }
+
     function isScalarDataValue(value) {
       return value == null || ["string", "number", "boolean"].includes(typeof value);
     }
@@ -11654,7 +11870,19 @@
                 </span>
               </summary>
               <div class="inspector-collapse-body">
-                <div class="field"><label>Missing-key defaults</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+                <div class="state-variable-panel">
+                  <div class="state-variable-head">
+                    <div>Variables<span>This state injects these defaults into globalState on enter.</span></div>
+                  </div>
+                  <div id="pStateVariableList" class="state-variable-list"></div>
+                  <div class="state-variable-add">
+                    <input id="pStateVariableName" list="pStateVariableNameList" placeholder="variableName">
+                    <select id="pStateVariableType" aria-label="Variable type"></select>
+                    <button id="pStateVariableAdd" type="button">+ Add</button>
+                    <datalist id="pStateVariableNameList"></datalist>
+                  </div>
+                </div>
+                <div class="field"><label>Advanced JSON</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
                 <div id="pDataPreview" class="condition-preview empty"></div>
               </div>
             </details>
@@ -11728,6 +11956,11 @@
       const layerNote = root.querySelector("#pLayerNote");
       const data = root.querySelector("#pData");
       const dataPreview = root.querySelector("#pDataPreview");
+      const stateVariableList = root.querySelector("#pStateVariableList");
+      const stateVariableName = root.querySelector("#pStateVariableName");
+      const stateVariableNameList = root.querySelector("#pStateVariableNameList");
+      const stateVariableType = root.querySelector("#pStateVariableType");
+      const stateVariableAdd = root.querySelector("#pStateVariableAdd");
       const subscriptions = root.querySelector("#pSubscriptions");
       const subscriptionsPreview = root.querySelector("#pSubscriptionsPreview");
       const subscriptionCount = root.querySelector("#pSubscriptionCount");
@@ -11745,6 +11978,12 @@
       title.addEventListener("focus", () => title.select());
       layerTitle.addEventListener("focus", () => layerTitle.select());
       data.value = JSON.stringify(normalizeDataObject(s.data), null, 2);
+      STATE_VARIABLE_TYPES.forEach(type => {
+        const option = document.createElement("option");
+        option.value = type.value;
+        option.textContent = type.label;
+        stateVariableType.appendChild(option);
+      });
       subscriptions.value = normalizeSubscriptions(s.subscriptions).join("\n");
       const dataCard = root.querySelector("#pDataCard");
       const defaultsCard = root.querySelector("#pDefaultsCard");
@@ -11759,11 +11998,167 @@
       if (hasInitialValues && defaultsCard) defaultsCard.open = true;
       if (hasFetchSource && fetchCard) fetchCard.open = true;
       if (hasRepeatSource && repeatCard) repeatCard.open = true;
-      const updateDataPreview = (persist = true) => {
+      const syncStateDataObject = (nextData, historyKey = "state:data:" + s.id, refreshVariables = true, nextTypes = s.dataTypes) => {
+        s.dataTypes = normalizeDataTypes(nextTypes, nextData);
+        data.value = JSON.stringify(normalizeDataObject(nextData), null, 2);
+        updateDataPreview(true, { historyKey, refreshVariables });
+      };
+      const renderStateVariableList = () => {
+        if (!stateVariableList) return;
+        const entries = Object.entries(normalizeDataObject(s.data));
+        stateVariableList.innerHTML = "";
+        if (!entries.length) {
+          const empty = document.createElement("div");
+          empty.className = "state-variable-empty";
+          empty.textContent = "No variables yet. Add one to inject a default into globalState when this state is entered.";
+          stateVariableList.appendChild(empty);
+          return;
+        }
+        const makeTypeSelect = (path, value) => {
+          const select = document.createElement("select");
+          select.dataset.stateVariableType = "true";
+          select.setAttribute("aria-label", "Variable type");
+          const savedTypes = normalizeDataTypes(s.dataTypes, s.data);
+          const currentType = savedTypes[path] || inferStateVariableType(path, value);
+          STATE_VARIABLE_TYPES.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type.value;
+            option.textContent = type.label;
+            if (type.value === currentType) option.selected = true;
+            select.appendChild(option);
+          });
+          select.onchange = () => {
+            const next = normalizeDataObject(s.data);
+            const nextTypes = normalizeDataTypes(s.dataTypes, next);
+            nextTypes[path] = normalizeStateVariableType(select.value);
+            next[path] = coerceStateVariableValue(next[path], select.value);
+            syncStateDataObject(next, "state:data-variable-type:" + s.id + ":" + path, true, nextTypes);
+          };
+          return select;
+        };
+        const makeValueControl = (path, value, type) => {
+          let control;
+          const updateValue = nextValue => {
+            const next = normalizeDataObject(s.data);
+            next[path] = nextValue;
+            syncStateDataObject(next, "state:data-variable-value:" + s.id + ":" + path, false);
+          };
+          if (type === "boolean") {
+            control = document.createElement("input");
+            control.type = "checkbox";
+            control.checked = Boolean(value);
+            control.onchange = () => updateValue(control.checked);
+          } else if (type === "object" || type === "list") {
+            control = document.createElement("textarea");
+            control.spellcheck = false;
+            control.value = JSON.stringify(value, null, 2);
+            control.oninput = () => {
+              try {
+                const parsed = JSON.parse(control.value || (type === "list" ? "[]" : "{}"));
+                const valid = type === "list" ? Array.isArray(parsed) : isPlainObject(parsed);
+                if (!valid) throw new Error(type === "list" ? "Use a JSON array." : "Use a JSON object.");
+                control.classList.remove("invalid");
+                updateValue(parsed);
+              } catch (_) {
+                control.classList.add("invalid");
+              }
+            };
+          } else {
+            control = document.createElement("input");
+            control.type = type === "password" ? "password" : type === "email" ? "email" : type === "url" || type === "image" ? "url" : "text";
+            control.value = String(value ?? "");
+            control.dataset.stateVariableValue = "true";
+            if (type === "number") {
+              control.type = "text";
+              control.inputMode = "decimal";
+              control.value = String(value ?? 0);
+              control.oninput = () => {
+                const nextNumber = Number(control.value);
+                if (!Number.isFinite(nextNumber)) {
+                  control.classList.add("invalid");
+                  return;
+                }
+                control.classList.remove("invalid");
+                updateValue(nextNumber);
+              };
+            } else {
+              control.oninput = () => updateValue(control.value);
+            }
+          }
+          control.classList.add("state-variable-value-field");
+          control.dataset.stateVariableValue = "true";
+          return control;
+        };
+        entries.forEach(([path, value]) => {
+          const row = document.createElement("div");
+          row.className = "state-variable-row";
+          row.dataset.variablePath = path;
+          const name = document.createElement("input");
+          name.value = path;
+          name.dataset.stateVariableName = "true";
+          name.setAttribute("aria-label", "Variable name");
+          name.onchange = () => {
+            const nextPath = normalizeBindingPath(name.value, "");
+            const next = normalizeDataObject(s.data);
+            if (!nextPath || nextPath !== path && Object.prototype.hasOwnProperty.call(next, nextPath)) {
+              name.value = path;
+              name.classList.add("invalid");
+              return;
+            }
+            name.classList.remove("invalid");
+            if (nextPath === path) return;
+            const nextTypes = normalizeDataTypes(s.dataTypes, next);
+            if (Object.prototype.hasOwnProperty.call(nextTypes, path)) {
+              nextTypes[nextPath] = nextTypes[path];
+              delete nextTypes[path];
+            }
+            next[nextPath] = next[path];
+            delete next[path];
+            syncStateDataObject(next, "state:data-variable-rename:" + s.id + ":" + path, true, nextTypes);
+          };
+          const typeSelect = makeTypeSelect(path, value);
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "danger state-variable-remove";
+          remove.textContent = "x";
+          remove.title = "Remove variable";
+          remove.setAttribute("aria-label", "Remove variable " + path);
+          remove.onclick = () => {
+            const next = normalizeDataObject(s.data);
+            const nextTypes = normalizeDataTypes(s.dataTypes, next);
+            delete next[path];
+            delete nextTypes[path];
+            syncStateDataObject(next, "state:data-variable-remove:" + s.id + ":" + path, true, nextTypes);
+          };
+          const valueControl = makeValueControl(path, value, typeSelect.value);
+          row.append(name, typeSelect, remove, valueControl);
+          stateVariableList.appendChild(row);
+        });
+      };
+      const addStateVariable = () => {
+        const next = normalizeDataObject(s.data);
+        const type = normalizeStateVariableType(stateVariableType.value);
+        const requestedPath = normalizeBindingPath(stateVariableName.value, "");
+        const path = requestedPath || defaultStateVariablePath(type, next);
+        if (!path || Object.prototype.hasOwnProperty.call(next, path)) {
+          stateVariableName.classList.add("invalid");
+          return;
+        }
+        stateVariableName.classList.remove("invalid");
+        const nextTypes = normalizeDataTypes(s.dataTypes, next);
+        next[path] = defaultStateVariableValue(type);
+        nextTypes[path] = type;
+        syncStateDataObject(next, "state:data-variable-add:" + s.id + ":" + path, true, nextTypes);
+        stateVariableName.value = "";
+        renderGlobalStateSubscribeMap();
+        setupEditorAccessibility(root, false);
+      };
+      const updateDataPreview = (persist = true, opts = {}) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
           s.data = normalizeDataObject(parsed);
+          s.dataTypes = normalizeDataTypes(s.dataTypes, s.data);
           const keys = Object.keys(s.data);
           dataPreview.className = "condition-preview" + (keys.length ? " ok" : " empty");
           dataPreview.textContent = keys.length
@@ -11774,9 +12169,10 @@
             initialDataStatus.classList.toggle("active", Boolean(keys.length));
           }
           if (persist) {
-            saveModel("state:data:" + s.id);
+            saveModel(opts.historyKey || "state:data:" + s.id);
             scheduleSync(false);
           }
+          if (opts.refreshVariables !== false) renderStateVariableList();
         } catch (err) {
           dataPreview.className = "condition-preview";
           dataPreview.textContent = err?.message || "Invalid JSON.";
@@ -11815,7 +12211,10 @@
         }
         for (const state of model.states || []) {
           const label = state.id === s.id ? "this state" : state.title || state.id;
-          for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
+          const stateData = normalizeDataObject(state.data);
+          const stateDataTypes = normalizeDataTypes(state.dataTypes, stateData);
+          for (const [key, value] of Object.entries(stateData)) {
+            if (stateDataTypes[key]) bucket.push({ path: key, source: label, type: stateDataTypes[key], value });
             collectDataPathSuggestions(value, key, label, bucket);
           }
           const source = normalizeDataSource(state.dataSource);
@@ -12147,12 +12546,19 @@
         subscriptionPaths.innerHTML = "";
         subscriptionTree.innerHTML = "";
         subscriptionList.innerHTML = "";
+        if (stateVariableNameList) stateVariableNameList.innerHTML = "";
         const suggestions = collectKnownGlobalStatePaths();
         for (const item of suggestions.slice(0, 200)) {
           const option = document.createElement("option");
           option.value = item.path;
           option.label = `${item.source} · ${item.type}`;
           subscriptionList.appendChild(option);
+          if (stateVariableNameList && item.path !== "*" && !isRuntimeBookkeepingPath(item.path)) {
+            const variableOption = document.createElement("option");
+            variableOption.value = item.path;
+            variableOption.label = option.label;
+            stateVariableNameList.appendChild(variableOption);
+          }
         }
         renderBusKeyCards(suggestions, active, wired);
 
@@ -12330,6 +12736,13 @@
       layerTitle.oninput = persistLayerFrameComment;
       layerNote.oninput = persistLayerFrameComment;
       data.oninput = () => updateDataPreview(true);
+      stateVariableAdd.onclick = addStateVariable;
+      stateVariableName.addEventListener("keydown", evt => {
+        if (evt.key !== "Enter") return;
+        evt.preventDefault();
+        addStateVariable();
+      });
+      stateVariableName.addEventListener("input", () => stateVariableName.classList.remove("invalid"));
       subscriptionAdd.onclick = () => {
         toggleGlobalStatePath(subscriptionCustom.value);
         subscriptionCustom.value = "";
@@ -12399,6 +12812,7 @@
         const copy = makeState(s.x + GRID_SIZE * 2, s.y + GRID_SIZE * 5, (s.title || s.id) + " Copy");
         copy.components = cloneComponents(s.components);
         copy.data = normalizeDataObject(s.data);
+        copy.dataTypes = normalizeDataTypes(s.dataTypes, copy.data);
         copy.dataSource = normalizeDataSource(s.dataSource);
         copy.repeat = normalizeRepeatConfig(s.repeat);
         copy.dataWires = normalizeDataWires(s.dataWires);
@@ -12480,6 +12894,7 @@
           const parsed = JSON.parse(data.value || "{}");
           if (!isPlainObject(parsed)) throw new Error("Data must be a JSON object.");
           template.data = normalizeDataObject(parsed);
+          template.dataTypes = normalizeDataTypes(template.dataTypes, template.data);
           dataPreview.textContent = Object.keys(template.data).length ? "Preset fills missing globalState keys on enter." : "No initial globalState values.";
           dataPreview.classList.toggle("empty", !Object.keys(template.data).length);
           if (persist) persistTemplate("template:data:" + template.id);
@@ -12594,7 +13009,10 @@
         suggestions.push({ path: key, source, type });
       };
       const addKnownStateData = (state, label) => {
-        for (const [key, value] of Object.entries(normalizeDataObject(state.data))) {
+        const stateData = normalizeDataObject(state.data);
+        const stateDataTypes = normalizeDataTypes(state.dataTypes, stateData);
+        for (const [key, value] of Object.entries(stateData)) {
+          if (stateDataTypes[key]) add(key, label, stateDataTypes[key]);
           collectDataPathSuggestions(value, key, label, suggestions);
         }
         const source = normalizeDataSource(state.dataSource);
@@ -13138,6 +13556,7 @@
         renderMode: "state",
         components: [],
         data: {},
+        dataTypes: {},
         dataSource: normalizeDataSource(null),
         repeat: normalizeRepeatConfig(null),
         dataWires: [],
@@ -13161,6 +13580,7 @@
         renderMode: normalizeStateRenderMode(s.renderMode),
         components: cloneComponents(s.components),
         data: normalizeDataObject(s.data),
+        dataTypes: normalizeDataTypes(s.dataTypes, s.data),
         dataSource: normalizeDataSource(s.dataSource),
         repeat: normalizeRepeatConfig(s.repeat),
         subscriptions: normalizeSubscriptions(s.subscriptions),
@@ -13309,6 +13729,16 @@
       return out;
     }
 
+    function expandStateScopedDataTypesObject(dataTypes, state) {
+      const out = {};
+      for (const [key, type] of Object.entries(normalizeDataTypes(dataTypes, state.data))) {
+        const scopedKey = expandStateScopedPath(key, state);
+        const cleanKey = normalizeBindingPath(scopedKey, "");
+        if (cleanKey) out[cleanKey] = normalizeStateVariableType(type);
+      }
+      return out;
+    }
+
     function expandStateScopedComponent(component, state) {
       const next = { ...component };
       if (next.dataPath) next.dataPath = normalizeBindingPath(expandStateScopedPath(next.dataPath, state), "");
@@ -13325,7 +13755,9 @@
     }
 
     function applyStateScopedTemplateBindings(state) {
+      const sourceDataTypes = normalizeDataTypes(state.dataTypes, state.data);
       state.data = expandStateScopedDataObject(state.data, state);
+      state.dataTypes = normalizeDataTypes(expandStateScopedDataTypesObject(sourceDataTypes, state), state.data);
       state.components = normalizeComponents(state.components).map(component => expandStateScopedComponent(component, state));
     }
 
@@ -13443,6 +13875,7 @@
       s.renderMode = normalizeStateRenderMode(template.renderMode);
       s.components = cloneComponents(template.components);
       s.data = normalizeDataObject(template.data);
+      s.dataTypes = normalizeDataTypes(template.dataTypes, s.data);
       s.dataSource = normalizeDataSource(template.dataSource);
       s.repeat = normalizeRepeatConfig(template.repeat);
       s.dataWires = normalizeDataWires(template.dataWires);
@@ -13466,6 +13899,7 @@
         next.renderMode = normalizeStateRenderMode(child.renderMode);
         next.components = cloneComponents(child.components);
         next.data = normalizeDataObject(child.data);
+        next.dataTypes = normalizeDataTypes(child.dataTypes, next.data);
         next.dataSource = normalizeDataSource(child.dataSource);
         next.repeat = normalizeRepeatConfig(child.repeat);
         next.dataWires = normalizeDataWires(child.dataWires);

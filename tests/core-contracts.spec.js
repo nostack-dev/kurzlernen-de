@@ -821,6 +821,9 @@ test.describe("Core browser contracts", () => {
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pRepeatCard">');
     expect(html).toContain('<summary class="inspector-collapse-summary">');
     expect(html).toContain('<div class="inspector-collapse-body">');
+    expect(html).toContain('id="pStateVariableList"');
+    expect(html).toContain("function normalizeDataTypes");
+    expect(html).toContain("dataTypes: normalizeDataTypes");
     expect(html).toContain(".inspector-collapse[open] .inspector-collapse-summary::after");
     expect(html).toContain('el.closest("details:not([open])")');
   });
