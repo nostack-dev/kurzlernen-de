@@ -1600,6 +1600,141 @@ test.describe("State Blueprint tool", () => {
     });
   });
 
+  test("keeps layer boundary proxies reusable after deleting the last child state @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    const inputProxyId = "proxy:login:input:__boundary_input";
+    const outputProxyId = "proxy:login:output:__boundary_output";
+
+    await page.evaluate(childId => {
+      const parent = byId("login");
+      setBoundaryEndpoint(parent, "input", childId);
+      setBoundaryEndpoint(parent, "output", childId);
+      ensureDefaultBoundaryTransitions(parent, statesInLayer("login"));
+      saveModel("test:boundary-last-child");
+      draw();
+    }, childId);
+
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    const deleted = await page.evaluate(childId => {
+      selected = selectionFromParts([childId], []);
+      return deleteSelectedItems();
+    }, childId);
+    expect(deleted).toBe(true);
+
+    await expect(page.locator(`[data-id="${childId}"]`)).toHaveCount(0);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      const boundary = parent?.boundary || {};
+      return {
+        childCount: model.states.filter(state => state.parentId === "login").length,
+        entryId: boundary.entryId || "",
+        exitId: boundary.exitId || "",
+        entryDisabled: Boolean(boundary.entryDisabled),
+        exitDisabled: Boolean(boundary.exitDisabled),
+        inputFlow: model.transitions.some(transition => transition.id === "boundary-flow:login:input"),
+        outputFlow: model.transitions.some(transition => transition.id === "boundary-flow:login:output")
+      };
+    }).toEqual({
+      childCount: 0,
+      entryId: "",
+      exitId: "",
+      entryDisabled: false,
+      exitDisabled: false,
+      inputFlow: false,
+      outputFlow: false
+    });
+
+    await addChildByDoubleClick(page, "login", [childId]);
+    const replacementId = await page.evaluate(() => model.states.find(state => state.parentId === "login")?.id || "");
+    expect(replacementId).toBeTruthy();
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${outputProxyId}"][data-port-side="in"]`)).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      const boundary = parent?.boundary || {};
+      return {
+        entryId: boundary.entryId || "",
+        exitId: boundary.exitId || "",
+        entryDisabled: Boolean(boundary.entryDisabled),
+        exitDisabled: Boolean(boundary.exitDisabled),
+        inputFlow: model.transitions.some(transition =>
+          transition.id === "boundary-flow:login:input" &&
+          transition.from === inputProxyId &&
+          transition.to === replacementId
+        ),
+        outputFlow: model.transitions.some(transition =>
+          transition.id === "boundary-flow:login:output" &&
+          transition.from === replacementId &&
+          transition.to === outputProxyId
+        )
+      };
+    }).toEqual({
+      entryId: replacementId,
+      exitId: replacementId,
+      entryDisabled: false,
+      exitDisabled: false,
+      inputFlow: true,
+      outputFlow: true
+    });
+  });
+
+  test("keeps boundary proxies enabled after deleting a legacy boundary transition @smoke", async ({ page }) => {
+    await openTool(page);
+    await openStateLayer(page, "login");
+    const childId = await addChildByDoubleClick(page, "login");
+    const inputProxyId = "proxy:login:input:__boundary_input";
+    const legacyId = "legacy-boundary-login-input";
+
+    const deleted = await page.evaluate(({ childId, legacyId }) => {
+      const parent = byId("login");
+      setBoundaryEndpoint(parent, "input", childId);
+      ensureDefaultBoundaryTransitions(parent, statesInLayer("login"));
+      model.transitions = model.transitions.filter(transition => transition.id !== "boundary-flow:login:input");
+      model.transitions.push({
+        id: legacyId,
+        from: "proxy:login:input:__boundary_input",
+        to: childId,
+        label: "IN",
+        condition: "",
+        set: {},
+        boundaryFlow: { parentId: "login", side: "input", stateId: childId }
+      });
+      const removed = deleteBoundaryFlowById(legacyId);
+      saveModel("test:delete-legacy-boundary-flow");
+      draw();
+      return removed;
+    }, { childId, legacyId });
+    expect(deleted).toBe(true);
+
+    await expect(page.locator(".node.boundary-proxy")).toHaveCount(2);
+    await expect(page.locator(`svg#ports .svg-port[data-state-id="${inputProxyId}"][data-port-side="out"]`)).toHaveCount(1);
+    await expect.poll(async () => {
+      const model = await savedModel(page);
+      const parent = model.states.find(state => state.id === "login");
+      const boundary = parent?.boundary || {};
+      return {
+        entryId: boundary.entryId || "",
+        entryDisabled: Boolean(boundary.entryDisabled),
+        legacyFlow: model.transitions.some(transition => transition.id === legacyId),
+        inputFlow: model.transitions.some(transition =>
+          transition.id === "boundary-flow:login:input" &&
+          transition.from === inputProxyId &&
+          transition.to === childId
+        )
+      };
+    }).toEqual({
+      entryId: childId,
+      entryDisabled: false,
+      legacyFlow: false,
+      inputFlow: true
+    });
+  });
+
   test("selects output proxy references without creating new transitions @smoke", async ({ page }) => {
     await openTool(page);
     await openStateLayer(page, "login");

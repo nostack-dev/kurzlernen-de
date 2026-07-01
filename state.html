@@ -5988,43 +5988,45 @@
       }
     }
 
-    function clearBoundaryEndpoint(parent, side) {
+    function clearBoundaryEndpoint(parent, side, opts = {}) {
       if (!parent) return;
+      const disabled = Boolean(opts.disable);
       if (parent.rootLayer) {
         model.boundary = normalizeBoundaryConfig(model.boundary);
         if (side === "input") {
           model.boundary.entryId = "";
-          model.boundary.entryDisabled = true;
+          model.boundary.entryDisabled = disabled;
         } else {
           model.boundary.exitId = "";
-          model.boundary.exitDisabled = true;
+          model.boundary.exitDisabled = disabled;
         }
       } else {
         parent.boundary = normalizeBoundaryConfig(parent.boundary);
         if (side === "input") {
           parent.boundary.entryId = "";
-          parent.boundary.entryDisabled = true;
+          parent.boundary.entryDisabled = disabled;
         } else {
           parent.boundary.exitId = "";
-          parent.boundary.exitDisabled = true;
+          parent.boundary.exitDisabled = disabled;
         }
       }
     }
 
-    function clearBoundaryRoute(parent) {
+    function clearBoundaryRoute(parent, opts = {}) {
       if (!parent) return;
+      const disabled = Boolean(opts.disable);
       if (parent.rootLayer) {
         model.boundary = normalizeBoundaryConfig(model.boundary);
         model.boundary.entryId = "";
         model.boundary.exitId = "";
-        model.boundary.entryDisabled = true;
-        model.boundary.exitDisabled = true;
+        model.boundary.entryDisabled = disabled;
+        model.boundary.exitDisabled = disabled;
       } else {
         parent.boundary = normalizeBoundaryConfig(parent.boundary);
         parent.boundary.entryId = "";
         parent.boundary.exitId = "";
-        parent.boundary.entryDisabled = true;
-        parent.boundary.exitDisabled = true;
+        parent.boundary.entryDisabled = disabled;
+        parent.boundary.exitDisabled = disabled;
       }
     }
 
@@ -6139,11 +6141,11 @@
       if (children.length !== 1 || children[0]?.id !== state.id) return false;
       const boundary = normalizeBoundaryConfig(parent.rootLayer ? model.boundary : parent.boundary);
       let changed = false;
-      if (!boundary.entryDisabled && !boundary.entryId) {
+      if (!boundary.entryId) {
         setBoundaryEndpoint(parent, "input", state.id);
         changed = true;
       }
-      if (!boundary.exitDisabled && !boundary.exitId) {
+      if (!boundary.exitId) {
         setBoundaryEndpoint(parent, "output", state.id);
         changed = true;
       }
