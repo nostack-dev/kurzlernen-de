@@ -3031,6 +3031,45 @@ test.describe("State Blueprint tool", () => {
     await expect(toast.getByRole("button")).toHaveCount(0);
   });
 
+  test("keeps add render on user data instead of bus event or object branches @smoke", async ({ page }) => {
+    await openTool(page);
+
+    await addComponentState(page, "Join (Verbindungs-Gruppe)");
+    let model = await savedModel(page);
+    const joinState = model.states.find(state => state.title === "Join (Verbindungs-Gruppe)");
+    expect(joinState).toBeTruthy();
+    const scopePath = `states.${joinState.id}`;
+
+    const app = appFrame(page);
+    await app.getByRole("button", { name: "Left" }).click();
+    await expect.poll(async () => page.evaluate(path => {
+      const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
+      const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
+      return read(context, path);
+    }, `${scopePath}.selected`)).toBe("Left");
+
+    const addRenderSelect = page.locator('.data-wire-render-panel select[aria-label="Add render path"]');
+    await expect(addRenderSelect).toBeVisible();
+    await expect(addRenderSelect.locator('option[value="events"]')).toHaveCount(0);
+    await expect(addRenderSelect.locator(`option[value="${scopePath}"]`)).toHaveCount(0);
+    await expect(addRenderSelect.locator(`option[value="${scopePath}.selected"]`)).toHaveCount(1);
+    await expect(addRenderSelect.locator(`option[value="${scopePath}.items"]`)).toHaveCount(1);
+
+    const stateBranchButton = page.locator(`.global-state-json-line[data-path="${scopePath}"] .global-state-json-toggle`);
+    await expect(stateBranchButton).toHaveText("Listen");
+
+    await addRenderSelect.selectOption(`${scopePath}.selected`);
+    await page.locator(".data-wire-render-panel").getByRole("button", { name: "+ Add render" }).click();
+    await expect(app.locator("#screen")).toContainText("Selected: Left");
+    await expect(app.locator("#screen")).not.toContainText("Events:");
+    await expect(app.locator("#screen")).not.toContainText('{"change"');
+
+    model = await savedModel(page);
+    const updated = model.states.find(state => state.id === joinState.id);
+    expect(updated.data).toEqual(joinState.data);
+    expect(updated.dataWires.map(wire => wire.sourcePath)).toContain(`${scopePath}.selected`);
+  });
+
   test("autowires daisy card actions into real FSM states and transition buttons @smoke", async ({ page }) => {
     await openTool(page);
 
