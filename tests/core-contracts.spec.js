@@ -161,7 +161,17 @@ test.describe("Core source contracts", () => {
 
     const appUrl = await page.evaluate(html => URL.createObjectURL(new Blob([html], { type: "text/html" })), generatedAppHtml());
     await page.goto(appUrl);
-    await expect(page.locator("#appName")).toHaveText("Untitled Flow");
+    await expect(page.locator("#appName")).toBeHidden();
+    await page.evaluate(() => window.postMessage({
+      type: "STATE_BLUEPRINT_MODEL",
+      model: {
+        name: "Demo Checkout",
+        initial: "start",
+        states: [{ id: "start", title: "Start", components: [], data: {}, dataTypes: {} }],
+        transitions: []
+      }
+    }, "*"));
+    await expect(page.locator("#appName")).toHaveText("Demo Checkout");
     expect(pageErrors).toEqual([]);
   });
 
@@ -174,6 +184,9 @@ test.describe("Core source contracts", () => {
     expect(appHtml).not.toContain("Play default chime");
     expect(appHtml).not.toContain("{{");
     expect(html).not.toContain("{{");
+    expect(appHtml).toContain("function runtimeDisplayName");
+    expect(appHtml).toContain("syncRuntimeAppName();");
+    expect(appHtml).toContain("overflow: visible;");
     expect(html).not.toContain("legacyDefaultTransitionEvent");
     expect(html).not.toContain('text: "{{fetch.data}}"');
     expect(html).not.toContain('text: "{{item}}"');
