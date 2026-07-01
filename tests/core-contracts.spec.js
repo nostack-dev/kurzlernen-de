@@ -314,6 +314,8 @@ test.describe("Core source contracts", () => {
     expect(appHtml).toContain("function pruneRemovedStateDataDefaults");
     expect(appHtml).toContain("createDaisyComponentElement(component, ownerState, renderOptions)");
     expect(appHtml).not.toContain("component.html");
+    expect(appHtml).not.toContain(".showModal(");
+    expect(appHtml).not.toContain('method="dialog"');
     expect(appHtml).not.toContain("runtimeComponentIsRawDataDump");
     expect(appHtml).not.toContain("runtimeTemplateTouchesPath");
     expect(appHtml).not.toContain("{{");

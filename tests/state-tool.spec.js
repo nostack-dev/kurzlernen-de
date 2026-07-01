@@ -3319,14 +3319,15 @@ test.describe("State Blueprint tool", () => {
     expect(scopePath).toBe(`states.${buttonState.id}`);
     expect(component.dataPath).toBe(scopePath);
     expect(defaults).toMatchObject({
-      label: "Continue",
+      label: "Default",
       clicked: false,
       clickedAt: 0
     });
+    expect(buttonState.dataTypes?.[scopePath]).toBe("object");
     const transition = model.transitions.find(item => item.from === buttonState.id);
     expect(transition).toBeTruthy();
     expect(transition).toMatchObject({
-      label: "Continue",
+      label: "Default",
       triggerType: "button",
       set: { [`${scopePath}.clicked`]: true }
     });
@@ -3337,15 +3338,15 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator(`[data-id="${buttonState.id}"]`).click();
     const app = appFrame(page);
-    await expect(app.getByRole("button", { name: "Continue" })).toBeVisible();
-    await app.getByRole("button", { name: "Continue" }).click();
+    await expect(app.getByRole("button", { name: "Default" })).toBeVisible();
+    await app.getByRole("button", { name: "Default" }).click();
     await expect(app.locator("#statePill")).toHaveText(nextState.id);
     await expect.poll(async () => page.evaluate(path => {
       const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
       const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
       return read(context, path);
     }, scopePath)).toMatchObject({
-      label: "Continue",
+      label: "Default",
       clicked: true
     });
 
@@ -3382,14 +3383,14 @@ test.describe("State Blueprint tool", () => {
     expect(component.dataPath).toBe(scopePath);
     expect(defaults).toMatchObject({
       visible: true,
-      tone: "success",
-      message: "Saved"
+      tone: "info",
+      message: "New message arrived."
     });
 
     await page.locator(`[data-id="${toastState.id}"]`).click();
     const toast = appFrame(page).locator(".toast");
     await expect(toast).toBeVisible();
-    await expect(toast).toContainText("Saved");
+    await expect(toast.locator(".alert.alert-info")).toContainText("New message arrived.");
     await expect(toast.getByRole("button")).toHaveCount(0);
   });
 
@@ -3403,7 +3404,7 @@ test.describe("State Blueprint tool", () => {
 
     const scopePath = `states.${countdownState.id}`;
     expect(countdownState.data[scopePath]).toMatchObject({
-      value: 30,
+      value: 59,
       running: true,
       finished: false,
       startedAt: 0,
@@ -3436,7 +3437,8 @@ test.describe("State Blueprint tool", () => {
     expect(checkboxState).toBeTruthy();
     const scopePath = `states.${checkboxState.id}`;
     expect(checkboxState.data[scopePath]).toMatchObject({
-      label: "Accept terms",
+      legend: "Login options",
+      label: "Remember me",
       checked: false,
       actionLabel: "Continue"
     });
@@ -3459,6 +3461,8 @@ test.describe("State Blueprint tool", () => {
 
     await page.locator(`[data-id="${checkboxState.id}"]`).click();
     const app = appFrame(page);
+    await expect(app.locator("fieldset.fieldset.bg-base-100.border-base-300.rounded-box.w-64.border.p-4")).toBeVisible();
+    await expect(app.locator("legend.fieldset-legend")).toHaveText("Login options");
     await expect(app.locator("input.checkbox.checkbox-primary")).toBeVisible();
     await expect(app.locator(`button[data-transition-id="${transition.id}"]`, { hasText: "Continue" })).toBeVisible();
   });
@@ -3581,15 +3585,16 @@ test.describe("State Blueprint tool", () => {
     await addComponentState(page, "Card (Karte)");
     const model = await savedModel(page);
     const cardState = model.states.find(state => state.title === "Card (Karte)");
-    const cardTransition = model.transitions.find(transition => transition.from === cardState.id && transition.label === "Open");
+    const cardTransition = model.transitions.find(transition => transition.from === cardState.id && transition.label === "Buy Now");
     const cardTarget = model.states.find(state => state.id === cardTransition?.to);
     expect(cardTransition).toBeTruthy();
     expect(cardTransition.triggerType).toBe("button");
     expect(cardTransition.set).toEqual({ [`states.${cardState.id}.clicked`]: true });
-    expect(cardTarget).toMatchObject({ title: "Open", parentId: cardState.parentId || null });
+    expect(cardTarget).toMatchObject({ title: "Buy Now", parentId: cardState.parentId || null });
     await page.locator(`[data-id="${cardState.id}"]`).click();
     let app = appFrame(page);
-    await expect(app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Open" })).toBeVisible();
+    await expect(app.locator(".card.bg-base-100.w-96.shadow-sm figure img")).toHaveAttribute("alt", "Shoes");
+    await expect(app.locator(`button[data-transition-id="${cardTransition.id}"]`, { hasText: "Buy Now" })).toBeVisible();
     await app.locator(`button[data-transition-id="${cardTransition.id}"]`).click();
     await expect(app.locator("#statePill")).toHaveText(cardTarget.id);
   });
@@ -3609,7 +3614,7 @@ test.describe("State Blueprint tool", () => {
     });
     expect(modalTarget).toMatchObject({ title: "Confirm", parentId: modalState.parentId || null });
     const app = appFrame(page);
-    await app.getByRole("button", { name: "Confirm action" }).click();
+    await app.getByRole("button", { name: "open modal" }).click();
     await expect(app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`, { hasText: "Confirm" })).toBeVisible();
     await app.locator(`dialog.modal[open] button[data-transition-id="${modalTransition.id}"]`).click();
     await expect(app.locator("#statePill")).toHaveText(modalTarget.id);
@@ -3651,10 +3656,11 @@ test.describe("State Blueprint tool", () => {
           x: 160,
           y: 160,
           data: {
-            "states.widgets.navbar": { brand: "Workspace", selected: "Home", items: ["Home", "Settings"] },
-            "states.widgets.modal": { open: true, confirmed: false, title: "Confirm action", body: "This writes to globalState.", actionLabel: "Confirm" },
+            "states.widgets.navbar": { brand: "Workspace", selected: "Home", items: ["Home", "Settings"], submenuOpen: true },
+            "states.widgets.modal": { open: false, confirmed: false, openLabel: "open modal", title: "Hello!", body: "Press ESC key or click the button below to close", actionLabel: "Confirm", closeLabel: "Close" },
             "states.widgets.toast": { visible: true, tone: "success", message: "Saved" },
-            "states.widgets.card": { title: "Card title", body: "Useful summary text.", actionLabel: "Open" },
+            "states.widgets.card": { title: "Card Title", body: "A card component has a figure, a body part, and inside body there are title and actions parts", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Shoes", actionLabel: "Buy Now" },
+            "states.widgets.checkbox": { legend: "Login options", label: "Remember me", checked: false },
             "states.widgets.input": { label: "Name", value: "Ada" },
             "states.widgets.progress": { value: 45, max: 100, label: "Progress" },
             "states.widgets.table": { columns: ["Name", "Status"], rows: [["Ada", "Active"]] }
@@ -3664,6 +3670,7 @@ test.describe("State Blueprint tool", () => {
             { id: "modal", type: "daisy", variant: "modal", dataPath: "states.widgets.modal", dataRole: "widget", dataLabel: "Modal" },
             { id: "toast", type: "daisy", variant: "toast", dataPath: "states.widgets.toast", dataRole: "widget", dataLabel: "Toast" },
             { id: "card", type: "daisy", variant: "card", dataPath: "states.widgets.card", dataRole: "widget", dataLabel: "Card" },
+            { id: "checkbox", type: "daisy", variant: "checkbox", dataPath: "states.widgets.checkbox", dataRole: "widget", dataLabel: "Checkbox" },
             { id: "input", type: "daisy", variant: "input", dataPath: "states.widgets.input", dataRole: "widget", dataLabel: "Input" },
             { id: "progress", type: "daisy", variant: "progress", dataPath: "states.widgets.progress", dataRole: "widget", dataLabel: "Progress" },
             { id: "table", type: "daisy", variant: "table", dataPath: "states.widgets.table", dataRole: "widget", dataLabel: "Table" }
@@ -3684,13 +3691,23 @@ test.describe("State Blueprint tool", () => {
     const app = appFrame(page);
     await expect(page.locator('[data-id="widgets"]')).toBeVisible();
     await expect(app.locator(".navbar.bg-base-100.shadow-sm .menu.menu-horizontal")).toBeVisible();
-    await expect(app.locator("dialog.modal[open] .modal-box .modal-action .btn.btn-primary")).toHaveText("Confirm");
     await expect(app.locator(".toast.toast-top.toast-end .alert.alert-success")).toContainText("Saved");
-    await expect(app.locator(".card.bg-base-100.shadow-sm .card-body .card-actions .btn.btn-primary")).toHaveText("Open");
+    await expect(app.locator(".card.bg-base-100.w-96.shadow-sm figure img")).toHaveAttribute("alt", "Shoes");
+    await expect(app.locator(".card.bg-base-100.w-96.shadow-sm .card-body .card-actions .btn.btn-primary")).toHaveText("Buy Now");
+    await expect(app.locator("fieldset.fieldset.bg-base-100.border-base-300.rounded-box.w-64.border.p-4 input.checkbox.checkbox-primary")).toBeVisible();
     await expect(app.locator("input.input.input-bordered")).toHaveValue("Ada");
     await expect(app.locator("progress.progress.progress-primary")).toHaveAttribute("value", "45");
     await expect(app.locator("table.table")).toBeVisible();
 
+    await app.locator("fieldset input.checkbox.checkbox-primary").click();
+    await expect.poll(async () => page.evaluate(() => {
+      const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
+      const context = typeof latestRuntimeContext !== "undefined" ? latestRuntimeContext : {};
+      return read(context, "states.widgets.checkbox.checked");
+    })).toBe(true);
+
+    await app.getByRole("button", { name: "open modal" }).click();
+    await expect(app.locator("dialog.modal[open] .modal-box .modal-action .btn.btn-primary")).toHaveText("Confirm");
     await app.locator("dialog.modal[open] .modal-action .btn.btn-primary").click();
     await expect.poll(async () => page.evaluate(() => {
       const read = (source, dottedPath) => dottedPath.split(".").reduce((value, key) => value?.[key], source);
@@ -3717,10 +3734,10 @@ test.describe("State Blueprint tool", () => {
       "states.navs.title": { layout: "title-only", brand: "Solo" },
       "states.navs.titleIcon": { layout: "title-icon", brand: "Icon", iconAction: "More" },
       "states.navs.icons": { layout: "icons", brand: "Icons", menuAction: "Menu", iconAction: "More" },
-      "states.navs.menu": { layout: "menu-submenu", brand: "Menu", selected: "Link", items: ["Link"], parent: "Parent", submenu: ["Link 1", "Link 2"] },
-      "states.navs.search": { layout: "search-dropdown", brand: "Search", search: "", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" },
-      "states.navs.cart": { layout: "cart-profile", brand: "Cart", cartCount: 8, cartLabel: "Items", subtotal: "$999", actionLabel: "View cart", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" },
-      "states.navs.center": { layout: "center-logo", brand: "Center", menuItems: ["Homepage", "Portfolio", "About"], iconAction: "More" },
+      "states.navs.menu": { layout: "menu-submenu", brand: "Menu", selected: "Link", items: ["Link"], parent: "Parent", submenu: ["Link 1", "Link 2"], submenuOpen: true },
+      "states.navs.search": { layout: "search-dropdown", brand: "Search", search: "", profileOpen: false, avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" },
+      "states.navs.cart": { layout: "cart-profile", brand: "Cart", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Items", subtotal: "$999", actionLabel: "View cart", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" },
+      "states.navs.center": { layout: "center-logo", brand: "Center", menuOpen: false, menuItems: ["Homepage", "Portfolio", "About"], iconAction: "More" },
       "states.navs.colors": { layout: "colors", brand: "Color", selected: "Dashboard", items: ["Dashboard", "Tasks", "Settings"], tone: "primary" }
     };
     const model = {
@@ -3781,6 +3798,12 @@ test.describe("State Blueprint tool", () => {
     await expect(navbars.nth(4).locator("input.input.input-bordered")).toHaveAttribute("placeholder", "Search");
     await expect(navbars.nth(4).locator(".dropdown.dropdown-end .avatar img")).toBeVisible();
     await expect(navbars.nth(4).locator(".dropdown-content")).toBeHidden();
+    await navbars.nth(4).locator(".dropdown.dropdown-end [role='button']").click();
+    await expect(navbars.nth(4).locator(".dropdown-content")).toBeVisible();
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return context.states?.navs?.search?.profileOpen;
+    }).toBe(true);
     await expect.poll(async () => navbars.nth(4).evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(90);
     await expect.poll(async () => navbars.nth(4).evaluate(el => {
       const bounds = el.getBoundingClientRect();
@@ -3790,7 +3813,11 @@ test.describe("State Blueprint tool", () => {
       });
     })).toBe(true);
     await expect(navbars.nth(5).locator(".indicator .badge-sm")).toHaveText("8");
-    await navbars.nth(5).locator(".dropdown.dropdown-end").first().hover();
+    await navbars.nth(5).locator(".dropdown.dropdown-end").first().locator("[role='button']").click();
+    await expect.poll(async () => {
+      const context = await runtimeContext(page);
+      return context.states?.navs?.cart?.cartOpen;
+    }).toBe(true);
     await expect(navbars.nth(5).locator(".card.dropdown-content .card-actions .btn-primary")).toHaveText("View cart");
     await expect(navbars.nth(6).locator(".navbar-center .btn.text-xl")).toHaveText("Center");
     await expect(navbars.nth(7)).toHaveClass(/bg-primary/);
@@ -3822,16 +3849,16 @@ test.describe("State Blueprint tool", () => {
     });
     expect(heroState.data[scopePath]).toMatchObject({
       layout: "overlay",
-      actionLabel: "Explore"
+      actionLabel: "Get Started"
     });
 
-    const transition = model.transitions.find(item => item.from === heroState.id && item.label === "Explore");
+    const transition = model.transitions.find(item => item.from === heroState.id && item.label === "Get Started");
     expect(transition).toBeTruthy();
     expect(transition.set).toEqual({ [`${scopePath}.clicked`]: true });
     const app = appFrame(page);
-    await expect(app.locator(".hero.bg-base-200.hero-overlay .hero-overlay-layer")).toBeVisible();
-    await expect(app.locator(".hero.bg-base-200.hero-overlay .hero-content.text-center")).toBeVisible();
-    await expect(app.locator(`.hero button[data-transition-id="${transition.id}"]`, { hasText: "Explore" })).toBeVisible();
+    await expect(app.locator(".hero.min-h-screen .hero-overlay")).toBeVisible();
+    await expect(app.locator(".hero.min-h-screen .hero-content.text-neutral-content.text-center")).toBeVisible();
+    await expect(app.locator(`.hero button[data-transition-id="${transition.id}"]`, { hasText: "Get Started" })).toBeVisible();
   });
 
   test("runs while loops as conditional self-transitions with a normal exit", async ({ page }) => {

@@ -3482,15 +3482,173 @@
       const heroCss = `    .hero { padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(135deg, rgba(56,189,248,.12), rgba(245,158,11,.08)); }
     .hero-content { display: grid; gap: 10px; }`;
       const heroCssEnhanced = `    .hero { position: relative; min-height: 260px; overflow: hidden; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(135deg, rgba(56,189,248,.12), rgba(245,158,11,.08)); background-position: center; background-size: cover; }
-    .hero.hero-overlay { min-height: 320px; place-items: center; color: #f8fbff; }
-    .hero-overlay-layer { position: absolute; inset: 0; background: rgba(2,6,23,.58); }
-    .hero-content { position: relative; z-index: 1; display: grid; gap: 14px; width: min(760px, 100%); margin-inline: auto; }
+    .hero.min-h-screen { min-height: min(480px, calc(100vh - 80px)); }
+    .hero > .hero-overlay { position: absolute; inset: 0; background: rgba(2,6,23,.58); }
+    .hero-content { position: relative; z-index: 1; display: grid; gap: 14px; width: min(760px, 100%); margin-inline: auto; align-items: center; }
     .hero-content.text-center { text-align: center; justify-items: center; }
-    .hero-content.hero-with-figure { grid-template-columns: minmax(0, 1fr) minmax(160px, .78fr); align-items: center; text-align: left; }
-    .hero-content.hero-reverse { grid-template-columns: minmax(160px, .78fr) minmax(0, 1fr); }
-    .hero-figure { display: block; width: 100%; max-height: 240px; object-fit: cover; border-radius: 16px; border: 1px solid var(--line-strong); background: #020617; box-shadow: 0 18px 44px rgba(0,0,0,.34); }
-    .hero-copy { display: grid; gap: 10px; min-width: 0; }
-    .hero-form-card { display: grid; gap: 10px; width: min(320px, 100%); padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(8,24,39,.86); box-shadow: 0 18px 44px rgba(0,0,0,.28); }`;
+    .hero-content.flex-col { display: flex; flex-direction: column; }
+    .hero-content .card { width: min(24rem, 100%); }
+    @media (min-width: 1024px) {
+      .hero-content.lg\\:flex-row { flex-direction: row; }
+      .hero-content.lg\\:flex-row-reverse { flex-direction: row-reverse; }
+      .lg\\:text-left { text-align: left; }
+    }
+    .max-w-md { max-width: 28rem; }
+    .max-w-sm { max-width: min(24rem, 100%); }
+    .rounded-lg { border-radius: 14px; }
+    .shadow-2xl { box-shadow: 0 22px 70px rgba(0,0,0,.42); }
+    .text-5xl { font-size: clamp(32px, 8vw, 48px); line-height: 1; }
+    .mb-5 { margin-bottom: 20px; }
+    .py-6 { padding-block: 24px; }
+    .text-neutral-content { color: #f8fbff; }
+    .card figure { margin: 0; overflow: hidden; }
+    .card figure img { display: block; width: 100%; max-height: 260px; object-fit: cover; }
+    .fieldset { display: grid; gap: 10px; min-width: 0; margin: 0; }
+    .fieldset-legend { color: #f8fbff; font-weight: 900; }
+    .label { display: inline-flex; align-items: center; gap: 10px; color: var(--text); }
+    .cursor-pointer { cursor: pointer; }
+    .border { border: 1px solid var(--line); }
+    .border-base-300 { border-color: var(--line-strong); }
+    .w-64 { width: min(16rem, 100%); }
+    .w-96 { width: min(24rem, 100%); }
+    .w-full { width: 100%; }
+    .shrink-0 { flex-shrink: 0; }
+    .link { color: #7dd3fc; text-decoration: none; }
+    .link-hover:hover { text-decoration: underline; }
+    .mt-4 { margin-top: 16px; }
+    .btn-neutral { background: #111827; border-color: #374151; color: #f8fbff; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .text-2xl { font-size: 24px; }
+    .text-6xl { font-size: 60px; }
+    .absolute { position: absolute; }
+    .right-2 { right: 8px; }
+    .top-2 { top: 8px; }
+    .h-6 { height: 24px; }
+    .w-6 { width: 24px; }
+    .alert.alert-has-icon::before { display: none; }
+    .daisy-widget.daisy-modal { pointer-events: none; }
+    .daisy-widget.daisy-modal > .btn,
+    .daisy-widget.daisy-modal .modal { pointer-events: auto; }`;
+      const dropdownCss = `    .dropdown:hover > .dropdown-content,
+    .dropdown:focus-within > .dropdown-content,
+    .dropdown[data-open="true"] > .dropdown-content { display: grid; }`;
+      const dropdownCssEnhanced = `    .dropdown[data-open="true"] > .dropdown-content { display: grid; }`;
+      const buttonJs = `      } else if (variant === "button") {
+        const actions = document.createElement("div");
+        actions.className = "daisy-actions";
+        if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "daisy-button", { component })) {
+          actions.appendChild(createDaisyButton(daisyDataText(component, "label", title), () => {
+            daisyWrite(component, "clicked", true);
+            daisyWrite(component, "clickedAt", Date.now());
+          }, "btn-primary"));
+        }
+        el.appendChild(actions);`;
+      const buttonJsEnhanced = `      } else if (variant === "button") {
+        const actions = document.createElement("div");
+        actions.className = "daisy-actions";
+        const tone = cleanTone("");
+        const className = tone ? "btn-" + tone : "";
+        if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "daisy-button", { component })) {
+          actions.appendChild(createDaisyButton(daisyDataText(component, "label", title), () => {
+            daisyWrite(component, "clicked", true);
+            daisyWrite(component, "clickedAt", Date.now());
+          }, className));
+        }
+        el.appendChild(actions);`;
+      const modalJs = `      } else if (variant === "modal") {
+        const open = daisyDataBool(component, "open", false);
+        const modalTransitions = daisyActionTransitions(ownerState, renderOptions, component);
+        el.appendChild(createDaisyButton(daisyDataText(component, "title", title), () => daisyWrite(component, "open", true, { render: true })));
+        if (!open) modalTransitions.forEach(transition => renderOptions.renderedTransitionIds?.add?.(transition.id));
+        if (open) {
+          const modal = document.createElement("dialog");
+          modal.className = "modal";
+          modal.open = true;
+          const box = document.createElement("div");
+          box.className = "modal-box";
+          appendDaisyText(box, "h3", "font-bold text-lg", title);
+          if (body) appendDaisyText(box, "p", "py-4", body);
+          const actions = document.createElement("div");
+          actions.className = "modal-action";
+          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "modal", { component })) {
+            actions.appendChild(createDaisyButton(daisyDataText(component, "actionLabel", "Confirm"), () => { daisyWrite(component, "confirmed", true); daisyWrite(component, "open", false, { render: true }); }, "btn-primary"));
+          }
+          actions.appendChild(createDaisyButton("Close", () => daisyWrite(component, "open", false, { render: true }), "btn-ghost"));
+          box.appendChild(actions);
+          modal.appendChild(box);
+          el.appendChild(modal);
+        }`;
+      const modalJsEnhanced = `      } else if (variant === "modal") {
+        const open = daisyDataBool(component, "open", false);
+        const modalTransitions = daisyActionTransitions(ownerState, renderOptions, component);
+        el.appendChild(createDaisyButton(daisyDataText(component, "openLabel", "open modal"), () => daisyWrite(component, "open", true, { render: true })));
+        if (!open) modalTransitions.forEach(transition => renderOptions.renderedTransitionIds?.add?.(transition.id));
+        if (open) {
+          const modal = document.createElement("dialog");
+          modal.id = String(component.id || "daisy_modal").replace(/[^a-zA-Z0-9_-]/g, "_");
+          modal.className = "modal";
+          modal.open = true;
+          const box = document.createElement("div");
+          box.className = "modal-box";
+          appendDaisyText(box, "h3", "font-bold text-lg", title);
+          if (body) appendDaisyText(box, "p", "py-4", body);
+          const actions = document.createElement("div");
+          actions.className = "modal-action";
+          if (!appendDaisyTransitionButtons(actions, ownerState, renderOptions, "modal", { component })) {
+            actions.appendChild(createDaisyButton(daisyDataText(component, "actionLabel", "Confirm"), () => {
+              daisyWrite(component, "confirmed", true);
+              daisyWrite(component, "open", false, { render: true });
+            }, "btn-primary"));
+          }
+          actions.appendChild(createDaisyButton(daisyDataText(component, "closeLabel", "Close"), () => daisyWrite(component, "open", false, { render: true }), "btn"));
+          box.appendChild(actions);
+          modal.appendChild(box);
+          el.appendChild(modal);
+        }`;
+      const checkJs = `      } else if (["checkbox", "toggle"].includes(variant)) {
+        const key = "checked";
+        const label = document.createElement("label");
+        label.className = "daisy-check label cursor-pointer";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = variant === "toggle" ? "toggle toggle-primary" : "checkbox checkbox-primary";
+        input.checked = daisyDataBool(component, key, false);
+        input.onchange = () => daisyWrite(component, key, input.checked, { render: true });
+        label.append(input, document.createTextNode(daisyDataText(component, "label", title)));
+        el.appendChild(label);`;
+      const checkJsEnhanced = `      } else if (["checkbox", "toggle"].includes(variant)) {
+        const key = "checked";
+        const fieldset = document.createElement("fieldset");
+        fieldset.className = "fieldset bg-base-100 border-base-300 rounded-box w-64 border p-4";
+        appendDaisyText(fieldset, "legend", "fieldset-legend", daisyDataText(component, "legend", "Login options"));
+        const label = document.createElement("label");
+        label.className = "label cursor-pointer";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = variant === "toggle" ? "toggle toggle-primary" : "checkbox checkbox-primary";
+        input.checked = daisyDataBool(component, key, false);
+        input.onchange = () => daisyWrite(component, key, input.checked, { render: true });
+        label.append(input, document.createTextNode(daisyDataText(component, "label", "Remember me")));
+        fieldset.appendChild(label);
+        el.appendChild(fieldset);`;
+      const countdownJs = `      } else if (variant === "countdown") {
+        const remaining = daisyCountdownRemaining(component);
+        appendDaisyText(el, "span", "countdown stat-value text-primary", String(remaining));
+        appendDaisyText(el, "div", "daisy-mini", daisyDataText(component, "label", title));
+        scheduleDaisyCountdown(component, ownerState);`;
+      const countdownJsEnhanced = `      } else if (variant === "countdown") {
+        const remaining = daisyCountdownRemaining(component);
+        const countdown = document.createElement("span");
+        countdown.className = "countdown font-mono text-2xl";
+        const value = document.createElement("span");
+        value.style.setProperty("--value", String(remaining));
+        value.setAttribute("aria-live", "polite");
+        value.setAttribute("aria-label", String(remaining));
+        value.textContent = String(remaining);
+        countdown.appendChild(value);
+        el.appendChild(countdown);
+        appendDaisyText(el, "div", "daisy-mini", daisyDataText(component, "label", title));
+        scheduleDaisyCountdown(component, ownerState);`;
       const heroJs = `      } else if (variant === "card" || variant === "hero") {
         el.className = daisyClass(el.className, variant === "hero" ? "hero bg-base-200" : "card bg-base-100 shadow-sm");
         const box = document.createElement("div");
@@ -3512,20 +3670,6 @@
         if (variant === "hero") {
           const layout = daisyDataText(component, "layout", "centered");
           const image = safeComponentUrl(daisyDataText(component, "image", ""));
-          el.className = daisyClass(el.className, "hero bg-base-200", layout === "overlay" ? "hero-overlay" : "");
-          if (layout === "overlay" && image) {
-            el.style.backgroundImage = "linear-gradient(rgba(2,6,23,.12), rgba(2,6,23,.18)), url('" + image.replace(/'/g, "%27") + "')";
-            const overlay = document.createElement("div");
-            overlay.className = "hero-overlay-layer";
-            el.appendChild(overlay);
-          }
-          const box = document.createElement("div");
-          const withFigure = layout === "figure" || layout === "figure-reverse";
-          box.className = daisyClass("hero-content", withFigure ? (layout === "figure-reverse" ? "hero-with-figure hero-reverse" : "hero-with-figure") : "text-center");
-          const copy = document.createElement("div");
-          copy.className = "hero-copy";
-          appendDaisyText(copy, "h2", "daisy-title", title);
-          if (body) appendDaisyText(copy, "p", "daisy-copy", body);
           const appendHeroActions = parent => {
             if (!actionLabel && !daisyActionTransitions(ownerState, renderOptions, component).length) return;
             const actions = document.createElement("div");
@@ -3535,32 +3679,87 @@
             }
             parent.appendChild(actions);
           };
+          const heroCopy = (className = "max-w-md", paragraphClass = "py-6") => {
+            const copy = document.createElement("div");
+            copy.className = className;
+            appendDaisyText(copy, "h1", "text-5xl font-bold", title);
+            if (body) appendDaisyText(copy, "p", paragraphClass, body);
+            appendHeroActions(copy);
+            return copy;
+          };
           if (layout === "form") {
+            el.className = daisyClass(el.className, "hero bg-base-200 min-h-screen");
+            const box = document.createElement("div");
+            box.className = "hero-content flex-col lg:flex-row-reverse";
+            const copy = document.createElement("div");
+            copy.className = "text-center lg:text-left";
+            appendDaisyText(copy, "h1", "text-5xl font-bold", title);
+            if (body) appendDaisyText(copy, "p", "py-6", body);
             const card = document.createElement("div");
-            card.className = "hero-form-card";
-            const input = document.createElement("input");
-            input.className = "input input-bordered";
-            input.placeholder = daisyDataText(component, "label", "Email");
-            input.value = daisyDataText(component, "value", "");
-            input.oninput = () => daisyWrite(component, "value", input.value);
-            card.appendChild(input);
-            appendHeroActions(card);
+            card.className = "card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl";
+            const bodyEl = document.createElement("div");
+            bodyEl.className = "card-body";
+            const fieldset = document.createElement("fieldset");
+            fieldset.className = "fieldset";
+            appendDaisyText(fieldset, "label", "label", daisyDataText(component, "emailLabel", "Email"));
+            const email = document.createElement("input");
+            email.type = "email";
+            email.className = "input";
+            email.placeholder = daisyDataText(component, "emailLabel", "Email");
+            email.value = daisyDataText(component, "email", "");
+            email.oninput = () => daisyWrite(component, "email", email.value);
+            appendDaisyText(fieldset, "label", "label", daisyDataText(component, "passwordLabel", "Password"));
+            const password = document.createElement("input");
+            password.type = "password";
+            password.className = "input";
+            password.placeholder = daisyDataText(component, "passwordLabel", "Password");
+            password.value = daisyDataText(component, "password", "");
+            password.oninput = () => daisyWrite(component, "password", password.value);
+            const forgot = document.createElement("div");
+            appendDaisyText(forgot, "a", "link link-hover", daisyDataText(component, "forgotLabel", "Forgot password?"));
+            fieldset.append(email, password, forgot);
+            appendHeroActions(fieldset);
+            bodyEl.appendChild(fieldset);
+            card.appendChild(bodyEl);
             box.append(copy, card);
-          } else if (withFigure) {
+            el.appendChild(box);
+          } else if (layout === "figure" || layout === "figure-reverse") {
+            el.className = daisyClass(el.className, "hero bg-base-200 min-h-screen");
+            const box = document.createElement("div");
+            box.className = daisyClass("hero-content flex-col", layout === "figure-reverse" ? "lg:flex-row-reverse" : "lg:flex-row");
             const img = document.createElement("img");
-            img.className = "hero-figure";
-            img.src = image || "https://picsum.photos/seed/state-hero/640/420";
+            img.className = "max-w-sm rounded-lg shadow-2xl";
+            img.src = image || "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp";
             img.alt = title;
-            appendHeroActions(copy);
-            if (layout === "figure-reverse") box.append(img, copy);
-            else box.append(copy, img);
+            box.append(img, heroCopy(""));
+            el.appendChild(box);
+          } else if (layout === "overlay") {
+            el.className = daisyClass(el.className, "hero min-h-screen");
+            if (image) el.style.backgroundImage = "url('" + image.replace(/'/g, "%27") + "')";
+            const overlay = document.createElement("div");
+            overlay.className = "hero-overlay";
+            const box = document.createElement("div");
+            box.className = "hero-content text-neutral-content text-center";
+            box.appendChild(heroCopy("max-w-md", "mb-5"));
+            el.append(overlay, box);
           } else {
-            appendHeroActions(copy);
-            box.appendChild(copy);
+            el.className = daisyClass(el.className, "hero bg-base-200 min-h-screen");
+            const box = document.createElement("div");
+            box.className = "hero-content text-center";
+            box.appendChild(heroCopy("max-w-md"));
+            el.appendChild(box);
           }
-          el.appendChild(box);
         } else {
-          el.className = daisyClass(el.className, "card bg-base-100 shadow-sm");
+          el.className = daisyClass(el.className, "card bg-base-100 w-96 shadow-sm");
+          const image = safeComponentUrl(daisyDataText(component, "image", ""));
+          if (image) {
+            const figure = document.createElement("figure");
+            const img = document.createElement("img");
+            img.src = image;
+            img.alt = daisyDataText(component, "imageAlt", title);
+            figure.appendChild(img);
+            el.appendChild(figure);
+          }
           const box = document.createElement("div");
           box.className = "card-body";
           appendDaisyText(box, "h2", "card-title", title);
@@ -3575,9 +3774,79 @@
           }
           el.appendChild(box);
         }`;
-      return html
+      const alertJs = `      } else if (variant === "alert") {
+        el.className = daisyClass(el.className, "alert", "alert-" + cleanTone("info"));
+        el.setAttribute("role", "alert");
+        appendDaisyText(el, "span", "", daisyDataText(component, "message", body || title));`;
+      const alertJsEnhanced = `      } else if (variant === "alert") {
+        const tone = cleanTone("info");
+        el.className = daisyClass(el.className, "alert alert-has-icon", "alert-" + tone);
+        el.setAttribute("role", "alert");
+        const paths = {
+          info: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+          success: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+          warning: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+          error: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+        };
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("class", daisyClass("h-6 w-6 shrink-0 stroke-current", tone === "info" ? "text-info" : ""));
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        path.setAttribute("stroke-width", "2");
+        path.setAttribute("d", paths[tone] || paths.info);
+        svg.appendChild(path);
+        el.appendChild(svg);
+        appendDaisyText(el, "span", "", daisyDataText(component, "message", body || title));`;
+      let next = html
         .replace(heroCss, heroCssEnhanced)
+        .replace(dropdownCss, dropdownCssEnhanced)
+        .replace(buttonJs, buttonJsEnhanced)
+        .replace(modalJs, modalJsEnhanced)
+        .replace(checkJs, checkJsEnhanced)
+        .replace(countdownJs, countdownJsEnhanced)
+        .replace(alertJs, alertJsEnhanced)
         .replace(heroJs, heroJsEnhanced);
+      next = next
+        .replace(`          const dropdown = document.createElement("div");
+          dropdown.className = "dropdown dropdown-end";
+          const trigger = document.createElement("div");`, `          const dropdown = document.createElement("div");
+          dropdown.className = "dropdown dropdown-end";
+          dropdown.dataset.open = String(daisyDataBool(component, "profileOpen", false));
+          const trigger = document.createElement("div");`)
+        .replace(`          trigger.tabIndex = 0;
+          trigger.setAttribute("role", "button");
+          trigger.className = "btn btn-ghost btn-circle avatar";`, `          trigger.tabIndex = 0;
+          trigger.setAttribute("role", "button");
+          trigger.onclick = () => daisyWrite(component, "profileOpen", !daisyDataBool(component, "profileOpen", false), { render: true });
+          trigger.className = "btn btn-ghost btn-circle avatar";`)
+        .replace(`          const cart = document.createElement("div");
+          cart.className = "dropdown dropdown-end";
+          const trigger = document.createElement("div");`, `          const cart = document.createElement("div");
+          cart.className = "dropdown dropdown-end";
+          cart.dataset.open = String(daisyDataBool(component, "cartOpen", false));
+          const trigger = document.createElement("div");`)
+        .replace(`          trigger.tabIndex = 0;
+          trigger.setAttribute("role", "button");
+          trigger.className = "btn btn-ghost btn-circle";
+          const indicator = document.createElement("div");`, `          trigger.tabIndex = 0;
+          trigger.setAttribute("role", "button");
+          trigger.onclick = () => daisyWrite(component, "cartOpen", !daisyDataBool(component, "cartOpen", false), { render: true });
+          trigger.className = "btn btn-ghost btn-circle";
+          const indicator = document.createElement("div");`)
+        .replace(`          dropdown.className = "dropdown";
+          dropdown.appendChild(iconButton(daisyDataText(component, "menuAction", "Menu"), "menuShort"));`, `          dropdown.className = "dropdown";
+          dropdown.dataset.open = String(daisyDataBool(component, "menuOpen", false));
+          dropdown.onclick = evt => {
+            if (evt.target?.closest?.(".dropdown-content")) return;
+            daisyWrite(component, "menuOpen", !daisyDataBool(component, "menuOpen", false), { render: true });
+          };
+          dropdown.appendChild(iconButton(daisyDataText(component, "menuAction", "Menu"), "menuShort"));`)
+        .replace(`            details.open = true;`, `            details.open = daisyDataBool(component, "submenuOpen", true);
+            details.ontoggle = () => daisyWrite(component, "submenuOpen", details.open, { render: true });`);
+      return next;
     }
 
     const GENERATED_APP_HTML = enhanceGeneratedAppHtml(APP_HTML);
@@ -4548,7 +4817,7 @@
       const dataObject = normalizeDataObject(data);
       const out = {};
       for (const [key, typeValue] of Object.entries(value)) {
-        const cleanKey = validateBindingPath(key, `${path}.${key}`, { allowEmpty: false });
+        const cleanKey = validateDataTypePath(key, `${path}.${key}`, { allowEmpty: false });
         if (!Object.prototype.hasOwnProperty.call(dataObject, cleanKey)) continue;
         const type = assertString(typeValue, `${path}.${key}`);
         out[cleanKey] = normalizeStateVariableType(type);
@@ -4577,6 +4846,14 @@
     }
 
     function validateComponentDataPath(value, path, { allowEmpty = false } = {}) {
+      if (value === undefined) return allowEmpty ? "" : "";
+      const text = assertString(value, path, { allowEmpty }).trim();
+      if (!text) return allowEmpty ? "" : "";
+      if (isStateScopedPathToken(text)) return text;
+      return validateBindingPath(text, path, { allowEmpty });
+    }
+
+    function validateDataTypePath(value, path, { allowEmpty = false } = {}) {
       if (value === undefined) return allowEmpty ? "" : "";
       const text = assertString(value, path, { allowEmpty }).trim();
       if (!text) return allowEmpty ? "" : "";
@@ -5272,12 +5549,18 @@
       return ["text", "email", "password", "number", "boolean", "url", "image", "object", "list"].includes(type) ? type : fallback;
     }
 
+    function normalizeDataTypePath(path, fallback = "") {
+      const text = String(path || "").trim();
+      if (isStateScopedPathToken(text)) return text;
+      return normalizeBindingPath(text, fallback);
+    }
+
     function normalizeDataTypes(value, data = {}) {
       if (!isPlainObject(value)) return {};
       const dataObject = normalizeDataObject(data);
       const out = {};
       for (const [path, type] of Object.entries(value)) {
-        const cleanPath = normalizeBindingPath(path, "");
+        const cleanPath = normalizeDataTypePath(path, "");
         if (cleanPath && Object.prototype.hasOwnProperty.call(dataObject, cleanPath)) {
           out[cleanPath] = normalizeStateVariableType(type);
         }
@@ -10096,39 +10379,42 @@
       });
       const daisyTemplate = spec => {
         const key = normalizeId(spec.id);
+        const defaults = normalizeDataObject(spec.data);
         return template({
           id: "builtin_daisy_" + key,
           title: spec.title,
           description: spec.description || "daisyUI component bound to this state's globalState scope.",
           components: [daisy(spec.variant || spec.id, spec.title, spec.id)],
-          data: { "$state": normalizeDataObject(spec.data) }
+          data: { "$state": defaults },
+          dataTypes: { "$state": "object" }
         });
       };
+      const officialHeroBody = "Provident cupiditate voluptatem et in. Quaerat fugiat ut assumenda excepturi exercitationem quasi. In deleniti eaque aut repudiandae et a id nisi.";
       const daisySpecs = [
         { id: "accordion", title: "Accordion (Akkordeon)", description: "Expandable sections controlled by globalState.", data: { open: "Section 1", items: [{ label: "Section 1", body: "Primary details" }, { label: "Section 2", body: "More context" }] } },
-        { id: "alert", title: "Alert (Warnmeldung)", description: "Status message from a bus value.", data: { tone: "info", message: "Review the details before continuing." } },
+        { id: "alert", title: "Alert (Warnmeldung)", description: "Official daisyUI alert markup driven by a bus message.", data: { tone: "info", message: "New software update available." } },
         { id: "artboard", title: "Artboard (Arbeitsfläche)", description: "Fixed preview surface for mockups or mobile states.", data: { title: "Mobile preview", width: "320px", height: "568px", content: "Preview content" } },
         { id: "avatar", title: "Avatar (Benutzerbild)", description: "User image, name, and status from globalState.", data: { name: "Ada", image: "https://i.pravatar.cc/96?img=5", status: "online" } },
         { id: "badge", title: "Badge (Abzeichen)", description: "Compact label for status or counters.", data: { label: "New", tone: "primary" } },
         { id: "bottom-navigation", title: "Bottom Navigation (Boden-Navi)", description: "Mobile navigation selection stored in globalState.", data: { selected: "Home", items: ["Home", "Search", "Profile"] } },
         { id: "breadcrumbs", title: "Breadcrumbs (Brotkruemel-Pfad)", description: "Current path rendered from bus items.", data: { items: ["Home", "Projects", "Current"] } },
-        { id: "button", title: "Button (Knopf)", description: "Button writes click state or fires outgoing transitions.", data: { label: "Continue", clicked: false, clickedAt: 0 } },
-        { id: "card", title: "Card (Karte)", description: "Content card driven by title/body/action fields.", data: { title: "Card title", body: "Useful summary text.", actionLabel: "Open" } },
+        { id: "button", title: "Button (Knopf)", description: "Official daisyUI default button that writes click state or fires outgoing transitions.", data: { label: "Default", clicked: false, clickedAt: 0 } },
+        { id: "card", title: "Card (Karte)", description: "Official daisyUI image card driven by title/body/action fields.", data: { title: "Card Title", body: "A card component has a figure, a body part, and inside body there are title and actions parts", image: "https://img.daisyui.com/images/stock/photo-1606107557195-0e29a4b5b4aa.webp", imageAlt: "Shoes", actionLabel: "Buy Now" } },
         { id: "carousel", title: "Carousel (Bilderkarussell)", description: "Image index and images stored in globalState.", data: { index: 0, images: ["https://picsum.photos/seed/state-1/640/360", "https://picsum.photos/seed/state-2/640/360", "https://picsum.photos/seed/state-3/640/360"] } },
         { id: "chat-bubble", title: "Chat Bubble (Chat-Blase)", description: "Chat message rendered from sender/message fields.", data: { sender: "Support", message: "How can I help?", side: "left" } },
-        { id: "checkbox", title: "Checkbox (Auswahlfeld)", description: "Boolean value written to the bus and gates a transition.", data: { label: "Accept terms", checked: false, actionLabel: "Continue" } },
+        { id: "checkbox", title: "Checkbox (Auswahlfeld)", description: "Official daisyUI fieldset checkbox; checked is written to the bus and gates a transition.", data: { legend: "Login options", label: "Remember me", checked: false, actionLabel: "Continue" } },
         { id: "collapse", title: "Collapse (Ausklappbar)", description: "Open state is a globalState boolean.", data: { title: "Details", body: "Additional content", open: false } },
-        { id: "countdown", title: "Countdown (Zaehler)", description: "Bus-driven countdown that emits a finished state when it reaches zero.", data: { value: 30, label: "Seconds left", running: true, finished: false, startedAt: 0, endsAt: 0 } },
+        { id: "countdown", title: "Countdown (Zaehler)", description: "Official daisyUI countdown markup backed by bus-driven timer values.", data: { value: 59, label: "Seconds left", running: true, finished: false, startedAt: 0, endsAt: 0 } },
         { id: "diff", title: "Diff (Vorher/Nachher Slider)", description: "Comparison percentage stored in globalState.", data: { before: "Before", after: "After", value: 50 } },
         { id: "divider", title: "Divider (Trennlinie)", description: "Divider label rendered from globalState.", data: { label: "Section" } },
         { id: "drawer", title: "Drawer (Seitliches Menue)", description: "Menu open/selected values are bus fields.", data: { open: false, title: "Menu", selected: "Inbox", items: ["Inbox", "Settings", "Help"] } },
         { id: "dropdown", title: "Dropdown (Menue)", description: "Dropdown selection written to globalState.", data: { selected: "Option A", options: ["Option A", "Option B", "Option C"], open: false } },
         { id: "file-input", title: "File Input (Datei-Upload)", description: "Selected filename is written to globalState.", data: { label: "Upload file", filename: "" } },
-        { id: "hero", title: "Hero (Blickfang)", description: "Centered daisyUI hero title/body/action rendered from state data.", data: { layout: "centered", title: "Launch faster", body: "Turn a state into a usable app screen.", actionLabel: "Start" } },
-        { id: "hero-figure", variant: "hero", title: "Hero - with figure", description: "daisyUI hero with content and a figure image.", data: { layout: "figure", title: "Design in states", body: "Connect the screen to a flow-ready action.", actionLabel: "Start", image: "https://picsum.photos/seed/hero-figure/640/420" } },
-        { id: "hero-reverse", variant: "hero", title: "Hero - reverse figure", description: "daisyUI hero with reversed content and figure placement.", data: { layout: "figure-reverse", title: "Review faster", body: "Keep copy, data, and flow in one inspected state.", actionLabel: "Review", image: "https://picsum.photos/seed/hero-reverse/640/420" } },
-        { id: "hero-form", variant: "hero", title: "Hero - form", description: "daisyUI hero with a compact form card.", data: { layout: "form", title: "Join the waitlist", body: "Collect one value before moving on.", actionLabel: "Join", label: "Email", value: "" } },
-        { id: "hero-overlay", variant: "hero", title: "Hero - overlay", description: "daisyUI hero with overlay content over an image.", data: { layout: "overlay", title: "Build the next scene", body: "A hero screen with a clear transition target.", actionLabel: "Explore", image: "https://picsum.photos/seed/hero-overlay/960/540" } },
+        { id: "hero", title: "Hero (Blickfang)", description: "Official daisyUI centered hero rendered from state data.", data: { layout: "centered", title: "Hello there", body: officialHeroBody, actionLabel: "Get Started" } },
+        { id: "hero-figure", variant: "hero", title: "Hero - with figure", description: "Official daisyUI hero with content and a figure image.", data: { layout: "figure", title: "Box Office News!", body: officialHeroBody, actionLabel: "Get Started", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
+        { id: "hero-reverse", variant: "hero", title: "Hero - reverse figure", description: "Official daisyUI hero with reversed figure placement.", data: { layout: "figure-reverse", title: "Box Office News!", body: officialHeroBody, actionLabel: "Get Started", image: "https://img.daisyui.com/images/stock/photo-1635805737707-575885ab0820.webp" } },
+        { id: "hero-form", variant: "hero", title: "Hero - form", description: "Official daisyUI hero with a compact form card; inputs write to globalState.", data: { layout: "form", title: "Login now!", body: officialHeroBody, actionLabel: "Login", emailLabel: "Email", passwordLabel: "Password", forgotLabel: "Forgot password?", email: "", password: "" } },
+        { id: "hero-overlay", variant: "hero", title: "Hero - overlay", description: "Official daisyUI hero with overlay content over an image.", data: { layout: "overlay", title: "Hello there", body: officialHeroBody, actionLabel: "Get Started", image: "https://img.daisyui.com/images/stock/photo-1507358522600-9f71e620c44e.webp" } },
         { id: "indicator", title: "Indicator (Hinweispunkt)", description: "Count and label come from globalState.", data: { label: "Inbox", count: 3 } },
         { id: "input", title: "Input (Texteingabe)", description: "Text input writes value into globalState.", data: { label: "Name", value: "" } },
         { id: "join", title: "Join (Verbindungs-Gruppe)", description: "Segment selection stored in globalState.", data: { selected: "Center", items: ["Left", "Center", "Right"] } },
@@ -10136,14 +10422,14 @@
         { id: "loading", title: "Loading (Ladeanimation)", description: "Loading state driven by an active flag.", data: { label: "Loading", active: true } },
         { id: "mask", title: "Mask (Formen-Maske)", description: "Masked image from a bus URL.", data: { image: "https://i.pravatar.cc/128?img=12", shape: "squircle", alt: "Avatar" } },
         { id: "menu", title: "Menu (Navigations-Menue)", description: "Menu item selection stored in globalState.", data: { selected: "Dashboard", items: ["Dashboard", "Tasks", "Settings"] } },
-        { id: "modal", title: "Modal (Dialogfenster)", description: "Open state and confirmation are bus fields.", data: { open: false, confirmed: false, title: "Confirm action", body: "This writes to globalState.", actionLabel: "Confirm" } },
+        { id: "modal", title: "Modal (Dialogfenster)", description: "Official daisyUI modal structure; open state and confirmation are bus fields.", data: { open: false, confirmed: false, openLabel: "open modal", title: "Hello!", body: "Press ESC key or click the button below to close", actionLabel: "Confirm", closeLabel: "Close" } },
         { id: "navbar-title", variant: "navbar", title: "Navbar - title only", description: "Official daisyUI navbar with only a brand/title button.", data: { layout: "title-only", brand: "daisyUI" } },
         { id: "navbar-title-icon", variant: "navbar", title: "Navbar - title and icon", description: "Official daisyUI navbar with brand and trailing icon action.", data: { layout: "title-icon", brand: "daisyUI", iconAction: "More" } },
         { id: "navbar-icons", variant: "navbar", title: "Navbar - icons start/end", description: "Official daisyUI navbar with menu icon, brand, and trailing icon.", data: { layout: "icons", brand: "daisyUI", menuAction: "Menu", iconAction: "More" } },
-        { id: "navbar-menu-submenu", variant: "navbar", title: "Navbar - menu and submenu", description: "Official daisyUI navbar with horizontal menu and nested submenu.", data: { layout: "menu-submenu", brand: "daisyUI", selected: "Link", items: ["Link"], parent: "Parent", submenu: ["Link 1", "Link 2"] } },
-        { id: "navbar-search-dropdown", variant: "navbar", title: "Navbar - search and dropdown", description: "Official daisyUI navbar with search input and profile dropdown.", data: { layout: "search-dropdown", brand: "daisyUI", search: "", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" } },
-        { id: "navbar-cart-profile", variant: "navbar", title: "Navbar - cart indicator and profile", description: "Official daisyUI navbar with indicator badge, cart card, and profile menu.", data: { layout: "cart-profile", brand: "daisyUI", cartCount: 8, cartLabel: "Items", subtotal: "$999", actionLabel: "View cart", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" } },
-        { id: "navbar-center-logo", variant: "navbar", title: "Navbar - dropdown center logo", description: "Official daisyUI navbar with left dropdown, centered brand, and end icon.", data: { layout: "center-logo", brand: "daisyUI", menuItems: ["Homepage", "Portfolio", "About"], iconAction: "More" } },
+        { id: "navbar-menu-submenu", variant: "navbar", title: "Navbar - menu and submenu", description: "Official daisyUI navbar with horizontal menu and nested submenu.", data: { layout: "menu-submenu", brand: "daisyUI", selected: "Link", items: ["Link"], parent: "Parent", submenu: ["Link 1", "Link 2"], submenuOpen: true } },
+        { id: "navbar-search-dropdown", variant: "navbar", title: "Navbar - search and dropdown", description: "Official daisyUI navbar with search input and profile dropdown.", data: { layout: "search-dropdown", brand: "daisyUI", search: "", profileOpen: false, avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" } },
+        { id: "navbar-cart-profile", variant: "navbar", title: "Navbar - cart indicator and profile", description: "Official daisyUI navbar with indicator badge, cart card, and profile menu.", data: { layout: "cart-profile", brand: "daisyUI", cartOpen: false, profileOpen: false, cartCount: 8, cartLabel: "Items", subtotal: "$999", actionLabel: "View cart", avatar: "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp", menuItems: ["Profile", "Settings", "Logout"], badge: "New" } },
+        { id: "navbar-center-logo", variant: "navbar", title: "Navbar - dropdown center logo", description: "Official daisyUI navbar with left dropdown, centered brand, and end icon.", data: { layout: "center-logo", brand: "daisyUI", menuOpen: false, menuItems: ["Homepage", "Portfolio", "About"], iconAction: "More" } },
         { id: "navbar-colored", variant: "navbar", title: "Navbar - colors", description: "Official daisyUI navbar with color utility classes.", data: { layout: "colors", brand: "daisyUI", selected: "Dashboard", items: ["Dashboard", "Tasks", "Settings"], tone: "primary" } },
         { id: "progress", title: "Progress (Fortschritt)", description: "Linear progress from value/max fields.", data: { value: 45, max: 100, label: "Progress" } },
         { id: "radial-progress", title: "Radial Progress (Kreis-Fortschritt)", description: "Circular progress from value/max fields.", data: { value: 66, max: 100, label: "Complete" } },
@@ -10160,8 +10446,8 @@
         { id: "textarea", title: "Textarea (Textbereich)", description: "Textarea writes value into globalState.", data: { label: "Notes", value: "" } },
         { id: "theme-controller", title: "Theme Controller", description: "Theme choice is a bus value, not hidden DOM state.", data: { theme: "night", options: ["night", "winter", "corporate"] } },
         { id: "timeline", title: "Timeline (Zeitachse)", description: "Timeline items rendered from globalState.", data: { current: "Review", items: [{ title: "Draft", body: "Created" }, { title: "Review", body: "In progress" }, { title: "Ship", body: "Pending" }] } },
-        { id: "toast", title: "Toast (Kurzmeldung)", description: "Toast visibility and message are bus fields.", data: { visible: true, tone: "success", message: "Saved" } },
-        { id: "toggle", title: "Toggle (Ein/Aus Schalter)", description: "Boolean toggle written to globalState.", data: { label: "Notifications", checked: true } },
+        { id: "toast", title: "Toast (Kurzmeldung)", description: "Official daisyUI toast visibility and message are bus fields.", data: { visible: true, tone: "info", message: "New message arrived." } },
+        { id: "toggle", title: "Toggle (Ein/Aus Schalter)", description: "Official daisyUI fieldset toggle; checked is written to globalState.", data: { legend: "Login options", label: "Remember me", checked: true } },
         { id: "tooltip", title: "Tooltip (Kurzhinweis)", description: "Tooltip label and hint from globalState.", data: { label: "Hover me", tip: "Helpful context" } }
       ];
       const coreTemplates = [
@@ -13995,9 +14281,14 @@
     }
 
     function applyStateScopedTemplateBindings(state) {
+      const hadStateScopedRoot = Object.prototype.hasOwnProperty.call(normalizeDataObject(state.data), "$state");
       const sourceDataTypes = normalizeDataTypes(state.dataTypes, state.data);
       state.data = expandStateScopedDataObject(state.data, state);
       state.dataTypes = normalizeDataTypes(expandStateScopedDataTypesObject(sourceDataTypes, state), state.data);
+      const scope = stateDataScope(state);
+      if (hadStateScopedRoot && isPlainObject(state.data[scope]) && !state.dataTypes[scope]) {
+        state.dataTypes[scope] = "object";
+      }
       state.components = normalizeComponents(state.components).map(component => expandStateScopedComponent(component, state));
     }
 
