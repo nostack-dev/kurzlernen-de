@@ -1703,7 +1703,7 @@
 
     .global-state-key-actions {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 6px;
     }
 
@@ -1723,6 +1723,11 @@
       border-color: rgba(34, 197, 94, .44);
       background: rgba(34, 197, 94, .18);
       color: #bbf7d0;
+    }
+
+    .global-state-key-actions button:disabled {
+      opacity: .62;
+      cursor: default;
     }
 
     .state-variable-panel {
@@ -1824,6 +1829,13 @@
       color: var(--muted);
       font-size: 12px;
       line-height: 1.35;
+    }
+
+    .state-variable-panel {
+      padding: 9px;
+      border: 1px solid rgba(56, 189, 248, .16);
+      border-radius: 12px;
+      background: rgba(2, 6, 23, .18);
     }
 
     .data-source-panel {
@@ -3440,10 +3452,10 @@
       </div>
       <div id="stateExplorer" class="state-explorer">
         <div class="state-explorer-title">
-          <span>State Explorer</span>
-          <span class="state-explorer-hint">drag states here · Ctrl+Space</span>
-          <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Add empty preset">+ Add preset</button>
-          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Collapse state explorer" aria-label="Collapse state explorer">v</button>
+          <span>Presets</span>
+          <span class="state-explorer-hint">drag to canvas · Ctrl+Space</span>
+          <button id="btnAddStateTemplate" class="state-explorer-add" type="button" title="Add custom preset">+ Preset</button>
+          <button id="btnToggleStateExplorer" class="state-explorer-toggle" type="button" title="Collapse presets" aria-label="Collapse presets">v</button>
         </div>
         <div id="stateExplorerList" class="state-explorer-list"></div>
       </div>
@@ -4557,7 +4569,7 @@
     function applyStateExplorerCollapsed() {
       stateExplorerEl.classList.toggle("collapsed", stateExplorerCollapsed);
       btnToggleStateExplorer.textContent = stateExplorerCollapsed ? "^" : "v";
-      btnToggleStateExplorer.title = stateExplorerCollapsed ? "Expand state explorer" : "Collapse state explorer";
+      btnToggleStateExplorer.title = stateExplorerCollapsed ? "Expand presets" : "Collapse presets";
       btnToggleStateExplorer.setAttribute("aria-label", btnToggleStateExplorer.title);
       saveUiState();
     }
@@ -11226,6 +11238,19 @@
       { value: "list", label: "List" }
     ];
 
+    function stateVariableTypeLabel(type) {
+      return STATE_VARIABLE_TYPES.find(item => item.value === normalizeStateVariableType(type))?.label || "Text";
+    }
+
+    function stateVariableTypeFromSuggestion(path, type, value) {
+      const raw = String(type || "").trim().toLowerCase();
+      if (raw === "array") return "list";
+      if (raw === "integer" || raw === "float") return "number";
+      if (raw === "text" || raw === "value" || raw === "subscription" || raw === "all") return inferStateVariableType(path, value);
+      if (STATE_VARIABLE_TYPES.some(item => item.value === raw)) return raw;
+      return inferStateVariableType(path, value);
+    }
+
     function inferStateVariableType(path, value) {
       const key = String(path || "").toLowerCase();
       if (typeof value === "boolean") return "boolean";
@@ -12137,39 +12162,49 @@
         <details class="inspector-collapse data-card" id="pDataCard">
           <summary class="inspector-collapse-summary">
             <span class="inspector-collapse-title">
-              <span>Global state</span>
-              <span>choose data this state reads, writes, or renders</span>
+              <span>State Explorer</span>
+              <span>scope view on globalState</span>
             </span>
             <span id="pSubscriptionCount" class="global-state-subscribe-count">0</span>
           </summary>
           <div class="inspector-collapse-body">
             <div class="inspector-status-grid">
-              <div id="pInitialDataStatus" class="inspector-status-pill">Initial values: none</div>
+              <div id="pInitialDataStatus" class="inspector-status-pill">Vars: none</div>
               <div id="pFetchStatus" class="inspector-status-pill">Fetch: off</div>
               <div id="pRepeatStatus" class="inspector-status-pill">Repeat: off</div>
             </div>
             <details class="inspector-collapse inspector-subcollapse" id="pDefaultsCard">
               <summary class="inspector-collapse-summary">
                 <span class="inspector-collapse-title">
-                  <span>Initial values</span>
-                  <span>fill missing globalState keys on enter</span>
+                  <span>State variables</span>
+                  <span>name / type / value</span>
                 </span>
               </summary>
               <div class="inspector-collapse-body">
                 <div class="state-variable-panel">
                   <div class="state-variable-head">
-                    <div>Variables<span>This state injects these defaults into globalState on enter.</span></div>
+                    <div>Own variables<span>stored as data + dataTypes</span></div>
                   </div>
                   <div id="pStateVariableList" class="state-variable-list"></div>
                   <div class="state-variable-add">
-                    <input id="pStateVariableName" list="pStateVariableNameList" placeholder="variableName">
+                    <input id="pStateVariableName" list="pStateVariableNameList" placeholder="email" aria-label="Variable name">
                     <select id="pStateVariableType" aria-label="Variable type"></select>
-                    <button id="pStateVariableAdd" type="button">+ Add</button>
+                    <button id="pStateVariableAdd" type="button" title="Add state variable">+ Var</button>
                     <datalist id="pStateVariableNameList"></datalist>
                   </div>
                 </div>
-                <div class="field"><label>Advanced JSON</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
-                <div id="pDataPreview" class="condition-preview empty"></div>
+                <details class="inspector-collapse inspector-subcollapse" id="pAdvancedDataCard">
+                  <summary class="inspector-collapse-summary">
+                    <span class="inspector-collapse-title">
+                      <span>JSON</span>
+                      <span>same state.data object</span>
+                    </span>
+                  </summary>
+                  <div class="inspector-collapse-body">
+                    <div class="field"><label>Advanced JSON</label><textarea id="pData" spellcheck="false" placeholder='{"name":"Ada"}'></textarea></div>
+                    <div id="pDataPreview" class="condition-preview empty"></div>
+                  </div>
+                </details>
               </div>
             </details>
             <details class="inspector-collapse inspector-subcollapse" id="pFetchCard">
@@ -12212,16 +12247,23 @@
             </details>
             <div class="global-state-subscribe">
               <div class="global-state-subscribe-head">
-                <div>Data choices<span>Listen makes transitions react. Render creates visible rows.</span></div>
+                <div>Scope paths<span>react / show / own</span></div>
               </div>
               <div id="pSubscriptionPaths" class="global-state-key-grid"></div>
-              <div class="global-state-subscribe-head">
-                <div>Global state tree<span>Raw paths are here when you need exact keys.</span></div>
-              </div>
-              <div id="pSubscriptionTree" class="global-state-json"></div>
+              <details class="inspector-collapse inspector-subcollapse" id="pStateTreeCard">
+                <summary class="inspector-collapse-summary">
+                  <span class="inspector-collapse-title">
+                    <span>State tree</span>
+                    <span>global JSON paths</span>
+                  </span>
+                </summary>
+                <div class="inspector-collapse-body">
+                  <div id="pSubscriptionTree" class="global-state-json"></div>
+                </div>
+              </details>
               <input id="pSubscriptionCustom" list="pSubscriptionList" hidden><datalist id="pSubscriptionList"></datalist><button id="pSubscriptionAdd" type="button" hidden>Add</button>
               <textarea id="pSubscriptions" hidden></textarea>
-              <div class="hint">A state can listen to no data, selected paths, or the whole globalState (*).</div>
+              <div class="hint">One globalState JSON bus. No local shadow state.</div>
             </div>
             <div id="pSubscriptionsPreview" class="condition-preview empty"></div>
           </div>
@@ -12296,7 +12338,7 @@
         if (!entries.length) {
           const empty = document.createElement("div");
           empty.className = "state-variable-empty";
-          empty.textContent = "No variables yet. Add one to inject a default into globalState when this state is entered.";
+          empty.textContent = "No own variables yet.";
           stateVariableList.appendChild(empty);
           return;
         }
@@ -12381,6 +12423,8 @@
           row.dataset.variablePath = path;
           const name = document.createElement("input");
           name.value = path;
+          name.placeholder = "name";
+          name.title = "Variable name";
           name.dataset.stateVariableName = "true";
           name.setAttribute("aria-label", "Variable name");
           name.onchange = () => {
@@ -12439,6 +12483,22 @@
         renderGlobalStateSubscribeMap();
         setupEditorAccessibility(root, false);
       };
+      const addOwnStateVariableFromSuggestion = item => {
+        const path = normalizeBindingPath(item?.path || "", "");
+        if (!path || path === "*" || path === "state.current" || isRuntimeBookkeepingPath(path)) return false;
+        const next = normalizeDataObject(s.data);
+        if (Object.prototype.hasOwnProperty.call(next, path)) return false;
+        const type = stateVariableTypeFromSuggestion(path, item?.type, item?.value);
+        const nextTypes = normalizeDataTypes(s.dataTypes, next);
+        const sourceValue = item?.value === undefined ? defaultStateVariableValue(type) : JSON.parse(JSON.stringify(item.value));
+        next[path] = coerceStateVariableValue(sourceValue, type);
+        nextTypes[path] = type;
+        if (defaultsCard) defaultsCard.open = true;
+        syncStateDataObject(next, "state:data-variable-own:" + s.id + ":" + path, true, nextTypes);
+        renderGlobalStateSubscribeMap();
+        setupEditorAccessibility(root, false);
+        return true;
+      };
       const updateDataPreview = (persist = true, opts = {}) => {
         try {
           const parsed = JSON.parse(data.value || "{}");
@@ -12448,10 +12508,10 @@
           const keys = Object.keys(s.data);
           dataPreview.className = "condition-preview" + (keys.length ? " ok" : " empty");
           dataPreview.textContent = keys.length
-            ? "On enter, missing globalState keys are filled: " + keys.join(", ")
-            : "No initial globalState values.";
+            ? "Own vars: " + keys.join(", ")
+            : "No own vars yet.";
           if (initialDataStatus) {
-            initialDataStatus.textContent = keys.length ? "Initial values: " + keys.join(", ") : "Initial values: none";
+            initialDataStatus.textContent = keys.length ? "Vars: " + keys.join(", ") : "Vars: none";
             initialDataStatus.classList.toggle("active", Boolean(keys.length));
           }
           if (persist) {
@@ -12480,7 +12540,19 @@
       };
       const addGlobalStateSuggestion = (map, path, source = "global", type = "value", value = undefined) => {
         const key = String(path || "").trim();
-        if (!key || map.has(key)) return;
+        if (!key) return;
+        if (map.has(key)) {
+          const existing = map.get(key);
+          const hasValue = existing.value !== undefined;
+          const next = {
+            ...existing,
+            value: hasValue || value === undefined ? existing.value : value,
+            type: existing.type && existing.type !== "value" ? existing.type : type,
+            source: existing.source || source
+          };
+          map.set(key, next);
+          return;
+        }
         map.set(key, { path: key, source, type, value });
       };
       const collectKnownGlobalStatePaths = () => {
@@ -12718,8 +12790,8 @@
       };
       const busKeyMeta = item => {
         const source = String(item?.source || "globalState");
-        const type = String(item?.type || "value");
-        return source + " / " + type;
+        const type = stateVariableTypeFromSuggestion(item?.path || "", item?.type, item?.value);
+        return source + " - " + stateVariableTypeLabel(type);
       };
       const canRenderBusPath = (path, value = undefined, item = null) => {
         if (!path || path === "*") return false;
@@ -12774,7 +12846,7 @@
         if (!visible.length) {
           const empty = document.createElement("div");
           empty.className = "condition-preview empty";
-          empty.textContent = "Add initial values, fetch JSON, or set data on a transition to create data choices.";
+          empty.textContent = "Add variables, fetch JSON, or transition data to create scope paths.";
           subscriptionPaths.appendChild(empty);
           return;
         }
@@ -12787,6 +12859,8 @@
           card.dataset.path = path;
           card.title = path;
           const canRender = canRenderBusPath(path, item.value, item);
+          const isOwnVariable = path !== "*" && path !== "state.current" && Object.prototype.hasOwnProperty.call(normalizeDataObject(s.data), path);
+          const canOwn = path && path !== "*" && path !== "state.current" && !isRuntimeBookkeepingPath(path);
           bindDataPathDrag(card, path, canRender);
           const title = document.createElement("div");
           title.className = "global-state-key-title";
@@ -12802,8 +12876,8 @@
           const listen = document.createElement("button");
           listen.type = "button";
           listen.className = isActive ? "active" : "";
-          listen.textContent = isActive ? "Listening" : "Listen";
-          listen.title = "Toggle state subscription for " + path;
+          listen.textContent = isActive ? "Reacts" : "React";
+          listen.title = "Toggle reaction for " + path;
           listen.onclick = evt => {
             evt.preventDefault();
             toggleSubscriptionPath(path);
@@ -12811,7 +12885,7 @@
           const render = document.createElement("button");
           render.type = "button";
           render.className = isWired ? "active" : "";
-          render.textContent = isWired ? "Rendering" : "Render";
+          render.textContent = isWired ? "Shown" : "Show";
           render.title = canRender ? "Toggle render mapping for " + path : "Choose a concrete field inside this data branch to render.";
           render.disabled = !canRender;
           render.onclick = evt => {
@@ -12819,7 +12893,18 @@
             if (!canRender) return;
             toggleRenderPath(path);
           };
-          actions.append(listen, render);
+          const own = document.createElement("button");
+          own.type = "button";
+          own.className = isOwnVariable ? "active" : "";
+          own.textContent = isOwnVariable ? "Own" : "Own var";
+          own.title = isOwnVariable ? "Already in this state's variables" : "Add as this state's variable";
+          own.disabled = !canOwn || isOwnVariable;
+          own.onclick = evt => {
+            evt.preventDefault();
+            if (!canOwn || isOwnVariable) return;
+            addOwnStateVariableFromSuggestion(item);
+          };
+          actions.append(listen, render, own);
           card.append(title, pathLine, meta, actions);
           subscriptionPaths.appendChild(card);
         }
@@ -14622,7 +14707,7 @@
       if (!stateTemplates.length) {
         const empty = document.createElement("div");
         empty.className = "state-template-empty";
-        empty.textContent = "Drag a canvas state here, or use + Add preset for a custom state.";
+        empty.textContent = "Drag a canvas state here, or use + Preset for a custom state.";
         userItems.push(empty);
       }
       for (const template of stateTemplates) {

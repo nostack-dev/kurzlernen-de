@@ -230,7 +230,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("Bus key changed");
     expect(html).toContain(".data-wire-row");
     expect(html).toContain("Render from globalState");
-    expect(html).toContain("Global state tree");
+    expect(html).toContain("State tree");
     expect(html).toContain(".component-editor input");
     expect(html).toContain("function normalizeBindingPath");
     expect(html).toContain("function dataWireDisplayValue");
@@ -360,7 +360,7 @@ test.describe("Core source contracts", () => {
     expect(html).toContain("function applyDerivedDataWires");
     expect(html).toContain("dataWires: normalizeDataWires");
     expect(html).toContain("Render from globalState");
-    expect(html).toContain("Data choices");
+    expect(html).toContain("Scope paths");
     expect(html).toContain("components: [],");
     expect(html).toContain("function dataWireDisplayValue");
     expect(html).toContain("function dataWireUrlValue");
@@ -806,9 +806,10 @@ test.describe("Core browser contracts", () => {
     await openStateInspector(page, "login");
     await openInspectorDetails(page, "#pDataCard");
 
-    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Data choices" }).first()).toBeVisible();
-    await expect(page.getByText("Global state tree")).toBeVisible();
+    await expect(page.locator(".global-state-subscribe-head").filter({ hasText: "Scope paths" }).first()).toBeVisible();
+    await expect(page.getByText("State tree")).toBeVisible();
     await expect.poll(() => page.locator("#pSubscriptionPaths .global-state-key-card").count()).toBeGreaterThan(0);
+    await openInspectorDetails(page, "#pStateTreeCard");
     await expect(page.locator("#pSubscriptionTree")).toBeVisible();
     await expect(page.locator("#pSubscriptionAdd")).toBeHidden();
     await expect(page.locator("#pOutputs")).toHaveCount(0);
@@ -819,8 +820,10 @@ test.describe("Core browser contracts", () => {
 
     expect(html).toContain('<details class="inspector-collapse data-card" id="pDataCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pDefaultsCard">');
+    expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pAdvancedDataCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pFetchCard">');
     expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pRepeatCard">');
+    expect(html).toContain('<details class="inspector-collapse inspector-subcollapse" id="pStateTreeCard">');
     expect(html).toContain('<summary class="inspector-collapse-summary">');
     expect(html).toContain('<div class="inspector-collapse-body">');
     expect(html).toContain('id="pStateVariableList"');
@@ -837,6 +840,7 @@ test.describe("Core browser contracts", () => {
 
     await openStateInspector(page, "auth_start");
     await openInspectorDetails(page, "#pDataCard");
+    await openInspectorDetails(page, "#pStateTreeCard");
 
     const stateCurrent = page.locator('#pSubscriptionTree [data-path="state.current"]');
     await expect(stateCurrent).toBeVisible();
@@ -858,6 +862,7 @@ test.describe("Core browser contracts", () => {
 
     await openStateInspector(page, "auth_start");
     await openInspectorDetails(page, "#pDataCard");
+    await openInspectorDetails(page, "#pStateTreeCard");
 
     const tree = page.locator("#pSubscriptionTree");
     const before = await tree.locator(".global-state-json-line").count();

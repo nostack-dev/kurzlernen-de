@@ -75,6 +75,7 @@ async function openInspectorDetails(page, selector) {
 async function openInitialValuesEditor(page) {
   await openInspectorDetails(page, "#pDataCard");
   await openInspectorDetails(page, "#pDefaultsCard");
+  await openInspectorDetails(page, "#pAdvancedDataCard");
 }
 
 async function openFetchEditor(page) {
@@ -785,6 +786,44 @@ test.describe("State Blueprint tool", () => {
         avatar: "image"
       }
     });
+  });
+
+  test("state explorer promotes known bus paths to typed own variables without local state @smoke", async ({ page }) => {
+    await openTool(page);
+    const app = appFrame(page);
+    await app.getByRole("button", { name: "Login" }).click();
+    await app.locator(".field").filter({ hasText: "email" }).locator("input").fill("user@example.com");
+
+    await openStateInspector(page, "login");
+    await openInspectorDetails(page, "#pDataCard");
+
+    const emailCard = page.locator('#pSubscriptionPaths .global-state-key-card[data-path="email"]').first();
+    await expect(emailCard).toBeVisible();
+    await expect(emailCard.locator(".global-state-key-meta")).toContainText("Email");
+    await emailCard.getByRole("button", { name: "Own var" }).click();
+
+    const emailRow = page.locator('.state-variable-row[data-variable-path="email"]');
+    await expect(emailRow.locator('[data-state-variable-name="true"]')).toHaveValue("email");
+    await expect(emailRow.locator('[data-state-variable-type="true"]')).toHaveValue("email");
+    await expect(emailRow.locator('[data-state-variable-value="true"]')).toHaveValue("user@example.com");
+
+    await expect.poll(async () => {
+      const saved = await savedModel(page);
+      const state = saved.states.find(item => item.id === "login");
+      return {
+        data: state?.data,
+        dataTypes: state?.dataTypes,
+        subscriptions: state?.subscriptions || [],
+        dataWires: state?.dataWires || []
+      };
+    }).toEqual({
+      data: { email: "user@example.com" },
+      dataTypes: { email: "email" },
+      subscriptions: [],
+      dataWires: []
+    });
+
+    await expect(page.locator('#pSubscriptionPaths .global-state-key-card[data-path="email"]').first().getByRole("button", { name: "Own" })).toBeDisabled();
   });
 
   test("state data defaults flow through the global bus and match change transitions @smoke", async ({ page }) => {
@@ -2495,7 +2534,7 @@ test.describe("State Blueprint tool", () => {
     if (await page.locator("#btnTogglePreview").getAttribute("aria-label") === "Collapse app preview") {
       await page.locator("#btnTogglePreview").click();
     }
-    if (await page.locator("#btnToggleStateExplorer").getAttribute("aria-label") === "Collapse state explorer") {
+    if (await page.locator("#btnToggleStateExplorer").getAttribute("aria-label") === "Collapse presets") {
       await page.locator("#btnToggleStateExplorer").click();
     }
     await expect(page.locator(".workspace")).toHaveClass(/inspector-collapsed/);
