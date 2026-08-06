@@ -1,50 +1,78 @@
-(() => {
-  const serialSupported = "serial" in navigator;
-  const connect = document.getElementById("connect");
-  const serialState = document.getElementById("serialState");
-  const panel = document.querySelector(".panel");
-  const fatal = document.getElementById("fatal");
+const serialSupported = "serial" in navigator;
+const connect = document.getElementById("connect");
+const disconnect = document.getElementById("disconnect");
+const start = document.getElementById("start");
+const reset = document.getElementById("reset");
+const serialState = document.getElementById("serialState");
+const panel = document.querySelector(".panel");
+const fatal = document.getElementById("fatal");
+const fatalText = document.getElementById("fatalText");
 
+function dismissUnsupportedFatal() {
+  if (!fatal || !fatalText) return;
+  const message = fatalText.textContent || "";
+  if (/WebSerial|desktop Chrome|desktop Edge|serial is unavailable/i.test(message)) {
+    fatal.style.display = "none";
+    fatalText.textContent = "";
+  }
+}
+
+function installMobileHardwareNotice() {
   if (serialSupported || !connect || !panel) return;
 
-  if (fatal) fatal.style.display = "none";
+  dismissUnsupportedFatal();
 
   connect.disabled = true;
-  connect.textContent = "Desktop Chrome/Edge required";
+  connect.textContent = "USB unavailable on this device";
   connect.classList.remove("primary");
+  connect.setAttribute("aria-disabled", "true");
 
-  if (serialState) {
-    serialState.textContent = "UNSUPPORTED ON THIS DEVICE";
-    serialState.className = "warn";
-  }
-
-  for (const id of ["start", "reset", "disconnect"]) {
-    const element = document.getElementById(id);
+  for (const element of [disconnect, start, reset]) {
     if (element) element.disabled = true;
   }
 
-  const card = document.createElement("div");
-  card.className = "card mobile-support-card";
-  card.innerHTML = `
-    <h2><strong>Physical S31 connection unavailable here</strong></h2>
-    <div class="help">
-      This iPhone browser does not expose the Web Serial API. The page therefore
-      cannot communicate with the real ESP32-S31 and deliberately does not start
-      a software flight-controller fallback.<br><br>
-      Open this URL on a desktop computer in Chrome or Edge, connect the flashed
-      S31 over USB, then press <b>Connect physical S31</b>.
-    </div>`;
+  if (serialState) {
+    serialState.textContent = "USE PHYSICAL S31 BRIDGE";
+    serialState.className = "warn";
+  }
 
-  const firstCard = panel.querySelector(".card");
-  panel.insertBefore(card, firstCard || null);
+  if (!document.getElementById("mobileHardwareNotice")) {
+    const card = document.createElement("div");
+    card.id = "mobileHardwareNotice";
+    card.className = "card mobile-support-card";
+    card.innerHTML = `
+      <h2>Real S31 connection on iPhone</h2>
+      <div class="help">
+        iOS does not expose USB serial to websites. This is not treated as a simulator crash anymore.
+        The zero-cheat controller still has to run on the physical ESP32-S31, connected through a
+        desktop or Raspberry Pi bridge. Open this simulator on desktop Chrome/Edge for direct USB.
+      </div>
+    `;
+    const firstCard = panel.querySelector(".card");
+    if (firstCard) panel.insertBefore(card, firstCard);
+    else panel.appendChild(card);
+  }
+}
 
+if (!serialSupported && connect) {
   connect.addEventListener(
     "click",
     event => {
       event.preventDefault();
       event.stopImmediatePropagation();
-      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      installMobileHardwareNotice();
     },
-    true
+    true,
   );
-})();
+}
+
+if (fatal) {
+  new MutationObserver(dismissUnsupportedFatal).observe(fatal, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+}
+
+installMobileHardwareNotice();
+requestAnimationFrame(installMobileHardwareNotice);
