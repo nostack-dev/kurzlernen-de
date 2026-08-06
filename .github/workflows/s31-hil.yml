@@ -1,0 +1,69 @@
+name: ESP32-S31 HIL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "esp32/Arondight45_DroneFC_S31.cpp"
+      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "drone_simulator.html"
+      - ".github/workflows/s31-hil.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Controller and HIL tests
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -DFC_HOST_TEST \
+            esp32/Arondight45_DroneFC_S31.cpp -o /tmp/fc-tests
+          /tmp/fc-tests
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -DHIL_HOST_TEST \
+            esp32/Arondight45_DroneFC_HIL_S31.cpp -Iesp32 -o /tmp/hil-tests
+          ASAN_OPTIONS=detect_leaks=1 /tmp/hil-tests
+      - name: HTML module syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path('drone_simulator.html').read_text()
+          match = re.search(r'<script type="module">(.*?)</script>', html, re.S)
+          assert match, 'module script missing'
+          Path('/tmp/drone-simulator.mjs').write_text(match.group(1))
+          assert 'new PID' not in html and 'class PID' not in html
+          assert 'navigator.serial' in html
+          PY
+          node --check /tmp/drone-simulator.mjs
+
+  esp-idf-build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build HIL firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/arondight45-hil
+          mkdir -p /tmp/arondight45-hil/main
+          cp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/arondight45-hil/main/
+          cat > /tmp/arondight45-hil/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_hil)
+          EOF
+          cat > /tmp/arondight45-hil/main/CMakeLists.txt <<'EOF'
+          idf_component_register(
+            SRCS "Arondight45_DroneFC_HIL_S31.cpp"
+            INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/arondight45-hil
+          idf.py set-target esp32s31
+          idf.py build
