@@ -23,6 +23,36 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Build self-contained responsive drone simulator
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          html_path = Path("drone_simulator.html")
+          html = html_path.read_text(encoding="utf-8")
+          css = Path("drone_simulator_mobile_patch.css").read_text(encoding="utf-8")
+          js = Path("drone_simulator_mobile_patch.js").read_text(encoding="utf-8")
+
+          marker = "data-arondight45-mobile-patch"
+          if marker not in html:
+              html = html.replace(
+                  "</head>",
+                  f'<style {marker}="css">\n{css}\n</style>\n</head>',
+                  1,
+              )
+              html = html.replace(
+                  "</body>",
+                  f'<script {marker}="js">\n{js}\n</script>\n</body>',
+                  1,
+              )
+
+          assert marker in html
+          assert 'Desktop Chrome/Edge required' in html
+          assert 'new PID' not in html and 'class PID' not in html
+          html_path.write_text(html, encoding="utf-8")
+          PY
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
