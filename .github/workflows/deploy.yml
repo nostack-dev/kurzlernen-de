@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build responsive drone simulator
+      - name: Build responsive multi-transport drone simulator
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -32,40 +32,51 @@ jobs:
           html_path = Path("drone_simulator.html")
           html = html_path.read_text(encoding="utf-8")
           css = Path("drone_simulator_mobile_patch.css").read_text(encoding="utf-8")
-          js = Path("drone_simulator_mobile_patch.js").read_text(encoding="utf-8")
+          shim = Path("drone_simulator_bridge_shim.js").read_text(encoding="utf-8")
+          post = Path("drone_simulator_mobile_patch.js").read_text(encoding="utf-8")
 
-          marker = "data-arondight45-mobile-fix-v2"
+          marker = "data-arondight45-mobile-fix-v3"
           assert marker not in html, "mobile fix already present in source HTML"
+
+          # The shim must execute before the original module. It exposes a
+          # WebSerial-compatible byte transport backed by the LAN WebSocket.
           html = html.replace(
               "</head>",
-              f'<style {marker}="css">\n{css}\n</style>\n</head>',
+              f'<style {marker}="css">\n{css}\n</style>\n'
+              f'<script {marker}="bridge-shim">\n{shim}\n</script>\n</head>',
               1,
           )
+          # This module executes after the original simulator module and owns
+          # the final responsive/mobile UI state.
           html = html.replace(
               "</body>",
-              f'<script type="module" {marker}="js">\n{js}\n</script>\n</body>',
+              f'<script type="module" {marker}="post-ui">\n{post}\n</script>\n</body>',
               1,
           )
 
           assert marker in html
-          assert 'USB unavailable on this device' in html
+          assert '__arondightBridgeShim' in html
+          assert 'LAN BRIDGE READY' in html
           assert '@media (max-width: 900px)' in html
           html_path.write_text(html, encoding="utf-8")
           PY
 
-      - name: Validate generated simulator
+      - name: Validate generated simulator and bridge
         run: |
+          node --check drone_simulator_bridge_shim.js
+          node --check drone_simulator_mobile_patch.js
+          node --check tools/s31_hil_bridge.mjs
           python3 - <<'PY'
           import re
           from pathlib import Path
 
           html = Path("drone_simulator.html").read_text(encoding="utf-8")
-          modules = re.findall(r'<script(?:\s+type="module")?[^>]*>(.*?)</script>', html, re.S)
-          assert len(modules) >= 2
-          for index, module in enumerate(modules):
-              Path(f"/tmp/drone-module-{index}.mjs").write_text(module, encoding="utf-8")
+          scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+          assert len(scripts) >= 3
+          for index, script in enumerate(scripts):
+              Path(f"/tmp/drone-script-{index}.mjs").write_text(script, encoding="utf-8")
           PY
-          for file in /tmp/drone-module-*.mjs; do node --check "$file"; done
+          for file in /tmp/drone-script-*.mjs; do node --check "$file"; done
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
