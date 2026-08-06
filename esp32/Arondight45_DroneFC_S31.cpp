@@ -154,7 +154,7 @@ int main(){
  auto m=fc::mix(.9f,.4f,-.3f,.3f);for(float v:m.m)CK(v>=0&&v<=1);CK(fc::pulse(0,false)==1000&&fc::pulse(0,true)==1050&&fc::pulse(1,true)==2000);
  fc::Arm a;fc::Cmd z{};a.run(0,true,z,true,0,0);z.arm=true;CK(!a.run(1,true,z,true,0,0).armed);CK(a.run(1000002,true,z,true,0,0).on);CK(a.run(1001000,false,z,true,0,0).off);
  fc::Control ctl;ctl.att.reset({0,0,1});fc::Imu im{{0,0,1},{0,0,0}};fc::Cmd cmd{};cmd.t=.35f;for(int i=0;i<2000;i++){ctl.att.run(im,.001f);auto o=ctl.run(im,cmd,.001f,true);for(float v:o.m)CK(std::isfinite(v)&&v>=0&&v<=1);}
- std::puts("All Arondight45 DroneFC tests passed.\n");
+ std::puts("All Arondight45 DroneFC tests passed.");
 }
 #else
 extern "C"{
