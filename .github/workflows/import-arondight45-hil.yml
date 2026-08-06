@@ -1,0 +1,38 @@
+name: Import Arondight45 HIL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/import-arondight45-hil.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Copy verified HIL files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p esp32
+          curl -fsSL https://raw.githubusercontent.com/ChristianHohlfeld/Arondight45/main/drone_simulator.html -o drone_simulator.html
+          curl -fsSL https://raw.githubusercontent.com/ChristianHohlfeld/Arondight45/main/esp32/Arondight45_DroneFC_S31.cpp -o esp32/Arondight45_DroneFC_S31.cpp
+          curl -fsSL https://raw.githubusercontent.com/ChristianHohlfeld/Arondight45/main/esp32/Arondight45_DroneFC_HIL_S31.cpp -o esp32/Arondight45_DroneFC_HIL_S31.cpp
+
+          test "$(git hash-object drone_simulator.html)" = "d2d13680761828f96c5b89df55cb0e955e2fb8d6"
+          test "$(git hash-object esp32/Arondight45_DroneFC_S31.cpp)" = "aeb64991cd8acbddde3eb6511e5491ed58634896"
+          test "$(git hash-object esp32/Arondight45_DroneFC_HIL_S31.cpp)" = "09aa45f24640f7b805b3b5c1519ecaf715f15dca"
+
+          rm .github/workflows/import-arondight45-hil.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add drone_simulator.html esp32 .github/workflows/import-arondight45-hil.yml
+          git commit -m "Add Arondight45 zero-cheat HIL"
+          git push origin HEAD:main
