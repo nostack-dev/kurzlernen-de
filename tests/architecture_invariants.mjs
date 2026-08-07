@@ -81,6 +81,11 @@ requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","usb_serial_jtag");
 // is serialized through the same HIL packet consumed by the C++ StateRuntime.
 requireText("sim/simulator.mjs","class SimNavigationSensors");
 requireText("sim/simulator.mjs","b3World_CastRayClosest");
+requireText("sim/simulator.mjs","COLLISION_TERRAIN = 1n");
+requireText("sim/simulator.mjs","COLLISION_AIRFRAME = 2n");
+requireText("sim/simulator.mjs","QUERY_RANGEFINDER = 4n");
+requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN",
+            "down rangefinder must query terrain only, never the airframe");
 requireText("sim/simulator.mjs","groundRange(12)");
 requireText("sim/simulator.mjs","neutralSoloControls");
 requireText("sim/simulator.mjs","soloClearanceSlider");
