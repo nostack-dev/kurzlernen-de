@@ -17,12 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: gravity010
-            cutoff: "0.10f"
-          - label: gravity020
-            cutoff: "0.20f"
-          - label: gravity035
-            cutoff: "0.35f"
+          - label: gravity050
+            cutoff: "0.50f"
+          - label: gravity070
+            cutoff: "0.70f"
+          - label: gravity090
+            cutoff: "0.90f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
