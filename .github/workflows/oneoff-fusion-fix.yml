@@ -16,10 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: damping055
-            damping: "0.55f"
-          - label: damping070
-            damping: "0.70f"
+          - label: damping065
+            damping: "0.65f"
+          - label: damping075
+            damping: "0.75f"
           - label: damping085
             damping: "0.85f"
     name: ${{ matrix.label }}
@@ -31,14 +31,14 @@ jobs:
         run: |
           set -euxo pipefail
           python3 - <<'PY'
-          import os
+          import os,re
           from pathlib import Path
           p=Path('esp32/Arondight45_StateControl.hpp')
           s=p.read_text()
-          old='static constexpr float kHorizontalAccelerationDamping = 1.0f;'
           new=f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};'
-          assert s.count(old)==1,s.count(old)
-          p.write_text(s.replace(old,new,1))
+          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',new,s,count=1)
+          assert n==1,n
+          p.write_text(s)
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
