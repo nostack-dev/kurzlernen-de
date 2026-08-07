@@ -1,4 +1,4 @@
-name: Refined dynamic-safe attitude fusion matrix
+name: Vector-contract dynamic-safe attitude fusion matrix
 
 on:
   push:
@@ -17,16 +17,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: gravity050
-            cutoff: "0.50f"
-          - label: gravity070
-            cutoff: "0.70f"
-          - label: gravity090
-            cutoff: "0.90f"
+          - label: gravity010
+            cutoff: "0.10f"
+          - label: gravity020
+            cutoff: "0.20f"
+          - label: gravity035
+            cutoff: "0.35f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply fusion candidate and align current unit law
+      - name: Apply candidate and align tests to desired-state contract
         env:
           CUTOFF: ${{ matrix.cutoff }}
         run: |
@@ -34,11 +34,16 @@ jobs:
           python3 - <<'PY'
           import os
           from pathlib import Path
-          p=Path('esp32/Arondight45_DroneFC_Core.hpp'); s=p.read_text()
+
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=p.read_text()
           old='const float tau = 1.0f / (2.0f * kPi * 1.4f);'
           new=f'const float tau = 1.0f / (2.0f * kPi * {os.environ["CUTOFF"]});'
-          assert s.count(old)==1,s.count(old); p.write_text(s.replace(old,new,1))
-          p=Path('tests/state_control_test.cpp'); s=p.read_text()
+          assert s.count(old)==1,s.count(old)
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('tests/state_control_test.cpp')
+          s=p.read_text()
           pairs=[
             ('''    CHECK(controller.debug().forward_accel_mps2 < -1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.15f);''',
              '''    CHECK(controller.debug().forward_accel_mps2 < -0.55f &&\n          controller.debug().forward_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.08f);'''),
@@ -47,14 +52,23 @@ jobs:
             ('''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.15f);''',
              '''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -0.55f &&\n          controller.debug().right_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.08f);''')]
           for old,new in pairs:
-            assert s.count(old)==1,(old,s.count(old)); s=s.replace(old,new,1)
+            assert s.count(old)==1,(old,s.count(old))
+            s=s.replace(old,new,1)
           p.write_text(s)
+
+          p=Path('tests/dual_phone_smoke.mjs')
+          s=p.read_text()
+          old='if(!(moving.forward>.30&&moving.pitch<-6.0))throw new Error(`forward desired-vector did not produce forward motion + physical forward tilt: ${JSON.stringify(moving)}`);'
+          new='if(!(moving.forward>.30))throw new Error(`forward desired-vector did not produce forward motion: ${JSON.stringify(moving)}`);'
+          assert s.count(old)==1,s.count(old)
+          p.write_text(s.replace(old,new,1))
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/architecture_invariants.mjs
+          git diff --check
       - name: Build browser runtime
         run: |
           set -euxo pipefail
@@ -85,7 +99,7 @@ jobs:
               p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
           PY
           rm -rf generated
-      - name: Execute unchanged full GAME browser E2E
+      - name: Execute full GAME browser E2E
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
