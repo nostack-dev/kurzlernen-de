@@ -65,7 +65,7 @@ function addCourseMarkers(group){
   }
   // Two simple slalom poles make the route readable without clutter.
   for(const [x,y] of [[-5.8,.1],[2.8,1.1]]){
-    const pole=new THREE.Mesh(poleGeometry,poleMaterial);pole.position.set(x,y,.375);pole.castShadow=true;group.add(pole);
+    const pole=new THREE.Mesh(poleGeometry,poleMaterial);pole.position.set(x,y,.375);pole.rotation.x=Math.PI/2;pole.castShadow=true;group.add(pole);
   }
   const startPad=new THREE.Mesh(new THREE.CylinderGeometry(.72,.72,.018,48),new THREE.MeshStandardMaterial({color:0x34495a,roughness:.9}));
   startPad.position.set(0,0,.012);group.add(startPad);
