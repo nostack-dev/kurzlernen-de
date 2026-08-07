@@ -354,12 +354,11 @@ public:
     }
 
     Mix run(Imu s, Command cmd, float dt, bool integrate) {
-        // Keep the attitude loop slower than the gyro-rate loop. The previous
-        // 5.2x angle-to-rate gain drove large reversal rates while the rate loop
-        // was still catching up, producing the measured +/-12..15 degree ringing
-        // in GAME velocity braking. Stronger rate P/D supplies actual angular-rate
-        // damping; the lower angle gain avoids re-exciting that mode.
-        constexpr float kAngleToRate = 4.2f;
+        // Preserve the established fast attitude response while damping the actual
+        // body-rate dynamics in the inner gyro loop. The stronger rate P/D below
+        // supplies the missing angular damping; keeping 5.2 here avoids making GAME
+        // velocity response artificially sluggish before the braking phase starts.
+        constexpr float kAngleToRate = 5.2f;
         const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
         const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
         const float yaw_rate = cmd.yaw * 180.0f;
