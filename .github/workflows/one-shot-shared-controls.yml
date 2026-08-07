@@ -24,6 +24,6 @@ jobs:
           set -euxo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add sim/controller.mjs sim/simulator.mjs tests/control_semantics_test.mjs .github/workflows/deploy.yml
+          git add sim/controller.mjs sim/simulator.mjs tests/control_semantics_test.mjs
           git commit -m "Use identical controls in paired and single-phone modes"
           git push
