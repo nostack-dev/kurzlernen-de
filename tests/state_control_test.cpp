@@ -70,6 +70,19 @@ int main() {
     CHECK(descend_throttle < climb_throttle);
     CHECK(descend_throttle >= 0.0f);
 
+    // The two translational axes form one desired velocity vector. Its Euclidean
+    // length is speed; even square-corner transmitter input stays at the 5 m/s cap.
+    {
+        auto diagonal = base_rc(true);
+        diagonal.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
+        diagonal.ch[FC_SBUS_PITCH] = fc::centered_raw(1.0f);
+        const auto intent = fc::state_intent(diagonal);
+        const float desired_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                              intent.right_mps * intent.right_mps);
+        CHECK(std::fabs(desired_speed - fc::kStateMaxHorizontalSpeedMps) < 0.01f);
+        CHECK(std::fabs(intent.forward_mps - intent.right_mps) < 0.01f);
+    }
+
     // Desired velocity minus measured velocity directly creates acceleration.
     // Forward is -world-X at yaw=0; physical forward tilt is negative pitch, whose
     // SBUS channel is positive because command() performs the established inversion.
