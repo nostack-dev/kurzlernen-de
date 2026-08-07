@@ -280,11 +280,12 @@ private:
     static constexpr float kMaxTiltTangent = 0.46630766f;  // tan(25 deg)
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
 
-    // Velocity error -> acceleration. Full-stick errors still hit the physical vector
-    // ceiling. Near target, this is the slow outer-loop state gain.
-    static constexpr float kHorizontalVelocityGain = 0.60f;  // 1/s
-    // Direct acceleration damping is taken from d(measured velocity)/dt, not attitude.
-    static constexpr float kHorizontalAccelerationDamping = 0.40f;
+    // The 2 m/s² vector ceiling still defines full-stick authority. Near the target,
+    // Kv and Kd shape one second-order measured-state loop. These values are chosen
+    // near critical damping for the slower attitude/rotor execution layer: convergence
+    // is fast without reintroducing a direction-specific brake path.
+    static constexpr float kHorizontalVelocityGain = 1.20f;  // 1/s
+    static constexpr float kHorizontalAccelerationDamping = 0.60f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
