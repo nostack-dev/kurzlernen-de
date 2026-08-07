@@ -18,6 +18,7 @@ jobs:
           node --check sim/simulator.mjs
           grep -q 'new ViewPeerLink()' sim/simulator.mjs
           ! grep -q 'remoteRoom' sim/simulator.mjs
+          ! grep -q '/control' sim/simulator.mjs
       - name: Commit migrated simulator
         run: |
           set -euxo pipefail
