@@ -94,6 +94,36 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.05f);
 
+    // Measured attitude is part of the GAME outer-loop state. With the same
+    // positive forward-velocity error, an aircraft already pitched forward must
+    // ask for less additional forward pitch. With neutral velocity intent and the
+    // same existing forward pitch, it must ask for a substantially stronger
+    // opposite attitude so translational acceleration is arrested before speed
+    // runs away during the inner attitude reversal.
+    nav = {{-0.5f, 0.0f, 0.0f}, 2.0f, true};
+    rc = base_rc(true);
+    rc.ch[FC_SBUS_PITCH] = fc::centered_raw(1.0f);
+    fc::StateController no_attitude_lead_forward;
+    fc::StateController attitude_lead_forward;
+    const auto forward_without_attitude = no_attitude_lead_forward.transform(
+        rc, nav, 0.0f, true, 0.001f);
+    const auto forward_with_attitude = attitude_lead_forward.transform(
+        rc, nav, 0.0f, -15.0f, 0.0f, true, 0.001f);
+    CHECK(raw_centered(forward_with_attitude.ch[FC_SBUS_PITCH]) > 0.05f);
+    CHECK(raw_centered(forward_with_attitude.ch[FC_SBUS_PITCH]) <
+          raw_centered(forward_without_attitude.ch[FC_SBUS_PITCH]) - 0.10f);
+
+    rc = base_rc(true);
+    fc::StateController no_attitude_lead_brake;
+    fc::StateController attitude_lead_brake;
+    const auto brake_without_attitude = no_attitude_lead_brake.transform(
+        rc, nav, 0.0f, true, 0.001f);
+    const auto brake_with_attitude = attitude_lead_brake.transform(
+        rc, nav, 0.0f, -15.0f, 0.0f, true, 0.001f);
+    CHECK(raw_centered(brake_with_attitude.ch[FC_SBUS_PITCH]) <
+          raw_centered(brake_without_attitude.ch[FC_SBUS_PITCH]) - 0.10f);
+    CHECK(raw_centered(brake_with_attitude.ch[FC_SBUS_PITCH]) < -0.20f);
+
     // Right strafe is solved through roll, not by directly moving the rigid body.
     rc = base_rc(true);
     rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
