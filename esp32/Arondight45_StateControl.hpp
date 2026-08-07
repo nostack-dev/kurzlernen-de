@@ -106,7 +106,16 @@ public:
         debug_ = {};
     }
 
+    // Compatibility overload used by low-level tests that intentionally isolate the
+    // velocity law from measured roll/pitch. StateRuntime always uses the full measured
+    // attitude overload below.
     RC transform(const RC& original, const NavigationState& nav, float yaw_deg,
+                 bool inner_armed, float dt) {
+        return transform(original, nav, 0.0f, 0.0f, yaw_deg, inner_armed, dt);
+    }
+
+    RC transform(const RC& original, const NavigationState& nav,
+                 float roll_deg, float pitch_deg, float yaw_deg,
                  bool inner_armed, float dt) {
         RC out = original;
         const StateIntent intent = state_intent(original);
@@ -144,11 +153,22 @@ public:
         const float forward_error = intent.forward_mps - measured_forward;
         const float right_error = intent.right_mps - measured_right;
 
-        // FC pitch input is inverted by command(); a positive SBUS pitch channel
-        // therefore requests the negative physical pitch needed for forward thrust.
-        const float pitch_channel = clamp(kVelocityToAttitude * forward_error,
+        // The inner controller is an attitude->rate->motor cascade, so the velocity
+        // loop must remain slower than its real attitude dynamics. Pure velocity P
+        // can otherwise keep asking for forward tilt while the aircraft is already
+        // strongly tilted, then require a large reversal when the stick is released.
+        // Feed the *measured* attitude back into the desired-attitude calculation:
+        // existing tilt progressively unloads the velocity command and, after a
+        // velocity-target reversal, immediately increases the opposing target. This
+        // is state feedback only; fc::Runtime still owns all attitude/rate execution.
+        // Pitch channel sign is inverted by command(), while roll is not.
+        const float bounded_roll_deg = clamp(roll_deg, -45.0f, 45.0f);
+        const float bounded_pitch_deg = clamp(pitch_deg, -45.0f, 45.0f);
+        const float pitch_channel = clamp(kVelocityToAttitude * forward_error +
+                                              kAttitudeLead * bounded_pitch_deg / 32.0f,
                                           -kMaxAttitudeCommand, kMaxAttitudeCommand);
-        const float roll_command = clamp(kVelocityToAttitude * right_error,
+        const float roll_command = clamp(kVelocityToAttitude * right_error -
+                                             kAttitudeLead * bounded_roll_deg / 32.0f,
                                          -kMaxAttitudeCommand, kMaxAttitudeCommand);
 
         const float yaw_error = wrap_degrees(target_yaw_deg_ - yaw_deg);
@@ -195,6 +215,7 @@ private:
     // loop to about 25 degrees so vertical authority remains available.
     static constexpr float kMaxAttitudeCommand = 25.0f / 32.0f;
     static constexpr float kVelocityToAttitude = 0.16f;  // normalized attitude / (m/s error)
+    static constexpr float kAttitudeLead = 0.40f;         // unload current tilt / accelerate reversals
     static constexpr float kHeadingKp = 2.2f;             // deg/s per deg heading error
     static constexpr float kAglToVerticalSpeed = 1.30f;
     static constexpr float kMaxVerticalSpeedMps = 2.0f;
@@ -225,6 +246,8 @@ public:
     void reset() {
         runtime_.reset();
         state_controller_.reset();
+        last_roll_deg_ = 0.0f;
+        last_pitch_deg_ = 0.0f;
         last_yaw_deg_ = 0.0f;
         game_active_ = false;
     }
@@ -235,7 +258,7 @@ public:
             if (game_active_) state_controller_.leave_mode();
             game_active_ = false;
             RuntimeOutput out = runtime_.step(input.flight);
-            update_yaw(out);
+            update_attitude(out);
             return out;
         }
 
@@ -247,7 +270,7 @@ public:
             input.flight.rc_fresh = false;
             RuntimeOutput out = runtime_.step(input.flight);
             out.state |= kStateGameMode;
-            update_yaw(out);
+            update_attitude(out);
             return out;
         }
 
@@ -255,10 +278,11 @@ public:
                              ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
                              : 0.001f;
         input.flight.rc = state_controller_.transform(input.flight.rc, input.navigation,
-                                                       last_yaw_deg_, runtime_.armed(), dt);
+                                                       last_roll_deg_, last_pitch_deg_, last_yaw_deg_,
+                                                       runtime_.armed(), dt);
         RuntimeOutput out = runtime_.step(input.flight);
         out.state |= kStateGameMode | kStateNavigationValid;
-        update_yaw(out);
+        update_attitude(out);
         return out;
     }
 
@@ -268,12 +292,16 @@ public:
     bool game_active() const { return game_active_; }
 
 private:
-    void update_yaw(const RuntimeOutput& out) {
+    void update_attitude(const RuntimeOutput& out) {
+        last_roll_deg_ = static_cast<float>(out.attitude_cdeg[0]) * 0.01f;
+        last_pitch_deg_ = static_cast<float>(out.attitude_cdeg[1]) * 0.01f;
         last_yaw_deg_ = static_cast<float>(out.attitude_cdeg[2]) * 0.01f;
     }
 
     Runtime runtime_{};
     StateController state_controller_{};
+    float last_roll_deg_{};
+    float last_pitch_deg_{};
     float last_yaw_deg_{};
     bool game_active_{};
 };
