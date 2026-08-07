@@ -20,34 +20,61 @@ const walk=(root,accept)=>{
   return out;
 };
 
-// No source-inclusion/preprocessor shortcuts: Production, HIL and SIL must all
-// consume the same real C++ runtime through headers and normal translation units.
+// No source-inclusion/preprocessor shortcuts: Production, HIL and SIL consume
+// ordinary shared C++ headers / translation units.
 for(const path of [...walk("esp32",p=>/\.(?:cpp|hpp)$/.test(p)),...walk("sim",p=>/\.(?:cpp|hpp)$/.test(p))]){
   const source=read(path);
   if(/#[ \t]*include[ \t]+["<][^">]*\.cpp[">]/.test(source))fail(`${path} includes a .cpp translation unit`);
   if(/#[ \t]*define[ \t]+main\b/.test(source))fail(`${path} rewrites main with the preprocessor`);
 }
-requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_DroneFC_Core.hpp");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","fc::Runtime runtime");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","Arondight45_DroneFC_Core.hpp");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::Runtime runtime_");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_StateControl.hpp");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","fc::StateRuntime runtime");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","arondight45_navigation_sample");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","Arondight45_StateControl.hpp");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::StateRuntime runtime_");
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","hil::RuntimeAdapter runtime");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 
-// Production hardware safety/peripheral invariants that must not disappear
-// during simulator work.
+// GAME/STATE is an outer feedback loop only. It may convert measured state error
+// to normal RC-like attitude/thrust requests, but it must not know Box3D, Three.js
+// or any simulator rigid-body API. The inner fc::Runtime remains motor authority.
+requireText("esp32/Arondight45_StateControl.hpp","class StateController");
+requireText("esp32/Arondight45_StateControl.hpp","class StateRuntime");
+requireText("esp32/Arondight45_StateControl.hpp","NavigationState");
+requireText("esp32/Arondight45_StateControl.hpp","runtime_.step");
+for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity","setPosition"])
+  forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller must not depend on simulator physics API: ${marker}`);
+
+// HIL v2 keeps the packet physically identical in size and uses the eight former
+// reserved bytes for measured navigation state; no hidden side transport.
+requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 2");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_vx_cms");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_agl_mm");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 64");
+
+// Production hardware safety/peripheral invariants must survive higher-level
+// control work.
 for(const marker of ["uart_set_line_inverse","kIntSource","esp_task_wdt"])
   requireText("esp32/Arondight45_DroneFC_S31.cpp",marker);
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","usb_serial_jtag");
 
-// GitHub Pages source pages remain ordinary source entry points; deploy.yml is
-// responsible for producing self-contained single-file artifacts.
+// SIM navigation is a sensor adapter, not a truth-to-motor shortcut. Its output
+// is serialized through the same HIL packet consumed by the C++ StateRuntime.
+requireText("sim/simulator.mjs","class SimNavigationSensors");
+requireText("sim/simulator.mjs","FLAG_NAVIGATION_VALID");
+requireText("sim/simulator.mjs","view.setInt16(52");
+requireText("sim/simulator.mjs","backend.exchange(packet");
+requireText("sim/simulator.mjs","physics.step(latest.motors");
+forbidText("sim/simulator.mjs","stateControllerMotor");
+
+// GitHub Pages source pages remain ordinary entry points; deploy.yml builds the
+// two self-contained single-file pages.
 requireText("drone_simulator.html",'<script type="module" src="./sim/simulator.mjs"></script>');
 requireText("drone_controller.html",'<script type="module" src="./sim/controller.mjs"></script>');
 
-// Normal two-phone SIM is direct browser-to-browser WebRTC. HIL's optional
-// local bridge is intentionally outside this check.
+// Normal two-phone SIM is direct browser-to-browser WebRTC.
+requireText("sim/p2p_link.mjs","P2P_PROTOCOL = 4");
 requireText("sim/p2p_link.mjs","new RTCPeerConnection");
 requireText("sim/p2p_link.mjs","iceServers:[]");
 requireText("sim/p2p_link.mjs","CONTROL_STALE_MS = 350");
@@ -59,15 +86,16 @@ for(const path of ["sim/p2p_link.mjs","sim/controller.mjs"]){
 }
 requireText("sim/simulator.mjs","new ViewPeerLink()");
 requireText("sim/controller.mjs","ControllerPeerLink");
+requireText("sim/controller.mjs","gameMode");
+requireText("sim/controller.mjs","gameClearanceSlider");
 forbidText("sim/simulator.mjs","RemoteControlLink");
 requireText("sim/simulator.mjs","control_semantics.mjs");
 requireText("sim/controller.mjs","control_semantics.mjs");
 requireText("sim/simulator.mjs","new QrScanner");
 requireText("sim/controller.mjs","new QrScanner");
 
-// Phone settings are an input-device adapter only. Legacy gain/sensitivity
-// shortcuts that changed command authority are not permitted back in. Verify
-// the actual transfer function keeps full command authority at both endpoints.
+// Phone settings are an input-device adapter only. Legacy gain shortcuts that
+// changed command authority are not permitted back in.
 for(const path of ["sim/control_semantics.mjs","sim/control_settings.mjs"]){
   forbidText(path,"MIN_PHONE_GAIN");
   forbidText(path,"MAX_PHONE_GAIN");
@@ -78,9 +106,8 @@ for(const fineness of [1,7,10]){
   if(phoneAxis(0,fineness)!==0)fail(`phone expo at fineness ${fineness} moves neutral`);
 }
 
-// One-shot self-mutating workflows/patchers were migration scaffolding, not
-// production architecture. They must stay gone.
+// Historical migration scaffolding must stay absent from production source.
 if(existsSync(".github/workflows/one-shot-shared-controls.yml"))fail("one-shot self-mutating workflow returned");
 if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
 
-console.log("Architecture invariants passed: one shared C++ flight runtime, no source hacks, direct static WebRTC control path, input-only phone shaping, no self-mutating migration scaffolding.");
+console.log("Architecture invariants passed: measured-state outer loop -> shared fc::Runtime -> motor physics, HIL v2 sensor contract, direct static WebRTC, no simulator control bypass.");
