@@ -210,13 +210,14 @@ public:
                                              -180.0f, 180.0f);
         const float yaw_command = desired_yaw_rate / 180.0f;
 
-        // Learn only the hover baseline; transient maneuver force comes directly from
-        // the required specific-force magnitude. This automatically compensates the
-        // extra thrust needed while tilted instead of teaching the integrator a turn.
-        if (std::fabs(agl_error) < kHoverLearnAglBandM) {
-            hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
-                                kMinHoverTrim, kMaxHoverTrim);
-        }
+        // The actuator-to-thrust scale is aircraft-specific, so hover collective cannot
+        // be guessed from simulator constants or assumed hardware. Treat hover_trim_
+        // as the slow integral/feed-forward state of the same vertical feedback loop.
+        // Every armed, navigation-valid tick integrates vz target minus measured vz.
+        // If collective is initially insufficient to leave the ground, the requested
+        // motor command therefore rises until the real measured vertical state responds.
+        hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
+                            kMinHoverTrim, kMaxHoverTrim);
         const float required_specific_force = std::sqrt(
             forward_accel * forward_accel + right_accel * right_accel +
             specific_up * specific_up);
@@ -278,7 +279,6 @@ private:
 
     static constexpr float kHeadingKp = 2.2f;                // deg/s per deg heading error
     static constexpr float kHoverAdapt = 0.050f;
-    static constexpr float kHoverLearnAglBandM = 0.50f;
     static constexpr float kInitialHoverThrottle = 0.39f;
     static constexpr float kMinHoverTrim = 0.25f;
     static constexpr float kMaxHoverTrim = 0.65f;

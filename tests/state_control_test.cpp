@@ -71,6 +71,20 @@ int main() {
     CHECK(descend_throttle < climb_throttle);
     CHECK(descend_throttle >= 0.0f);
 
+    // Collective authority is learned from the same measured vertical-state error,
+    // even far below the requested AGL. This lets an unknown real airframe bootstrap
+    // from an initially low hover estimate without simulator-specific constants.
+    controller.reset();
+    rc = base_rc(true);
+    nav = {{0.0f, 0.0f, 0.0f}, 0.05f, true};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    const float bootstrap_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
+    for (int i = 0; i < 1500; ++i)
+        transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    const float learned_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
+    CHECK(controller.hover_trim() > 0.53f);
+    CHECK(learned_throttle > bootstrap_throttle + 0.10f);
+
     // The two translational axes form one desired velocity vector. Its Euclidean
     // length is speed; even square-corner transmitter input stays at the 5 m/s cap.
     {

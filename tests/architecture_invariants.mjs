@@ -58,6 +58,10 @@ requireText("esp32/Arondight45_StateControl.hpp","vertical_accel");
 requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
 requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)",
             "thrust magnitude must map through rotor-speed physics instead of linearly to throttle");
+requireText("esp32/Arondight45_StateControl.hpp","hover_trim_ + kHoverAdapt * vz_error * dt",
+            "collective feed-forward must learn continuously from vertical state error");
+forbidText("esp32/Arondight45_StateControl.hpp","kHoverLearnAglBandM",
+           "collective learning must not be disabled far from the AGL target");
 requireText("esp32/Arondight45_StateControl.hpp","kEscCommandOffset");
 requireText("esp32/Arondight45_StateControl.hpp","kEscCommandScale");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
