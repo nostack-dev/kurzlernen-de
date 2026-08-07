@@ -46,6 +46,17 @@ requireText("esp32/Arondight45_StateControl.hpp","runtime_.step");
 for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity","setPosition"])
   forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller must not depend on simulator physics API: ${marker}`);
 
+// Translation is one desired-minus-measured state-vector law. Direction-specific
+// brake/strafe hacks and measured-attitude lead shortcuts are not allowed back in.
+requireText("esp32/Arondight45_StateControl.hpp","desired physical acceleration vector");
+requireText("esp32/Arondight45_StateControl.hpp","forward_accel");
+requireText("esp32/Arondight45_StateControl.hpp","right_accel");
+requireText("esp32/Arondight45_StateControl.hpp","vertical_accel");
+requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
+requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
+forbidText("esp32/Arondight45_StateControl.hpp","kAttitudeLead",
+           "direction-specific measured-attitude lead shortcut returned");
+
 // HIL v2 keeps the packet physically identical in size and uses the eight former
 // reserved bytes for measured navigation state; no hidden side transport.
 requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 2");
@@ -130,9 +141,14 @@ requireText("tests/dual_phone_smoke.mjs","moving.forward>.30&&moving.pitch<-6.0"
             "dual-phone GAME E2E forward-response gate was weakened");
 
 // Historical/self-mutating migration scaffolding must stay absent from production.
-if(existsSync(".github/workflows/one-shot-shared-controls.yml"))fail("one-shot self-mutating workflow returned");
-if(existsSync(".github/workflows/oneoff-complete-game-spec.yml"))fail("temporary GAME completion workflow returned");
-if(existsSync(".github/workflows/oneoff-complete-game-spec-v2.yml"))fail("temporary GAME completion v2 workflow returned");
+for(const path of [
+  ".github/workflows/one-shot-shared-controls.yml",
+  ".github/workflows/oneoff-complete-game-spec.yml",
+  ".github/workflows/oneoff-complete-game-spec-v2.yml",
+  ".github/workflows/oneoff-restore-strict-game-e2e.yml",
+  ".github/workflows/oneoff-align-state-vector-tests.yml",
+  ".github/workflows/oneoff-game-response-window.yml",
+]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
 if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
 
-console.log("Architecture invariants passed: measured-state GAME loop -> shared fc::Runtime -> motor physics, raycast AGL, camera-only free-look, direct static WebRTC, no simulator control bypass.");
+console.log("Architecture invariants passed: desired-state vector -> measured-state error -> physical acceleration/thrust geometry -> shared fc::Runtime -> motor physics, with raycast AGL, camera-only free-look and direct static WebRTC.");
