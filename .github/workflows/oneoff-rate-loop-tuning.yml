@@ -1,4 +1,4 @@
-name: Physical p-q rate-loop tuning matrix
+name: Velocity-error gain tuning matrix
 
 on:
   push:
@@ -17,39 +17,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: p45-d15
-            kp: "0.0045f"
-            ki: "0.0005f"
-            kd: "0.000015f"
-          - label: p60-d20
-            kp: "0.0060f"
-            ki: "0.0005f"
-            kd: "0.000020f"
-          - label: p75-d25
-            kp: "0.0075f"
-            ki: "0.0004f"
-            kd: "0.000025f"
+          - label: kv070
+            kv: "0.70f"
+          - label: kv100
+            kv: "1.00f"
+          - label: kv130
+            kv: "1.30f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply candidate rate gains
+      - name: Apply candidate velocity-error gain
         env:
-          KP: ${{ matrix.kp }}
-          KI: ${{ matrix.ki }}
-          KD: ${{ matrix.kd }}
+          KV: ${{ matrix.kv }}
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           import os
           from pathlib import Path
-          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          p=Path('esp32/Arondight45_StateControl.hpp')
           s=p.read_text()
-          old='Gains{0.0030f, 0.0007f, 0.000010f, 0.18f, 0.38f, 55.0f}'
-          new=f'Gains{{{os.environ["KP"]}, {os.environ["KI"]}, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}'
-          assert s.count(old)==2, s.count(old)
-          p.write_text(s.replace(old,new))
+          old='static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s'
+          new=f'static constexpr float kHorizontalVelocityGain = {os.environ["KV"]};  // 1/s'
+          assert s.count(old)==1, s.count(old)
+          p.write_text(s.replace(old,new,1))
           PY
-          grep -n 'PID roll_pid\|PID pitch_pid\|kAngleToRate' esp32/Arondight45_DroneFC_Core.hpp
+          grep -n 'kHorizontalVelocityGain\|kMaxHorizontalAcceleration' esp32/Arondight45_StateControl.hpp
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
