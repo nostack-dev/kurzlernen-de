@@ -326,7 +326,13 @@ private:
             return;
         }
 
-        acceleration_sample_dt_s_ += dt;
+        // The HIL packet does not carry a navigation-sample timestamp. Repeated
+        // identical values therefore cannot be allowed to make the inferred sample
+        // interval grow without bound: a later real change would be divided by an
+        // arbitrarily stale interval and look like a tiny acceleration. Cap the age
+        // at a conservative sensor interval while still accumulating normal 100 Hz
+        // samples from the 1 kHz control loop.
+        acceleration_sample_dt_s_ = std::min(acceleration_sample_dt_s_ + dt, 0.05f);
         const float dx = velocity_world_mps.x - previous_velocity_world_mps_.x;
         const float dy = velocity_world_mps.y - previous_velocity_world_mps_.y;
         const float dz = velocity_world_mps.z - previous_velocity_world_mps_.z;
