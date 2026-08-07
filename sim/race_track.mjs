@@ -5,7 +5,7 @@ export const RACE_LAPS = 3;
 // The aircraft, controller and motor/prop model all stay in real SI units.
 // Only the horizontal course layout is spread out so a fast real-scale quad
 // has realistic braking/turning room. Gate openings themselves are NOT scaled.
-export const COURSE_SCALE = 4;
+export const COURSE_SCALE = 2.25;
 const coursePoint=(x,y,z)=>[x*COURSE_SCALE,y*COURSE_SCALE,z];
 
 // Ordered course in metres, Z-up. Gate direction is derived from the next gate
