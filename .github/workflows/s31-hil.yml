@@ -13,6 +13,7 @@ on:
       - "tools/s31_hil_bridge.mjs"
       - "drone_simulator.html"
       - ".github/workflows/s31-hil.yml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 permissions:
@@ -55,7 +56,8 @@ jobs:
           grep -q 'kIntSource' esp32/Arondight45_DroneFC_S31.cpp
           grep -q 'esp_task_wdt' esp32/Arondight45_DroneFC_S31.cpp
           grep -q 'fc::Runtime runtime' esp32/Arondight45_DroneFC_S31.cpp
-          grep -q 'functional HIL' esp32/Arondight45_DroneFC_HIL_S31.cpp
+          grep -q 'hil::RuntimeAdapter runtime' esp32/Arondight45_DroneFC_HIL_S31.cpp
+          grep -q 'usb_serial_jtag' esp32/Arondight45_DroneFC_HIL_S31.cpp
           grep -q 'src="./sim/simulator.mjs"' drone_simulator.html
 
   esp-idf-build:
@@ -89,8 +91,8 @@ jobs:
             INCLUDE_DIRS ".")
           EOF
           cd /tmp/arondight45-production
-          python "$IDF_PATH/tools/idf.py" set-target esp32s31
-          python "$IDF_PATH/tools/idf.py" build
+          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" --preview build
       - name: Build functional HIL firmware for ESP32-S31
         shell: bash
         run: |
@@ -112,5 +114,5 @@ jobs:
             INCLUDE_DIRS ".")
           EOF
           cd /tmp/arondight45-hil
-          python "$IDF_PATH/tools/idf.py" set-target esp32s31
-          python "$IDF_PATH/tools/idf.py" build
+          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" --preview build
