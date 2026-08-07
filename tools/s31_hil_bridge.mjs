@@ -162,7 +162,7 @@ const hilSockets = new WebSocketServer({noServer:true,maxPayload:INPUT_BYTES});
 const controlSockets = new WebSocketServer({noServer:true,maxPayload:4096});
 server.on("upgrade",(request,socket,head)=>{
   const pathname=new URL(request.url||"/","http://localhost").pathname;
-  if(pathname==="/hil"){
+  if(pathname==="/hil") {
     if(!exchange){socket.destroy();return;}
     hilSockets.handleUpgrade(request,socket,head,ws=>hilSockets.emit("connection",ws,request));return;
   }
@@ -184,9 +184,7 @@ function cleanRoom(value){return typeof value==="string"&&/^[A-Z0-9]{1,12}$/.tes
 function roomState(name){if(!rooms.has(name))rooms.set(name,{simulator:null,controller:null});return rooms.get(name);}
 function sendJson(ws,message){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(message));}
 function announce(name){const room=rooms.get(name);if(!room)return;const message={type:"peer",protocol:CONTROL_PROTOCOL,room:name,simulator:Boolean(room.simulator),controller:Boolean(room.controller)};sendJson(room.simulator,message);sendJson(room.controller,message);}
-function detach(ws){
-  if(!ws.room||!ws.role)return;const room=rooms.get(ws.room);if(!room)return;if(room[ws.role]===ws)room[ws.role]=null;announce(ws.room);if(!room.simulator&&!room.controller)rooms.delete(ws.room);ws.room=null;ws.role=null;
-}
+function detach(ws){if(!ws.room||!ws.role)return;const room=rooms.get(ws.room);if(!room)return;if(room[ws.role]===ws)room[ws.role]=null;announce(ws.room);if(!room.simulator&&!room.controller)rooms.delete(ws.room);ws.room=null;ws.role=null;}
 controlSockets.on("connection",(ws,request)=>{
   ws.isAlive=true;ws.on("pong",()=>{ws.isAlive=true;});
   ws.on("message",(raw,binary)=>{
@@ -195,8 +193,8 @@ controlSockets.on("connection",(ws,request)=>{
     if(message?.protocol!==CONTROL_PROTOCOL){ws.close(1002,"control protocol mismatch");return;}
     if(message.type==="join"){
       const roomName=cleanRoom(message.room),role=message.role;if(!roomName||!(role==="simulator"||role==="controller")){ws.close(1008,"invalid room or role");return;}
-      detach(ws);const room=roomState(roomName);if(room[role]&&room[role]!==ws&&room[role].readyState===WebSocket.OPEN){room[role].close(1012,"replaced by new peer");}
-      room[role]=ws;ws.room=roomName;ws.role=role;console.log(`Control ${role} joined room ${roomName} from ${request.socket.remoteAddress}`);announce(roomName);return;
+      detach(ws);const room=roomState(roomName);if(room[role]&&room[role]!==ws&&room[role].readyState===WebSocket.OPEN)room[role].close(1012,"replaced by new peer");
+      room[role]=ws;ws.room=roomName;ws.role=role;console.log(`Control ${role} joined room ${roomName} from ${request.socket.remoteAddress}`);sendJson(ws,{type:"joined",protocol:CONTROL_PROTOCOL,room:roomName,role});announce(roomName);return;
     }
     if(!ws.room||!ws.role)return;
     const room=rooms.get(ws.room);if(!room)return;
@@ -216,4 +214,5 @@ server.listen(httpPort,"0.0.0.0",()=>{
 });
 
 function shutdown(){console.log("\nStopping Arondight45 LAN station.");clearInterval(controlHeartbeat);activeHilClient?.close(1001,"bridge shutting down");for(const ws of controlSockets.clients)ws.close(1001,"server shutting down");hilSockets.close();controlSockets.close();server.close(()=>{if(serial)serial.close(()=>process.exit(0));else process.exit(0);});setTimeout(()=>process.exit(0),1500).unref();}
-process.on("SIGINT",shutdown);process.on("SIGTERM",shutdown);
+process.on("SIGINT",shutdown);
+process.on("SIGTERM",shutdown);
