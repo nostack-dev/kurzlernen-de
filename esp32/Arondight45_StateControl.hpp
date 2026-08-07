@@ -15,13 +15,12 @@ namespace fc {
 //   - ground clearance
 //   - yaw / yaw-rate
 //
-// Navigation + IMU provide the measured state. The controller subtracts measured
-// motion from desired motion, converts that velocity error into a desired physical
-// acceleration vector, and damps the acceleration already implied by measured
-// roll/pitch so actuator lag cannot carry the aircraft through the target velocity.
-// Gravity is then added and the required thrust vector is converted geometrically
-// into roll/pitch/collective. Roll/pitch are therefore internal actuator coordinates,
-// not user targets. fc::Runtime remains the sole attitude/rate/motor execution layer.
+// Navigation + IMU provide the measured state. Horizontal control is deliberately
+// expressed in that same state space: target velocity minus measured velocity gives
+// the primary acceleration request, while acceleration measured directly from
+// successive navigation-velocity samples supplies damping. Roll/pitch remain only
+// internal actuator coordinates used to point the thrust vector; they are not user
+// targets. The existing fc::Runtime remains the sole attitude/rate/motor layer.
 
 constexpr int kStateClearanceChannel = 5;
 constexpr int kStateModeChannel = 6;
@@ -118,24 +117,29 @@ public:
         active_ = false;
         target_yaw_deg_ = 0.0f;
         hover_trim_ = kInitialHoverThrottle;
+        reset_acceleration_estimator();
         debug_ = {};
     }
 
     void leave_mode() {
         active_ = false;
+        reset_acceleration_estimator();
         debug_ = {};
     }
 
-    // Compatibility/test entrypoint when only heading is available. The production
-    // StateRuntime uses the full measured roll/pitch/yaw overload below.
     RC transform(const RC& original, const NavigationState& nav, float yaw_deg,
                  bool inner_armed, float dt) {
         return transform(original, nav, 0.0f, 0.0f, yaw_deg, inner_armed, dt);
     }
 
+    // roll_deg/pitch_deg are retained in this overload for ABI/source compatibility
+    // with existing StateRuntime callers, but horizontal state control intentionally
+    // does not use them. Damping comes from measured translational state dynamics.
     RC transform(const RC& original, const NavigationState& nav,
                  float roll_deg, float pitch_deg, float yaw_deg,
                  bool inner_armed, float dt) {
+        (void)roll_deg;
+        (void)pitch_deg;
         RC out = original;
         const StateIntent intent = state_intent(original);
         if (!active_) {
@@ -157,6 +161,7 @@ public:
         const float measured_right = s * nav.velocity_world_mps.x - c * nav.velocity_world_mps.y;
 
         if (!inner_armed) {
+            reset_acceleration_estimator();
             target_yaw_deg_ = wrap_degrees(yaw_deg);
             out.ch[FC_SBUS_ROLL] = centered_raw(0.0f);
             out.ch[FC_SBUS_PITCH] = centered_raw(0.0f);
@@ -171,6 +176,12 @@ public:
             return out;
         }
 
+        update_acceleration_estimator(nav.velocity_world_mps, dt);
+        const float measured_forward_accel =
+            -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
+        const float measured_right_accel =
+            s * measured_acceleration_world_mps2_.x - c * measured_acceleration_world_mps2_.y;
+
         // Z is also state feedback: the clearance error creates a desired vertical
         // speed, and vertical-speed error creates the requested vertical acceleration.
         const float agl_error = intent.clearance_m - nav.agl_m;
@@ -183,25 +194,17 @@ public:
         const float specific_up = clamp(kGravityMps2 + vertical_accel,
                                         kMinSpecificUpMps2, kMaxSpecificUpMps2);
 
-        // The velocity error produces the desired horizontal acceleration vector.
-        float forward_accel = kHorizontalVelocityGain * (intent.forward_mps - measured_forward);
-        float right_accel = kHorizontalVelocityGain * (intent.right_mps - measured_right);
-
-        // A velocity target alone is not an equilibrium if the aircraft is still
-        // tilted and therefore still accelerating. Use measured IMU attitude to
-        // estimate the horizontal acceleration already being produced by the thrust
-        // vector, then subtract that measured acceleration as pure derivative damping.
-        // When measured acceleration is zero, the original a*=Kv(v*-v) law is exactly
-        // unchanged. This is identical on forward/right and has no release/brake branch.
-        const float roll_rad = clamp(roll_deg, -kMaxAttitudeFeedbackDeg,
-                                     kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
-        const float pitch_rad = clamp(pitch_deg, -kMaxAttitudeFeedbackDeg,
-                                      kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
-        const float cos_pitch = std::max(0.25f, std::cos(pitch_rad));
-        const float measured_forward_accel = -std::tan(pitch_rad) * specific_up;
-        const float measured_right_accel = std::tan(roll_rad) / cos_pitch * specific_up;
-        forward_accel -= kHorizontalAccelerationDamping * measured_forward_accel;
-        right_accel -= kHorizontalAccelerationDamping * measured_right_accel;
+        // One vector law for every planar command:
+        //   a* = Kv (v* - v) - Kd a_measured
+        // Acceleration is measured from successive navigation velocity samples, so
+        // braking/strafe/forward all use the same SOLL-vs-IST feedback without an
+        // attitude proxy or any special release branch.
+        float forward_accel =
+            kHorizontalVelocityGain * (intent.forward_mps - measured_forward) -
+            kHorizontalAccelerationDamping * measured_forward_accel;
+        float right_accel =
+            kHorizontalVelocityGain * (intent.right_mps - measured_right) -
+            kHorizontalAccelerationDamping * measured_right_accel;
 
         // Limit the requested acceleration as one vector, never independently per
         // axis. The tilt-derived limit is the exact horizontal acceleration available
@@ -237,7 +240,6 @@ public:
         // The actuator-to-thrust scale is aircraft-specific, so hover collective cannot
         // be guessed from simulator constants or assumed hardware. Treat hover_trim_
         // as the slow integral/feed-forward state of the same vertical feedback loop.
-        // Every armed, navigation-valid tick integrates vz target minus measured vz.
         hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                             kMinHoverTrim, kMaxHoverTrim);
         const float required_specific_force = std::sqrt(
@@ -277,14 +279,14 @@ private:
     static constexpr float kMaxTiltDeg = 25.0f;
     static constexpr float kMaxTiltTangent = 0.46630766f;  // tan(25 deg)
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
-    static constexpr float kMaxAttitudeFeedbackDeg = 45.0f;
 
-    // Velocity error -> acceleration. Full-stick errors hit the vector ceiling;
-    // near the target this remains the slow outer-loop state gain.
+    // Velocity error -> acceleration. Full-stick errors still hit the physical vector
+    // ceiling. Near target, this is the slow outer-loop state gain.
     static constexpr float kHorizontalVelocityGain = 0.60f;  // 1/s
-    // Pure acceleration damping provides phase margin against attitude/rotor lag
-    // without changing the velocity-error gain when current acceleration is zero.
-    static constexpr float kHorizontalAccelerationDamping = 0.75f;
+    // Direct acceleration damping is taken from d(measured velocity)/dt, not attitude.
+    static constexpr float kHorizontalAccelerationDamping = 0.40f;
+    static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
+    static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;      // 1/s
@@ -309,7 +311,58 @@ private:
     static constexpr float kMinFlightThrottle = 0.08f;
     static constexpr float kMaxFlightThrottle = 0.85f;
 
+    void reset_acceleration_estimator() {
+        acceleration_estimator_valid_ = false;
+        acceleration_sample_dt_s_ = 0.0f;
+        previous_velocity_world_mps_ = {};
+        measured_acceleration_world_mps2_ = {};
+    }
+
+    void update_acceleration_estimator(V3 velocity_world_mps, float dt) {
+        if (!acceleration_estimator_valid_) {
+            previous_velocity_world_mps_ = velocity_world_mps;
+            acceleration_estimator_valid_ = true;
+            acceleration_sample_dt_s_ = 0.0f;
+            return;
+        }
+
+        acceleration_sample_dt_s_ += dt;
+        const float dx = velocity_world_mps.x - previous_velocity_world_mps_.x;
+        const float dy = velocity_world_mps.y - previous_velocity_world_mps_.y;
+        const float dz = velocity_world_mps.z - previous_velocity_world_mps_.z;
+
+        // Navigation arrives more slowly than the 1 kHz inner loop. Repeated samples
+        // are not differentiated; dt accumulates until the measured vector changes.
+        if (dx * dx + dy * dy + dz * dz < 1.0e-10f || acceleration_sample_dt_s_ < 0.002f)
+            return;
+
+        const float sample_dt = acceleration_sample_dt_s_;
+        const float inv_dt = 1.0f / sample_dt;
+        const V3 sample{dx * inv_dt, dy * inv_dt, dz * inv_dt};
+        previous_velocity_world_mps_ = velocity_world_mps;
+        acceleration_sample_dt_s_ = 0.0f;
+
+        const float horizontal_sample = std::sqrt(sample.x * sample.x + sample.y * sample.y);
+        if (!finite(sample) || horizontal_sample > kMaxNavigationAccelSampleMps2) {
+            measured_acceleration_world_mps2_ = {};
+            return;
+        }
+
+        const float alpha = clamp(sample_dt / (kMeasuredAccelerationFilterTauS + sample_dt),
+                                  0.0f, 1.0f);
+        measured_acceleration_world_mps2_.x +=
+            alpha * (sample.x - measured_acceleration_world_mps2_.x);
+        measured_acceleration_world_mps2_.y +=
+            alpha * (sample.y - measured_acceleration_world_mps2_.y);
+        measured_acceleration_world_mps2_.z +=
+            alpha * (sample.z - measured_acceleration_world_mps2_.z);
+    }
+
     bool active_{};
+    bool acceleration_estimator_valid_{};
+    float acceleration_sample_dt_s_{};
+    V3 previous_velocity_world_mps_{};
+    V3 measured_acceleration_world_mps2_{};
     float target_yaw_deg_{};
     float hover_trim_{kInitialHoverThrottle};
     StateControllerDebug debug_{};
