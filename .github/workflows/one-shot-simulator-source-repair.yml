@@ -1,0 +1,57 @@
+name: One-shot simulator source repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/one-shot-simulator-source-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact source transformations
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('sim/simulator.mjs')
+          text = path.read_text()
+          replacements = [
+              (
+                  '    validateParams(p);\n    this.p={...p,wind:[...p.wind]};',
+                  '    validateParams(p);\n    this.noise=new Noise();\n    this.p={...p,wind:[...p.wind]};'
+              ),
+              (
+                  '    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(.08,initial?.z||.08)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);',
+                  '    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:.024;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(.024,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);'
+              ),
+              (
+                  '      b3.b3Body_ApplyTorque(this.body,this.worldVector([0,0,yawSign[i]*propTorque]),true);',
+                  '      b3.b3Body_ApplyTorque(this.body,this.worldVector([0,0,yawSign[i]*motorTorque]),true);'
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              assert count == 1, f'expected exactly one match, found {count}: {old[:80]!r}'
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
+          node --check sim/simulator.mjs
+          grep -q 'initialZ=Number.isFinite(initial?.z)?initial.z:.024' sim/simulator.mjs
+          grep -q 'this.noise=new Noise();' sim/simulator.mjs
+          grep -q 'yawSign\[i\]\*motorTorque' sim/simulator.mjs
+      - name: Commit source repair
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sim/simulator.mjs
+          git commit -m "Fix simulator stationary calibration start"
+          git push origin HEAD:main
