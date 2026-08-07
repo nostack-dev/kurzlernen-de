@@ -7,6 +7,7 @@ export const expoToFineness=expo=>clampLevel(1+9*clampControl(Number(expo)||0,0,
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   leftFineness:7,
   rightFineness:10,
+  lockLeftHorizontal:false,
   lockRightHorizontal:false,
 });
 
@@ -17,6 +18,7 @@ export function normalizePhoneSettings(settings={}){
   return{
     leftFineness:clampLevel(settings.leftFineness??DEFAULT_PHONE_SETTINGS.leftFineness),
     rightFineness:clampLevel(settings.rightFineness??DEFAULT_PHONE_SETTINGS.rightFineness),
+    lockLeftHorizontal:Boolean(settings.lockLeftHorizontal),
     lockRightHorizontal:Boolean(settings.lockRightHorizontal),
   };
 }
@@ -95,7 +97,7 @@ export function endPointerDrag(element,pointerId){
 export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
-    controls.yaw=phoneAxis(point.x,cfg.leftFineness);
+    controls.yaw=cfg.lockLeftHorizontal?0:phoneAxis(point.x,cfg.leftFineness);
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
     // Screen-right must command a physical bank to the right. The established
@@ -113,7 +115,7 @@ export function releaseStick(controls,kind){
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   return kind==="left"
-    ?{x:inversePhoneAxis(controls.yaw,cfg.leftFineness),y:1-2*controls.throttle}
+    ?{x:cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.yaw,cfg.leftFineness),y:1-2*controls.throttle}
     :{x:-inversePhoneAxis(controls.roll,cfg.rightFineness),y:cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.pitch,cfg.rightFineness)};
 }
 export function knobPercent(value){return 50+clampControl(value)*42;}
