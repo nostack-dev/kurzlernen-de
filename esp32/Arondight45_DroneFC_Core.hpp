@@ -354,8 +354,14 @@ public:
     }
 
     Mix run(Imu s, Command cmd, float dt, bool integrate) {
-        const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * 5.2f, -240.0f, 240.0f);
-        const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * 5.2f, -240.0f, 240.0f);
+        // Keep the attitude loop slower than the gyro-rate loop. The previous
+        // 5.2x angle-to-rate gain drove large reversal rates while the rate loop
+        // was still catching up, producing the measured +/-12..15 degree ringing
+        // in GAME velocity braking. Stronger rate P/D supplies actual angular-rate
+        // damping; the lower angle gain avoids re-exciting that mode.
+        constexpr float kAngleToRate = 4.2f;
+        const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
+        const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
         const float yaw_rate = cmd.yaw * 180.0f;
         return mix(cmd.throttle,
                    roll_pid_.run(roll_rate, s.g.x, dt, integrate),
@@ -364,8 +370,8 @@ public:
     }
 
 private:
-    PID roll_pid_{Gains{0.0018f, 0.0009f, 0.0000035f, 0.18f, 0.38f, 55.0f}};
-    PID pitch_pid_{Gains{0.0018f, 0.0009f, 0.0000035f, 0.18f, 0.38f, 55.0f}};
+    PID roll_pid_{Gains{0.0030f, 0.0007f, 0.000010f, 0.18f, 0.38f, 55.0f}};
+    PID pitch_pid_{Gains{0.0030f, 0.0007f, 0.000010f, 0.18f, 0.38f, 55.0f}};
     PID yaw_pid_{Gains{0.0015f, 0.0007f, 0.0f, 0.14f, 0.28f, 40.0f}};
 };
 
