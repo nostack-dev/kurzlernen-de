@@ -261,10 +261,13 @@ struct Command {
 };
 
 inline Command command(const RC& r) {
-    return {shape(centered(r.ch[FC_SBUS_ROLL]), 0.035f, 0.3f),
-            -shape(centered(r.ch[FC_SBUS_PITCH]), 0.035f, 0.3f),
+    // High-resolution SBUS/touch input: no artificial centre deadband. Keep a
+    // single canonical expo in the real FC so SIM, HIL and hardware respond
+    // continuously from zero and share exactly the same command curve.
+    return {shape(centered(r.ch[FC_SBUS_ROLL]), 0.0f, 0.3f),
+            -shape(centered(r.ch[FC_SBUS_PITCH]), 0.0f, 0.3f),
             throttle(r.ch[FC_SBUS_THROTTLE]),
-            shape(centered(r.ch[FC_SBUS_YAW]), 0.045f, 0.2f),
+            shape(centered(r.ch[FC_SBUS_YAW]), 0.0f, 0.2f),
             r.ch[FC_SBUS_ARM] > 1300};
 }
 

@@ -118,9 +118,10 @@ try {
 
   // Single-phone mode must use the exact same stick and arm semantics as the paired controller.
   await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 1 });
-  // Simulate the user's existing V1 setting: both sliders were 10/10.
-  // V2 must preserve the displayed 10/10 while making it maximum fine control.
+  // Simulate the user's existing old setting: both sliders were 10/10.
+  // V3 must preserve the displayed 10/10 and map it to 25% linear RC throw.
   await page.evaluate(() => {
+    localStorage.removeItem("arondight45PhoneControlSettingsV3");
     localStorage.removeItem("arondight45PhoneControlSettingsV2");
     localStorage.setItem("arondight45PhoneControlSettingsV1", JSON.stringify({leftSensitivity:1,rightSensitivity:1}));
   });
@@ -143,11 +144,11 @@ try {
     rightOut: document.querySelector('.phone-settings-dialog [data-out="right"]')?.value,
   }));
   if (settingsDefaults.left !== "10" || settingsDefaults.right !== "10" || settingsDefaults.leftOut !== "10/10" || settingsDefaults.rightOut !== "10/10") throw new Error(`legacy 10/10 control feel did not migrate: ${JSON.stringify(settingsDefaults)}`);
-  const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV2")||"{}"));
-  if (Math.abs(migrated.leftSensitivity - .02) > 1e-9 || Math.abs(migrated.rightSensitivity - .02) > 1e-9) throw new Error(`10/10 is not maximum fine after migration: ${JSON.stringify(migrated)}`);
+  const migrated = await page.evaluate(() => JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV3")||"{}"));
+  if (Math.abs(migrated.leftSensitivity - .25) > 1e-9 || Math.abs(migrated.rightSensitivity - .25) > 1e-9) throw new Error(`10/10 is not 25% RC throw after migration: ${JSON.stringify(migrated)}`);
   await page.click('.phone-settings-dialog [data-reset]');
   const resetLevels = await page.evaluate(() => ({left:document.querySelector('.phone-settings-dialog [data-slider="left"]')?.value,right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value}));
-  if (resetLevels.left !== "7" || resetLevels.right !== "9") throw new Error(`new fine-control defaults are wrong: ${JSON.stringify(resetLevels)}`);
+  if (resetLevels.left !== "9" || resetLevels.right !== "10") throw new Error(`human-control defaults are wrong: ${JSON.stringify(resetLevels)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
   await waitForSimTime(2.2, 60000);
