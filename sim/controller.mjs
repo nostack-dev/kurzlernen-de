@@ -77,7 +77,7 @@ function updateConnection(){
   const label=peer.stateLabel();
   if(peer.linked){
     setConnection("P2P LINKED","good");ui.connect.textContent="DISCONNECT";setPairStatus("Direct control active. Normal short interruptions reconnect automatically without pairing.","good");
-    answerScanner.stop();if(ui.pairDialog.open)ui.pairDialog.close();publish(true);
+    if(ui.pairDialog.open){answerScanner.stop();ui.pairDialog.close();}
   }else if(peer.pc&&peer.recentlyLinked){
     setConnection(label,"warn");ui.connect.textContent="SESSION ACTIVE";setPairStatus("Recent session retained for 5 minutes. Waiting for WebRTC to recover — no re-pairing yet.","warn");
   }else if(peer.pc){setConnection(label,"warn");ui.connect.textContent="PAIRING…";}
@@ -117,6 +117,7 @@ ui.fullscreen.onclick=async()=>{try{if(!document.fullscreenElement)await documen
 addEventListener("pagehide",()=>safetyNeutral(true));
 addEventListener("pageshow",()=>{safetyNeutral(false);publish(true);updateConnection();});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{publish(true);updateConnection();}});
-setInterval(()=>{publish();updateConnection();},SEND_INTERVAL_MS);
+setInterval(()=>publish(),SEND_INTERVAL_MS);
+setInterval(updateConnection,250);
 
 updateSticks();updateConnection();
