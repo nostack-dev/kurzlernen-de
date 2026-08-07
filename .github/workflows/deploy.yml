@@ -103,7 +103,7 @@ jobs:
           ! grep -q '/control' drone_controller.html
           rm -rf generated
 
-      - name: Execute static-only standalone and dual-phone browser E2E
+      - name: Execute static-only GAME and standalone browser E2E
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -113,8 +113,8 @@ jobs:
           cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
           trap cleanup EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - name: Validate JavaScript sources after browser E2E
         run: |
