@@ -42,7 +42,6 @@ clearanceSlider.value=String(groundClearance);
 
 function renderMode(){
   document.body.classList.toggle("game-state",gameMode);modeButton.classList.toggle("active",gameMode);modeButton.textContent=gameMode?"MODE · GAME":"MODE · MANUAL";gameClearancePanel.hidden=!gameMode;
-  const labels={leftTop:document.querySelector("#leftStick~.axis-top"),leftBottom:document.querySelector("#leftStick~.axis-bottom")};
   const leftWrap=ui.leftStick.parentElement,rightWrap=ui.rightStick.parentElement;
   const leftLabels=leftWrap.querySelectorAll(".axis-label"),rightLabels=rightWrap.querySelectorAll(".axis-label");
   if(gameMode){
@@ -57,7 +56,10 @@ function renderMode(){
 
 function setConnection(text,kind="warn"){ui.connection.textContent=text;ui.connection.className=`pill ${kind}`;}
 function setPairStatus(text,kind="warn"){ui.pairStatus.textContent=text;ui.pairStatus.className=`pair-status ${kind}`;}
-function armReady(){return sharedArmReady(lastTelemetry.fc_state,controls,peer.linked,phoneSettings);}
+function armReady(){
+  if(gameMode&&lastTelemetry.navigation_valid!==true)return false;
+  return sharedArmReady(lastTelemetry.fc_state,controls,peer.linked,phoneSettings);
+}
 function updateArm(){
   ui.arm.classList.remove("arming","armed");
   if(controls.arm){
