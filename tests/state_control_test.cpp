@@ -98,6 +98,64 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);
     CHECK(raw_centered(transformed.ch[FC_SBUS_YAW]) > 0.5f);
 
+    // Full rotational path: the inner production controller must generate the
+    // correct physical motor moment for each independent body axis. This is the
+    // rotational half of the 6-DoF state controller; roll/pitch remain the
+    // under-actuated solution variables for x/y translation, yaw is independent.
+    const fc::Imu still{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+    {
+        fc::Controller attitude;
+        const fc::Mix m = attitude.run(still, fc::Command{0.50f, 0.0f, 0.50f, 0.0f, false},
+                                       0.001f, true);
+        CHECK(m.motor[1] > m.motor[0]);
+        CHECK(m.motor[2] > m.motor[3]);
+    }
+    {
+        fc::Controller attitude;
+        const fc::Mix m = attitude.run(still, fc::Command{0.0f, 0.50f, 0.50f, 0.0f, false},
+                                       0.001f, true);
+        CHECK(m.motor[0] > m.motor[2]);
+        CHECK(m.motor[1] > m.motor[3]);
+    }
+    {
+        fc::Controller attitude;
+        const fc::Mix m = attitude.run(still, fc::Command{0.0f, 0.0f, 0.50f, 0.50f, false},
+                                       0.001f, true);
+        CHECK(m.motor[1] > m.motor[0]);
+        CHECK(m.motor[3] > m.motor[2]);
+    }
+
+    // All three measured angular-rate axes p/q/r must feed back into motor torque.
+    // A positive measured rate with zero requested rate produces a counter-torque
+    // on the corresponding axis, proving the controller is not angle-only.
+    {
+        fc::Controller rate;
+        fc::Imu imu = still;
+        imu.g.x = 100.0f;
+        const fc::Mix m = rate.run(imu, fc::Command{0.0f, 0.0f, 0.50f, 0.0f, false},
+                                   0.001f, true);
+        CHECK(m.motor[0] > m.motor[1]);
+        CHECK(m.motor[3] > m.motor[2]);
+    }
+    {
+        fc::Controller rate;
+        fc::Imu imu = still;
+        imu.g.y = 100.0f;
+        const fc::Mix m = rate.run(imu, fc::Command{0.0f, 0.0f, 0.50f, 0.0f, false},
+                                   0.001f, true);
+        CHECK(m.motor[2] > m.motor[0]);
+        CHECK(m.motor[3] > m.motor[1]);
+    }
+    {
+        fc::Controller rate;
+        fc::Imu imu = still;
+        imu.g.z = 100.0f;
+        const fc::Mix m = rate.run(imu, fc::Command{0.0f, 0.0f, 0.50f, 0.0f, false},
+                                   0.001f, true);
+        CHECK(m.motor[0] > m.motor[1]);
+        CHECK(m.motor[2] > m.motor[3]);
+    }
+
     // GAME runtime must fail closed if navigation measurements disappear.
     fc::StateRuntime runtime;
     fc::StateRuntimeInput input{};
