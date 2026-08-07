@@ -126,9 +126,9 @@ int main() {
     nav.velocity_world_mps = {-1.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.99f);
-    CHECK(controller.debug().forward_accel_mps2 < -0.55f &&
-          controller.debug().forward_accel_mps2 > -0.65f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.08f);
+    CHECK(controller.debug().forward_accel_mps2 < -1.15f &&
+          controller.debug().forward_accel_mps2 > -1.25f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.16f);
 
     // Direct measured-state dynamics add damping in the same vector space. Starting
     // level at zero velocity, then gaining +0.01 m/s forward over 10 ms represents a
@@ -142,7 +142,7 @@ int main() {
     nav.velocity_world_mps = {-0.01f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.009f);
-    CHECK(controller.debug().forward_accel_mps2 < -0.03f);
+    CHECK(controller.debug().forward_accel_mps2 < -0.08f);
     CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < 0.0f);
 
     // Diagonal requests are limited as one physical acceleration vector, not by
@@ -184,17 +184,17 @@ int main() {
     nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps < -0.99f);
-    CHECK(controller.debug().right_accel_mps2 > 0.55f &&
-          controller.debug().right_accel_mps2 < 0.65f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.08f);
+    CHECK(controller.debug().right_accel_mps2 > 1.15f &&
+          controller.debug().right_accel_mps2 < 1.25f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.16f);
 
     controller.reset();
     nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps > 0.99f);
-    CHECK(controller.debug().right_accel_mps2 < -0.55f &&
-          controller.debug().right_accel_mps2 > -0.65f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.08f);
+    CHECK(controller.debug().right_accel_mps2 < -1.15f &&
+          controller.debug().right_accel_mps2 > -1.25f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.16f);
 
     // Yaw is the rotational component of the target state. Stick input integrates
     // target heading; releasing it retains heading error feedback.
