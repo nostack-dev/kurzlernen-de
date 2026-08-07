@@ -69,14 +69,13 @@ jobs:
           cd "$BUILD_DIR"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund \
-            three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8
+            three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           ./node_modules/.bin/esbuild sim/simulator.mjs \
             --bundle --format=esm --platform=browser --target=es2022 --minify \
             --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline \
             --outfile=/tmp/arondight45-simulator.bundle.mjs
-          rm node_modules
           node --check /tmp/arondight45-simulator.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
@@ -97,11 +96,28 @@ jobs:
           grep -q 'functional HIL' drone_simulator.html
           rm -rf generated
 
+      - name: Execute built simulator end to end in Chrome
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/arondight45-http.log 2>&1 &
+          SERVER_PID=$!
+          cleanup() {
+            kill "$SERVER_PID" 2>/dev/null || true
+            rm -f node_modules
+          }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs \
+            http://127.0.0.1:4173/drone_simulator.html
+
       - name: Validate digital-twin architecture
         run: |
           set -euxo pipefail
           node --check sim/simulator.mjs
           node --check tests/sil_wasm_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
           ! grep -R --line-number -E '#[[:space:]]*include[[:space:]]+["<][^">]*\.cpp[">]' esp32 sim
           ! grep -R --line-number -E '#[[:space:]]*define[[:space:]]+main' esp32 sim
