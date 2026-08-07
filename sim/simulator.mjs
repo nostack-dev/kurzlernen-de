@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
+import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -22,7 +23,7 @@ const scale = (a,s) => [a[0]*s,a[1]*s,a[2]*s];
 const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 
 const ui = Object.fromEntries([
-  "modeInfo","connect","run","reset","status","tMode","tController","fcState","simTime","altitude","velocity","attitude","motors","rpm","battery","current","processing","rtt","speed","armSwitch","throttle","logFile","fit","fitProgress","fitStatus","logSamples","touchRoll","touchPitch","touchYaw","touchThrottle","touchArm","exportLog","remoteRoom","inputSource","remoteConnect","remoteStatus","controllerLink"
+  "modeInfo","connect","run","reset","status","tMode","tController","fcState","simTime","altitude","velocity","attitude","motors","rpm","battery","current","processing","rtt","speed","armSwitch","throttle","logFile","fit","fitProgress","fitStatus","logSamples","touchRoll","touchPitch","touchYaw","touchThrottle","touchArm","exportLog","inputSource","remoteConnect","remoteStatus","controllerLink","pairDialog","remoteOffer","remoteAnswer","acceptOffer","copyAnswer","shareAnswer","pairStatus","closePair"
 ].map(id => [id,$(id)]));
 
 function crc32(bytes, length=bytes.byteLength) {
@@ -194,31 +195,6 @@ class HardwareBackend {
   label(){return this.kind==="usb"?"physical S31 / USB · functional HIL":"physical S31 / LAN · functional HIL";}
 }
 
-class RemoteControlLink {
-  constructor(){this.socket=null;this.room="";this.control=null;this.lastControlWall=0;this.controllerPresent=false;this.onState=null;}
-  relayUrl(){
-    const params=new URLSearchParams(location.search),explicit=params.get("relay")||localStorage.getItem("arondight45ControlRelay")||"";
-    if(explicit)return explicit;
-    if(location.protocol==="http:"&&location.port)return`ws://${location.host}/control`;
-    if(location.protocol==="https:"&&location.port)return`wss://${location.host}/control`;
-    return"";
-  }
-  async connect(room){
-    await this.disconnect();this.room=room;const url=this.relayUrl();if(!url)throw Error("No control relay. Run tools/s31_hil_bridge.mjs --sim-only and open its LAN VIEW URL.");
-    if(location.protocol==="https:"&&url.startsWith("ws://"))throw Error("HTTPS cannot use a local ws:// relay. Open the HTTP LAN VIEW URL printed by the bridge.");
-    localStorage.setItem("arondight45ControlRelay",url);localStorage.setItem("arondight45Room",room);
-    const ws=new WebSocket(url);this.socket=ws;
-    await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error("Remote-control relay timeout")),5000);ws.onopen=()=>{clearTimeout(timer);resolve();};ws.onerror=()=>{clearTimeout(timer);reject(Error("Cannot reach remote-control relay"));};});
-    ws.onmessage=event=>{let message;try{message=JSON.parse(event.data);}catch{return;}if(message.type==="peer"){this.controllerPresent=Boolean(message.controller);this.onState?.();return;}if(message.type!=="control"||message.protocol!==1||message.room!==this.room)return;const numeric=[message.roll,message.pitch,message.yaw,message.throttle].map(Number);if(!numeric.every(Number.isFinite))return;this.control={roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:message.arm===true};this.lastControlWall=performance.now();this.controllerPresent=true;this.onState?.();};
-    ws.onclose=()=>{if(this.socket===ws){this.socket=null;this.control=null;this.controllerPresent=false;this.onState?.();}};
-    ws.onerror=()=>this.onState?.();
-    ws.send(JSON.stringify({type:"join",protocol:1,role:"simulator",room:this.room}));this.onState?.();
-  }
-  current(){return this.socket?.readyState===WebSocket.OPEN&&this.controllerPresent&&this.control&&performance.now()-this.lastControlWall<=350?this.control:null;}
-  sendTelemetry(payload){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify({type:"telemetry",protocol:1,room:this.room,...payload}));}
-  async disconnect(){const ws=this.socket;this.socket=null;this.control=null;this.controllerPresent=false;if(ws)try{ws.close(1000,"view disconnect");}catch{}this.onState?.();}
-}
-
 class Noise {
   constructor(seed=0x45a31f27){this.s=seed>>>0;this.spare=null;this.gyroBias=[0.08,-0.05,0.04];this.accBias=[0.001,-0.0015,0.002];}
   uniform(){let x=this.s;x^=x<<13;x^=x>>>17;x^=x<<5;this.s=x>>>0;return(this.s+1)/4294967297;}
@@ -376,7 +352,7 @@ let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
 let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
-const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput={roll:0,pitch:0,yaw:0,throttle:0,arm:false},lastRemoteTelemetry=0;const remoteLink=new RemoteControlLink();
+const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput={roll:0,pitch:0,yaw:0,throttle:0,arm:false},lastRemoteTelemetry=0;const remoteLink=new ViewPeerLink();
 
 function setStatus(text,cls=""){ui.status.textContent=text;ui.status.className="statusline "+cls;}
 function modeDescription(){
@@ -512,23 +488,37 @@ ui.logFile.onchange=event=>event.target.files[0]&&loadLog(event.target.files[0])
 ui.fit.onclick=()=>fitPhysics().catch(error=>{ui.fit.disabled=false;ui.fitStatus.textContent=error.message;});
 ui.exportLog.onclick=exportSession;
 addEventListener("keydown",event=>{if(event.code==="Space"&&!event.repeat){localArm=!localArm;ui.touchArm.textContent=`ARM switch: ${localArm?"HIGH":"LOW"}`;event.preventDefault();}keys.add(event.code);});addEventListener("keyup",event=>keys.delete(event.code));ui.touchArm.onclick=()=>{localArm=!localArm;ui.touchArm.textContent=`ARM switch: ${localArm?"HIGH":"LOW"}`;};
-function randomRoom(){const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",bytes=new Uint8Array(6);crypto.getRandomValues(bytes);return[...bytes].map(value=>alphabet[value%alphabet.length]).join("");}
-function cleanRoom(value){return String(value||"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,12);}
-function controllerUrl(){const url=new URL("./drone_controller.html",location.href);url.searchParams.set("room",cleanRoom(ui.remoteRoom.value));const relay=remoteLink.relayUrl();if(relay)url.searchParams.set("relay",relay);return url.toString();}
 function updateRemoteUI(){
-  const linked=remoteLink.controllerPresent,current=remoteLink.current();ui.controllerLink.href=controllerUrl();
-  if(!remoteLink.socket){ui.remoteStatus.textContent=inputSource==="remote"?"REMOTE selected · relay disconnected · fail-safe ARM LOW / throttle 0.":"LOCAL FALLBACK selected.";ui.remoteStatus.className="statusline warn";ui.remoteConnect.textContent="Connect remote";return;}
-  ui.remoteConnect.textContent="Disconnect remote";
-  if(linked&&current){ui.remoteStatus.textContent=`REMOTE LINKED · room ${remoteLink.room} · packets fresh`;ui.remoteStatus.className="statusline good";}
-  else if(linked){ui.remoteStatus.textContent=`Controller link stale (>350 ms) · fail-safe ARM LOW / throttle 0`;ui.remoteStatus.className="statusline bad";}
-  else{ui.remoteStatus.textContent=`Relay connected · room ${remoteLink.room} · waiting for controller phone`;ui.remoteStatus.className="statusline warn";}
+  const current=remoteLink.current();ui.controllerLink.href="./drone_controller.html";
+  if(inputSource==="local"){ui.remoteStatus.textContent="LOCAL FALLBACK selected. P2P controller input is ignored.";ui.remoteStatus.className="statusline warn";}
+  else if(remoteLink.linked&&current){ui.remoteStatus.textContent="P2P LINKED · control packets fresh · direct phone-to-phone DataChannel";ui.remoteStatus.className="statusline good";}
+  else if(remoteLink.linked){ui.remoteStatus.textContent="P2P link alive but control stale (>350 ms) · fail-safe ARM LOW / throttle 0";ui.remoteStatus.className="statusline bad";}
+  else if(remoteLink.pc){ui.remoteStatus.textContent=`${remoteLink.stateLabel()} · waiting for direct DataChannel`;ui.remoteStatus.className="statusline warn";}
+  else{ui.remoteStatus.textContent="P2P disconnected · fail-safe ARM LOW / throttle 0. No relay/server is required.";ui.remoteStatus.className="statusline warn";}
+  ui.remoteConnect.textContent=remoteLink.pc?"Disconnect P2P":"Pair controller phone";
+  if(remoteLink.linked&&ui.pairDialog.open)ui.pairDialog.close();
 }
-async function connectRemote(){
-  if(remoteLink.socket){await remoteLink.disconnect();updateRemoteUI();return;}
-  const room=cleanRoom(ui.remoteRoom.value)||randomRoom();ui.remoteRoom.value=room;localStorage.setItem("arondight45Room",room);try{await remoteLink.connect(room);inputSource="remote";ui.inputSource.value="remote";updateRemoteUI();}catch(error){ui.remoteStatus.textContent=error.message;ui.remoteStatus.className="statusline bad";}
+async function acceptControllerOffer(){
+  ui.acceptOffer.disabled=true;ui.pairStatus.textContent="Creating direct WebRTC answer…";ui.pairStatus.className="statusline warn";
+  try{
+    ui.remoteAnswer.value=await remoteLink.acceptOffer(ui.remoteOffer.value);
+    inputSource="remote";ui.inputSource.value="remote";localArm=false;localThrottle=0;arm=false;throttle=0;
+    ui.pairStatus.textContent="Answer ready. Send it back to the controller phone and tap Apply answer there.";ui.pairStatus.className="statusline good";
+  }catch(error){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}
+  finally{ui.acceptOffer.disabled=false;updateRemoteUI();}
 }
-remoteLink.onState=updateRemoteUI;ui.remoteConnect.onclick=connectRemote;ui.remoteRoom.oninput=()=>{ui.remoteRoom.value=cleanRoom(ui.remoteRoom.value);updateRemoteUI();};ui.inputSource.onchange=()=>{inputSource=ui.inputSource.value;localArm=false;localThrottle=0;arm=false;throttle=0;updateRemoteUI();};
-const remoteParams=new URLSearchParams(location.search),initialRoom=cleanRoom(remoteParams.get("room")||localStorage.getItem("arondight45Room")||randomRoom());ui.remoteRoom.value=initialRoom;inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250);
+async function toggleRemote(){
+  if(remoteLink.pc){await remoteLink.disconnect();ui.remoteOffer.value="";ui.remoteAnswer.value="";updateRemoteUI();return;}
+  ui.pairDialog.showModal();
+}
+remoteLink.onState=updateRemoteUI;
+ui.remoteConnect.onclick=toggleRemote;
+ui.acceptOffer.onclick=acceptControllerOffer;
+ui.copyAnswer.onclick=async()=>{try{await copySignal(ui.remoteAnswer.value);ui.pairStatus.textContent="Answer copied.";ui.pairStatus.className="statusline good";}catch(error){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}};
+ui.shareAnswer.onclick=async()=>{try{await shareSignal("Arondight45 VIEW answer",ui.remoteAnswer.value);ui.pairStatus.textContent="Answer shared.";ui.pairStatus.className="statusline good";}catch(error){if(error?.name!=="AbortError"){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}}};
+ui.closePair.onclick=()=>ui.pairDialog.close();
+ui.inputSource.onchange=()=>{inputSource=ui.inputSource.value;localArm=false;localThrottle=0;arm=false;throttle=0;updateRemoteUI();};
+inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250);
 
 const fitted=localStorage.getItem("arondight45FittedPhysics");if(fitted)try{const p=JSON.parse(fitted);if(p.Ct)$("ct").value=p.Ct;if(p.Cq)$("cq").value=p.Cq;if(p.J)$("rotorJ").value=p.J;if(p.dragScale)$("dragScale").value=p.dragScale;if(p.batteryR)$("batteryR").value=p.batteryR;if(p.R)$("resistance").value=p.R;}catch{}
 await switchMode("sim");
