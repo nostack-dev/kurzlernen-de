@@ -162,6 +162,7 @@ for(const path of [
   ".github/workflows/oneoff-game-response-window.yml",
   ".github/workflows/oneoff-fix-thrust-vector-map.yml",
   ".github/workflows/oneoff-agl-trace.yml",
+  ".github/workflows/oneoff-trace-disarm-cause.yml",
 ]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
 if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
 
