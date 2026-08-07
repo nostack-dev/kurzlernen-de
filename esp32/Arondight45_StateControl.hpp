@@ -261,7 +261,10 @@ private:
     // Velocity error -> acceleration. With an ideal attitude loop this produces a
     // first-order velocity response; the acceleration/tilt limits bound authority.
     static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s
-    static constexpr float kMaxHorizontalAccelerationMps2 = 4.5f;
+    // GAME commands a velocity vector, not an instantaneous attitude step. Bound
+    // dv/dt so target-vector reversals stay inside achievable rigid-body/rotor
+    // response. Velocity authority remains 5 m/s; only physical acceleration is limited.
+    static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;      // 1/s
     static constexpr float kMaxVerticalSpeedMps = 2.0f;
