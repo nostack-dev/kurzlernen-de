@@ -133,13 +133,20 @@ int main() {
     CHECK((timing_out.state & fc::kStateFault) != 0);
     CHECK(!timing_out.armed);
 
+    // A single raw gyro spike is intentionally attenuated by the 100 Hz gyro
+    // filter; a sustained physically impossible rotation must cross the 1750
+    // deg/s filtered safety limit and latch kFaultRate.
     fc::Runtime rate_runtime;
     now_us = 0;
     calibrate(rate_runtime, now_us);
-    auto rate = stationary_input(now_us += 1000);
-    rate.raw.g.x = 2000.0f;
-    const auto rate_out = rate_runtime.step(rate);
+    fc::RuntimeOutput rate_out{};
+    for (int i = 0; i < 12 && rate_out.fault == fc::kFaultNone; ++i) {
+        auto rate = stationary_input(now_us += 1000);
+        rate.raw.g.x = 2000.0f;
+        rate_out = rate_runtime.step(rate);
+    }
     CHECK(rate_out.fault == fc::kFaultRate);
+    CHECK((rate_out.state & fc::kStateFault) != 0);
 
     fc::Runtime moving_calibration;
     now_us = 0;
