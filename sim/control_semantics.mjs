@@ -1,5 +1,22 @@
 export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
-export const DEFAULT_PHONE_SETTINGS=Object.freeze({leftSensitivity:0.30,rightSensitivity:0.10});
+export const MIN_PHONE_SENSITIVITY=0.02;
+
+const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
+export function fineLevelToSensitivity(level){
+  const t=(clampLevel(level)-1)/9;
+  return Math.exp(Math.log(MIN_PHONE_SENSITIVITY)*t);
+}
+export function sensitivityToFineLevel(value){
+  const s=clampControl(Number(value),MIN_PHONE_SENSITIVITY,1);
+  const t=Math.log(s)/Math.log(MIN_PHONE_SENSITIVITY);
+  return clampLevel(1+9*t);
+}
+
+// Human defaults: LEFT/YAW 7/10 fine, RIGHT/ROLL+PITCH 9/10 fine.
+export const DEFAULT_PHONE_SETTINGS=Object.freeze({
+  leftSensitivity:fineLevelToSensitivity(7),
+  rightSensitivity:fineLevelToSensitivity(9),
+});
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
 export function copyControls(c){return{roll:+c.roll||0,pitch:+c.pitch||0,yaw:+c.yaw||0,throttle:+c.throttle||0,arm:Boolean(c.arm)};}
@@ -7,8 +24,8 @@ export function clampControl(value,lo=-1,hi=1){return Math.max(lo,Math.min(hi,va
 export function normalizePhoneSettings(settings={}){
   const left=Number(settings.leftSensitivity),right=Number(settings.rightSensitivity);
   return{
-    leftSensitivity:clampControl(Number.isFinite(left)?left:DEFAULT_PHONE_SETTINGS.leftSensitivity,0.10,1),
-    rightSensitivity:clampControl(Number.isFinite(right)?right:DEFAULT_PHONE_SETTINGS.rightSensitivity,0.10,1),
+    leftSensitivity:clampControl(Number.isFinite(left)?left:DEFAULT_PHONE_SETTINGS.leftSensitivity,MIN_PHONE_SENSITIVITY,1),
+    rightSensitivity:clampControl(Number.isFinite(right)?right:DEFAULT_PHONE_SETTINGS.rightSensitivity,MIN_PHONE_SENSITIVITY,1),
   };
 }
 
@@ -16,13 +33,13 @@ export function normalizePhoneSettings(settings={}){
 // fifth-power blend makes the centre genuinely fine while preserving exact
 // +/-1 endpoints, so maximum FC authority and all aircraft physics are untouched.
 export function phoneAxis(value,sensitivity=1){
-  const x=clampControl(value),s=clampControl(sensitivity,0.10,1),fine=x*x*x*x*x;
+  const x=clampControl(value),s=clampControl(sensitivity,MIN_PHONE_SENSITIVITY,1),fine=x*x*x*x*x;
   return clampControl(x*s+fine*(1-s));
 }
 export function inversePhoneAxis(value,sensitivity=1){
   const target=Math.abs(clampControl(value));if(target===0||target===1)return Math.sign(value)*target;
-  const s=clampControl(sensitivity,0.10,1),sign=Math.sign(value);let lo=0,hi=1;
-  for(let i=0;i<24;i++){const mid=(lo+hi)/2,fine=mid*mid*mid*mid*mid,shaped=mid*s+fine*(1-s);if(shaped<target)lo=mid;else hi=mid;}
+  const s=clampControl(sensitivity,MIN_PHONE_SENSITIVITY,1),sign=Math.sign(value);let lo=0,hi=1;
+  for(let i=0;i<26;i++){const mid=(lo+hi)/2,fine=mid*mid*mid*mid*mid,shaped=mid*s+fine*(1-s);if(shaped<target)lo=mid;else hi=mid;}
   return sign*(lo+hi)/2;
 }
 
