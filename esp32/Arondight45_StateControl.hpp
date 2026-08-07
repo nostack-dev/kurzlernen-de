@@ -258,9 +258,11 @@ private:
     static constexpr float kMaxTiltTangent = 0.46630766f;  // tan(25 deg)
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
 
-    // Velocity error -> acceleration. With an ideal attitude loop this produces a
-    // first-order velocity response; the acceleration/tilt limits bound authority.
-    static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s
+    // Velocity error -> acceleration. Large vector errors still hit the 2 m/s²
+    // physical acceleration ceiling, so full-stick authority is unchanged. Around
+    // the zero-velocity target the lower slope keeps the outer velocity loop slower
+    // than the attitude/rate cascade and removes the brake-through/reverse limit cycle.
+    static constexpr float kHorizontalVelocityGain = 0.60f;  // 1/s
     // GAME commands a velocity vector, not an instantaneous attitude step. Bound
     // dv/dt so target-vector reversals stay inside achievable rigid-body/rotor
     // response. Velocity authority remains 5 m/s; only physical acceleration is limited.
