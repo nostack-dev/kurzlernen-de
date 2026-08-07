@@ -134,8 +134,16 @@ try{
     left:parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.left||"0"),
     armDisabled:document.querySelector("#soloArm")?.disabled,
   }));
-  if(Math.abs(retained.throttle-25)>1.5||Math.abs(retained.left-50)>1||!retained.armDisabled)
+  if(Math.abs(retained.throttle-25)>1.5||Math.abs(retained.left-50)>1||retained.armDisabled)
     throw new Error(`relative throttle/yaw release failed: ${JSON.stringify(retained)}`);
+
+  // The browser is only allowed to issue an ARM request. It must not clone the
+  // production throttle/stick gates. Prove the request reaches fc::Runtime and
+  // that the shared C++ runtime rejects it while throttle is non-zero.
+  const blockedArmStart=await simTime();await page.click("#soloArm");await waitForSimTime(blockedArmStart+1.1,45000);
+  state=await page.$eval("#fcState",e=>e.textContent||"");
+  if(state!=="DISARMED")throw new Error(`FC armed despite high throttle: ${JSON.stringify(await snapshot())}`);
+  await page.click("#soloArm");
 
   // Re-touch at centre still keeps 25%; moving down half-radius returns to 0.
   const down2=await pointerDownOnly("#soloLeft");await wait(80);
@@ -146,7 +154,7 @@ try{
     throttle:parseFloat(document.querySelector("#throttle")?.textContent||"0"),
     armDisabled:document.querySelector("#soloArm")?.disabled,
   }));
-  if(neutralAgain.throttle>0.5||neutralAgain.armDisabled)throw new Error(`throttle return/ARM gate failed: ${JSON.stringify(neutralAgain)}`);
+  if(neutralAgain.throttle>0.5||neutralAgain.armDisabled)throw new Error(`throttle return/ARM request availability failed: ${JSON.stringify(neutralAgain)}`);
 
   // Right stick must visibly retain full physical travel even at max fineness.
   const right=await pointerDownOnly("#soloRight");
@@ -213,5 +221,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM FC, FPV tilt, V4 phone settings, no throttle teleport, live right gimbal, race/reset, ARM/KILL, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM FC, FC-authoritative arming gates, FPV tilt, V4 phone settings, no throttle teleport, live right gimbal, race/reset, ARM/KILL, local fallback and responsive layout.");
 }finally{await browser.close();}
