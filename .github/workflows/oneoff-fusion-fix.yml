@@ -1,4 +1,4 @@
-name: Full command-kinematics validation
+name: Command kinematics validator
 
 on:
   push:
@@ -10,102 +10,25 @@ permissions:
   contents: read
 
 jobs:
-  candidate:
+  validate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: kin-a40
-            angle: "4.0f"
-            kp: "0.0080f"
-            kd: "0.000020f"
-            damping: "0.0f"
-          - label: kin-a44
-            angle: "4.4f"
-            kp: "0.0088f"
-            kd: "0.000022f"
-            damping: "0.0f"
-          - label: kin-a44-d10
-            angle: "4.4f"
-            kp: "0.0088f"
-            kd: "0.000022f"
-            damping: "0.10f"
-          - label: kin-a48
-            angle: "4.8f"
-            kp: "0.0096f"
-            kd: "0.000024f"
-            damping: "0.0f"
-    name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply exact ZYX command kinematics and run shared tests
-        env:
-          ANGLE: ${{ matrix.angle }}
-          KP: ${{ matrix.kp }}
-          KD: ${{ matrix.kd }}
-          DAMPING: ${{ matrix.damping }}
+      - name: Apply exact command kinematics
         run: |
           set -euxo pipefail
-          python3 - <<'PY'
-          import os,re
-          from pathlib import Path
-          core=Path('esp32/Arondight45_DroneFC_Core.hpp')
-          s=core.read_text()
-          old='''        constexpr float kAngleToRate = 1.9f;
-        const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
-        const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
-        const float yaw_rate = cmd.yaw * 180.0f;
-        return mix(cmd.throttle,
-                   roll_pid_.run(roll_rate, s.g.x, dt, integrate),
-                   pitch_pid_.run(pitch_rate, s.g.y, dt, integrate),
-                   yaw_pid_.run(yaw_rate, s.g.z, dt, integrate));'''
-          new=f'''        constexpr float kAngleToRate = {os.environ["ANGLE"]};
-        // The outer angle loops produce desired ZYX Euler rates. Gyros measure
-        // body p/q/r, so apply the exact inverse kinematic Jacobian before the
-        // rate PIDs. This is the command-side inverse of Attitude::run().
-        const float roll_euler_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
-        const float pitch_euler_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
-        const float yaw_euler_rate = cmd.yaw * 180.0f;
-        const float phi = attitude.roll * kPi / 180.0f;
-        const float theta = attitude.pitch * kPi / 180.0f;
-        const float sin_phi = std::sin(phi), cos_phi = std::cos(phi);
-        const float sin_theta = std::sin(theta), cos_theta = std::cos(theta);
-        const float p_target = roll_euler_rate - yaw_euler_rate * sin_theta;
-        const float q_target = pitch_euler_rate * cos_phi + yaw_euler_rate * sin_phi * cos_theta;
-        const float r_target = -pitch_euler_rate * sin_phi + yaw_euler_rate * cos_phi * cos_theta;
-        return mix(cmd.throttle,
-                   roll_pid_.run(p_target, s.g.x, dt, integrate),
-                   pitch_pid_.run(q_target, s.g.y, dt, integrate),
-                   yaw_pid_.run(r_target, s.g.z, dt, integrate));'''
-          assert s.count(old)==1,s.count(old)
-          s=s.replace(old,new,1)
-          s,n=re.subn(r'PID roll_pid_\{Gains\{[0-9.]+f, 0\.0007f, [0-9.]+f, 0\.18f, 0\.38f, 55\.0f\}\};',f'PID roll_pid_{{Gains{{{os.environ["KP"]}, 0.0007f, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}}};',s,count=1); assert n==1,n
-          s,n=re.subn(r'PID pitch_pid_\{Gains\{[0-9.]+f, 0\.0007f, [0-9.]+f, 0\.18f, 0\.38f, 55\.0f\}\};',f'PID pitch_pid_{{Gains{{{os.environ["KP"]}, 0.0007f, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}}};',s,count=1); assert n==1,n
-          core.write_text(s)
-          outer=Path('esp32/Arondight45_StateControl.hpp')
-          so=outer.read_text()
-          so,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};',so,count=1); assert n==1,n
-          outer.write_text(so)
-          PY
+          python3 tools/oneoff_command_kinematics.py
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/architecture_invariants.mjs
           git diff --check
-      - name: Build self-contained browser pair
+      - name: Build browser pair
         run: |
           set -euxo pipefail
           mkdir -p generated
-          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
-            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
-              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
-              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
-              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
-              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
-              -o generated/flight_core.mjs
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
           BUILD_DIR=/tmp/arondight45-web-build
           rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
           npm init -y >/dev/null
@@ -116,10 +39,11 @@ jobs:
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
-          for html_name,marker,bundle_name in [
-              ('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
-              ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
-              p=Path(html_name); h=p.read_text(); assert marker in h
+          pairs=[('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]
+          for html_name,marker,bundle_name in pairs:
+              p=Path(html_name)
+              h=p.read_text()
+              assert marker in h
               b=Path(bundle_name).read_text().replace('</script','<\\/script')
               p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
           PY
