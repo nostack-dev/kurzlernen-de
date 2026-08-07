@@ -195,7 +195,7 @@ inline bool decode_sbus(const uint8_t* p, RC& out) {
     out.ch[9] = (p[13] >> 3 | p[14] << 5) & 0x7ff;
     out.ch[10] = (p[14] >> 6 | p[15] << 2 | p[16] << 10) & 0x7ff;
     out.ch[11] = (p[16] >> 1 | p[17] << 7) & 0x7ff;
-    out.ch[12] = (p[17] >> 4 | p[18] << 4) & 0x7ff;
+    out.ch[12] = (p[17] >> 4 | p[18] << 1 | p[19] << 9) & 0x7ff;
     out.ch[13] = (p[18] >> 7 | p[19] << 1 | p[20] << 9) & 0x7ff;
     out.ch[14] = (p[20] >> 2 | p[21] << 6) & 0x7ff;
     out.ch[15] = (p[21] >> 5 | p[22] << 3) & 0x7ff;
@@ -354,11 +354,10 @@ public:
     }
 
     Mix run(Imu s, Command cmd, float dt, bool integrate) {
-        // Preserve the established fast attitude response while damping the actual
-        // body-rate dynamics in the inner gyro loop. The stronger rate P/D below
-        // supplies the missing angular damping; keeping 5.2 here avoids making GAME
-        // velocity response artificially sluggish before the braking phase starts.
-        constexpr float kAngleToRate = 5.2f;
+        // The attitude loop must be slower than the gyro-rate loop it commands.
+        // This bandwidth separation prevents a physically impossible target-angle
+        // reversal from driving the rigid body through the requested attitude.
+        constexpr float kAngleToRate = 2.2f;
         const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
         const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
         const float yaw_rate = cmd.yaw * 180.0f;
