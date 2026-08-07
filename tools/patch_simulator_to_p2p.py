@@ -58,8 +58,8 @@ s=s[:start]+replacement+s[end:]
 
 assert 'RemoteControlLink' not in s
 assert 'remoteRoom' not in s
-assert 'relayUrl()' not in s
-assert 'new WebSocket' in s  # HIL LAN remains optional; SIM remote transport is WebRTC.
+assert '/control' not in s
 assert 'new ViewPeerLink()' in s
 assert 'acceptControllerOffer' in s
+assert 'new WebSocket' in s  # Optional physical HIL LAN backend remains separate from SIM phone control.
 path.write_text(s)
