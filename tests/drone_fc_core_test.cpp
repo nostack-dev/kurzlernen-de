@@ -94,6 +94,19 @@ int main() {
     }
     CHECK(pid.integral() <= 0.2001f);
 
+    // Gyro measurements are body rates p/q/r, not Euler angle rates. At a
+    // tilted attitude a pure body-z rate must therefore change roll and pitch
+    // Euler angles as well as yaw. Disable accelerometer correction here so the
+    // test isolates the exact ZYX kinematic transformation.
+    fc::Attitude coupled_attitude{};
+    coupled_attitude.roll = 30.0f;
+    coupled_attitude.pitch = 20.0f;
+    coupled_attitude.yaw = 10.0f;
+    coupled_attitude.run(fc::Imu{{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 90.0f}}, 0.01f);
+    CHECK(coupled_attitude.roll > 30.20f && coupled_attitude.roll < 30.40f);
+    CHECK(coupled_attitude.pitch > 19.45f && coupled_attitude.pitch < 19.65f);
+    CHECK(coupled_attitude.yaw > 10.75f && coupled_attitude.yaw < 10.90f);
+
     const auto mixed = fc::mix(0.9f, 0.4f, -0.3f, 0.3f);
     for (float value : mixed.motor) CHECK(value >= 0.0f && value <= 1.0f);
     CHECK(fc::pulse(0.0f, false) == fc::kEscMinUs);
