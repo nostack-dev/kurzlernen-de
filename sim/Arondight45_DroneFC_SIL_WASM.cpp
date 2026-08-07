@@ -32,34 +32,34 @@ hil::OutputPacket output_packet{};
 
 extern "C" {
 
-SIL_EXPORT uintptr_t sil_input_ptr() {
-    return reinterpret_cast<uintptr_t>(&input_packet);
+SIL_EXPORT unsigned char* fc_input_buffer() {
+    return reinterpret_cast<unsigned char*>(&input_packet);
 }
 
-SIL_EXPORT uintptr_t sil_output_ptr() {
-    return reinterpret_cast<uintptr_t>(&output_packet);
+SIL_EXPORT const unsigned char* fc_output_buffer() {
+    return reinterpret_cast<const unsigned char*>(&output_packet);
 }
 
-SIL_EXPORT uint32_t sil_input_size() {
+SIL_EXPORT uint32_t fc_input_size() {
     return static_cast<uint32_t>(sizeof(input_packet));
 }
 
-SIL_EXPORT uint32_t sil_output_size() {
+SIL_EXPORT uint32_t fc_output_size() {
     return static_cast<uint32_t>(sizeof(output_packet));
 }
 
-SIL_EXPORT void sil_reset() {
+SIL_EXPORT void fc_reset() {
     runtime.reset();
     std::memset(&input_packet, 0, sizeof(input_packet));
     std::memset(&output_packet, 0, sizeof(output_packet));
 }
 
-SIL_EXPORT uint32_t sil_process() {
+SIL_EXPORT uint32_t fc_process() {
     output_packet = runtime.process(input_packet, 0);
     return output_packet.state;
 }
 
-SIL_EXPORT uint32_t sil_protocol_version() {
+SIL_EXPORT uint32_t fc_protocol_version() {
     return hil::kProtocolVersion;
 }
 
@@ -92,17 +92,17 @@ static void encode_sbus(const std::array<uint16_t, 16>& channels, uint8_t* p) {
 }
 
 int main() {
-    check(sil_input_size() == 64, "input packet size");
-    check(sil_output_size() == 32, "output packet size");
-    check(sil_protocol_version() == 1, "protocol version");
+    check(fc_input_size() == 64, "input packet size");
+    check(fc_output_size() == 32, "output packet size");
+    check(fc_protocol_version() == 1, "protocol version");
 
-    sil_reset();
-    auto* in = reinterpret_cast<hil::InputPacket*>(sil_input_ptr());
-    auto* out = reinterpret_cast<hil::OutputPacket*>(sil_output_ptr());
+    fc_reset();
+    auto* in = reinterpret_cast<hil::InputPacket*>(fc_input_buffer());
+    auto* out = reinterpret_cast<const hil::OutputPacket*>(fc_output_buffer());
     in->magic = hil::kInputMagic;
     in->dt_us = 1000;
     in->flags = hil::kFlagImuValid | hil::kFlagReset;
-    in->imu_registers[6] = 0x08; // +1 g Z at 2048 LSB/g
+    in->imu_registers[6] = 0x08;
 
     std::array<uint16_t, 16> channels{};
     channels.fill(992);
@@ -114,7 +114,7 @@ int main() {
         in->sequence = i;
         in->flags = hil::kFlagImuValid | (i == 0 ? hil::kFlagReset : 0);
         in->crc32 = hil::crc32(in, offsetof(hil::InputPacket, crc32));
-        sil_process();
+        fc_process();
         check(out->magic == hil::kOutputMagic, "output magic");
         check(out->sequence == i, "sequence echo");
         check(hil::crc32(out, offsetof(hil::OutputPacket, crc32)) == out->crc32, "output CRC");
@@ -126,7 +126,7 @@ int main() {
     for (uint32_t i = 0; i < 1002; ++i) {
         ++in->sequence;
         in->crc32 = hil::crc32(in, offsetof(hil::InputPacket, crc32));
-        sil_process();
+        fc_process();
     }
     check((out->state & hil::kStateArmed) != 0, "arming state machine");
     for (uint16_t pulse : out->motor_us) check(pulse == 1050, "armed idle pulse");
@@ -135,7 +135,7 @@ int main() {
     encode_sbus(channels, in->sbus);
     ++in->sequence;
     in->crc32 = hil::crc32(in, offsetof(hil::InputPacket, crc32));
-    sil_process();
+    fc_process();
     for (uint16_t pulse : out->motor_us) check(pulse > 1050, "throttle produces thrust command");
 
     std::puts("All Arondight45 SIL zero-divergence tests passed.");
