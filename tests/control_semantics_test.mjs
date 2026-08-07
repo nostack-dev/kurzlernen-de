@@ -8,6 +8,7 @@ const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected 
 
 assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,7);
 assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,10);
+assert.equal(DEFAULT_PHONE_SETTINGS.lockLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
@@ -35,6 +36,16 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 let leftKnob=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);near(leftKnob.x,.4,3e-6);near(leftKnob.y,.5,3e-6);
 releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.25,1e-6,"left release retains throttle");
 
+// The requested left-stick horizontal lock must lock only X/yaw. Vertical/Y
+// remains fully live and still owns throttle, including the retained-throttle
+// release behavior. The rendered knob must stay exactly centered horizontally.
+c=neutralControls();
+const lockedLeft={...DEFAULT_PHONE_SETTINGS,lockLeftHorizontal:true};
+applyStick(c,"left",{x:.9,y:-.5},lockedLeft);
+assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left lock must preserve vertical throttle authority");
+leftKnob=knobAxes(c,"left",lockedLeft);assert.equal(leftKnob.x,0);near(leftKnob.y,-.5,3e-6);
+releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left lock release retains throttle");
+
 c.throttle=0;
 applyStick(c,"right",{x:-.3,y:.2},DEFAULT_PHONE_SETTINGS);
 near(c.roll,phoneAxis(.3,10));near(c.pitch,phoneAxis(-.2,10));
@@ -42,11 +53,11 @@ assert.notEqual(c.roll,0);assert.notEqual(c.pitch,0);
 let rightKnob=knobAxes(c,"right",DEFAULT_PHONE_SETTINGS);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 releaseStick(c,"right");assert.equal(c.roll,0);assert.equal(c.pitch,0);
 
-// Explicit horizontal-axis lock is an input mode, not a control-law change.
-const locked={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
-applyStick(c,"right",{x:-.6,y:.8},locked);
+// Explicit right vertical-axis lock is likewise an input mode, not a control-law change.
+const lockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
+applyStick(c,"right",{x:-.6,y:.8},lockedRight);
 near(c.roll,phoneAxis(.6,10));assert.equal(c.pitch,0);
-rightKnob=knobAxes(c,"right",locked);near(rightKnob.x,-.6,3e-6);assert.equal(rightKnob.y,0);
+rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);assert.equal(rightKnob.y,0);
 releaseStick(c,"right");
 
 // Re-touching a retained throttle must not teleport it to the absolute touch point.
@@ -73,4 +84,4 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must no
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
 
-console.log("Phone controls passed: full authority, cubic fineness, correct roll sign, optional axis lock, relative throttle re-touch, and FC-authoritative arming.");
+console.log("Phone controls passed: full authority, cubic fineness, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
