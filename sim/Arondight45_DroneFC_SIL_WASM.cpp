@@ -2,8 +2,8 @@
  * Arondight45 DroneFC Software-in-the-Loop WebAssembly adapter.
  *
  * No flight-control logic is reimplemented here. Production, physical-S31 HIL
- * and browser SIL all execute fc::Runtime from Arondight45_DroneFC_Core.hpp.
- * SIL and HIL additionally share the exact HIL1/HLO1 protocol adapter.
+ * and browser SIL all execute the same C++ controller stack. SIL and HIL share
+ * the exact HIL1/HLO1 protocol adapter, including measured navigation state.
  */
 
 #include "../esp32/Arondight45_HIL_Protocol.hpp"
@@ -92,7 +92,7 @@ void encode_sbus(const std::array<uint16_t, 16>& channels, uint8_t* p) {
 int main() {
     check(fc_input_size() == 64, "input packet size");
     check(fc_output_size() == 32, "output packet size");
-    check(fc_protocol_version() == 1, "protocol version");
+    check(fc_protocol_version() == 2, "protocol version");
 
     fc_reset();
     auto* in = reinterpret_cast<hil::InputPacket*>(fc_input_buffer());
