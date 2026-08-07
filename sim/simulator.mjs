@@ -354,7 +354,7 @@ const camera=new THREE.PerspectiveCamera(52,1,.01,120);camera.up.set(0,0,1);came
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$("viewport").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
 const grid=new THREE.GridHelper(20,40,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(20,20,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
-const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button>';
+const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camSolo" type="button">1 PHONE</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
 for(const button of cameraHud.querySelectorAll("button"))Object.assign(button.style,{minWidth:"76px",padding:"7px 10px",borderRadius:"7px",border:"1px solid rgba(255,255,255,.3)",background:"rgba(17,29,43,.82)",color:"#fff",font:"700 12px system-ui,-apple-system,sans-serif",letterSpacing:".04em"});
 $("viewport").appendChild(cameraHud);
@@ -389,6 +389,66 @@ function updateCamera(){
   if(camera.fov!==52){camera.fov=52;camera.updateProjectionMatrix();}
 }
 $("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");setCameraMode(cameraMode);
+
+const soloHud=document.createElement("div");soloHud.id="soloHud";soloHud.hidden=true;
+soloHud.innerHTML=`
+  <div id="soloTopbar"><button id="soloExit" type="button">EXIT</button><span id="soloState">DISARMED</span><span id="soloAlt">0.0 m</span><button id="soloCamera" type="button">FOLLOW</button></div>
+  <div id="soloRotate">ROTATE PHONE TO LANDSCAPE</div>
+  <div id="soloLeft" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>THR / YAW</span></div>
+  <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>PITCH / ROLL</span></div>
+  <button id="soloArm" class="solo-action" type="button">ARM</button>
+  <button id="soloKill" class="solo-action" type="button">KILL</button>`;
+$("viewport").appendChild(soloHud);
+const soloStyle=document.createElement("style");soloStyle.textContent=`
+  body.solo-flight{overflow:hidden!important;background:#000!important}
+  body.solo-flight .panel,body.solo-flight .telemetry{display:none!important}
+  body.solo-flight #viewport{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;z-index:50!important}
+  body.solo-flight #cameraModes{top:max(8px,env(safe-area-inset-top))!important;left:50%!important}
+  #soloHud{position:absolute;inset:0;z-index:8;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
+  #soloHud[hidden]{display:none!important}
+  #soloTopbar{position:absolute;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));display:flex;gap:8px;align-items:center;justify-content:flex-start;pointer-events:auto}
+  #soloTopbar span,#soloTopbar button{border:1px solid #ffffff55;background:#112033cc;color:#fff;border-radius:9px;padding:7px 10px;font-weight:800;font-size:12px;backdrop-filter:blur(8px)}
+  #soloTopbar #soloExit{background:#6b2330dd} #soloTopbar #soloCamera{margin-left:auto;background:#174f70dd}
+  .solo-stick{position:absolute;width:min(34vw,230px);aspect-ratio:1;bottom:max(18px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none;border-radius:50%}
+  #soloLeft{left:max(16px,env(safe-area-inset-left))} #soloRight{right:max(16px,env(safe-area-inset-right))}
+  .solo-ring{position:absolute;inset:0;border-radius:50%;border:2px solid #ffffff66;background:#0b18265c;box-shadow:inset 0 0 45px #0005,0 6px 22px #0005}
+  .solo-knob{position:absolute;left:50%;top:50%;width:31%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:#f3f7ffcc;border:2px solid #fff;box-shadow:0 3px 14px #0008}
+  .solo-stick span{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font-size:10px;font-weight:800;letter-spacing:.08em;text-shadow:0 2px 5px #000;white-space:nowrap}
+  .solo-action{position:absolute;bottom:max(34px,calc(env(safe-area-inset-bottom) + 18px));pointer-events:auto;border-radius:999px!important;width:86px;height:52px;font-weight:900!important;color:#fff!important;border:2px solid #ffffff55!important;backdrop-filter:blur(8px)}
+  #soloArm{left:50%;transform:translateX(-105%);background:#17694fdd!important} #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}
+  #soloRotate{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:#07101aee;font-size:18px;font-weight:900;letter-spacing:.08em;text-align:center;padding:30px;pointer-events:none}
+  @media(orientation:portrait){body.solo-flight #soloRotate{display:flex}.solo-stick,.solo-action{opacity:.18}}
+  @media(max-height:430px){.solo-stick{width:min(30vw,180px)}.solo-action{width:76px;height:46px}}
+`;
+document.head.appendChild(soloStyle);
+
+let soloMode=false;
+function soloStick(el,kind){
+  const knob=el.querySelector(".solo-knob");let pointer=null;
+  const apply=e=>{const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,rad=r.width*.38;let x=(e.clientX-cx)/rad,y=(e.clientY-cy)/rad;const m=Math.hypot(x,y);if(m>1){x/=m;y/=m;}knob.style.left=`${50+x*38}%`;knob.style.top=`${50+y*38}%`;
+    if(kind==="left"){ui.touchYaw.value=String(clamp(x,-1,1));ui.touchThrottle.value=String(clamp((1-y)/2,0,1));localThrottle=+ui.touchThrottle.value;}
+    else{ui.touchRoll.value=String(clamp(x,-1,1));ui.touchPitch.value=String(clamp(-y,-1,1));}
+  };
+  el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);e.preventDefault();});
+  el.addEventListener("pointermove",e=>{if(e.pointerId===pointer)apply(e);});
+  const release=e=>{if(e.pointerId!==pointer)return;pointer=null;if(kind==="left"){ui.touchYaw.value="0";knob.style.left="50%";}else{ui.touchRoll.value="0";ui.touchPitch.value="0";knob.style.left="50%";knob.style.top="50%";}e.preventDefault();};
+  el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);
+}
+soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");
+async function enterSolo(){
+  soloMode=true;document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";updateRemoteUI();resize();
+  try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
+  try{await screen.orientation?.lock?.("landscape");}catch{}
+  if(mode==="sim"&&backend&&!running)startRun();
+}
+async function exitSolo(){
+  localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";soloMode=false;soloHud.hidden=true;document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}resize();
+}
+$("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
+$("soloArm").onclick=()=>{localArm=!localArm;$("soloArm").textContent=localArm?"ARM ON":"ARM";ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;};
+$("soloKill").onclick=()=>{localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";$("soloArm").textContent="ARM";};
+$("soloCamera").onclick=()=>{setCameraMode(cameraMode==="follow"?"fpv":"follow");$("soloCamera").textContent=cameraMode.toUpperCase();};
+document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
 let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
@@ -462,7 +522,7 @@ function render(){
   const fcState=latest.state,fault=fcState>>8&255,stateText=fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
   const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault});}
-  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";renderer.render(scene,camera);
+  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){$("soloState").textContent=stateText;$("soloAlt").textContent=Math.max(0,state.z).toFixed(1)+" m";$("soloCamera").textContent=cameraMode.toUpperCase();$("soloArm").textContent=localArm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):"ARM";}renderer.render(scene,camera);
 }
 render();
 

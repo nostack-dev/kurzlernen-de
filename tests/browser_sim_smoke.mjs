@@ -96,6 +96,8 @@ try {
   await page.click("#camFollow");
   const followMode = await page.$eval("#viewport", element => element.dataset.cameraMode || "");
   if (followMode !== "follow") throw new Error(`FOLLOW camera switch failed: ${followMode}`);
+  const soloUi = await page.evaluate(() => ({soloButton:!!document.querySelector("#camSolo"),soloHud:!!document.querySelector("#soloHud"),left:!!document.querySelector("#soloLeft"),right:!!document.querySelector("#soloRight"),arm:!!document.querySelector("#soloArm"),kill:!!document.querySelector("#soloKill")}));
+  if (!Object.values(soloUi).every(Boolean)) throw new Error(`single-phone HUD incomplete: ${JSON.stringify(soloUi)}`);
 
   // This smoke test validates the standalone local fallback path. The separate
   // dual_phone_smoke.mjs validates REMOTE PHONE as the primary input source.
