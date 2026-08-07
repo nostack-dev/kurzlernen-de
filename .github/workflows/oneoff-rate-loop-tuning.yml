@@ -1,4 +1,4 @@
-name: Attitude bandwidth tuning on damped vector loop
+name: Dynamic-safe attitude fusion matrix
 
 on:
   push:
@@ -17,25 +17,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: angle220
-            angle: "2.2f"
-          - label: angle260
-            angle: "2.6f"
-          - label: angle300
-            angle: "3.0f"
+          - label: gravity010
+            cutoff: "0.10f"
+          - label: gravity020
+            cutoff: "0.20f"
+          - label: gravity035
+            cutoff: "0.35f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply candidate and align current unit law
+      - name: Apply fusion candidate and align current unit law
         env:
-          ANGLE: ${{ matrix.angle }}
+          CUTOFF: ${{ matrix.cutoff }}
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           import os
           from pathlib import Path
-          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
-          s=p.read_text(); old='constexpr float kAngleToRate = 1.9f;'; new=f'constexpr float kAngleToRate = {os.environ["ANGLE"]};'
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp'); s=p.read_text()
+          old='const float tau = 1.0f / (2.0f * kPi * 1.4f);'
+          new=f'const float tau = 1.0f / (2.0f * kPi * {os.environ["CUTOFF"]});'
           assert s.count(old)==1,s.count(old); p.write_text(s.replace(old,new,1))
           p=Path('tests/state_control_test.cpp'); s=p.read_text()
           pairs=[
