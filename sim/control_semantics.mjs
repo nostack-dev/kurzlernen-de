@@ -1,20 +1,22 @@
 export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
-export const MIN_PHONE_SENSITIVITY=0.02;
+export const MIN_PHONE_GAIN=0.35;
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 export function fineLevelToSensitivity(level){
   const t=(clampLevel(level)-1)/9;
-  return Math.exp(Math.log(MIN_PHONE_SENSITIVITY)*t);
+  return 1-t*(1-MIN_PHONE_GAIN);
 }
 export function sensitivityToFineLevel(value){
-  const s=clampControl(Number(value),MIN_PHONE_SENSITIVITY,1);
-  const t=Math.log(s)/Math.log(MIN_PHONE_SENSITIVITY);
-  return clampLevel(1+9*t);
+  const gain=clampControl(Number(value),MIN_PHONE_GAIN,1);
+  return clampLevel(1+9*(1-gain)/(1-MIN_PHONE_GAIN));
 }
 
-// Human defaults: LEFT/YAW 7/10 fine, RIGHT/ROLL+PITCH 9/10 fine.
+// Human defaults: LEFT/YAW 8/10 fine, RIGHT/ROLL+PITCH 9/10 fine.
+// This is transmitter throw, not a second expo: the real FC already owns
+// deadband/expo. Lower phone gain simply maps the short touchscreen travel to
+// a smaller fraction of a physical RC stick without changing FC or physics.
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
-  leftSensitivity:fineLevelToSensitivity(7),
+  leftSensitivity:fineLevelToSensitivity(8),
   rightSensitivity:fineLevelToSensitivity(9),
 });
 
@@ -24,27 +26,23 @@ export function clampControl(value,lo=-1,hi=1){return Math.max(lo,Math.min(hi,va
 export function normalizePhoneSettings(settings={}){
   const left=Number(settings.leftSensitivity),right=Number(settings.rightSensitivity);
   return{
-    leftSensitivity:clampControl(Number.isFinite(left)?left:DEFAULT_PHONE_SETTINGS.leftSensitivity,MIN_PHONE_SENSITIVITY,1),
-    rightSensitivity:clampControl(Number.isFinite(right)?right:DEFAULT_PHONE_SETTINGS.rightSensitivity,MIN_PHONE_SENSITIVITY,1),
+    leftSensitivity:clampControl(Number.isFinite(left)?left:DEFAULT_PHONE_SETTINGS.leftSensitivity,MIN_PHONE_GAIN,1),
+    rightSensitivity:clampControl(Number.isFinite(right)?right:DEFAULT_PHONE_SETTINGS.rightSensitivity,MIN_PHONE_GAIN,1),
   };
 }
 
-// Phone gimbals have far less physical travel than a real transmitter. The
-// fifth-power blend makes the centre genuinely fine while preserving exact
-// +/-1 endpoints, so maximum FC authority and all aircraft physics are untouched.
+// Linear phone-stick throw. The FC applies its own canonical deadband and expo.
+// 1/10 fineness => gain 1.00 (full RC stick); 10/10 => gain 0.35.
 export function phoneAxis(value,sensitivity=1){
-  const x=clampControl(value),s=clampControl(sensitivity,MIN_PHONE_SENSITIVITY,1),fine=x*x*x*x*x;
-  return clampControl(x*s+fine*(1-s));
+  return clampControl(value)*clampControl(sensitivity,MIN_PHONE_GAIN,1);
 }
 export function inversePhoneAxis(value,sensitivity=1){
-  const target=Math.abs(clampControl(value));if(target===0||target===1)return Math.sign(value)*target;
-  const s=clampControl(sensitivity,MIN_PHONE_SENSITIVITY,1),sign=Math.sign(value);let lo=0,hi=1;
-  for(let i=0;i<26;i++){const mid=(lo+hi)/2,fine=mid*mid*mid*mid*mid,shaped=mid*s+fine*(1-s);if(shaped<target)lo=mid;else hi=mid;}
-  return sign*(lo+hi)/2;
+  const gain=clampControl(sensitivity,MIN_PHONE_GAIN,1);
+  return clampControl(clampControl(value)/gain);
 }
 
 export function armReady(fcState,controls,available=true,settings=DEFAULT_PHONE_SETTINGS){
-  // Arming follows actual gimbal displacement, not the sensitivity-shaped command.
+  // Arming follows actual gimbal displacement, not the reduced RC throw.
   const cfg=normalizePhoneSettings(settings);
   const rawRoll=inversePhoneAxis(controls.roll,cfg.rightSensitivity),rawPitch=inversePhoneAxis(controls.pitch,cfg.rightSensitivity),rawYaw=inversePhoneAxis(controls.yaw,cfg.leftSensitivity);
   return Boolean(available)&&fcState==="DISARMED"&&controls.throttle<=ARM_LIMITS.throttle&&Math.abs(rawRoll)<ARM_LIMITS.roll&&Math.abs(rawPitch)<ARM_LIMITS.pitch&&Math.abs(rawYaw)<ARM_LIMITS.yaw;
@@ -61,7 +59,7 @@ export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
     // Screen-right commands a physical bank to the right. Body roll sign is
-    // opposite screen X, so invert only the command; sensitivity is input-only.
+    // opposite screen X, so invert only the command; phone gain is input-only.
     controls.roll=phoneAxis(-point.x,cfg.rightSensitivity);
     controls.pitch=phoneAxis(-point.y,cfg.rightSensitivity);
   }
@@ -74,8 +72,7 @@ export function releaseStick(controls,kind){
 }
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
-  // Invert only the response curve for drawing so the knob stays exactly under
-  // the finger even though the command around centre is deliberately finer.
+  // Undo only the phone throw for drawing, so the knob remains under the finger.
   return kind==="left"
     ?{x:inversePhoneAxis(controls.yaw,cfg.leftSensitivity),y:1-2*controls.throttle}
     :{x:-inversePhoneAxis(controls.roll,cfg.rightSensitivity),y:-inversePhoneAxis(controls.pitch,cfg.rightSensitivity)};
