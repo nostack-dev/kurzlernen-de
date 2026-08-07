@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kd: ["0.55f", "0.65f", "0.75f", "0.85f", "0.95f", "1.05f"]
+        kd: ["1.10f", "1.15f", "1.20f", "1.25f"]
     name: kd-${{ matrix.kd }}
     steps:
       - uses: actions/checkout@v4
