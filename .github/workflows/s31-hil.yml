@@ -1,11 +1,16 @@
-name: ESP32-S31 HIL
+name: ESP32-S31 flight stack
 
 on:
   push:
     branches: [main]
     paths:
+      - "esp32/Arondight45_DroneFC_Core.hpp"
+      - "esp32/Arondight45_HIL_Protocol.hpp"
       - "esp32/Arondight45_DroneFC_S31.cpp"
       - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "sim/**"
+      - "tests/**"
+      - "tools/s31_hil_bridge.mjs"
       - "drone_simulator.html"
       - ".github/workflows/s31-hil.yml"
   workflow_dispatch:
@@ -18,41 +23,83 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Controller and HIL tests
+      - name: Shared runtime and protocol tests
         run: |
-          g++ -std=c++17 -O2 -Wall -Wextra -Werror -DFC_HOST_TEST \
-            esp32/Arondight45_DroneFC_S31.cpp -o /tmp/fc-tests
-          /tmp/fc-tests
-          g++ -std=c++17 -O1 -g -Wall -Wextra -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer -DHIL_HOST_TEST \
-            esp32/Arondight45_DroneFC_HIL_S31.cpp -Iesp32 -o /tmp/hil-tests
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 \
+            tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
+          /tmp/fc-core-tests
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 \
+            tests/drone_hil_protocol_test.cpp -o /tmp/hil-tests
           ASAN_OPTIONS=detect_leaks=1 /tmp/hil-tests
-      - name: HTML module syntax
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 \
+            sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil-host-tests
+          /tmp/sil-host-tests
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 \
+            tests/drone_fc_core_test.cpp -o /tmp/fc-core-clang
+          /tmp/fc-core-clang
+      - name: Architecture and JavaScript validation
         run: |
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          html = Path('drone_simulator.html').read_text()
-          match = re.search(r'<script type="module">(.*?)</script>', html, re.S)
-          assert match, 'module script missing'
-          Path('/tmp/drone-simulator.mjs').write_text(match.group(1))
-          assert 'new PID' not in html and 'class PID' not in html
-          assert 'navigator.serial' in html
-          PY
-          node --check /tmp/drone-simulator.mjs
+          set -euxo pipefail
+          node --check sim/simulator.mjs
+          node --check tests/sil_wasm_smoke.mjs
+          node --check tools/s31_hil_bridge.mjs
+          ! grep -R --line-number -E '#[[:space:]]*include[[:space:]]+["<][^">]*\.cpp[">]' esp32 sim
+          ! grep -R --line-number -E '#[[:space:]]*define[[:space:]]+main' esp32 sim
+          grep -q 'Arondight45_DroneFC_Core.hpp' esp32/Arondight45_DroneFC_S31.cpp
+          grep -q 'Arondight45_DroneFC_Core.hpp' esp32/Arondight45_HIL_Protocol.hpp
+          grep -q 'Arondight45_HIL_Protocol.hpp' esp32/Arondight45_DroneFC_HIL_S31.cpp
+          grep -q 'Arondight45_HIL_Protocol.hpp' sim/Arondight45_DroneFC_SIL_WASM.cpp
+          grep -q 'uart_set_line_inverse' esp32/Arondight45_DroneFC_S31.cpp
+          grep -q 'kIntSource' esp32/Arondight45_DroneFC_S31.cpp
+          grep -q 'esp_task_wdt' esp32/Arondight45_DroneFC_S31.cpp
+          grep -q 'fc::Runtime runtime' esp32/Arondight45_DroneFC_S31.cpp
+          grep -q 'functional HIL' esp32/Arondight45_DroneFC_HIL_S31.cpp
+          grep -q 'src="./sim/simulator.mjs"' drone_simulator.html
 
   esp-idf-build:
     runs-on: ubuntu-latest
-    container: espressif/idf:latest
+    container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
     steps:
       - uses: actions/checkout@v4
-      - name: Build HIL firmware for ESP32-S31
+      - name: Activate ESP-IDF
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          python "$IDF_PATH/tools/idf.py" --version
+      - name: Build production firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/arondight45-production
+          mkdir -p /tmp/arondight45-production/main
+          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-production/main/
+          cat > /tmp/arondight45-production/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_production)
+          EOF
+          cat > /tmp/arondight45-production/main/CMakeLists.txt <<'EOF'
+          idf_component_register(
+            SRCS "Arondight45_DroneFC_S31.cpp"
+            INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/arondight45-production
+          python "$IDF_PATH/tools/idf.py" set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" build
+      - name: Build functional HIL firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
           rm -rf /tmp/arondight45-hil
           mkdir -p /tmp/arondight45-hil/main
-          cp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_HIL_Protocol.hpp /tmp/arondight45-hil/main/
           cp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/arondight45-hil/main/
           cat > /tmp/arondight45-hil/CMakeLists.txt <<'EOF'
           cmake_minimum_required(VERSION 3.16)
@@ -65,5 +112,5 @@ jobs:
             INCLUDE_DIRS ".")
           EOF
           cd /tmp/arondight45-hil
-          idf.py set-target esp32s31
-          idf.py build
+          python "$IDF_PATH/tools/idf.py" set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" build
