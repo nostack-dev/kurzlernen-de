@@ -46,11 +46,14 @@ requireText("esp32/Arondight45_StateControl.hpp","runtime_.step");
 for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity","setPosition"])
   forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller must not depend on simulator physics API: ${marker}`);
 
-// Translation is one desired-minus-measured state-vector law. Direction-specific
-// brake/strafe hacks and measured-attitude lead shortcuts are not allowed back in.
-requireText("esp32/Arondight45_StateControl.hpp","desired physical acceleration vector");
-requireText("esp32/Arondight45_StateControl.hpp","forward_accel");
-requireText("esp32/Arondight45_StateControl.hpp","right_accel");
+// Translation is one desired-minus-measured state-vector law. Vector length is
+// speed; diagonal stick input must not gain sqrt(2) authority. Direction-specific
+// braking hacks and measured-attitude lead shortcuts are not allowed back in.
+requireText("esp32/Arondight45_StateControl.hpp","const float magnitude = std::sqrt(forward * forward + right * right)");
+requireText("esp32/Arondight45_StateControl.hpp","forward /= magnitude");
+requireText("esp32/Arondight45_StateControl.hpp","right /= magnitude");
+requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.forward_mps - measured_forward)");
+requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.right_mps - measured_right)");
 requireText("esp32/Arondight45_StateControl.hpp","vertical_accel");
 requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
