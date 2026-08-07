@@ -8,7 +8,7 @@
  * plus hardware-only watchdog, kill and deadline supervision.
  */
 
-#include "Arondight45_DroneFC_Core.hpp"
+#include "Arondight45_StateControl.hpp"
 
 #include <array>
 #include <atomic>
@@ -78,6 +78,8 @@ extern "C" {
 
 static_assert(FC_IMU_ROTATION == 0 || FC_IMU_ROTATION == 90 ||
               FC_IMU_ROTATION == 180 || FC_IMU_ROTATION == 270);
+
+extern "C" bool __attribute__((weak)) arondight45_navigation_sample(float* vx_mps,float* vy_mps,float* vz_mps,float* agl_m){(void)vx_mps;(void)vy_mps;(void)vz_mps;(void)agl_m;return false;}
 
 namespace hw {
 
@@ -361,7 +363,7 @@ void flight_task(void*) {
     if (esp_task_wdt_add(nullptr) != ESP_OK) fatal("flight watchdog registration");
     if (imu_init() != ESP_OK) fatal("imu init");
 
-    fc::Runtime runtime;
+    fc::StateRuntime runtime;
     uint64_t last_us = 0;
 
     for (;;) {
@@ -389,7 +391,10 @@ void flight_task(void*) {
         input.missed_samples = notifications > 1 ? notifications - 1 : 0;
         input.imu_valid = true;
         input.rc_fresh = rc_fresh;
-        const fc::RuntimeOutput output = runtime.step(input);
+        fc::NavigationState navigation{};float nav_vx=0,nav_vy=0,nav_vz=0,nav_agl=0;
+        if(arondight45_navigation_sample(&nav_vx,&nav_vy,&nav_vz,&nav_agl)){navigation.velocity_world_mps={nav_vx,nav_vy,nav_vz};navigation.agl_m=nav_agl;navigation.valid=true;navigation.valid=fc::finite(navigation);}
+        fc::StateRuntimeInput state_input{};state_input.flight=input;state_input.navigation=navigation;
+        const fc::RuntimeOutput output = runtime.step(state_input);
 
         if (output.fault != fc::kFaultNone) fatal(fc::Runtime::fault_name(output.fault));
         armed.store(output.armed, std::memory_order_release);

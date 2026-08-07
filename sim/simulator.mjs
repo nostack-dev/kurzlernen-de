@@ -15,9 +15,12 @@ const INPUT_BYTES = 64;
 const OUTPUT_BYTES = 32;
 const FLAG_IMU_VALID = 1;
 const FLAG_RESET = 2;
+const FLAG_NAVIGATION_VALID = 4;
 const STATE_ARMED = 1;
 const STATE_CALIBRATING = 2;
 const STATE_FAULT = 4;
+const STATE_NAVIGATION_VALID = 1 << 5;
+const STATE_GAME_MODE = 1 << 6;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
 const $ = id => document.getElementById(id);
@@ -71,7 +74,7 @@ function encodeSbus(channels) {
   return packet;
 }
 
-function makeInput(sequence, imu, sbus, flags, dtUs=1000) {
+function makeInput(sequence, imu, sbus, flags, dtUs=1000, navigation=null) {
   const bytes = new Uint8Array(INPUT_BYTES);
   const view = new DataView(bytes.buffer);
   view.setUint32(0,INPUT_MAGIC,true);
@@ -79,6 +82,14 @@ function makeInput(sequence, imu, sbus, flags, dtUs=1000) {
   view.setUint32(8,dtUs,true);
   bytes.set(imu,12);
   bytes.set(sbus,26);
+  if(navigation?.valid){
+    const s16=value=>clamp(Math.round(value),-32767,32767);
+    flags|=FLAG_NAVIGATION_VALID;
+    view.setInt16(52,s16(navigation.vx*100),true);
+    view.setInt16(54,s16(navigation.vy*100),true);
+    view.setInt16(56,s16(navigation.vz*100),true);
+    view.setUint16(58,clamp(Math.round(navigation.agl*1000),0,65535),true);
+  }
   bytes[51]=flags;
   view.setUint32(60,crc32(bytes,60),true);
   return bytes;
@@ -89,7 +100,7 @@ class WasmBackend {
   async connect(){
     this.module = await createCore();
     if (this.module._fc_input_size() !== INPUT_BYTES || this.module._fc_output_size() !== OUTPUT_BYTES) throw Error("WASM HIL protocol size mismatch");
-    if (this.module._fc_protocol_version() !== 1) throw Error("WASM HIL protocol version mismatch");
+    if (this.module._fc_protocol_version() !== 2) throw Error("WASM HIL protocol version mismatch");
     this.inPtr=this.module._fc_input_buffer();
     this.outPtr=this.module._fc_output_buffer();
     this.module._fc_reset();
@@ -103,7 +114,7 @@ class WasmBackend {
     this.module._fc_process();
     return parseOutput(this.module.HEAPU8.slice(this.outPtr,this.outPtr+OUTPUT_BYTES));
   }
-  label(){return "shared fc::Runtime / WASM";}
+  label(){return "shared fc::StateRuntime → fc::Runtime / WASM";}
 }
 
 class ByteResponseParser {
@@ -206,6 +217,23 @@ class Noise {
   uniform(){let x=this.s;x^=x<<13;x^=x>>>17;x^=x<<5;this.s=x>>>0;return(this.s+1)/4294967297;}
   gaussian(){if(this.spare!==null){const z=this.spare;this.spare=null;return z;}const u=Math.max(1e-12,this.uniform()),v=this.uniform(),r=Math.sqrt(-2*Math.log(u));this.spare=r*Math.sin(2*Math.PI*v);return r*Math.cos(2*Math.PI*v);}
   stepBias(dt){for(let i=0;i<3;i++){this.gyroBias[i]+=this.gaussian()*0.002*Math.sqrt(dt);this.accBias[i]+=this.gaussian()*0.00002*Math.sqrt(dt);}}
+}
+
+// Navigation truth is never fed directly to control. This adapter samples it at
+// 100 Hz, applies sensor noise/low-pass behavior and rangefinder geometry, then
+// quantizes it through the HIL packet exactly like a hardware navigation source.
+class SimNavigationSensors {
+  constructor(){this.reset();}
+  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.02;this.filtered=[0,0,0];this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
+  sample(model,dt=DT){
+    this.elapsed+=dt;if(this.elapsed<.01)return this.last;this.elapsed=0;
+    const truth=model.linear(),alpha=.42;
+    for(let i=0;i<3;i++){const measured=truth[i]+this.noise.gaussian()*.025;this.filtered[i]+=alpha*(measured-this.filtered[i]);}
+    const position=model.position(),down=model.worldVector([0,0,-1]),verticalProjection=-down[2];
+    let valid=verticalProjection>.55,agl=0;
+    if(valid){const slant=Math.max(0,position[2])/verticalProjection;valid=slant>=.015&&slant<=12;if(valid){const measuredSlant=Math.max(0,slant+this.noise.gaussian()*.004);agl=measuredSlant*verticalProjection;}}
+    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};return this.last;
+  }
 }
 
 const b3 = await Box3DFactory();
@@ -367,6 +395,8 @@ $("viewport").appendChild(cameraHud);
 function resize(){const bounds=$("viewport").getBoundingClientRect();renderer.setSize(bounds.width,bounds.height,false);camera.aspect=bounds.width/Math.max(1,bounds.height);camera.updateProjectionMatrix();}addEventListener("resize",resize);resize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
+const navigationSensors=new SimNavigationSensors();
+let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
 let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFollowInitialized=false;
 const followHeading=new THREE.Vector3(-1,0,0),thirdHeading=new THREE.Vector3(-1,0,0);
@@ -400,8 +430,9 @@ function updateCamera(){
   if(horizontal.lengthSq()>.04)horizontal.normalize();
   if(cameraMode==="third"){
     if(horizontal.lengthSq()>.04)thirdHeading.lerp(horizontal,.22).normalize();
-    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05;
-    const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18;
+    const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;
+    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;
+    const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18+viewPitch*1.15;
     camera.up.set(0,0,1);
     if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.16);
     camera.lookAt(look);
@@ -494,8 +525,8 @@ const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,rea
 
 function setStatus(text,cls=""){ui.status.textContent=text;ui.status.className="statusline "+cls;}
 function modeDescription(){
-  if(mode==="sim")return "SIM · primary mode. The exact shared C++ fc::Runtime executes as WebAssembly; only sensors, motors and airframe are simulated.";
-  if(mode==="hil")return "HIL · the same fc::Runtime executes on a physical ESP32-S31. Closed-loop time is simulated at 1 kHz; this is functional HIL, not a claim of real IMU-DRDY scheduling validation.";
+  if(mode==="sim")return "SIM · primary mode. The shared C++ state outer loop and exact fc::Runtime execute as WebAssembly; sensor measurements, motors and airframe are simulated.";
+  if(mode==="hil")return "HIL · the same state outer loop + fc::Runtime execute on a physical ESP32-S31. Closed-loop time is simulated at 1 kHz; this is functional HIL, not a claim of real IMU-DRDY scheduling validation.";
   return "REAL LOG · measured motor outputs replay through the same physics model. Parameter fitting compares measured position, velocity, attitude, battery and current when those fields exist.";
 }
 function updateModeUI(){ui.modeInfo.textContent=modeDescription();ui.tMode.textContent=mode.toUpperCase();for(const [id,value] of [["modeSim","sim"],["modeHil","hil"],["modeReplay","replay"]])$(id).classList.toggle("active",mode===value);ui.connect.textContent=mode==="sim"?"Reload flight core":mode==="hil"?"Connect physical S31":"Real log loaded via file";ui.connect.disabled=mode==="replay";ui.run.disabled=mode==="replay"?!realLog.length:!backend;ui.run.textContent=running?"Pause":"Start";}
@@ -515,7 +546,7 @@ async function switchMode(next){
   updateModeUI();
 }
 function resetSimulation(initial=null){
-  physics.reset(defaultParams(),initial);raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
+  physics.reset(defaultParams(),initial);navigationSensors.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }
 function localControlState(){
@@ -530,10 +561,14 @@ function activeControlState(){
   arm=effectiveInput.arm;throttle=effectiveInput.throttle;return effectiveInput;
 }
 function controls(){
-  const c=activeControlState(),channels=new Array(16).fill(992);channels[0]=Math.round(992+820*c.roll);channels[1]=Math.round(992+820*c.pitch);channels[2]=Math.round(172+1639*c.throttle);channels[3]=Math.round(992+820*c.yaw);channels[4]=c.arm?1811:172;return encodeSbus(channels);
+  const c=activeControlState(),channels=new Array(16).fill(992);
+  channels[0]=Math.round(992+820*clamp(c.roll||0,-1,1));channels[1]=Math.round(992+820*clamp(c.pitch||0,-1,1));channels[3]=Math.round(992+820*clamp(c.yaw||0,-1,1));channels[4]=c.arm?1811:172;
+  if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,.5,5),normalized=(clearance-.5)/4.5;channels[5]=Math.round(172+1639*normalized);channels[6]=1811;}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));
+  return encodeSbus(channels);
 }
 async function controllerStep(){
-  const params=defaultParams(),seq=sequence++,packet=makeInput(seq,physics.imuRaw(DT),controls(),(params.imuValid?FLAG_IMU_VALID:0)|(resetFlag?FLAG_RESET:0));resetFlag=false;
+  const params=defaultParams(),seq=sequence++;latestNavigation=navigationSensors.sample(physics,DT);
+  const packet=makeInput(seq,physics.imuRaw(DT),controls(),(params.imuValid?FLAG_IMU_VALID:0)|(resetFlag?FLAG_RESET:0),1000,latestNavigation);resetFlag=false;
   const started=performance.now(),out=await backend.exchange(packet,seq);ui.rtt.textContent=(performance.now()-started).toFixed(2)+" ms";return out;
 }
 function recordSession(){
@@ -560,7 +595,7 @@ function render(){
   requestAnimationFrame(render);physics.render();updateCamera();const state=physics.state();
   const fcState=latest.state,fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
-  const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault});}
+  const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,.5,5):null});}
   const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=Math.max(0,state.z).toFixed(1)+" m";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&!sharedArmReady(stateText,soloControls,true,phoneSettings);soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
 }
 render();
