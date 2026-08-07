@@ -1,15 +1,31 @@
-import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings} from "./control_semantics.mjs";
+import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings,fineLevelToSensitivity,sensitivityToFineLevel} from "./control_semantics.mjs";
 
-export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV1";
+export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV2";
+export const LEGACY_PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV1";
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
-export const sensitivityToLevel=value=>clampLevel(Number(value)*10);
-export const levelToSensitivity=value=>clampLevel(value)/10;
+export const sensitivityToLevel=value=>sensitivityToFineLevel(value);
+export const levelToSensitivity=value=>fineLevelToSensitivity(clampLevel(value));
+
+function migrateLegacySettings(){
+  try{
+    const raw=localStorage.getItem(LEGACY_PHONE_SETTINGS_KEY);if(!raw)return null;
+    const old=JSON.parse(raw),oldLeft=Number(old.leftSensitivity),oldRight=Number(old.rightSensitivity);
+    // V1 displayed level = sensitivity * 10. Preserve the user's displayed
+    // level while changing the meaning so 10/10 becomes maximum fine control.
+    const leftLevel=clampLevel(Number.isFinite(oldLeft)?oldLeft*10:7);
+    const rightLevel=clampLevel(Number.isFinite(oldRight)?oldRight*10:9);
+    const migrated=normalizePhoneSettings({leftSensitivity:levelToSensitivity(leftLevel),rightSensitivity:levelToSensitivity(rightLevel)});
+    localStorage.setItem(PHONE_SETTINGS_KEY,JSON.stringify(migrated));
+    return migrated;
+  }catch{return null;}
+}
 
 export function loadPhoneControlSettings(){
   try{
     const raw=localStorage.getItem(PHONE_SETTINGS_KEY);
-    return raw?normalizePhoneSettings(JSON.parse(raw)):normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);
+    if(raw)return normalizePhoneSettings(JSON.parse(raw));
+    return migrateLegacySettings()||normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);
   }catch{return normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);}
 }
 
@@ -49,19 +65,19 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   button.type="button";button.className="phone-settings-button";button.textContent=buttonText;button.setAttribute("aria-label","Phone control settings");
   const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
   dialog.innerHTML=`
-    <h3>CONTROL FEEL</h3>
-    <p>Choose how fine each phone stick feels around centre.</p>
+    <h3>CONTROL FINENESS</h3>
+    <p>Higher = finer, calmer phone-stick control around centre.</p>
     <div class="phone-settings-row">
       <label>LEFT · YAW</label><output data-out="left"></output>
       <input data-slider="left" type="range" min="1" max="10" step="1">
-      <div class="phone-settings-scale"><span>FINE</span><span>DIRECT</span></div>
+      <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
     <div class="phone-settings-row">
       <label>RIGHT · ROLL / PITCH</label><output data-out="right"></output>
       <input data-slider="right" type="range" min="1" max="10" step="1">
-      <div class="phone-settings-scale"><span>FINE</span><span>DIRECT</span></div>
+      <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
-    <p class="phone-settings-note">1 = very fine · 10 = linear/direct. Full stick is always 100% command. Throttle, flight controller and physics stay unchanged.</p>
+    <p class="phone-settings-note">1 = direct · 10 = least sensitive around centre. Full stick always remains 100% command. Throttle, flight controller and physics are unchanged.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]');
