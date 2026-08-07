@@ -63,7 +63,6 @@ class PeerBase{
     if(this.linked){
       this.everLinked=true;
       this.lastLinkedWall=performance.now();
-      try{localStorage.setItem("arondight45LastLinkedAt",String(Date.now()));}catch{}
     }
   }
   _newPeer(){
@@ -170,11 +169,11 @@ export class ControllerPeerLink extends PeerBase{
     if(!this.pc)throw new Error("Create an offer first.");
     await this.pc.setRemoteDescription(decodeSignal(code,"answer"));
   }
-  publish(control,force=false){
+  publish(control){
     if(!this.channel&&this.pc?.connectionState==="connected")this._makeControlChannel();
     const numeric=[control.roll,control.pitch,control.yaw,control.throttle].map(Number);
     if(!numeric.every(Number.isFinite))return false;
-    return safeSend(this.channel,{type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:control.arm===true,force});
+    return safeSend(this.channel,{type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:control.arm===true});
   }
 }
 
