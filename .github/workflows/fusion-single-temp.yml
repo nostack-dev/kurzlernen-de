@@ -1,0 +1,68 @@
+name: Gyro-dominant flight validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fusion-single-temp.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply measured-state PD and gyro-dominant fusion
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text()
+          s,n=re.subn(r'static constexpr float kHorizontalVelocityGain = [0-9.]+f;','static constexpr float kHorizontalVelocityGain = 1.00f;',s,count=1);assert n==1,n
+          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;','static constexpr float kHorizontalAccelerationDamping = 0.55f;',s,count=1);assert n==1,n
+          p.write_text(s)
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=p.read_text()
+          s,n=re.subn(r'const float tau = 1\.0f / \(2\.0f \* kPi \* [0-9.]+f\);','const float tau = 1.0f / (2.0f * kPi * 0.02f);',s,count=1);assert n==1,n
+          p.write_text(s)
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          node tests/architecture_invariants.mjs
+          git diff --check
+      - name: Build self-contained pair
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight45-fusion-single
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle_name in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
+              p=Path(html_name);h=p.read_text();assert marker in h
+              b=Path(bundle_name).read_text().replace('</script','<\\/script')
+              p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          rm -rf generated
+      - name: Full unchanged GAME E2E
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
