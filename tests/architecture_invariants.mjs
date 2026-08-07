@@ -58,6 +58,14 @@ requireText("esp32/Arondight45_StateControl.hpp","forward /= magnitude");
 requireText("esp32/Arondight45_StateControl.hpp","right /= magnitude");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.forward_mps - measured_forward)");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.right_mps - measured_right)");
+requireText("esp32/Arondight45_StateControl.hpp","update_acceleration_estimator(nav.velocity_world_mps, dt)",
+            "horizontal damping must derive from the measured navigation velocity vector");
+requireText("esp32/Arondight45_StateControl.hpp","measured_acceleration_world_mps2_",
+            "measured-state acceleration feedback must stay in the shared controller");
+requireText("esp32/Arondight45_StateControl.hpp","kHorizontalAccelerationDamping * measured_forward_accel");
+requireText("esp32/Arondight45_StateControl.hpp","kHorizontalAccelerationDamping * measured_right_accel");
+forbidText("esp32/Arondight45_StateControl.hpp","kMaxAttitudeFeedbackDeg",
+           "outer horizontal damping must not return to a roll/pitch proxy");
 requireText("esp32/Arondight45_StateControl.hpp","vertical_accel");
 requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
 requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)",
@@ -179,7 +187,11 @@ for(const path of [
   ".github/workflows/oneoff-agl-trace.yml",
   ".github/workflows/oneoff-trace-disarm-cause.yml",
   ".github/workflows/oneoff-rate-loop-tuning.yml",
+  ".github/workflows/oneoff-fusion-fix.yml",
 ]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
-if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
+for(const path of [
+  "tools/patch_shared_control_semantics.py",
+  "tools/oneoff_command_kinematics.py",
+]) if(existsSync(path))fail(`temporary source patcher returned: ${path}`);
 
-console.log("Architecture invariants passed: desired-state vector -> measured-state error -> physical acceleration/thrust geometry -> shared fc::Runtime -> motor physics, with raycast AGL, camera-only free-look and direct static WebRTC.");
+console.log("Architecture invariants passed: desired-state vector -> measured-state dynamics -> physical acceleration/thrust geometry -> shared fc::Runtime -> motor physics, with raycast AGL, camera-only free-look and direct static WebRTC.");
