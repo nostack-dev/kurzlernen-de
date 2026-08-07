@@ -10,6 +10,7 @@ const errors=[];
 function watch(page,name){page.on("pageerror",error=>errors.push(`${name} pageerror: ${error.message}`));page.on("console",message=>{if(message.type()==="error")errors.push(`${name} console: ${message.text()}`);});}
 async function waitText(page,selector,needle,timeout=30000){await page.waitForFunction((sel,text)=>document.querySelector(sel)?.textContent?.includes(text),{timeout},selector,needle);}
 async function setValue(page,selector,value){await page.$eval(selector,(element,text)=>{element.value=text;element.dispatchEvent(new Event("input",{bubbles:true}));},value);}
+async function invoke(page,selector){await page.$eval(selector,element=>element.click());}
 async function simTime(page){return page.$eval("#simTime",element=>parseFloat(element.textContent||"0"));}
 async function waitSim(page,target,timeout=60000){await page.waitForFunction(value=>parseFloat(document.querySelector("#simTime")?.textContent||"0")>=value,{timeout},target);}
 async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||""}));}
@@ -31,12 +32,12 @@ try{
   const offer=await controller.$eval("#offerCode",element=>element.value);
   await view.click("#remoteConnect");
   await setValue(view,"#remoteOffer",offer);
-  await view.click("#acceptOffer");
+  await invoke(view,"#acceptOffer");
   await view.waitForFunction(()=>document.querySelector("#remoteAnswer")?.value?.length>100,{timeout:20000});
   await view.waitForFunction(()=>document.querySelector("#answerQr")?.src?.startsWith("data:image"),{timeout:20000});
   const answer=await view.$eval("#remoteAnswer",element=>element.value);
   await setValue(controller,"#answerCode",answer);
-  await controller.click("#applyAnswer");
+  await invoke(controller,"#applyAnswer");
   await waitText(view,"#remoteStatus","P2P LINKED",30000);
   await waitText(controller,"#connection","P2P LINKED",30000);
   console.log("Serverless P2P E2E: QR payloads generated and two independent browser processes paired.");
