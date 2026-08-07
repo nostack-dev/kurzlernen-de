@@ -284,7 +284,7 @@ private:
     static constexpr float kHorizontalVelocityGain = 0.60f;  // 1/s
     // Pure acceleration damping provides phase margin against attitude/rotor lag
     // without changing the velocity-error gain when current acceleration is zero.
-    static constexpr float kHorizontalAccelerationDamping = 1.0f;
+    static constexpr float kHorizontalAccelerationDamping = 0.75f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;      // 1/s
