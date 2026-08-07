@@ -110,11 +110,31 @@ struct Attitude {
     }
 
     void run(Imu s, float dt) {
-        roll += s.g.x * dt;
-        pitch += s.g.y * dt;
-        yaw += s.g.z * dt;
-        if (yaw > 180.0f) yaw -= 360.0f;
-        if (yaw < -180.0f) yaw += 360.0f;
+        // The gyro measures body angular rates p/q/r. Those are not Euler
+        // roll/pitch/yaw rates once the aircraft is tilted. For the ZYX Euler
+        // convention used by the simulator and telemetry, transform body rates
+        // through the exact kinematic Jacobian before integrating attitude.
+        const float phi = roll * kPi / 180.0f;
+        const float theta = pitch * kPi / 180.0f;
+        const float sin_phi = std::sin(phi);
+        const float cos_phi = std::cos(phi);
+        const float sin_theta = std::sin(theta);
+        float cos_theta = std::cos(theta);
+        if (std::fabs(cos_theta) < 0.05f)
+            cos_theta = std::copysign(0.05f, cos_theta == 0.0f ? 1.0f : cos_theta);
+        const float tan_theta = sin_theta / cos_theta;
+
+        const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y +
+                                cos_phi * tan_theta * s.g.z;
+        const float pitch_rate = cos_phi * s.g.y - sin_phi * s.g.z;
+        const float yaw_rate = (sin_phi / cos_theta) * s.g.y +
+                               (cos_phi / cos_theta) * s.g.z;
+
+        roll += roll_rate * dt;
+        pitch += pitch_rate * dt;
+        yaw += yaw_rate * dt;
+        while (yaw > 180.0f) yaw -= 360.0f;
+        while (yaw < -180.0f) yaw += 360.0f;
 
         const float n = mag(s.a);
         if (n > 0.8f && n < 1.2f) {
