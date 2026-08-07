@@ -7,16 +7,20 @@
 
 namespace fc {
 
-// GAME / STATE control deliberately sits above the existing production attitude/rate
-// controller. The user commands a desired motion state; this outer loop turns the
-// measured state error into ordinary roll/pitch/throttle/yaw commands. The existing
-// fc::Runtime remains the only motor mixer / attitude / rate execution layer.
+// GAME control is a state-vector feedback controller.
 //
-// A quadrotor is under-actuated: independent x/y/z translation plus independent
-// roll/pitch/yaw orientation cannot all be chosen simultaneously. Therefore roll and
-// pitch are internal solution variables used to realize x/y velocity. Yaw remains an
-// independently commanded heading. No force, position or attitude is ever written
-// directly into the aircraft state.
+// User intent defines the target state:
+//   - body-forward velocity
+//   - body-right velocity
+//   - ground clearance
+//   - yaw / yaw-rate
+//
+// Navigation + IMU provide the measured state. The controller subtracts measured
+// motion from desired motion, converts that velocity error into a desired physical
+// acceleration vector, adds gravity, and geometrically derives the thrust direction
+// and magnitude required from the quadrotor. Roll/pitch are therefore only internal
+// actuator coordinates used to point the thrust vector; they are not user targets.
+// The existing fc::Runtime remains the sole attitude/rate/motor execution layer.
 
 constexpr int kStateClearanceChannel = 5;
 constexpr int kStateModeChannel = 6;
@@ -90,6 +94,9 @@ struct StateControllerDebug {
     float roll_command{};
     float pitch_channel_command{};
     float yaw_command{};
+    float forward_accel_mps2{};
+    float right_accel_mps2{};
+    float vertical_accel_mps2{};
 };
 
 class StateController {
@@ -106,16 +113,7 @@ public:
         debug_ = {};
     }
 
-    // Compatibility overload used by low-level tests that intentionally isolate the
-    // velocity law from measured roll/pitch. StateRuntime always uses the full measured
-    // attitude overload below.
     RC transform(const RC& original, const NavigationState& nav, float yaw_deg,
-                 bool inner_armed, float dt) {
-        return transform(original, nav, 0.0f, 0.0f, yaw_deg, inner_armed, dt);
-    }
-
-    RC transform(const RC& original, const NavigationState& nav,
-                 float roll_deg, float pitch_deg, float yaw_deg,
                  bool inner_armed, float dt) {
         RC out = original;
         const StateIntent intent = state_intent(original);
@@ -128,11 +126,12 @@ public:
         target_yaw_deg_ = wrap_degrees(target_yaw_deg_ + intent.yaw_rate_dps * dt);
 
         const float yaw_rad = yaw_deg * kPi / 180.0f;
-        // Airframe/world convention is right-handed with +Z up and body forward
-        // along -X. Therefore body-right is -Y at yaw=0. Rotating those basis
-        // vectors by yaw gives forward=(-c,-s) and right=(s,-c).
         const float c = std::cos(yaw_rad);
         const float s = std::sin(yaw_rad);
+
+        // Airframe/world convention: +Z is up, body-forward is -X and body-right
+        // is -Y at yaw=0. Project measured world velocity onto those yaw-rotated
+        // body axes so target and measurement live in exactly the same vector space.
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
         const float measured_right = s * nav.velocity_world_mps.x - c * nav.velocity_world_mps.y;
 
@@ -146,64 +145,85 @@ public:
                       intent.right_mps, measured_right,
                       target_yaw_deg_, yaw_deg,
                       intent.clearance_m, nav.agl_m,
-                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                      0.0f, 0.0f, 0.0f};
             return out;
         }
 
-        const float forward_error = intent.forward_mps - measured_forward;
-        const float right_error = intent.right_mps - measured_right;
+        // Z is also state feedback: the clearance error creates a desired vertical
+        // speed, and vertical-speed error creates the requested vertical acceleration.
+        const float agl_error = intent.clearance_m - nav.agl_m;
+        const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
+                                      -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps);
+        const float vz_error = target_vz - nav.velocity_world_mps.z;
+        const float vertical_accel = clamp(kVerticalVelocityGain * vz_error,
+                                           -kMaxVerticalAccelerationMps2,
+                                           kMaxVerticalAccelerationMps2);
+        const float specific_up = clamp(kGravityMps2 + vertical_accel,
+                                        kMinSpecificUpMps2, kMaxSpecificUpMps2);
 
-        // The inner controller is an attitude->rate->motor cascade, so the velocity
-        // loop must remain slower than its real attitude dynamics. Pure velocity P
-        // can otherwise keep asking for forward tilt while the aircraft is already
-        // strongly tilted, then require a large reversal when the stick is released.
-        // Feed the *measured* attitude back into the desired-attitude calculation:
-        // existing tilt progressively unloads the velocity command and, after a
-        // velocity-target reversal, immediately increases the opposing target. This
-        // is state feedback only; fc::Runtime still owns all attitude/rate execution.
-        // Pitch channel sign is inverted by command(), while roll is not.
-        const float bounded_roll_deg = clamp(roll_deg, -45.0f, 45.0f);
-        const float bounded_pitch_deg = clamp(pitch_deg, -45.0f, 45.0f);
-        const float pitch_channel = clamp(kVelocityToAttitude * forward_error +
-                                              kAttitudeLead * bounded_pitch_deg / 32.0f,
-                                          -kMaxAttitudeCommand, kMaxAttitudeCommand);
-        const float roll_command = clamp(kVelocityToAttitude * right_error -
-                                             kAttitudeLead * bounded_roll_deg / 32.0f,
+        // XY is the same equation: velocity target minus measured velocity gives
+        // acceleration demand. Limit the acceleration vector as a vector, not each
+        // axis separately. The second limit is the exact horizontal acceleration
+        // available at the permitted maximum tilt for the requested vertical force.
+        float forward_accel = kHorizontalVelocityGain * (intent.forward_mps - measured_forward);
+        float right_accel = kHorizontalVelocityGain * (intent.right_mps - measured_right);
+        const float horizontal_accel = std::sqrt(forward_accel * forward_accel +
+                                                 right_accel * right_accel);
+        const float tilt_limited_accel = specific_up * kMaxTiltTangent;
+        const float allowed_horizontal_accel = std::min(kMaxHorizontalAccelerationMps2,
+                                                        tilt_limited_accel);
+        if (horizontal_accel > allowed_horizontal_accel && horizontal_accel > 1.0e-6f) {
+            const float scale = allowed_horizontal_accel / horizontal_accel;
+            forward_accel *= scale;
+            right_accel *= scale;
+        }
+
+        // Desired specific force = desired acceleration + gravity. Geometry of that
+        // one vector yields both the direction (roll/pitch) and magnitude (throttle).
+        // No measured-attitude lead term is needed: the inner IMU feedback controller
+        // simply tracks this physically required thrust direction.
+        const float pitch_target_deg = -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
+        const float roll_target_deg = std::atan2(
+            right_accel, std::sqrt(specific_up * specific_up + forward_accel * forward_accel)) *
+            180.0f / kPi;
+        const float roll_command = clamp(roll_target_deg / kInnerAttitudeRangeDeg,
                                          -kMaxAttitudeCommand, kMaxAttitudeCommand);
+        // command() in the inner runtime intentionally inverts the pitch SBUS channel.
+        const float pitch_channel = clamp(-pitch_target_deg / kInnerAttitudeRangeDeg,
+                                          -kMaxAttitudeCommand, kMaxAttitudeCommand);
 
         const float yaw_error = wrap_degrees(target_yaw_deg_ - yaw_deg);
         const float desired_yaw_rate = clamp(intent.yaw_rate_dps + kHeadingKp * yaw_error,
                                              -180.0f, 180.0f);
         const float yaw_command = desired_yaw_rate / 180.0f;
 
-        const float agl_error = intent.clearance_m - nav.agl_m;
-        const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
-                                      -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps);
-        const float vz_error = target_vz - nav.velocity_world_mps.z;
-
-        float throttle_command = 0.0f;
-        if (inner_armed) {
-            // Integral adaptation learns the actual hover command instead of assuming
-            // a simulator-only mass/prop constant. It is intentionally slow and bounded.
+        // Learn only the hover baseline; transient maneuver force comes directly from
+        // the required specific-force magnitude. This automatically compensates the
+        // extra thrust needed while tilted instead of teaching the integrator a turn.
+        if (std::fabs(agl_error) < kHoverLearnAglBandM) {
             hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                                 kMinHoverTrim, kMaxHoverTrim);
-            throttle_command = clamp(hover_trim_ + kVerticalSpeedKp * vz_error +
-                                     kAglDirectKp * agl_error,
-                                     kMinFlightThrottle, kMaxFlightThrottle);
         }
+        const float required_specific_force = std::sqrt(
+            forward_accel * forward_accel + right_accel * right_accel +
+            specific_up * specific_up);
+        const float throttle_command = clamp(
+            hover_trim_ * required_specific_force / kGravityMps2,
+            kMinFlightThrottle, kMaxFlightThrottle);
 
         out.ch[FC_SBUS_ROLL] = centered_raw(roll_command);
         out.ch[FC_SBUS_PITCH] = centered_raw(pitch_channel);
         out.ch[FC_SBUS_THROTTLE] = throttle_raw(throttle_command);
         out.ch[FC_SBUS_YAW] = centered_raw(yaw_command);
-        // ARM, mode and clearance channels remain exactly as received.
 
         debug_ = {intent.forward_mps, measured_forward,
                   intent.right_mps, measured_right,
                   target_yaw_deg_, yaw_deg,
                   intent.clearance_m, nav.agl_m,
                   target_vz, throttle_command,
-                  roll_command, pitch_channel, yaw_command};
+                  roll_command, pitch_channel, yaw_command,
+                  forward_accel, right_accel, vertical_accel};
         return out;
     }
 
@@ -211,17 +231,27 @@ public:
     float hover_trim() const { return hover_trim_; }
 
 private:
-    // 32 degrees is the inner attitude controller's full command. Limit the outer
-    // loop to about 25 degrees so vertical authority remains available.
-    static constexpr float kMaxAttitudeCommand = 25.0f / 32.0f;
-    static constexpr float kVelocityToAttitude = 0.20f;  // normalized attitude / (m/s error)
-    static constexpr float kAttitudeLead = 1.00f;         // measured-tilt damping of outer velocity loop
-    static constexpr float kHeadingKp = 2.2f;             // deg/s per deg heading error
-    static constexpr float kAglToVerticalSpeed = 1.30f;
+    static constexpr float kGravityMps2 = 9.80665f;
+    static constexpr float kInnerAttitudeRangeDeg = 32.0f;
+    static constexpr float kMaxTiltDeg = 25.0f;
+    static constexpr float kMaxTiltTangent = 0.46630766f;  // tan(25 deg)
+    static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
+
+    // Velocity error -> acceleration. With an ideal attitude loop this produces a
+    // first-order velocity response; the acceleration/tilt limits bound authority.
+    static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s
+    static constexpr float kMaxHorizontalAccelerationMps2 = 4.5f;
+
+    static constexpr float kAglToVerticalSpeed = 1.30f;      // 1/s
     static constexpr float kMaxVerticalSpeedMps = 2.0f;
-    static constexpr float kVerticalSpeedKp = 0.12f;
-    static constexpr float kAglDirectKp = 0.020f;
-    static constexpr float kHoverAdapt = 0.060f;
+    static constexpr float kVerticalVelocityGain = 2.0f;     // 1/s
+    static constexpr float kMaxVerticalAccelerationMps2 = 4.0f;
+    static constexpr float kMinSpecificUpMps2 = 4.0f;
+    static constexpr float kMaxSpecificUpMps2 = 14.0f;
+
+    static constexpr float kHeadingKp = 2.2f;                // deg/s per deg heading error
+    static constexpr float kHoverAdapt = 0.050f;
+    static constexpr float kHoverLearnAglBandM = 0.50f;
     static constexpr float kInitialHoverThrottle = 0.39f;
     static constexpr float kMinHoverTrim = 0.25f;
     static constexpr float kMaxHoverTrim = 0.65f;
@@ -246,8 +276,6 @@ public:
     void reset() {
         runtime_.reset();
         state_controller_.reset();
-        last_roll_deg_ = 0.0f;
-        last_pitch_deg_ = 0.0f;
         last_yaw_deg_ = 0.0f;
         game_active_ = false;
     }
@@ -278,8 +306,7 @@ public:
                              ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
                              : 0.001f;
         input.flight.rc = state_controller_.transform(input.flight.rc, input.navigation,
-                                                       last_roll_deg_, last_pitch_deg_, last_yaw_deg_,
-                                                       runtime_.armed(), dt);
+                                                       last_yaw_deg_, runtime_.armed(), dt);
         RuntimeOutput out = runtime_.step(input.flight);
         out.state |= kStateGameMode | kStateNavigationValid;
         update_attitude(out);
@@ -293,15 +320,11 @@ public:
 
 private:
     void update_attitude(const RuntimeOutput& out) {
-        last_roll_deg_ = static_cast<float>(out.attitude_cdeg[0]) * 0.01f;
-        last_pitch_deg_ = static_cast<float>(out.attitude_cdeg[1]) * 0.01f;
         last_yaw_deg_ = static_cast<float>(out.attitude_cdeg[2]) * 0.01f;
     }
 
     Runtime runtime_{};
     StateController state_controller_{};
-    float last_roll_deg_{};
-    float last_pitch_deg_{};
     float last_yaw_deg_{};
     bool game_active_{};
 };
