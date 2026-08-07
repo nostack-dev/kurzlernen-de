@@ -21,8 +21,25 @@ async function simTime(page){return page.$eval("#simTime",element=>parseFloat(el
 async function waitSim(page,target,timeout=60000){await page.waitForFunction(value=>parseFloat(document.querySelector("#simTime")?.textContent||"0")>=value,{timeout},target);}
 async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||"",armSwitch:document.querySelector("#armSwitch")?.textContent||""}));}
 async function stickBox(page,selector){return page.$eval(selector,element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});}
-async function speed(page){return page.$eval("#velocity",element=>parseFloat(element.textContent||"0"));}
 async function yaw(page){return page.$eval("#attitude",element=>{const parts=(element.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[];return Number(parts[2]||0);});}
+async function latestFlightSample(page){
+  return page.evaluate(async()=>{
+    const original=URL.createObjectURL;let captured=null;
+    URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};
+    try{
+      document.querySelector("#exportLog")?.click();
+      await new Promise(resolve=>setTimeout(resolve,0));
+      if(!captured)throw new Error("flight log blob was not captured");
+      const log=JSON.parse(await captured.text()),samples=log?.samples||[];
+      if(!samples.length)throw new Error("flight log has no samples");
+      return samples[samples.length-1];
+    }finally{URL.createObjectURL=original;}
+  });
+}
+function bodyMotion(sample){
+  const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
+  return{forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
+}
 
 const view=await viewBrowser.newPage(),controller=await controllerBrowser.newPage();watch(view,"view");watch(controller,"controller");
 try{
@@ -63,29 +80,35 @@ try{
   catch{throw new Error(`GAME remote arming never reached ARMED: ${JSON.stringify(await snapshot(view))}`);}
   const armEnd=await simTime(view),armingDuration=armEnd-armStart;
   if(armingDuration>1.5)throw new Error(`GAME remote arming too slow in simulation: ${armingDuration.toFixed(3)}s · ${JSON.stringify(await snapshot(view))}`);
-  state=await view.$eval("#fcState",element=>element.textContent||"");
   await waitText(controller,"#arm","ARMED ✓",10000);
   console.log(`State-control E2E: GAME armed after ${armingDuration.toFixed(3)} simulated seconds.`);
 
-  await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0");return z>1.55&&z<2.45;},{timeout:60000});
-  const holdStart=await simTime(view);await waitSim(view,holdStart+.8,40000);
-  const holdAltitude=await view.$eval("#altitude",element=>parseFloat(element.textContent||"0"));
-  if(!(holdAltitude>1.35&&holdAltitude<2.65))throw new Error(`2m AGL hold did not settle: ${holdAltitude}`);
+  // A real hold means both clearance error and vertical velocity have settled.
+  await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.55;},{timeout:90000});
+  const holdStart=await simTime(view);await waitSim(view,holdStart+.35,25000);
+  const hold=bodyMotion(await latestFlightSample(view));
+  if(!(hold.altitude>1.45&&hold.altitude<2.55&&Math.abs(hold.vertical)<.65))throw new Error(`2m AGL did not settle: ${JSON.stringify(hold)}`);
   const liftPulses=await view.$eval("#motors",element=>(element.textContent||"").trim().split(/\s+/).map(Number));
   if(!liftPulses.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${liftPulses.join(" ")}`);
-  console.log(`State-control E2E: neutral input physically converged to 2m AGL (${holdAltitude.toFixed(2)}m).`);
+  console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
 
+  // Forward intent is judged in the aircraft heading frame, not by scalar |v|.
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+.55,30000);
-  const movingSpeed=await speed(view);
-  if(movingSpeed<0.65)throw new Error(`forward desired-vector command did not accelerate physical model: ${movingSpeed} m/s`);
+  const moving=bodyMotion(await latestFlightSample(view));
+  if(moving.forward<.45)throw new Error(`forward desired-vector sign/response wrong: ${JSON.stringify(moving)}`);
   await controller.mouse.up();
+  await waitText(controller,"#leftValue","FWD 0.0",10000);
 
+  // Neutral left stick commands horizontal v*=0. Verify the actual horizontal
+  // vector contracts; check vertical separately so AGL transients cannot masquerade
+  // as a braking failure.
   const brakeStart=await simTime(view);await waitSim(view,brakeStart+1.6,50000);
-  const brakedSpeed=await speed(view);
-  if(brakedSpeed>Math.max(.75,movingSpeed*.72))throw new Error(`zero-velocity target did not brake enough: moving=${movingSpeed}, after=${brakedSpeed}`);
-  console.log(`State-control E2E: forward vector ${movingSpeed.toFixed(2)}m/s -> active braking ${brakedSpeed.toFixed(2)}m/s.`);
+  const braked=bodyMotion(await latestFlightSample(view));
+  if(braked.horizontal>Math.max(.65,moving.horizontal*.72))throw new Error(`zero-horizontal-velocity target did not brake: before=${JSON.stringify(moving)}, after=${JSON.stringify(braked)}`);
+  if(Math.abs(braked.vertical)>1.5)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, after=${JSON.stringify(braked)}`);
+  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal |v| ${moving.horizontal.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s, vz=${braked.vertical.toFixed(2)}m/s.`);
 
   const yawBefore=await yaw(view);
   const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
@@ -116,5 +139,5 @@ try{
   if(!/fail-safe|stale|reconnect|disconnected/i.test(status))throw new Error(`controller loss not surfaced: ${status}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, 2m AGL convergence, vector acceleration/braking, heading control, session recovery, hard-loss disarm.");
+  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, settled 2m AGL, vector acceleration/braking, heading control, session recovery, hard-loss disarm.");
 }finally{try{await controllerBrowser.close();}catch{}try{await viewBrowser.close();}catch{}}
