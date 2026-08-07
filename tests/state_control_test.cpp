@@ -18,8 +18,8 @@ fc::RC base_rc(bool arm = false) {
     fc::RC rc{};
     rc.valid = true;
     rc.ch.fill(992);
-    rc.ch[fc::FC_SBUS_THROTTLE] = 172;
-    rc.ch[fc::FC_SBUS_ARM] = arm ? 1811 : 172;
+    rc.ch[FC_SBUS_THROTTLE] = 172;
+    rc.ch[FC_SBUS_ARM] = arm ? 1811 : 172;
     rc.ch[fc::kStateModeChannel] = 1811;
     // 2.0 m within [0.5, 5.0].
     const float clearance01 = (2.0f - fc::kStateMinClearanceM) /
