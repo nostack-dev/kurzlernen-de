@@ -18,6 +18,8 @@ const FLAG_RESET = 2;
 const STATE_ARMED = 1;
 const STATE_CALIBRATING = 2;
 const STATE_FAULT = 4;
+const TERRAIN_SIZE = 600;
+const TERRAIN_HALF = TERRAIN_SIZE / 2;
 const $ = id => document.getElementById(id);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const norm = v => Math.hypot(v[0], v[1], v[2]);
@@ -259,7 +261,7 @@ class PhysicsModel {
     this.p={...p,wind:[...p.wind]};
     if(this.world)b3.b3DestroyWorld(this.world);
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
-    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;b3.b3CreateBoxShape(ground,groundShape,60,60,.05);
+    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:.024;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(.024,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,.022);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
@@ -352,26 +354,27 @@ function daylightSky(){
   ctx.fillStyle=gradient;ctx.fillRect(0,0,canvas.width,canvas.height);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;return texture;
 }
-const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,35,150);
-const camera=new THREE.PerspectiveCamera(52,1,.01,300);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
+const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,90,700);
+const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$("viewport").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
-const grid=new THREE.GridHelper(120,60,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(120,120,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
+const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});
-const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camSolo" type="button">1 PHONE</button>';
+const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camThird" type="button">THIRD</button><button id="camSolo" type="button">1 PHONE</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
 for(const button of cameraHud.querySelectorAll("button"))Object.assign(button.style,{minWidth:"76px",padding:"7px 10px",borderRadius:"7px",border:"1px solid rgba(255,255,255,.3)",background:"rgba(17,29,43,.82)",color:"#fff",font:"700 12px system-ui,-apple-system,sans-serif",letterSpacing:".04em"});
 $("viewport").appendChild(cameraHud);
 function resize(){const bounds=$("viewport").getBoundingClientRect();renderer.setSize(bounds.width,bounds.height,false);camera.aspect=bounds.width/Math.max(1,bounds.height);camera.updateProjectionMatrix();}addEventListener("resize",resize);resize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
-let cameraMode=localStorage.getItem("arondight45CameraMode")==="fpv"?"fpv":"follow",cameraFollowInitialized=false;
-const followHeading=new THREE.Vector3(-1,0,0);
+const savedCameraMode=localStorage.getItem("arondight45CameraMode");
+let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFollowInitialized=false;
+const followHeading=new THREE.Vector3(-1,0,0),thirdHeading=new THREE.Vector3(-1,0,0);
 const FPV_CAMERA_UPTILT_DEG=30,FPV_CAMERA_UPTILT_RAD=FPV_CAMERA_UPTILT_DEG*Math.PI/180;
 $("viewport").dataset.fpvTiltDeg=String(FPV_CAMERA_UPTILT_DEG);
 function setCameraMode(next){
-  cameraMode=next==="fpv"?"fpv":"follow";cameraFollowInitialized=false;localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
-  for(const [id,value] of [["camFollow","follow"],["camFpv","fpv"]]){
+  cameraMode=["follow","fpv","third"].includes(next)?next:"follow";cameraFollowInitialized=false;localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
+  for(const [id,value] of [["camFollow","follow"],["camFpv","fpv"],["camThird","third"]]){
     const button=$(id),active=cameraMode===value;button.dataset.active=active?"1":"0";button.style.background=active?"#17694f":"rgba(17,29,43,.82)";button.style.borderColor=active?"#62d6aa":"rgba(255,255,255,.3)";
   }
 }
@@ -394,7 +397,18 @@ function updateCamera(){
     return;
   }
   const horizontal=bodyForward.clone();horizontal.z=0;
-  if(horizontal.lengthSq()>.04){horizontal.normalize();followHeading.lerp(horizontal,.12).normalize();}
+  if(horizontal.lengthSq()>.04)horizontal.normalize();
+  if(cameraMode==="third"){
+    if(horizontal.lengthSq()>.04)thirdHeading.lerp(horizontal,.22).normalize();
+    const desired=position.clone().addScaledVector(thirdHeading,-3.0);desired.z+=1.35;
+    const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18;
+    camera.up.set(0,0,1);
+    if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.16);
+    camera.lookAt(look);
+    if(camera.fov!==62){camera.fov=62;camera.updateProjectionMatrix();}
+    return;
+  }
+  if(horizontal.lengthSq()>.04)followHeading.lerp(horizontal,.12).normalize();
   const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78;
   const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10;
   camera.up.set(0,0,1);
@@ -402,7 +416,7 @@ function updateCamera(){
   camera.lookAt(look);
   if(camera.fov!==52){camera.fov=52;camera.updateProjectionMatrix();}
 }
-$("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");setCameraMode(cameraMode);
+$("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");$("camThird").onclick=()=>setCameraMode("third");setCameraMode(cameraMode);
 
 const soloHud=document.createElement("div");soloHud.id="soloHud";soloHud.hidden=true;
 soloHud.innerHTML=`
@@ -471,7 +485,7 @@ function resetSoloSimulation(){const restart=mode==="sim"&&Boolean(backend);stop
 $("soloReset").onclick=resetSoloSimulation;
 $("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if(sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;};
 $("soloKill").onclick=()=>{soloControls=neutralControls();updateSoloSticks();arm=false;throttle=0;};
-$("soloCamera").onclick=()=>{setCameraMode(cameraMode==="follow"?"fpv":"follow");$("soloCamera").textContent=cameraMode.toUpperCase();};
+$("soloCamera").onclick=()=>{const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();};
 document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
 let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
