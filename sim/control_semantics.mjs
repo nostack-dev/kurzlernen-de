@@ -1,4 +1,3 @@
-export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
 export const MAX_PHONE_EXPO=0.70;
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
@@ -42,14 +41,11 @@ export function inversePhoneAxis(value,fineness=1){
   return sign*(lo+hi)/2;
 }
 
-export function armReady(fcState,controls,available=true,settings=DEFAULT_PHONE_SETTINGS){
-  // Arming follows physical virtual-gimbal displacement, not expo-shaped output.
-  const cfg=normalizePhoneSettings(settings);
-  const rawRoll=inversePhoneAxis(controls.roll,cfg.rightFineness);
-  const rawPitch=cfg.lockRightHorizontal?0:inversePhoneAxis(controls.pitch,cfg.rightFineness);
-  const rawYaw=inversePhoneAxis(controls.yaw,cfg.leftFineness);
-  return Boolean(available)&&fcState==="DISARMED"&&controls.throttle<=ARM_LIMITS.throttle&&
-    Math.abs(rawRoll)<ARM_LIMITS.roll&&Math.abs(rawPitch)<ARM_LIMITS.pitch&&Math.abs(rawYaw)<ARM_LIMITS.yaw;
+// This is deliberately only a UI availability check. It never mirrors throttle,
+// stick, attitude or IMU arming thresholds. Every real arming gate lives once,
+// inside the shared C++ fc::Runtime used by production, HIL and SIL/WASM.
+export function armReady(fcState,_controls,available=true){
+  return Boolean(available)&&fcState==="DISARMED";
 }
 
 function constrainUnit(x,y){
