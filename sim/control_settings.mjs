@@ -1,31 +1,47 @@
 import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings,fineLevelToSensitivity,sensitivityToFineLevel} from "./control_semantics.mjs";
 
-export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV2";
+export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV3";
+export const V2_PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV2";
 export const LEGACY_PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV1";
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 export const sensitivityToLevel=value=>sensitivityToFineLevel(value);
 export const levelToSensitivity=value=>fineLevelToSensitivity(clampLevel(value));
 
-function migrateLegacySettings(){
+// V2 used a fifth-power phone expo with a geometrically mapped centre gain.
+// Recover the level the user actually saw, then convert that level to the new
+// linear RC-stick-throw semantics. This preserves e.g. an existing 10/10.
+function v2SensitivityToLevel(value){
+  const s=Math.max(.02,Math.min(1,Number(value)||1));
+  const t=Math.log(s)/Math.log(.02);
+  return clampLevel(1+9*t);
+}
+
+function migrateSettings(){
   try{
-    const raw=localStorage.getItem(LEGACY_PHONE_SETTINGS_KEY);if(!raw)return null;
-    const old=JSON.parse(raw),oldLeft=Number(old.leftSensitivity),oldRight=Number(old.rightSensitivity);
-    // V1 displayed level = sensitivity * 10. Preserve the user's displayed
-    // level while changing the meaning so 10/10 becomes maximum fine control.
-    const leftLevel=clampLevel(Number.isFinite(oldLeft)?oldLeft*10:7);
-    const rightLevel=clampLevel(Number.isFinite(oldRight)?oldRight*10:9);
-    const migrated=normalizePhoneSettings({leftSensitivity:levelToSensitivity(leftLevel),rightSensitivity:levelToSensitivity(rightLevel)});
-    localStorage.setItem(PHONE_SETTINGS_KEY,JSON.stringify(migrated));
-    return migrated;
-  }catch{return null;}
+    const v2=localStorage.getItem(V2_PHONE_SETTINGS_KEY);
+    if(v2){
+      const old=JSON.parse(v2);
+      const leftLevel=v2SensitivityToLevel(old.leftSensitivity),rightLevel=v2SensitivityToLevel(old.rightSensitivity);
+      const migrated=normalizePhoneSettings({leftSensitivity:levelToSensitivity(leftLevel),rightSensitivity:levelToSensitivity(rightLevel)});
+      localStorage.setItem(PHONE_SETTINGS_KEY,JSON.stringify(migrated));return migrated;
+    }
+    const v1=localStorage.getItem(LEGACY_PHONE_SETTINGS_KEY);
+    if(v1){
+      const old=JSON.parse(v1),oldLeft=Number(old.leftSensitivity),oldRight=Number(old.rightSensitivity);
+      const leftLevel=clampLevel(Number.isFinite(oldLeft)?oldLeft*10:8),rightLevel=clampLevel(Number.isFinite(oldRight)?oldRight*10:9);
+      const migrated=normalizePhoneSettings({leftSensitivity:levelToSensitivity(leftLevel),rightSensitivity:levelToSensitivity(rightLevel)});
+      localStorage.setItem(PHONE_SETTINGS_KEY,JSON.stringify(migrated));return migrated;
+    }
+  }catch{}
+  return null;
 }
 
 export function loadPhoneControlSettings(){
   try{
     const raw=localStorage.getItem(PHONE_SETTINGS_KEY);
     if(raw)return normalizePhoneSettings(JSON.parse(raw));
-    return migrateLegacySettings()||normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);
+    return migrateSettings()||normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);
   }catch{return normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);}
 }
 
@@ -66,7 +82,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
   dialog.innerHTML=`
     <h3>CONTROL FINENESS</h3>
-    <p>Higher = finer, calmer phone-stick control around centre.</p>
+    <p>Higher = less sensitive phone-stick control.</p>
     <div class="phone-settings-row">
       <label>LEFT · YAW</label><output data-out="left"></output>
       <input data-slider="left" type="range" min="1" max="10" step="1">
@@ -77,7 +93,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
       <input data-slider="right" type="range" min="1" max="10" step="1">
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
-    <p class="phone-settings-note">1 = direct · 10 = least sensitive around centre. Full stick always remains 100% command. Throttle, flight controller and physics are unchanged.</p>
+    <p class="phone-settings-note">1 = 100% RC stick throw · 10 = 35% RC stick throw. The flight controller keeps its own real deadband/expo. Throttle and aircraft physics are unchanged.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]');
