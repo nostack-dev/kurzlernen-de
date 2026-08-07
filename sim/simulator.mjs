@@ -413,6 +413,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
   #soloLeft{left:max(16px,env(safe-area-inset-left))} #soloRight{right:max(16px,env(safe-area-inset-right))}
   .solo-ring{position:absolute;inset:0;border-radius:50%;border:2px solid #ffffff66;background:#0b18265c;box-shadow:inset 0 0 45px #0005,0 6px 22px #0005}
   .solo-knob{position:absolute;left:50%;top:50%;width:31%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:#f3f7ffcc;border:2px solid #fff;box-shadow:0 3px 14px #0008}
+  #soloLeft .solo-knob{top:88%}
   .solo-stick span{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font-size:10px;font-weight:800;letter-spacing:.08em;text-shadow:0 2px 5px #000;white-space:nowrap}
   .solo-action{position:absolute;bottom:max(34px,calc(env(safe-area-inset-bottom) + 18px));pointer-events:auto;border-radius:999px!important;width:86px;height:52px;font-weight:900!important;color:#fff!important;border:2px solid #ffffff55!important;backdrop-filter:blur(8px)}
   #soloArm{left:50%;transform:translateX(-105%);background:#17694fdd!important} #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}
@@ -422,7 +423,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
 `;
 document.head.appendChild(soloStyle);
 
-let soloMode=false;
+let soloMode=false,soloPreviousInputSource="remote";
 function soloStick(el,kind){
   const knob=el.querySelector(".solo-knob");let pointer=null;
   const apply=e=>{const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,rad=r.width*.38;let x=(e.clientX-cx)/rad,y=(e.clientY-cy)/rad;const m=Math.hypot(x,y);if(m>1){x/=m;y/=m;}knob.style.left=`${50+x*38}%`;knob.style.top=`${50+y*38}%`;
@@ -436,17 +437,17 @@ function soloStick(el,kind){
 }
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");
 async function enterSolo(){
-  soloMode=true;document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";updateRemoteUI();resize();
+  soloMode=true;soloPreviousInputSource=inputSource;document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";$("soloLeft").querySelector(".solo-knob").style.cssText="left:50%;top:88%";$("soloRight").querySelector(".solo-knob").style.cssText="left:50%;top:50%";updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   if(mode==="sim"&&backend&&!running)startRun();
 }
 async function exitSolo(){
-  localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";soloMode=false;soloHud.hidden=true;document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}resize();
+  localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
 }
 $("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
 $("soloArm").onclick=()=>{localArm=!localArm;$("soloArm").textContent=localArm?"ARM ON":"ARM";ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;};
-$("soloKill").onclick=()=>{localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";$("soloArm").textContent="ARM";};
+$("soloKill").onclick=()=>{localArm=false;arm=false;localThrottle=0;ui.touchThrottle.value="0";ui.touchYaw.value="0";$("soloLeft").querySelector(".solo-knob").style.cssText="left:50%;top:88%";$("soloArm").textContent="ARM";};
 $("soloCamera").onclick=()=>{setCameraMode(cameraMode==="follow"?"fpv":"follow");$("soloCamera").textContent=cameraMode.toUpperCase();};
 document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
 let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
