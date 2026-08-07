@@ -1,0 +1,100 @@
+name: Align GAME state-vector tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-align-state-vector-tests.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace obsolete lead tests with vector-law tests
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('tests/state_control_test.cpp')
+          s=p.read_text()
+          start=s.index('    // Measured attitude is part of the GAME outer-loop state.')
+          end=s.index('    // Right strafe is solved through roll',start)
+          block='''    // There is only one translational feedback law. With zero desired
+              // velocity but residual forward motion, the velocity-error vector must point
+              // backward and therefore command physical counter-tilt. No dedicated
+              // "brake mode" or measured-attitude lead shortcut is involved.
+              nav = {{-1.0f, 0.0f, 0.0f}, 2.0f, true};
+              rc = base_rc(true);
+              transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+              CHECK(controller.debug().measured_forward_mps > 0.99f);
+              CHECK(controller.debug().forward_accel_mps2 < -1.90f);
+              CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.10f);
+
+              // The same equation applies laterally. Residual rightward velocity with a
+              // zero target must command a leftward acceleration and counter-roll.
+              nav = {{0.0f, -1.0f, 0.0f}, 2.0f, true};
+              transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+              CHECK(controller.debug().measured_right_mps > 0.99f);
+              CHECK(controller.debug().right_accel_mps2 < -1.90f);
+              CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.10f);
+
+              // Diagonal input is limited as one acceleration vector. Independent
+              // per-axis clamps would allow sqrt(2) more total acceleration and violate
+              // the requested direction/magnitude semantics.
+              nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
+              rc = base_rc(true);
+              rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
+              rc.ch[FC_SBUS_PITCH] = fc::centered_raw(1.0f);
+              transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+              const float diagonal_accel = std::hypot(controller.debug().forward_accel_mps2,
+                                                       controller.debug().right_accel_mps2);
+              CHECK(diagonal_accel > 4.40f);
+              CHECK(diagonal_accel < 4.51f);
+
+          '''
+          p.write_text(s[:start]+block+s[end:])
+
+          inv=Path('tests/architecture_invariants.mjs')
+          s=inv.read_text()
+          marker='// HIL v2 keeps the packet physically identical in size and uses the eight former\n'
+          assert s.count(marker)==1
+          vector_guard='''// GAME translation is one desired-minus-measured state-vector law. Do not
+          // reintroduce direction-specific braking hacks or simulator-side authority.
+          requireText("esp32/Arondight45_StateControl.hpp","desired physical acceleration vector");
+          requireText("esp32/Arondight45_StateControl.hpp","forward_accel");
+          requireText("esp32/Arondight45_StateControl.hpp","right_accel");
+          requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
+          requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
+          forbidText("esp32/Arondight45_StateControl.hpp","kAttitudeLead",
+                     "direction-specific measured-attitude lead hack returned");
+
+          '''
+          inv.write_text(s.replace(marker,vector_guard+marker,1))
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-tests
+          /tmp/state-control-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
+          /tmp/fc-core-tests
+          node tests/architecture_invariants.mjs
+          node --check tests/dual_phone_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
+          git diff --check
+      - name: Commit aligned tests and remove temporary workflows
+        run: |
+          set -euxo pipefail
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add tests/state_control_test.cpp tests/architecture_invariants.mjs
+          git rm -f .github/workflows/oneoff-align-state-vector-tests.yml
+          if test -f .github/workflows/oneoff-restore-strict-game-e2e.yml; then git rm -f .github/workflows/oneoff-restore-strict-game-e2e.yml; fi
+          git commit -m "Test GAME control as one desired-state vector loop"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
