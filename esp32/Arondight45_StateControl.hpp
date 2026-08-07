@@ -125,6 +125,20 @@ public:
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
         const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;
 
+        if (!inner_armed) {
+            target_yaw_deg_ = wrap_degrees(yaw_deg);
+            out.ch[FC_SBUS_ROLL] = centered_raw(0.0f);
+            out.ch[FC_SBUS_PITCH] = centered_raw(0.0f);
+            out.ch[FC_SBUS_THROTTLE] = throttle_raw(0.0f);
+            out.ch[FC_SBUS_YAW] = centered_raw(0.0f);
+            debug_ = {intent.forward_mps, measured_forward,
+                      intent.right_mps, measured_right,
+                      target_yaw_deg_, yaw_deg,
+                      intent.clearance_m, nav.agl_m,
+                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+            return out;
+        }
+
         const float forward_error = intent.forward_mps - measured_forward;
         const float right_error = intent.right_mps - measured_right;
 

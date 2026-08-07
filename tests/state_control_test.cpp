@@ -156,6 +156,36 @@ int main() {
         CHECK(m.motor[2] > m.motor[3]);
     }
 
+    // GAME arming remains governed by the production Runtime. Measured drift
+    // before take-off must not manufacture attitude commands that block arming.
+    fc::StateRuntime arming_runtime;
+    fc::StateRuntimeInput arming_input{};
+    arming_input.flight.raw = {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+    arming_input.flight.rc = base_rc(false);
+    arming_input.flight.rc.valid = true;
+    arming_input.flight.rc_fresh = true;
+    arming_input.flight.imu_valid = true;
+    arming_input.flight.dt_us = 1000;
+    arming_input.navigation = {{1.5f, -1.2f, 0.0f}, 0.03f, true};
+    fc::RuntimeOutput arm_out{};
+    uint64_t arm_time_us = 0;
+    for (uint32_t i = 0; i < fc::kCalibrationSamples + 50; ++i) {
+        arm_time_us += 1000;
+        arming_input.flight.now_us = arm_time_us;
+        arm_out = arming_runtime.step(arming_input);
+    }
+    CHECK((arm_out.state & fc::kStateCalibrating) == 0);
+    arming_input.flight.rc = base_rc(true);
+    for (int i = 0; i < 1100; ++i) {
+        arm_time_us += 1000;
+        arming_input.flight.now_us = arm_time_us;
+        arm_out = arming_runtime.step(arming_input);
+    }
+    CHECK(arm_out.armed);
+    CHECK((arm_out.state & fc::kStateArmed) != 0);
+    CHECK((arm_out.state & fc::kStateGameMode) != 0);
+    CHECK((arm_out.state & fc::kStateNavigationValid) != 0);
+
     // GAME runtime must fail closed if navigation measurements disappear.
     fc::StateRuntime runtime;
     fc::StateRuntimeInput input{};

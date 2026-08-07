@@ -62,6 +62,10 @@ requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","usb_serial_jtag");
 // SIM navigation is a sensor adapter, not a truth-to-motor shortcut. Its output
 // is serialized through the same HIL packet consumed by the C++ StateRuntime.
 requireText("sim/simulator.mjs","class SimNavigationSensors");
+requireText("sim/simulator.mjs","b3World_CastRayClosest");
+requireText("sim/simulator.mjs","groundRange(12)");
+requireText("sim/simulator.mjs","neutralSoloControls");
+requireText("sim/simulator.mjs","soloClearanceSlider");
 requireText("sim/simulator.mjs","FLAG_NAVIGATION_VALID");
 requireText("sim/simulator.mjs","view.setInt16(52");
 requireText("sim/simulator.mjs","backend.exchange(packet");

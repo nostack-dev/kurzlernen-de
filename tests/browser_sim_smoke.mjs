@@ -86,10 +86,12 @@ try{
     settings:!!document.querySelector("#soloTopbar .phone-settings-button"),
     throttle:parseFloat(document.querySelector("#throttle")?.textContent||"0"),
     leftTop:parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.top||"0"),
+    clearance:!!document.querySelector("#soloClearanceSlider"),
+    clearanceValue:Number(document.querySelector("#soloClearanceSlider")?.value||0),
   }));
-  if(!Object.values({hud:soloUi.hud,reset:soloUi.reset,lap:soloUi.lap,settings:soloUi.settings}).every(Boolean))
+  if(!Object.values({hud:soloUi.hud,reset:soloUi.reset,lap:soloUi.lap,settings:soloUi.settings,clearance:soloUi.clearance}).every(Boolean))
     throw new Error(`solo HUD incomplete: ${JSON.stringify(soloUi)}`);
-  if(soloUi.throttle!==0||soloUi.leftTop<90)throw new Error(`solo neutral wrong: ${JSON.stringify(soloUi)}`);
+  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-2)>.01)throw new Error(`solo GAME neutral wrong: ${JSON.stringify(soloUi)}`);
 
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
@@ -118,64 +120,39 @@ try{
   let state=await page.$eval("#fcState",e=>e.textContent||"");
   if(state!=="DISARMED")throw new Error(`solo calibration failed: ${JSON.stringify(await snapshot())}`);
 
-  // Critical touch regression: touching the retained-throttle stick at screen
-  // centre must NOT teleport throttle from 0 to 50%.
-  const down=await pointerDownOnly("#soloLeft");
-  await wait(100);
-  const afterTouch=await page.$eval("#throttle",e=>parseFloat(e.textContent||"0"));
-  if(afterTouch>0.5)throw new Error(`throttle teleported on re-touch: ${afterTouch}%`);
-
-  // Move upward by half a gimbal radius -> 25% throttle, then release. Throttle
-  // stays there while yaw springs to centre.
-  await page.mouse.move(down.cx+down.r*.25,down.cy-down.r*.5,{steps:6});
-  await wait(100);await page.mouse.up();await wait(100);
-  const retained=await page.evaluate(()=>({
-    throttle:parseFloat(document.querySelector("#throttle")?.textContent||"0"),
-    left:parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.left||"0"),
-    armDisabled:document.querySelector("#soloArm")?.disabled,
-  }));
-  if(Math.abs(retained.throttle-25)>1.5||Math.abs(retained.left-50)>1||retained.armDisabled)
-    throw new Error(`relative throttle/yaw release failed: ${JSON.stringify(retained)}`);
-
-  // The browser is only allowed to issue an ARM request. It must not clone the
-  // production throttle/stick gates. Prove the request reaches fc::Runtime and
-  // that the shared C++ runtime rejects it while throttle is non-zero.
-  const blockedArmStart=await simTime();await page.click("#soloArm");await waitForSimTime(blockedArmStart+1.1,45000);
+  // One-phone mode uses exactly the same GAME/STATE contract as two-phone mode.
+  await page.waitForFunction(()=>document.querySelector("#soloRangeStatus")?.textContent?.includes("AGL"),{timeout:15000});
+  await page.waitForFunction(()=>{const b=document.querySelector("#soloArm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:15000});
+  const armStart=await simTime();await page.click("#soloArm");await waitForSimTime(armStart+1.25,50000);
   state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="DISARMED")throw new Error(`FC armed despite high throttle: ${JSON.stringify(await snapshot())}`);
-  await page.click("#soloArm");
+  if(state!=="ARMED")throw new Error(`solo GAME ARM failed: ${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0");return z>1.5&&z<2.5;},{timeout:60000});
+  const holdStart=await simTime();await waitForSimTime(holdStart+.6,35000);
+  const holdAltitude=await page.$eval("#altitude",e=>parseFloat(e.textContent||"0"));
+  if(!(holdAltitude>1.3&&holdAltitude<2.7))throw new Error(`solo 2m AGL hold failed: ${holdAltitude}`);
 
-  // Re-touch at centre still keeps 25%; moving down half-radius returns to 0.
-  const down2=await pointerDownOnly("#soloLeft");await wait(80);
-  const retainedOnRetouch=await page.$eval("#throttle",e=>parseFloat(e.textContent||"0"));
-  if(Math.abs(retainedOnRetouch-25)>1.5)throw new Error(`retained throttle jumped on re-touch: ${retainedOnRetouch}%`);
-  await page.mouse.move(down2.cx,down2.cy+down2.r*.5,{steps:6});await page.mouse.up();await wait(100);
-  const neutralAgain=await page.evaluate(()=>({
-    throttle:parseFloat(document.querySelector("#throttle")?.textContent||"0"),
-    armDisabled:document.querySelector("#soloArm")?.disabled,
-  }));
-  if(neutralAgain.throttle>0.5||neutralAgain.armDisabled)throw new Error(`throttle return/ARM request availability failed: ${JSON.stringify(neutralAgain)}`);
-
-  // Right stick must visibly retain full physical travel even at max fineness.
-  const right=await pointerDownOnly("#soloRight");
-  await page.mouse.move(right.cx-right.r*.8,right.cy-right.r*.2,{steps:6});await wait(80);
-  const rightKnob=await page.evaluate(()=>({
-    left:parseFloat(document.querySelector("#soloRight .solo-knob")?.style.left||"50"),
-    top:parseFloat(document.querySelector("#soloRight .solo-knob")?.style.top||"50"),
-  }));
-  if(Math.abs(rightKnob.left-16.4)>4||Math.abs(rightKnob.top-41.6)>4)throw new Error(`right stick did not track physical finger travel: ${JSON.stringify(rightKnob)}`);
+  const left=await pointerDownOnly("#soloLeft");
+  await page.mouse.move(left.cx,left.cy-left.r*.65,{steps:6});
+  const moveStart=await simTime();await waitForSimTime(moveStart+.55,30000);
+  const moving=await page.$eval("#velocity",e=>parseFloat(e.textContent||"0"));
+  if(moving<.55)throw new Error(`solo desired forward vector did not accelerate: ${moving}`);
   await page.mouse.up();
+  const brakeStart=await simTime();await waitForSimTime(brakeStart+1.5,50000);
+  const braked=await page.$eval("#velocity",e=>parseFloat(e.textContent||"0"));
+  if(braked>Math.max(.8,moving*.75))throw new Error(`solo zero-vector braking failed: moving=${moving}, after=${braked}`);
 
-  const armStart=await simTime();await page.click("#soloArm");await waitForSimTime(armStart+1.1,45000);
-  state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="ARMED")throw new Error(`solo ARM failed: ${JSON.stringify(await snapshot())}`);
-  const idle=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
-  if(!idle.every(v=>v===1050))throw new Error(`armed idle wrong: ${idle.join(" ")}`);
+  const yawBefore=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[])[2]||0));
+  const right=await pointerDownOnly("#soloRight");
+  await page.mouse.move(right.cx+right.r*.45,right.cy-right.r*.2,{steps:5});
+  const turnStart=await simTime();await waitForSimTime(turnStart+.25,25000);await page.mouse.up();
+  const yawAfter=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[])[2]||0));
+  let yawDelta=(yawAfter-yawBefore)%360;if(yawDelta>180)yawDelta-=360;if(yawDelta<-180)yawDelta+=360;
+  if(Math.abs(yawDelta)<4)throw new Error(`solo heading control failed: ${yawBefore} -> ${yawAfter}`);
 
   const killStart=await simTime();await page.click("#soloKill");await waitForSimTime(killStart+.03,10000);
   state=await page.$eval("#fcState",e=>e.textContent||"");
   const killed=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
-  if(state!=="DISARMED"||!killed.every(v=>v===1000))throw new Error(`KILL failed: ${JSON.stringify(await snapshot())}`);
+  if(state!=="DISARMED"||!killed.every(v=>v===1000))throw new Error(`solo GAME KILL failed: ${JSON.stringify(await snapshot())}`);
 
   const beforeReset=await simTime();if(beforeReset<3)throw new Error(`sim too short before reset: ${beforeReset}`);
   await page.click("#soloReset");
@@ -221,5 +198,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM FC, FC-authoritative arming gates, FPV tilt, V4 phone settings, no throttle teleport, live right gimbal, race/reset, ARM/KILL, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL, one-phone vector/heading control, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}

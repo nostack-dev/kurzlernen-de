@@ -75,8 +75,8 @@ function setKnob(knob,x,y){knob.style.left=`${knobPercent(x)}%`;knob.style.top=`
 function updateSticks(){
   let left,right;
   if(gameMode){
-    left={x:inversePhoneAxis(controls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
-    right={x:inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:-inversePhoneAxis(controls.lookPitch||0,phoneSettings.rightFineness)};
+    left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
+    right={x:inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.lookPitch||0,phoneSettings.rightFineness)};
     ui.leftValue.textContent=`FWD ${(controls.pitch*5).toFixed(1)} · STR ${(controls.roll*5).toFixed(1)} m/s`;
     ui.rightValue.textContent=`TURN ${(controls.yaw*100).toFixed(0)}% · CAM ${((controls.lookPitch||0)*100).toFixed(0)}%`;
   }else{
@@ -101,12 +101,12 @@ function bindStick(element,kind){
     const point=normalizedPointer(element,event);
     if(gameMode){
       if(kind==="left"){
-        controls.roll=phoneAxis(point.x,phoneSettings.leftFineness);
+        controls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(point.x,phoneSettings.leftFineness);
         controls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);
         controls.throttle=0;
       }else{
         controls.yaw=phoneAxis(point.x,phoneSettings.rightFineness);
-        controls.lookPitch=phoneAxis(-point.y,phoneSettings.rightFineness);
+        controls.lookPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-point.y,phoneSettings.rightFineness);
       }
     }else applyStick(controls,kind,point,phoneSettings);
     updateSticks();publish();
