@@ -2,6 +2,7 @@ import * as THREE from "three";
 import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
 import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
+import {QrScanner,renderQr} from "./qr_pairing.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -23,7 +24,7 @@ const scale = (a,s) => [a[0]*s,a[1]*s,a[2]*s];
 const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 
 const ui = Object.fromEntries([
-  "modeInfo","connect","run","reset","status","tMode","tController","fcState","simTime","altitude","velocity","attitude","motors","rpm","battery","current","processing","rtt","speed","armSwitch","throttle","logFile","fit","fitProgress","fitStatus","logSamples","touchRoll","touchPitch","touchYaw","touchThrottle","touchArm","exportLog","inputSource","remoteConnect","remoteStatus","controllerLink","pairDialog","remoteOffer","remoteAnswer","acceptOffer","copyAnswer","shareAnswer","pairStatus","closePair"
+  "modeInfo","connect","run","reset","status","tMode","tController","fcState","simTime","altitude","velocity","attitude","motors","rpm","battery","current","processing","rtt","speed","armSwitch","throttle","logFile","fit","fitProgress","fitStatus","logSamples","touchRoll","touchPitch","touchYaw","touchThrottle","touchArm","exportLog","inputSource","remoteConnect","remoteStatus","controllerLink","pairDialog","remoteOffer","remoteAnswer","acceptOffer","copyAnswer","shareAnswer","pairStatus","closePair","offerVideo","offerCanvas","answerQr"
 ].map(id => [id,$(id)]));
 
 function crc32(bytes, length=bytes.byteLength) {
@@ -352,7 +353,7 @@ let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
 let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
-const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput={roll:0,pitch:0,yaw:0,throttle:0,arm:false},lastRemoteTelemetry=0;const remoteLink=new ViewPeerLink();
+const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput={roll:0,pitch:0,yaw:0,throttle:0,arm:false},lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
 
 function setStatus(text,cls=""){ui.status.textContent=text;ui.status.className="statusline "+cls;}
 function modeDescription(){
@@ -378,7 +379,7 @@ async function switchMode(next){
 }
 function resetSimulation(initial=null){
   physics.reset(defaultParams(),initial);sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};localThrottle=throttle=0;localArm=arm=false;effectiveInput={roll:0,pitch:0,yaw:0,throttle:0,arm:false};replayIndex=0;sessionLog=[];
-  ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM switch: LOW";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
+  ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }
 function localControlState(){
   let roll=+ui.touchRoll.value,pitch=+ui.touchPitch.value,yaw=+ui.touchYaw.value;
@@ -420,7 +421,7 @@ async function replayStep(){
 function render(){
   requestAnimationFrame(render);physics.render();const state=physics.state(),position=physics.position(),target=new THREE.Vector3(...position),desired=target.clone().add(new THREE.Vector3(3.3,-4.2,2.4));camera.position.lerp(desired,.025);camera.lookAt(target);
   const fcState=latest.state,fault=fcState>>8&255,stateText=fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
-  ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"HIGH":"LOW";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
+  ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
   const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault});}
   const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";renderer.render(scene,camera);
 }
@@ -482,41 +483,57 @@ async function fitPhysics(){
 
 $("modeSim").onclick=()=>switchMode("sim");$("modeHil").onclick=()=>switchMode("hil");$("modeReplay").onclick=()=>switchMode("replay");
 ui.connect.onclick=async()=>{if(mode==="sim")return switchMode("sim");if(mode!=="hil")return;try{backend=new HardwareBackend();setStatus("Connecting physical S31…");await backend.connect();ui.tController.textContent=backend.label();ui.tController.className="good";setStatus(`HIL ready: ${backend.label()}.`,"good");ui.run.disabled=false;}catch(error){backend=null;ui.tController.textContent="connection failed";ui.tController.className="bad";setStatus(error.message,"bad");}};
-ui.run.onclick=()=>{if(mode!=="replay"&&!backend)return;if(mode==="replay"&&!realLog.length)return;running=!running;ui.run.textContent=running?"Pause":"Start";if(running){wallStart=performance.now();simStart=simTime;loop().catch(error=>{running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});}};
-ui.reset.onclick=()=>{running=false;ui.run.textContent="Start";resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);};
+function startRun(){
+  if(running)return true;if(mode!=="replay"&&!backend)return false;if(mode==="replay"&&!realLog.length)return false;
+  running=true;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop().catch(error=>{running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
+}
+function stopRun(){running=false;ui.run.textContent="Start";}
+ui.run.onclick=()=>{if(running)stopRun();else startRun();};
+ui.reset.onclick=()=>{stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);};
 ui.logFile.onchange=event=>event.target.files[0]&&loadLog(event.target.files[0]).catch(error=>ui.fitStatus.textContent=error.message);
 ui.fit.onclick=()=>fitPhysics().catch(error=>{ui.fit.disabled=false;ui.fitStatus.textContent=error.message;});
 ui.exportLog.onclick=exportSession;
-addEventListener("keydown",event=>{if(event.code==="Space"&&!event.repeat){localArm=!localArm;ui.touchArm.textContent=`ARM switch: ${localArm?"HIGH":"LOW"}`;event.preventDefault();}keys.add(event.code);});addEventListener("keyup",event=>keys.delete(event.code));ui.touchArm.onclick=()=>{localArm=!localArm;ui.touchArm.textContent=`ARM switch: ${localArm?"HIGH":"LOW"}`;};
+addEventListener("keydown",event=>{if(event.code==="Space"&&!event.repeat){localArm=!localArm;ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;event.preventDefault();}keys.add(event.code);});addEventListener("keyup",event=>keys.delete(event.code));ui.touchArm.onclick=()=>{localArm=!localArm;ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;};
 function updateRemoteUI(){
   const current=remoteLink.current();ui.controllerLink.href="./drone_controller.html";
   if(inputSource==="local"){ui.remoteStatus.textContent="LOCAL FALLBACK selected. P2P controller input is ignored.";ui.remoteStatus.className="statusline warn";}
-  else if(remoteLink.linked&&current){ui.remoteStatus.textContent="P2P LINKED · control packets fresh · direct phone-to-phone DataChannel";ui.remoteStatus.className="statusline good";}
-  else if(remoteLink.linked){ui.remoteStatus.textContent="P2P link alive but control stale (>350 ms) · fail-safe ARM LOW / throttle 0";ui.remoteStatus.className="statusline bad";}
+  else if(remoteLink.linked&&current){
+    ui.remoteStatus.textContent="P2P LINKED · direct control fresh";ui.remoteStatus.className="statusline good";
+    if(mode==="sim"&&backend&&!running&&simTime===0&&!remoteAutoStarted){remoteAutoStarted=true;startRun();setStatus("SIM running · remote controller linked. Calibrating flight core…","good");}
+  }
+  else if(remoteLink.linked){ui.remoteStatus.textContent="P2P link alive but control stale (>350 ms) · fail-safe ARM OFF / throttle 0";ui.remoteStatus.className="statusline bad";}
+  else if(remoteLink.pc&&remoteLink.recentlyLinked){ui.remoteStatus.textContent=`${remoteLink.stateLabel()} · fail-safe active · automatic recovery, no re-pairing`;ui.remoteStatus.className="statusline warn";}
   else if(remoteLink.pc){ui.remoteStatus.textContent=`${remoteLink.stateLabel()} · waiting for direct DataChannel`;ui.remoteStatus.className="statusline warn";}
-  else{ui.remoteStatus.textContent="P2P disconnected · fail-safe ARM LOW / throttle 0. No relay/server is required.";ui.remoteStatus.className="statusline warn";}
-  ui.remoteConnect.textContent=remoteLink.pc?"Disconnect P2P":"Pair controller phone";
-  if(remoteLink.linked&&ui.pairDialog.open)ui.pairDialog.close();
+  else{ui.remoteStatus.textContent="P2P disconnected · fail-safe ARM OFF / throttle 0.";ui.remoteStatus.className="statusline warn";}
+  ui.remoteConnect.textContent=remoteLink.linked?"DISCONNECT":remoteLink.pc&&remoteLink.recentlyLinked?"SESSION ACTIVE":"PAIR CONTROLLER";
+  if(remoteLink.linked&&ui.pairDialog.open){offerScanner.stop();ui.pairDialog.close();}
 }
-async function acceptControllerOffer(){
-  ui.acceptOffer.disabled=true;ui.pairStatus.textContent="Creating direct WebRTC answer…";ui.pairStatus.className="statusline warn";
+async function acceptControllerOffer(code=ui.remoteOffer.value){
+  ui.acceptOffer.disabled=true;ui.pairStatus.textContent="Controller QR detected · creating direct WebRTC answer…";ui.pairStatus.className="statusline warn";
   try{
-    ui.remoteAnswer.value=await remoteLink.acceptOffer(ui.remoteOffer.value);
+    ui.remoteOffer.value=code;ui.remoteAnswer.value=await remoteLink.acceptOffer(code);renderQr(ui.answerQr,ui.remoteAnswer.value);
     inputSource="remote";ui.inputSource.value="remote";localArm=false;localThrottle=0;arm=false;throttle=0;
-    ui.pairStatus.textContent="Answer ready. Send it back to the controller phone and tap Apply answer there.";ui.pairStatus.className="statusline good";
-  }catch(error){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}
+    ui.pairStatus.textContent="Answer ready. Hold this QR toward the controller phone — it scans automatically.";ui.pairStatus.className="statusline good";
+    return true;
+  }catch(error){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";return false;}
   finally{ui.acceptOffer.disabled=false;updateRemoteUI();}
 }
+async function startOfferScanner(){
+  ui.answerQr.hidden=true;ui.remoteOffer.value="";ui.remoteAnswer.value="";ui.pairStatus.textContent="Camera active · point it at the controller OFFER QR.";ui.pairStatus.className="statusline warn";
+  try{await offerScanner.start(async code=>acceptControllerOffer(code));}
+  catch(error){ui.pairStatus.textContent=`Camera unavailable: ${error.message}. Manual fallback is below.`;ui.pairStatus.className="statusline bad";}
+}
 async function toggleRemote(){
-  if(remoteLink.pc){await remoteLink.disconnect();ui.remoteOffer.value="";ui.remoteAnswer.value="";updateRemoteUI();return;}
-  ui.pairDialog.showModal();
+  if(remoteLink.linked){await remoteLink.disconnect();remoteAutoStarted=false;updateRemoteUI();return;}
+  if(remoteLink.pc&&remoteLink.recentlyLinked){ui.pairDialog.showModal();ui.pairStatus.textContent="Recent session is reconnecting automatically. No QR scan needed unless it expires.";ui.pairStatus.className="statusline warn";return;}
+  ui.pairDialog.showModal();await startOfferScanner();
 }
 remoteLink.onState=updateRemoteUI;
 ui.remoteConnect.onclick=toggleRemote;
-ui.acceptOffer.onclick=acceptControllerOffer;
+ui.acceptOffer.onclick=()=>acceptControllerOffer();
 ui.copyAnswer.onclick=async()=>{try{await copySignal(ui.remoteAnswer.value);ui.pairStatus.textContent="Answer copied.";ui.pairStatus.className="statusline good";}catch(error){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}};
 ui.shareAnswer.onclick=async()=>{try{await shareSignal("Arondight45 VIEW answer",ui.remoteAnswer.value);ui.pairStatus.textContent="Answer shared.";ui.pairStatus.className="statusline good";}catch(error){if(error?.name!=="AbortError"){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}}};
-ui.closePair.onclick=()=>ui.pairDialog.close();
+ui.closePair.onclick=async()=>{await offerScanner.stop();ui.pairDialog.close();};
 ui.inputSource.onchange=()=>{inputSource=ui.inputSource.value;localArm=false;localThrottle=0;arm=false;throttle=0;updateRemoteUI();};
 inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250);
 
