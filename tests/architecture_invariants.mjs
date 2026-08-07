@@ -155,6 +155,7 @@ for(const path of [
   ".github/workflows/oneoff-restore-strict-game-e2e.yml",
   ".github/workflows/oneoff-align-state-vector-tests.yml",
   ".github/workflows/oneoff-game-response-window.yml",
+  ".github/workflows/oneoff-fix-thrust-vector-map.yml",
 ]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
 if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
 
