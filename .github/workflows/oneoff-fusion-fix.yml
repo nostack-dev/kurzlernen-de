@@ -1,4 +1,4 @@
-name: Final inner-loop sweet spot
+name: Direct measured-vector damping
 
 on:
   push:
@@ -16,60 +16,174 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: a44-p0088-d22-damp0
-            angle: "4.4f"
-            kp: "0.0088f"
-            kd: "0.000022f"
-            damping: "0.0f"
-          - label: a46-p0092-d23-damp0
-            angle: "4.6f"
-            kp: "0.0092f"
-            kd: "0.000023f"
-            damping: "0.0f"
-          - label: a48-p0096-d24-damp0
-            angle: "4.8f"
-            kp: "0.0096f"
-            kd: "0.000024f"
-            damping: "0.0f"
-          - label: a44-p0088-d22-damp10
-            angle: "4.4f"
-            kp: "0.0088f"
-            kd: "0.000022f"
-            damping: "0.10f"
-          - label: a46-p0092-d23-damp10
-            angle: "4.6f"
-            kp: "0.0092f"
-            kd: "0.000023f"
-            damping: "0.10f"
-          - label: a48-p0096-d24-damp10
-            angle: "4.8f"
-            kp: "0.0096f"
-            kd: "0.000024f"
-            damping: "0.10f"
+          - label: vector-damp050
+            damping: "0.50f"
+          - label: vector-damp080
+            damping: "0.80f"
+          - label: vector-damp110
+            damping: "1.10f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply candidate and run shared tests
+      - name: Apply vector-space acceleration feedback
         env:
-          ANGLE: ${{ matrix.angle }}
-          KP: ${{ matrix.kp }}
-          KD: ${{ matrix.kd }}
           DAMPING: ${{ matrix.damping }}
         run: |
           set -euxo pipefail
           python3 - <<'PY'
-          import os,re
+          import os
           from pathlib import Path
-          core=Path('esp32/Arondight45_DroneFC_Core.hpp')
-          s=core.read_text()
-          s,n=re.subn(r'constexpr float kAngleToRate = [0-9.]+f;',f'constexpr float kAngleToRate = {os.environ["ANGLE"]};',s,count=1); assert n==1,n
-          s,n=re.subn(r'PID roll_pid_\{Gains\{[0-9.]+f, 0\.0007f, [0-9.]+f, 0\.18f, 0\.38f, 55\.0f\}\};',f'PID roll_pid_{{Gains{{{os.environ["KP"]}, 0.0007f, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}}};',s,count=1); assert n==1,n
-          s,n=re.subn(r'PID pitch_pid_\{Gains\{[0-9.]+f, 0\.0007f, [0-9.]+f, 0\.18f, 0\.38f, 55\.0f\}\};',f'PID pitch_pid_{{Gains{{{os.environ["KP"]}, 0.0007f, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}}};',s,count=1); assert n==1,n
-          core.write_text(s)
-          outer=Path('esp32/Arondight45_StateControl.hpp')
-          s=outer.read_text()
-          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};',s,count=1); assert n==1,n
-          outer.write_text(s)
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text()
+
+          old='''    void reset() {
+        active_ = false;
+        target_yaw_deg_ = 0.0f;
+        hover_trim_ = kInitialHoverThrottle;
+        debug_ = {};
+    }
+
+    void leave_mode() {
+        active_ = false;
+        debug_ = {};
+    }'''
+          new='''    void reset() {
+        active_ = false;
+        target_yaw_deg_ = 0.0f;
+        hover_trim_ = kInitialHoverThrottle;
+        reset_acceleration_estimator();
+        debug_ = {};
+    }
+
+    void leave_mode() {
+        active_ = false;
+        reset_acceleration_estimator();
+        debug_ = {};
+    }'''
+          assert s.count(old)==1,('reset',s.count(old)); s=s.replace(old,new,1)
+
+          old='''        RC out = original;
+        const StateIntent intent = state_intent(original);'''
+          new='''        (void)roll_deg;
+        (void)pitch_deg;
+        RC out = original;
+        const StateIntent intent = state_intent(original);'''
+          assert s.count(old)==1,('transform',s.count(old)); s=s.replace(old,new,1)
+
+          old='''        if (!inner_armed) {
+            target_yaw_deg_ = wrap_degrees(yaw_deg);'''
+          new='''        if (!inner_armed) {
+            reset_acceleration_estimator();
+            target_yaw_deg_ = wrap_degrees(yaw_deg);'''
+          assert s.count(old)==1,('unarmed',s.count(old)); s=s.replace(old,new,1)
+
+          old='''        // The velocity error produces the desired horizontal acceleration vector.
+        float forward_accel = kHorizontalVelocityGain * (intent.forward_mps - measured_forward);
+        float right_accel = kHorizontalVelocityGain * (intent.right_mps - measured_right);
+
+        // A velocity target alone is not an equilibrium if the aircraft is still
+        // tilted and therefore still accelerating. Use measured IMU attitude to
+        // estimate the horizontal acceleration already being produced by the thrust
+        // vector, then subtract that measured acceleration as pure derivative damping.
+        // When measured acceleration is zero, the original a*=Kv(v*-v) law is exactly
+        // unchanged. This is identical on forward/right and has no release/brake branch.
+        const float roll_rad = clamp(roll_deg, -kMaxAttitudeFeedbackDeg,
+                                     kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
+        const float pitch_rad = clamp(pitch_deg, -kMaxAttitudeFeedbackDeg,
+                                      kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
+        const float cos_pitch = std::max(0.25f, std::cos(pitch_rad));
+        const float measured_forward_accel = -std::tan(pitch_rad) * specific_up;
+        const float measured_right_accel = std::tan(roll_rad) / cos_pitch * specific_up;
+        forward_accel -= kHorizontalAccelerationDamping * measured_forward_accel;
+        right_accel -= kHorizontalAccelerationDamping * measured_right_accel;'''
+          new='''        // The velocity error produces the desired horizontal acceleration vector.
+        float forward_accel = kHorizontalVelocityGain * (intent.forward_mps - measured_forward);
+        float right_accel = kHorizontalVelocityGain * (intent.right_mps - measured_right);
+
+        // Measure acceleration directly from successive navigation velocity samples.
+        // This keeps damping in exactly the same vector space as SOLL and IST rather
+        // than using roll/pitch as a delayed proxy. Repeated 1 kHz controller ticks see
+        // the same navigation sample; only a genuinely new velocity sample updates it.
+        update_acceleration_estimator(nav.velocity_world_mps, dt);
+        const float measured_forward_accel =
+            -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
+        const float measured_right_accel =
+            s * measured_acceleration_world_mps2_.x - c * measured_acceleration_world_mps2_.y;
+        forward_accel -= kHorizontalAccelerationDamping * measured_forward_accel;
+        right_accel -= kHorizontalAccelerationDamping * measured_right_accel;'''
+          assert s.count(old)==1,('damping block',s.count(old)); s=s.replace(old,new,1)
+
+          old='''    static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
+    static constexpr float kMaxAttitudeFeedbackDeg = 45.0f;'''
+          new='''    static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;'''
+          assert s.count(old)==1,('attitude constant',s.count(old)); s=s.replace(old,new,1)
+
+          old='''    // Pure acceleration damping provides phase margin against attitude/rotor lag
+    // without changing the velocity-error gain when current acceleration is zero.
+    static constexpr float kHorizontalAccelerationDamping = 0.75f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;'''
+          new=f'''    // Acceleration is derived from the measured navigation velocity vector itself.
+    static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};
+    static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
+    static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;'''
+          assert s.count(old)==1,('constants',s.count(old)); s=s.replace(old,new,1)
+
+          old='''    bool active_{};
+    float target_yaw_deg_{};
+    float hover_trim_{kInitialHoverThrottle};
+    StateControllerDebug debug_{};'''
+          new='''    void reset_acceleration_estimator() {
+        acceleration_estimator_valid_ = false;
+        acceleration_sample_dt_s_ = 0.0f;
+        previous_velocity_world_mps_ = {};
+        measured_acceleration_world_mps2_ = {};
+    }
+
+    void update_acceleration_estimator(V3 velocity_world_mps, float dt) {
+        if (!acceleration_estimator_valid_) {
+            previous_velocity_world_mps_ = velocity_world_mps;
+            acceleration_estimator_valid_ = true;
+            acceleration_sample_dt_s_ = 0.0f;
+            return;
+        }
+        acceleration_sample_dt_s_ += dt;
+        const float dvx = velocity_world_mps.x - previous_velocity_world_mps_.x;
+        const float dvy = velocity_world_mps.y - previous_velocity_world_mps_.y;
+        const float dvz = velocity_world_mps.z - previous_velocity_world_mps_.z;
+        if (dvx * dvx + dvy * dvy + dvz * dvz < 1.0e-10f ||
+            acceleration_sample_dt_s_ < 0.002f) return;
+
+        const float sample_dt = acceleration_sample_dt_s_;
+        const float inv_dt = 1.0f / sample_dt;
+        const V3 sample{dvx * inv_dt, dvy * inv_dt, dvz * inv_dt};
+        previous_velocity_world_mps_ = velocity_world_mps;
+        acceleration_sample_dt_s_ = 0.0f;
+        const float horizontal_sample = std::sqrt(sample.x * sample.x + sample.y * sample.y);
+        if (!finite(sample) || horizontal_sample > kMaxNavigationAccelSampleMps2) {
+            measured_acceleration_world_mps2_ = {};
+            return;
+        }
+        const float alpha = clamp(sample_dt / (kMeasuredAccelerationFilterTauS + sample_dt),
+                                  0.0f, 1.0f);
+        measured_acceleration_world_mps2_.x +=
+            alpha * (sample.x - measured_acceleration_world_mps2_.x);
+        measured_acceleration_world_mps2_.y +=
+            alpha * (sample.y - measured_acceleration_world_mps2_.y);
+        measured_acceleration_world_mps2_.z +=
+            alpha * (sample.z - measured_acceleration_world_mps2_.z);
+    }
+
+    bool active_{};
+    bool acceleration_estimator_valid_{};
+    float acceleration_sample_dt_s_{};
+    V3 previous_velocity_world_mps_{};
+    V3 measured_acceleration_world_mps2_{};
+    float target_yaw_deg_{};
+    float hover_trim_{kInitialHoverThrottle};
+    StateControllerDebug debug_{};'''
+          assert s.count(old)==1,('members',s.count(old)); s=s.replace(old,new,1)
+          p.write_text(s)
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
