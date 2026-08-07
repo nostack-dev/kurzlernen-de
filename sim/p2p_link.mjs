@@ -1,4 +1,4 @@
-export const P2P_PROTOCOL = 3;
+export const P2P_PROTOCOL = 4;
 export const CONTROL_STALE_MS = 350;
 export const SESSION_GRACE_MS = 5 * 60 * 1000;
 
@@ -115,8 +115,18 @@ export class ViewPeerLink extends PeerBase{
       if(!newerSequence(sequence,this.lastSequence))return;
       const numeric=[message.roll,message.pitch,message.yaw,message.throttle].map(Number);
       if(!numeric.every(Number.isFinite))return;
+      const groundClearance=Number(message.groundClearance),lookPitch=Number(message.lookPitch);
       this.lastSequence=sequence;
-      this.control={roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:message.arm===true};
+      this.control={
+        roll:clamp(numeric[0],-1,1),
+        pitch:clamp(numeric[1],-1,1),
+        yaw:clamp(numeric[2],-1,1),
+        throttle:clamp(numeric[3],0,1),
+        arm:message.arm===true,
+        gameMode:message.gameMode===true,
+        groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
+        lookPitch:Number.isFinite(lookPitch)?clamp(lookPitch,-1,1):0,
+      };
       this.lastControlWall=performance.now();this._markLinked();this.onState?.();
     };
   }
@@ -173,7 +183,15 @@ export class ControllerPeerLink extends PeerBase{
     if(!this.channel&&this.pc?.connectionState==="connected")this._makeControlChannel();
     const numeric=[control.roll,control.pitch,control.yaw,control.throttle].map(Number);
     if(!numeric.every(Number.isFinite))return false;
-    return safeSend(this.channel,{type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:control.arm===true});
+    const groundClearance=Number(control.groundClearance),lookPitch=Number(control.lookPitch);
+    return safeSend(this.channel,{
+      type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),
+      roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),
+      yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),
+      arm:control.arm===true,gameMode:control.gameMode===true,
+      groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
+      lookPitch:Number.isFinite(lookPitch)?clamp(lookPitch,-1,1):0,
+    });
   }
 }
 
