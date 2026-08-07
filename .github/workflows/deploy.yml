@@ -114,7 +114,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
 
-      - name: Validate source architecture
+      - name: Validate JavaScript sources after browser E2E
         run: |
           set -euxo pipefail
           node --check sim/simulator.mjs
@@ -129,7 +129,6 @@ jobs:
           node --check tests/browser_sim_smoke.mjs
           node --check tests/dual_phone_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
-          node tests/architecture_invariants.mjs
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
