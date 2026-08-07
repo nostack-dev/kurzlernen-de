@@ -80,13 +80,14 @@ int main() {
     CHECK(controller.debug().forward_accel_mps2 > 4.0f);
     CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.50f);
 
-    // If measured velocity equals the desired vector, horizontal error, requested
-    // acceleration and tilt all collapse to zero. No attitude-lead special case.
-    nav.velocity_world_mps = {-5.0f, 0.0f, 0.0f};
+    // If measured velocity equals the actual decoded desired vector, horizontal
+    // error, requested acceleration and tilt all collapse to zero.
+    const float desired_forward = fc::state_intent(rc).forward_mps;
+    nav.velocity_world_mps = {-desired_forward, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.01f);
-    CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.01f);
-    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.02f);
+    CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.001f);
+    CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.01f);
 
     // Releasing to zero target while still moving forward produces acceleration
     // directly opposite the measured velocity vector and therefore reverse tilt.
@@ -119,11 +120,12 @@ int main() {
     CHECK(controller.debug().right_accel_mps2 > 4.0f);
     CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.50f);
 
-    nav.velocity_world_mps = {0.0f, -5.0f, 0.0f};
+    const float desired_right = fc::state_intent(rc).right_mps;
+    nav.velocity_world_mps = {0.0f, -desired_right, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(std::fabs(controller.debug().measured_right_mps - 5.0f) < 0.01f);
-    CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.01f);
-    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.02f);
+    CHECK(std::fabs(controller.debug().measured_right_mps - desired_right) < 0.001f);
+    CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.01f);
 
     // With zero right target, either-direction drift must receive an acceleration
     // request exactly opposite that drift.
