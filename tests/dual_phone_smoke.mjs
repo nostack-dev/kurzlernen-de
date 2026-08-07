@@ -124,7 +124,7 @@ try{
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+.55,30000);
   const moving=bodyMotion(await latestFlightSample(view));
-  if(moving.forward<.45)throw new Error(`forward desired-vector sign/response wrong: ${JSON.stringify(moving)}`);
+  if(!(moving.forward>.30&&moving.pitch<-6.0))throw new Error(`forward desired-vector did not produce forward motion + physical forward tilt: ${JSON.stringify(moving)}`);
   await controller.mouse.up();
   await waitText(controller,"#leftValue","FWD 0.0",10000);
 
