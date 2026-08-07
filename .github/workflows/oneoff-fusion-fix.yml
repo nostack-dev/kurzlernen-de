@@ -1,4 +1,4 @@
-name: Corrected inner-loop authority matrix
+name: Final inner-loop sweet spot
 
 on:
   push:
@@ -16,36 +16,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: a30-p006-d15-damp0
-            angle: "3.0f"
-            kp: "0.0060f"
-            kd: "0.000015f"
+          - label: a44-p0088-d22-damp0
+            angle: "4.4f"
+            kp: "0.0088f"
+            kd: "0.000022f"
             damping: "0.0f"
-          - label: a40-p008-d20-damp0
-            angle: "4.0f"
-            kp: "0.0080f"
-            kd: "0.000020f"
+          - label: a46-p0092-d23-damp0
+            angle: "4.6f"
+            kp: "0.0092f"
+            kd: "0.000023f"
             damping: "0.0f"
-          - label: a50-p010-d25-damp0
-            angle: "5.0f"
-            kp: "0.0100f"
-            kd: "0.000025f"
+          - label: a48-p0096-d24-damp0
+            angle: "4.8f"
+            kp: "0.0096f"
+            kd: "0.000024f"
             damping: "0.0f"
-          - label: a30-p006-d15-damp15
-            angle: "3.0f"
-            kp: "0.0060f"
-            kd: "0.000015f"
-            damping: "0.15f"
-          - label: a40-p008-d20-damp15
-            angle: "4.0f"
-            kp: "0.0080f"
-            kd: "0.000020f"
-            damping: "0.15f"
-          - label: a40-p010-d25-damp25
-            angle: "4.0f"
-            kp: "0.0100f"
-            kd: "0.000025f"
-            damping: "0.25f"
+          - label: a44-p0088-d22-damp10
+            angle: "4.4f"
+            kp: "0.0088f"
+            kd: "0.000022f"
+            damping: "0.10f"
+          - label: a46-p0092-d23-damp10
+            angle: "4.6f"
+            kp: "0.0092f"
+            kd: "0.000023f"
+            damping: "0.10f"
+          - label: a48-p0096-d24-damp10
+            angle: "4.8f"
+            kp: "0.0096f"
+            kd: "0.000024f"
+            damping: "0.10f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
