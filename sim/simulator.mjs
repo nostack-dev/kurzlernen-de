@@ -5,6 +5,7 @@ import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
 import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,applyStick,releaseStick,knobAxes,knobPercent} from "./control_semantics.mjs";
 import {RaceTrack} from "./race_track.mjs";
+import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -428,21 +429,26 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
 `;
 document.head.appendChild(soloStyle);
 
-let soloMode=false,soloPreviousInputSource="remote",soloControls=neutralControls();
+let soloMode=false,soloPreviousInputSource="remote",soloControls=neutralControls(),phoneSettings=loadPhoneControlSettings();
 function updateSoloSticks(){
-  for(const [id,kind] of [["soloLeft","left"],["soloRight","right"]]){const axes=knobAxes(soloControls,kind),knob=$(id).querySelector(".solo-knob");knob.style.left=`${knobPercent(axes.x)}%`;knob.style.top=`${knobPercent(axes.y)}%`;}
+  for(const [id,kind] of [["soloLeft","left"],["soloRight","right"]]){const axes=knobAxes(soloControls,kind,phoneSettings),knob=$(id).querySelector(".solo-knob");knob.style.left=`${knobPercent(axes.x)}%`;knob.style.top=`${knobPercent(axes.y)}%`;}
 }
 function soloStick(el,kind){
   let pointer=null;
-  const apply=e=>{applyStick(soloControls,kind,normalizedPointer(el,e));updateSoloSticks();e.preventDefault();};
+  const apply=e=>{applyStick(soloControls,kind,normalizedPointer(el,e),phoneSettings);updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);});
   el.addEventListener("pointermove",e=>{if(e.pointerId===pointer)apply(e);});
   const release=e=>{if(e.pointerId!==pointer)return;pointer=null;releaseStick(soloControls,kind);updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);
 }
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
+mountPhoneControlSettings({
+  parent:$("soloTopbar"),
+  buttonText:"SETTINGS",
+  onChange:next=>{phoneSettings=next;soloControls=neutralControls();updateSoloSticks();arm=false;throttle=0;},
+});
 async function enterSolo(){
-  soloMode=true;soloPreviousInputSource=inputSource;soloControls=neutralControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
+  soloMode=true;soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloControls=neutralControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   if(mode==="sim"&&backend&&!running)startRun();
@@ -453,7 +459,7 @@ async function exitSolo(){
 $("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
 function resetSoloSimulation(){const restart=mode==="sim"&&Boolean(backend);stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);if(restart)startRun();}
 $("soloReset").onclick=resetSoloSimulation;
-$("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if(sharedArmReady(currentFcStateText(),soloControls,true))soloControls.arm=true;};
+$("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if(sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;};
 $("soloKill").onclick=()=>{soloControls=neutralControls();updateSoloSticks();arm=false;throttle=0;};
 $("soloCamera").onclick=()=>{setCameraMode(cameraMode==="follow"?"fpv":"follow");$("soloCamera").textContent=cameraMode.toUpperCase();};
 document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
@@ -531,7 +537,7 @@ function render(){
   const fcState=latest.state,fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
   const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault});}
-  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=Math.max(0,state.z).toFixed(1)+" m";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&!sharedArmReady(stateText,soloControls,true);soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
+  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=Math.max(0,state.z).toFixed(1)+" m";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&!sharedArmReady(stateText,soloControls,true,phoneSettings);soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
 }
 render();
 

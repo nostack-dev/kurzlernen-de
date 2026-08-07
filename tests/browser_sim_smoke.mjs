@@ -113,6 +113,8 @@ try {
   if (followMode !== "follow") throw new Error(`FOLLOW camera switch failed: ${followMode}`);
   const soloUi = await page.evaluate(() => ({soloButton:!!document.querySelector("#camSolo"),soloHud:!!document.querySelector("#soloHud"),left:!!document.querySelector("#soloLeft"),right:!!document.querySelector("#soloRight"),arm:!!document.querySelector("#soloArm"),kill:!!document.querySelector("#soloKill"),reset:!!document.querySelector("#soloReset"),lap:!!document.querySelector("#soloLap"),raceTime:!!document.querySelector("#soloRaceTime"),gate:!!document.querySelector("#soloGate"),best:!!document.querySelector("#soloBest")}));
   if (!Object.values(soloUi).every(Boolean)) throw new Error(`single-phone race HUD incomplete: ${JSON.stringify(soloUi)}`);
+  const settingsButtonExists = await page.$eval("#soloTopbar .phone-settings-button", element => element.textContent === "SETTINGS");
+  if (!settingsButtonExists) throw new Error("single-phone SETTINGS button missing");
 
   // Single-phone mode must use the exact same stick and arm semantics as the paired controller.
   await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 1 });
@@ -124,6 +126,22 @@ try {
     leftTop: parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.top || "0"),
   }));
   if (soloStart.input !== "local" || soloStart.hidden || soloStart.leftTop < 90) throw new Error(`single-phone neutral state is wrong: ${JSON.stringify(soloStart)}`);
+
+  // Human-readable 1..10 control feel settings persist in localStorage.
+  await page.click("#soloTopbar .phone-settings-button");
+  await page.waitForFunction(() => document.querySelector(".phone-settings-dialog")?.open, {timeout:5000});
+  const settingsDefaults = await page.evaluate(() => ({
+    left: document.querySelector('.phone-settings-dialog [data-slider="left"]')?.value,
+    right: document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
+    leftOut: document.querySelector('.phone-settings-dialog [data-out="left"]')?.value,
+    rightOut: document.querySelector('.phone-settings-dialog [data-out="right"]')?.value,
+  }));
+  if (settingsDefaults.left !== "5" || settingsDefaults.right !== "3" || settingsDefaults.leftOut !== "5/10" || settingsDefaults.rightOut !== "3/10") throw new Error(`unexpected control feel defaults: ${JSON.stringify(settingsDefaults)}`);
+  await page.$eval('.phone-settings-dialog [data-slider="right"]', element => {element.value="2";element.dispatchEvent(new Event("input",{bubbles:true}));});
+  const persistedRight = await page.evaluate(() => JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV1")||"{}").rightSensitivity);
+  if (Math.abs(persistedRight - .2) > 1e-9) throw new Error(`RIGHT control feel did not persist: ${persistedRight}`);
+  await page.click('.phone-settings-dialog [data-reset]');
+  await page.click('.phone-settings-dialog [data-close]');
 
   await waitForSimTime(2.2, 60000);
   let soloState = await page.$eval("#fcState", element => element.textContent || "");
