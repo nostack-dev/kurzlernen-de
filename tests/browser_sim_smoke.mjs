@@ -84,17 +84,17 @@ try {
   if (boot.mode !== "SIM") throw new Error(`SIM is not the default mode: ${boot.mode}`);
   if (externalRequests.length) throw new Error(`self-contained simulator made external requests: ${externalRequests.join(", ")}`);
 
+  // This smoke test validates the standalone local fallback path. The separate
+  // dual_phone_smoke.mjs validates REMOTE PHONE as the primary input source.
+  await page.select("#inputSource", "local");
+  await page.$eval("#inputSource", element => element.dispatchEvent(new Event("change", { bubbles: true })));
+
   await page.click("#run");
   await waitForSimTime(0.05, 10000);
-
-  // Calibration is specified in controller samples/simulated time, not host
-  // wall time. This keeps the E2E deterministic even on a slow software GPU.
   await waitForSimTime(2.2, 60000);
   let state = await page.$eval("#fcState", element => element.textContent || "");
   if (state !== "DISARMED") throw new Error(`after 2.2 simulated seconds calibration is not complete: ${JSON.stringify(await snapshot())}`);
 
-  // Production arming contract: ARM LOW has been observed after calibration;
-  // now hold HIGH for >1.0 second of simulated controller time.
   const armStartedAt = await simTime();
   await page.keyboard.press("Space");
   await waitForSimTime(armStartedAt + 1.1, 45000);
@@ -108,7 +108,6 @@ try {
   }));
   if (!armed.motors.every(value => value === 1050)) throw new Error(`armed idle pulses are wrong: ${armed.motors.join(" ")}`);
 
-  // 1050 us is 5% of the 1000..2000 ESC command range, not zero voltage.
   const idleStart = await simTime();
   await waitForSimTime(idleStart + 0.15, 15000);
   const idleRpm = await page.$eval("#rpm", element => (element.textContent || "").trim().split(/\s+/).map(Number));
@@ -120,7 +119,6 @@ try {
   const throttleMotors = await page.$eval("#motors", element => (element.textContent || "").trim().split(/\s+/).map(Number));
   if (!throttleMotors.every(value => Number.isFinite(value) && value > 1050)) throw new Error(`throttle did not raise motor pulses: ${throttleMotors.join(" ")}`);
 
-  // Re-check the responsive layout using the exact same built artifact.
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
   await new Promise(resolve => setTimeout(resolve, 250));
   const mobile = await page.evaluate(() => {
@@ -139,7 +137,7 @@ try {
   if (mobile.bodyOverflowY === "hidden") throw new Error("mobile page is not vertically scrollable");
 
   if (errors.length) throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: self-contained boot, calibration, arm, idle RPM, throttle, responsive layout.");
+  console.log("Browser SIL E2E passed: self-contained boot, local fallback, calibration, arm, idle RPM, throttle, responsive layout.");
 } finally {
   await browser.close();
 }
