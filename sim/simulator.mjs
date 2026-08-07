@@ -367,6 +367,8 @@ function resize(){const bounds=$("viewport").getBoundingClientRect();renderer.se
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
 let cameraMode=localStorage.getItem("arondight45CameraMode")==="fpv"?"fpv":"follow",cameraFollowInitialized=false;
 const followHeading=new THREE.Vector3(-1,0,0);
+const FPV_CAMERA_UPTILT_DEG=30,FPV_CAMERA_UPTILT_RAD=FPV_CAMERA_UPTILT_DEG*Math.PI/180;
+$("viewport").dataset.fpvTiltDeg=String(FPV_CAMERA_UPTILT_DEG);
 function setCameraMode(next){
   cameraMode=next==="fpv"?"fpv":"follow";cameraFollowInitialized=false;localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
   for(const [id,value] of [["camFollow","follow"],["camFpv","fpv"]]){
@@ -378,8 +380,16 @@ function updateCamera(){
   const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
   if(cameraMode==="fpv"){
     const bodyUp=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();
+    // A real FPV camera is normally mounted with positive uptilt. Keep the
+    // camera rigidly attached to the frame (roll/pitch remain visible), but
+    // point its optical axis 30 degrees above body-forward. The FC commands at
+    // most about 32 degrees attitude, so full forward flight no longer points
+    // the camera straight into the ground.
+    const c=Math.cos(FPV_CAMERA_UPTILT_RAD),si=Math.sin(FPV_CAMERA_UPTILT_RAD);
+    const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();
+    const fpvUp=bodyUp.clone().multiplyScalar(c).addScaledVector(bodyForward,-si).normalize();
     camera.position.copy(position).addScaledVector(bodyForward,.095).addScaledVector(bodyUp,.045);
-    camera.up.copy(bodyUp);camera.lookAt(camera.position.clone().addScaledVector(bodyForward,4));
+    camera.up.copy(fpvUp);camera.lookAt(camera.position.clone().addScaledVector(fpvForward,4));
     if(camera.fov!==84){camera.fov=84;camera.updateProjectionMatrix();}
     return;
   }
