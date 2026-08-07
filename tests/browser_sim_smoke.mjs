@@ -111,8 +111,8 @@ try {
   await page.click("#camFollow");
   const followMode = await page.$eval("#viewport", element => element.dataset.cameraMode || "");
   if (followMode !== "follow") throw new Error(`FOLLOW camera switch failed: ${followMode}`);
-  const soloUi = await page.evaluate(() => ({soloButton:!!document.querySelector("#camSolo"),soloHud:!!document.querySelector("#soloHud"),left:!!document.querySelector("#soloLeft"),right:!!document.querySelector("#soloRight"),arm:!!document.querySelector("#soloArm"),kill:!!document.querySelector("#soloKill")}));
-  if (!Object.values(soloUi).every(Boolean)) throw new Error(`single-phone HUD incomplete: ${JSON.stringify(soloUi)}`);
+  const soloUi = await page.evaluate(() => ({soloButton:!!document.querySelector("#camSolo"),soloHud:!!document.querySelector("#soloHud"),left:!!document.querySelector("#soloLeft"),right:!!document.querySelector("#soloRight"),arm:!!document.querySelector("#soloArm"),kill:!!document.querySelector("#soloKill"),reset:!!document.querySelector("#soloReset"),lap:!!document.querySelector("#soloLap"),raceTime:!!document.querySelector("#soloRaceTime"),gate:!!document.querySelector("#soloGate"),best:!!document.querySelector("#soloBest")}));
+  if (!Object.values(soloUi).every(Boolean)) throw new Error(`single-phone race HUD incomplete: ${JSON.stringify(soloUi)}`);
 
   // Single-phone mode must use the exact same stick and arm semantics as the paired controller.
   await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 1 });
@@ -164,6 +164,27 @@ try {
   soloState = await page.$eval("#fcState", element => element.textContent || "");
   const killedMotors = await page.$eval("#motors", element => (element.textContent || "").trim().split(/\s+/).map(Number));
   if (soloState !== "DISARMED" || !killedMotors.every(value => value === 1000)) throw new Error(`single-phone KILL failed: ${JSON.stringify(await snapshot())}`);
+
+  const beforeReset = await simTime();
+  if (beforeReset < 3) throw new Error(`single-phone sim did not advance before RESET: ${beforeReset}`);
+  await page.click("#soloReset");
+  await page.waitForFunction(() => parseFloat(document.querySelector("#simTime")?.textContent || "99") < 0.25, {timeout:5000});
+  const resetState = await page.evaluate(() => ({
+    solo:document.body.classList.contains("solo-flight"),
+    hudHidden:document.querySelector("#soloHud")?.hidden,
+    state:document.querySelector("#fcState")?.textContent || "",
+    lap:document.querySelector("#soloLap")?.textContent || "",
+    raceTime:document.querySelector("#soloRaceTime")?.textContent || "",
+    gate:document.querySelector("#soloGate")?.textContent || "",
+    motors:(document.querySelector("#motors")?.textContent || "").trim().split(/\s+/).map(Number),
+  }));
+  if (!resetState.solo || resetState.hudHidden) throw new Error(`RESET SIM left single-phone fullscreen UI: ${JSON.stringify(resetState)}`);
+  if (!resetState.lap.includes("READY") || resetState.raceTime !== "00:00.000" || !resetState.gate.includes("START / FINISH")) throw new Error(`race state did not reset: ${JSON.stringify(resetState)}`);
+  if (!resetState.motors.every(value => value === 1000)) throw new Error(`RESET SIM did not force motor minimum: ${JSON.stringify(resetState)}`);
+  await waitForSimTime(2.2,60000);
+  soloState=await page.$eval("#fcState",element=>element.textContent||"");
+  if(soloState!=="DISARMED")throw new Error(`flight core did not recalibrate after fullscreen RESET: ${JSON.stringify(await snapshot())}`);
+
   await page.evaluate(() => document.querySelector("#soloExit")?.click());
   await page.waitForFunction(() => !document.body.classList.contains("solo-flight"), {timeout:5000});
   await page.click("#reset");
@@ -221,7 +242,7 @@ try {
   if (mobile.bodyOverflowY === "hidden") throw new Error("mobile page is not vertically scrollable");
 
   if (errors.length) throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: daylight scene, FOLLOW/FPV cameras, paired-equivalent single-phone controls, calibration, ARM/KILL, idle RPM, local fallback, throttle and responsive layout.");
+  console.log("Browser SIL E2E passed: daylight scene, FOLLOW/FPV cameras, paired-equivalent single-phone controls, 3-lap race HUD, fullscreen RESET SIM, calibration, ARM/KILL, idle RPM, local fallback, throttle and responsive layout.");
 } finally {
   await browser.close();
 }

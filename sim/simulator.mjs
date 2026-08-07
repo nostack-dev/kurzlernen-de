@@ -4,6 +4,7 @@ import createCore from "../generated/flight_core.mjs";
 import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
 import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,applyStick,releaseStick,knobAxes,knobPercent} from "./control_semantics.mjs";
+import {RaceTrack} from "./race_track.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -355,6 +356,7 @@ const camera=new THREE.PerspectiveCamera(52,1,.01,120);camera.up.set(0,0,1);came
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$("viewport").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
 const grid=new THREE.GridHelper(20,40,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(20,20,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
+const raceTrack=new RaceTrack(scene,{laps:3});
 const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camSolo" type="button">1 PHONE</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
 for(const button of cameraHud.querySelectorAll("button"))Object.assign(button.style,{minWidth:"76px",padding:"7px 10px",borderRadius:"7px",border:"1px solid rgba(255,255,255,.3)",background:"rgba(17,29,43,.82)",color:"#fff",font:"700 12px system-ui,-apple-system,sans-serif",letterSpacing:".04em"});
@@ -393,7 +395,8 @@ $("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCa
 
 const soloHud=document.createElement("div");soloHud.id="soloHud";soloHud.hidden=true;
 soloHud.innerHTML=`
-  <div id="soloTopbar"><button id="soloExit" type="button">EXIT</button><span id="soloState">DISARMED</span><span id="soloAlt">0.0 m</span><button id="soloCamera" type="button">FOLLOW</button></div>
+  <div id="soloTopbar"><button id="soloExit" type="button">EXIT</button><button id="soloReset" type="button">RESET SIM</button><span id="soloState">DISARMED</span><span id="soloAlt">0.0 m</span><button id="soloCamera" type="button">FOLLOW</button></div>
+  <div id="soloRaceHud"><span id="soloLap">READY · 3 LAPS</span><strong id="soloRaceTime">00:00.000</strong><span id="soloGate">NEXT · START / FINISH</span><span id="soloBest">BEST —</span></div>
   <div id="soloRotate">ROTATE PHONE TO LANDSCAPE</div>
   <div id="soloLeft" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>THR / YAW</span></div>
   <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>PITCH / ROLL</span></div>
@@ -409,7 +412,9 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
   #soloHud[hidden]{display:none!important}
   #soloTopbar{position:absolute;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));display:flex;gap:8px;align-items:center;justify-content:flex-start;pointer-events:auto}
   #soloTopbar span,#soloTopbar button{border:1px solid #ffffff55;background:#112033cc;color:#fff;border-radius:9px;padding:7px 10px;font-weight:800;font-size:12px;backdrop-filter:blur(8px)}
-  #soloTopbar #soloExit{background:#6b2330dd} #soloTopbar #soloCamera{margin-left:auto;background:#174f70dd}
+  #soloTopbar #soloExit{background:#6b2330dd} #soloTopbar #soloReset{background:#9a5b18dd} #soloTopbar #soloCamera{margin-left:auto;background:#174f70dd}
+  #soloRaceHud{position:absolute;top:max(52px,calc(env(safe-area-inset-top) + 44px));left:50%;transform:translateX(-50%);display:grid;grid-template-columns:auto auto;gap:3px 12px;align-items:center;min-width:290px;padding:7px 12px;border:1px solid #ffffff55;border-radius:10px;background:#112033c7;backdrop-filter:blur(8px);box-shadow:0 5px 18px #0004;text-align:center;pointer-events:none}
+  #soloRaceHud span{font-size:10px;font-weight:850;letter-spacing:.06em;white-space:nowrap} #soloRaceTime{font-size:19px;line-height:1;font-variant-numeric:tabular-nums;color:#fff}
   .solo-stick{position:absolute;width:min(34vw,230px);aspect-ratio:1;bottom:max(18px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none;border-radius:50%}
   #soloLeft{left:max(16px,env(safe-area-inset-left))} #soloRight{right:max(16px,env(safe-area-inset-right))}
   .solo-ring{position:absolute;inset:0;border-radius:50%;border:2px solid #ffffff66;background:#0b18265c;box-shadow:inset 0 0 45px #0005,0 6px 22px #0005}
@@ -437,15 +442,17 @@ function soloStick(el,kind){
 }
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
 async function enterSolo(){
-  soloMode=true;soloPreviousInputSource=inputSource;soloControls=neutralControls();updateSoloSticks();document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
+  soloMode=true;soloPreviousInputSource=inputSource;soloControls=neutralControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   if(mode==="sim"&&backend&&!running)startRun();
 }
 async function exitSolo(){
-  soloControls=neutralControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
+  soloControls=neutralControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
 }
 $("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
+function resetSoloSimulation(){const restart=mode==="sim"&&Boolean(backend);stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);if(restart)startRun();}
+$("soloReset").onclick=resetSoloSimulation;
 $("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if(sharedArmReady(currentFcStateText(),soloControls,true))soloControls.arm=true;};
 $("soloKill").onclick=()=>{soloControls=neutralControls();updateSoloSticks();arm=false;throttle=0;};
 $("soloCamera").onclick=()=>{setCameraMode(cameraMode==="follow"?"fpv":"follow");$("soloCamera").textContent=cameraMode.toUpperCase();};
@@ -478,7 +485,7 @@ async function switchMode(next){
   updateModeUI();
 }
 function resetSimulation(initial=null){
-  physics.reset(defaultParams(),initial);sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
+  physics.reset(defaultParams(),initial);raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }
 function localControlState(){
@@ -506,7 +513,7 @@ function recordSession(){
 async function loop(){
   while(running){
     if(mode==="replay") await replayStep();
-    else {latest=await controllerStep();physics.step(latest.motors,DT);simTime+=DT;recordSession();}
+    else {latest=await controllerStep();physics.step(latest.motors,DT);simTime+=DT;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
     if((sequence&7)===0)await new Promise(requestAnimationFrame);
   }
 }
@@ -524,7 +531,7 @@ function render(){
   const fcState=latest.state,fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
   const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault});}
-  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=Math.max(0,state.z).toFixed(1)+" m";$("soloCamera").textContent=cameraMode.toUpperCase();soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&!sharedArmReady(stateText,soloControls,true);soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
+  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=Math.max(0,state.z).toFixed(1)+" m";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&!sharedArmReady(stateText,soloControls,true);soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
 }
 render();
 
