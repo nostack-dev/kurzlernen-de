@@ -32,6 +32,7 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil_test
           /tmp/sil_test
           node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -113,7 +114,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
 
-      - name: Validate no-server dual-phone architecture
+      - name: Validate source architecture
         run: |
           set -euxo pipefail
           node --check sim/simulator.mjs
@@ -121,33 +122,14 @@ jobs:
           node --check sim/p2p_link.mjs
           node --check sim/qr_pairing.mjs
           node --check sim/control_semantics.mjs
+          node --check sim/control_settings.mjs
+          node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/sil_wasm_smoke.mjs
           node --check tests/browser_sim_smoke.mjs
           node --check tests/dual_phone_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
-          ! grep -R --line-number -E '#[[:space:]]*include[[:space:]]+["<][^">]*\.cpp[">]' esp32 sim
-          ! grep -R --line-number -E '#[[:space:]]*define[[:space:]]+main' esp32 sim
-          grep -q 'class Runtime' esp32/Arondight45_DroneFC_Core.hpp
-          grep -q 'fc::Runtime runtime' esp32/Arondight45_DroneFC_S31.cpp
-          grep -q 'fc::Runtime runtime_' esp32/Arondight45_HIL_Protocol.hpp
-          grep -q 'Arondight45_HIL_Protocol.hpp' sim/Arondight45_DroneFC_SIL_WASM.cpp
-          grep -q 'new ViewPeerLink()' sim/simulator.mjs
-          grep -q 'control_semantics.mjs' sim/simulator.mjs sim/controller.mjs
-          grep -q 'new RTCPeerConnection' sim/p2p_link.mjs
-          grep -q 'iceServers:\[\]' sim/p2p_link.mjs
-          grep -q 'CONTROL_STALE_MS = 350' sim/p2p_link.mjs
-          grep -q 'SESSION_GRACE_MS = 5 \* 60 \* 1000' sim/p2p_link.mjs
-          grep -q 'new QrScanner' sim/simulator.mjs
-          grep -q 'new QrScanner' sim/controller.mjs
-          grep -q 'function startRun()' sim/simulator.mjs
-          ! grep -q 'WebSocket' sim/controller.mjs
-          ! grep -q 'WebSocket' sim/p2p_link.mjs
-          ! grep -q '/control"' sim/simulator.mjs sim/controller.mjs sim/p2p_link.mjs
-          ! grep -q "/control'" sim/simulator.mjs sim/controller.mjs sim/p2p_link.mjs
-          ! grep -q 'RemoteControlLink' sim/simulator.mjs
-          grep -q 'zero re-pairing' tests/dual_phone_smoke.mjs
-          echo 'Static VIEW/CONTROLLER + identical paired/single-phone control semantics + QR P2P + 5-minute session recovery + shared flight runtime validation passed.'
+          node tests/architecture_invariants.mjs
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
