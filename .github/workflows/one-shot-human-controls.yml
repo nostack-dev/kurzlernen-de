@@ -1,0 +1,33 @@
+name: One-shot human controls
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-human-controls.yml'
+      - 'tools/patch_human_controls.py'
+permissions:
+  contents: write
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch shared FC and browser regression
+        run: |
+          set -euxo pipefail
+          python3 tools/patch_human_controls.py
+          git diff --check
+          node --check sim/control_semantics.mjs
+          node --check sim/control_settings.mjs
+          node --check tests/control_semantics_test.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node tests/control_semantics_test.mjs
+          git diff -- esp32/Arondight45_DroneFC_Core.hpp tests/browser_sim_smoke.mjs .github/workflows/s31-hil.yml
+      - name: Commit tuned controls
+        run: |
+          set -euxo pipefail
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
+          git add esp32/Arondight45_DroneFC_Core.hpp tests/browser_sim_smoke.mjs .github/workflows/s31-hil.yml
+          git commit -m 'Remove RC deadband and tune phone stick throw'
+          git push
