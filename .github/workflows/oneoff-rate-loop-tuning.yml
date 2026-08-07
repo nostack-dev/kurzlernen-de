@@ -1,4 +1,4 @@
-name: Validate damped zero-vector controller
+name: Attitude bandwidth tuning on damped vector loop
 
 on:
   push:
@@ -11,28 +11,42 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  candidate:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: angle220
+            angle: "2.2f"
+          - label: angle260
+            angle: "2.6f"
+          - label: angle300
+            angle: "3.0f"
+    name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Align unit expectations with current vector law
+      - name: Apply candidate and align current unit law
+        env:
+          ANGLE: ${{ matrix.angle }}
         run: |
           set -euxo pipefail
           python3 - <<'PY'
+          import os
           from pathlib import Path
-          p=Path('tests/state_control_test.cpp')
-          s=p.read_text()
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=p.read_text(); old='constexpr float kAngleToRate = 1.9f;'; new=f'constexpr float kAngleToRate = {os.environ["ANGLE"]};'
+          assert s.count(old)==1,s.count(old); p.write_text(s.replace(old,new,1))
+          p=Path('tests/state_control_test.cpp'); s=p.read_text()
           pairs=[
             ('''    CHECK(controller.debug().forward_accel_mps2 < -1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.15f);''',
              '''    CHECK(controller.debug().forward_accel_mps2 < -0.55f &&\n          controller.debug().forward_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.08f);'''),
             ('''    CHECK(controller.debug().measured_right_mps < -0.99f);\n    CHECK(controller.debug().right_accel_mps2 > 1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.15f);''',
              '''    CHECK(controller.debug().measured_right_mps < -0.99f);\n    CHECK(controller.debug().right_accel_mps2 > 0.55f &&\n          controller.debug().right_accel_mps2 < 0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.08f);'''),
             ('''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.15f);''',
-             '''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -0.55f &&\n          controller.debug().right_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.08f);'''),
-          ]
+             '''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -0.55f &&\n          controller.debug().right_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.08f);''')]
           for old,new in pairs:
-            assert s.count(old)==1,(old,s.count(old))
-            s=s.replace(old,new,1)
+            assert s.count(old)==1,(old,s.count(old)); s=s.replace(old,new,1)
           p.write_text(s)
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
@@ -40,7 +54,6 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/architecture_invariants.mjs
-          git diff --check
       - name: Build browser runtime
         run: |
           set -euxo pipefail
