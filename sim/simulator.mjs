@@ -258,7 +258,7 @@ class PhysicsModel {
     this.p={...p,wind:[...p.wind]};
     if(this.world)b3.b3DestroyWorld(this.world);
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
-    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;b3.b3CreateBoxShape(ground,groundShape,10,10,.05);
+    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;b3.b3CreateBoxShape(ground,groundShape,60,60,.05);
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:.024;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(.024,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,.022);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
@@ -351,11 +351,11 @@ function daylightSky(){
   ctx.fillStyle=gradient;ctx.fillRect(0,0,canvas.width,canvas.height);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;return texture;
 }
-const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,14,52);
-const camera=new THREE.PerspectiveCamera(52,1,.01,120);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
+const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,35,150);
+const camera=new THREE.PerspectiveCamera(52,1,.01,300);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$("viewport").appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
-const grid=new THREE.GridHelper(20,40,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(20,20,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
+const grid=new THREE.GridHelper(120,60,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(120,120,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});
 const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camSolo" type="button">1 PHONE</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
