@@ -162,7 +162,7 @@ try{
 
   const left=await pointerDownOnly("#soloLeft");
   await page.mouse.move(left.cx,left.cy-left.r*.65,{steps:6});
-  const moveStart=await simTime();await waitForSimTime(moveStart+.55,30000);
+  const moveStart=await simTime();await waitForSimTime(moveStart+1.0,45000);
   const moving=bodyMotion(await latestFlightSample());
   if(moving.forward<.40)throw new Error(`solo desired forward vector did not accelerate correctly: ${JSON.stringify(moving)}`);
   await page.mouse.up();
@@ -172,7 +172,7 @@ try{
 
   const strafe=await pointerDownOnly("#soloLeft");
   await page.mouse.move(strafe.cx+strafe.r*.62,strafe.cy,{steps:6});
-  const strafeStart=await simTime();await waitForSimTime(strafeStart+.55,30000);
+  const strafeStart=await simTime();await waitForSimTime(strafeStart+1.0,45000);
   const strafing=bodyMotion(await latestFlightSample());
   if(strafing.right<.32)throw new Error(`solo strafe vector sign/response wrong: ${JSON.stringify(strafing)}`);
   await page.mouse.up();

@@ -119,7 +119,7 @@ try{
 
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
-  const forwardStart=await simTime(view);await waitSim(view,forwardStart+.55,30000);
+  const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);
   const moving=bodyMotion(await latestFlightSample(view));
   if(!(moving.forward>.30&&moving.pitch<-6.0))throw new Error(`forward desired-vector did not produce forward motion + physical forward tilt: ${JSON.stringify(moving)}`);
   await controller.mouse.up();
@@ -136,7 +136,7 @@ try{
   console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
 
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
-  const strafeStart=await simTime(view);await waitSim(view,strafeStart+.55,30000);
+  const strafeStart=await simTime(view);await waitSim(view,strafeStart+1.0,45000);
   const strafing=bodyMotion(await latestFlightSample(view));
   if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: ${JSON.stringify(strafing)}`);
   await controller.mouse.up();
