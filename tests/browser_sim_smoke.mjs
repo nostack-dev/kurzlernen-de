@@ -55,7 +55,7 @@ try{
     externalScripts:[...document.scripts].filter(s=>s.src).map(s=>s.src),
   }));
   if(boot.title!=="Arondight45 Drone Digital Twin"||!boot.status.includes("SIM ready")||
-     !boot.controller.includes("shared fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM")
+     !boot.controller.includes("shared fc::StateRuntime → fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM")
     throw new Error(`boot mismatch: ${JSON.stringify(boot)}`);
   if(boot.externalScripts.length||externalRequests.length)throw new Error("self-contained build made external requests");
 
