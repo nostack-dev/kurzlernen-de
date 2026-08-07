@@ -101,10 +101,33 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.5f);
 
+    // Axis convention regression: with body-forward=-X and +Z up, body-right is
+    // -Y at yaw=0. Therefore a real -5 m/s world-Y velocity exactly satisfies a
+    // +5 m/s rightward intent and the roll correction must collapse to neutral.
+    nav.velocity_world_mps = {0.0f, -5.0f, 0.0f};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    CHECK(std::fabs(controller.debug().measured_right_mps - 5.0f) < 0.01f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.05f);
+
+    // With zero desired strafe, leftward world velocity (+Y) is measured as a
+    // negative right velocity and must command positive roll, which tilts thrust
+    // toward -Y and physically brakes that drift. This specifically prevents the
+    // positive-feedback runaway caught by the browser/Box3D E2E.
+    rc = base_rc(true);
+    nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().measured_right_mps < -0.99f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.10f);
+    nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().measured_right_mps > 0.99f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.10f);
+
     // Heading input integrates a heading target. Releasing the stick leaves a
     // heading error command until measured yaw catches up: true heading hold.
     controller.reset();
     rc = base_rc(true);
+    nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
     rc.ch[FC_SBUS_YAW] = fc::centered_raw(1.0f);
     for (int i = 0; i < 100; ++i)
         transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);
@@ -217,6 +240,6 @@ int main() {
     CHECK(!unavailable.armed);
     for (auto pulse : unavailable.motor_us) CHECK(pulse == fc::kEscMinUs);
 
-    std::puts("All state-vector control tests passed.");
+    std::puts("All state-vector control tests passed.\n");
     return 0;
 }
