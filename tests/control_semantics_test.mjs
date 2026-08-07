@@ -25,10 +25,13 @@ assert.ok(phoneAxis(.5,10)>.2,"max fineness must soften centre without killing a
 let c=neutralControls();
 assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 assert.equal(armReady("CALIBRATING",c,true,DEFAULT_PHONE_SETTINGS),false);
+assert.equal(armReady("DISARMED",c,false,DEFAULT_PHONE_SETTINGS),false);
 
 applyStick(c,"left",{x:.4,y:.5},DEFAULT_PHONE_SETTINGS);
 near(c.yaw,phoneAxis(.4,DEFAULT_PHONE_SETTINGS.leftFineness));near(c.throttle,.25);
-assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),false);
+// The browser deliberately does not clone production arming thresholds. It may
+// issue the request; shared fc::Runtime alone decides whether that request arms.
+assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 let leftKnob=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);near(leftKnob.x,.4,3e-6);near(leftKnob.y,.5,3e-6);
 releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.25,1e-6,"left release retains throttle");
 
@@ -65,10 +68,9 @@ assert.ok(tenPxRaw>.035,"10 px max-fine movement must cross production roll/pitc
 near(phoneAxis(1,10),1,1e-12,"right full stick authority");
 near(phoneAxis(-1,10),-1,1e-12,"left full stick authority");
 
-c=neutralControls();applyStick(c,"right",{x:.13,y:0},DEFAULT_PHONE_SETTINGS);
-assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),false,"arming follows physical stick displacement");
+c=neutralControls();applyStick(c,"right",{x:.8,y:.8},DEFAULT_PHONE_SETTINGS);
+assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must not duplicate the FC stick arming gate");
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
-assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 
-console.log("Phone controls passed: full authority preserved, cubic fineness only, correct roll sign, optional horizontal lock, and relative re-touch prevents throttle teleport.");
+console.log("Phone controls passed: full authority, cubic fineness, correct roll sign, optional axis lock, relative throttle re-touch, and FC-authoritative arming.");
