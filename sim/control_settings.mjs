@@ -58,20 +58,20 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
   dialog.innerHTML=`
     <h3>PHONE CONTROLS</h3>
-    <p>Higher fineness softens only the centre of the virtual gimbal. Full stick always stays full command.</p>
+    <p>Higher fineness softens only the centre of each virtual stick. Full stick always stays full command.</p>
     <div class="phone-settings-row">
-      <label>LEFT · YAW FINENESS</label><output data-out="left"></output>
+      <label>LEFT STICK FINENESS</label><output data-out="left"></output>
       <input data-slider="left" type="range" min="1" max="10" step="1">
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
     <div class="phone-settings-row">
-      <label>RIGHT · ROLL / PITCH FINENESS</label><output data-out="right"></output>
+      <label>RIGHT STICK FINENESS</label><output data-out="right"></output>
       <input data-slider="right" type="range" min="1" max="10" step="1">
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
     <label class="phone-settings-toggle"><span>LOCK LEFT STICK HORIZONTAL AXIS</span><input data-lock-left-horizontal type="checkbox"></label>
-    <label class="phone-settings-toggle"><span>LOCK RIGHT STICK HORIZONTAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
-    <p class="phone-settings-note">Left lock ON = throttle only; yaw stays centred. Right lock ON = roll only; pitch stays centred. Flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
+    <label class="phone-settings-toggle"><span>LOCK RIGHT STICK VERTICAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
+    <p class="phone-settings-note">Left X lock keeps the left horizontal axis centred: MANUAL yaw is locked; GAME strafe is locked. Right Y lock keeps the right vertical axis centred: MANUAL pitch is locked; GAME camera look is locked. The other axis stays fully active. Flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]');
