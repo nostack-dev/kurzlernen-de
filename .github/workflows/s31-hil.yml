@@ -11,7 +11,9 @@ on:
       - "sim/**"
       - "tests/**"
       - "tools/s31_hil_bridge.mjs"
+      - "tools/dual_phone_relay.mjs"
       - "drone_simulator.html"
+      - "drone_controller.html"
       - ".github/workflows/s31-hil.yml"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
@@ -44,7 +46,11 @@ jobs:
         run: |
           set -euxo pipefail
           node --check sim/simulator.mjs
+          node --check sim/controller.mjs
           node --check tests/sil_wasm_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node --check tests/dual_phone_smoke.mjs
+          node --check tools/dual_phone_relay.mjs
           node --check tools/s31_hil_bridge.mjs
           ! grep -R --line-number -E '#[[:space:]]*include[[:space:]]+["<][^">]*\.cpp[">]' esp32 sim
           ! grep -R --line-number -E '#[[:space:]]*define[[:space:]]+main' esp32 sim
@@ -59,6 +65,9 @@ jobs:
           grep -q 'hil::RuntimeAdapter runtime' esp32/Arondight45_DroneFC_HIL_S31.cpp
           grep -q 'usb_serial_jtag' esp32/Arondight45_DroneFC_HIL_S31.cpp
           grep -q 'src="./sim/simulator.mjs"' drone_simulator.html
+          grep -q 'src="./sim/controller.mjs"' drone_controller.html
+          grep -q 'REMOTE PHONE' drone_simulator.html
+          grep -q '350' sim/simulator.mjs
 
   esp-idf-build:
     runs-on: ubuntu-latest
