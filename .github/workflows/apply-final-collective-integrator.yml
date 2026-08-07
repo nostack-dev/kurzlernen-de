@@ -1,0 +1,115 @@
+name: Apply final collective-integrator fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-final-collective-integrator.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Make collective feedback self-calibrating
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text()
+          old='''        // Learn only the hover baseline; transient maneuver force comes directly from
+        // the required specific-force magnitude. This automatically compensates the
+        // extra thrust needed while tilted instead of teaching the integrator a turn.
+        if (std::fabs(agl_error) < kHoverLearnAglBandM) {
+            hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
+                                kMinHoverTrim, kMaxHoverTrim);
+        }
+'''
+          new='''        // The actuator-to-thrust scale is aircraft-specific, so hover collective cannot
+        // be guessed from simulator constants or assumed hardware. Treat hover_trim_
+        // as the slow integral/feed-forward state of the same vertical feedback loop.
+        // Every armed, navigation-valid tick integrates vz target minus measured vz.
+        // If collective is initially insufficient to leave the ground, the requested
+        // motor command therefore rises until the real measured vertical state responds.
+        hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
+                            kMinHoverTrim, kMaxHoverTrim);
+'''
+          assert s.count(old)==1,('hover-adapt block',s.count(old))
+          s=s.replace(old,new,1)
+          old='''    static constexpr float kHoverAdapt = 0.050f;
+    static constexpr float kHoverLearnAglBandM = 0.50f;
+    static constexpr float kInitialHoverThrottle = 0.39f;
+'''
+          new='''    static constexpr float kHoverAdapt = 0.050f;
+    static constexpr float kInitialHoverThrottle = 0.39f;
+'''
+          assert s.count(old)==1,('hover constants',s.count(old))
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/state_control_test.cpp')
+          s=p.read_text()
+          marker='''    CHECK(descend_throttle >= 0.0f);
+
+    // The two translational axes form one desired velocity vector. Its Euclidean
+'''
+          extra='''    CHECK(descend_throttle >= 0.0f);
+
+    // Collective authority is learned from the same measured vertical-state error,
+    // even far below the requested AGL. This is what lets an unknown real airframe
+    // bootstrap from an initially low hover estimate without simulator constants.
+    controller.reset();
+    rc = base_rc(true);
+    nav = {{0.0f, 0.0f, 0.0f}, 0.05f, true};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    const float bootstrap_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
+    for (int i = 0; i < 1500; ++i)
+        transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    const float learned_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
+    CHECK(controller.hover_trim() > 0.53f);
+    CHECK(learned_throttle > bootstrap_throttle + 0.10f);
+
+    // The two translational axes form one desired velocity vector. Its Euclidean
+'''
+          assert s.count(marker)==1,('state test marker',s.count(marker))
+          s=s.replace(marker,extra,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs')
+          s=p.read_text()
+          marker='''requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)",
+            "thrust magnitude must map through rotor-speed physics instead of linearly to throttle");
+'''
+          extra='''requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)",
+            "thrust magnitude must map through rotor-speed physics instead of linearly to throttle");
+requireText("esp32/Arondight45_StateControl.hpp","hover_trim_ + kHoverAdapt * vz_error * dt",
+            "collective feed-forward must learn continuously from vertical state error");
+forbidText("esp32/Arondight45_StateControl.hpp","kHoverLearnAglBandM",
+           "collective learning must not be disabled far from the AGL target");
+'''
+          assert s.count(marker)==1,('invariant marker',s.count(marker))
+          p.write_text(s.replace(marker,extra,1))
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          node tests/architecture_invariants.mjs
+          node --check sim/simulator.mjs
+          git diff --check
+      - name: Commit product fix
+        run: |
+          set -euxo pipefail
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp tests/architecture_invariants.mjs
+          git commit -m "Make GAME collective feedback self-calibrating"
+          git pull --rebase origin main
+          git push origin HEAD:main
