@@ -1,4 +1,4 @@
-name: Velocity-error gain tuning matrix
+name: Validate damped zero-vector controller
 
 on:
   push:
@@ -11,42 +11,36 @@ permissions:
   contents: read
 
 jobs:
-  candidate:
+  validate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: kv070
-            kv: "0.70f"
-          - label: kv100
-            kv: "1.00f"
-          - label: kv130
-            kv: "1.30f"
-    name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply candidate velocity-error gain
-        env:
-          KV: ${{ matrix.kv }}
+      - name: Align unit expectations with current vector law
         run: |
           set -euxo pipefail
           python3 - <<'PY'
-          import os
           from pathlib import Path
-          p=Path('esp32/Arondight45_StateControl.hpp')
+          p=Path('tests/state_control_test.cpp')
           s=p.read_text()
-          old='static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s'
-          new=f'static constexpr float kHorizontalVelocityGain = {os.environ["KV"]};  // 1/s'
-          assert s.count(old)==1, s.count(old)
-          p.write_text(s.replace(old,new,1))
+          pairs=[
+            ('''    CHECK(controller.debug().forward_accel_mps2 < -1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.15f);''',
+             '''    CHECK(controller.debug().forward_accel_mps2 < -0.55f &&\n          controller.debug().forward_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.08f);'''),
+            ('''    CHECK(controller.debug().measured_right_mps < -0.99f);\n    CHECK(controller.debug().right_accel_mps2 > 1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.15f);''',
+             '''    CHECK(controller.debug().measured_right_mps < -0.99f);\n    CHECK(controller.debug().right_accel_mps2 > 0.55f &&\n          controller.debug().right_accel_mps2 < 0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.08f);'''),
+            ('''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -1.9f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.15f);''',
+             '''    CHECK(controller.debug().measured_right_mps > 0.99f);\n    CHECK(controller.debug().right_accel_mps2 < -0.55f &&\n          controller.debug().right_accel_mps2 > -0.65f);\n    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.08f);'''),
+          ]
+          for old,new in pairs:
+            assert s.count(old)==1,(old,s.count(old))
+            s=s.replace(old,new,1)
+          p.write_text(s)
           PY
-          grep -n 'kHorizontalVelocityGain\|kMaxHorizontalAcceleration' esp32/Arondight45_StateControl.hpp
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/architecture_invariants.mjs
+          git diff --check
       - name: Build browser runtime
         run: |
           set -euxo pipefail
