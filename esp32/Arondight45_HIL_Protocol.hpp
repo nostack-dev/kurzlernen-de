@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Arondight45_DroneFC_Core.hpp"
+#include "Arondight45_StateControl.hpp"
 
 #include <array>
 #include <cstddef>
@@ -12,9 +12,10 @@ namespace hil {
 
 constexpr uint32_t kInputMagic = 0x314C4948u;   // HIL1 little-endian
 constexpr uint32_t kOutputMagic = 0x314F4C48u;  // HLO1 little-endian
-constexpr uint16_t kProtocolVersion = 1;
+constexpr uint16_t kProtocolVersion = 2;
 constexpr uint8_t kFlagImuValid = 1u << 0;
 constexpr uint8_t kFlagReset = 1u << 1;
+constexpr uint8_t kFlagNavigationValid = 1u << 2;
 
 #pragma pack(push, 1)
 struct InputPacket {
@@ -24,7 +25,12 @@ struct InputPacket {
     uint8_t imu_registers[14];
     uint8_t sbus[25];
     uint8_t flags;
-    uint8_t reserved[8];
+    // Protocol v2 uses the original 8 reserved bytes for actual navigation-sensor
+    // measurements. Packet size and transport framing stay unchanged.
+    int16_t nav_vx_cms;
+    int16_t nav_vy_cms;
+    int16_t nav_vz_cms;
+    uint16_t nav_agl_mm;
     uint32_t crc32;
 };
 
@@ -72,6 +78,17 @@ inline bool decode_imu_registers(const uint8_t raw[14], fc::Imu& out) {
     return fc::finite(out.a) && fc::finite(out.g);
 }
 
+inline fc::NavigationState decode_navigation(const InputPacket& in) {
+    fc::NavigationState nav{};
+    nav.valid = (in.flags & kFlagNavigationValid) != 0;
+    nav.velocity_world_mps = {in.nav_vx_cms * 0.01f,
+                              in.nav_vy_cms * 0.01f,
+                              in.nav_vz_cms * 0.01f};
+    nav.agl_m = in.nav_agl_mm * 0.001f;
+    nav.valid = fc::finite(nav);
+    return nav;
+}
+
 class RuntimeAdapter {
 public:
     void reset() {
@@ -103,16 +120,17 @@ public:
         const bool sbus_ok = fc::decode_sbus(in.sbus, rc);
         rc.us = sim_us_;
 
-        fc::RuntimeInput runtime_input{};
-        runtime_input.raw = imu;
-        runtime_input.rc = rc;
-        runtime_input.now_us = sim_us_;
-        runtime_input.dt_us = in.dt_us;
-        runtime_input.missed_samples = 0;
-        runtime_input.imu_valid = imu_ok;
-        runtime_input.rc_fresh = sbus_ok && rc.valid;
+        fc::StateRuntimeInput state_input{};
+        state_input.flight.raw = imu;
+        state_input.flight.rc = rc;
+        state_input.flight.now_us = sim_us_;
+        state_input.flight.dt_us = in.dt_us;
+        state_input.flight.missed_samples = 0;
+        state_input.flight.imu_valid = imu_ok;
+        state_input.flight.rc_fresh = sbus_ok && rc.valid;
+        state_input.navigation = decode_navigation(in);
 
-        const fc::RuntimeOutput result = runtime_.step(runtime_input);
+        const fc::RuntimeOutput result = runtime_.step(state_input);
         for (size_t i = 0; i < 4; ++i) out.motor_us[i] = result.motor_us[i];
         for (size_t i = 0; i < 3; ++i) out.attitude_cdeg[i] = result.attitude_cdeg[i];
         out.state = result.state;
@@ -120,11 +138,11 @@ public:
         return out;
     }
 
-    fc::Runtime& runtime() { return runtime_; }
-    const fc::Runtime& runtime() const { return runtime_; }
+    fc::StateRuntime& runtime() { return runtime_; }
+    const fc::StateRuntime& runtime() const { return runtime_; }
 
 private:
-    fc::Runtime runtime_{};
+    fc::StateRuntime runtime_{};
     uint64_t sim_us_{};
 };
 
@@ -142,7 +160,11 @@ public:
             return false;
         }
         buffer_[size_++] = byte;
-        if (size_ != sizeof(InputPacket)) return false;
+        if (size_ < sizeof(InputPacket)) return false;
+        if (size_ > sizeof(InputPacket)) {
+            size_ = 0;
+            return false;
+        }
         std::memcpy(&packet, buffer_.data(), sizeof(packet));
         size_ = 0;
         return true;
