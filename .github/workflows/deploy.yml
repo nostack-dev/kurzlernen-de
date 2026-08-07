@@ -74,6 +74,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           ./node_modules/.bin/esbuild sim/simulator.mjs \
             --bundle --format=esm --platform=browser --target=es2022 --minify \
+            --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline \
             --outfile=/tmp/arondight45-simulator.bundle.mjs
           rm node_modules
           node --check /tmp/arondight45-simulator.bundle.mjs
