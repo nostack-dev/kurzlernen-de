@@ -21,20 +21,14 @@ fc::RC base_rc(bool arm = false) {
     rc.ch[FC_SBUS_THROTTLE] = 172;
     rc.ch[FC_SBUS_ARM] = arm ? 1811 : 172;
     rc.ch[fc::kStateModeChannel] = 1811;
-    // 2.0 m within [0.5, 5.0].
     const float clearance01 = (2.0f - fc::kStateMinClearanceM) /
                               (fc::kStateMaxClearanceM - fc::kStateMinClearanceM);
     rc.ch[fc::kStateClearanceChannel] = fc::throttle_raw(clearance01);
     return rc;
 }
 
-float raw_centered(uint16_t value) {
-    return fc::centered(value);
-}
-
-float raw_throttle(uint16_t value) {
-    return fc::throttle(value);
-}
+float raw_centered(uint16_t value) { return fc::centered(value); }
+float raw_throttle(uint16_t value) { return fc::throttle(value); }
 
 }  // namespace
 
@@ -42,9 +36,7 @@ int main() {
     fc::StateController controller;
     fc::NavigationState nav{{0.0f, 0.0f, 0.0f}, 2.0f, true};
 
-    // Neutral desired state at the target clearance: no tilt, no yaw, and while
-    // the inner runtime is not armed the outer loop must keep throttle at zero so
-    // the existing arming gate remains authoritative.
+    // No inner arm = no actuator request. Production Runtime remains authoritative.
     auto rc = base_rc(false);
     auto transformed = controller.transform(rc, nav, 0.0f, false, 0.001f);
     CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.01f);
@@ -52,9 +44,6 @@ int main() {
     CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_YAW])) < 0.01f);
     CHECK(raw_throttle(transformed.ch[FC_SBUS_THROTTLE]) < 0.001f);
 
-    // Even a full GAME motion/turn request plus measured drift is execution-inert
-    // before the authoritative inner Runtime has armed. The intent is preserved
-    // at the input layer but cannot fight or bypass the production arm gate.
     rc = base_rc(true);
     rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
     rc.ch[FC_SBUS_PITCH] = fc::centered_raw(-1.0f);
@@ -66,95 +55,92 @@ int main() {
     CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_YAW])) < 0.01f);
     CHECK(raw_throttle(transformed.ch[FC_SBUS_THROTTLE]) < 0.001f);
 
-    // Below requested ground clearance must command climb thrust once armed.
+    // Clearance target is simply the Z component of the desired state.
     nav = {{0.0f, 0.0f, 0.0f}, 0.5f, true};
     rc = base_rc(false);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(raw_throttle(transformed.ch[FC_SBUS_THROTTLE]) > 0.50f);
-
-    // Above requested clearance must command less thrust than the below-ground
-    // case, never a negative/nonphysical thrust command.
     const float climb_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
+    CHECK(controller.debug().vertical_accel_mps2 > 3.0f);
+    CHECK(climb_throttle > 0.50f);
+
     nav.agl_m = 3.5f;
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     const float descend_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
+    CHECK(controller.debug().vertical_accel_mps2 < -3.0f);
     CHECK(descend_throttle < climb_throttle);
     CHECK(descend_throttle >= 0.0f);
 
-    // Forward intent with zero measured velocity must request forward tilt.
+    // Desired velocity minus measured velocity directly creates acceleration.
+    // Forward is -world-X at yaw=0; physical forward tilt is negative pitch, whose
+    // SBUS channel is positive because command() performs the established inversion.
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
     rc = base_rc(true);
     rc.ch[FC_SBUS_PITCH] = fc::centered_raw(1.0f);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.5f);
+    CHECK(controller.debug().forward_accel_mps2 > 4.0f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.50f);
 
-    // Once actual forward velocity approaches the requested 5 m/s, the required
-    // tilt error collapses toward zero instead of continuing to accelerate.
+    // If measured velocity equals the desired vector, horizontal error, requested
+    // acceleration and tilt all collapse to zero. No attitude-lead special case.
     nav.velocity_world_mps = {-5.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.05f);
+    CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.01f);
+    CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.01f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.02f);
 
-    // Measured attitude is part of the GAME outer-loop state. With the same
-    // positive forward-velocity error, an aircraft already pitched forward must
-    // ask for less additional forward pitch. With neutral velocity intent and the
-    // same existing forward pitch, it must ask for a substantially stronger
-    // opposite attitude so translational acceleration is arrested before speed
-    // runs away during the inner attitude reversal.
-    nav = {{-0.5f, 0.0f, 0.0f}, 2.0f, true};
+    // Releasing to zero target while still moving forward produces acceleration
+    // directly opposite the measured velocity vector and therefore reverse tilt.
     rc = base_rc(true);
+    nav.velocity_world_mps = {-1.0f, 0.0f, 0.0f};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().measured_forward_mps > 0.99f);
+    CHECK(controller.debug().forward_accel_mps2 < -1.9f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.15f);
+
+    // Diagonal requests are limited as one physical acceleration vector, not by
+    // independently clipping axes and accidentally granting sqrt(2) more authority.
+    rc = base_rc(true);
+    rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
     rc.ch[FC_SBUS_PITCH] = fc::centered_raw(1.0f);
-    fc::StateController no_attitude_lead_forward;
-    fc::StateController attitude_lead_forward;
-    const auto forward_without_attitude = no_attitude_lead_forward.transform(
-        rc, nav, 0.0f, true, 0.001f);
-    const auto forward_with_attitude = attitude_lead_forward.transform(
-        rc, nav, 0.0f, -15.0f, 0.0f, true, 0.001f);
-    CHECK(raw_centered(forward_with_attitude.ch[FC_SBUS_PITCH]) > 0.05f);
-    CHECK(raw_centered(forward_with_attitude.ch[FC_SBUS_PITCH]) <
-          raw_centered(forward_without_attitude.ch[FC_SBUS_PITCH]) - 0.10f);
+    nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
+    transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
+    const float accel_norm = std::sqrt(
+        controller.debug().forward_accel_mps2 * controller.debug().forward_accel_mps2 +
+        controller.debug().right_accel_mps2 * controller.debug().right_accel_mps2);
+    CHECK(accel_norm > 4.3f && accel_norm < 4.6f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.20f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.20f);
 
-    rc = base_rc(true);
-    fc::StateController no_attitude_lead_brake;
-    fc::StateController attitude_lead_brake;
-    const auto brake_without_attitude = no_attitude_lead_brake.transform(
-        rc, nav, 0.0f, true, 0.001f);
-    const auto brake_with_attitude = attitude_lead_brake.transform(
-        rc, nav, 0.0f, -15.0f, 0.0f, true, 0.001f);
-    CHECK(raw_centered(brake_with_attitude.ch[FC_SBUS_PITCH]) <
-          raw_centered(brake_without_attitude.ch[FC_SBUS_PITCH]) - 0.10f);
-    CHECK(raw_centered(brake_with_attitude.ch[FC_SBUS_PITCH]) < -0.20f);
-
-    // Right strafe is solved through roll, not by directly moving the rigid body.
+    // Body-right is -world-Y at yaw=0.
     rc = base_rc(true);
     rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
     nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.5f);
+    CHECK(controller.debug().right_accel_mps2 > 4.0f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.50f);
 
-    // Axis convention regression: with body-forward=-X and +Z up, body-right is
-    // -Y at yaw=0. Therefore a real -5 m/s world-Y velocity exactly satisfies a
-    // +5 m/s rightward intent and the roll correction must collapse to neutral.
     nav.velocity_world_mps = {0.0f, -5.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(std::fabs(controller.debug().measured_right_mps - 5.0f) < 0.01f);
-    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.05f);
+    CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.01f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.02f);
 
-    // With zero desired strafe, leftward world velocity (+Y) is measured as a
-    // negative right velocity and must command positive roll, which tilts thrust
-    // toward -Y and physically brakes that drift. This specifically prevents the
-    // positive-feedback runaway caught by the browser/Box3D E2E.
+    // With zero right target, either-direction drift must receive an acceleration
+    // request exactly opposite that drift.
     rc = base_rc(true);
     nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps < -0.99f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.10f);
+    CHECK(controller.debug().right_accel_mps2 > 1.9f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.15f);
     nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps > 0.99f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.10f);
+    CHECK(controller.debug().right_accel_mps2 < -1.9f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.15f);
 
-    // Heading input integrates a heading target. Releasing the stick leaves a
-    // heading error command until measured yaw catches up: true heading hold.
+    // Yaw is the rotational component of the target state. Stick input integrates
+    // target heading; releasing it retains heading error feedback.
     controller.reset();
     rc = base_rc(true);
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
@@ -164,12 +150,9 @@ int main() {
     CHECK(controller.debug().target_yaw_deg > 90.0f);
     rc.ch[FC_SBUS_YAW] = fc::centered_raw(0.0f);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_YAW]) > 0.5f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_YAW]) > 0.50f);
 
-    // Full rotational path: the inner production controller must generate the
-    // correct physical motor moment for each independent body axis. This is the
-    // rotational half of the 6-DoF state controller; roll/pitch remain the
-    // under-actuated solution variables for x/y translation, yaw is independent.
+    // Inner production attitude/rate control is still the motor authority.
     const fc::Imu still{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
     {
         fc::Controller attitude;
@@ -193,9 +176,7 @@ int main() {
         CHECK(m.motor[3] > m.motor[2]);
     }
 
-    // All three measured angular-rate axes p/q/r must feed back into motor torque.
-    // A positive measured rate with zero requested rate produces a counter-torque
-    // on the corresponding axis, proving the controller is not angle-only.
+    // Gyro p/q/r remain direct feedback in the inner motor loop.
     {
         fc::Controller rate;
         fc::Imu imu = still;
@@ -224,8 +205,7 @@ int main() {
         CHECK(m.motor[2] > m.motor[3]);
     }
 
-    // GAME arming remains governed by the production Runtime. Measured drift
-    // before take-off must not manufacture attitude commands that block arming.
+    // GAME arming is still exclusively governed by production Runtime.
     fc::StateRuntime arming_runtime;
     fc::StateRuntimeInput arming_input{};
     arming_input.flight.raw = {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
@@ -254,7 +234,7 @@ int main() {
     CHECK((arm_out.state & fc::kStateGameMode) != 0);
     CHECK((arm_out.state & fc::kStateNavigationValid) != 0);
 
-    // GAME runtime must fail closed if navigation measurements disappear.
+    // Navigation loss fails closed; no fabricated state vector is allowed.
     fc::StateRuntime runtime;
     fc::StateRuntimeInput input{};
     input.flight.raw = {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
@@ -270,6 +250,6 @@ int main() {
     CHECK(!unavailable.armed);
     for (auto pulse : unavailable.motor_us) CHECK(pulse == fc::kEscMinUs);
 
-    std::puts("All state-vector control tests passed.\n");
+    std::puts("All desired-state vector control tests passed.\n");
     return 0;
 }
