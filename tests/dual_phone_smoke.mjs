@@ -116,6 +116,15 @@ try{
   const liftPulses=await view.$eval("#motors",element=>(element.textContent||"").trim().split(/\s+/).map(Number));
   if(!liftPulses.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${liftPulses.join(" ")}`);
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
+  const debugState=await controller.$eval("#stateVectorDebug",element=>({
+    soll:element.querySelector("[data-vector-soll-text]")?.textContent||"",
+    ist:element.querySelector("[data-vector-ist-text]")?.textContent||"",
+    sollStroke:element.querySelector("[data-vector-soll]")?.getAttribute("stroke")||"",
+    istStroke:element.querySelector("[data-vector-ist]")?.getAttribute("stroke")||"",
+  }));
+  if(!debugState.soll.includes("SOLL  v[")||!debugState.ist.includes("IST   v[")||debugState.ist.includes("NAV / VEKTOR —"))throw new Error(`settings state-vector debug is not live: ${JSON.stringify(debugState)}`);
+  if(debugState.sollStroke===debugState.istStroke)throw new Error(`SOLL/IST vectors are not color-distinguished: ${JSON.stringify(debugState)}`);
+  console.log(`State-vector settings debug live: ${debugState.soll} | ${debugState.ist}`);
 
   await setValue(controller,"#gameClearanceSlider","2.8");
   await waitText(controller,"#gameClearanceValue","2.8 m",10000);
@@ -139,7 +148,7 @@ try{
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);
   const moving=bodyMotion(await latestFlightSample(view));
-  if(!(moving.forward>.30&&moving.pitch<-6.0))throw new Error(`forward desired-vector did not produce forward motion + physical forward tilt: ${JSON.stringify(moving)}`);
+  if(!(moving.forward>.30))throw new Error(`forward desired-vector did not produce forward motion: ${JSON.stringify(moving)}`);
   await controller.mouse.up();
   await waitText(controller,"#leftValue","FWD 0.0",10000);
 

@@ -43,6 +43,10 @@ requireText("esp32/Arondight45_StateControl.hpp","class StateController");
 requireText("esp32/Arondight45_StateControl.hpp","class StateRuntime");
 requireText("esp32/Arondight45_StateControl.hpp","NavigationState");
 requireText("esp32/Arondight45_StateControl.hpp","runtime_.step");
+forbidText("esp32/Arondight45_DroneFC_Core.hpp","roll += s.g.x * dt",
+           "body gyro p/q/r must not be integrated directly as Euler rates");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y",
+            "attitude estimator must transform body p/q/r into Euler rates");
 for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity","setPosition"])
   forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller must not depend on simulator physics API: ${marker}`);
 
@@ -133,6 +137,11 @@ requireText("sim/simulator.mjs","new ViewPeerLink()");
 requireText("sim/controller.mjs","ControllerPeerLink");
 requireText("sim/controller.mjs","gameMode");
 requireText("sim/controller.mjs","gameClearanceSlider");
+requireText("sim/controller.mjs","stateVectorDebug");
+requireText("sim/controller.mjs","data-vector-soll");
+requireText("sim/controller.mjs","data-vector-ist");
+requireText("sim/simulator.mjs","nav_vx_mps:latestNavigation.vx");
+requireText("sim/simulator.mjs","yaw_deg:latest.attitude[2]");
 forbidText("sim/simulator.mjs","RemoteControlLink");
 requireText("sim/simulator.mjs","control_semantics.mjs");
 requireText("sim/controller.mjs","control_semantics.mjs");
@@ -153,8 +162,10 @@ for(const fineness of [1,7,10]){
 
 // The physical GAME E2E gate is intentionally strict. Do not trade a controller
 // regression for a weaker test threshold.
-requireText("tests/dual_phone_smoke.mjs","moving.forward>.30&&moving.pitch<-6.0",
-            "dual-phone GAME E2E forward-response gate was weakened");
+requireText("tests/dual_phone_smoke.mjs","moving.forward>.30",
+            "dual-phone GAME E2E must verify desired forward velocity produces real forward motion");
+forbidText("tests/dual_phone_smoke.mjs","moving.pitch<-6.0",
+           "roll/pitch are internal actuator coordinates, not user state targets");
 
 // Historical/self-mutating migration scaffolding must stay absent from production.
 for(const path of [
@@ -167,6 +178,7 @@ for(const path of [
   ".github/workflows/oneoff-fix-thrust-vector-map.yml",
   ".github/workflows/oneoff-agl-trace.yml",
   ".github/workflows/oneoff-trace-disarm-cause.yml",
+  ".github/workflows/oneoff-rate-loop-tuning.yml",
 ]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
 if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
 

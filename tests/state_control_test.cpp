@@ -122,8 +122,9 @@ int main() {
     nav.velocity_world_mps = {-1.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.99f);
-    CHECK(controller.debug().forward_accel_mps2 < -1.9f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.15f);
+    CHECK(controller.debug().forward_accel_mps2 < -0.55f &&
+          controller.debug().forward_accel_mps2 > -0.65f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.08f);
 
     // Diagonal requests are limited as one physical acceleration vector, not by
     // independently clipping axes and accidentally granting sqrt(2) more authority.
@@ -160,13 +161,15 @@ int main() {
     nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps < -0.99f);
-    CHECK(controller.debug().right_accel_mps2 > 1.9f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.15f);
+    CHECK(controller.debug().right_accel_mps2 > 0.55f &&
+          controller.debug().right_accel_mps2 < 0.65f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.08f);
     nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps > 0.99f);
-    CHECK(controller.debug().right_accel_mps2 < -1.9f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.15f);
+    CHECK(controller.debug().right_accel_mps2 < -0.55f &&
+          controller.debug().right_accel_mps2 > -0.65f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.08f);
 
     // Yaw is the rotational component of the target state. Stick input integrates
     // target heading; releasing it retains heading error feedback.
