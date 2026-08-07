@@ -29,7 +29,7 @@ function migrateSettings(){
     const v1=localStorage.getItem(LEGACY_PHONE_SETTINGS_KEY);
     if(v1){
       const old=JSON.parse(v1),oldLeft=Number(old.leftSensitivity),oldRight=Number(old.rightSensitivity);
-      const leftLevel=clampLevel(Number.isFinite(oldLeft)?oldLeft*10:8),rightLevel=clampLevel(Number.isFinite(oldRight)?oldRight*10:9);
+      const leftLevel=clampLevel(Number.isFinite(oldLeft)?oldLeft*10:9),rightLevel=clampLevel(Number.isFinite(oldRight)?oldRight*10:10);
       const migrated=normalizePhoneSettings({leftSensitivity:levelToSensitivity(leftLevel),rightSensitivity:levelToSensitivity(rightLevel)});
       localStorage.setItem(PHONE_SETTINGS_KEY,JSON.stringify(migrated));return migrated;
     }
@@ -93,7 +93,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
       <input data-slider="right" type="range" min="1" max="10" step="1">
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
-    <p class="phone-settings-note">1 = 100% RC stick throw · 10 = 35% RC stick throw. The flight controller keeps its own real deadband/expo. Throttle and aircraft physics are unchanged.</p>
+    <p class="phone-settings-note">1 = 100% RC stick throw · 10 = 25% RC stick throw. No touch deadband. The shared flight controller keeps its real expo. Throttle and aircraft physics are unchanged.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]');
