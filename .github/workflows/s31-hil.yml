@@ -68,6 +68,7 @@ jobs:
           grep -q 'ControllerPeerLink' sim/controller.mjs
           grep -q 'control_semantics.mjs' sim/simulator.mjs sim/controller.mjs
           grep -q 'arondight45PhoneControlSettingsV3' sim/control_settings.mjs tests/browser_sim_smoke.mjs
+          grep -q 'MIN_PHONE_GAIN=0.25' sim/control_semantics.mjs
           grep -q 'FPV_CAMERA_UPTILT_DEG=30' sim/simulator.mjs
           grep -q 'shape(centered(r.ch[FC_SBUS_ROLL]), 0.0f, 0.3f)' esp32/Arondight45_DroneFC_Core.hpp
           grep -q 'shape(centered(r.ch[FC_SBUS_YAW]), 0.0f, 0.2f)' esp32/Arondight45_DroneFC_Core.hpp
