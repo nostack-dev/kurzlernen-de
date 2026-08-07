@@ -84,6 +84,19 @@ try {
   if (boot.mode !== "SIM") throw new Error(`SIM is not the default mode: ${boot.mode}`);
   if (externalRequests.length) throw new Error(`self-contained simulator made external requests: ${externalRequests.join(", ")}`);
 
+  const cameraBoot = await page.evaluate(() => ({
+    mode: document.querySelector("#viewport")?.dataset.cameraMode || "",
+    follow: document.querySelector("#camFollow")?.dataset.active || "",
+    fpv: document.querySelector("#camFpv")?.dataset.active || "",
+  }));
+  if (cameraBoot.mode !== "follow" || cameraBoot.follow !== "1") throw new Error(`FOLLOW camera is not default: ${JSON.stringify(cameraBoot)}`);
+  await page.click("#camFpv");
+  const fpvMode = await page.$eval("#viewport", element => element.dataset.cameraMode || "");
+  if (fpvMode !== "fpv") throw new Error(`FPV camera switch failed: ${fpvMode}`);
+  await page.click("#camFollow");
+  const followMode = await page.$eval("#viewport", element => element.dataset.cameraMode || "");
+  if (followMode !== "follow") throw new Error(`FOLLOW camera switch failed: ${followMode}`);
+
   // This smoke test validates the standalone local fallback path. The separate
   // dual_phone_smoke.mjs validates REMOTE PHONE as the primary input source.
   await page.select("#inputSource", "local");
@@ -137,7 +150,7 @@ try {
   if (mobile.bodyOverflowY === "hidden") throw new Error("mobile page is not vertically scrollable");
 
   if (errors.length) throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: self-contained boot, local fallback, calibration, arm, idle RPM, throttle, responsive layout.");
+  console.log("Browser SIL E2E passed: daylight scene, FOLLOW/FPV cameras, self-contained boot, local fallback, calibration, arm, idle RPM, throttle, responsive layout.");
 } finally {
   await browser.close();
 }
