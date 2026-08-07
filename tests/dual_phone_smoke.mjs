@@ -91,12 +91,25 @@ try{
   await waitText(controller,"#arm","ARMED ✓",10000);
   console.log(`State-control E2E: GAME armed after ${armingDuration.toFixed(3)} simulated seconds.`);
 
+  const stateTrace=[];
+  const traceTimer=setInterval(async()=>{
+    try{
+      const v=await snapshot(view);
+      const c=await controller.evaluate(()=>({arm:document.querySelector("#arm")?.textContent||"",sensor:document.querySelector("#gameSensorStatus")?.textContent||"",connection:document.querySelector("#connection")?.textContent||""}));
+      const point={wall:Date.now(),...v,controllerArm:c.arm,sensor:c.sensor,controllerConnection:c.connection};
+      const prev=stateTrace[stateTrace.length-1];
+      if(!prev||prev.state!==point.state||prev.remote!==point.remote||prev.armSwitch!==point.armSwitch||prev.sensor!==point.sensor||prev.controllerArm!==point.controllerArm)stateTrace.push(point);
+    }catch{}
+  },75);
+
   try{
     await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.55;},{timeout:90000});
   }catch{
     const aglSamples=await flightSamples(view),aglTrace=traceAtOffsets(aglSamples,armEnd,[0,.5,1,1.5,2,2.5,3,3.5,4,5,6,8,10]);
-    throw new Error(`2m AGL convergence timeout: snapshot=${JSON.stringify(await snapshot(view))} trace=${JSON.stringify(aglTrace)}`);
+    clearInterval(traceTimer);
+    throw new Error(`2m AGL convergence timeout: snapshot=${JSON.stringify(await snapshot(view))} transitions=${JSON.stringify(stateTrace)} trace=${JSON.stringify(aglTrace)}`);
   }
+  clearInterval(traceTimer);
   const holdStart=await simTime(view);await waitSim(view,holdStart+.35,25000);
   const hold=bodyMotion(await latestFlightSample(view));
   if(!(hold.altitude>1.45&&hold.altitude<2.55&&Math.abs(hold.vertical)<.65))throw new Error(`2m AGL did not settle: ${JSON.stringify(hold)}`);
