@@ -1,5 +1,5 @@
 export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
-export const DEFAULT_PHONE_SETTINGS=Object.freeze({leftSensitivity:0.50,rightSensitivity:0.30});
+export const DEFAULT_PHONE_SETTINGS=Object.freeze({leftSensitivity:0.30,rightSensitivity:0.10});
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
 export function copyControls(c){return{roll:+c.roll||0,pitch:+c.pitch||0,yaw:+c.yaw||0,throttle:+c.throttle||0,arm:Boolean(c.arm)};}
@@ -12,22 +12,22 @@ export function normalizePhoneSettings(settings={}){
   };
 }
 
-// Sensitivity is the slope around stick centre. Lower values give finer
-// short-travel phone control. Endpoints stay exactly +/-1 at every setting,
-// so this changes only the virtual gimbal response, never maximum FC authority.
+// Phone gimbals have far less physical travel than a real transmitter. The
+// fifth-power blend makes the centre genuinely fine while preserving exact
+// +/-1 endpoints, so maximum FC authority and all aircraft physics are untouched.
 export function phoneAxis(value,sensitivity=1){
-  const x=clampControl(value),s=clampControl(sensitivity,0.10,1),expo=1-s;
-  return clampControl(x*s+x*x*x*expo);
+  const x=clampControl(value),s=clampControl(sensitivity,0.10,1),fine=x*x*x*x*x;
+  return clampControl(x*s+fine*(1-s));
 }
 export function inversePhoneAxis(value,sensitivity=1){
   const target=Math.abs(clampControl(value));if(target===0||target===1)return Math.sign(value)*target;
-  const s=clampControl(sensitivity,0.10,1),expo=1-s,sign=Math.sign(value);let lo=0,hi=1;
-  for(let i=0;i<22;i++){const mid=(lo+hi)/2,shaped=mid*s+mid*mid*mid*expo;if(shaped<target)lo=mid;else hi=mid;}
+  const s=clampControl(sensitivity,0.10,1),sign=Math.sign(value);let lo=0,hi=1;
+  for(let i=0;i<24;i++){const mid=(lo+hi)/2,fine=mid*mid*mid*mid*mid,shaped=mid*s+fine*(1-s);if(shaped<target)lo=mid;else hi=mid;}
   return sign*(lo+hi)/2;
 }
 
 export function armReady(fcState,controls,available=true,settings=DEFAULT_PHONE_SETTINGS){
-  // Arming is based on actual gimbal displacement, not the sensitivity-shaped command.
+  // Arming follows actual gimbal displacement, not the sensitivity-shaped command.
   const cfg=normalizePhoneSettings(settings);
   const rawRoll=inversePhoneAxis(controls.roll,cfg.rightSensitivity),rawPitch=inversePhoneAxis(controls.pitch,cfg.rightSensitivity),rawYaw=inversePhoneAxis(controls.yaw,cfg.leftSensitivity);
   return Boolean(available)&&fcState==="DISARMED"&&controls.throttle<=ARM_LIMITS.throttle&&Math.abs(rawRoll)<ARM_LIMITS.roll&&Math.abs(rawPitch)<ARM_LIMITS.pitch&&Math.abs(rawYaw)<ARM_LIMITS.yaw;
@@ -57,8 +57,8 @@ export function releaseStick(controls,kind){
 }
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
-  // Invert the response curve only for drawing so the knob remains exactly
-  // under the finger while the command around centre uses the chosen sensitivity.
+  // Invert only the response curve for drawing so the knob stays exactly under
+  // the finger even though the command around centre is deliberately finer.
   return kind==="left"
     ?{x:inversePhoneAxis(controls.yaw,cfg.leftSensitivity),y:1-2*controls.throttle}
     :{x:-inversePhoneAxis(controls.roll,cfg.rightSensitivity),y:-inversePhoneAxis(controls.pitch,cfg.rightSensitivity)};
