@@ -164,7 +164,7 @@ try{
   const idle=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
   if(!idle.every(v=>v===1050))throw new Error(`armed idle wrong: ${idle.join(" ")}`);
 
-  await page.click("#soloKill");await wait(100);
+  const killStart=await simTime();await page.click("#soloKill");await waitForSimTime(killStart+.03,10000);
   state=await page.$eval("#fcState",e=>e.textContent||"");
   const killed=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
   if(state!=="DISARMED"||!killed.every(v=>v===1000))throw new Error(`KILL failed: ${JSON.stringify(await snapshot())}`);
