@@ -22,7 +22,7 @@ async function waitSim(page,target,timeout=60000){await page.waitForFunction(val
 async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||"",armSwitch:document.querySelector("#armSwitch")?.textContent||""}));}
 async function stickBox(page,selector){return page.$eval(selector,element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});}
 async function yaw(page){return page.$eval("#attitude",element=>{const parts=(element.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[];return Number(parts[2]||0);});}
-async function latestFlightSample(page){
+async function flightSamples(page){
   return page.evaluate(async()=>{
     const original=URL.createObjectURL;let captured=null;
     URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};
@@ -32,13 +32,22 @@ async function latestFlightSample(page){
       if(!captured)throw new Error("flight log blob was not captured");
       const log=JSON.parse(await captured.text()),samples=log?.samples||[];
       if(!samples.length)throw new Error("flight log has no samples");
-      return samples[samples.length-1];
+      return samples;
     }finally{URL.createObjectURL=original;}
   });
 }
+async function latestFlightSample(page){const samples=await flightSamples(page);return samples[samples.length-1];}
 function bodyMotion(sample){
   const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-  return{forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
+  return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
+}
+function traceAtOffsets(samples,start,offsets){
+  return offsets.map(offset=>{
+    const target=start+offset;
+    let best=samples[0],bestDistance=Infinity;
+    for(const sample of samples){const d=Math.abs((Number(sample.time_s)||0)-target);if(d<bestDistance){best=sample;bestDistance=d;}else if((Number(sample.time_s)||0)>target&&d>bestDistance)break;}
+    return{offset,...bodyMotion(best)};
+  });
 }
 
 const view=await viewBrowser.newPage(),controller=await controllerBrowser.newPage();watch(view,"view");watch(controller,"controller");
@@ -83,7 +92,6 @@ try{
   await waitText(controller,"#arm","ARMED ✓",10000);
   console.log(`State-control E2E: GAME armed after ${armingDuration.toFixed(3)} simulated seconds.`);
 
-  // A real hold means both clearance error and vertical velocity have settled.
   await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.55;},{timeout:90000});
   const holdStart=await simTime(view);await waitSim(view,holdStart+.35,25000);
   const hold=bodyMotion(await latestFlightSample(view));
@@ -92,7 +100,6 @@ try{
   if(!liftPulses.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${liftPulses.join(" ")}`);
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
 
-  // Forward intent is judged in the aircraft heading frame, not by scalar |v|.
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+.55,30000);
@@ -101,14 +108,19 @@ try{
   await controller.mouse.up();
   await waitText(controller,"#leftValue","FWD 0.0",10000);
 
-  // Neutral left stick commands horizontal v*=0. Verify the actual horizontal
-  // vector contracts; check vertical separately so AGL transients cannot masquerade
-  // as a braking failure.
-  const brakeStart=await simTime(view);await waitSim(view,brakeStart+1.6,50000);
-  const braked=bodyMotion(await latestFlightSample(view));
-  if(braked.horizontal>Math.max(.65,moving.horizontal*.72))throw new Error(`zero-horizontal-velocity target did not brake: before=${JSON.stringify(moving)}, after=${JSON.stringify(braked)}`);
-  if(Math.abs(braked.vertical)>1.5)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, after=${JSON.stringify(braked)}`);
-  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal |v| ${moving.horizontal.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s, vz=${braked.vertical.toFixed(2)}m/s.`);
+  // A quad cannot instantaneously reverse its tilt. Measure the complete physical
+  // braking transient: forward acceleration may briefly continue while the frame
+  // rotates from forward tilt to counter-tilt, but the closed loop must then drive
+  // the horizontal velocity vector back toward zero without lateral runaway.
+  const brakeStart=await simTime(view);await waitSim(view,brakeStart+4.0,90000);
+  const samples=await flightSamples(view),trace=traceAtOffsets(samples,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);
+  const braked=trace[trace.length-1];
+  console.log(`State-control braking trace: ${JSON.stringify(trace)}`);
+  const peak=Math.max(...trace.map(point=>point.horizontal));
+  if(peak>2.5)throw new Error(`zero-velocity braking transient is unbounded: peak=${peak.toFixed(3)} trace=${JSON.stringify(trace)}`);
+  if(braked.horizontal>Math.max(.45,moving.horizontal*.75))throw new Error(`zero-horizontal-velocity target did not converge after physical counter-tilt: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
+  if(Math.abs(braked.vertical)>1.0)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
+  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
 
   const yawBefore=await yaw(view);
   const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
@@ -139,5 +151,5 @@ try{
   if(!/fail-safe|stale|reconnect|disconnected/i.test(status))throw new Error(`controller loss not surfaced: ${status}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, settled 2m AGL, vector acceleration/braking, heading control, session recovery, hard-loss disarm.");
+  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, settled 2m AGL, bounded physical braking convergence, heading control, session recovery, hard-loss disarm.");
 }finally{try{await controllerBrowser.close();}catch{}try{await viewBrowser.close();}catch{}}
