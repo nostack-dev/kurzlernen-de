@@ -1,0 +1,40 @@
+name: Finalize GAME state control v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/oneoff-finalize-game-state-v2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply deterministic patch
+        run: |
+          set -euxo pipefail
+          python3 tools/finalize_game_state.py
+          node --check sim/control_semantics.mjs
+          node --check sim/controller.mjs
+          node --check sim/simulator.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node --check tests/architecture_invariants.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+      - name: Commit product changes
+        run: |
+          set -euxo pipefail
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add esp32/Arondight45_StateControl.hpp sim/control_semantics.mjs sim/controller.mjs sim/simulator.mjs tests/state_control_test.cpp tests/architecture_invariants.mjs tests/browser_sim_smoke.mjs
+          git commit -m "Complete GAME state control path"
+          git push origin HEAD:main
