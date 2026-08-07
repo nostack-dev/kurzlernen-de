@@ -17,7 +17,7 @@ namespace fc {
 //
 // Navigation + IMU provide the measured state. The controller subtracts measured
 // motion from desired motion, converts that velocity error into a desired physical
-// acceleration vector, and feeds back the acceleration already implied by measured
+// acceleration vector, and damps the acceleration already implied by measured
 // roll/pitch so actuator lag cannot carry the aircraft through the target velocity.
 // Gravity is then added and the required thrust vector is converted geometrically
 // into roll/pitch/collective. Roll/pitch are therefore internal actuator coordinates,
@@ -190,9 +190,9 @@ public:
         // A velocity target alone is not an equilibrium if the aircraft is still
         // tilted and therefore still accelerating. Use measured IMU attitude to
         // estimate the horizontal acceleration already being produced by the thrust
-        // vector, and close a second feedback loop around that acceleration. This is
-        // ordinary cascaded state feedback, applied identically to forward and right;
-        // there is no braking/release special case.
+        // vector, then subtract that measured acceleration as pure derivative damping.
+        // When measured acceleration is zero, the original a*=Kv(v*-v) law is exactly
+        // unchanged. This is identical on forward/right and has no release/brake branch.
         const float roll_rad = clamp(roll_deg, -kMaxAttitudeFeedbackDeg,
                                      kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
         const float pitch_rad = clamp(pitch_deg, -kMaxAttitudeFeedbackDeg,
@@ -200,10 +200,8 @@ public:
         const float cos_pitch = std::max(0.25f, std::cos(pitch_rad));
         const float measured_forward_accel = -std::tan(pitch_rad) * specific_up;
         const float measured_right_accel = std::tan(roll_rad) / cos_pitch * specific_up;
-        forward_accel += kHorizontalAccelerationFeedback *
-                         (forward_accel - measured_forward_accel);
-        right_accel += kHorizontalAccelerationFeedback *
-                       (right_accel - measured_right_accel);
+        forward_accel -= kHorizontalAccelerationDamping * measured_forward_accel;
+        right_accel -= kHorizontalAccelerationDamping * measured_right_accel;
 
         // Limit the requested acceleration as one vector, never independently per
         // axis. The tilt-derived limit is the exact horizontal acceleration available
@@ -284,10 +282,9 @@ private:
     // Velocity error -> acceleration. Full-stick errors hit the vector ceiling;
     // near the target this remains the slow outer-loop state gain.
     static constexpr float kHorizontalVelocityGain = 0.60f;  // 1/s
-    // Acceleration feedback supplies the phase/damping margin lost to real attitude
-    // and rotor lag. Gain 1.0 means the measured thrust acceleration is cancelled
-    // once in addition to the velocity-derived request, before the same vector limit.
-    static constexpr float kHorizontalAccelerationFeedback = 1.0f;
+    // Pure acceleration damping provides phase margin against attitude/rotor lag
+    // without changing the velocity-error gain when current acceleration is zero.
+    static constexpr float kHorizontalAccelerationDamping = 1.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;      // 1/s
