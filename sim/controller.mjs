@@ -1,6 +1,6 @@
 import {ControllerPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,armReady as sharedArmReady,normalizedPointer,applyStick,releaseStick,knobAxes,knobPercent} from "./control_semantics.mjs";
+import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent} from "./control_semantics.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const $ = id => document.getElementById(id);
@@ -23,7 +23,7 @@ function updateArm(){
   ui.arm.classList.remove("arming","armed");
   if(controls.arm){
     if(lastTelemetry.fc_state==="ARMED"){ui.arm.textContent="ARMED ✓";ui.arm.classList.add("armed");}
-    else{ui.arm.textContent="ARMING…";ui.arm.classList.add("arming");}
+    else{ui.arm.textContent="ARM REQUESTED…";ui.arm.classList.add("arming");}
     ui.arm.disabled=false;
     return;
   }
@@ -39,13 +39,13 @@ function updateSticks(){
   ui.rightValue.textContent=`R ${(controls.roll*100).toFixed(0)}% · P ${(controls.pitch*100).toFixed(0)}%`;
   updateArm();
 }
-function publish(force=false){peer.publish(controls,force);}
-function safetyNeutral(send=true){controls=neutralControls();updateSticks();if(send)publish(true);}
+function publish(){peer.publish(controls);}
+function safetyNeutral(send=true){controls=neutralControls();updateSticks();if(send)publish();}
 function bindStick(element,kind){
   let pointer=null;
   element.addEventListener("pointerdown",event=>{pointer=event.pointerId;element.setPointerCapture(pointer);apply(event);event.preventDefault();});
   element.addEventListener("pointermove",event=>{if(event.pointerId===pointer)apply(event);});
-  const release=event=>{if(event.pointerId!==pointer)return;pointer=null;releaseStick(controls,kind);updateSticks();publish(true);};
+  const release=event=>{if(event.pointerId!==pointer)return;endPointerDrag(element,event.pointerId);pointer=null;releaseStick(controls,kind);updateSticks();publish();};
   element.addEventListener("pointerup",release);element.addEventListener("pointercancel",release);
   function apply(event){applyStick(controls,kind,normalizedPointer(element,event),phoneSettings);updateSticks();publish();}
 }
@@ -76,7 +76,7 @@ function updateConnection(){
     setConnection("P2P LINKED","good");ui.connect.textContent="DISCONNECT";setPairStatus("Direct control active. Normal short interruptions reconnect automatically without pairing.","good");
     if(ui.pairDialog.open){answerScanner.stop();ui.pairDialog.close();}
   }else if(peer.pc&&peer.recentlyLinked){
-    setConnection(label,"warn");ui.connect.textContent="SESSION ACTIVE";setPairStatus("Recent session retained for 5 minutes. Waiting for WebRTC to recover — no re-pairing yet.","warn");
+    setConnection(label,"warn");ui.connect.textContent="SESSION ACTIVE";setPairStatus("Recent peer session retained for up to 5 minutes while this WebRTC connection remains recoverable.","warn");
   }else if(peer.pc){setConnection(label,"warn");ui.connect.textContent="PAIRING…";}
   else{setConnection("DISCONNECTED","warn");ui.connect.textContent="CONNECT";}
   updateArm();
@@ -94,14 +94,14 @@ peer.onTelemetry=message=>{
 
 bindStick(ui.leftStick,"left");bindStick(ui.rightStick,"right");
 ui.arm.onclick=()=>{
-  if(controls.arm){controls.arm=false;updateArm();publish(true);return;}
-  if(!armReady()){setConnection(lastTelemetry.fc_state==="CALIBRATING"?"WAIT · CALIBRATING":"ARM BLOCKED · THROTTLE 0 / CENTER STICKS","warn");return;}
-  controls.arm=true;updateArm();publish(true);
+  if(controls.arm){controls.arm=false;updateArm();publish();return;}
+  if(!armReady()){setConnection(lastTelemetry.fc_state==="CALIBRATING"?"WAIT · CALIBRATING":"ARM REQUEST UNAVAILABLE","warn");return;}
+  controls.arm=true;updateArm();publish();
 };
 ui.kill.onclick=()=>safetyNeutral(true);
 ui.connect.onclick=async()=>{
   if(peer.linked){await disconnect();return;}
-  if(peer.pc&&peer.recentlyLinked){ui.pairDialog.showModal();setPairStatus("Recent session is reconnecting automatically. No codes or QR scan needed unless it expires.","warn");return;}
+  if(peer.pc&&peer.recentlyLinked){ui.pairDialog.showModal();setPairStatus("Recent peer session is reconnecting. Re-pair only if the underlying WebRTC session cannot recover.","warn");return;}
   ui.pairDialog.showModal();await createOffer();
 };
 ui.createOffer.onclick=async()=>{await disconnect();ui.pairDialog.showModal();await createOffer();};
@@ -118,8 +118,8 @@ mountPhoneControlSettings({
 });
 
 addEventListener("pagehide",()=>safetyNeutral(true));
-addEventListener("pageshow",()=>{phoneSettings=loadPhoneControlSettings();safetyNeutral(false);publish(true);updateConnection();});
-document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{phoneSettings=loadPhoneControlSettings();publish(true);updateConnection();}});
+addEventListener("pageshow",()=>{phoneSettings=loadPhoneControlSettings();safetyNeutral(false);publish();updateConnection();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{phoneSettings=loadPhoneControlSettings();publish();updateConnection();}});
 setInterval(()=>publish(),SEND_INTERVAL_MS);
 setInterval(updateConnection,250);
 
