@@ -2,18 +2,23 @@ import * as THREE from "three";
 
 export const RACE_LAPS = 3;
 
-// Ordered course. Gate direction is derived from the next gate, so a pass only
-// counts in the intended race direction. Coordinates are metres in the same
-// Z-up world as the flight physics.
+// The aircraft, controller and motor/prop model all stay in real SI units.
+// Only the horizontal course layout is spread out so a fast real-scale quad
+// has realistic braking/turning room. Gate openings themselves are NOT scaled.
+export const COURSE_SCALE = 4;
+const coursePoint=(x,y,z)=>[x*COURSE_SCALE,y*COURSE_SCALE,z];
+
+// Ordered course in metres, Z-up. Gate direction is derived from the next gate
+// so a pass only counts in the intended race direction.
 export const RACE_GATES = Object.freeze([
-  {name:"START / FINISH", center:[-2.0, 0.0, 1.15], width:1.90, height:1.55, start:true},
-  {name:"GATE 2", center:[-5.0,-1.7, 1.55], width:1.75, height:1.45},
-  {name:"GATE 3", center:[-7.0, 1.25,1.05], width:1.65, height:1.35},
-  {name:"HIGH GATE",center:[-4.2, 4.45,1.85], width:1.70, height:1.45},
-  {name:"GATE 5", center:[ 0.0, 5.55,1.20], width:1.75, height:1.40},
-  {name:"GATE 6", center:[ 4.0, 3.10,1.65], width:1.65, height:1.35},
-  {name:"LOW GATE", center:[ 4.55,-1.10,1.00], width:1.60, height:1.25},
-  {name:"GATE 8", center:[ 1.55,-3.85,1.45], width:1.70, height:1.40},
+  {name:"START / FINISH", center:coursePoint(-2.0, 0.0,1.15), width:1.90, height:1.55, start:true},
+  {name:"GATE 2", center:coursePoint(-5.0,-1.7,1.55), width:1.75, height:1.45},
+  {name:"GATE 3", center:coursePoint(-7.0, 1.25,1.05), width:1.65, height:1.35},
+  {name:"HIGH GATE",center:coursePoint(-4.2, 4.45,1.85), width:1.70, height:1.45},
+  {name:"GATE 5", center:coursePoint( 0.0, 5.55,1.20), width:1.75, height:1.40},
+  {name:"GATE 6", center:coursePoint( 4.0, 3.10,1.65), width:1.65, height:1.35},
+  {name:"LOW GATE", center:coursePoint( 4.55,-1.10,1.00), width:1.60, height:1.25},
+  {name:"GATE 8", center:coursePoint( 1.55,-3.85,1.45), width:1.70, height:1.40},
 ]);
 
 const ACTIVE = 0x6df5a8;
@@ -61,16 +66,22 @@ function addCourseMarkers(group){
   const poleGeometry=new THREE.CylinderGeometry(.025,.025,.75,10);
   const points=[[-3.6,1.7],[-5.7,3.1],[-2.0,5.5],[2.0,4.6],[4.8,1.0],[3.4,-3.0],[-.4,-4.15]];
   for(const [x,y] of points){
-    const cone=new THREE.Mesh(coneGeometry,coneMaterial);cone.position.set(x,y,.17);cone.rotation.x=Math.PI/2;cone.castShadow=true;group.add(cone);
+    const cone=new THREE.Mesh(coneGeometry,coneMaterial);cone.position.set(x*COURSE_SCALE,y*COURSE_SCALE,.17);cone.rotation.x=Math.PI/2;cone.castShadow=true;group.add(cone);
   }
-  // Two simple slalom poles make the route readable without clutter.
+  // Sparse markers keep the course readable without pretending to change the
+  // aircraft dynamics or providing artificial barriers.
   for(const [x,y] of [[-5.8,.1],[2.8,1.1]]){
-    const pole=new THREE.Mesh(poleGeometry,poleMaterial);pole.position.set(x,y,.375);pole.rotation.x=Math.PI/2;pole.castShadow=true;group.add(pole);
+    const pole=new THREE.Mesh(poleGeometry,poleMaterial);pole.position.set(x*COURSE_SCALE,y*COURSE_SCALE,.375);pole.rotation.x=Math.PI/2;pole.castShadow=true;group.add(pole);
   }
-  const startPad=new THREE.Mesh(new THREE.CylinderGeometry(.72,.72,.018,48),new THREE.MeshStandardMaterial({color:0x34495a,roughness:.9}));
-  startPad.position.set(0,0,.012);group.add(startPad);
-  const stripe=new THREE.Mesh(new THREE.BoxGeometry(1.2,.08,.012),new THREE.MeshStandardMaterial({color:START,roughness:.8}));
-  stripe.position.set(-1.2,0,.012);group.add(stripe);
+
+  // Flat launch marker only: no large circular geometry in front of the camera.
+  const padMaterial=new THREE.MeshStandardMaterial({color:0x34495a,roughness:.92});
+  const startPad=new THREE.Mesh(new THREE.BoxGeometry(.72,.72,.008),padMaterial);
+  startPad.position.set(0,0,.006);group.add(startPad);
+  const stripeMaterial=new THREE.MeshStandardMaterial({color:START,roughness:.8});
+  const stripeA=new THREE.Mesh(new THREE.BoxGeometry(.48,.055,.010),stripeMaterial);
+  const stripeB=new THREE.Mesh(new THREE.BoxGeometry(.055,.48,.010),stripeMaterial);
+  stripeA.position.set(0,0,.012);stripeB.position.set(0,0,.012);group.add(stripeA,stripeB);
 }
 
 export class RaceTrack {
