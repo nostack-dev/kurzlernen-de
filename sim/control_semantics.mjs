@@ -1,5 +1,5 @@
 export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
-export const DEFAULT_PHONE_SETTINGS=Object.freeze({leftSensitivity:0.45,rightSensitivity:0.25});
+export const DEFAULT_PHONE_SETTINGS=Object.freeze({leftSensitivity:0.50,rightSensitivity:0.30});
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
 export function copyControls(c){return{roll:+c.roll||0,pitch:+c.pitch||0,yaw:+c.yaw||0,throttle:+c.throttle||0,arm:Boolean(c.arm)};}
@@ -12,9 +12,9 @@ export function normalizePhoneSettings(settings={}){
   };
 }
 
-// "Sensitivity" is the slope around stick centre. Lower values give finer
+// Sensitivity is the slope around stick centre. Lower values give finer
 // short-travel phone control. Endpoints stay exactly +/-1 at every setting,
-// so this changes only gimbal feel, never maximum FC command authority.
+// so this changes only the virtual gimbal response, never maximum FC authority.
 export function phoneAxis(value,sensitivity=1){
   const x=clampControl(value),s=clampControl(sensitivity,0.10,1),expo=1-s;
   return clampControl(x*s+x*x*x*expo);
