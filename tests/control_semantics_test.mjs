@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import {neutralControls,armReady,applyStick,releaseStick,knobAxes} from "../sim/control_semantics.mjs";
+let c=neutralControls();
+assert.equal(armReady("DISARMED",c,true),true);
+assert.equal(armReady("CALIBRATING",c,true),false);
+applyStick(c,"left",{x:.4,y:.5});assert.equal(c.yaw,.4);assert.equal(c.throttle,.25);assert.equal(armReady("DISARMED",c,true),false);
+releaseStick(c,"left");assert.equal(c.yaw,0);assert.equal(c.throttle,.25,"left-stick release must retain throttle exactly like paired controller");
+c.throttle=0;applyStick(c,"right",{x:-.3,y:.2});assert.equal(c.roll,-.3);assert.equal(c.pitch,-.2);releaseStick(c,"right");assert.equal(c.roll,0);assert.equal(c.pitch,0);
+const l=knobAxes(c,"left");assert.equal(l.x,0);assert.equal(l.y,1,"zero throttle knob must be at bottom");
+assert.equal(armReady("DISARMED",c,true),true);assert.equal(armReady("DISARMED",c,false),false);
+console.log("Shared controller semantics passed for paired and single-phone modes.");
