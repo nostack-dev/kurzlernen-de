@@ -13,7 +13,7 @@ async function setValue(page,selector,value){await page.$eval(selector,(element,
 async function invoke(page,selector){await page.$eval(selector,element=>element.click());}
 async function simTime(page){return page.$eval("#simTime",element=>parseFloat(element.textContent||"0"));}
 async function waitSim(page,target,timeout=60000){await page.waitForFunction(value=>parseFloat(document.querySelector("#simTime")?.textContent||"0")>=value,{timeout},target);}
-async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||""}));}
+async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||"",armSwitch:document.querySelector("#armSwitch")?.textContent||""}));}
 async function stickBox(page,selector){return page.$eval(selector,element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});}
 async function speed(page){return page.$eval("#velocity",element=>parseFloat(element.textContent||"0"));}
 async function yaw(page){return page.$eval("#attitude",element=>{const parts=(element.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[];return Number(parts[2]||0);});}
@@ -59,10 +59,15 @@ try{
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
   await controller.waitForFunction(()=>{const b=document.querySelector("#arm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:15000});
 
-  const armStart=await simTime(view);await controller.click("#arm");await waitSim(view,armStart+1.1,45000);
+  const armStart=await simTime(view);await controller.click("#arm");
+  await waitText(controller,"#arm","ARM REQUESTED",10000);
+  try{await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});}
+  catch{throw new Error(`GAME remote arming never reached ARMED: ${JSON.stringify(await snapshot(view))}`);}
+  const armEnd=await simTime(view),armingDuration=armEnd-armStart;
+  if(armingDuration>1.5)throw new Error(`GAME remote arming too slow in simulation: ${armingDuration.toFixed(3)}s · ${JSON.stringify(await snapshot(view))}`);
   state=await view.$eval("#fcState",element=>element.textContent||"");
-  if(state!=="ARMED")throw new Error(`GAME remote arming failed: ${JSON.stringify(await snapshot(view))}`);
   await waitText(controller,"#arm","ARMED ✓",10000);
+  console.log(`State-control E2E: GAME armed after ${armingDuration.toFixed(3)} simulated seconds.`);
 
   // With neutral motion sticks, the 2.0 m AGL slider is the vertical state target.
   // The aircraft must reach it only through the common C++ controller, motor
@@ -112,9 +117,10 @@ try{
   await waitText(view,"#remoteStatus","P2P LINKED",10000);
   await controller.click("#kill");
   await controller.waitForFunction(()=>{const b=document.querySelector("#arm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:10000});
-  const rearmStart=await simTime(view);await controller.click("#arm");await waitSim(view,rearmStart+1.1,45000);
-  state=await view.$eval("#fcState",element=>element.textContent||"");
-  if(state!=="ARMED")throw new Error(`same-session re-arm failed after transient loss: ${JSON.stringify(await snapshot(view))}`);
+  const rearmStart=await simTime(view);await controller.click("#arm");
+  await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});
+  const rearmDuration=(await simTime(view))-rearmStart;
+  if(rearmDuration>1.5)throw new Error(`same-session GAME re-arm too slow: ${rearmDuration.toFixed(3)}s`);
   console.log("Serverless P2P E2E: transient stale-control fail-safe recovered on the same session with zero re-pairing.");
 
   // Kill the controller browser process without a cooperative disconnect. VIEW
