@@ -214,7 +214,7 @@ private:
     // 32 degrees is the inner attitude controller's full command. Limit the outer
     // loop to about 25 degrees so vertical authority remains available.
     static constexpr float kMaxAttitudeCommand = 25.0f / 32.0f;
-    static constexpr float kVelocityToAttitude = 0.16f;  // normalized attitude / (m/s error)
+    static constexpr float kVelocityToAttitude = 0.20f;  // normalized attitude / (m/s error)
     static constexpr float kAttitudeLead = 1.00f;         // measured-tilt damping of outer velocity loop
     static constexpr float kHeadingKp = 2.2f;             // deg/s per deg heading error
     static constexpr float kAglToVerticalSpeed = 1.30f;
