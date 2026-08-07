@@ -522,4 +522,3 @@ inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250
 
 const fitted=localStorage.getItem("arondight45FittedPhysics");if(fitted)try{const p=JSON.parse(fitted);if(p.Ct)$("ct").value=p.Ct;if(p.Cq)$("cq").value=p.Cq;if(p.J)$("rotorJ").value=p.J;if(p.dragScale)$("dragScale").value=p.dragScale;if(p.batteryR)$("batteryR").value=p.batteryR;if(p.R)$("resistance").value=p.R;}catch{}
 await switchMode("sim");
-if(remoteParams.get("room")&&remoteLink.relayUrl())await connectRemote();
