@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import {DEFAULT_PHONE_SETTINGS,neutralControls,armReady,applyStick,releaseStick,knobAxes,phoneAxis,inversePhoneAxis} from "../sim/control_semantics.mjs";
+import {sensitivityToLevel,levelToSensitivity} from "../sim/control_settings.mjs";
 
 const near=(a,b,eps=1e-5,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
 
 assert.deepEqual(DEFAULT_PHONE_SETTINGS,{leftSensitivity:.5,rightSensitivity:.3});
+assert.equal(sensitivityToLevel(DEFAULT_PHONE_SETTINGS.leftSensitivity),5);
+assert.equal(sensitivityToLevel(DEFAULT_PHONE_SETTINGS.rightSensitivity),3);
+assert.equal(levelToSensitivity(1),.1);
+assert.equal(levelToSensitivity(10),1);
 let c=neutralControls();
 assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 assert.equal(armReady("CALIBRATING",c,true,DEFAULT_PHONE_SETTINGS),false);
@@ -36,4 +41,4 @@ releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1,"zero throttle knob must be at bottom");
 assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);assert.equal(armReady("DISARMED",c,false,DEFAULT_PHONE_SETTINGS),false);
 
-console.log("Shared phone controls passed: independent LEFT/RIGHT sensitivity, correct roll direction, full authority, exact knob tracking and physical ARM gates.");
+console.log("Shared phone controls passed: human 1-10 settings, independent LEFT/RIGHT sensitivity, correct roll direction, full authority, exact knob tracking and physical ARM gates.");
