@@ -1,4 +1,4 @@
-name: State-vector damping matrix
+name: State-loop bandwidth matrix
 
 on:
   push:
@@ -16,18 +16,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: damping065
+          - label: d060-a26
+            damping: "0.60f"
+            angle: "2.6f"
+          - label: d065-a26
             damping: "0.65f"
-          - label: damping075
-            damping: "0.75f"
-          - label: damping085
-            damping: "0.85f"
+            angle: "2.6f"
+          - label: d060-a32
+            damping: "0.60f"
+            angle: "3.2f"
+          - label: d065-a32
+            damping: "0.65f"
+            angle: "3.2f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
       - name: Apply candidate and run shared tests
         env:
           DAMPING: ${{ matrix.damping }}
+          ANGLE: ${{ matrix.angle }}
         run: |
           set -euxo pipefail
           python3 - <<'PY'
@@ -35,8 +42,12 @@ jobs:
           from pathlib import Path
           p=Path('esp32/Arondight45_StateControl.hpp')
           s=p.read_text()
-          new=f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};'
-          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',new,s,count=1)
+          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};',s,count=1)
+          assert n==1,n
+          p.write_text(s)
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=p.read_text()
+          s,n=re.subn(r'constexpr float kAngleToRate = [0-9.]+f;',f'constexpr float kAngleToRate = {os.environ["ANGLE"]};',s,count=1)
           assert n==1,n
           p.write_text(s)
           PY
