@@ -62,11 +62,3 @@ s=replace_once(s,
   if (resetLevels.left !== "9" || resetLevels.right !== "10") throw new Error(`human-control defaults are wrong: ${JSON.stringify(resetLevels)}`);
 ''','browser V3 assertion')
 p.write_text(s)
-
-p=Path('.github/workflows/s31-hil.yml')
-s=p.read_text()
-s=s.replace("grep -q 'arondight45PhoneControlSettingsV2' sim/control_settings.mjs tests/browser_sim_smoke.mjs","grep -q 'arondight45PhoneControlSettingsV3' sim/control_settings.mjs tests/browser_sim_smoke.mjs")
-anchor="          grep -q 'FPV_CAMERA_UPTILT_DEG=30' sim/simulator.mjs\n"
-if anchor not in s: raise SystemExit('CI FPV anchor missing')
-s=s.replace(anchor,anchor+"          grep -q 'shape(centered(r.ch[FC_SBUS_ROLL]), 0.0f, 0.3f)' esp32/Arondight45_DroneFC_Core.hpp\n          grep -q 'shape(centered(r.ch[FC_SBUS_YAW]), 0.0f, 0.2f)' esp32/Arondight45_DroneFC_Core.hpp\n",1)
-p.write_text(s)
