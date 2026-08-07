@@ -54,9 +54,13 @@ try{
   if(state!=="ARMED")throw new Error(`remote arming failed: ${JSON.stringify(await snapshot(view))}`);
   await waitText(controller,"#arm","ARMED ✓",10000);
 
+  // The left phone gimbal retains throttle. Drive it by physical finger delta,
+  // exactly as a user does: pointer-down captures the current knob, then a
+  // half-radius upward drag commands 25% throttle. This must not depend on the
+  // absolute screen location of the initial touch.
   const box=await controller.$eval("#leftStick",element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});
   const cx=box.x+box.w/2,cy=box.y+box.h/2,r=Math.min(box.w,box.h)*.42;
-  await controller.mouse.move(cx,cy+r*.5);await controller.mouse.down();await controller.mouse.up();
+  await controller.mouse.move(cx,cy);await controller.mouse.down();await controller.mouse.move(cx,cy-r*.5,{steps:6});await controller.mouse.up();
   const throttleStart=await simTime(view);await waitSim(view,throttleStart+.12,20000);
   const pulses=await view.$eval("#motors",element=>(element.textContent||"").trim().split(/\s+/).map(Number));
   if(!pulses.every(value=>Number.isFinite(value)&&value>1050))throw new Error(`remote throttle did not reach FC: ${pulses.join(" ")}`);
@@ -88,5 +92,5 @@ try{
   if(!/fail-safe|stale|reconnect|disconnected/i.test(status))throw new Error(`controller loss not surfaced: ${status}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Serverless dual-phone E2E passed: QR UX, autorun, arm gate, control, telemetry, session recovery, hard-loss disarm.");
+  console.log("Serverless dual-phone E2E passed: QR UX, autorun, arm gate, relative throttle control, telemetry, session recovery, hard-loss disarm.");
 }finally{try{await controllerBrowser.close();}catch{}try{await viewBrowser.close();}catch{}}
