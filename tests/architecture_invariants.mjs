@@ -124,6 +124,11 @@ for(const fineness of [1,7,10]){
   if(phoneAxis(0,fineness)!==0)fail(`phone expo at fineness ${fineness} moves neutral`);
 }
 
+// The physical GAME E2E gate is intentionally strict. Do not trade a controller
+// regression for a weaker test threshold.
+requireText("tests/dual_phone_smoke.mjs","moving.forward>.30&&moving.pitch<-6.0",
+            "dual-phone GAME E2E forward-response gate was weakened");
+
 // Historical/self-mutating migration scaffolding must stay absent from production.
 if(existsSync(".github/workflows/one-shot-shared-controls.yml"))fail("one-shot self-mutating workflow returned");
 if(existsSync(".github/workflows/oneoff-complete-game-spec.yml"))fail("temporary GAME completion workflow returned");
