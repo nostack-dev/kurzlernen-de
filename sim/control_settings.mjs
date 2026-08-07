@@ -69,26 +69,28 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
       <input data-slider="right" type="range" min="1" max="10" step="1">
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
+    <label class="phone-settings-toggle"><span>LOCK LEFT STICK HORIZONTAL AXIS</span><input data-lock-left-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK RIGHT STICK HORIZONTAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
-    <p class="phone-settings-note">Axis lock ON = right stick controls roll only; pitch stays centred. Throttle, flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
+    <p class="phone-settings-note">Left lock ON = throttle only; yaw stays centred. Right lock ON = roll only; pitch stays centred. Flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]');
   const leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]');
-  const lock=dialog.querySelector("[data-lock-horizontal]");
+  const lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]");
   const render=()=>{
     left.value=String(settings.leftFineness);right.value=String(settings.rightFineness);
-    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;lock.checked=settings.lockRightHorizontal;
+    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;
   };
   const apply=()=>{
     settings=savePhoneControlSettings({
       leftFineness:Number(left.value),
       rightFineness:Number(right.value),
+      lockLeftHorizontal:lockLeft.checked,
       lockRightHorizontal:lock.checked,
     });
     render();onChange({...settings});
   };
-  left.addEventListener("input",apply);right.addEventListener("input",apply);lock.addEventListener("change",apply);
+  left.addEventListener("input",apply);right.addEventListener("input",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);
   dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);render();onChange({...settings});};
   dialog.querySelector("[data-close]").onclick=()=>dialog.close();
   button.onclick=()=>{settings=loadPhoneControlSettings();render();dialog.showModal();};
