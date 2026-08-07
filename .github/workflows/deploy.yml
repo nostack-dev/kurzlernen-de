@@ -24,45 +24,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Host-test controller runtime
+      - name: Host-test production, HIL and SIL runtimes
         run: |
+          set -euxo pipefail
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -DFC_HOST_TEST esp32/Arondight45_DroneFC_S31.cpp -o /tmp/fc_test
           /tmp/fc_test
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -DHIL_HOST_TEST esp32/Arondight45_DroneFC_HIL_S31.cpp -o /tmp/hil_test
           /tmp/hil_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil_test
+          /tmp/sil_test
 
-      - name: Generate SIL WebAssembly glue
+      - name: Build exact production controller runtime for SIM
         run: |
-          cat > /tmp/sil_glue.cpp <<'CPP'
-          #define HIL_HOST_TEST 1
-          #include "/src/esp32/Arondight45_DroneFC_HIL_S31.cpp"
-          #undef HIL_HOST_TEST
-          #include <emscripten/emscripten.h>
-          namespace { hil::Runtime runtime; hil::InputPacket in{}; hil::OutputPacket out{}; }
-          extern "C" {
-          EMSCRIPTEN_KEEPALIVE unsigned char* fc_input_buffer(){ return reinterpret_cast<unsigned char*>(&in); }
-          EMSCRIPTEN_KEEPALIVE const unsigned char* fc_output_buffer(){ return reinterpret_cast<const unsigned char*>(&out); }
-          EMSCRIPTEN_KEEPALIVE unsigned fc_input_size(){ return sizeof(in); }
-          EMSCRIPTEN_KEEPALIVE unsigned fc_output_size(){ return sizeof(out); }
-          EMSCRIPTEN_KEEPALIVE void fc_reset(){ runtime.reset(); in={}; out={}; }
-          EMSCRIPTEN_KEEPALIVE int fc_process(){ out=runtime.process(in,0); return 0; }
-          }
-          CPP
-
-      - name: Build exact controller runtime for SIM
-        run: |
+          set -euxo pipefail
           mkdir -p generated
-          docker run --rm -v "$PWD:/src" -v /tmp/sil_glue.cpp:/tmp/sil_glue.cpp -w /src emscripten/emsdk:4.0.10 \
-            em++ /tmp/sil_glue.cpp -std=c++17 -O3 \
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
               -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web,node' \
               -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 \
               -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
-              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
               -o generated/flight_core.mjs
 
       - name: Validate digital twin
         run: |
+          set -euxo pipefail
           node --check sim/simulator.mjs
+          node --check generated/flight_core.mjs
           node --check tools/s31_hil_bridge.mjs
           test -s generated/flight_core.mjs
           test -s generated/flight_core.wasm
@@ -73,7 +61,9 @@ jobs:
           grep -q 'class HardwareBackend' sim/simulator.mjs
           grep -q 'class PhysicsModel' sim/simulator.mjs
           grep -q 'fitPhysics' sim/simulator.mjs
-          echo 'SIM/HIL/REAL architecture validation passed'
+          grep -q 'Arondight45_DroneFC_HIL_S31.cpp' sim/Arondight45_DroneFC_SIL_WASM.cpp
+          grep -q 'Arondight45_DroneFC_S31.cpp' esp32/Arondight45_DroneFC_HIL_S31.cpp
+          echo 'SIM/HIL/REAL zero-divergence architecture validation passed'
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
