@@ -1,5 +1,5 @@
 export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
-export const MIN_PHONE_GAIN=0.35;
+export const MIN_PHONE_GAIN=0.25;
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 export function fineLevelToSensitivity(level){
@@ -11,13 +11,13 @@ export function sensitivityToFineLevel(value){
   return clampLevel(1+9*(1-gain)/(1-MIN_PHONE_GAIN));
 }
 
-// Human defaults: LEFT/YAW 8/10 fine, RIGHT/ROLL+PITCH 9/10 fine.
-// This is transmitter throw, not a second expo: the real FC already owns
-// deadband/expo. Lower phone gain simply maps the short touchscreen travel to
-// a smaller fraction of a physical RC stick without changing FC or physics.
+// Human defaults for a short landscape phone gimbal.
+// This is transmitter throw, not a second expo: the real FC owns the one
+// canonical response curve. Lower phone gain maps the short touchscreen travel
+// to a smaller fraction of a physical RC stick without changing aircraft physics.
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
-  leftSensitivity:fineLevelToSensitivity(8),
-  rightSensitivity:fineLevelToSensitivity(9),
+  leftSensitivity:fineLevelToSensitivity(9),
+  rightSensitivity:fineLevelToSensitivity(10),
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
@@ -31,8 +31,8 @@ export function normalizePhoneSettings(settings={}){
   };
 }
 
-// Linear phone-stick throw. The FC applies its own canonical deadband and expo.
-// 1/10 fineness => gain 1.00 (full RC stick); 10/10 => gain 0.35.
+// Linear phone-stick throw. The shared C++ FC applies the only canonical expo.
+// 1/10 fineness => gain 1.00 (full RC stick); 10/10 => gain 0.25.
 export function phoneAxis(value,sensitivity=1){
   return clampControl(value)*clampControl(sensitivity,MIN_PHONE_GAIN,1);
 }
