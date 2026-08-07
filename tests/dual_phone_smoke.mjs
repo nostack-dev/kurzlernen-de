@@ -11,6 +11,12 @@ function watch(page,name){page.on("pageerror",error=>errors.push(`${name} pageer
 async function waitText(page,selector,needle,timeout=30000){await page.waitForFunction((sel,text)=>document.querySelector(sel)?.textContent?.includes(text),{timeout},selector,needle);}
 async function setValue(page,selector,value){await page.$eval(selector,(element,text)=>{element.value=text;element.dispatchEvent(new Event("input",{bubbles:true}));},value);}
 async function invoke(page,selector){await page.$eval(selector,element=>element.click());}
+async function clickWhenEnabled(page,selector,expectedText="ARM",timeout=15000){
+  await page.waitForFunction((sel,text)=>{const b=document.querySelector(sel);return b&&!b.disabled&&b.textContent.trim()===text;},{timeout},selector,expectedText);
+  const result=await page.$eval(selector,(b,text)=>{if(b.disabled||b.textContent.trim()!==text)return{clicked:false,disabled:b.disabled,text:b.textContent.trim()};b.click();return{clicked:true,disabled:b.disabled,text:b.textContent.trim()};},expectedText);
+  if(!result.clicked)throw new Error(`atomic click failed on ${selector}: ${JSON.stringify(result)}`);
+  return result;
+}
 async function simTime(page){return page.$eval("#simTime",element=>parseFloat(element.textContent||"0"));}
 async function waitSim(page,target,timeout=60000){await page.waitForFunction(value=>parseFloat(document.querySelector("#simTime")?.textContent||"0")>=value,{timeout},target);}
 async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||"",armSwitch:document.querySelector("#armSwitch")?.textContent||""}));}
@@ -25,10 +31,6 @@ try{
   await waitText(view,"#status","SIM ready",30000);
   if(await view.$eval("#inputSource",element=>element.value)!=="remote")throw new Error("remote phone is not primary input");
 
-  // Production UX is QR/camera. CI additionally transfers the exact payload via
-  // the hidden manual fallback so the handshake is deterministic without a
-  // physical camera pointed at another CI screen. Both generated QR surfaces
-  // must exist and contain the same SDP payload path used by the real phones.
   await controller.click("#connect");
   await controller.waitForFunction(()=>document.querySelector("#offerCode")?.value?.length>100,{timeout:20000});
   await controller.waitForFunction(()=>document.querySelector("#offerQr")?.src?.startsWith("data:image"),{timeout:20000});
@@ -45,21 +47,17 @@ try{
   await waitText(controller,"#connection","P2P LINKED",30000);
   console.log("Serverless P2P E2E: QR payloads generated and two independent browser processes paired.");
 
-  // Remote pairing must auto-start SIM; there is no extra Start click.
   await waitSim(view,0.05,15000);
   await waitSim(view,2.2,60000);
   let state=await view.$eval("#fcState",element=>element.textContent||"");
   if(state!=="DISARMED")throw new Error(`calibration failed: ${JSON.stringify(await snapshot(view))}`);
 
-  // GAME/STATE is the primary controller mode. Arming is forbidden until the
-  // shared C++ runtime reports a valid measured navigation state.
   await waitText(controller,"#gameModeButton","MODE · GAME",10000);
   const clearance=await controller.$eval("#gameClearanceSlider",element=>Number(element.value));
   if(Math.abs(clearance-2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
-  await controller.waitForFunction(()=>{const b=document.querySelector("#arm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:15000});
 
-  const armStart=await simTime(view);await controller.click("#arm");
+  const armStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);
   await waitText(controller,"#arm","ARM REQUESTED",10000);
   try{await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});}
   catch{throw new Error(`GAME remote arming never reached ARMED: ${JSON.stringify(await snapshot(view))}`);}
@@ -69,9 +67,6 @@ try{
   await waitText(controller,"#arm","ARMED ✓",10000);
   console.log(`State-control E2E: GAME armed after ${armingDuration.toFixed(3)} simulated seconds.`);
 
-  // With neutral motion sticks, the 2.0 m AGL slider is the vertical state target.
-  // The aircraft must reach it only through the common C++ controller, motor
-  // pulses and Box3D rigid-body physics.
   await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0");return z>1.55&&z<2.45;},{timeout:60000});
   const holdStart=await simTime(view);await waitSim(view,holdStart+.8,40000);
   const holdAltitude=await view.$eval("#altitude",element=>parseFloat(element.textContent||"0"));
@@ -80,8 +75,6 @@ try{
   if(!liftPulses.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${liftPulses.join(" ")}`);
   console.log(`State-control E2E: neutral input physically converged to 2m AGL (${holdAltitude.toFixed(2)}m).`);
 
-  // Forward intent: left stick up requests desired forward velocity, not throttle.
-  // The outer loop must create real pitch, motor force and rigid-body acceleration.
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+.55,30000);
@@ -89,15 +82,11 @@ try{
   if(movingSpeed<0.65)throw new Error(`forward desired-vector command did not accelerate physical model: ${movingSpeed} m/s`);
   await controller.mouse.up();
 
-  // Releasing the motion stick requests zero horizontal velocity. The feedback
-  // loop must actively brake instead of teleporting/clamping the rigid body.
   const brakeStart=await simTime(view);await waitSim(view,brakeStart+1.6,50000);
   const brakedSpeed=await speed(view);
   if(brakedSpeed>Math.max(.75,movingSpeed*.72))throw new Error(`zero-velocity target did not brake enough: moving=${movingSpeed}, after=${brakedSpeed}`);
   console.log(`State-control E2E: forward vector ${movingSpeed.toFixed(2)}m/s -> active braking ${brakedSpeed.toFixed(2)}m/s.`);
 
-  // Horizontal right-stick integrates a desired heading. The measured FC yaw
-  // must actually rotate; vertical right-stick is camera free-look only.
   const yawBefore=await yaw(view);
   const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
   await controller.mouse.move(rcx,rcy);await controller.mouse.down();await controller.mouse.move(rcx+rr*.45,rcy,{steps:4});
@@ -107,24 +96,18 @@ try{
   if(Math.abs(yawDelta)<4)throw new Error(`heading feedback did not rotate aircraft: before=${yawBefore}, after=${yawAfter}`);
   console.log(`State-control E2E: heading command rotated real attitude by ${yawDelta.toFixed(1)}°.`);
 
-  // Stall the controller JS for longer than the 350 ms freshness window while
-  // keeping both pages and the WebRTC peer alive. VIEW must fail-safe, then the
-  // very same session must resume control without any offer/answer exchange.
   const stall=controller.evaluate(()=>{const end=performance.now()+900;while(performance.now()<end){}return true;});
   await new Promise(resolve=>setTimeout(resolve,500));
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:10000});
   await stall;
   await waitText(view,"#remoteStatus","P2P LINKED",10000);
   await controller.click("#kill");
-  await controller.waitForFunction(()=>{const b=document.querySelector("#arm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:10000});
-  const rearmStart=await simTime(view);await controller.click("#arm");
+  const rearmStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});
   const rearmDuration=(await simTime(view))-rearmStart;
   if(rearmDuration>1.5)throw new Error(`same-session GAME re-arm too slow: ${rearmDuration.toFixed(3)}s`);
   console.log("Serverless P2P E2E: transient stale-control fail-safe recovered on the same session with zero re-pairing.");
 
-  // Kill the controller browser process without a cooperative disconnect. VIEW
-  // must fail safe from freshness alone even before ICE notices the dead peer.
   await controllerBrowser.close();await new Promise(resolve=>setTimeout(resolve,800));
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:10000});
   const safe=await view.$eval("#motors",element=>(element.textContent||"").trim().split(/\s+/).map(Number));
