@@ -1,18 +1,12 @@
 /*
  * Arondight45 DroneFC Software-in-the-Loop WebAssembly adapter.
  *
- * ZERO-DIVERGENCE RULE:
- * This file does not reimplement any flight-control math. It directly includes
- * the HIL runtime, which directly includes Arondight45_DroneFC_S31.cpp.
- * Therefore SIL and physical S31 HIL execute the same fc:: filter, attitude,
- * arming, PID, mixer and pulse code and exchange the same HIL1/HLO1 packets.
+ * No flight-control logic is reimplemented here. Production, physical-S31 HIL
+ * and browser SIL all execute fc::Runtime from Arondight45_DroneFC_Core.hpp.
+ * SIL and HIL additionally share the exact HIL1/HLO1 protocol adapter.
  */
 
-#define HIL_HOST_TEST 1
-#define main arondight45_hil_embedded_selftest_unused
-#include "../esp32/Arondight45_DroneFC_HIL_S31.cpp"
-#undef main
-#undef HIL_HOST_TEST
+#include "../esp32/Arondight45_HIL_Protocol.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -25,7 +19,7 @@
 #endif
 
 namespace {
-hil::Runtime runtime;
+hil::RuntimeAdapter runtime;
 hil::InputPacket input_packet{};
 hil::OutputPacket output_packet{};
 }
@@ -63,33 +57,37 @@ SIL_EXPORT uint32_t fc_protocol_version() {
     return hil::kProtocolVersion;
 }
 
-}
+}  // extern "C"
 
 #ifndef __EMSCRIPTEN__
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 
-static void check(bool condition, const char* what) {
+namespace {
+
+void check(bool condition, const char* what) {
     if (!condition) {
         std::fprintf(stderr, "SIL FAIL: %s\n", what);
         std::exit(1);
     }
 }
 
-static void encode_sbus(const std::array<uint16_t, 16>& channels, uint8_t* p) {
+void encode_sbus(const std::array<uint16_t, 16>& channels, uint8_t* p) {
     std::memset(p, 0, 25);
     p[0] = 0x0F;
     p[24] = 0x00;
-    for (int c = 0; c < 16; ++c) {
+    for (int channel = 0; channel < 16; ++channel) {
         for (int bit = 0; bit < 11; ++bit) {
-            if ((channels[c] & (1u << bit)) != 0) {
-                const int k = 8 + c * 11 + bit;
+            if ((channels[channel] & (1u << bit)) != 0) {
+                const int k = 8 + channel * 11 + bit;
                 p[k / 8] |= static_cast<uint8_t>(1u << (k % 8));
             }
         }
     }
 }
+
+}  // namespace
 
 int main() {
     check(fc_input_size() == 64, "input packet size");
@@ -110,7 +108,7 @@ int main() {
     channels[4] = 172;
     encode_sbus(channels, in->sbus);
 
-    for (uint32_t i = 0; i < 2101; ++i) {
+    for (uint32_t i = 0; i < fc::kCalibrationSamples + 1; ++i) {
         in->sequence = i;
         in->flags = hil::kFlagImuValid | (i == 0 ? hil::kFlagReset : 0);
         in->crc32 = hil::crc32(in, offsetof(hil::InputPacket, crc32));
@@ -119,7 +117,8 @@ int main() {
         check(out->sequence == i, "sequence echo");
         check(hil::crc32(out, offsetof(hil::OutputPacket, crc32)) == out->crc32, "output CRC");
     }
-    check((out->state & hil::kStateCalibrating) == 0, "calibration completes");
+    check((out->state & fc::kStateCalibrating) == 0, "calibration completes");
+    check((out->state & fc::kStateFault) == 0, "calibration remains fault-free");
 
     channels[4] = 1811;
     encode_sbus(channels, in->sbus);
@@ -128,17 +127,17 @@ int main() {
         in->crc32 = hil::crc32(in, offsetof(hil::InputPacket, crc32));
         fc_process();
     }
-    check((out->state & hil::kStateArmed) != 0, "arming state machine");
-    for (uint16_t pulse : out->motor_us) check(pulse == 1050, "armed idle pulse");
+    check((out->state & fc::kStateArmed) != 0, "arming state machine");
+    for (uint16_t pulse : out->motor_us) check(pulse == fc::kEscIdleUs, "armed idle pulse");
 
     channels[2] = 700;
     encode_sbus(channels, in->sbus);
     ++in->sequence;
     in->crc32 = hil::crc32(in, offsetof(hil::InputPacket, crc32));
     fc_process();
-    for (uint16_t pulse : out->motor_us) check(pulse > 1050, "throttle produces thrust command");
+    for (uint16_t pulse : out->motor_us) check(pulse > fc::kEscIdleUs, "throttle produces thrust command");
 
-    std::puts("All Arondight45 SIL zero-divergence tests passed.");
+    std::puts("All Arondight45 SIL shared-runtime tests passed.");
     return 0;
 }
 #endif
