@@ -6,10 +6,13 @@ const ui = Object.fromEntries([
 
 const CONTROL_PROTOCOL = 1;
 const SEND_INTERVAL_MS = 20;
+const JOIN_INTERVAL_MS = 500;
 let socket = null;
 let sequence = 1;
 let connected = false;
+let joined = false;
 let simConnected = false;
+let joinTimer = null;
 let controls = {roll:0,pitch:0,yaw:0,throttle:0,arm:false};
 
 function randomRoom(){
@@ -27,31 +30,24 @@ function relayUrl(){
   return"";
 }
 function room(){return sanitizeRoom(ui.room.value);}
-function setConnection(text,kind="warn"){
-  ui.connection.textContent=text;ui.connection.className=`pill ${kind}`;
-}
+function setConnection(text,kind="warn"){ui.connection.textContent=text;ui.connection.className=`pill ${kind}`;}
 function updatePairText(){
   const relay=relayUrl();
-  if(connected&&simConnected)ui.pairStatus.textContent=`Room ${room()} · simulator linked`;
-  else if(connected)ui.pairStatus.textContent=`Room ${room()} · waiting for simulator`;
+  if(connected&&joined&&simConnected)ui.pairStatus.textContent=`Room ${room()} · simulator linked`;
+  else if(connected&&joined)ui.pairStatus.textContent=`Room ${room()} · waiting for simulator`;
+  else if(connected)ui.pairStatus.textContent=`Room ${room()} · joining relay`;
   else if(!relay)ui.pairStatus.textContent="Open both pages from the LAN server, or provide ?relay=wss://…";
   else ui.pairStatus.textContent=`Relay ${relay} · room ${room()}`;
 }
-function controllerLink(){
-  const url=new URL(location.href);url.searchParams.set("room",room());
-  const relay=relayUrl();if(relay)url.searchParams.set("relay",relay);
-  return url.toString();
-}
+function controllerLink(){const url=new URL(location.href);url.searchParams.set("room",room());const relay=relayUrl();if(relay)url.searchParams.set("relay",relay);return url.toString();}
+function sendJoin(){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"join",protocol:CONTROL_PROTOCOL,role:"controller",room:room()}));}
 function publish(force=false){
-  if(!socket||socket.readyState!==WebSocket.OPEN)return;
+  if(!joined||!socket||socket.readyState!==WebSocket.OPEN)return;
   socket.send(JSON.stringify({type:"control",protocol:CONTROL_PROTOCOL,room:room(),sequence:sequence++,sent_ms:performance.now(),...controls,force}));
 }
-function safetyNeutral(send=true){
-  controls={roll:0,pitch:0,yaw:0,throttle:0,arm:false};
-  updateSticks();updateArm();if(send)publish(true);
-}
+function safetyNeutral(send=true){controls={roll:0,pitch:0,yaw:0,throttle:0,arm:false};updateSticks();updateArm();if(send)publish(true);}
 function updateArm(){ui.arm.textContent=controls.arm?"ARM HIGH":"ARM LOW";ui.arm.classList.toggle("high",controls.arm);}
-function setKnob(knob,x,y){knob.style.transform=`translate(calc(-50% + ${x*50}%),calc(-50% + ${y*50}%))`;}
+function setKnob(knob,x,y){knob.style.left=`${50+clamp(x,-1,1)*42}%`;knob.style.top=`${50+clamp(y,-1,1)*42}%`;knob.style.transform="translate(-50%,-50%)";}
 function updateSticks(){
   setKnob(ui.leftKnob,controls.yaw,1-2*controls.throttle);
   setKnob(ui.rightKnob,controls.roll,-controls.pitch);
@@ -68,40 +64,51 @@ function bindStick(element,kind){
   element.addEventListener("pointermove",event=>{if(event.pointerId===pointer)apply(event);});
   const release=event=>{if(event.pointerId!==pointer)return;pointer=null;if(kind==="left")controls.yaw=0;else{controls.roll=0;controls.pitch=0;}updateSticks();publish(true);};
   element.addEventListener("pointerup",release);element.addEventListener("pointercancel",release);
-  function apply(event){
-    const p=normalizedPointer(element,event);
-    if(kind==="left"){controls.yaw=p.x;controls.throttle=clamp((1-p.y)/2,0,1);}else{controls.roll=p.x;controls.pitch=-p.y;}
-    updateSticks();publish();
-  }
+  function apply(event){const p=normalizedPointer(element,event);if(kind==="left"){controls.yaw=p.x;controls.throttle=clamp((1-p.y)/2,0,1);}else{controls.roll=p.x;controls.pitch=-p.y;}updateSticks();publish();}
 }
 
+function clearJoinTimer(){if(joinTimer!==null){clearInterval(joinTimer);joinTimer=null;}}
+function resetConnectionUi(kind="warn"){
+  clearJoinTimer();connected=false;joined=false;simConnected=false;ui.room.disabled=false;ui.connect.textContent="Connect";setConnection("DISCONNECTED",kind);updatePairText();
+}
+async function disconnect(){
+  const ws=socket;socket=null;safetyNeutral(false);clearJoinTimer();joined=false;simConnected=false;
+  if(ws&&ws.readyState===WebSocket.OPEN)try{ws.close(1000,"user disconnect");}catch{}
+  resetConnectionUi();
+}
 async function connect(){
-  if(socket){socket.close(1000,"user disconnect");socket=null;connected=false;simConnected=false;safetyNeutral(false);setConnection("DISCONNECTED");ui.connect.textContent="Connect";updatePairText();return;}
-  const relay=relayUrl();
-  if(!relay){setConnection("NO RELAY","bad");ui.pairStatus.textContent="Run the LAN server and open the controller URL it prints.";return;}
+  if(socket)return disconnect();
+  const relay=relayUrl();if(!relay){setConnection("NO RELAY","bad");ui.pairStatus.textContent="Run the LAN relay and open the controller URL it prints.";return;}
   const r=room();if(!r){ui.room.value=randomRoom();return connect();}
-  localStorage.setItem("arondight45Room",r);localStorage.setItem("arondight45ControlRelay",relay);
-  setConnection("CONNECTING…");
+  localStorage.setItem("arondight45Room",r);localStorage.setItem("arondight45ControlRelay",relay);ui.room.disabled=true;setConnection("CONNECTING…");
   const ws=new WebSocket(relay);socket=ws;
-  const timer=setTimeout(()=>{if(ws.readyState!==WebSocket.OPEN)ws.close();},5000);
-  ws.onopen=()=>{clearTimeout(timer);connected=true;ui.connect.textContent="Disconnect";setConnection("WAITING FOR SIM");ws.send(JSON.stringify({type:"join",protocol:CONTROL_PROTOCOL,role:"controller",room:r}));publish(true);updatePairText();};
+  try{
+    await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>reject(Error("Relay connection timeout")),5000);
+      ws.addEventListener("open",()=>{clearTimeout(timer);resolve();},{once:true});
+      ws.addEventListener("error",()=>{clearTimeout(timer);reject(Error("Cannot reach control relay"));},{once:true});
+    });
+  }catch(error){if(socket===ws)socket=null;try{ws.close();}catch{}resetConnectionUi("bad");ui.pairStatus.textContent=error.message;return;}
+  if(socket!==ws)return;
+  connected=true;ui.connect.textContent="Disconnect";setConnection("JOINING…");
   ws.onmessage=event=>{
     let message;try{message=JSON.parse(event.data);}catch{return;}
-    if(message.type==="peer"){simConnected=Boolean(message.simulator);setConnection(simConnected?"SIM LINKED":"WAITING FOR SIM",simConnected?"good":"warn");updatePairText();return;}
+    if(message.type==="joined"&&message.protocol===CONTROL_PROTOCOL&&message.role==="controller"&&message.room===r){joined=true;clearJoinTimer();setConnection(simConnected?"SIM LINKED":"WAITING FOR SIM",simConnected?"good":"warn");publish(true);updatePairText();return;}
+    if(message.type==="peer"){simConnected=Boolean(message.simulator);setConnection(joined?(simConnected?"SIM LINKED":"WAITING FOR SIM"):"JOINING…",joined&&simConnected?"good":"warn");updatePairText();return;}
     if(message.type==="telemetry"){
-      simConnected=true;setConnection("SIM LINKED","good");
-      ui.fcState.textContent=message.fc_state||"—";ui.altitude.textContent=Number.isFinite(message.altitude)?`${message.altitude.toFixed(2)} m`:"—";ui.battery.textContent=Number.isFinite(message.battery_v)?`${message.battery_v.toFixed(2)} V`:"—";ui.motors.textContent=Array.isArray(message.motors)?message.motors.map(Math.round).join(" "):"—";updatePairText();
+      simConnected=true;setConnection("SIM LINKED","good");ui.fcState.textContent=message.fc_state||"—";ui.altitude.textContent=Number.isFinite(message.altitude)?`${message.altitude.toFixed(2)} m`:"—";ui.battery.textContent=Number.isFinite(message.battery_v)?`${message.battery_v.toFixed(2)} V`:"—";ui.motors.textContent=Array.isArray(message.motors)?message.motors.map(Math.round).join(" "):"—";updatePairText();
     }
   };
+  ws.onclose=()=>{if(socket===ws)socket=null;safetyNeutral(false);resetConnectionUi("bad");};
   ws.onerror=()=>setConnection("CONNECTION ERROR","bad");
-  ws.onclose=()=>{clearTimeout(timer);if(socket===ws)socket=null;connected=false;simConnected=false;safetyNeutral(false);setConnection("DISCONNECTED","bad");ui.connect.textContent="Connect";updatePairText();};
+  sendJoin();joinTimer=setInterval(()=>{if(!joined)sendJoin();else clearJoinTimer();},JOIN_INTERVAL_MS);
 }
 
 bindStick(ui.leftStick,"left");bindStick(ui.rightStick,"right");
 ui.arm.onclick=()=>{controls.arm=!controls.arm;updateArm();publish(true);};
 ui.kill.onclick=()=>safetyNeutral(true);
 ui.connect.onclick=connect;
-ui.room.oninput=()=>{ui.room.value=sanitizeRoom(ui.room.value);updatePairText();};
+ui.room.oninput=()=>{if(connected)return;ui.room.value=sanitizeRoom(ui.room.value);updatePairText();};
 ui.copyLink.onclick=async()=>{try{await navigator.clipboard.writeText(controllerLink());ui.pairStatus.textContent="Controller link copied.";}catch{ui.pairStatus.textContent=controllerLink();}};
 ui.fullscreen.onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();try{await screen.orientation?.lock?.("landscape");}catch{}}catch{}};
 
