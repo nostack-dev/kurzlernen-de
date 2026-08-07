@@ -119,11 +119,13 @@ public:
         target_yaw_deg_ = wrap_degrees(target_yaw_deg_ + intent.yaw_rate_dps * dt);
 
         const float yaw_rad = yaw_deg * kPi / 180.0f;
-        // Body forward is -X in the airframe model; body-right is +Y.
+        // Airframe/world convention is right-handed with +Z up and body forward
+        // along -X. Therefore body-right is -Y at yaw=0. Rotating those basis
+        // vectors by yaw gives forward=(-c,-s) and right=(s,-c).
         const float c = std::cos(yaw_rad);
         const float s = std::sin(yaw_rad);
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
-        const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;
+        const float measured_right = s * nav.velocity_world_mps.x - c * nav.velocity_world_mps.y;
 
         if (!inner_armed) {
             target_yaw_deg_ = wrap_degrees(yaw_deg);
