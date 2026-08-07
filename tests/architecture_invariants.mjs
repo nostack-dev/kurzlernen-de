@@ -72,6 +72,20 @@ requireText("sim/simulator.mjs","backend.exchange(packet");
 requireText("sim/simulator.mjs","physics.step(latest.motors");
 forbidText("sim/simulator.mjs","stateControllerMotor");
 
+// GAME camera look is deliberately outside flight-control execution. The right
+// stick Y value may affect FOLLOW / THIRD / FPV camera geometry, but must never be
+// encoded into the SBUS-like channels consumed by StateRuntime / fc::Runtime.
+requireText("sim/simulator.mjs","dataset.gameLookPitch");
+requireText("sim/simulator.mjs","dataset.cameraLookDeg");
+requireText("sim/simulator.mjs","FPV_CAMERA_UPTILT_RAD+viewPitch");
+requireText("sim/control_settings.mjs","LOCK RIGHT STICK VERTICAL AXIS");
+const simulatorSource=read("sim/simulator.mjs");
+const controlsStart=simulatorSource.indexOf("function controls(){");
+const controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);
+if(controlsStart<0||controlsEnd<=controlsStart)fail("cannot isolate simulator controls() boundary");
+const controlsSource=simulatorSource.slice(controlsStart,controlsEnd);
+if(controlsSource.includes("lookPitch"))fail("camera free-look leaked into flight-control channel encoding");
+
 // GitHub Pages source pages remain ordinary entry points; deploy.yml builds the
 // two self-contained single-file pages.
 requireText("drone_simulator.html",'<script type="module" src="./sim/simulator.mjs"></script>');
@@ -110,8 +124,10 @@ for(const fineness of [1,7,10]){
   if(phoneAxis(0,fineness)!==0)fail(`phone expo at fineness ${fineness} moves neutral`);
 }
 
-// Historical migration scaffolding must stay absent from production source.
+// Historical/self-mutating migration scaffolding must stay absent from production.
 if(existsSync(".github/workflows/one-shot-shared-controls.yml"))fail("one-shot self-mutating workflow returned");
+if(existsSync(".github/workflows/oneoff-complete-game-spec.yml"))fail("temporary GAME completion workflow returned");
+if(existsSync(".github/workflows/oneoff-complete-game-spec-v2.yml"))fail("temporary GAME completion v2 workflow returned");
 if(existsSync("tools/patch_shared_control_semantics.py"))fail("one-shot source patcher returned");
 
-console.log("Architecture invariants passed: measured-state outer loop -> shared fc::Runtime -> motor physics, HIL v2 sensor contract, direct static WebRTC, no simulator control bypass.");
+console.log("Architecture invariants passed: measured-state GAME loop -> shared fc::Runtime -> motor physics, raycast AGL, camera-only free-look, direct static WebRTC, no simulator control bypass.");
