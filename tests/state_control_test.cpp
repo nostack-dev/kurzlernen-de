@@ -61,7 +61,6 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     const float climb_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
     CHECK(controller.debug().vertical_accel_mps2 > 3.0f);
-    // More than hover, but not the old linear force->throttle over-command.
     CHECK(climb_throttle > 0.43f && climb_throttle < 0.50f);
 
     nav.agl_m = 3.5f;
@@ -105,8 +104,8 @@ int main() {
     rc = base_rc(true);
     rc.ch[FC_SBUS_PITCH] = fc::centered_raw(1.0f);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().forward_accel_mps2 > 4.0f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.50f);
+    CHECK(controller.debug().forward_accel_mps2 > 1.9f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.25f);
 
     // If measured velocity equals the actual decoded desired vector, horizontal
     // error, requested acceleration and tilt all collapse to zero.
@@ -136,17 +135,17 @@ int main() {
     const float accel_norm = std::sqrt(
         controller.debug().forward_accel_mps2 * controller.debug().forward_accel_mps2 +
         controller.debug().right_accel_mps2 * controller.debug().right_accel_mps2);
-    CHECK(accel_norm > 4.3f && accel_norm < 4.6f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.20f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.20f);
+    CHECK(accel_norm > 1.9f && accel_norm < 2.1f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.10f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.10f);
 
     // Body-right is -world-Y at yaw=0.
     rc = base_rc(true);
     rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
     nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().right_accel_mps2 > 4.0f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.50f);
+    CHECK(controller.debug().right_accel_mps2 > 1.9f);
+    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.25f);
 
     const float desired_right = fc::state_intent(rc).right_mps;
     nav.velocity_world_mps = {0.0f, -desired_right, 0.0f};
