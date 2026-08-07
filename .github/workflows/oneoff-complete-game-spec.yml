@@ -27,41 +27,29 @@ jobs:
               assert n==1, f"{path}: expected one match, got {n}: {old[:120]!r}"
               p.write_text(s.replace(old,new,1))
 
+          def insert_before(path, marker, text):
+              p=Path(path); s=p.read_text(); n=s.count(marker)
+              assert n==1, f"{path}: expected one marker, got {n}: {marker[:120]!r}"
+              p.write_text(s.replace(marker,text+marker,1))
+
           sim='sim/simulator.mjs'
           replace_once(sim,
-          '''  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
-            if(cameraMode==="fpv"){''',
-          '''  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
-            const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;
-            $("viewport").dataset.gameLookPitch=viewPitch.toFixed(3);
-            if(cameraMode==="fpv"){''')
+          '  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();\n  if(cameraMode==="fpv"){',
+          '  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();\n  const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;\n  $("viewport").dataset.gameLookPitch=viewPitch.toFixed(3);\n  if(cameraMode==="fpv"){')
           replace_once(sim,
-          '''    const c=Math.cos(FPV_CAMERA_UPTILT_RAD),si=Math.sin(FPV_CAMERA_UPTILT_RAD);
-              const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();''',
-          '''    const lookTilt=clamp(FPV_CAMERA_UPTILT_RAD+viewPitch*35*Math.PI/180,-5*Math.PI/180,65*Math.PI/180);
-              const c=Math.cos(lookTilt),si=Math.sin(lookTilt);
-              $("viewport").dataset.cameraLookDeg=(lookTilt*180/Math.PI).toFixed(1);
-              const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();''')
+          '    const c=Math.cos(FPV_CAMERA_UPTILT_RAD),si=Math.sin(FPV_CAMERA_UPTILT_RAD);\n    const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();',
+          '    const lookTilt=clamp(FPV_CAMERA_UPTILT_RAD+viewPitch*35*Math.PI/180,-5*Math.PI/180,65*Math.PI/180);\n    const c=Math.cos(lookTilt),si=Math.sin(lookTilt);\n    $("viewport").dataset.cameraLookDeg=(lookTilt*180/Math.PI).toFixed(1);\n    const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();')
           replace_once(sim,
-          '''    const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;
-              const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;''',
-          '''    $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);
-              const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;''')
+          '    const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;\n    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;',
+          '    $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);\n    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;')
           replace_once(sim,
-          '''  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78;
-            const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10;''',
-          '''  $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);
-            const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78+viewPitch*.28;
-            const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10+viewPitch*.95;''')
+          '  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78;\n  const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10;',
+          '  $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);\n  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78+viewPitch*.28;\n  const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10+viewPitch*.95;')
 
           dual='tests/dual_phone_smoke.mjs'
-          replace_once(dual,
-          '''  console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
-
-            const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;''',
-          '''  console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
-
-            // Ground clearance is a desired AGL state, never raw throttle.
+          insert_before(dual,
+          '  const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;\n',
+          '''  // Ground clearance is a desired AGL state, never raw throttle.
             await setValue(controller,"#gameClearanceSlider","2.8");
             await waitText(controller,"#gameClearanceValue","2.8 m",10000);
             const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);
@@ -81,14 +69,10 @@ jobs:
             await controller.mouse.up();
             await view.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))<.02,{timeout:10000});
 
-            const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;''')
-          replace_once(dual,
-          '''  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
-
-            const yawBefore=await yaw(view);''',
-          '''  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
-
-            // Left-stick X is body-right desired velocity. Verify real strafe and convergence.
+          ''')
+          insert_before(dual,
+          '  const yawBefore=await yaw(view);\n',
+          '''  // Left-stick X is body-right desired velocity. Verify real strafe and convergence.
             await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
             const strafeStart=await simTime(view);await waitSim(view,strafeStart+.55,30000);
             const strafing=bodyMotion(await latestFlightSample(view));
@@ -101,75 +85,52 @@ jobs:
             if(strafeBraked.horizontal>Math.max(.50,strafing.horizontal*.78))throw new Error(`strafe zero-vector braking did not converge: before=${JSON.stringify(strafing)}, trace=${JSON.stringify(strafeTrace)}`);
             console.log(`State-control E2E: strafe right=${strafing.right.toFixed(2)}m/s, peak=${strafePeak.toFixed(2)} -> ${strafeBraked.horizontal.toFixed(2)}m/s.`);
 
-            const yawBefore=await yaw(view);''')
+          ''')
           replace_once(dual,
-          '''  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, settled 2m AGL, bounded physical braking convergence, heading control, session recovery, hard-loss disarm.");''',
-          '''  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, functional AGL slider, camera-only free-look, forward/strafe physical convergence, heading control, session recovery, hard-loss disarm.");''')
+          '  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, settled 2m AGL, bounded physical braking convergence, heading control, session recovery, hard-loss disarm.");',
+          '  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, functional AGL slider, camera-only free-look, forward/strafe physical convergence, heading control, session recovery, hard-loss disarm.");')
 
           browser='tests/browser_sim_smoke.mjs'
+          helper='''async function latestFlightSample(){
+            return page.evaluate(async()=>{
+              const original=URL.createObjectURL;let captured=null;
+              URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};
+              try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text()),samples=log?.samples||[];if(!samples.length)throw new Error("flight log has no samples");return samples[samples.length-1];}
+              finally{URL.createObjectURL=original;}
+            });
+          }
+          function bodyMotion(sample){
+            const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
+            return{forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0};
+          }
+
+          '''
+          insert_before(browser,'try{\n  await page.setViewport({width:1280,height:900,deviceScaleFactor:1});\n',helper)
           replace_once(browser,
-          '''async function pointerDownOnly(selector){
-              const b=await stickGeometry(selector),cx=b.x+b.width/2,cy=b.y+b.height/2;
-              await page.mouse.move(cx,cy);await page.mouse.down();return{cx,cy,r:Math.min(b.width,b.height)*.42};
-            }
-          ''',
-          '''async function pointerDownOnly(selector){
-              const b=await stickGeometry(selector),cx=b.x+b.width/2,cy=b.y+b.height/2;
-              await page.mouse.move(cx,cy);await page.mouse.down();return{cx,cy,r:Math.min(b.width,b.height)*.42};
-            }
-            async function latestFlightSample(){
-              return page.evaluate(async()=>{
-                const original=URL.createObjectURL;let captured=null;
-                URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};
-                try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text()),samples=log?.samples||[];if(!samples.length)throw new Error("flight log has no samples");return samples[samples.length-1];}
-                finally{URL.createObjectURL=original;}
-              });
-            }
-            function bodyMotion(sample){
-              const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-              return{forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0};
-            }
-          ''')
+          '    lock:document.querySelector(\'.phone-settings-dialog [data-lock-horizontal]\')?.checked,\n    v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),',
+          '    lock:document.querySelector(\'.phone-settings-dialog [data-lock-horizontal]\')?.checked,\n    lockLeft:document.querySelector(\'.phone-settings-dialog [data-lock-left-horizontal]\')?.checked,\n    rightLockLabel:document.querySelector(\'.phone-settings-dialog [data-lock-horizontal]\')?.parentElement?.textContent||"",\n    v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),')
           replace_once(browser,
-          '''    lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
-              v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),''',
-          '''    lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
-              lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
-              rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
-              v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),''')
-          replace_once(browser,
-          '''  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false)
-              throw new Error(`clean V4 defaults wrong: ${JSON.stringify(defaults)}`);''',
-          '''  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
-              throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);''')
-          replace_once(browser,
-          '''  await page.click('.phone-settings-dialog [data-lock-horizontal]');
-            let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));''',
+          '  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false)\n    throw new Error(`clean V4 defaults wrong: ${JSON.stringify(defaults)}`);',
+          '  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))\n    throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);')
+          insert_before(browser,
+          '  await page.click(\'.phone-settings-dialog [data-lock-horizontal]\');\n',
           '''  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
             let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
             if(stored.lockLeftHorizontal!==true)throw new Error(`left horizontal lock did not persist: ${JSON.stringify(stored)}`);
             await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
             stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
             if(stored.lockLeftHorizontal!==false)throw new Error(`left horizontal unlock did not persist: ${JSON.stringify(stored)}`);
-            await page.click('.phone-settings-dialog [data-lock-horizontal]');''')
-          old='''  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0");return z>1.5&&z<2.5;},{timeout:60000});
-            const holdStart=await simTime();await waitForSimTime(holdStart+.6,35000);
-            const holdAltitude=await page.$eval("#altitude",e=>parseFloat(e.textContent||"0"));
-            if(!(holdAltitude>1.3&&holdAltitude<2.7))throw new Error(`solo 2m AGL hold failed: ${holdAltitude}`);
+          ''')
+          # The original block declares stored after the right-lock click; after adding the
+          # left-lock check, reuse the existing variable instead of redeclaring it.
+          replace_once(browser,
+          '  await page.click(\'.phone-settings-dialog [data-lock-horizontal]\');\n  let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));',
+          '  await page.click(\'.phone-settings-dialog [data-lock-horizontal]\');\n  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));')
 
-            const left=await pointerDownOnly("#soloLeft");
-            await page.mouse.move(left.cx,left.cy-left.r*.65,{steps:6});
-            const moveStart=await simTime();await waitForSimTime(moveStart+.55,30000);
-            const moving=await page.$eval("#velocity",e=>parseFloat(e.textContent||"0"));
-            if(moving<.55)throw new Error(`solo desired forward vector did not accelerate: ${moving}`);
-            await page.mouse.up();
-            const brakeStart=await simTime();await waitForSimTime(brakeStart+1.5,50000);
-            const braked=await page.$eval("#velocity",e=>parseFloat(e.textContent||"0"));
-            if(braked>Math.max(.8,moving*.75))throw new Error(`solo zero-vector braking failed: moving=${moving}, after=${braked}`);
-
-            const yawBefore=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\\d+(?:\\.\\d+)?/g)||[])[2]||0));
-          '''
-          new='''  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.70;},{timeout:90000});
+          p=Path(browser); s=p.read_text()
+          start=s.index('  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0");return z>1.5&&z<2.5;},{timeout:60000});')
+          end=s.index('  const yawBefore=await page.$eval("#attitude"',start)
+          replacement='''  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.70;},{timeout:90000});
             const holdStart=await simTime();await waitForSimTime(holdStart+.35,25000);
             const hold=bodyMotion(await latestFlightSample());
             if(!(hold.altitude>1.35&&hold.altitude<2.65&&Math.abs(hold.vertical)<.80))throw new Error(`solo 2m AGL hold failed: ${JSON.stringify(hold)}`);
@@ -212,12 +173,11 @@ jobs:
             await page.mouse.up();
             await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))<.02,{timeout:10000});
 
-            const yawBefore=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\\d+(?:\\.\\d+)?/g)||[])[2]||0));
           '''
-          replace_once(browser,old,new)
+          p.write_text(s[:start]+replacement+s[end:])
           replace_once(browser,
-          '''  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL, one-phone vector/heading control, FC-authoritative arming, race/reset, local fallback and responsive layout.");''',
-          '''  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, camera-only free-look, heading control, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");''')
+          '  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL, one-phone vector/heading control, FC-authoritative arming, race/reset, local fallback and responsive layout.");',
+          '  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, camera-only free-look, heading control, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");')
           PY
           node --check sim/simulator.mjs
           node --check tests/dual_phone_smoke.mjs
