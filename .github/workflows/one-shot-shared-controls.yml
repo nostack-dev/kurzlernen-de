@@ -1,0 +1,29 @@
+name: One-shot shared controller semantics
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/one-shot-shared-controls.yml"
+permissions:
+  contents: write
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply shared control semantics
+        run: |
+          set -euxo pipefail
+          python3 tools/patch_shared_control_semantics.py
+          node --check sim/control_semantics.mjs
+          node --check sim/controller.mjs
+          node --check sim/simulator.mjs
+          node tests/control_semantics_test.mjs
+      - name: Commit shared controls migration
+        run: |
+          set -euxo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add sim/controller.mjs sim/simulator.mjs tests/control_semantics_test.mjs .github/workflows/deploy.yml
+          git commit -m "Use identical controls in paired and single-phone modes"
+          git push
