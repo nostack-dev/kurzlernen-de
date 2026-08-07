@@ -1,5 +1,6 @@
 import {existsSync,readFileSync,readdirSync,statSync} from "node:fs";
 import {join} from "node:path";
+import {phoneAxis} from "../sim/control_semantics.mjs";
 
 const read=path=>readFileSync(path,"utf8");
 const fail=message=>{throw new Error(`ARCHITECTURE INVARIANT FAILED: ${message}`);};
@@ -65,13 +66,17 @@ requireText("sim/simulator.mjs","new QrScanner");
 requireText("sim/controller.mjs","new QrScanner");
 
 // Phone settings are an input-device adapter only. Legacy gain/sensitivity
-// shortcuts that changed command authority are not permitted back in.
+// shortcuts that changed command authority are not permitted back in. Verify
+// the actual transfer function keeps full command authority at both endpoints.
 for(const path of ["sim/control_semantics.mjs","sim/control_settings.mjs"]){
   forbidText(path,"MIN_PHONE_GAIN");
   forbidText(path,"MAX_PHONE_GAIN");
 }
-requireText("sim/control_semantics.mjs","Full stick always stays full command");
-requireText("sim/control_semantics.mjs","x*(1-expo)+x*x*x*expo");
+for(const fineness of [1,7,10]){
+  if(phoneAxis(1,fineness)!==1||phoneAxis(-1,fineness)!==-1)
+    fail(`phone expo at fineness ${fineness} changes full-stick authority`);
+  if(phoneAxis(0,fineness)!==0)fail(`phone expo at fineness ${fineness} moves neutral`);
+}
 
 // One-shot self-mutating workflows/patchers were migration scaffolding, not
 // production architecture. They must stay gone.
