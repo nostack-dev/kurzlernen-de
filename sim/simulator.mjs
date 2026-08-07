@@ -400,7 +400,7 @@ function updateCamera(){
   if(horizontal.lengthSq()>.04)horizontal.normalize();
   if(cameraMode==="third"){
     if(horizontal.lengthSq()>.04)thirdHeading.lerp(horizontal,.22).normalize();
-    const desired=position.clone().addScaledVector(thirdHeading,-3.0);desired.z+=1.35;
+    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05;
     const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18;
     camera.up.set(0,0,1);
     if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.16);
