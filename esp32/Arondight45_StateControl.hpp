@@ -17,10 +17,11 @@ namespace fc {
 //
 // Navigation + IMU provide the measured state. The controller subtracts measured
 // motion from desired motion, converts that velocity error into a desired physical
-// acceleration vector, adds gravity, and geometrically derives the thrust direction
-// and magnitude required from the quadrotor. Roll/pitch are therefore only internal
-// actuator coordinates used to point the thrust vector; they are not user targets.
-// The existing fc::Runtime remains the sole attitude/rate/motor execution layer.
+// acceleration vector, and feeds back the acceleration already implied by measured
+// roll/pitch so actuator lag cannot carry the aircraft through the target velocity.
+// Gravity is then added and the required thrust vector is converted geometrically
+// into roll/pitch/collective. Roll/pitch are therefore internal actuator coordinates,
+// not user targets. fc::Runtime remains the sole attitude/rate/motor execution layer.
 
 constexpr int kStateClearanceChannel = 5;
 constexpr int kStateModeChannel = 6;
@@ -125,7 +126,15 @@ public:
         debug_ = {};
     }
 
+    // Compatibility/test entrypoint when only heading is available. The production
+    // StateRuntime uses the full measured roll/pitch/yaw overload below.
     RC transform(const RC& original, const NavigationState& nav, float yaw_deg,
+                 bool inner_armed, float dt) {
+        return transform(original, nav, 0.0f, 0.0f, yaw_deg, inner_armed, dt);
+    }
+
+    RC transform(const RC& original, const NavigationState& nav,
+                 float roll_deg, float pitch_deg, float yaw_deg,
                  bool inner_armed, float dt) {
         RC out = original;
         const StateIntent intent = state_intent(original);
@@ -174,27 +183,44 @@ public:
         const float specific_up = clamp(kGravityMps2 + vertical_accel,
                                         kMinSpecificUpMps2, kMaxSpecificUpMps2);
 
-        // XY is the same equation: velocity target minus measured velocity gives
-        // acceleration demand. Limit the acceleration vector as a vector, not each
-        // axis separately. The second limit is the exact horizontal acceleration
-        // available at the permitted maximum tilt for the requested vertical force.
+        // The velocity error produces the desired horizontal acceleration vector.
         float forward_accel = kHorizontalVelocityGain * (intent.forward_mps - measured_forward);
         float right_accel = kHorizontalVelocityGain * (intent.right_mps - measured_right);
+
+        // A velocity target alone is not an equilibrium if the aircraft is still
+        // tilted and therefore still accelerating. Use measured IMU attitude to
+        // estimate the horizontal acceleration already being produced by the thrust
+        // vector, and close a second feedback loop around that acceleration. This is
+        // ordinary cascaded state feedback, applied identically to forward and right;
+        // there is no braking/release special case.
+        const float roll_rad = clamp(roll_deg, -kMaxAttitudeFeedbackDeg,
+                                     kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
+        const float pitch_rad = clamp(pitch_deg, -kMaxAttitudeFeedbackDeg,
+                                      kMaxAttitudeFeedbackDeg) * kPi / 180.0f;
+        const float cos_pitch = std::max(0.25f, std::cos(pitch_rad));
+        const float measured_forward_accel = -std::tan(pitch_rad) * specific_up;
+        const float measured_right_accel = std::tan(roll_rad) / cos_pitch * specific_up;
+        forward_accel += kHorizontalAccelerationFeedback *
+                         (forward_accel - measured_forward_accel);
+        right_accel += kHorizontalAccelerationFeedback *
+                       (right_accel - measured_right_accel);
+
+        // Limit the requested acceleration as one vector, never independently per
+        // axis. The tilt-derived limit is the exact horizontal acceleration available
+        // at the permitted maximum tilt for the requested vertical specific force.
         const float horizontal_accel = std::sqrt(forward_accel * forward_accel +
                                                  right_accel * right_accel);
         const float tilt_limited_accel = specific_up * kMaxTiltTangent;
         const float allowed_horizontal_accel = std::min(kMaxHorizontalAccelerationMps2,
                                                         tilt_limited_accel);
         if (horizontal_accel > allowed_horizontal_accel && horizontal_accel > 1.0e-6f) {
-            const float scale = allowed_horizontal_accel / horizontal_accel;
-            forward_accel *= scale;
-            right_accel *= scale;
+            const float vector_scale = allowed_horizontal_accel / horizontal_accel;
+            forward_accel *= vector_scale;
+            right_accel *= vector_scale;
         }
 
         // Desired specific force = desired acceleration + gravity. Geometry of that
-        // one vector yields both the direction (roll/pitch) and magnitude (throttle).
-        // No measured-attitude lead term is needed: the inner IMU feedback controller
-        // simply tracks this physically required thrust direction.
+        // one vector yields both direction (roll/pitch) and magnitude (collective).
         const float pitch_target_deg = -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
         const float roll_target_deg = std::atan2(
             right_accel, std::sqrt(specific_up * specific_up + forward_accel * forward_accel)) *
@@ -214,18 +240,14 @@ public:
         // be guessed from simulator constants or assumed hardware. Treat hover_trim_
         // as the slow integral/feed-forward state of the same vertical feedback loop.
         // Every armed, navigation-valid tick integrates vz target minus measured vz.
-        // If collective is initially insufficient to leave the ground, the requested
-        // motor command therefore rises until the real measured vertical state responds.
         hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                             kMinHoverTrim, kMaxHoverTrim);
         const float required_specific_force = std::sqrt(
             forward_accel * forward_accel + right_accel * right_accel +
             specific_up * specific_up);
         // Propeller thrust is approximately proportional to rotor speed squared.
-        // Runtime throttle maps linearly onto the ESC pulse above idle, which is
-        // much closer to rotor-speed command than to thrust. Convert the required
-        // specific-force ratio through sqrt() before commanding the actuator; a
-        // linear force->throttle map over-commands transients and excites Z ringing.
+        // Runtime throttle maps linearly onto the ESC pulse above idle, which is much
+        // closer to rotor-speed command than to thrust. Convert force ratio via sqrt().
         const float thrust_ratio = required_specific_force / kGravityMps2;
         const float hover_motor_command = kEscCommandOffset + kEscCommandScale * hover_trim_;
         const float required_motor_command = hover_motor_command * std::sqrt(thrust_ratio);
@@ -257,15 +279,15 @@ private:
     static constexpr float kMaxTiltDeg = 25.0f;
     static constexpr float kMaxTiltTangent = 0.46630766f;  // tan(25 deg)
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
+    static constexpr float kMaxAttitudeFeedbackDeg = 45.0f;
 
-    // Velocity error -> acceleration. Large vector errors still hit the 2 m/s²
-    // physical acceleration ceiling, so full-stick authority is unchanged. Around
-    // the zero-velocity target the lower slope keeps the outer velocity loop slower
-    // than the attitude/rate cascade and removes the brake-through/reverse limit cycle.
+    // Velocity error -> acceleration. Full-stick errors hit the vector ceiling;
+    // near the target this remains the slow outer-loop state gain.
     static constexpr float kHorizontalVelocityGain = 0.60f;  // 1/s
-    // GAME commands a velocity vector, not an instantaneous attitude step. Bound
-    // dv/dt so target-vector reversals stay inside achievable rigid-body/rotor
-    // response. Velocity authority remains 5 m/s; only physical acceleration is limited.
+    // Acceleration feedback supplies the phase/damping margin lost to real attitude
+    // and rotor lag. Gain 1.0 means the measured thrust acceleration is cancelled
+    // once in addition to the velocity-derived request, before the same vector limit.
+    static constexpr float kHorizontalAccelerationFeedback = 1.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;      // 1/s
@@ -308,6 +330,8 @@ public:
     void reset() {
         runtime_.reset();
         state_controller_.reset();
+        last_roll_deg_ = 0.0f;
+        last_pitch_deg_ = 0.0f;
         last_yaw_deg_ = 0.0f;
         game_active_ = false;
     }
@@ -338,7 +362,8 @@ public:
                              ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
                              : 0.001f;
         input.flight.rc = state_controller_.transform(input.flight.rc, input.navigation,
-                                                       last_yaw_deg_, runtime_.armed(), dt);
+                                                       last_roll_deg_, last_pitch_deg_, last_yaw_deg_,
+                                                       runtime_.armed(), dt);
         RuntimeOutput out = runtime_.step(input.flight);
         out.state |= kStateGameMode | kStateNavigationValid;
         update_attitude(out);
@@ -352,11 +377,15 @@ public:
 
 private:
     void update_attitude(const RuntimeOutput& out) {
+        last_roll_deg_ = static_cast<float>(out.attitude_cdeg[0]) * 0.01f;
+        last_pitch_deg_ = static_cast<float>(out.attitude_cdeg[1]) * 0.01f;
         last_yaw_deg_ = static_cast<float>(out.attitude_cdeg[2]) * 0.01f;
     }
 
     Runtime runtime_{};
     StateController state_controller_{};
+    float last_roll_deg_{};
+    float last_pitch_deg_{};
     float last_yaw_deg_{};
     bool game_active_{};
 };
