@@ -1,67 +1,111 @@
 export const ARM_LIMITS=Object.freeze({throttle:0.035,roll:0.12,pitch:0.12,yaw:0.15});
-export const MIN_PHONE_GAIN=0.25;
+export const MAX_PHONE_EXPO=0.70;
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
-export function fineLevelToSensitivity(level){
-  const t=(clampLevel(level)-1)/9;
-  return 1-t*(1-MIN_PHONE_GAIN);
-}
-export function sensitivityToFineLevel(value){
-  const gain=clampControl(Number(value),MIN_PHONE_GAIN,1);
-  return clampLevel(1+9*(1-gain)/(1-MIN_PHONE_GAIN));
-}
+export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
+export const expoToFineness=expo=>clampLevel(1+9*clampControl(Number(expo)||0,0,MAX_PHONE_EXPO)/MAX_PHONE_EXPO);
 
-// Human defaults for a short landscape phone gimbal.
-// This is transmitter throw, not a second expo: the real FC owns the one
-// canonical response curve. Lower phone gain maps the short touchscreen travel
-// to a smaller fraction of a physical RC stick without changing aircraft physics.
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
-  leftSensitivity:fineLevelToSensitivity(9),
-  rightSensitivity:fineLevelToSensitivity(10),
+  leftFineness:7,
+  rightFineness:10,
+  lockRightHorizontal:false,
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
 export function copyControls(c){return{roll:+c.roll||0,pitch:+c.pitch||0,yaw:+c.yaw||0,throttle:+c.throttle||0,arm:Boolean(c.arm)};}
 export function clampControl(value,lo=-1,hi=1){return Math.max(lo,Math.min(hi,value));}
 export function normalizePhoneSettings(settings={}){
-  const left=Number(settings.leftSensitivity),right=Number(settings.rightSensitivity);
   return{
-    leftSensitivity:clampControl(Number.isFinite(left)?left:DEFAULT_PHONE_SETTINGS.leftSensitivity,MIN_PHONE_GAIN,1),
-    rightSensitivity:clampControl(Number.isFinite(right)?right:DEFAULT_PHONE_SETTINGS.rightSensitivity,MIN_PHONE_GAIN,1),
+    leftFineness:clampLevel(settings.leftFineness??DEFAULT_PHONE_SETTINGS.leftFineness),
+    rightFineness:clampLevel(settings.rightFineness??DEFAULT_PHONE_SETTINGS.rightFineness),
+    lockRightHorizontal:Boolean(settings.lockRightHorizontal),
   };
 }
 
-// Linear phone-stick throw. The shared C++ FC applies the only canonical expo.
-// 1/10 fineness => gain 1.00 (full RC stick); 10/10 => gain 0.25.
-export function phoneAxis(value,sensitivity=1){
-  return clampControl(value)*clampControl(sensitivity,MIN_PHONE_GAIN,1);
+// Standard cubic transmitter-style expo for the phone input adapter only.
+// It preserves the exact center and exact +/-1 endpoints, so sensitivity never
+// removes controller authority. The shared C++ flight controller remains the
+// sole source of aircraft control law and applies its own RC shaping.
+export function phoneAxis(value,fineness=1){
+  const x=clampControl(value),expo=finenessToExpo(fineness);
+  return clampControl(x*(1-expo)+x*x*x*expo);
 }
-export function inversePhoneAxis(value,sensitivity=1){
-  const gain=clampControl(sensitivity,MIN_PHONE_GAIN,1);
-  return clampControl(clampControl(value)/gain);
+export function inversePhoneAxis(value,fineness=1){
+  const target=Math.abs(clampControl(value));
+  if(target===0||target===1)return Math.sign(value)*target;
+  const expo=finenessToExpo(fineness),sign=Math.sign(value);
+  let lo=0,hi=1;
+  for(let i=0;i<28;i++){
+    const mid=(lo+hi)/2,shaped=mid*(1-expo)+mid*mid*mid*expo;
+    if(shaped<target)lo=mid;else hi=mid;
+  }
+  return sign*(lo+hi)/2;
 }
 
 export function armReady(fcState,controls,available=true,settings=DEFAULT_PHONE_SETTINGS){
-  // Arming follows actual gimbal displacement, not the reduced RC throw.
+  // Arming follows physical virtual-gimbal displacement, not expo-shaped output.
   const cfg=normalizePhoneSettings(settings);
-  const rawRoll=inversePhoneAxis(controls.roll,cfg.rightSensitivity),rawPitch=inversePhoneAxis(controls.pitch,cfg.rightSensitivity),rawYaw=inversePhoneAxis(controls.yaw,cfg.leftSensitivity);
-  return Boolean(available)&&fcState==="DISARMED"&&controls.throttle<=ARM_LIMITS.throttle&&Math.abs(rawRoll)<ARM_LIMITS.roll&&Math.abs(rawPitch)<ARM_LIMITS.pitch&&Math.abs(rawYaw)<ARM_LIMITS.yaw;
+  const rawRoll=inversePhoneAxis(controls.roll,cfg.rightFineness);
+  const rawPitch=cfg.lockRightHorizontal?0:inversePhoneAxis(controls.pitch,cfg.rightFineness);
+  const rawYaw=inversePhoneAxis(controls.yaw,cfg.leftFineness);
+  return Boolean(available)&&fcState==="DISARMED"&&controls.throttle<=ARM_LIMITS.throttle&&
+    Math.abs(rawRoll)<ARM_LIMITS.roll&&Math.abs(rawPitch)<ARM_LIMITS.pitch&&Math.abs(rawYaw)<ARM_LIMITS.yaw;
 }
-export function normalizedPointer(element,event){
-  const rect=element.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,r=Math.max(1,Math.min(rect.width,rect.height)*.42);
-  let x=(event.clientX-cx)/r,y=(event.clientY-cy)/r;const length=Math.hypot(x,y);if(length>1){x/=length;y/=length;}
+
+function constrainUnit(x,y){
+  const length=Math.hypot(x,y);
+  if(length>1){x/=length;y/=length;}
   return{x:clampControl(x),y:clampControl(y)};
 }
+
+function renderedKnobAxes(element){
+  const knob=element.querySelector?.(".knob,.solo-knob");
+  const left=parseFloat(knob?.style?.left??"");
+  const top=parseFloat(knob?.style?.top??"");
+  return{
+    x:Number.isFinite(left)?clampControl((left-50)/42):0,
+    y:Number.isFinite(top)?clampControl((top-50)/42):0,
+  };
+}
+
+// Virtual gimbals are displacement controls, not absolute touch pads.
+// On pointer-down the current rendered stick position is captured; subsequent
+// movement adds finger displacement to that position. This prevents a re-touch
+// from teleporting retained throttle while keeping the right stick natural.
+const pointerDrags=new WeakMap();
+export function normalizedPointer(element,event){
+  const rect=element.getBoundingClientRect();
+  const radius=Math.max(1,Math.min(rect.width,rect.height)*.42);
+  if(event.type==="pointerdown"){
+    const base=renderedKnobAxes(element);
+    pointerDrags.set(element,{pointerId:event.pointerId,x:event.clientX,y:event.clientY,base});
+    return base;
+  }
+  const drag=pointerDrags.get(element);
+  if(drag&&drag.pointerId===event.pointerId){
+    return constrainUnit(
+      drag.base.x+(event.clientX-drag.x)/radius,
+      drag.base.y+(event.clientY-drag.y)/radius,
+    );
+  }
+  const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
+  return constrainUnit((event.clientX-cx)/radius,(event.clientY-cy)/radius);
+}
+export function endPointerDrag(element,pointerId){
+  const drag=pointerDrags.get(element);
+  if(!drag||pointerId==null||drag.pointerId===pointerId)pointerDrags.delete(element);
+}
+
 export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
-    controls.yaw=phoneAxis(point.x,cfg.leftSensitivity);
+    controls.yaw=phoneAxis(point.x,cfg.leftFineness);
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
-    // Screen-right commands a physical bank to the right. Body roll sign is
-    // opposite screen X, so invert only the command; phone gain is input-only.
-    controls.roll=phoneAxis(-point.x,cfg.rightSensitivity);
-    controls.pitch=phoneAxis(-point.y,cfg.rightSensitivity);
+    // Screen-right must command a physical bank to the right. The established
+    // body-roll convention is opposite screen X, hence this single sign flip.
+    controls.roll=phoneAxis(-point.x,cfg.rightFineness);
+    controls.pitch=cfg.lockRightHorizontal?0:phoneAxis(-point.y,cfg.rightFineness);
   }
   return controls;
 }
@@ -72,9 +116,8 @@ export function releaseStick(controls,kind){
 }
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
-  // Undo only the phone throw for drawing, so the knob remains under the finger.
   return kind==="left"
-    ?{x:inversePhoneAxis(controls.yaw,cfg.leftSensitivity),y:1-2*controls.throttle}
-    :{x:-inversePhoneAxis(controls.roll,cfg.rightSensitivity),y:-inversePhoneAxis(controls.pitch,cfg.rightSensitivity)};
+    ?{x:inversePhoneAxis(controls.yaw,cfg.leftFineness),y:1-2*controls.throttle}
+    :{x:-inversePhoneAxis(controls.roll,cfg.rightFineness),y:cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.pitch,cfg.rightFineness)};
 }
 export function knobPercent(value){return 50+clampControl(value)*42;}
