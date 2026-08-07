@@ -16,7 +16,9 @@ export function applyStick(controls,kind,point){
     controls.yaw=clampControl(point.x);
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
-    controls.roll=clampControl(point.x);
+    // Screen-right must command a physical bank to the right. The flight/body
+    // roll convention is opposite to screen X, so invert only the command.
+    controls.roll=clampControl(-point.x);
     controls.pitch=clampControl(-point.y);
   }
   return controls;
@@ -27,6 +29,8 @@ export function releaseStick(controls,kind){
   return controls;
 }
 export function knobAxes(controls,kind){
-  return kind==="left"?{x:controls.yaw,y:1-2*controls.throttle}:{x:controls.roll,y:-controls.pitch};
+  // Undo the roll sign conversion for drawing so the right-stick knob remains
+  // exactly under the user's finger while the FC receives the corrected sign.
+  return kind==="left"?{x:controls.yaw,y:1-2*controls.throttle}:{x:-controls.roll,y:-controls.pitch};
 }
 export function knobPercent(value){return 50+clampControl(value)*42;}
