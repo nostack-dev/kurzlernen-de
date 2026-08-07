@@ -61,7 +61,8 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     const float climb_throttle = raw_throttle(transformed.ch[FC_SBUS_THROTTLE]);
     CHECK(controller.debug().vertical_accel_mps2 > 3.0f);
-    CHECK(climb_throttle > 0.50f);
+    // More than hover, but not the old linear force->throttle over-command.
+    CHECK(climb_throttle > 0.43f && climb_throttle < 0.50f);
 
     nav.agl_m = 3.5f;
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);

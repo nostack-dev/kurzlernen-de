@@ -220,8 +220,16 @@ public:
         const float required_specific_force = std::sqrt(
             forward_accel * forward_accel + right_accel * right_accel +
             specific_up * specific_up);
+        // Propeller thrust is approximately proportional to rotor speed squared.
+        // Runtime throttle maps linearly onto the ESC pulse above idle, which is
+        // much closer to rotor-speed command than to thrust. Convert the required
+        // specific-force ratio through sqrt() before commanding the actuator; a
+        // linear force->throttle map over-commands transients and excites Z ringing.
+        const float thrust_ratio = required_specific_force / kGravityMps2;
+        const float hover_motor_command = kEscCommandOffset + kEscCommandScale * hover_trim_;
+        const float required_motor_command = hover_motor_command * std::sqrt(thrust_ratio);
         const float throttle_command = clamp(
-            hover_trim_ * required_specific_force / kGravityMps2,
+            (required_motor_command - kEscCommandOffset) / kEscCommandScale,
             kMinFlightThrottle, kMaxFlightThrottle);
 
         out.ch[FC_SBUS_ROLL] = centered_raw(roll_command);
@@ -260,6 +268,13 @@ private:
     static constexpr float kMaxVerticalAccelerationMps2 = 4.0f;
     static constexpr float kMinSpecificUpMps2 = 4.0f;
     static constexpr float kMaxSpecificUpMps2 = 14.0f;
+
+    // pulse() maps Runtime throttle t to 1050 + 950*t us. Expressed on the
+    // ESC's 1000..2000 us command interval that is 0.05 + 0.95*t.
+    static constexpr float kEscCommandOffset =
+        static_cast<float>(kEscIdleUs - kEscMinUs) / static_cast<float>(kEscMaxUs - kEscMinUs);
+    static constexpr float kEscCommandScale =
+        static_cast<float>(kEscMaxUs - kEscIdleUs) / static_cast<float>(kEscMaxUs - kEscMinUs);
 
     static constexpr float kHeadingKp = 2.2f;                // deg/s per deg heading error
     static constexpr float kHoverAdapt = 0.050f;
