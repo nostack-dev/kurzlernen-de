@@ -69,10 +69,22 @@ struct StateIntent {
 };
 
 inline StateIntent state_intent(const RC& rc) {
+    float right = shape(centered(rc.ch[FC_SBUS_ROLL]), 0.035f, 0.25f);
+    float forward = shape(centered(rc.ch[FC_SBUS_PITCH]), 0.035f, 0.25f);
+
+    // The two translational stick axes are one desired velocity vector. Direction
+    // comes from (forward,right), and vector length is speed. Even a square-corner
+    // transmitter input therefore cannot create sqrt(2) extra speed authority.
+    const float magnitude = std::sqrt(forward * forward + right * right);
+    if (magnitude > 1.0f) {
+        forward /= magnitude;
+        right /= magnitude;
+    }
+
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
     return {
-        shape(centered(rc.ch[FC_SBUS_ROLL]), 0.035f, 0.25f) * kStateMaxHorizontalSpeedMps,
-        shape(centered(rc.ch[FC_SBUS_PITCH]), 0.035f, 0.25f) * kStateMaxHorizontalSpeedMps,
+        right * kStateMaxHorizontalSpeedMps,
+        forward * kStateMaxHorizontalSpeedMps,
         shape(centered(rc.ch[FC_SBUS_YAW]), 0.045f, 0.20f) * kStateMaxYawRateDps,
         kStateMinClearanceM + clearance01 * (kStateMaxClearanceM - kStateMinClearanceM),
         rc.ch[FC_SBUS_ARM] > 1300,
