@@ -1,8 +1,9 @@
-export const P2P_PROTOCOL = 2;
+export const P2P_PROTOCOL = 3;
 export const CONTROL_STALE_MS = 350;
+export const SESSION_GRACE_MS = 5 * 60 * 1000;
 
 const clamp = (value,lo,hi) => Math.max(lo,Math.min(hi,value));
-const rtcConfig = Object.freeze({iceServers:[],bundlePolicy:"max-bundle"});
+const rtcConfig = Object.freeze({iceServers:[],bundlePolicy:"max-bundle",iceCandidatePoolSize:4});
 
 function assertWebRtc(){
   if(typeof RTCPeerConnection!=="function") throw new Error("This browser does not support WebRTC DataChannel.");
@@ -48,28 +49,51 @@ function safeSend(channel,message){
 }
 
 class PeerBase{
-  constructor(){this.pc=null;this.channel=null;this.onState=null;}
+  constructor(){
+    this.pc=null;
+    this.channel=null;
+    this.onState=null;
+    this.lastLinkedWall=0;
+    this.everLinked=false;
+  }
   get linked(){return this.channel?.readyState==="open"&&this.pc?.connectionState==="connected";}
+  get recentlyLinked(){return this.everLinked&&performance.now()-this.lastLinkedWall<=SESSION_GRACE_MS;}
+  get sessionRemainingMs(){return this.recentlyLinked?Math.max(0,SESSION_GRACE_MS-(performance.now()-this.lastLinkedWall)):0;}
+  _markLinked(){
+    if(this.linked){
+      this.everLinked=true;
+      this.lastLinkedWall=performance.now();
+      try{localStorage.setItem("arondight45LastLinkedAt",String(Date.now()));}catch{}
+    }
+  }
   _newPeer(){
     assertWebRtc();
     const pc=new RTCPeerConnection(rtcConfig);this.pc=pc;
-    pc.onconnectionstatechange=()=>{this._connectionChanged();this.onState?.();};
+    pc.onconnectionstatechange=()=>{this._markLinked();this._connectionChanged();this.onState?.();};
     pc.oniceconnectionstatechange=()=>this.onState?.();
     return pc;
   }
   _connectionChanged(){}
   _attachChannel(channel){
+    if(this.channel&&this.channel!==channel&&this.channel.readyState!=="closed")try{this.channel.close();}catch{}
     this.channel=channel;channel.binaryType="arraybuffer";
-    channel.onopen=()=>this.onState?.();channel.onclose=()=>{this._channelClosed();this.onState?.();};channel.onerror=()=>this.onState?.();
+    channel.onopen=()=>{this._markLinked();this.onState?.();};
+    channel.onclose=()=>{if(this.channel===channel)this.channel=null;this._channelClosed();this.onState?.();};
+    channel.onerror=()=>this.onState?.();
   }
   _channelClosed(){}
   async disconnect(){
     const channel=this.channel,pc=this.pc;this.channel=null;this.pc=null;
     try{channel?.close();}catch{}try{pc?.close();}catch{}
+    this.lastLinkedWall=0;this.everLinked=false;
     this._channelClosed();this.onState?.();
   }
   stateLabel(){
     if(this.linked)return"P2P LINKED";
+    if(this.pc&&this.recentlyLinked){
+      const seconds=Math.ceil(this.sessionRemainingMs/1000);
+      return`RECONNECTING · SESSION HELD ${seconds}s`;
+    }
     if(this.pc)return`P2P ${String(this.pc.connectionState||"connecting").toUpperCase()}`;
     return"P2P DISCONNECTED";
   }
@@ -78,7 +102,11 @@ class PeerBase{
 export class ViewPeerLink extends PeerBase{
   constructor(){super();this.control=null;this.lastControlWall=0;this.lastSequence=null;}
   _channelClosed(){this.control=null;this.lastControlWall=0;this.lastSequence=null;}
-  _connectionChanged(){if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState))this._channelClosed();}
+  _connectionChanged(){
+    if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState)){
+      this.control=null;this.lastControlWall=0;this.lastSequence=null;
+    }
+  }
   _attachChannel(channel){
     super._attachChannel(channel);
     channel.onmessage=event=>{
@@ -90,7 +118,7 @@ export class ViewPeerLink extends PeerBase{
       if(!numeric.every(Number.isFinite))return;
       this.lastSequence=sequence;
       this.control={roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:message.arm===true};
-      this.lastControlWall=performance.now();this.onState?.();
+      this.lastControlWall=performance.now();this._markLinked();this.onState?.();
     };
   }
   async acceptOffer(code){
@@ -106,13 +134,28 @@ export class ViewPeerLink extends PeerBase{
 }
 
 export class ControllerPeerLink extends PeerBase{
-  constructor(){super();this.sequence=1;this.onTelemetry=null;}
+  constructor(){super();this.sequence=1;this.onTelemetry=null;this.reopenTimer=0;}
+  _makeControlChannel(){
+    if(!this.pc||this.pc.connectionState!=="connected"||this.channel?.readyState==="open"||this.channel?.readyState==="connecting")return;
+    const channel=this.pc.createDataChannel("arondight45-control",{ordered:false,maxRetransmits:0});
+    this._attachChannel(channel);
+  }
+  _connectionChanged(){
+    if(this.pc?.connectionState==="connected"&&!this.channel){
+      clearTimeout(this.reopenTimer);
+      this.reopenTimer=setTimeout(()=>this._makeControlChannel(),80);
+    }
+  }
+  _channelClosed(){
+    clearTimeout(this.reopenTimer);
+    if(this.pc?.connectionState==="connected")this.reopenTimer=setTimeout(()=>this._makeControlChannel(),120);
+  }
   _attachChannel(channel){
     super._attachChannel(channel);
     channel.onmessage=event=>{
       let message;try{message=JSON.parse(event.data);}catch{return;}
       if(message?.type!=="telemetry"||message.protocol!==P2P_PROTOCOL)return;
-      this.onTelemetry?.(message);
+      this._markLinked();this.onTelemetry?.(message);
     };
   }
   async createOffer(){
@@ -128,6 +171,7 @@ export class ControllerPeerLink extends PeerBase{
     await this.pc.setRemoteDescription(decodeSignal(code,"answer"));
   }
   publish(control,force=false){
+    if(!this.channel&&this.pc?.connectionState==="connected")this._makeControlChannel();
     const numeric=[control.roll,control.pitch,control.yaw,control.throttle].map(Number);
     if(!numeric.every(Number.isFinite))return false;
     return safeSend(this.channel,{type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),arm:control.arm===true,force});
