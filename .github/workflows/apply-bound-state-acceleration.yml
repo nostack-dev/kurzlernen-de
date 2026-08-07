@@ -1,0 +1,68 @@
+name: Apply bounded state acceleration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-bound-state-acceleration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply physical acceleration bound
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text()
+          old='''    static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s
+    static constexpr float kMaxHorizontalAccelerationMps2 = 4.5f;
+'''
+          new='''    static constexpr float kHorizontalVelocityGain = 2.0f;  // 1/s
+    // GAME commands a velocity vector, not an instantaneous attitude step. Bound
+    // dv/dt so target-vector reversals stay inside achievable rigid-body/rotor
+    // response. Velocity authority remains 5 m/s; only physical acceleration is limited.
+    static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
+'''
+          assert s.count(old)==1,('acceleration constants',s.count(old))
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('tests/state_control_test.cpp')
+          s=p.read_text()
+          old_new=[
+            ('CHECK(controller.debug().forward_accel_mps2 > 4.0f);','CHECK(controller.debug().forward_accel_mps2 > 1.9f);'),
+            ('CHECK(accel_norm > 4.3f && accel_norm < 4.6f);','CHECK(accel_norm > 1.9f && accel_norm < 2.1f);'),
+            ('CHECK(controller.debug().right_accel_mps2 > 4.0f);','CHECK(controller.debug().right_accel_mps2 > 1.9f);'),
+          ]
+          for old,new in old_new:
+            assert s.count(old)==1,(old,s.count(old))
+            s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: Validate controller
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-tests
+          /tmp/state-control-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
+          /tmp/fc-core-tests
+          node tests/architecture_invariants.mjs
+          git diff --check
+      - name: Commit product fix
+        run: |
+          set -euxo pipefail
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp
+          git commit -m "Bound GAME velocity-vector acceleration"
+          git pull --rebase origin main
+          git push origin HEAD:main
