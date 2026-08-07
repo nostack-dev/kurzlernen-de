@@ -1,6 +1,7 @@
 import {ControllerPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
 import {neutralControls,armReady as sharedArmReady,normalizedPointer,applyStick,releaseStick,knobAxes,knobPercent} from "./control_semantics.mjs";
+import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries([
@@ -11,12 +12,13 @@ const SEND_INTERVAL_MS = 20;
 const peer = new ControllerPeerLink();
 const answerScanner = new QrScanner(ui.answerVideo,ui.answerCanvas);
 let controls=neutralControls();
+let phoneSettings=loadPhoneControlSettings();
 let offerCreating=false;
 let lastTelemetry={fc_state:"—"};
 
 function setConnection(text,kind="warn"){ui.connection.textContent=text;ui.connection.className=`pill ${kind}`;}
 function setPairStatus(text,kind="warn"){ui.pairStatus.textContent=text;ui.pairStatus.className=`pair-status ${kind}`;}
-function armReady(){return sharedArmReady(lastTelemetry.fc_state,controls,peer.linked);}
+function armReady(){return sharedArmReady(lastTelemetry.fc_state,controls,peer.linked,phoneSettings);}
 function updateArm(){
   ui.arm.classList.remove("arming","armed");
   if(controls.arm){
@@ -30,7 +32,7 @@ function updateArm(){
 }
 function setKnob(knob,x,y){knob.style.left=`${knobPercent(x)}%`;knob.style.top=`${knobPercent(y)}%`;knob.style.transform="translate(-50%,-50%)";}
 function updateSticks(){
-  const left=knobAxes(controls,"left"),right=knobAxes(controls,"right");
+  const left=knobAxes(controls,"left",phoneSettings),right=knobAxes(controls,"right",phoneSettings);
   setKnob(ui.leftKnob,left.x,left.y);
   setKnob(ui.rightKnob,right.x,right.y);
   ui.leftValue.textContent=`T ${(controls.throttle*100).toFixed(0)}% · Y ${(controls.yaw*100).toFixed(0)}%`;
@@ -45,7 +47,7 @@ function bindStick(element,kind){
   element.addEventListener("pointermove",event=>{if(event.pointerId===pointer)apply(event);});
   const release=event=>{if(event.pointerId!==pointer)return;pointer=null;releaseStick(controls,kind);updateSticks();publish(true);};
   element.addEventListener("pointerup",release);element.addEventListener("pointercancel",release);
-  function apply(event){applyStick(controls,kind,normalizedPointer(element,event));updateSticks();publish();}
+  function apply(event){applyStick(controls,kind,normalizedPointer(element,event),phoneSettings);updateSticks();publish();}
 }
 
 async function applyAnswerCode(code){
@@ -109,9 +111,15 @@ ui.copyOffer.onclick=async()=>{try{await copySignal(ui.offerCode.value);setPairS
 ui.shareOffer.onclick=async()=>{try{await shareSignal("Arondight45 controller offer",ui.offerCode.value);setPairStatus("Offer shared.","good");}catch(error){if(error?.name!=="AbortError")setPairStatus(error.message,"bad");}};
 ui.fullscreen.onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();try{await screen.orientation?.lock?.("landscape");}catch{}}catch{}};
 
+mountPhoneControlSettings({
+  parent:document.querySelector(".top"),
+  buttonText:"SETTINGS",
+  onChange:next=>{phoneSettings=next;safetyNeutral(true);},
+});
+
 addEventListener("pagehide",()=>safetyNeutral(true));
-addEventListener("pageshow",()=>{safetyNeutral(false);publish(true);updateConnection();});
-document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{publish(true);updateConnection();}});
+addEventListener("pageshow",()=>{phoneSettings=loadPhoneControlSettings();safetyNeutral(false);publish(true);updateConnection();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{phoneSettings=loadPhoneControlSettings();publish(true);updateConnection();}});
 setInterval(()=>publish(),SEND_INTERVAL_MS);
 setInterval(updateConnection,250);
 
