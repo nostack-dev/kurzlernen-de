@@ -1,4 +1,4 @@
-name: State-loop bandwidth matrix
+name: Corrected inner-loop authority matrix
 
 on:
   push:
@@ -16,40 +16,60 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: d060-a26
-            damping: "0.60f"
-            angle: "2.6f"
-          - label: d065-a26
-            damping: "0.65f"
-            angle: "2.6f"
-          - label: d060-a32
-            damping: "0.60f"
-            angle: "3.2f"
-          - label: d065-a32
-            damping: "0.65f"
-            angle: "3.2f"
+          - label: a30-p006-d15-damp0
+            angle: "3.0f"
+            kp: "0.0060f"
+            kd: "0.000015f"
+            damping: "0.0f"
+          - label: a40-p008-d20-damp0
+            angle: "4.0f"
+            kp: "0.0080f"
+            kd: "0.000020f"
+            damping: "0.0f"
+          - label: a50-p010-d25-damp0
+            angle: "5.0f"
+            kp: "0.0100f"
+            kd: "0.000025f"
+            damping: "0.0f"
+          - label: a30-p006-d15-damp15
+            angle: "3.0f"
+            kp: "0.0060f"
+            kd: "0.000015f"
+            damping: "0.15f"
+          - label: a40-p008-d20-damp15
+            angle: "4.0f"
+            kp: "0.0080f"
+            kd: "0.000020f"
+            damping: "0.15f"
+          - label: a40-p010-d25-damp25
+            angle: "4.0f"
+            kp: "0.0100f"
+            kd: "0.000025f"
+            damping: "0.25f"
     name: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
       - name: Apply candidate and run shared tests
         env:
-          DAMPING: ${{ matrix.damping }}
           ANGLE: ${{ matrix.angle }}
+          KP: ${{ matrix.kp }}
+          KD: ${{ matrix.kd }}
+          DAMPING: ${{ matrix.damping }}
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           import os,re
           from pathlib import Path
-          p=Path('esp32/Arondight45_StateControl.hpp')
-          s=p.read_text()
-          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};',s,count=1)
-          assert n==1,n
-          p.write_text(s)
-          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
-          s=p.read_text()
-          s,n=re.subn(r'constexpr float kAngleToRate = [0-9.]+f;',f'constexpr float kAngleToRate = {os.environ["ANGLE"]};',s,count=1)
-          assert n==1,n
-          p.write_text(s)
+          core=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=core.read_text()
+          s,n=re.subn(r'constexpr float kAngleToRate = [0-9.]+f;',f'constexpr float kAngleToRate = {os.environ["ANGLE"]};',s,count=1); assert n==1,n
+          s,n=re.subn(r'PID roll_pid_\{Gains\{[0-9.]+f, 0\.0007f, [0-9.]+f, 0\.18f, 0\.38f, 55\.0f\}\};',f'PID roll_pid_{{Gains{{{os.environ["KP"]}, 0.0007f, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}}};',s,count=1); assert n==1,n
+          s,n=re.subn(r'PID pitch_pid_\{Gains\{[0-9.]+f, 0\.0007f, [0-9.]+f, 0\.18f, 0\.38f, 55\.0f\}\};',f'PID pitch_pid_{{Gains{{{os.environ["KP"]}, 0.0007f, {os.environ["KD"]}, 0.18f, 0.38f, 55.0f}}}};',s,count=1); assert n==1,n
+          core.write_text(s)
+          outer=Path('esp32/Arondight45_StateControl.hpp')
+          s=outer.read_text()
+          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',f'static constexpr float kHorizontalAccelerationDamping = {os.environ["DAMPING"]};',s,count=1); assert n==1,n
+          outer.write_text(s)
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
           /tmp/fc_core_test
