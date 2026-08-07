@@ -52,8 +52,23 @@ int main() {
     CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_YAW])) < 0.01f);
     CHECK(raw_throttle(transformed.ch[FC_SBUS_THROTTLE]) < 0.001f);
 
+    // Even a full GAME motion/turn request plus measured drift is execution-inert
+    // before the authoritative inner Runtime has armed. The intent is preserved
+    // at the input layer but cannot fight or bypass the production arm gate.
+    rc = base_rc(true);
+    rc.ch[FC_SBUS_ROLL] = fc::centered_raw(1.0f);
+    rc.ch[FC_SBUS_PITCH] = fc::centered_raw(-1.0f);
+    rc.ch[FC_SBUS_YAW] = fc::centered_raw(1.0f);
+    nav = {{1.5f, -1.2f, 0.8f}, 0.25f, true};
+    transformed = controller.transform(rc, nav, 37.0f, false, 0.001f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.01f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.01f);
+    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_YAW])) < 0.01f);
+    CHECK(raw_throttle(transformed.ch[FC_SBUS_THROTTLE]) < 0.001f);
+
     // Below requested ground clearance must command climb thrust once armed.
-    nav.agl_m = 0.5f;
+    nav = {{0.0f, 0.0f, 0.0f}, 0.5f, true};
+    rc = base_rc(false);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(raw_throttle(transformed.ch[FC_SBUS_THROTTLE]) > 0.50f);
 
