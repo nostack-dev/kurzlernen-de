@@ -26,14 +26,8 @@ page.on("console", message => {
 });
 page.on("request", request => {
   const requestUrl = new URL(request.url());
-  if (requestUrl.hostname !== "127.0.0.1" && requestUrl.hostname !== "localhost") {
-    externalRequests.push(request.url());
-  }
+  if (requestUrl.hostname !== "127.0.0.1" && requestUrl.hostname !== "localhost") externalRequests.push(request.url());
 });
-
-async function text(selector) {
-  return page.$eval(selector, element => element.textContent || "");
-}
 
 async function waitForText(selector, predicate, timeout = 15000) {
   await page.waitForFunction(
@@ -42,10 +36,30 @@ async function waitForText(selector, predicate, timeout = 15000) {
       if (!element) return false;
       return Function("value", `return (${source})(value)`)(element.textContent || "");
     },
-    { timeout },
-    selector,
-    predicate.toString(),
+    { timeout }, selector, predicate.toString(),
   );
+}
+
+async function simTime() {
+  return page.$eval("#simTime", element => parseFloat(element.textContent || "0"));
+}
+
+async function waitForSimTime(target, timeout = 60000) {
+  await page.waitForFunction(
+    targetTime => parseFloat(document.querySelector("#simTime")?.textContent || "0") >= targetTime,
+    { timeout }, target,
+  );
+}
+
+async function snapshot() {
+  return page.evaluate(() => ({
+    simTime: document.querySelector("#simTime")?.textContent || "",
+    state: document.querySelector("#fcState")?.textContent || "",
+    status: document.querySelector("#status")?.textContent || "",
+    motors: document.querySelector("#motors")?.textContent || "",
+    rpm: document.querySelector("#rpm")?.textContent || "",
+    attitude: document.querySelector("#attitude")?.textContent || "",
+  }));
 }
 
 try {
@@ -71,29 +85,38 @@ try {
   if (externalRequests.length) throw new Error(`self-contained simulator made external requests: ${externalRequests.join(", ")}`);
 
   await page.click("#run");
-  await page.waitForFunction(() => parseFloat(document.querySelector("#simTime")?.textContent || "0") > 0.05, { timeout: 10000 });
-  await waitForText("#fcState", value => value === "DISARMED", 15000);
+  await waitForSimTime(0.05, 10000);
 
-  // Production arming contract: the runtime has already observed ARM LOW after
-  // calibration; switch HIGH and hold for one full simulated second.
+  // Calibration is specified in controller samples/simulated time, not host
+  // wall time. This keeps the E2E deterministic even on a slow software GPU.
+  await waitForSimTime(2.2, 60000);
+  let state = await page.$eval("#fcState", element => element.textContent || "");
+  if (state !== "DISARMED") throw new Error(`after 2.2 simulated seconds calibration is not complete: ${JSON.stringify(await snapshot())}`);
+
+  // Production arming contract: ARM LOW has been observed after calibration;
+  // now hold HIGH for >1.0 second of simulated controller time.
+  const armStartedAt = await simTime();
   await page.keyboard.press("Space");
-  await waitForText("#fcState", value => value === "ARMED", 15000);
+  await waitForSimTime(armStartedAt + 1.1, 45000);
+  state = await page.$eval("#fcState", element => element.textContent || "");
+  if (state !== "ARMED") throw new Error(`arming failed after >1.0 simulated second: ${JSON.stringify(await snapshot())}`);
 
   const armed = await page.evaluate(() => ({
     state: document.querySelector("#fcState")?.textContent || "",
     motors: (document.querySelector("#motors")?.textContent || "").trim().split(/\s+/).map(Number),
     rpm: (document.querySelector("#rpm")?.textContent || "").trim().split(/\s+/).map(Number),
   }));
-  if (armed.state !== "ARMED") throw new Error(`arming failed: ${armed.state}`);
   if (!armed.motors.every(value => value === 1050)) throw new Error(`armed idle pulses are wrong: ${armed.motors.join(" ")}`);
 
-  // The physics model must treat 1050 us as armed idle, not zero voltage.
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // 1050 us is 5% of the 1000..2000 ESC command range, not zero voltage.
+  const idleStart = await simTime();
+  await waitForSimTime(idleStart + 0.15, 15000);
   const idleRpm = await page.$eval("#rpm", element => (element.textContent || "").trim().split(/\s+/).map(Number));
   if (!idleRpm.every(value => Number.isFinite(value) && value > 0)) throw new Error(`1050 us produced zero/invalid idle RPM: ${idleRpm.join(" ")}`);
 
   await page.$eval("#touchThrottle", element => { element.value = "0.25"; });
-  await new Promise(resolve => setTimeout(resolve, 500));
+  const throttleStart = await simTime();
+  await waitForSimTime(throttleStart + 0.1, 15000);
   const throttleMotors = await page.$eval("#motors", element => (element.textContent || "").trim().split(/\s+/).map(Number));
   if (!throttleMotors.every(value => Number.isFinite(value) && value > 1050)) throw new Error(`throttle did not raise motor pulses: ${throttleMotors.join(" ")}`);
 
