@@ -100,6 +100,26 @@ try{
   if(!liftPulses.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${liftPulses.join(" ")}`);
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
 
+  // Slider is a desired AGL state; moving it must create real motor/physics climb.
+  await setValue(controller,"#gameClearanceSlider","2.8");
+  await waitText(controller,"#gameClearanceValue","2.8 m",10000);
+  const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);
+  const clearanceRise=bodyMotion(await latestFlightSample(view));
+  if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance slider did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
+  await setValue(controller,"#gameClearanceSlider","2.0");
+  await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.70;},{timeout:90000});
+
+  // Right-stick Y is camera-only free-look; neutral X must not turn the aircraft.
+  await view.click("#camFollow");
+  const lookYawBefore=await yaw(view),lookBox=await stickBox(controller,"#rightStick"),lookX=lookBox.x+lookBox.w/2,lookY=lookBox.y+lookBox.h/2,lookR=Math.min(lookBox.w,lookBox.h)*.42;
+  await controller.mouse.move(lookX,lookY);await controller.mouse.down();await controller.mouse.move(lookX,lookY-lookR*.58,{steps:5});
+  await view.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))>.20,{timeout:10000});
+  const lookStart=await simTime(view);await waitSim(view,lookStart+.18,20000);
+  const lookYawAfter=await yaw(view);let lookYawDelta=(lookYawAfter-lookYawBefore)%360;if(lookYawDelta>180)lookYawDelta-=360;if(lookYawDelta<-180)lookYawDelta+=360;
+  if(Math.abs(lookYawDelta)>3.0)throw new Error(`camera-only free-look leaked into heading: ${lookYawBefore} -> ${lookYawAfter}`);
+  await controller.mouse.up();
+  await view.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))<.02,{timeout:10000});
+
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+.55,30000);
@@ -121,6 +141,19 @@ try{
   if(braked.horizontal>Math.max(.45,moving.horizontal*.75))throw new Error(`zero-horizontal-velocity target did not converge after physical counter-tilt: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
   if(Math.abs(braked.vertical)>1.0)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
   console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
+
+  // Left-stick X is body-right desired velocity: real strafe plus zero-vector braking.
+  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
+  const strafeStart=await simTime(view);await waitSim(view,strafeStart+.55,30000);
+  const strafing=bodyMotion(await latestFlightSample(view));
+  if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: ${JSON.stringify(strafing)}`);
+  await controller.mouse.up();
+  const strafeBrakeStart=await simTime(view);await waitSim(view,strafeBrakeStart+4.0,90000);
+  const strafeSamples=await flightSamples(view),strafeTrace=traceAtOffsets(strafeSamples,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];
+  const strafePeak=Math.max(...strafeTrace.map(point=>point.horizontal));
+  if(strafePeak>2.5)throw new Error(`strafe braking transient is unbounded: peak=${strafePeak.toFixed(3)} trace=${JSON.stringify(strafeTrace)}`);
+  if(strafeBraked.horizontal>Math.max(.50,strafing.horizontal*.78))throw new Error(`strafe zero-vector braking did not converge: before=${JSON.stringify(strafing)}, trace=${JSON.stringify(strafeTrace)}`);
+  console.log(`State-control E2E: strafe right=${strafing.right.toFixed(2)}m/s, peak=${strafePeak.toFixed(2)} -> ${strafeBraked.horizontal.toFixed(2)}m/s.`);
 
   const yawBefore=await yaw(view);
   const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
@@ -151,5 +184,5 @@ try{
   if(!/fail-safe|stale|reconnect|disconnected/i.test(status))throw new Error(`controller loss not surfaced: ${status}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, settled 2m AGL, bounded physical braking convergence, heading control, session recovery, hard-loss disarm.");
+  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, functional AGL slider, camera-only free-look, forward/strafe physical convergence, heading control, session recovery, hard-loss disarm.");
 }finally{try{await controllerBrowser.close();}catch{}try{await viewBrowser.close();}catch{}}

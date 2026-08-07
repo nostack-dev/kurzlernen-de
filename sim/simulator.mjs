@@ -419,6 +419,8 @@ function setCameraMode(next){
 function updateCamera(){
   const position=new THREE.Vector3(...physics.position()),raw=physics.rotation(),q=new THREE.Quaternion(raw[0],raw[1],raw[2],raw[3]);
   const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
+  const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;
+  $("viewport").dataset.gameLookPitch=viewPitch.toFixed(3);
   if(cameraMode==="fpv"){
     const bodyUp=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();
     // A real FPV camera is normally mounted with positive uptilt. Keep the
@@ -426,7 +428,9 @@ function updateCamera(){
     // point its optical axis 30 degrees above body-forward. The FC commands at
     // most about 32 degrees attitude, so full forward flight no longer points
     // the camera straight into the ground.
-    const c=Math.cos(FPV_CAMERA_UPTILT_RAD),si=Math.sin(FPV_CAMERA_UPTILT_RAD);
+    const lookTilt=clamp(FPV_CAMERA_UPTILT_RAD+viewPitch*35*Math.PI/180,-5*Math.PI/180,65*Math.PI/180);
+    const c=Math.cos(lookTilt),si=Math.sin(lookTilt);
+    $("viewport").dataset.cameraLookDeg=(lookTilt*180/Math.PI).toFixed(1);
     const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();
     const fpvUp=bodyUp.clone().multiplyScalar(c).addScaledVector(bodyForward,-si).normalize();
     camera.position.copy(position).addScaledVector(bodyForward,.095).addScaledVector(bodyUp,.045);
@@ -438,7 +442,7 @@ function updateCamera(){
   if(horizontal.lengthSq()>.04)horizontal.normalize();
   if(cameraMode==="third"){
     if(horizontal.lengthSq()>.04)thirdHeading.lerp(horizontal,.22).normalize();
-    const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;
+    $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);
     const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;
     const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18+viewPitch*1.15;
     camera.up.set(0,0,1);
@@ -448,8 +452,9 @@ function updateCamera(){
     return;
   }
   if(horizontal.lengthSq()>.04)followHeading.lerp(horizontal,.12).normalize();
-  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78;
-  const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10;
+  $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);
+  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78+viewPitch*.28;
+  const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10+viewPitch*.95;
   camera.up.set(0,0,1);
   if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.075);
   camera.lookAt(look);

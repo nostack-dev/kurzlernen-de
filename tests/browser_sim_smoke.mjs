@@ -42,6 +42,19 @@ async function pointerDownOnly(selector){
   await page.mouse.move(cx,cy);await page.mouse.down();return{cx,cy,r:Math.min(b.width,b.height)*.42};
 }
 
+async function latestFlightSample(){
+  return page.evaluate(async()=>{
+    const original=URL.createObjectURL;let captured=null;
+    URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};
+    try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text()),samples=log?.samples||[];if(!samples.length)throw new Error("flight log has no samples");return samples[samples.length-1];}
+    finally{URL.createObjectURL=original;}
+  });
+}
+function bodyMotion(sample){
+  const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
+  return{forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0};
+}
+
 try{
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
   await page.goto(url,{waitUntil:"load",timeout:30000});
@@ -99,21 +112,29 @@ try{
     left:document.querySelector('.phone-settings-dialog [data-slider="left"]')?.value,
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
     lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
+    lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
+    rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
     v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),
     v2:localStorage.getItem("arondight45PhoneControlSettingsV2"),
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
   }));
-  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false)
-    throw new Error(`clean V4 defaults wrong: ${JSON.stringify(defaults)}`);
+  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+    throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null)
     throw new Error(`obsolete phone settings not wiped: ${JSON.stringify(defaults)}`);
 
-  await page.click('.phone-settings-dialog [data-lock-horizontal]');
+  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
   let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
-  if(stored.lockRightHorizontal!==true)throw new Error(`horizontal lock did not persist: ${JSON.stringify(stored)}`);
+  if(stored.lockLeftHorizontal!==true)throw new Error(`left horizontal lock did not persist: ${JSON.stringify(stored)}`);
+  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.lockLeftHorizontal!==false)throw new Error(`left horizontal unlock did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-horizontal]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
-  if(stored.lockRightHorizontal!==false)throw new Error(`horizontal unlock did not persist: ${JSON.stringify(stored)}`);
+  if(stored.lockRightHorizontal!==true)throw new Error(`right vertical lock did not persist: ${JSON.stringify(stored)}`);
+  await page.click('.phone-settings-dialog [data-lock-horizontal]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.lockRightHorizontal!==false)throw new Error(`right vertical unlock did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
   await waitForSimTime(2.2,60000);
@@ -126,20 +147,48 @@ try{
   const armStart=await simTime();await page.click("#soloArm");await waitForSimTime(armStart+1.25,50000);
   state=await page.$eval("#fcState",e=>e.textContent||"");
   if(state!=="ARMED")throw new Error(`solo GAME ARM failed: ${JSON.stringify(await snapshot())}`);
-  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0");return z>1.5&&z<2.5;},{timeout:60000});
-  const holdStart=await simTime();await waitForSimTime(holdStart+.6,35000);
-  const holdAltitude=await page.$eval("#altitude",e=>parseFloat(e.textContent||"0"));
-  if(!(holdAltitude>1.3&&holdAltitude<2.7))throw new Error(`solo 2m AGL hold failed: ${holdAltitude}`);
+  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.70;},{timeout:90000});
+  const holdStart=await simTime();await waitForSimTime(holdStart+.35,25000);
+  const hold=bodyMotion(await latestFlightSample());
+  if(!(hold.altitude>1.35&&hold.altitude<2.65&&Math.abs(hold.vertical)<.80))throw new Error(`solo 2m AGL hold failed: ${JSON.stringify(hold)}`);
+
+  await page.$eval("#soloClearanceSlider",e=>{e.value="2.7";e.dispatchEvent(new Event("input",{bubbles:true}));});
+  await page.waitForFunction(()=>document.querySelector("#soloClearanceValue")?.textContent?.includes("2.7 m"),{timeout:5000});
+  const clearanceStart=await simTime();await waitForSimTime(clearanceStart+.50,30000);
+  const clearanceRise=bodyMotion(await latestFlightSample());
+  if(!(clearanceRise.altitude>hold.altitude+.07||clearanceRise.vertical>.16))throw new Error(`solo clearance slider did not command climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
+  await page.$eval("#soloClearanceSlider",e=>{e.value="2";e.dispatchEvent(new Event("input",{bubbles:true}));});
+  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.75;},{timeout:90000});
 
   const left=await pointerDownOnly("#soloLeft");
   await page.mouse.move(left.cx,left.cy-left.r*.65,{steps:6});
   const moveStart=await simTime();await waitForSimTime(moveStart+.55,30000);
-  const moving=await page.$eval("#velocity",e=>parseFloat(e.textContent||"0"));
-  if(moving<.55)throw new Error(`solo desired forward vector did not accelerate: ${moving}`);
+  const moving=bodyMotion(await latestFlightSample());
+  if(moving.forward<.40)throw new Error(`solo desired forward vector did not accelerate correctly: ${JSON.stringify(moving)}`);
   await page.mouse.up();
-  const brakeStart=await simTime();await waitForSimTime(brakeStart+1.5,50000);
-  const braked=await page.$eval("#velocity",e=>parseFloat(e.textContent||"0"));
-  if(braked>Math.max(.8,moving*.75))throw new Error(`solo zero-vector braking failed: moving=${moving}, after=${braked}`);
+  const brakeStart=await simTime();await waitForSimTime(brakeStart+4.0,90000);
+  const braked=bodyMotion(await latestFlightSample());
+  if(braked.horizontal>Math.max(.55,moving.horizontal*.80))throw new Error(`solo forward zero-vector braking failed: before=${JSON.stringify(moving)}, after=${JSON.stringify(braked)}`);
+
+  const strafe=await pointerDownOnly("#soloLeft");
+  await page.mouse.move(strafe.cx+strafe.r*.62,strafe.cy,{steps:6});
+  const strafeStart=await simTime();await waitForSimTime(strafeStart+.55,30000);
+  const strafing=bodyMotion(await latestFlightSample());
+  if(strafing.right<.32)throw new Error(`solo strafe vector sign/response wrong: ${JSON.stringify(strafing)}`);
+  await page.mouse.up();
+  const strafeBrakeStart=await simTime();await waitForSimTime(strafeBrakeStart+4.0,90000);
+  const strafeBraked=bodyMotion(await latestFlightSample());
+  if(strafeBraked.horizontal>Math.max(.60,strafing.horizontal*.82))throw new Error(`solo strafe braking failed: before=${JSON.stringify(strafing)}, after=${JSON.stringify(strafeBraked)}`);
+
+  await page.click("#camThird");
+  const lookYawBefore=Number((await latestFlightSample()).yaw_deg||0),lookStick=await pointerDownOnly("#soloRight");
+  await page.mouse.move(lookStick.cx,lookStick.cy-lookStick.r*.55,{steps:5});
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))>.20,{timeout:10000});
+  const lookStart=await simTime();await waitForSimTime(lookStart+.18,20000);
+  const lookYawAfter=Number((await latestFlightSample()).yaw_deg||0);let lookYawDelta=(lookYawAfter-lookYawBefore)%360;if(lookYawDelta>180)lookYawDelta-=360;if(lookYawDelta<-180)lookYawDelta+=360;
+  if(Math.abs(lookYawDelta)>3.0)throw new Error(`solo camera-only free-look leaked into heading: ${lookYawBefore} -> ${lookYawAfter}`);
+  await page.mouse.up();
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))<.02,{timeout:10000});
 
   const yawBefore=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[])[2]||0));
   const right=await pointerDownOnly("#soloRight");
@@ -198,5 +247,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL, one-phone vector/heading control, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, camera-only free-look, heading control, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}
