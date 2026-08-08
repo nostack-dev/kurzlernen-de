@@ -26,16 +26,11 @@ jobs:
       - name: Stage exact clean production tree
         run: |
           set -euxo pipefail
-          git rm -f --ignore-unmatch .github/workflows/nonblocking-final.yml
-          git rm -f --ignore-unmatch .github/workflows/strict-final-flight-validation.yml
-          git rm -f --ignore-unmatch .github/workflows/yaw-path-diagnostic.yml
-          git rm -f --ignore-unmatch .github/workflows/armed-telemetry-final.yml
-          git rm -f --ignore-unmatch .github/workflows/yaw-p-strict-validation.yml
-          git rm -f --ignore-unmatch .github/workflows/final-clean-promote.yml
-          git rm -f --ignore-unmatch .github/workflows/final-clean-promote-v2.yml
+          find .github/workflows -maxdepth 1 -type f ! -name deploy.yml ! -name s31-hil.yml -print0 | xargs -0 -r git rm -f --
           git rm -f --ignore-unmatch tools/apply_nonblocking_e2e_patch.py
           git rm -f --ignore-unmatch tools/finalize_game.py
           git diff --check
+          test "$(find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "deploy.yml s31-hil.yml "
 
       - name: Validate shared runtime and architecture
         run: |
