@@ -128,19 +128,19 @@ int main() {
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
     rc = base_rc(true);
     rc.ch[fc::kStateBodyPitchChannel] = centered_raw(1.0f);
-    const auto pitch_forward_intent = fc::state_intent(rc);
-    CHECK(pitch_forward_intent.body_pitch_deg < -24.9f);
+    const auto pitch_up_intent = fc::state_intent(rc);
+    CHECK(pitch_up_intent.body_pitch_deg > 24.9f);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(cmd.pitch < -0.77f);
+    CHECK(cmd.pitch > 0.77f);
     CHECK(cmd.throttle > 0.40f);
     CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.001f);
 
     controller.reset();
     rc.ch[fc::kStateBodyPitchChannel] = centered_raw(-1.0f);
-    const auto pitch_back_intent = fc::state_intent(rc);
-    CHECK(pitch_back_intent.body_pitch_deg > 24.9f);
+    const auto pitch_down_intent = fc::state_intent(rc);
+    CHECK(pitch_down_intent.body_pitch_deg < -24.9f);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(cmd.pitch > 0.77f);
+    CHECK(cmd.pitch < -0.77f);
     CHECK(cmd.throttle > 0.40f);
 
     controller.reset();
