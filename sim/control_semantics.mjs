@@ -10,6 +10,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   lockLeftHorizontal:false,
   lockRightHorizontal:false,
   invertRightHorizontal:false,
+  invertRightVertical:false,
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,bodyPitch:0,arm:false};}
@@ -29,6 +30,7 @@ export function normalizePhoneSettings(settings={}){
     lockLeftHorizontal:Boolean(settings.lockLeftHorizontal),
     lockRightHorizontal:Boolean(settings.lockRightHorizontal),
     invertRightHorizontal:Boolean(settings.invertRightHorizontal),
+    invertRightVertical:Boolean(settings.invertRightVertical),
   };
 }
 
@@ -74,34 +76,29 @@ function renderedKnobAxes(element){
     y:Number.isFinite(top)?clampControl((top-50)/42):0,
   };
 }
-function invertRightHorizontalFor(element){
-  if(typeof document==="undefined")return false;
-  return document.documentElement?.dataset?.rightHorizontalInverted==="1"&&(element?.id==="rightStick"||element?.id==="soloRight");
-}
 
 // Virtual gimbals are displacement controls, not absolute touch pads.
 // On pointer-down the current rendered stick position is captured; subsequent
-// movement adds finger displacement to that position. This prevents a re-touch
-// from teleporting retained throttle while keeping the right stick natural.
+// movement adds finger displacement to that position. Axis inversion belongs to
+// control semantics, not pointer geometry, so the knob always stays under the finger.
 const pointerDrags=new WeakMap();
 export function normalizedPointer(element,event){
   const rect=element.getBoundingClientRect();
   const radius=Math.max(1,Math.min(rect.width,rect.height)*.42);
-  const horizontalSign=invertRightHorizontalFor(element)?-1:1;
   if(event.type==="pointerdown"){
     const base=renderedKnobAxes(element);
-    pointerDrags.set(element,{pointerId:event.pointerId,x:event.clientX,y:event.clientY,base,horizontalSign});
+    pointerDrags.set(element,{pointerId:event.pointerId,x:event.clientX,y:event.clientY,base});
     return base;
   }
   const drag=pointerDrags.get(element);
   if(drag&&drag.pointerId===event.pointerId){
     return constrainUnit(
-      drag.base.x+drag.horizontalSign*(event.clientX-drag.x)/radius,
+      drag.base.x+(event.clientX-drag.x)/radius,
       drag.base.y+(event.clientY-drag.y)/radius,
     );
   }
   const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
-  return constrainUnit(horizontalSign*(event.clientX-cx)/radius,(event.clientY-cy)/radius);
+  return constrainUnit((event.clientX-cx)/radius,(event.clientY-cy)/radius);
 }
 export function endPointerDrag(element,pointerId){
   const drag=pointerDrags.get(element);
@@ -114,10 +111,10 @@ export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
     controls.yaw=cfg.lockLeftHorizontal?0:phoneAxis(point.x,cfg.leftFineness);
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
-    // Screen-right must command a physical bank to the right. The established
-    // body-roll convention is opposite screen X, hence this single sign flip.
-    controls.roll=phoneAxis(-point.x,cfg.rightFineness);
-    controls.pitch=cfg.lockRightHorizontal?0:phoneAxis(-point.y,cfg.rightFineness);
+    const x=cfg.invertRightHorizontal?-point.x:point.x;
+    const y=cfg.invertRightVertical?-point.y:point.y;
+    controls.roll=phoneAxis(-x,cfg.rightFineness);
+    controls.pitch=cfg.lockRightHorizontal?0:phoneAxis(-y,cfg.rightFineness);
   }
   return controls;
 }
@@ -128,8 +125,8 @@ export function releaseStick(controls,kind){
 }
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
-  return kind==="left"
-    ?{x:cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.yaw,cfg.leftFineness),y:1-2*controls.throttle}
-    :{x:-inversePhoneAxis(controls.roll,cfg.rightFineness),y:cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.pitch,cfg.rightFineness)};
+  if(kind==="left")return{x:cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.yaw,cfg.leftFineness),y:1-2*controls.throttle};
+  const rawX=-inversePhoneAxis(controls.roll,cfg.rightFineness),rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.pitch,cfg.rightFineness);
+  return{x:cfg.invertRightHorizontal?-rawX:rawX,y:cfg.invertRightVertical?-rawY:rawY};
 }
 export function knobPercent(value){return 50+clampControl(value)*42;}
