@@ -1,0 +1,168 @@
+name: Nonblocking armed-flight final gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/armed-telemetry-final.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  final:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove armed log-export interference from flight validation
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/simulator.mjs')
+          s=p.read_text()
+          old='''function exportSession(){downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});}'''
+          new='''function exportSession(){
+            if((latest.state&STATE_ARMED)&&inputSource==="remote"){
+              setStatus("Disarm before exporting a full flight log during P2P control.","warn");
+              return;
+            }
+            downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});
+          }'''
+          assert s.count(old)==1,s.count(old)
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('tests/dual_phone_smoke.mjs')
+          s=p.read_text()
+          anchor='''function bodyMotion(sample){
+            const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
+            return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
+          }
+'''
+          assert s.count(anchor)==1,s.count(anchor)
+          helper=anchor+'''async function liveMotion(view,controller){
+            const ist=await controller.$eval("#stateVectorDebug [data-vector-ist-text]",element=>element.textContent||"");
+            const match=ist.match(/v\\[F\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*R\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*Z\\s*([+-]?\\d+(?:\\.\\d+)?)\\]\\s*m\\/s.*?AGL\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*m\\s*R\\/P\\/Y\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)°/);
+            if(!match)throw new Error(`cannot parse live measured-state telemetry: ${ist}`);
+            const viewState=await view.evaluate(()=>({
+              altitude:parseFloat(document.querySelector("#altitude")?.textContent||"NaN"),
+              speed:parseFloat(document.querySelector("#velocity")?.textContent||"NaN"),
+              state:document.querySelector("#fcState")?.textContent||"",
+              motors:(document.querySelector("#motors")?.textContent||"").trim().split(/\\s+/).map(Number),
+            }));
+            const forward=Number(match[1]),right=Number(match[2]),vertical=Number(match[3]);
+            return{forward,right,horizontal:Math.hypot(forward,right),vertical,speed:viewState.speed,altitude:viewState.altitude,roll:Number(match[5]),pitch:Number(match[6]),yaw:Number(match[7]),state:viewState.state,motors:viewState.motors};
+          }
+          async function liveTrace(view,controller,start,offsets,timeout=90000){
+            const trace=[];
+            for(const offset of offsets){await waitSim(view,start+offset,timeout);trace.push({offset,...await liveMotion(view,controller)});}
+            return trace;
+          }
+'''
+          s=s.replace(anchor,helper,1)
+
+          replacements={
+            'const hold=bodyMotion(await latestFlightSample(view));':'const hold=await liveMotion(view,controller);',
+            'const clearanceRise=bodyMotion(await latestFlightSample(view));':'const clearanceRise=await liveMotion(view,controller);',
+            'const moving=bodyMotion(await latestFlightSample(view));':'const moving=await liveMotion(view,controller);',
+          }
+          for old,new in replacements.items():
+            assert s.count(old)==1,(old,s.count(old));s=s.replace(old,new,1)
+
+          old='''  const brakeStart=await simTime(view);await waitSim(view,brakeStart+4.0,90000);
+            const samples=await flightSamples(view),trace=traceAtOffsets(samples,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);
+'''
+          new='''  const brakeStart=await simTime(view);
+            const trace=await liveTrace(view,controller,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);
+'''
+          assert s.count(old)==1,s.count(old);s=s.replace(old,new,1)
+
+          old='''  const strafeStart=await simTime(view);await waitSim(view,strafeStart+1.0,45000);
+            const strafeCommandSamples=await flightSamples(view),strafeCommandTrace=traceAtOffsets(strafeCommandSamples,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0]);
+            const strafing=strafeCommandTrace[strafeCommandTrace.length-1];
+'''
+          new='''  const strafeStart=await simTime(view);
+            const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);
+            const strafing=strafeCommandTrace[strafeCommandTrace.length-1];
+'''
+          assert s.count(old)==1,s.count(old);s=s.replace(old,new,1)
+
+          old='''  const strafeBrakeStart=await simTime(view);await waitSim(view,strafeBrakeStart+4.0,90000);
+            const strafeSamples=await flightSamples(view),strafeTrace=traceAtOffsets(strafeSamples,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];
+'''
+          new='''  const strafeBrakeStart=await simTime(view);
+            const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];
+'''
+          assert s.count(old)==1,s.count(old);s=s.replace(old,new,1)
+
+          # The dual-phone armed sequence must no longer export the full 1 kHz log.
+          armed=s[s.index('const left=await stickBox(controller,"#leftStick")'):s.index('const stall=controller.evaluate')]
+          assert 'flightSamples(view)' not in armed,armed
+          assert 'latestFlightSample(view)' not in armed,armed
+          p.write_text(s)
+          PY
+          git diff --check
+          node --check tests/dual_phone_smoke.mjs
+          node --check sim/simulator.mjs
+
+      - name: Host runtime and architecture tests
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core
+          /tmp/fc-core
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control
+          /tmp/state-control
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil
+          ASAN_OPTIONS=detect_leaks=1 /tmp/hil
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+
+      - name: Build exact self-contained pages
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight45-nonblocking-final
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle_name in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
+              p=Path(html_name);h=p.read_text();assert marker in h
+              b=Path(bundle_name).read_text().replace('</script','<\\/script')
+              p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          rm -rf generated
+
+      - name: Full nonblocking dual-phone and standalone browser E2E
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+
+      - name: Promote exact tested patch
+        run: |
+          set -euxo pipefail
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          git rm .github/workflows/armed-telemetry-final.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sim/simulator.mjs tests/dual_phone_smoke.mjs .github/workflows/armed-telemetry-final.yml
+          git commit -m "Keep armed P2P flight telemetry nonblocking"
+          git push origin HEAD:main
