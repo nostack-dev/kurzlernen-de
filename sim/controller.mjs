@@ -9,7 +9,7 @@ const ui=Object.fromEntries([
   "connection","connect","gameModeButton","fullscreen","leftStick","leftKnob","leftValue",
   "rightStick","rightKnob","rightValue","leftTopLabel","leftBottomLabel","leftLeftLabel","leftRightLabel",
   "rightTopLabel","rightBottomLabel","rightLeftLabel","rightRightLabel","gameClearance","gameClearanceValue",
-  "gameClearanceSlider","gameSensorStatus","gameNav","arm","kill","pairDialog","pairStatus","createOffer",
+  "gameClearanceSlider","gameUp","gameDown","gameSensorStatus","gameNav","arm","kill","pairDialog","pairStatus","createOffer",
   "offerCode","copyOffer","shareOffer","answerCode","applyAnswer","closePair","offerQr","answerVideo","answerCanvas",
   "fcState","altitude","battery","motors"
 ].map(id=>[id,$(id)]));
@@ -39,6 +39,26 @@ function renderClearance(){
   ui.gameClearanceValue.textContent=`${groundClearance.toFixed(1)} m`;
 }
 ui.gameClearanceSlider.addEventListener("input",event=>setGroundClearance(event.currentTarget.value));
+
+function bindHeightKey(button,direction){
+  let pointer=null,timer=0;
+  const nudge=()=>setGroundClearance(groundClearance+direction*.1);
+  const stop=event=>{
+    if(pointer!==null&&event?.pointerId!=null&&event.pointerId!==pointer)return;
+    if(timer){clearInterval(timer);timer=0;}
+    button.classList.remove("active");
+    if(pointer!==null)try{button.releasePointerCapture(pointer);}catch{}
+    pointer=null;event?.preventDefault();
+  };
+  button.addEventListener("pointerdown",event=>{
+    if(pointer!==null)return;
+    pointer=event.pointerId;try{button.setPointerCapture(pointer);}catch{}
+    button.classList.add("active");nudge();timer=setInterval(nudge,75);event.preventDefault();
+  });
+  button.addEventListener("pointerup",stop);button.addEventListener("pointercancel",stop);button.addEventListener("lostpointercapture",stop);
+  return()=>stop();
+}
+const stopHeightUp=bindHeightKey(ui.gameUp,+1),stopHeightDown=bindHeightKey(ui.gameDown,-1);
 
 function measuredGameState(){
   const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m);
@@ -70,8 +90,8 @@ function renderMode(){
   ui.gameModeButton.classList.toggle("active",gameMode);
   ui.gameModeButton.textContent=gameMode?"MODE · GAME":"MODE · MANUAL";
   if(gameMode){
-    ui.leftTopLabel.textContent="FORWARD";ui.leftBottomLabel.textContent="REVERSE";ui.leftLeftLabel.textContent="STRAFE L";ui.leftRightLabel.textContent="STRAFE R";
-    ui.rightTopLabel.textContent="PITCH FWD";ui.rightBottomLabel.textContent="PITCH BACK";ui.rightLeftLabel.textContent="TURN L";ui.rightRightLabel.textContent="TURN R";
+    ui.leftTopLabel.textContent="W · FORWARD";ui.leftBottomLabel.textContent="S · BACK";ui.leftLeftLabel.textContent="A · LEFT";ui.leftRightLabel.textContent="D · RIGHT";
+    ui.rightTopLabel.textContent="NOSE UP";ui.rightBottomLabel.textContent="NOSE DOWN";ui.rightLeftLabel.textContent="TURN L";ui.rightRightLabel.textContent="TURN R";
   }else{
     ui.leftTopLabel.textContent="THROTTLE +";ui.leftBottomLabel.textContent="THROTTLE −";ui.leftLeftLabel.textContent="YAW L";ui.leftRightLabel.textContent="YAW R";
     ui.rightTopLabel.textContent="PITCH +";ui.rightBottomLabel.textContent="PITCH −";ui.rightLeftLabel.textContent="ROLL L";ui.rightRightLabel.textContent="ROLL R";
@@ -113,7 +133,7 @@ function updateSticks(){
   setKnob(ui.leftKnob,left.x,left.y);setKnob(ui.rightKnob,right.x,right.y);updateArm();
 }
 function publish(){controls.gameMode=gameMode;controls.groundClearance=groundClearance;peer.publish(controls);}
-function safetyNeutral(send=true){controls=neutralForMode();updateSticks();if(send)publish();}
+function safetyNeutral(send=true){stopHeightUp();stopHeightDown();controls=neutralForMode();updateSticks();if(send)publish();}
 function bindStick(element,kind){
   let pointer=null;
   element.addEventListener("pointerdown",event=>{pointer=event.pointerId;element.setPointerCapture(pointer);apply(event);event.preventDefault();});
