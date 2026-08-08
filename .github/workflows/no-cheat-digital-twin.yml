@@ -19,13 +19,13 @@ jobs:
         run: |
           set -euxo pipefail
           if grep -q 'arondight45_navigation_sample' esp32/Arondight45_DroneFC_S31.cpp; then
-            python3 tools/apply_no_cheat_twin_v2.py
+            python3 tools/apply_no_cheat_twin_final.py
           else
             echo 'Raw-hardware migration already materialized.'
           fi
           git diff --check
-          ! grep -q 'arondight45_navigation_sample' esp32/Arondight45_DroneFC_S31.cpp
-          ! grep -q 'nav_vx_cms' esp32/Arondight45_HIL_Protocol.hpp
+          if grep -q 'arondight45_navigation_sample' esp32/Arondight45_DroneFC_S31.cpp; then echo 'cooked production navigation callback survived' >&2; exit 1; fi
+          if grep -q 'nav_vx_cms' esp32/Arondight45_HIL_Protocol.hpp; then echo 'cooked HIL navigation fields survived' >&2; exit 1; fi
           grep -q 'fc::FirmwareRuntime runtime' esp32/Arondight45_DroneFC_S31.cpp
           grep -q 'sizeof(InputPacket) == 80' esp32/Arondight45_HIL_Protocol.hpp
 
