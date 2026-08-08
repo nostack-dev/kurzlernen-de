@@ -235,7 +235,7 @@ private:
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    static constexpr float kMaxHorizontalAccelerationMps2 = 4.0f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;
     static constexpr float kMaxVerticalSpeedMps = 2.0f;
