@@ -11,23 +11,19 @@ const OBSOLETE_KEYS=[
 function clearObsoleteSettings(){
   try{for(const key of OBSOLETE_KEYS)localStorage.removeItem(key);}catch{}
 }
-function reflectPhoneSettings(settings){
-  if(typeof document!=="undefined")document.documentElement.dataset.rightHorizontalInverted=settings.invertRightHorizontal?"1":"0";
-  return settings;
-}
 
 export function loadPhoneControlSettings(){
   clearObsoleteSettings();
   try{
     const raw=localStorage.getItem(PHONE_SETTINGS_KEY);
-    return reflectPhoneSettings(raw?normalizePhoneSettings(JSON.parse(raw)):normalizePhoneSettings(DEFAULT_PHONE_SETTINGS));
-  }catch{return reflectPhoneSettings(normalizePhoneSettings(DEFAULT_PHONE_SETTINGS));}
+    return raw?normalizePhoneSettings(JSON.parse(raw)):normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);
+  }catch{return normalizePhoneSettings(DEFAULT_PHONE_SETTINGS);}
 }
 
 export function savePhoneControlSettings(settings){
   const normalized=normalizePhoneSettings(settings);
   try{localStorage.setItem(PHONE_SETTINGS_KEY,JSON.stringify(normalized));}catch{}
-  return reflectPhoneSettings(normalized);
+  return normalized;
 }
 
 let styleInstalled=false;
@@ -51,8 +47,6 @@ function installStyle(){
   .phone-settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
   .phone-settings-actions button{border:1px solid #ffffff44;border-radius:9px;background:#162437;color:#fff;padding:8px 12px;font-weight:800}
   .phone-settings-note{font-size:11px!important;color:#8fa1b8!important}
-  html[data-right-horizontal-inverted="1"] #rightStick,html[data-right-horizontal-inverted="1"] #soloRight{transform:scaleX(-1)}
-  html[data-right-horizontal-inverted="1"] #soloRight>span{transform:translateX(-50%) scaleX(-1)}
   `;
   document.head.appendChild(style);
 }
@@ -78,29 +72,31 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
     </div>
     <label class="phone-settings-toggle"><span>INVERT RIGHT STICK HORIZONTAL (L/R)</span><input data-invert-right-horizontal type="checkbox"></label>
+    <label class="phone-settings-toggle"><span>INVERT RIGHT STICK VERTICAL (UP/DOWN)</span><input data-invert-right-vertical type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK LEFT STICK HORIZONTAL AXIS</span><input data-lock-left-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK RIGHT STICK VERTICAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
-    <p class="phone-settings-note">Right X invert reverses only left/right on the right stick in both MANUAL and GAME and is stored locally on this device. Left X lock keeps MANUAL yaw / GAME strafe centred. Right Y lock keeps MANUAL pitch / GAME body pitch centred. Flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
+    <p class="phone-settings-note">Right X/Y invert independently reverse the right stick in both MANUAL and GAME and are stored locally on this device. Left X lock keeps MANUAL yaw / GAME strafe centred. Right Y lock keeps MANUAL pitch / GAME body pitch centred. Flight-controller code, motor/prop model and aircraft physics are never changed by these phone-input settings.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]');
   const leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]');
-  const invertRight=dialog.querySelector("[data-invert-right-horizontal]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]");
+  const invertRight=dialog.querySelector("[data-invert-right-horizontal]"),invertRightVertical=dialog.querySelector("[data-invert-right-vertical]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]");
   const render=()=>{
     left.value=String(settings.leftFineness);right.value=String(settings.rightFineness);
-    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;invertRight.checked=settings.invertRightHorizontal;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;
+    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;
   };
   const apply=()=>{
     settings=savePhoneControlSettings({
       leftFineness:Number(left.value),
       rightFineness:Number(right.value),
       invertRightHorizontal:invertRight.checked,
+      invertRightVertical:invertRightVertical.checked,
       lockLeftHorizontal:lockLeft.checked,
       lockRightHorizontal:lock.checked,
     });
     render();onChange({...settings});
   };
-  left.addEventListener("input",apply);right.addEventListener("input",apply);invertRight.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);
+  left.addEventListener("input",apply);right.addEventListener("input",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);
   dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);render();onChange({...settings});};
   dialog.querySelector("[data-close]").onclick=()=>dialog.close();
   button.onclick=()=>{settings=loadPhoneControlSettings();render();dialog.showModal();};
