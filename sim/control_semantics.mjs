@@ -9,6 +9,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   rightFineness:10,
   lockLeftHorizontal:false,
   lockRightHorizontal:false,
+  invertRightHorizontal:false,
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
@@ -28,6 +29,7 @@ export function normalizePhoneSettings(settings={}){
     rightFineness:clampLevel(settings.rightFineness??DEFAULT_PHONE_SETTINGS.rightFineness),
     lockLeftHorizontal:Boolean(settings.lockLeftHorizontal),
     lockRightHorizontal:Boolean(settings.lockRightHorizontal),
+    invertRightHorizontal:Boolean(settings.invertRightHorizontal),
   };
 }
 
@@ -73,6 +75,10 @@ function renderedKnobAxes(element){
     y:Number.isFinite(top)?clampControl((top-50)/42):0,
   };
 }
+function invertRightHorizontalFor(element){
+  if(typeof document==="undefined")return false;
+  return document.documentElement?.dataset?.rightHorizontalInverted==="1"&&(element?.id==="rightStick"||element?.id==="soloRight");
+}
 
 // Virtual gimbals are displacement controls, not absolute touch pads.
 // On pointer-down the current rendered stick position is captured; subsequent
@@ -82,20 +88,21 @@ const pointerDrags=new WeakMap();
 export function normalizedPointer(element,event){
   const rect=element.getBoundingClientRect();
   const radius=Math.max(1,Math.min(rect.width,rect.height)*.42);
+  const horizontalSign=invertRightHorizontalFor(element)?-1:1;
   if(event.type==="pointerdown"){
     const base=renderedKnobAxes(element);
-    pointerDrags.set(element,{pointerId:event.pointerId,x:event.clientX,y:event.clientY,base});
+    pointerDrags.set(element,{pointerId:event.pointerId,x:event.clientX,y:event.clientY,base,horizontalSign});
     return base;
   }
   const drag=pointerDrags.get(element);
   if(drag&&drag.pointerId===event.pointerId){
     return constrainUnit(
-      drag.base.x+(event.clientX-drag.x)/radius,
+      drag.base.x+drag.horizontalSign*(event.clientX-drag.x)/radius,
       drag.base.y+(event.clientY-drag.y)/radius,
     );
   }
   const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
-  return constrainUnit((event.clientX-cx)/radius,(event.clientY-cy)/radius);
+  return constrainUnit(horizontalSign*(event.clientX-cx)/radius,(event.clientY-cy)/radius);
 }
 export function endPointerDrag(element,pointerId){
   const drag=pointerDrags.get(element);

@@ -3,7 +3,7 @@ let installed=false;
 export function installSoloFlightLayout(){
   if(installed)return;installed=true;
   const style=document.createElement("style");
-  style.dataset.soloFlightLayout="compact-v2";
+  style.dataset.soloFlightLayout="compact-v3-touch";
   style.textContent=`
     /* 1-phone mode must remain usable even when iOS Safari cannot enter true fullscreen. */
     body.solo-flight #cameraModes{display:none!important}
@@ -18,12 +18,13 @@ export function installSoloFlightLayout(){
     body.solo-flight #soloLeft{left:max(12px,env(safe-area-inset-left))}
     body.solo-flight #soloRight{right:max(12px,env(safe-area-inset-right))}
     body.solo-flight .solo-stick span{bottom:-15px;font-size:9px}
-    body.solo-flight #soloClearance{left:calc(max(12px,env(safe-area-inset-left)) + min(25vw,150px) + 10px);right:auto;bottom:max(22px,calc(env(safe-area-inset-bottom) + 8px));transform:none;width:48px;height:132px;padding:6px 3px;border-radius:10px}
+    body.solo-flight #soloClearance{left:calc(max(12px,env(safe-area-inset-left)) + min(25vw,150px) + 10px);right:auto;bottom:max(22px,calc(env(safe-area-inset-bottom) + 8px));transform:none;width:48px;height:132px;padding:6px 3px;border-radius:10px;overflow:visible}
     body.solo-flight #soloClearance small{font-size:6.5px;line-height:1.05;letter-spacing:.04em}
     body.solo-flight #soloClearance strong{font-size:11px}
     body.solo-flight #soloClearance span{font-size:7px}
-    body.solo-flight .solo-range-shell{height:72px;width:30px}
-    body.solo-flight .solo-range-shell input{width:72px}
+    /* Keep the visible rail slim but make the actual iOS touch target finger-sized. */
+    body.solo-flight .solo-range-shell{height:72px;width:70px;margin-left:-11px;margin-right:-11px;touch-action:none;overflow:visible}
+    body.solo-flight .solo-range-shell input{width:72px;height:70px;margin:0;transform:rotate(-90deg);touch-action:none;cursor:ns-resize}
     body.solo-flight .solo-action{bottom:max(22px,calc(env(safe-area-inset-bottom) + 8px));width:72px;height:44px;font-size:13px}
 
     @media(max-height:340px){
@@ -39,8 +40,8 @@ export function installSoloFlightLayout(){
       body.solo-flight #soloClearance small{font-size:5.8px}
       body.solo-flight #soloClearance strong{font-size:10px}
       body.solo-flight #soloClearance span{font-size:6.5px}
-      body.solo-flight .solo-range-shell{height:58px;width:26px}
-      body.solo-flight .solo-range-shell input{width:58px}
+      body.solo-flight .solo-range-shell{height:58px;width:66px;margin-left:-12px;margin-right:-12px}
+      body.solo-flight .solo-range-shell input{width:58px;height:66px}
       body.solo-flight .solo-action{bottom:max(16px,env(safe-area-inset-bottom));width:66px;height:40px;font-size:12px}
     }
   `;
