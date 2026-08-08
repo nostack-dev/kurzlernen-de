@@ -1,5 +1,5 @@
 # measured final candidate: yaw 140 deg/s, strict 0.22 s / 4 deg gate, safe same-session recovery
-# controller recovery is synchronized on fresh post-reset DISARMED telemetry
+# controller recovery is synchronized on sequenced post-reset DISARMED telemetry
 name: Final clean GAME promote
 
 on:
@@ -39,6 +39,7 @@ jobs:
           set -euxo pipefail
           node --check sim/controller.mjs
           node --check sim/simulator.mjs
+          node --check sim/p2p_link.mjs
           node --check tests/dual_phone_smoke.mjs
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core
           /tmp/fc-core
@@ -117,5 +118,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Finalize GAME flight control and safe session recovery"
+          git commit -m "Finalize GAME flight control and ordered session recovery"
           git push origin HEAD:main
