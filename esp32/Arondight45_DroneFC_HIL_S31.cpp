@@ -1,8 +1,8 @@
 /*
  * Arondight45 DroneFC functional hardware-in-the-loop adapter for ESP32-S31.
  *
- * The physical S31 executes the exact fc::Runtime used by production firmware.
- * Browser/host supplies HIL1 sensor + SBUS packets and receives HLO1 motor pulses.
+ * The physical S31 executes the exact fc::FirmwareRuntime used by production.
+ * Browser/host supplies raw ICM/SBUS/NAV1 frames and receives HLO1 motor pulses.
  * This validates controller execution on the real MCU. It deliberately does not
  * claim to reproduce the production IMU-DRDY scheduling path; that remains a
  * separate physical timing/bench validation concern.

@@ -11,11 +11,13 @@ const DT = 0.001;
 const G = 9.80665;
 const INPUT_MAGIC = 0x314c4948;
 const OUTPUT_MAGIC = 0x314f4c48;
-const INPUT_BYTES = 64;
+const INPUT_BYTES = 80;
 const OUTPUT_BYTES = 32;
-const FLAG_IMU_VALID = 1;
+const NAVIGATION_BYTES = 20;
+const FLAG_IMU_PRESENT = 1;
 const FLAG_RESET = 2;
-const FLAG_NAVIGATION_VALID = 4;
+const FLAG_SBUS_PRESENT = 4;
+const FLAG_NAVIGATION_PRESENT = 8;
 const STATE_ARMED = 1;
 const STATE_CALIBRATING = 2;
 const STATE_FAULT = 4;
@@ -48,6 +50,19 @@ function crc32(bytes, length=bytes.byteLength) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
+function crc16Ccitt(bytes,length=bytes.byteLength){
+  let crc=0xffff;
+  for(let i=0;i<length;i++){crc^=bytes[i]<<8;for(let bit=0;bit<8;bit++)crc=((crc<<1)^((crc&0x8000)?0x1021:0))&0xffff;}
+  return crc;
+}
+function encodeNavigationWire(sequence,measurement){
+  const bytes=new Uint8Array(NAVIGATION_BYTES),view=new DataView(bytes.buffer),s16=value=>clamp(Math.round(value*100),-32767,32767);
+  view.setUint32(0,0x3156414e,true);view.setUint16(4,1,true);view.setUint16(6,sequence&0xffff,true);
+  view.setInt16(8,s16(measurement.vx),true);view.setInt16(10,s16(measurement.vy),true);view.setInt16(12,s16(measurement.vz),true);
+  view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,measurement.valid?1:0,true);
+  view.setUint16(18,crc16Ccitt(bytes,18),true);return bytes;
+}
+
 function parseOutput(bytes) {
   const d = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (bytes.byteLength !== OUTPUT_BYTES || d.getUint32(0,true) !== OUTPUT_MAGIC) throw Error("Invalid HLO1 response");
@@ -77,25 +92,12 @@ function encodeSbus(channels) {
   return packet;
 }
 
-function makeInput(sequence, imu, sbus, flags, dtUs=1000, navigation=null) {
-  const bytes = new Uint8Array(INPUT_BYTES);
-  const view = new DataView(bytes.buffer);
-  view.setUint32(0,INPUT_MAGIC,true);
-  view.setUint32(4,sequence,true);
-  view.setUint32(8,dtUs,true);
-  bytes.set(imu,12);
-  bytes.set(sbus,26);
-  if(navigation?.valid){
-    const s16=value=>clamp(Math.round(value),-32767,32767);
-    flags|=FLAG_NAVIGATION_VALID;
-    view.setInt16(52,s16(navigation.vx*100),true);
-    view.setInt16(54,s16(navigation.vy*100),true);
-    view.setInt16(56,s16(navigation.vz*100),true);
-    view.setUint16(58,clamp(Math.round(navigation.agl*1000),0,65535),true);
-  }
-  bytes[51]=flags;
-  view.setUint32(60,crc32(bytes,60),true);
-  return bytes;
+function makeInput(sequence,imu,sbus,flags,dtUs=1000,navigationFrame=null,missedSamples=0) {
+  const bytes=new Uint8Array(INPUT_BYTES),view=new DataView(bytes.buffer);
+  view.setUint32(0,INPUT_MAGIC,true);view.setUint32(4,sequence,true);view.setUint32(8,dtUs,true);
+  view.setUint16(12,clamp(missedSamples|0,0,65535),true);view.setUint16(14,flags,true);
+  bytes.set(imu,16);if(sbus)bytes.set(sbus,30);if(navigationFrame)bytes.set(navigationFrame,55);
+  view.setUint32(76,crc32(bytes,76),true);return bytes;
 }
 
 class WasmBackend {
@@ -103,7 +105,7 @@ class WasmBackend {
   async connect(){
     this.module = await createCore();
     if (this.module._fc_input_size() !== INPUT_BYTES || this.module._fc_output_size() !== OUTPUT_BYTES) throw Error("WASM HIL protocol size mismatch");
-    if (this.module._fc_protocol_version() !== 2) throw Error("WASM HIL protocol version mismatch");
+    if (this.module._fc_protocol_version() !== 3) throw Error("WASM HIL protocol version mismatch");
     this.inPtr=this.module._fc_input_buffer();
     this.outPtr=this.module._fc_output_buffer();
     this.module._fc_reset();
@@ -117,7 +119,7 @@ class WasmBackend {
     this.module._fc_process();
     return parseOutput(this.module.HEAPU8.slice(this.outPtr,this.outPtr+OUTPUT_BYTES));
   }
-  label(){return "shared fc::StateRuntime → fc::Runtime / WASM";}
+  label(){return "raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM";}
 }
 
 class ByteResponseParser {
@@ -222,21 +224,28 @@ class Noise {
   stepBias(dt){for(let i=0;i<3;i++){this.gyroBias[i]+=this.gaussian()*0.002*Math.sqrt(dt);this.accBias[i]+=this.gaussian()*0.00002*Math.sqrt(dt);}}
 }
 
-// Navigation truth is never fed directly to control. This adapter samples it at
-// 100 Hz, applies sensor noise/low-pass behavior and rangefinder geometry, then
-// quantizes it through the HIL packet exactly like a hardware navigation source.
+// World truth terminates at the sensor model. The navigation twin emits the same
+// NAV1 bytes accepted by the target UART; FirmwareRuntime owns decode/freshness.
 class SimNavigationSensors {
   constructor(){this.reset();}
-  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.02;this.filtered=[0,0,0];this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
-  sample(model,dt=DT){
-    this.elapsed+=dt;if(this.elapsed<.01)return this.last;this.elapsed=0;
+  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
+  sampleFrame(model,dt=DT){
+    this.elapsed+=dt;if(this.elapsed<.01)return null;this.elapsed-=.01;
     const truth=model.linear(),alpha=.42;
     for(let i=0;i<3;i++){const measured=truth[i]+this.noise.gaussian()*.025;this.filtered[i]+=alpha*(measured-this.filtered[i]);}
-    const range=model.groundRange(12);
-    let valid=range.valid,agl=0;
+    const range=model.groundRange(12);let valid=range.valid,agl=0;
     if(valid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;}
-    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};return this.last;
+    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};
+    return encodeNavigationWire(this.sequence++,this.last);
   }
+}
+
+// Receiver UART is asynchronous too: a raw SBUS frame arrives at 100 Hz while
+// the DRDY-driven inner loop runs at 1 kHz. FirmwareRuntime alone owns staleness.
+class SimSbusReceiver {
+  constructor(){this.reset();}
+  reset(){this.elapsed=.01;}
+  sample(makeFrame,dt=DT){this.elapsed+=dt;if(this.elapsed<.01)return null;this.elapsed-=.01;return makeFrame();}
 }
 
 const b3 = await Box3DFactory();
@@ -407,6 +416,7 @@ function resize(){const bounds=$("viewport").getBoundingClientRect();renderer.se
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
 const navigationSensors=new SimNavigationSensors();
+const sbusReceiver=new SimSbusReceiver();
 let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
 let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFollowInitialized=false;
@@ -553,8 +563,8 @@ const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,rea
 
 function setStatus(text,cls=""){ui.status.textContent=text;ui.status.className="statusline "+cls;}
 function modeDescription(){
-  if(mode==="sim")return "SIM · primary mode. The shared C++ state outer loop and exact fc::Runtime execute as WebAssembly; sensor measurements, motors and airframe are simulated.";
-  if(mode==="hil")return "HIL · the same state outer loop + fc::Runtime execute on a physical ESP32-S31. Closed-loop time is simulated at 1 kHz; this is functional HIL, not a claim of real IMU-DRDY scheduling validation.";
+  if(mode==="sim")return "SIM · raw ICM/SBUS/NAV1 hardware-wire twin. Exact production FirmwareRuntime → StateRuntime → Runtime executes as WebAssembly; only environment and sensor hardware are simulated.";
+  if(mode==="hil")return "HIL · exact raw-hardware FirmwareRuntime executes on the physical ESP32-S31; host supplies ICM/SBUS/NAV1 bytes and receives only ESC pulses.";
   return "REAL LOG · measured motor outputs replay through the same physics model. Parameter fitting compares measured position, velocity, attitude, battery and current when those fields exist.";
 }
 function updateModeUI(){ui.modeInfo.textContent=modeDescription();ui.tMode.textContent=mode.toUpperCase();for(const [id,value] of [["modeSim","sim"],["modeHil","hil"],["modeReplay","replay"]])$(id).classList.toggle("active",mode===value);ui.connect.textContent=mode==="sim"?"Reload flight core":mode==="hil"?"Connect physical S31":"Real log loaded via file";ui.connect.disabled=mode==="replay";ui.run.disabled=mode==="replay"?!realLog.length:!backend;ui.run.textContent=running?"Pause":"Start";}
@@ -574,7 +584,7 @@ async function switchMode(next){
   updateModeUI();
 }
 function resetSimulation(initial=null){
-  physics.reset(defaultParams(),initial);navigationSensors.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
+  physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }
 function localControlState(){
@@ -595,8 +605,10 @@ function controls(){
   return encodeSbus(channels);
 }
 async function controllerStep(){
-  const params=defaultParams(),seq=sequence++;latestNavigation=navigationSensors.sample(physics,DT);
-  const packet=makeInput(seq,physics.imuRaw(DT),controls(),(params.imuValid?FLAG_IMU_VALID:0)|(resetFlag?FLAG_RESET:0),1000,latestNavigation);resetFlag=false;
+  const params=defaultParams(),seq=sequence++,navigationFrame=navigationSensors.sampleFrame(physics,DT),sbusFrame=sbusReceiver.sample(controls,DT);
+  latestNavigation=navigationSensors.last;
+  let flags=(params.imuValid?FLAG_IMU_PRESENT:0)|(resetFlag?FLAG_RESET:0);if(sbusFrame)flags|=FLAG_SBUS_PRESENT;if(navigationFrame)flags|=FLAG_NAVIGATION_PRESENT;
+  const packet=makeInput(seq,physics.imuRaw(DT),sbusFrame,flags,1000,navigationFrame,0);resetFlag=false;
   const started=performance.now(),out=await backend.exchange(packet,seq);ui.rtt.textContent=(performance.now()-started).toFixed(2)+" ms";return out;
 }
 function recordSession(){
