@@ -52,7 +52,7 @@ async function latestFlightSample(){
 }
 function bodyMotion(sample){
   const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-  return{forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0};
+  return{forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0};
 }
 
 try{
@@ -101,10 +101,11 @@ try{
     leftTop:parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.top||"0"),
     clearance:!!document.querySelector("#soloClearanceSlider"),
     clearanceValue:Number(document.querySelector("#soloClearanceSlider")?.value||0),
+    rightLabel:document.querySelector("#soloRight span")?.textContent||"",
   }));
   if(!Object.values({hud:soloUi.hud,reset:soloUi.reset,lap:soloUi.lap,settings:soloUi.settings,clearance:soloUi.clearance}).every(Boolean))
     throw new Error(`solo HUD incomplete: ${JSON.stringify(soloUi)}`);
-  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-2)>.01)throw new Error(`solo GAME neutral wrong: ${JSON.stringify(soloUi)}`);
+  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-2)>.01||!soloUi.rightLabel.includes("PITCH"))throw new Error(`solo GAME neutral/labels wrong: ${JSON.stringify(soloUi)}`);
 
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
@@ -113,18 +114,30 @@ try{
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
     lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
     lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
+    invertX:document.querySelector('.phone-settings-dialog [data-invert-right-horizontal]')?.checked,
+    invertY:document.querySelector('.phone-settings-dialog [data-invert-right-vertical]')?.checked,
     rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
     v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),
     v2:localStorage.getItem("arondight45PhoneControlSettingsV2"),
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
   }));
-  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null)
     throw new Error(`obsolete phone settings not wiped: ${JSON.stringify(defaults)}`);
 
-  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
+  await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
   let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.invertRightHorizontal!==true)throw new Error(`right horizontal invert did not persist: ${JSON.stringify(stored)}`);
+  await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
+  await page.click('.phone-settings-dialog [data-invert-right-vertical]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.invertRightVertical!==true)throw new Error(`right vertical invert did not persist: ${JSON.stringify(stored)}`);
+  await page.click('.phone-settings-dialog [data-invert-right-vertical]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==false)throw new Error(`right-axis invert restore failed: ${JSON.stringify(stored)}`);
+  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
   if(stored.lockLeftHorizontal!==true)throw new Error(`left horizontal lock did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
@@ -182,14 +195,13 @@ try{
 
   await page.click("#soloCamera");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="third",{timeout:5000});
-  const lookYawBefore=Number((await latestFlightSample()).yaw_deg||0),lookStick=await pointerDownOnly("#soloRight");
-  await page.mouse.move(lookStick.cx,lookStick.cy-lookStick.r*.55,{steps:5});
-  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))>.20,{timeout:10000});
-  const lookStart=await simTime();await waitForSimTime(lookStart+.18,20000);
-  const lookYawAfter=Number((await latestFlightSample()).yaw_deg||0);let lookYawDelta=(lookYawAfter-lookYawBefore)%360;if(lookYawDelta>180)lookYawDelta-=360;if(lookYawDelta<-180)lookYawDelta+=360;
-  if(Math.abs(lookYawDelta)>3.0)throw new Error(`solo camera-only free-look leaked into heading: ${lookYawBefore} -> ${lookYawAfter}`);
+  const pitchBefore=bodyMotion(await latestFlightSample()),pitchStick=await pointerDownOnly("#soloRight");
+  await page.mouse.move(pitchStick.cx,pitchStick.cy-pitchStick.r*.60,{steps:6});
+  const pitchStart=await simTime();await waitForSimTime(pitchStart+.35,30000);
+  const pitched=bodyMotion(await latestFlightSample());
+  if(!(pitched.pitch<pitchBefore.pitch-4.0))throw new Error(`body-pitch command did not rotate aircraft: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
+  if(Math.abs(pitched.yaw-pitchBefore.yaw)>4.0)throw new Error(`body-pitch command leaked into yaw: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   await page.mouse.up();
-  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))<.02,{timeout:10000});
 
   const yawBefore=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[])[2]||0));
   const right=await pointerDownOnly("#soloRight");
@@ -248,5 +260,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, camera-only free-look, heading control, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, real body-pitch + heading control, both right-axis inversions, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}
