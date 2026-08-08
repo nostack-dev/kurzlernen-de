@@ -71,7 +71,13 @@ class PeerBase{
     this.lastLinkedWall=0;
     this.everLinked=false;
   }
-  get linked(){return this.channel?.readyState==="open"&&this.pc?.connectionState==="connected";}
+  // The DataChannel is the transport. RTCPeerConnection.connectionState may
+  // transiently remain "disconnected" while SCTP is already passing fresh data.
+  // Failed/closed are terminal; freshness is enforced independently by the
+  // 350 ms control heartbeat on the VIEW side.
+  get linked(){
+    return this.channel?.readyState==="open"&&this.pc!=null&&!['failed','closed'].includes(this.pc.connectionState);
+  }
   get recentlyLinked(){return this.everLinked&&performance.now()-this.lastLinkedWall<=SESSION_GRACE_MS;}
   get sessionRemainingMs(){return this.recentlyLinked?Math.max(0,SESSION_GRACE_MS-(performance.now()-this.lastLinkedWall)):0;}
   _markLinked(){
