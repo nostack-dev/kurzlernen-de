@@ -39,7 +39,7 @@ async function flightSamples(page){
 async function latestFlightSample(page){const samples=await flightSamples(page);return samples[samples.length-1];}
 function bodyMotion(sample){
   const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-  return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
+  return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0,fcRoll:Number(sample.fc_roll_deg)||0,fcPitch:Number(sample.fc_pitch_deg)||0,fcYaw:Number(sample.fc_yaw_deg)||0,motors:[Number(sample.motor1_us)||0,Number(sample.motor2_us)||0,Number(sample.motor3_us)||0,Number(sample.motor4_us)||0]};
 }
 function traceAtOffsets(samples,start,offsets){
   return offsets.map(offset=>{
@@ -164,8 +164,10 @@ try{
 
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
   const strafeStart=await simTime(view);await waitSim(view,strafeStart+1.0,45000);
-  const strafing=bodyMotion(await latestFlightSample(view));
-  if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: ${JSON.stringify(strafing)}`);
+  const strafeCommandSamples=await flightSamples(view),strafeCommandTrace=traceAtOffsets(strafeCommandSamples,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0]);
+  const strafing=strafeCommandTrace[strafeCommandTrace.length-1];
+  console.log(`State-control strafe command trace: ${JSON.stringify(strafeCommandTrace)}`);
+  if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);
   await controller.mouse.up();
   const strafeBrakeStart=await simTime(view);await waitSim(view,strafeBrakeStart+4.0,90000);
   const strafeSamples=await flightSamples(view),strafeTrace=traceAtOffsets(strafeSamples,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];
