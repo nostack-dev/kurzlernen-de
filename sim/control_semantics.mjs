@@ -12,14 +12,13 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   invertRightHorizontal:false,
 });
 
-export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,arm:false};}
+export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,bodyPitch:0,arm:false};}
 export function copyControls(c){
-  const groundClearance=Number(c?.groundClearance),lookPitch=Number(c?.lookPitch);
+  const groundClearance=Number(c?.groundClearance),bodyPitch=Number(c?.bodyPitch);
   return{
-    roll:+c?.roll||0,pitch:+c?.pitch||0,yaw:+c?.yaw||0,throttle:+c?.throttle||0,arm:Boolean(c?.arm),
+    roll:+c?.roll||0,pitch:+c?.pitch||0,yaw:+c?.yaw||0,throttle:+c?.throttle||0,bodyPitch:Number.isFinite(bodyPitch)?clampControl(bodyPitch):0,arm:Boolean(c?.arm),
     gameMode:Boolean(c?.gameMode),
     groundClearance:Number.isFinite(groundClearance)?clampControl(groundClearance,.5,5):2,
-    lookPitch:Number.isFinite(lookPitch)?clampControl(lookPitch,-1,1):0,
   };
 }
 export function clampControl(value,lo=-1,hi=1){return Math.max(lo,Math.min(hi,value));}
