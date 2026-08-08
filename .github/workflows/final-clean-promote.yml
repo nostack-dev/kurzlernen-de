@@ -2,6 +2,7 @@
 # controller recovery is synchronized on sequenced post-reset DISARMED telemetry
 # FC records ARM-low during calibration so immediate post-calibration ARM cannot race the interlock
 # re-arm timing starts at the actual ARM request, excluding readiness synchronization
+# solo and dual-phone yaw use the same 65% stimulus and 220 ms physical gate
 name: Final clean GAME promote
 
 on:
@@ -26,6 +27,7 @@ jobs:
           set -euxo pipefail
           python3 tools/finalize_game.py
           python3 tools/finalize_arm_recovery.py
+          python3 tools/finalize_solo_yaw.py
           git diff --check
 
       - name: Stage exact clean production tree
@@ -35,6 +37,7 @@ jobs:
           git rm -f --ignore-unmatch tools/apply_nonblocking_e2e_patch.py
           git rm -f --ignore-unmatch tools/finalize_game.py
           git rm -f --ignore-unmatch tools/finalize_arm_recovery.py
+          git rm -f --ignore-unmatch tools/finalize_solo_yaw.py
           git diff --check
           test "$(find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "deploy.yml s31-hil.yml "
 
@@ -45,6 +48,7 @@ jobs:
           node --check sim/simulator.mjs
           node --check sim/p2p_link.mjs
           node --check tests/dual_phone_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core
           /tmp/fc-core
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control
@@ -104,6 +108,9 @@ jobs:
           grep -F 'rcx+rr*.65' tests/dual_phone_smoke.mjs
           grep -F 'turnStart+.22' tests/dual_phone_smoke.mjs
           grep -F 'Math.abs(yawDelta)<4' tests/dual_phone_smoke.mjs
+          grep -F 'right.cx+right.r*.65,right.cy' tests/browser_sim_smoke.mjs
+          grep -F 'turnStart+.22' tests/browser_sim_smoke.mjs
+          grep -F 'Math.abs(yawDelta)<4' tests/browser_sim_smoke.mjs
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
