@@ -194,8 +194,8 @@ try{
   await page.click("#soloCamera");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="third",{timeout:5000});
   const pitchBefore=bodyMotion(await latestFlightSample()),pitchStick=await pointerDownOnly("#soloRight");
-  await page.mouse.move(pitchStick.cx,pitchStick.cy-pitchStick.r*.60,{steps:6});
-  const pitchStart=await simTime();await waitForSimTime(pitchStart+.35,30000);
+  await page.mouse.move(pitchStick.cx,pitchStick.cy-pitchStick.r*.85,{steps:6});
+  const pitchStart=await simTime();await waitForSimTime(pitchStart+.45,30000);
   const pitched=bodyMotion(await latestFlightSample());
   if(!(pitched.pitch>pitchBefore.pitch+4.0))throw new Error(`body-pitch command did not rotate aircraft nose-up: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   if(Math.abs(pitched.yaw-pitchBefore.yaw)>4.0)throw new Error(`body-pitch command leaked into yaw: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
