@@ -30,16 +30,14 @@ jobs:
           python3 tools/finalize_solo_yaw.py
           git diff --check
 
-      - name: Stage exact clean production tree
+      - name: Stage production sources without mutating workflow files
         run: |
           set -euxo pipefail
-          find .github/workflows -maxdepth 1 -type f ! -name deploy.yml ! -name s31-hil.yml -print0 | xargs -0 -r git rm -f --
           git rm -f --ignore-unmatch tools/apply_nonblocking_e2e_patch.py
           git rm -f --ignore-unmatch tools/finalize_game.py
           git rm -f --ignore-unmatch tools/finalize_arm_recovery.py
           git rm -f --ignore-unmatch tools/finalize_solo_yaw.py
           git diff --check
-          test "$(find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "deploy.yml s31-hil.yml "
 
       - name: Validate shared runtime and architecture
         run: |
@@ -120,6 +118,12 @@ jobs:
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+
+      - name: Restore source HTML before production commit
+        run: |
+          set -euxo pipefail
+          git restore --source=HEAD -- drone_simulator.html drone_controller.html
+          git diff --check
 
       - name: Promote exact green tree to main
         run: |
