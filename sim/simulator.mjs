@@ -119,7 +119,7 @@ class WasmBackend {
     this.module._fc_process();
     return parseOutput(this.module.HEAPU8.slice(this.outPtr,this.outPtr+OUTPUT_BYTES));
   }
-  label(){return "raw sensor wire → shared fc::FirmwareRuntime → StateRuntime → Runtime / WASM";}
+  label(){return "raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM";}
 }
 
 class ByteResponseParser {

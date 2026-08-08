@@ -14,7 +14,7 @@ import fs from "node:fs/promises";
 import {WebSocketServer,WebSocket} from "ws";
 import {SerialPort} from "serialport";
 
-const INPUT_BYTES=64;
+const INPUT_BYTES=80;
 const OUTPUT_BYTES=32;
 const INPUT_MAGIC="HIL1";
 const OUTPUT_MAGIC="HLO1";
@@ -23,7 +23,7 @@ const DEFAULT_CONTROLLER_SITE="https://kurzlernen.de/drone_controller.html";
 
 function option(name,fallback=null){const index=process.argv.indexOf(name);return index>=0&&process.argv[index+1]?process.argv[index+1]:fallback;}
 function crc32(buffer,length=buffer.length){let crc=0xffffffff;for(let i=0;i<length;++i){crc^=buffer[i];for(let bit=0;bit<8;++bit)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}return(crc^0xffffffff)>>>0;}
-function validateInputPacket(packet){if(!Buffer.isBuffer(packet))packet=Buffer.from(packet);if(packet.length!==INPUT_BYTES)throw new Error(`Expected ${INPUT_BYTES}-byte HIL1 packet`);if(packet.subarray(0,4).toString("ascii")!==INPUT_MAGIC)throw new Error("Invalid HIL1 magic");if(crc32(packet,60)!==packet.readUInt32LE(60))throw new Error("HIL1 CRC mismatch");return packet.readUInt32LE(4);}
+function validateInputPacket(packet){if(!Buffer.isBuffer(packet))packet=Buffer.from(packet);if(packet.length!==INPUT_BYTES)throw new Error(`Expected ${INPUT_BYTES}-byte HIL1 packet`);if(packet.subarray(0,4).toString("ascii")!==INPUT_MAGIC)throw new Error("Invalid HIL1 magic");if(crc32(packet,76)!==packet.readUInt32LE(76))throw new Error("HIL1 CRC mismatch");return packet.readUInt32LE(4);}
 function validateOutputPacket(packet,expectedSequence){if(!Buffer.isBuffer(packet))packet=Buffer.from(packet);if(packet.length!==OUTPUT_BYTES)throw new Error(`Expected ${OUTPUT_BYTES}-byte HLO1 packet`);if(packet.subarray(0,4).toString("ascii")!==OUTPUT_MAGIC)throw new Error("Physical S31 returned invalid HLO1 magic");const sequence=packet.readUInt32LE(4);if(sequence!==expectedSequence)throw new Error(`HLO1 sequence mismatch: expected ${expectedSequence}, got ${sequence}`);if(crc32(packet,28)!==packet.readUInt32LE(28))throw new Error("Physical S31 returned invalid HLO1 CRC");}
 function lanAddresses(){const result=[];for(const entries of Object.values(os.networkInterfaces()))for(const entry of entries||[])if(entry.family==="IPv4"&&!entry.internal)result.push(entry.address);return result;}
 

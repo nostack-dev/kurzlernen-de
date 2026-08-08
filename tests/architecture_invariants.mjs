@@ -40,36 +40,50 @@ requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f")
 requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f");
 
-// Production navigation is a normal linked dependency. The generic image explicitly
-// has no navigation and therefore fails GAME closed; a real build replaces that TU.
-requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_Navigation.hpp");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","navigation::sample(navigation)");
-forbidText("esp32/Arondight45_DroneFC_S31.cpp","arondight45_navigation_sample");
-requireText("esp32/Arondight45_Navigation.hpp","bool sample(fc::NavigationState& out)");
-if(!existsSync("esp32/Arondight45_Navigation_Unavailable.cpp"))fail("explicit unavailable navigation adapter missing");
-requireText("esp32/Arondight45_Navigation_Unavailable.cpp","return false");
+// Production, physical S31 HIL and browser SIL meet at one raw hardware boundary.
+// There is no linked cooked NavigationState callback and no second production IMU decoder.
+requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_FirmwareRuntime.hpp");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","fc::FirmwareRuntime runtime");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","sample_imu_registers");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","navigation_init");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","NavigationWireParser");
+for(const dirty of ["Arondight45_Navigation.hpp","navigation::sample(","arondight45_navigation_sample","sample_imu(fc::Imu"])
+  forbidText("esp32/Arondight45_DroneFC_S31.cpp",dirty,`production contains a cooked sensor bypass: ${dirty}`);
+if(existsSync("esp32/Arondight45_Navigation.hpp")||existsSync("esp32/Arondight45_Navigation_Unavailable.cpp"))
+  fail("obsolete cooked navigation adapter survived the raw NAV1 migration");
 
 // Hardware safety/peripheral architecture must survive higher-level work.
-for(const marker of ["uart_set_line_inverse","kIntSource","esp_task_wdt","fc::StateRuntime runtime"])
+for(const marker of ["uart_set_line_inverse","kIntSource","esp_task_wdt","fc::FirmwareRuntime runtime"])
   requireText("esp32/Arondight45_DroneFC_S31.cpp",marker);
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","usb_serial_jtag");
 
-// HIL/SIL use the same state runtime and fixed binary protocol; navigation occupies
-// the former reserved bytes, not a hidden side channel.
-requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 2");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::StateRuntime runtime_");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_vx_cms");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_agl_mm");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 64");
+// One shared firmware boundary owns all hardware decoding and freshness behavior.
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_icm42688_registers");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_navigation_wire");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_sbus");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","kNavigationTimeoutUs");
+requireText("esp32/Arondight45_HardwareSensors.hpp","NavigationWireFrame");
+requireText("esp32/Arondight45_HardwareSensors.hpp","crc16_ccitt");
+
+// HIL v3 transports literal target-hardware frames, never decoded vx/vy/vz/AGL state.
+requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 3");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::FirmwareRuntime runtime_");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","navigation_frame[hwcontract::kNavigationFrameBytes]");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 80");
+for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])
+  forbidText("esp32/Arondight45_HIL_Protocol.hpp",cooked,`cooked navigation field crossed HIL boundary: ${cooked}`);
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
 
-// Simulator truth is converted into virtual sensors, serialized through HIL and
-// consumed by C++; returned PWM then drives the rigid-body plant.
-for(const marker of ["class SimNavigationSensors","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","groundRange(12)","FLAG_NAVIGATION_VALID","backend.exchange(packet","physics.step(latest.motors"])
+// Simulator truth terminates at virtual sensor hardware. ICM bytes arrive at the
+// DRDY loop; SBUS and NAV1 arrive asynchronously. Only returned PWM drives the plant.
+for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","groundRange(12)","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
   requireText("sim/simulator.mjs",marker);
+requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
+requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM");
 requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
-forbidText("sim/simulator.mjs","stateControllerMotor");
+for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
+  forbidText("sim/simulator.mjs",dirty,`simulator contains decoded/control shortcut: ${dirty}`);
 
 // Camera look is presentation only and cannot leak into the encoded FC channels.
 requireText("sim/simulator.mjs","dataset.gameLookPitch");
@@ -132,4 +146,4 @@ requireText("tests/browser_sim_smoke.mjs","turnStart+.22");
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
-console.log("Architecture invariants passed: one C++ motor authority, direct physical commands, explicit navigation dependency, sensorized twin, direct WebRTC control, HIL-only bridge, no browser controller clone.");
+console.log("Architecture invariants passed: one raw hardware boundary, one C++ motor authority, direct physical commands, async ICM/SBUS/NAV1 sensor wires, direct WebRTC control and HIL-only bridge.");
