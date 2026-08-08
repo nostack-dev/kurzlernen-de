@@ -93,6 +93,13 @@ try{
   await controller.mouse.up();
   console.log(`State-control E2E: right-stick up physically pitched airframe nose-up ${pitchBefore.pitch.toFixed(1)}° -> ${pitched.pitch.toFixed(1)}° through motors.`);
 
+  // A body-pitch maneuver leaves real angular/linear momentum. Do not start the
+  // independent W-axis assertion until the closed-loop aircraft has physically
+  // recovered to near-hover; otherwise this test mixes two control objectives.
+  await view.waitForFunction(()=>{const parts=(document.querySelector("#attitude")?.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[],pitch=Number(parts[1]||0),speed=parseFloat(document.querySelector("#velocity")?.textContent||"99");return Math.abs(pitch)<2.0&&speed<.55;},{timeout:90000});
+  const recovered=await liveMotion(view,controller);
+  if(recovered.state!=="ARMED"||Math.abs(recovered.pitch)>=2.0||recovered.speed>=.55)throw new Error(`aircraft did not physically recover after body-pitch maneuver: ${JSON.stringify(recovered)}`);
+
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);const moving=await liveMotion(view,controller);
