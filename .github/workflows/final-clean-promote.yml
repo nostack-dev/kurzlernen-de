@@ -1,6 +1,7 @@
 # measured final candidate: yaw 140 deg/s, strict 0.22 s / 4 deg gate, safe same-session recovery
 # controller recovery is synchronized on sequenced post-reset DISARMED telemetry
 # FC records ARM-low during calibration so immediate post-calibration ARM cannot race the interlock
+# re-arm timing starts at the actual ARM request, excluding readiness synchronization
 name: Final clean GAME promote
 
 on:
