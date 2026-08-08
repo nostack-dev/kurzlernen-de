@@ -1,0 +1,179 @@
+name: Gyro-dominant attitude fusion final gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/attitude-fusion-final.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  flight-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply physically conservative accelerometer correction
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          core=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=core.read_text()
+          old='const float tau = 1.0f / (2.0f * kPi * 0.20f);'
+          new='const float tau = 1.0f / (2.0f * kPi * 0.02f);'
+          assert s.count(old)==1,s.count(old)
+          core.write_text(s.replace(old,new,1))
+
+          test=Path('tests/drone_fc_core_test.cpp')
+          s=test.read_text()
+          anchor='''    CHECK(coupled_attitude.yaw > 10.75f && coupled_attitude.yaw < 10.90f);\n'''
+          assert s.count(anchor)==1,s.count(anchor)
+          addition=anchor+'''\n    // During powered horizontal flight, accelerometer specific force can remain\n    // close to body +Z even while the airframe is banked. The complementary\n    // correction must therefore be slow enough that a one-second maneuver does\n    // not erase gyro-derived attitude and drive the controller into excess bank.\n    fc::Attitude maneuver_attitude{};\n    maneuver_attitude.roll = 25.0f;\n    for (int i = 0; i < 1000; ++i)\n        maneuver_attitude.run(fc::Imu{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}}, 0.001f);\n    CHECK(maneuver_attitude.roll > 21.5f && maneuver_attitude.roll < 25.0f);\n'''
+          test.write_text(s.replace(anchor,addition,1))
+          PY
+          git diff --check
+
+      - name: Shared host HIL SIL and architecture tests
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
+          /tmp/fc-core-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-tests
+          /tmp/state-control-tests
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil-tests
+          ASAN_OPTIONS=detect_leaks=1 /tmp/hil-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil-host-tests
+          /tmp/sil-host-tests
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-clang
+          /tmp/fc-core-clang
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
+          /tmp/state-control-clang
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check sim/simulator.mjs
+          node --check sim/controller.mjs
+          node --check tests/dual_phone_smoke.mjs
+
+      - name: Build exact self-contained browser pair
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight45-attitude-final
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle_name in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
+              p=Path(html_name); h=p.read_text(); assert marker in h
+              b=Path(bundle_name).read_text().replace('</script','<\\/script')
+              p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          rm -rf generated
+
+      - name: Full dual-phone GAME and standalone browser E2E
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+
+  esp-idf-build:
+    runs-on: ubuntu-latest
+    container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply same attitude-fusion patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp')
+          s=p.read_text(); old='const float tau = 1.0f / (2.0f * kPi * 0.20f);'; new='const float tau = 1.0f / (2.0f * kPi * 0.02f);'
+          assert s.count(old)==1,s.count(old); p.write_text(s.replace(old,new,1))
+          PY
+      - name: Build production firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/arondight45-production
+          mkdir -p /tmp/arondight45-production/main
+          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_StateControl.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-production/main/
+          cat > /tmp/arondight45-production/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_production)
+          EOF
+          cat > /tmp/arondight45-production/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "Arondight45_DroneFC_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/arondight45-production
+          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" --preview build
+      - name: Build functional HIL firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/arondight45-hil
+          mkdir -p /tmp/arondight45-hil/main
+          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_StateControl.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_HIL_Protocol.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/arondight45-hil/main/
+          cat > /tmp/arondight45-hil/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_hil)
+          EOF
+          cat > /tmp/arondight45-hil/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "Arondight45_DroneFC_HIL_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/arondight45-hil
+          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" --preview build
+
+  promote:
+    needs: [flight-validation, esp-idf-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Promote exact validated source and regression test
+        run: |
+          set -euxo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+          core=Path('esp32/Arondight45_DroneFC_Core.hpp'); s=core.read_text(); old='const float tau = 1.0f / (2.0f * kPi * 0.20f);'; new='const float tau = 1.0f / (2.0f * kPi * 0.02f);'; assert s.count(old)==1,s.count(old); core.write_text(s.replace(old,new,1))
+          test=Path('tests/drone_fc_core_test.cpp'); s=test.read_text(); anchor='''    CHECK(coupled_attitude.yaw > 10.75f && coupled_attitude.yaw < 10.90f);\n'''; assert s.count(anchor)==1,s.count(anchor); addition=anchor+'''\n    // During powered horizontal flight, accelerometer specific force can remain\n    // close to body +Z even while the airframe is banked. The complementary\n    // correction must therefore be slow enough that a one-second maneuver does\n    // not erase gyro-derived attitude and drive the controller into excess bank.\n    fc::Attitude maneuver_attitude{};\n    maneuver_attitude.roll = 25.0f;\n    for (int i = 0; i < 1000; ++i)\n        maneuver_attitude.run(fc::Imu{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}}, 0.001f);\n    CHECK(maneuver_attitude.roll > 21.5f && maneuver_attitude.roll < 25.0f);\n'''; test.write_text(s.replace(anchor,addition,1))
+          PY
+          git rm .github/workflows/attitude-fusion-final.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Prevent maneuver attitude washout"
+          git push origin HEAD:main
