@@ -180,7 +180,8 @@ try{
   const strafeBraked=bodyMotion(await latestFlightSample());
   if(strafeBraked.horizontal>Math.max(.60,strafing.horizontal*.82))throw new Error(`solo strafe braking failed: before=${JSON.stringify(strafing)}, after=${JSON.stringify(strafeBraked)}`);
 
-  await page.click("#camThird");
+  await page.click("#soloCamera");
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="third",{timeout:5000});
   const lookYawBefore=Number((await latestFlightSample()).yaw_deg||0),lookStick=await pointerDownOnly("#soloRight");
   await page.mouse.move(lookStick.cx,lookStick.cy-lookStick.r*.55,{steps:5});
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.gameLookPitch||0))>.20,{timeout:10000});
