@@ -192,7 +192,7 @@ class HardwareBackend {
       while(this.reading){
         const {value,done}=await this.reader.read();
         if(done)break;
-        if(value?.length)this.parser.feed(value);
+        if(value?.length)this.parser.feed(new Uint8Array(value));
       }
     }catch(error){this.parser.fail(error);}
   }
@@ -432,18 +432,11 @@ function setCameraMode(next){
 function updateCamera(){
   const position=new THREE.Vector3(...physics.position()),raw=physics.rotation(),q=new THREE.Quaternion(raw[0],raw[1],raw[2],raw[3]);
   const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
-  const viewPitch=effectiveInput?.gameMode?clamp(Number(effectiveInput.lookPitch)||0,-1,1):0;
-  $("viewport").dataset.gameLookPitch=viewPitch.toFixed(3);
   if(cameraMode==="fpv"){
     const bodyUp=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();
-    // A real FPV camera is normally mounted with positive uptilt. Keep the
-    // camera rigidly attached to the frame (roll/pitch remain visible), but
-    // point its optical axis 30 degrees above body-forward. The FC commands at
-    // most about 32 degrees attitude, so full forward flight no longer points
-    // the camera straight into the ground.
-    const lookTilt=clamp(FPV_CAMERA_UPTILT_RAD+viewPitch*35*Math.PI/180,-5*Math.PI/180,65*Math.PI/180);
-    const c=Math.cos(lookTilt),si=Math.sin(lookTilt);
-    $("viewport").dataset.cameraLookDeg=(lookTilt*180/Math.PI).toFixed(1);
+    // FPV optics are rigidly mounted to the airframe. GAME right-stick pitch now
+    // moves the physical body through the motors; there is no virtual camera axis.
+    const c=Math.cos(FPV_CAMERA_UPTILT_RAD),si=Math.sin(FPV_CAMERA_UPTILT_RAD);
     const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();
     const fpvUp=bodyUp.clone().multiplyScalar(c).addScaledVector(bodyForward,-si).normalize();
     camera.position.copy(position).addScaledVector(bodyForward,.095).addScaledVector(bodyUp,.045);
@@ -455,9 +448,8 @@ function updateCamera(){
   if(horizontal.lengthSq()>.04)horizontal.normalize();
   if(cameraMode==="third"){
     if(horizontal.lengthSq()>.04)thirdHeading.lerp(horizontal,.22).normalize();
-    $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);
-    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05+viewPitch*.32;
-    const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18+viewPitch*1.15;
+    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05;
+    const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18;
     camera.up.set(0,0,1);
     if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.16);
     camera.lookAt(look);
@@ -465,9 +457,8 @@ function updateCamera(){
     return;
   }
   if(horizontal.lengthSq()>.04)followHeading.lerp(horizontal,.12).normalize();
-  $("viewport").dataset.cameraLookDeg=(viewPitch*35).toFixed(1);
-  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78+viewPitch*.28;
-  const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10+viewPitch*.95;
+  const desired=position.clone().addScaledVector(followHeading,-1.65);desired.z+=.78;
+  const look=position.clone().addScaledVector(followHeading,.38);look.z+=.10;
   camera.up.set(0,0,1);
   if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.075);
   camera.lookAt(look);
@@ -481,8 +472,8 @@ soloHud.innerHTML=`
   <div id="soloRaceHud"><span id="soloLap">READY · 3 LAPS</span><strong id="soloRaceTime">00:00.000</strong><span id="soloGate">NEXT · START / FINISH</span><span id="soloBest">BEST —</span></div>
   <div id="soloRotate">ROTATE PHONE TO LANDSCAPE</div>
   <div id="soloLeft" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>FWD / STRAFE</span></div>
-  <div id="soloClearance"><small>GROUND CLEARANCE</small><strong id="soloClearanceValue">2.0 m</strong><div class="solo-range-shell"><input id="soloClearanceSlider" type="range" min="0.5" max="5" step="0.1"></div><span id="soloRangeStatus">AGL —</span></div>
-  <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>TURN / LOOK</span></div>
+  <div id="soloClearance"><small>FLY HEIGHT</small><strong id="soloClearanceValue">2.0 m</strong><div class="solo-range-shell"><input id="soloClearanceSlider" type="range" min="0.5" max="5" step="0.1"></div><span id="soloRangeStatus">AGL —</span></div>
+  <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>TURN / PITCH</span></div>
   <button id="soloArm" class="solo-action" type="button">ARM</button>
   <button id="soloKill" class="solo-action" type="button">KILL</button>`;
 $("viewport").appendChild(soloHud);
@@ -516,21 +507,22 @@ document.head.appendChild(soloStyle);
 
 let soloMode=false,soloPreviousInputSource="remote",phoneSettings=loadPhoneControlSettings();
 let soloGroundClearance=clamp(Number(localStorage.getItem("arondight45GroundClearance"))||2,.5,5);
-function neutralSoloControls(){return{...neutralControls(),gameMode:true,groundClearance:soloGroundClearance,lookPitch:0};}
+function neutralSoloControls(){return{...neutralControls(),gameMode:true,groundClearance:soloGroundClearance};}
 let soloControls=neutralSoloControls();
 const soloClearanceSlider=$("soloClearanceSlider"),soloClearanceValue=$("soloClearanceValue"),soloRangeStatus=$("soloRangeStatus");soloClearanceSlider.value=String(soloGroundClearance);
 function updateSoloSticks(){
   const left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(soloControls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(soloControls.pitch,phoneSettings.leftFineness)};
-  const right={x:inversePhoneAxis(soloControls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(soloControls.lookPitch||0,phoneSettings.rightFineness)};
+  const rawX=-inversePhoneAxis(soloControls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(soloControls.bodyPitch||0,phoneSettings.rightFineness);
+  const right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};
   for(const [id,axes] of [["soloLeft",left],["soloRight",right]]){const knob=$(id).querySelector(".solo-knob");knob.style.left=`${knobPercent(axes.x)}%`;knob.style.top=`${knobPercent(axes.y)}%`;}
   soloClearanceValue.textContent=`${soloGroundClearance.toFixed(1)} m`;
 }
 function soloStick(el,kind){
   let pointer=null;
-  const apply=e=>{const point=normalizedPointer(el,e);if(kind==="left"){soloControls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(point.x,phoneSettings.leftFineness);soloControls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);soloControls.throttle=0;}else{soloControls.yaw=phoneAxis(point.x,phoneSettings.rightFineness);soloControls.lookPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-point.y,phoneSettings.rightFineness);}updateSoloSticks();e.preventDefault();};
+  const apply=e=>{const point=normalizedPointer(el,e);if(kind==="left"){soloControls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(point.x,phoneSettings.leftFineness);soloControls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);soloControls.throttle=0;}else{const x=phoneSettings.invertRightHorizontal?-point.x:point.x,y=phoneSettings.invertRightVertical?-point.y:point.y;soloControls.yaw=phoneAxis(-x,phoneSettings.rightFineness);soloControls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);}updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);});
   el.addEventListener("pointermove",e=>{if(e.pointerId===pointer)apply(e);});
-  const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.lookPitch=0;}updateSoloSticks();e.preventDefault();};
+  const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.bodyPitch=0;}updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);
 }
 soloClearanceSlider.oninput=()=>{soloGroundClearance=clamp(Number(soloClearanceSlider.value),.5,5);localStorage.setItem("arondight45GroundClearance",String(soloGroundClearance));soloControls.groundClearance=soloGroundClearance;updateSoloSticks();};
@@ -559,7 +551,7 @@ document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscr
 let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
-const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput={roll:0,pitch:0,yaw:0,throttle:0,arm:false},lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
+const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput=neutralControls(),lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
 
 function setStatus(text,cls=""){ui.status.textContent=text;ui.status.className="statusline "+cls;}
 function modeDescription(){
@@ -591,7 +583,7 @@ function localControlState(){
   let roll=+ui.touchRoll.value,pitch=+ui.touchPitch.value,yaw=+ui.touchYaw.value;
   if(keys.has("KeyD"))roll=1;if(keys.has("KeyA"))roll=-1;if(keys.has("KeyW"))pitch=1;if(keys.has("KeyS"))pitch=-1;if(keys.has("KeyE"))yaw=1;if(keys.has("KeyQ"))yaw=-1;
   if(keys.has("KeyR"))localThrottle=clamp(localThrottle+1.2*DT,0,1);else if(keys.has("KeyF"))localThrottle=clamp(localThrottle-1.2*DT,0,1);else localThrottle=+ui.touchThrottle.value;
-  return{roll,pitch,yaw,throttle:localThrottle,arm:localArm};
+  return{roll,pitch,yaw,throttle:localThrottle,bodyPitch:0,arm:localArm};
 }
 function activeControlState(){
   const neutral=neutralControls();
@@ -601,7 +593,7 @@ function activeControlState(){
 function controls(){
   const c=activeControlState(),channels=new Array(16).fill(992);
   channels[0]=Math.round(992+820*clamp(c.roll||0,-1,1));channels[1]=Math.round(992+820*clamp(c.pitch||0,-1,1));channels[3]=Math.round(992+820*clamp(c.yaw||0,-1,1));channels[4]=c.arm?1811:172;
-  if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,.5,5),normalized=(clearance-.5)/4.5;channels[5]=Math.round(172+1639*normalized);channels[6]=1811;}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));
+  if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,.5,5),normalized=(clearance-.5)/4.5;channels[5]=Math.round(172+1639*normalized);channels[6]=1811;channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1));}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));
   return encodeSbus(channels);
 }
 async function controllerStep(){
@@ -635,7 +627,7 @@ function render(){
   requestAnimationFrame(render);physics.render();updateCamera();const state=physics.state();
   const fcState=latest.state,fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
-  const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,.5,5):null});}
+  const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,.5,5):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});}
   const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&(!(fcState&STATE_NAVIGATION_VALID)||!sharedArmReady(stateText,soloControls,true,phoneSettings));soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
 }
 render();
