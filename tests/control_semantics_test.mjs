@@ -1,4 +1,4 @@
-// This shared semantics test is part of both final Pages and ESP32-S31 validation.
+// This shared semantics + workflow-hygiene test is part of both final Pages and ESP32-S31 validation.
 import assert from "node:assert/strict";
 import {readdirSync} from "node:fs";
 import {
