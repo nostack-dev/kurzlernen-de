@@ -47,6 +47,8 @@ forbidText("esp32/Arondight45_DroneFC_Core.hpp","roll += s.g.x * dt",
            "body gyro p/q/r must not be integrated directly as Euler rates");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y",
             "attitude estimator must transform body p/q/r into Euler rates");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f",
+            "accelerometer correction must remain a slow drift anchor during translational flight");
 for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity","setPosition"])
   forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller must not depend on simulator physics API: ${marker}`);
 
@@ -198,6 +200,7 @@ for(const path of [
   ".github/workflows/state-command-map-temp.yml",
   ".github/workflows/finalize-state-vector.yml",
   ".github/workflows/yaw-contract-temp.yml",
+  ".github/workflows/fusion-final-temp.yml",
 ]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
 for(const path of [
   "tools/patch_shared_control_semantics.py",

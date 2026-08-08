@@ -140,7 +140,10 @@ struct Attitude {
         if (n > 0.8f && n < 1.2f) {
             const float accel_roll = std::atan2(s.a.y, s.a.z) * 180.0f / kPi;
             const float accel_pitch = std::atan2(-s.a.x, std::sqrt(s.a.y * s.a.y + s.a.z * s.a.z)) * 180.0f / kPi;
-            const float tau = 1.0f / (2.0f * kPi * 0.20f);
+            // During quadrotor translation the accelerometer measures thrust-specific
+            // force, not a clean gravity vector. Let gyro integration carry fast
+            // flight attitude; use accel only as a very slow long-term drift anchor.
+            const float tau = 1.0f / (2.0f * kPi * 0.02f);
             const float k = clamp(dt / (tau + dt), 0.0f, 0.02f);
             roll += k * (accel_roll - roll);
             pitch += k * (accel_pitch - pitch);

@@ -107,6 +107,15 @@ int main() {
     CHECK(coupled_attitude.pitch > 19.45f && coupled_attitude.pitch < 19.65f);
     CHECK(coupled_attitude.yaw > 10.75f && coupled_attitude.yaw < 10.90f);
 
+    // A banked accelerating quad can still measure ~1 g almost entirely on
+    // body Z. That is not evidence that the aircraft is level. Accelerometer
+    // fusion must therefore be far slower than flight-attitude dynamics.
+    fc::Attitude translating_attitude{};
+    translating_attitude.roll = 20.0f;
+    for (int i = 0; i < 1000; ++i)
+        translating_attitude.run(fc::Imu{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}}, 0.001f);
+    CHECK(translating_attitude.roll > 17.0f);
+
     const auto mixed = fc::mix(0.9f, 0.4f, -0.3f, 0.3f);
     for (float value : mixed.motor) CHECK(value >= 0.0f && value <= 1.0f);
     CHECK(fc::pulse(0.0f, false) == fc::kEscMinUs);
