@@ -101,7 +101,8 @@ function updateSticks(){
   let left,right;
   if(gameMode){
     left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
-    right={x:-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness)};
+    const rawX=-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness);
+    right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};
     ui.leftValue.textContent=`FWD ${(controls.pitch*100).toFixed(0)}% · STR ${(controls.roll*100).toFixed(0)}%`;
     ui.rightValue.textContent=`TURN ${(controls.yaw*100).toFixed(0)}% · PITCH ${((controls.bodyPitch||0)*100).toFixed(0)}%`;
   }else{
@@ -135,8 +136,10 @@ function bindStick(element,kind){
         controls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);
         controls.throttle=0;
       }else{
-        controls.yaw=phoneAxis(-point.x,phoneSettings.rightFineness);
-        controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-point.y,phoneSettings.rightFineness);
+        const x=phoneSettings.invertRightHorizontal?-point.x:point.x;
+        const y=phoneSettings.invertRightVertical?-point.y:point.y;
+        controls.yaw=phoneAxis(-x,phoneSettings.rightFineness);
+        controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);
       }
     }else applyStick(controls,kind,point,phoneSettings);
     updateSticks();publish();
