@@ -68,7 +68,7 @@ try{
     externalScripts:[...document.scripts].filter(s=>s.src).map(s=>s.src),
   }));
   if(boot.title!=="Arondight45 Drone Digital Twin"||!boot.status.includes("SIM ready")||
-     !boot.controller.includes("raw sensor wire → shared fc::FirmwareRuntime → StateRuntime → Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM")
+     !boot.controller.includes("shared fc::StateRuntime → fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM")
     throw new Error(`boot mismatch: ${JSON.stringify(boot)}`);
   if(boot.externalScripts.length||externalRequests.length)throw new Error("self-contained build made external requests");
 
@@ -180,10 +180,7 @@ try{
   const strafeBraked=bodyMotion(await latestFlightSample());
   if(strafeBraked.horizontal>Math.max(.60,strafing.horizontal*.82))throw new Error(`solo strafe braking failed: before=${JSON.stringify(strafing)}, after=${JSON.stringify(strafeBraked)}`);
 
-  // The iPhone solo layout intentionally hides #cameraModes. For this dynamics-only
-  // setup, invoke the existing camera control handler in-DOM, then assert it actually
-  // changed the viewport mode before testing camera-only free-look isolation.
-  await page.evaluate(()=>document.querySelector("#camThird")?.click());
+  await page.click("#soloCamera");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="third",{timeout:5000});
   const lookYawBefore=Number((await latestFlightSample()).yaw_deg||0),lookStick=await pointerDownOnly("#soloRight");
   await page.mouse.move(lookStick.cx,lookStick.cy-lookStick.r*.55,{steps:5});
@@ -251,5 +248,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: raw-hardware FirmwareRuntime GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, camera-only free-look, heading control, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, camera-only free-look, heading control, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}

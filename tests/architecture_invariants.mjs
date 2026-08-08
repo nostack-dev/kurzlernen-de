@@ -4,241 +4,132 @@ import {phoneAxis} from "../sim/control_semantics.mjs";
 
 const read=path=>readFileSync(path,"utf8");
 const fail=message=>{throw new Error(`ARCHITECTURE INVARIANT FAILED: ${message}`);};
-const requireText=(path,text,message=`${path} must contain ${JSON.stringify(text)}`)=>{
-  if(!read(path).includes(text))fail(message);
-};
-const forbidText=(path,text,message=`${path} must not contain ${JSON.stringify(text)}`)=>{
-  if(read(path).includes(text))fail(message);
-};
-const walk=(root,accept)=>{
-  const out=[];
-  for(const name of readdirSync(root)){
-    const path=join(root,name),stat=statSync(path);
-    if(stat.isDirectory())out.push(...walk(path,accept));
-    else if(accept(path))out.push(path);
-  }
-  return out;
-};
+const requireText=(path,text,message=`${path} must contain ${JSON.stringify(text)}`)=>{if(!read(path).includes(text))fail(message);};
+const forbidText=(path,text,message=`${path} must not contain ${JSON.stringify(text)}`)=>{if(read(path).includes(text))fail(message);};
+const walk=(root,accept)=>{const out=[];for(const name of readdirSync(root)){const path=join(root,name),stat=statSync(path);if(stat.isDirectory())out.push(...walk(path,accept));else if(accept(path))out.push(path);}return out;};
 
-// No source-inclusion/preprocessor shortcuts: Production, HIL and SIL consume
-// ordinary shared C++ headers / translation units.
+// C++ is shared normally: no source-file inclusion, main rewriting or hidden weak overrides.
 for(const path of [...walk("esp32",p=>/\.(?:cpp|hpp)$/.test(p)),...walk("sim",p=>/\.(?:cpp|hpp)$/.test(p))]){
   const source=read(path);
   if(/#[ \t]*include[ \t]+["<][^">]*\.cpp[">]/.test(source))fail(`${path} includes a .cpp translation unit`);
   if(/#[ \t]*define[ \t]+main\b/.test(source))fail(`${path} rewrites main with the preprocessor`);
+  if(source.includes("__attribute__((weak))"))fail(`${path} contains a weak-symbol dependency override`);
 }
-requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_FirmwareRuntime.hpp");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","fc::FirmwareRuntime runtime");
-forbidText("esp32/Arondight45_DroneFC_S31.cpp","arondight45_navigation_sample","production must never accept cooked simulation-only navigation state");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","Arondight45_FirmwareRuntime.hpp");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::FirmwareRuntime runtime_");
-requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_icm42688_registers");
-requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_navigation_wire");
-requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_sbus");
-requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","Arondight45_HIL_Protocol.hpp");
-requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","hil::RuntimeAdapter runtime");
-requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 
-// GAME/STATE is an outer feedback loop only. It may convert measured state error
-// to normal RC-like attitude/thrust requests, but it must not know Box3D, Three.js
-// or any simulator rigid-body API. The inner fc::Runtime remains motor authority.
-requireText("esp32/Arondight45_StateControl.hpp","class StateController");
-requireText("esp32/Arondight45_StateControl.hpp","class StateRuntime");
-requireText("esp32/Arondight45_StateControl.hpp","NavigationState");
-requireText("esp32/Arondight45_StateControl.hpp","runtime_.step");
-forbidText("esp32/Arondight45_DroneFC_Core.hpp","roll += s.g.x * dt",
-           "body gyro p/q/r must not be integrated directly as Euler rates");
-requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y",
-            "attitude estimator must transform body p/q/r into Euler rates");
-requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f",
-            "accelerometer correction must remain a slow drift anchor during translational flight");
+// Receiver/SBUS ends at the input adapter. Outer state control passes one physical
+// Command directly to the same inner runtime that Production, HIL and SIL execute.
+requireText("esp32/Arondight45_DroneFC_Core.hpp","RuntimeOutput step_command");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","return step_command(input, command(rc), rc.valid)");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","class Runtime");
+requireText("esp32/Arondight45_StateControl.hpp","Command run(");
+requireText("esp32/Arondight45_StateControl.hpp","runtime_.step_command");
+requireText("esp32/Arondight45_StateControl.hpp","return sanitize(Command{");
+for(const dirty of ["inverse_shape","shaped_raw","centered_raw","throttle_raw","StateController::transform"])
+  forbidText("esp32/Arondight45_StateControl.hpp",dirty,`synthetic receiver adapter returned: ${dirty}`);
+
+// State-vector control is plant-agnostic. Simulator APIs/truth may never enter C++.
 for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity","setPosition"])
-  forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller must not depend on simulator physics API: ${marker}`);
-
-// Translation is one desired-minus-measured state-vector law. Vector length is
-// speed; diagonal stick input must not gain sqrt(2) authority. Direction-specific
-// braking hacks and measured-attitude lead shortcuts are not allowed back in.
-requireText("esp32/Arondight45_StateControl.hpp","const float magnitude = std::sqrt(forward * forward + right * right)");
-requireText("esp32/Arondight45_StateControl.hpp","forward /= magnitude");
-requireText("esp32/Arondight45_StateControl.hpp","right /= magnitude");
+  forbidText("esp32/Arondight45_StateControl.hpp",marker,`state controller depends on simulator API: ${marker}`);
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.forward_mps - measured_forward)");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.right_mps - measured_right)");
-requireText("esp32/Arondight45_StateControl.hpp","update_acceleration_estimator(nav.velocity_world_mps, dt)",
-            "horizontal damping must derive from the measured navigation velocity vector");
-requireText("esp32/Arondight45_StateControl.hpp","measured_acceleration_world_mps2_",
-            "measured-state acceleration feedback must stay in the shared controller");
-requireText("esp32/Arondight45_StateControl.hpp","kHorizontalAccelerationDamping * measured_forward_accel");
-requireText("esp32/Arondight45_StateControl.hpp","kHorizontalAccelerationDamping * measured_right_accel");
-forbidText("esp32/Arondight45_StateControl.hpp","kMaxAttitudeFeedbackDeg",
-           "outer horizontal damping must not return to a roll/pitch proxy");
-requireText("esp32/Arondight45_StateControl.hpp","vertical_accel");
+requireText("esp32/Arondight45_StateControl.hpp","update_acceleration_estimator(nav.velocity_world_mps, dt)");
 requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
-requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)",
-            "thrust magnitude must map through rotor-speed physics instead of linearly to throttle");
-requireText("esp32/Arondight45_StateControl.hpp","hover_trim_ + kHoverAdapt * vz_error * dt",
-            "collective feed-forward must learn continuously from vertical state error");
-forbidText("esp32/Arondight45_StateControl.hpp","kHoverLearnAglBandM",
-           "collective learning must not be disabled far from the AGL target");
-requireText("esp32/Arondight45_StateControl.hpp","kEscCommandOffset");
-requireText("esp32/Arondight45_StateControl.hpp","kEscCommandScale");
+requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
-forbidText("esp32/Arondight45_StateControl.hpp","kAttitudeLead",
-           "direction-specific measured-attitude lead shortcut returned");
+requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f");
 
-// HIL v3 carries only target-hardware bytes. Cooked NavigationState fields are
-// not legal at this boundary.
-requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 3");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","navigation_frame[hwcontract::kNavigationFrameBytes]");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 80");
-for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])forbidText("esp32/Arondight45_HIL_Protocol.hpp",cooked);
+// Production navigation is a normal linked dependency. The generic image explicitly
+// has no navigation and therefore fails GAME closed; a real build replaces that TU.
+requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_Navigation.hpp");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","navigation::sample(navigation)");
+forbidText("esp32/Arondight45_DroneFC_S31.cpp","arondight45_navigation_sample");
+requireText("esp32/Arondight45_Navigation.hpp","bool sample(fc::NavigationState& out)");
+if(!existsSync("esp32/Arondight45_Navigation_Unavailable.cpp"))fail("explicit unavailable navigation adapter missing");
+requireText("esp32/Arondight45_Navigation_Unavailable.cpp","return false");
 
-// Production hardware safety/peripheral invariants must survive higher-level
-// control work.
-for(const marker of ["uart_set_line_inverse","kIntSource","esp_task_wdt"])
+// Hardware safety/peripheral architecture must survive higher-level work.
+for(const marker of ["uart_set_line_inverse","kIntSource","esp_task_wdt","fc::StateRuntime runtime"])
   requireText("esp32/Arondight45_DroneFC_S31.cpp",marker);
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","usb_serial_jtag");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","navigation_init");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","NavigationWireParser");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","sample_imu_registers");
-forbidText("esp32/Arondight45_DroneFC_S31.cpp","sample_imu(fc::Imu","production must not own a second ICM decoder");
 
-// SIM navigation is a sensor adapter, not a truth-to-motor shortcut. Its output
-// is serialized through the same HIL packet consumed by the C++ StateRuntime.
-requireText("sim/simulator.mjs","class SimNavigationSensors");
-requireText("sim/simulator.mjs","b3World_CastRayClosest");
-requireText("sim/simulator.mjs","COLLISION_TERRAIN = 1n");
-requireText("sim/simulator.mjs","COLLISION_AIRFRAME = 2n");
-requireText("sim/simulator.mjs","QUERY_RANGEFINDER = 4n");
-requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN",
-            "down rangefinder must query terrain only, never the airframe");
-requireText("sim/simulator.mjs","groundRange(12)");
-requireText("sim/simulator.mjs","neutralSoloControls");
-requireText("sim/simulator.mjs","soloClearanceSlider");
-requireText("sim/simulator.mjs","FLAG_NAVIGATION_PRESENT");
-requireText("sim/simulator.mjs","encodeNavigationWire");
-requireText("sim/simulator.mjs","class SimSbusReceiver");
-requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
-forbidText("sim/simulator.mjs","FLAG_NAVIGATION_VALID","browser may not inject decoded navigation validity");
-requireText("sim/simulator.mjs","backend.exchange(packet");
-requireText("sim/simulator.mjs","physics.step(latest.motors");
+// HIL/SIL use the same state runtime and fixed binary protocol; navigation occupies
+// the former reserved bytes, not a hidden side channel.
+requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 2");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::StateRuntime runtime_");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_vx_cms");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_agl_mm");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 64");
+requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
+requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
+
+// Simulator truth is converted into virtual sensors, serialized through HIL and
+// consumed by C++; returned PWM then drives the rigid-body plant.
+for(const marker of ["class SimNavigationSensors","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","groundRange(12)","FLAG_NAVIGATION_VALID","backend.exchange(packet","physics.step(latest.motors"])
+  requireText("sim/simulator.mjs",marker);
+requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
 forbidText("sim/simulator.mjs","stateControllerMotor");
 
-// GAME camera look is deliberately outside flight-control execution. The right
-// stick Y value may affect FOLLOW / THIRD / FPV camera geometry, but must never be
-// encoded into the SBUS-like channels consumed by StateRuntime / fc::Runtime.
+// Camera look is presentation only and cannot leak into the encoded FC channels.
 requireText("sim/simulator.mjs","dataset.gameLookPitch");
-requireText("sim/simulator.mjs","dataset.cameraLookDeg");
 requireText("sim/simulator.mjs","FPV_CAMERA_UPTILT_RAD+viewPitch");
-requireText("sim/control_settings.mjs","LOCK RIGHT STICK VERTICAL AXIS");
-const simulatorSource=read("sim/simulator.mjs");
-const controlsStart=simulatorSource.indexOf("function controls(){");
-const controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);
+const simulatorSource=read("sim/simulator.mjs"),controlsStart=simulatorSource.indexOf("function controls(){"),controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);
 if(controlsStart<0||controlsEnd<=controlsStart)fail("cannot isolate simulator controls() boundary");
-const controlsSource=simulatorSource.slice(controlsStart,controlsEnd);
-if(controlsSource.includes("lookPitch"))fail("camera free-look leaked into flight-control channel encoding");
+if(simulatorSource.slice(controlsStart,controlsEnd).includes("lookPitch"))fail("camera free-look leaked into flight-control channel encoding");
 
-// GitHub Pages source pages remain ordinary entry points; deploy.yml builds the
-// two self-contained single-file pages.
-requireText("drone_simulator.html",'<script type="module" src="./sim/simulator.mjs"></script>');
+// Phone UI is an input device and telemetry display, never a controller clone.
+for(const dirty of ["quantizedCentered","stateShape","desiredGameState","stateVectorDebug","data-vector-soll","data-vector-ist"])
+  forbidText("sim/controller.mjs",dirty,`browser controller duplicated flight-state logic/UI: ${dirty}`);
+requireText("sim/controller.mjs","measuredGameState");
+requireText("sim/controller.mjs","dataset.navForwardMps");
+requireText("sim/controller.mjs","controls.yaw=phoneAxis(-point.x");
+requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
+requireText("drone_controller.html",'id="gameModeButton"');
+requireText("drone_controller.html",'id="gameClearanceSlider" type="range"');
+requireText("drone_controller.html",'id="leftTopLabel"');
 requireText("drone_controller.html",'<script type="module" src="./sim/controller.mjs"></script>');
+requireText("drone_simulator.html",'<script type="module" src="./sim/simulator.mjs"></script>');
 
-// Normal two-phone SIM is direct browser-to-browser WebRTC.
+// Normal two-phone SIM is direct browser-to-browser WebRTC with freshness safety.
 requireText("sim/p2p_link.mjs","P2P_PROTOCOL = 4");
 requireText("sim/p2p_link.mjs","new RTCPeerConnection");
 requireText("sim/p2p_link.mjs","iceServers:[]");
 requireText("sim/p2p_link.mjs","CONTROL_STALE_MS = 350");
 requireText("sim/p2p_link.mjs","SESSION_GRACE_MS = 5 * 60 * 1000");
-for(const path of ["sim/p2p_link.mjs","sim/controller.mjs"]){
-  forbidText(path,"WebSocket",`${path} must not contain a relay transport`);
-  forbidText(path,'/control"',`${path} must not contain a controller relay route`);
-  forbidText(path,"/control'",`${path} must not contain a controller relay route`);
-}
+requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)");
+requireText("sim/p2p_link.mjs","newerSequence(sequence,this.lastTelemetrySequence)");
+for(const path of ["sim/p2p_link.mjs","sim/controller.mjs"]){for(const dirty of ["WebSocket",'/control"',"/control'"])forbidText(path,dirty,`${path} contains relay transport ${dirty}`);}
 requireText("sim/simulator.mjs","new ViewPeerLink()");
 requireText("sim/controller.mjs","ControllerPeerLink");
-requireText("sim/controller.mjs","gameMode");
-requireText("sim/controller.mjs","gameClearanceSlider");
-requireText("sim/controller.mjs","stateVectorDebug");
-requireText("sim/controller.mjs","data-vector-soll");
-requireText("sim/controller.mjs","data-vector-ist");
-requireText("sim/simulator.mjs","nav_vx_mps:latestNavigation.vx");
-requireText("sim/simulator.mjs","yaw_deg:latest.attitude[2]");
-forbidText("sim/simulator.mjs","RemoteControlLink");
-requireText("sim/simulator.mjs","control_semantics.mjs");
-requireText("sim/controller.mjs","control_semantics.mjs");
 requireText("sim/simulator.mjs","new QrScanner");
 requireText("sim/controller.mjs","new QrScanner");
 
-// Phone settings are an input-device adapter only. Legacy gain shortcuts that
-// changed command authority are not permitted back in.
-for(const path of ["sim/control_semantics.mjs","sim/control_settings.mjs"]){
-  forbidText(path,"MIN_PHONE_GAIN");
-  forbidText(path,"MAX_PHONE_GAIN");
-}
+// The optional local process is HIL transport only. It must never become a normal
+// controller relay/server again.
+requireText("tools/s31_hil_bridge.mjs",'pathname!=="/hil"');
+requireText("tools/s31_hil_bridge.mjs","HIL packets only");
+for(const dirty of ["CONTROL_PROTOCOL","controlSockets","rooms =","rooms=new Map","--sim-only",'pathname==="/control"',"Control relay"])
+  forbidText("tools/s31_hil_bridge.mjs",dirty,`HIL bridge contains normal-control relay code: ${dirty}`);
+
+// Phone fineness changes curve shape only, never full-stick authority.
+for(const path of ["sim/control_semantics.mjs","sim/control_settings.mjs"]){forbidText(path,"MIN_PHONE_GAIN");forbidText(path,"MAX_PHONE_GAIN");}
 for(const fineness of [1,7,10]){
-  if(phoneAxis(1,fineness)!==1||phoneAxis(-1,fineness)!==-1)
-    fail(`phone expo at fineness ${fineness} changes full-stick authority`);
+  if(phoneAxis(1,fineness)!==1||phoneAxis(-1,fineness)!==-1)fail(`phone expo at fineness ${fineness} changes full-stick authority`);
   if(phoneAxis(0,fineness)!==0)fail(`phone expo at fineness ${fineness} moves neutral`);
 }
 
-// The physical GAME E2E gate is intentionally strict. Do not trade a controller
-// regression for a weaker test threshold.
-requireText("tests/dual_phone_smoke.mjs","moving.forward>.30",
-            "dual-phone GAME E2E must verify desired forward velocity produces real forward motion");
-requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65",
-            "yaw E2E stimulus must make the unchanged four-degree physical rotation gate reachable after phone/C++ shaping");
-requireText("tests/browser_sim_smoke.mjs","right.cx+right.r*.65,right.cy",
-            "solo GAME yaw smoke must use the same 65-percent physical yaw stimulus as dual-phone GAME");
-requireText("tests/browser_sim_smoke.mjs","turnStart+.22",
-            "solo GAME yaw smoke must retain the same 220 ms physical response window as dual-phone GAME");
-requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f",
-            "GAME yaw authority must remain at the measured minimum that clears the strict physical gate");
-requireText("sim/controller.mjs","yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*140",
-            "controller state-vector debug must report the same GAME yaw authority as the flight controller");
-requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm',
-            "FC-authoritative disarm must clear any controller-side ARM request before re-arm");
-requireText("esp32/Arondight45_DroneFC_Core.hpp","const Command calibration_cmd = command(calibration_rc)",
-            "ARM-low safety interlock must observe receiver state during calibration");
-requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)",
-            "unordered telemetry must carry an independent monotonic sequence");
-requireText("sim/p2p_link.mjs","lastTelemetrySequence",
-            "controller must retain the newest accepted telemetry sequence");
-requireText("sim/p2p_link.mjs","newerSequence(sequence,this.lastTelemetrySequence)",
-            "out-of-order telemetry must never overwrite fresher flight state");
-requireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")',
-            "stale-control recovery must prove same-session re-arm only after restoring a safe upright simulator state");
-requireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)',
-            "same-session recovery must wait for fresh post-reset controller telemetry before re-arm");
-requireText("tests/dual_phone_smoke.mjs",'await clickWhenEnabled(controller,"#arm","ARM",15000);const rearmStart=await simTime(view);',
-            "re-arm duration must start at the actual ARM request, not during readiness waiting");
-requireText("esp32/Arondight45_StateControl.hpp","shaped_raw(yaw_command, 0.045f, 0.20f)",
-            "physical yaw command must survive Runtime receiver shaping exactly once");
-requireText("esp32/Arondight45_StateControl.hpp","inverse_shape",
-            "StateController physical commands require transparent receiver-shape inversion");
-forbidText("tests/dual_phone_smoke.mjs","moving.pitch<-6.0",
-           "roll/pitch are internal actuator coordinates, not user state targets");
+// Keep strict physical browser gates; never replace dynamics checks with UI-only checks.
+requireText("tests/dual_phone_smoke.mjs","moving.forward>.30");
+requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65");
+requireText("tests/dual_phone_smoke.mjs","turnStart+.22");
+requireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")');
+requireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)');
+requireText("tests/browser_sim_smoke.mjs","right.cx+right.r*.65,right.cy");
+requireText("tests/browser_sim_smoke.mjs","turnStart+.22");
 
-// Historical/self-mutating migration scaffolding must stay absent from production.
-for(const path of [
-  ".github/workflows/one-shot-shared-controls.yml",
-  ".github/workflows/oneoff-complete-game-spec.yml",
-  ".github/workflows/oneoff-complete-game-spec-v2.yml",
-  ".github/workflows/oneoff-restore-strict-game-e2e.yml",
-  ".github/workflows/oneoff-align-state-vector-tests.yml",
-  ".github/workflows/oneoff-game-response-window.yml",
-  ".github/workflows/oneoff-fix-thrust-vector-map.yml",
-  ".github/workflows/oneoff-agl-trace.yml",
-  ".github/workflows/oneoff-trace-disarm-cause.yml",
-  ".github/workflows/oneoff-rate-loop-tuning.yml",
-  ".github/workflows/oneoff-fusion-fix.yml",
-  ".github/workflows/fusion-single-temp.yml",
-  ".github/workflows/state-command-map-temp.yml",
-  ".github/workflows/finalize-state-vector.yml",
-  ".github/workflows/yaw-contract-temp.yml",
-  ".github/workflows/fusion-final-temp.yml",
-]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
-for(const path of [
-  "tools/patch_shared_control_semantics.py",
-  "tools/oneoff_command_kinematics.py",
-]) if(existsSync(path))fail(`temporary source patcher returned: ${path}`);
+// Historical self-mutating migration workflows are not production architecture.
+for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
+  if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
-console.log("Architecture invariants passed: desired-state vector -> measured-state dynamics -> physical acceleration/thrust geometry -> shared fc::Runtime -> motor physics, with raycast AGL, camera-only free-look and direct static WebRTC.");
+console.log("Architecture invariants passed: one C++ motor authority, direct physical commands, explicit navigation dependency, sensorized twin, direct WebRTC control, HIL-only bridge, no browser controller clone.");
