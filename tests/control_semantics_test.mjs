@@ -1,9 +1,19 @@
 // This shared semantics test is part of both final Pages and ESP32-S31 validation.
 import assert from "node:assert/strict";
+import {readdirSync} from "node:fs";
 import {
   DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,neutralControls,armReady,applyStick,releaseStick,
   knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag
 } from "../sim/control_semantics.mjs";
+
+// Production CI is intentionally limited to the two real workflows. Temporary
+// tuning/validator workflows caused stale trees and competing main pushes during
+// development; any reintroduction must fail both Pages and S31 validation.
+assert.deepEqual(
+  readdirSync(".github/workflows").sort(),
+  ["deploy.yml","s31-hil.yml"],
+  "production tree must contain only deploy.yml and s31-hil.yml",
+);
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
 
@@ -87,4 +97,4 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must no
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
 
-console.log("Phone controls passed: full authority, cubic fineness, strict yaw-E2E authority, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
+console.log("Phone controls passed: workflow set locked, full authority, cubic fineness, strict yaw-E2E authority, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
