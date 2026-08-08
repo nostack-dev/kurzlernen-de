@@ -48,6 +48,31 @@ inline uint16_t centered_raw(float value) {
     return static_cast<uint16_t>(clamp(std::lround(992.0f + 820.0f * v), 172l, 1811l));
 }
 
+// StateController produces physical, post-shape commands (desired normalized
+// attitude / yaw-rate commands), but fc::Runtime intentionally applies the same
+// deadband/expo used for raw receiver sticks in command(). Invert that monotonic
+// curve here so the internal RC adapter is transparent: command(out).axis equals
+// the physical command computed by the state controller instead of being shaped a
+// second time. This keeps the existing production Runtime as the sole executor.
+inline float inverse_shape(float desired, float deadband, float expo) {
+    const float a = std::fabs(clamp(desired, -1.0f, 1.0f));
+    if (a <= 1.0e-7f) return 0.0f;
+    float lo = 0.0f;
+    float hi = 1.0f;
+    for (int i = 0; i < 20; ++i) {
+        const float t = 0.5f * (lo + hi);
+        const float y = t * (1.0f - expo) + t * t * t * expo;
+        if (y < a) lo = t;
+        else hi = t;
+    }
+    const float x = deadband + (1.0f - deadband) * 0.5f * (lo + hi);
+    return std::copysign(clamp(x, 0.0f, 1.0f), desired);
+}
+
+inline uint16_t shaped_raw(float desired, float deadband, float expo) {
+    return centered_raw(inverse_shape(desired, deadband, expo));
+}
+
 inline uint16_t throttle_raw(float value) {
     const float v = clamp(value, 0.0f, 1.0f);
     return static_cast<uint16_t>(clamp(std::lround(172.0f + 1639.0f * v), 172l, 1811l));
@@ -255,10 +280,12 @@ public:
             (required_motor_command - kEscCommandOffset) / kEscCommandScale,
             kMinFlightThrottle, kMaxFlightThrottle);
 
-        out.ch[FC_SBUS_ROLL] = centered_raw(roll_command);
-        out.ch[FC_SBUS_PITCH] = centered_raw(pitch_channel);
+        // These are internal physical commands, not receiver-stick wishes. Encode the
+        // inverse curve so fc::command() reconstructs them exactly once.
+        out.ch[FC_SBUS_ROLL] = shaped_raw(roll_command, 0.035f, 0.30f);
+        out.ch[FC_SBUS_PITCH] = shaped_raw(pitch_channel, 0.035f, 0.30f);
         out.ch[FC_SBUS_THROTTLE] = throttle_raw(throttle_command);
-        out.ch[FC_SBUS_YAW] = centered_raw(yaw_command);
+        out.ch[FC_SBUS_YAW] = shaped_raw(yaw_command, 0.045f, 0.20f);
 
         debug_ = {intent.forward_mps, measured_forward,
                   intent.right_mps, measured_right,
@@ -280,12 +307,11 @@ private:
     static constexpr float kMaxTiltTangent = 0.46630766f;  // tan(25 deg)
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
 
-    // The 2 m/s² vector ceiling still defines full-stick authority. Near the target,
-    // Kv and Kd shape one second-order measured-state loop. These values are chosen
-    // near critical damping for the slower attitude/rotor execution layer: convergence
-    // is fast without reintroducing a direction-specific brake path.
-    static constexpr float kHorizontalVelocityGain = 1.20f;  // 1/s
-    static constexpr float kHorizontalAccelerationDamping = 0.60f;
+    // The already-run full browser matrix proved that 0.80 / 0.55 gives bounded
+    // forward convergence and clean strafe response on the same physical model.
+    // Full-stick authority is still defined solely by the 2 m/s² vector ceiling.
+    static constexpr float kHorizontalVelocityGain = 0.80f;  // 1/s
+    static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
