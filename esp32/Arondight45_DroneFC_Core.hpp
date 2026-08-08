@@ -110,10 +110,6 @@ struct Attitude {
     }
 
     void run(Imu s, float dt) {
-        // The gyro measures body angular rates p/q/r. Those are not Euler
-        // roll/pitch/yaw rates once the aircraft is tilted. For the ZYX Euler
-        // convention used by the simulator and telemetry, transform body rates
-        // through the exact kinematic Jacobian before integrating attitude.
         const float phi = roll * kPi / 180.0f;
         const float theta = pitch * kPi / 180.0f;
         const float sin_phi = std::sin(phi);
@@ -140,9 +136,6 @@ struct Attitude {
         if (n > 0.8f && n < 1.2f) {
             const float accel_roll = std::atan2(s.a.y, s.a.z) * 180.0f / kPi;
             const float accel_pitch = std::atan2(-s.a.x, std::sqrt(s.a.y * s.a.y + s.a.z * s.a.z)) * 180.0f / kPi;
-            // During quadrotor translation the accelerometer measures thrust-specific
-            // force, not a clean gravity vector. Let gyro integration carry fast
-            // flight attitude; use accel only as a very slow long-term drift anchor.
             const float tau = 1.0f / (2.0f * kPi * 0.02f);
             const float k = clamp(dt / (tau + dt), 0.0f, 0.02f);
             roll += k * (accel_roll - roll);
@@ -283,6 +276,19 @@ struct Command {
     bool arm{};
 };
 
+inline bool finite(Command c) {
+    return std::isfinite(c.roll) && std::isfinite(c.pitch) &&
+           std::isfinite(c.throttle) && std::isfinite(c.yaw);
+}
+
+inline Command sanitize(Command c) {
+    c.roll = clamp(c.roll, -1.0f, 1.0f);
+    c.pitch = clamp(c.pitch, -1.0f, 1.0f);
+    c.throttle = clamp(c.throttle, 0.0f, 1.0f);
+    c.yaw = clamp(c.yaw, -1.0f, 1.0f);
+    return c;
+}
+
 inline Command command(const RC& r) {
     return {shape(centered(r.ch[FC_SBUS_ROLL]), 0.035f, 0.3f),
             -shape(centered(r.ch[FC_SBUS_PITCH]), 0.035f, 0.3f),
@@ -323,9 +329,9 @@ public:
         bool armed{}, armed_now{}, disarmed_now{};
     };
 
-    Result run(uint64_t us, bool rc_valid, Command cmd, bool imu_ok, float roll, float pitch) {
+    Result run(uint64_t us, bool control_valid, Command cmd, bool imu_ok, float roll, float pitch) {
         Result result{armed_, false, false};
-        if (!rc_valid) {
+        if (!control_valid) {
             result.disarmed_now = armed_;
             armed_ = false;
             saw_low_ = false;
@@ -377,9 +383,6 @@ public:
     }
 
     Mix run(Imu s, Command cmd, float dt, bool integrate) {
-        // The attitude loop must be slower than the gyro-rate loop it commands.
-        // This bandwidth separation prevents a physically impossible target-angle
-        // reversal from driving the rigid body through the requested attitude.
         constexpr float kAngleToRate = 1.9f;
         const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
         const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
@@ -450,14 +453,28 @@ public:
         armed_ = false;
     }
 
+    // Receiver/SBUS is only an input adapter. Once decoded, the flight runtime
+    // operates on a physical normalized Command. Higher-level controllers use
+    // step_command() directly instead of fabricating receiver frames.
     RuntimeOutput step(const RuntimeInput& input) {
+        RC rc = input.rc;
+        rc.valid = rc.valid && input.rc_fresh;
+        return step_command(input, command(rc), rc.valid);
+    }
+
+    RuntimeOutput step_command(const RuntimeInput& input, Command cmd, bool command_valid = true) {
         RuntimeOutput out;
         if (fault_ != kFaultNone) return finalize(out, false, false);
 
         if (!input.imu_valid || !finite(input.raw.a) || !finite(input.raw.g)) {
             set_fault(kFaultImu);
-            return finalize(out, input.rc_fresh, false);
+            return finalize(out, command_valid, false);
         }
+        if (command_valid && !finite(cmd)) {
+            set_fault(kFaultProtocol);
+            return finalize(out, false, true);
+        }
+        cmd = command_valid ? sanitize(cmd) : Command{};
 
         const float dt = (input.dt_us > 0 && input.dt_us < 100000)
                              ? static_cast<float>(input.dt_us) * 1.0e-6f
@@ -465,11 +482,8 @@ public:
 
         if (!calibrated_) {
             calibrate(input.raw);
-            RC calibration_rc = input.rc;
-            calibration_rc.valid = calibration_rc.valid && input.rc_fresh;
-            const Command calibration_cmd = command(calibration_rc);
-            (void)arm_.run(input.now_us, calibration_rc.valid, calibration_cmd, false, 0.0f, 0.0f);
-            return finalize(out, input.rc_fresh, true);
+            (void)arm_.run(input.now_us, command_valid, cmd, false, 0.0f, 0.0f);
+            return finalize(out, command_valid, true);
         }
 
         if (armed_) {
@@ -482,7 +496,7 @@ public:
         } else {
             bad_timing_ = 0;
         }
-        if (fault_ != kFaultNone) return finalize(out, input.rc_fresh, true);
+        if (fault_ != kFaultNone) return finalize(out, command_valid, true);
 
         Imu corrected = input.raw;
         corrected.g.x -= gyro_bias_.x;
@@ -493,15 +507,12 @@ public:
             std::fabs(imu.g.x) > 1750.0f || std::fabs(imu.g.y) > 1750.0f ||
             std::fabs(imu.g.z) > 1750.0f) {
             set_fault(kFaultRate);
-            return finalize(out, input.rc_fresh, true);
+            return finalize(out, command_valid, true);
         }
 
-        RC rc = input.rc;
-        rc.valid = rc.valid && input.rc_fresh;
-        const Command cmd = command(rc);
         controller_.attitude.run(imu, dt);
         const bool accel_ok = mag(imu.a) > 0.7f && mag(imu.a) < 1.3f;
-        const auto arm_result = arm_.run(input.now_us, rc.valid, cmd, accel_ok,
+        const auto arm_result = arm_.run(input.now_us, command_valid, cmd, accel_ok,
                                          controller_.attitude.roll, controller_.attitude.pitch);
         armed_ = arm_result.armed;
 
@@ -523,7 +534,7 @@ public:
             }
         }
 
-        return finalize(out, input.rc_fresh, true);
+        return finalize(out, command_valid, true);
     }
 
     bool calibrated() const { return calibrated_; }
@@ -589,7 +600,7 @@ private:
         return static_cast<int16_t>(std::lround(value));
     }
 
-    RuntimeOutput finalize(RuntimeOutput out, bool rc_ok, bool imu_ok) const {
+    RuntimeOutput finalize(RuntimeOutput out, bool control_ok, bool imu_ok) const {
         out.armed = armed_ && fault_ == kFaultNone;
         out.fault = fault_;
         if (out.armed) out.state |= kStateArmed;
@@ -599,7 +610,7 @@ private:
             out.state |= static_cast<uint16_t>(fault_) << 8;
             out.motor_us = {kEscMinUs, kEscMinUs, kEscMinUs, kEscMinUs};
         }
-        if (rc_ok) out.state |= kStateRcValid;
+        if (control_ok) out.state |= kStateRcValid;
         if (imu_ok) out.state |= kStateImuValid;
         out.attitude_cdeg = {to_cdeg(controller_.attitude.roll),
                              to_cdeg(controller_.attitude.pitch),

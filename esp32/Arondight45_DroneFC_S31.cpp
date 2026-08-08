@@ -1,14 +1,12 @@
 /*
  * Arondight45 DroneFC — ESP32-S31 / ESP-IDF production hardware adapter.
  *
- * The flight-control state machine, calibration, filters, attitude estimator,
- * arming, PID, mixer, limits and fault policy live in
- * Arondight45_DroneFC_Core.hpp and are shared verbatim by Production, HIL and SIL.
- * This file contains only physical ESP32-S31 / ICM-42688-P / SBUS / MCPWM glue
- * plus hardware-only watchdog, kill and deadline supervision.
+ * Flight-control logic lives in the shared C++ runtime. This file contains only
+ * physical ESP32-S31 / ICM-42688-P / SBUS / MCPWM glue plus hardware watchdog,
+ * kill and deadline supervision. Navigation is an explicit linked dependency.
  */
 
-#include "Arondight45_StateControl.hpp"
+#include "Arondight45_Navigation.hpp"
 
 #include <array>
 #include <atomic>
@@ -78,8 +76,6 @@ extern "C" {
 
 static_assert(FC_IMU_ROTATION == 0 || FC_IMU_ROTATION == 90 ||
               FC_IMU_ROTATION == 180 || FC_IMU_ROTATION == 270);
-
-extern "C" bool __attribute__((weak)) arondight45_navigation_sample(float* vx_mps,float* vy_mps,float* vz_mps,float* agl_m){(void)vx_mps;(void)vy_mps;(void)vz_mps;(void)agl_m;return false;}
 
 namespace hw {
 
@@ -391,9 +387,13 @@ void flight_task(void*) {
         input.missed_samples = notifications > 1 ? notifications - 1 : 0;
         input.imu_valid = true;
         input.rc_fresh = rc_fresh;
-        fc::NavigationState navigation{};float nav_vx=0,nav_vy=0,nav_vz=0,nav_agl=0;
-        if(arondight45_navigation_sample(&nav_vx,&nav_vy,&nav_vz,&nav_agl)){navigation.velocity_world_mps={nav_vx,nav_vy,nav_vz};navigation.agl_m=nav_agl;navigation.valid=true;navigation.valid=fc::finite(navigation);}
-        fc::StateRuntimeInput state_input{};state_input.flight=input;state_input.navigation=navigation;
+
+        fc::NavigationState navigation{};
+        if (navigation::sample(navigation)) navigation.valid = fc::finite(navigation);
+
+        fc::StateRuntimeInput state_input{};
+        state_input.flight = input;
+        state_input.navigation = navigation;
         const fc::RuntimeOutput output = runtime.step(state_input);
 
         if (output.fault != fc::kFaultNone) fatal(fc::Runtime::fault_name(output.fault));
