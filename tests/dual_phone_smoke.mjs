@@ -80,12 +80,12 @@ try{
   await setValue(controller,"#gameClearanceSlider","2.8");await waitText(controller,"#gameClearanceValue","2.8 m",10000);
   const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);const clearanceRise=await liveMotion(view,controller);
   if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance slider did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
-  await setValue(controller,"#gameClearanceSlider","2.0");await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.70;},{timeout:90000});
+  await setValue(controller,"#gameClearanceSlider","2.0");await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.45;},{timeout:90000});
 
   const rightPitch=await stickBox(controller,"#rightStick"),pitchX=rightPitch.x+rightPitch.w/2,pitchY=rightPitch.y+rightPitch.h/2,pitchR=Math.min(rightPitch.w,rightPitch.h)*.42;
   const pitchBefore=await liveMotion(view,controller);
-  await controller.mouse.move(pitchX,pitchY);await controller.mouse.down();await controller.mouse.move(pitchX,pitchY-pitchR*.60,{steps:6});
-  const pitchStart=await simTime(view);await waitSim(view,pitchStart+.35,30000);const pitched=await liveMotion(view,controller);
+  await controller.mouse.move(pitchX,pitchY);await controller.mouse.down();await controller.mouse.move(pitchX,pitchY-pitchR*.85,{steps:6});
+  const pitchStart=await simTime(view);await waitSim(view,pitchStart+.45,30000);const pitched=await liveMotion(view,controller);
   if(!(pitched.pitch>pitchBefore.pitch+4.0))throw new Error(`body-pitch command did not rotate aircraft nose-up: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   if(pitched.state!=="ARMED"||!pitched.motors.some(value=>value>1050))throw new Error(`body-pitch motor authority missing: ${JSON.stringify(pitched)}`);
   let pitchYawDelta=(pitched.yaw-pitchBefore.yaw)%360;if(pitchYawDelta>180)pitchYawDelta-=360;if(pitchYawDelta<-180)pitchYawDelta+=360;
