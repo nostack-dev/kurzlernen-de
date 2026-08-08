@@ -33,7 +33,10 @@ for(const marker of ["Box3D","THREE","PhysicsModel","b3Body","setLinearVelocity"
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.forward_mps - measured_forward)");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.right_mps - measured_right)");
 requireText("esp32/Arondight45_StateControl.hpp","update_acceleration_estimator(nav.velocity_world_mps, dt)");
-requireText("esp32/Arondight45_StateControl.hpp","required_specific_force");
+requireText("esp32/Arondight45_StateControl.hpp","kStateBodyPitchChannel = 7");
+requireText("esp32/Arondight45_StateControl.hpp","intent.body_pitch_deg");
+requireText("esp32/Arondight45_StateControl.hpp","auto_pitch_target_deg + intent.body_pitch_deg");
+requireText("esp32/Arondight45_StateControl.hpp","vertical_thrust_fraction");
 requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f");
@@ -85,20 +88,26 @@ requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
 for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
   forbidText("sim/simulator.mjs",dirty,`simulator contains decoded/control shortcut: ${dirty}`);
 
-// Camera look is presentation only and cannot leak into the encoded FC channels.
-requireText("sim/simulator.mjs","dataset.gameLookPitch");
-requireText("sim/simulator.mjs","FPV_CAMERA_UPTILT_RAD+viewPitch");
+// GAME look is aircraft attitude, never a presentation-only camera shortcut.
+for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
+  forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
+requireText("sim/simulator.mjs","channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1))");
+requireText("sim/simulator.mjs","FPV optics are rigidly mounted to the airframe");
+requireText("sim/controller.mjs","controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y");
+requireText("sim/p2p_link.mjs","bodyPitch:clamp(numeric[4],-1,1)");
 const simulatorSource=read("sim/simulator.mjs"),controlsStart=simulatorSource.indexOf("function controls(){"),controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);
 if(controlsStart<0||controlsEnd<=controlsStart)fail("cannot isolate simulator controls() boundary");
-if(simulatorSource.slice(controlsStart,controlsEnd).includes("lookPitch"))fail("camera free-look leaked into flight-control channel encoding");
+if(!simulatorSource.slice(controlsStart,controlsEnd).includes("bodyPitch"))fail("GAME body pitch does not cross the real SBUS boundary");
 
 // Phone UI is an input device and telemetry display, never a controller clone.
 for(const dirty of ["quantizedCentered","stateShape","desiredGameState","stateVectorDebug","data-vector-soll","data-vector-ist"])
   forbidText("sim/controller.mjs",dirty,`browser controller duplicated flight-state logic/UI: ${dirty}`);
 requireText("sim/controller.mjs","measuredGameState");
 requireText("sim/controller.mjs","dataset.navForwardMps");
-requireText("sim/controller.mjs","controls.yaw=phoneAxis(-point.x");
+requireText("sim/controller.mjs","PITCH FWD");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
+requireText("sim/control_settings.mjs","INVERT RIGHT STICK HORIZONTAL (L/R)");
+requireText("sim/control_settings.mjs","INVERT RIGHT STICK VERTICAL (UP/DOWN)");
 requireText("drone_controller.html",'id="gameModeButton"');
 requireText("drone_controller.html",'id="gameClearanceSlider" type="range"');
 requireText("drone_controller.html",'id="leftTopLabel"');
@@ -106,7 +115,7 @@ requireText("drone_controller.html",'<script type="module" src="./sim/controller
 requireText("drone_simulator.html",'<script type="module" src="./sim/simulator.mjs"></script>');
 
 // Normal two-phone SIM is direct browser-to-browser WebRTC with freshness safety.
-requireText("sim/p2p_link.mjs","P2P_PROTOCOL = 4");
+requireText("sim/p2p_link.mjs","P2P_PROTOCOL = 5");
 requireText("sim/p2p_link.mjs","new RTCPeerConnection");
 requireText("sim/p2p_link.mjs","iceServers:[]");
 requireText("sim/p2p_link.mjs","CONTROL_STALE_MS = 350");
@@ -135,10 +144,12 @@ for(const fineness of [1,7,10]){
 
 // Keep strict physical browser gates; never replace dynamics checks with UI-only checks.
 requireText("tests/dual_phone_smoke.mjs","moving.forward>.30");
+requireText("tests/dual_phone_smoke.mjs","body-pitch command did not rotate aircraft");
 requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65");
 requireText("tests/dual_phone_smoke.mjs","turnStart+.22");
 requireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")');
 requireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)');
+requireText("tests/browser_sim_smoke.mjs","body-pitch command did not rotate aircraft");
 requireText("tests/browser_sim_smoke.mjs","right.cx+right.r*.65,right.cy");
 requireText("tests/browser_sim_smoke.mjs","turnStart+.22");
 
@@ -146,4 +157,4 @@ requireText("tests/browser_sim_smoke.mjs","turnStart+.22");
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
-console.log("Architecture invariants passed: one raw hardware boundary, one C++ motor authority, direct physical commands, async ICM/SBUS/NAV1 sensor wires, direct WebRTC control and HIL-only bridge.");
+console.log("Architecture invariants passed: one raw hardware boundary, one C++ motor authority, real GAME body-pitch/yaw attitude, direct physical commands, async ICM/SBUS/NAV1 sensor wires, direct WebRTC control and HIL-only bridge.");
