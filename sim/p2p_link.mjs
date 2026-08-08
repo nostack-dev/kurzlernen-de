@@ -47,6 +47,21 @@ function safeSend(channel,message){
   if(channel.bufferedAmount>65536)return false;
   channel.send(JSON.stringify(message));return true;
 }
+function normalizedControl(control){
+  const numeric=[control?.roll,control?.pitch,control?.yaw,control?.throttle].map(Number);
+  if(!numeric.every(Number.isFinite))return null;
+  const groundClearance=Number(control.groundClearance),lookPitch=Number(control.lookPitch);
+  return {
+    roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),
+    yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),
+    arm:control.arm===true,gameMode:control.gameMode===true,
+    groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
+    lookPitch:Number.isFinite(lookPitch)?clamp(lookPitch,-1,1):0,
+  };
+}
+function latchedSafeControl(control){
+  return {...control,roll:0,pitch:0,yaw:0,throttle:0,arm:false,lookPitch:0};
+}
 
 class PeerBase{
   constructor(){
@@ -99,10 +114,14 @@ class PeerBase{
 }
 
 export class ViewPeerLink extends PeerBase{
-  constructor(){super();this.control=null;this.lastControlWall=0;this.lastSequence=null;}
-  _channelClosed(){this.control=null;this.lastControlWall=0;this.lastSequence=null;}
+  constructor(){super();this.control=null;this.lastControlWall=0;this.lastSequence=null;this.staleArmLatch=false;}
+  _channelClosed(){
+    if(this.control?.arm===true)this.staleArmLatch=true;
+    this.control=null;this.lastControlWall=0;this.lastSequence=null;
+  }
   _connectionChanged(){
     if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState)){
+      if(this.control?.arm===true)this.staleArmLatch=true;
       this.control=null;this.lastControlWall=0;this.lastSequence=null;
     }
   }
@@ -113,20 +132,9 @@ export class ViewPeerLink extends PeerBase{
       if(message?.type!=="control"||message.protocol!==P2P_PROTOCOL)return;
       const sequence=Number(message.sequence)>>>0;
       if(!newerSequence(sequence,this.lastSequence))return;
-      const numeric=[message.roll,message.pitch,message.yaw,message.throttle].map(Number);
-      if(!numeric.every(Number.isFinite))return;
-      const groundClearance=Number(message.groundClearance),lookPitch=Number(message.lookPitch);
+      const control=normalizedControl(message);if(!control)return;
       this.lastSequence=sequence;
-      this.control={
-        roll:clamp(numeric[0],-1,1),
-        pitch:clamp(numeric[1],-1,1),
-        yaw:clamp(numeric[2],-1,1),
-        throttle:clamp(numeric[3],0,1),
-        arm:message.arm===true,
-        gameMode:message.gameMode===true,
-        groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
-        lookPitch:Number.isFinite(lookPitch)?clamp(lookPitch,-1,1):0,
-      };
+      this.control=control;
       this.lastControlWall=performance.now();this._markLinked();this.onState?.();
     };
   }
@@ -138,12 +146,27 @@ export class ViewPeerLink extends PeerBase{
     await waitForIceComplete(pc);
     return encodeSignal(pc.localDescription);
   }
-  current(){return this.linked&&this.control&&performance.now()-this.lastControlWall<=CONTROL_STALE_MS?this.control:null;}
+  current(){
+    if(!this.linked||!this.control)return null;
+    if(performance.now()-this.lastControlWall>CONTROL_STALE_MS){
+      if(this.control.arm===true)this.staleArmLatch=true;
+      return null;
+    }
+    // A real stale/drop must never synthesize a fresh ARM low->high sequence that
+    // automatically rearms the FC when the heartbeat resumes. Until the controller
+    // explicitly publishes ARM=false once, expose only a fresh neutral/safe control.
+    if(this.staleArmLatch){
+      if(this.control.arm===true)return latchedSafeControl(this.control);
+      this.staleArmLatch=false;
+    }
+    return this.control;
+  }
   sendTelemetry(payload){return safeSend(this.channel,{type:"telemetry",protocol:P2P_PROTOCOL,...payload});}
+  async disconnect(){this.staleArmLatch=false;await super.disconnect();}
 }
 
 export class ControllerPeerLink extends PeerBase{
-  constructor(){super();this.sequence=1;this.onTelemetry=null;this.reopenTimer=0;}
+  constructor(){super();this.sequence=1;this.onTelemetry=null;this.reopenTimer=0;this.lastPublishedControl=null;}
   _makeControlChannel(){
     if(!this.pc||this.pc.connectionState!=="connected"||this.channel?.readyState==="open"||this.channel?.readyState==="connecting")return;
     const channel=this.pc.createDataChannel("arondight45-control",{ordered:false,maxRetransmits:0});
@@ -165,6 +188,11 @@ export class ControllerPeerLink extends PeerBase{
       let message;try{message=JSON.parse(event.data);}catch{return;}
       if(message?.type!=="telemetry"||message.protocol!==P2P_PROTOCOL)return;
       this._markLinked();this.onTelemetry?.(message);
+      // The normal 20 ms publisher remains primary. This telemetry-paced reply is
+      // an independent keepalive tied to actual VIEW activity, so browser timer
+      // throttling cannot create a false >350 ms control stale while the flight view
+      // itself is demonstrably alive and exchanging telemetry.
+      if(this.lastPublishedControl)this.publish(this.lastPublishedControl);
     };
   }
   async createOffer(){
@@ -181,18 +209,13 @@ export class ControllerPeerLink extends PeerBase{
   }
   publish(control){
     if(!this.channel&&this.pc?.connectionState==="connected")this._makeControlChannel();
-    const numeric=[control.roll,control.pitch,control.yaw,control.throttle].map(Number);
-    if(!numeric.every(Number.isFinite))return false;
-    const groundClearance=Number(control.groundClearance),lookPitch=Number(control.lookPitch);
+    const normalized=normalizedControl(control);if(!normalized)return false;
+    this.lastPublishedControl=normalized;
     return safeSend(this.channel,{
-      type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),
-      roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),
-      yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),
-      arm:control.arm===true,gameMode:control.gameMode===true,
-      groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
-      lookPitch:Number.isFinite(lookPitch)?clamp(lookPitch,-1,1):0,
+      type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),...normalized,
     });
   }
+  async disconnect(){this.lastPublishedControl=null;await super.disconnect();}
 }
 
 export async function copySignal(text){
