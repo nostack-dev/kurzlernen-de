@@ -30,17 +30,6 @@ jobs:
           s=s.replace(old,new,1)
           p.write_text(s)
 
-          # Braking a positive forward velocity requires positive physical pitch
-          # (nose back). The old assertion accidentally checked the raw SBUS sign
-          # after the established pitch-channel inversion instead of fc::command().
-          p=Path('tests/state_control_test.cpp')
-          s=p.read_text()
-          old='CHECK(fc::command(transformed).pitch < -0.08f);'
-          new='CHECK(fc::command(transformed).pitch > 0.08f);'
-          assert s.count(old)==1,s.count(old)
-          s=s.replace(old,new,1)
-          p.write_text(s)
-
           p=Path('tests/architecture_invariants.mjs')
           s=p.read_text()
           anchor='''requireText("tests/dual_phone_smoke.mjs","moving.forward>.30",\n            "dual-phone GAME E2E must verify desired forward velocity produces real forward motion");\n'''
