@@ -21,6 +21,8 @@ assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,7);
 assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,10);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);
+assert.equal(DEFAULT_PHONE_SETTINGS.invertRightHorizontal,false);
+assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,false);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
 near(MAX_PHONE_EXPO,.70,1e-12,"max phone expo");
@@ -37,6 +39,7 @@ const e2eYawPhoneCommand=phoneAxis(.65,DEFAULT_PHONE_SETTINGS.rightFineness);
 assert.ok(e2eYawPhoneCommand>.38,"0.65 yaw E2E stimulus must retain enough post-expo authority for the strict physical rotation gate");
 
 let c=neutralControls();
+assert.equal(c.bodyPitch,0);
 assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 assert.equal(armReady("CALIBRATING",c,true,DEFAULT_PHONE_SETTINGS),false);
 assert.equal(armReady("DISARMED",c,false,DEFAULT_PHONE_SETTINGS),false);
@@ -65,6 +68,24 @@ near(c.roll,phoneAxis(.3,10));near(c.pitch,phoneAxis(-.2,10));
 assert.notEqual(c.roll,0);assert.notEqual(c.pitch,0);
 let rightKnob=knobAxes(c,"right",DEFAULT_PHONE_SETTINGS);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 releaseStick(c,"right");assert.equal(c.roll,0);assert.equal(c.pitch,0);
+
+// Inversion changes control semantics but never pointer geometry. The rendered
+// knob therefore stays under the finger while the commanded axis changes sign.
+const invertX={...DEFAULT_PHONE_SETTINGS,invertRightHorizontal:true};
+c=neutralControls();applyStick(c,"right",{x:-.3,y:.2},invertX);
+near(c.roll,phoneAxis(-.3,10));near(c.pitch,phoneAxis(-.2,10));
+rightKnob=knobAxes(c,"right",invertX);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
+
+const invertY={...DEFAULT_PHONE_SETTINGS,invertRightVertical:true};
+c=neutralControls();applyStick(c,"right",{x:-.3,y:.2},invertY);
+near(c.roll,phoneAxis(.3,10));near(c.pitch,phoneAxis(.2,10));
+rightKnob=knobAxes(c,"right",invertY);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
+
+const invertBoth={...DEFAULT_PHONE_SETTINGS,invertRightHorizontal:true,invertRightVertical:true};
+c=neutralControls();applyStick(c,"right",{x:.45,y:-.35},invertBoth);
+near(c.roll,phoneAxis(.45,10));near(c.pitch,phoneAxis(-.35,10));
+rightKnob=knobAxes(c,"right",invertBoth);near(rightKnob.x,.45,3e-6);near(rightKnob.y,-.35,3e-6);
+releaseStick(c,"right");
 
 // Explicit right vertical-axis lock is likewise an input mode, not a control-law change.
 const lockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
@@ -97,4 +118,4 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must no
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
 
-console.log("Phone controls passed: workflow set locked, full authority, cubic fineness, strict yaw-E2E authority, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
+console.log("Phone controls passed: workflow set locked, full authority, cubic fineness, strict yaw-E2E authority, semantic right X/Y inversion with pointer tracking, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
