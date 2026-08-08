@@ -1,4 +1,4 @@
-export const P2P_PROTOCOL = 4;
+export const P2P_PROTOCOL = 5;
 export const CONTROL_STALE_MS = 350;
 export const SESSION_GRACE_MS = 5 * 60 * 1000;
 
@@ -48,19 +48,18 @@ function safeSend(channel,message){
   channel.send(JSON.stringify(message));return true;
 }
 function normalizedControl(control){
-  const numeric=[control?.roll,control?.pitch,control?.yaw,control?.throttle].map(Number);
+  const numeric=[control?.roll,control?.pitch,control?.yaw,control?.throttle,control?.bodyPitch].map(Number);
   if(!numeric.every(Number.isFinite))return null;
-  const groundClearance=Number(control.groundClearance),lookPitch=Number(control.lookPitch);
+  const groundClearance=Number(control.groundClearance);
   return {
     roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),
-    yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),
+    yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),bodyPitch:clamp(numeric[4],-1,1),
     arm:control.arm===true,gameMode:control.gameMode===true,
     groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
-    lookPitch:Number.isFinite(lookPitch)?clamp(lookPitch,-1,1):0,
   };
 }
 function latchedSafeControl(control){
-  return {...control,roll:0,pitch:0,yaw:0,throttle:0,arm:false,lookPitch:0};
+  return {...control,roll:0,pitch:0,yaw:0,throttle:0,bodyPitch:0,arm:false};
 }
 
 class PeerBase{
