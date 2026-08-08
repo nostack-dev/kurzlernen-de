@@ -164,7 +164,7 @@ int main() {
     CHECK(accel_norm > 1.9f && accel_norm < 2.1f);
     {
         const auto decoded = fc::command(transformed);
-        CHECK(decoded.pitch > 0.10f);
+        CHECK(decoded.pitch < -0.10f);
         CHECK(decoded.roll > 0.10f);
         CHECK(std::fabs(decoded.roll - controller.debug().roll_command) < 0.005f);
         CHECK(std::fabs(decoded.pitch + controller.debug().pitch_channel_command) < 0.005f);

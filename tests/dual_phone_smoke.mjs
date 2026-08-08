@@ -176,7 +176,7 @@ try{
 
   const yawBefore=await yaw(view);
   const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
-  await controller.mouse.move(rcx,rcy);await controller.mouse.down();await controller.mouse.move(rcx+rr*.45,rcy,{steps:4});
+  await controller.mouse.move(rcx,rcy);await controller.mouse.down();await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});
   const turnStart=await simTime(view);await waitSim(view,turnStart+.22,25000);await controller.mouse.up();
   const yawAfter=await yaw(view);
   let yawDelta=(yawAfter-yawBefore)%360;if(yawDelta>180)yawDelta-=360;if(yawDelta<-180)yawDelta+=360;

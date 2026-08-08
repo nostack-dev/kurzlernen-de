@@ -172,6 +172,12 @@ for(const fineness of [1,7,10]){
 // regression for a weaker test threshold.
 requireText("tests/dual_phone_smoke.mjs","moving.forward>.30",
             "dual-phone GAME E2E must verify desired forward velocity produces real forward motion");
+requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65",
+            "yaw E2E stimulus must make the unchanged four-degree physical rotation gate reachable after phone/C++ shaping");
+requireText("esp32/Arondight45_StateControl.hpp","shaped_raw(yaw_command, 0.045f, 0.20f)",
+            "physical yaw command must survive Runtime receiver shaping exactly once");
+requireText("esp32/Arondight45_StateControl.hpp","inverse_shape",
+            "StateController physical commands require transparent receiver-shape inversion");
 forbidText("tests/dual_phone_smoke.mjs","moving.pitch<-6.0",
            "roll/pitch are internal actuator coordinates, not user state targets");
 
@@ -188,6 +194,10 @@ for(const path of [
   ".github/workflows/oneoff-trace-disarm-cause.yml",
   ".github/workflows/oneoff-rate-loop-tuning.yml",
   ".github/workflows/oneoff-fusion-fix.yml",
+  ".github/workflows/fusion-single-temp.yml",
+  ".github/workflows/state-command-map-temp.yml",
+  ".github/workflows/finalize-state-vector.yml",
+  ".github/workflows/yaw-contract-temp.yml",
 ]) if(existsSync(path))fail(`temporary control workflow returned: ${path}`);
 for(const path of [
   "tools/patch_shared_control_semantics.py",
