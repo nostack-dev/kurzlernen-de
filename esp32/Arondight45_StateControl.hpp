@@ -60,11 +60,10 @@ inline StateIntent state_intent(const RC& rc) {
     }
 
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
-    // GAME right-stick Y is a real aircraft-attitude input. Positive phone input
-    // means stick-up / nose-forward. The flight-core Euler convention uses
-    // negative pitch for nose-forward, so the sign conversion happens once here.
+    // GAME right-stick Y is a real aircraft-attitude input. Positive input is
+    // physical nose-up pitch in the same Euler convention reported by the FC.
     const float body_pitch_deg =
-        -shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) *
+        shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) *
         kStateMaxBodyPitchDeg;
     return {
         right * kStateMaxHorizontalSpeedMps,
