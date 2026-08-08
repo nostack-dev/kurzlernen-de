@@ -33,8 +33,7 @@ const gameStyle=document.createElement("style");gameStyle.textContent=`
   #gameClearance[hidden]{display:none!important}
   #gameClearance strong{font:900 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#6be4b0;white-space:nowrap;margin:3px 0 5px}
   #gameClearance small{font:900 8px system-ui,-apple-system,sans-serif;color:#8fa1bb;letter-spacing:.08em;text-align:center}
-  #gameClearanceSlider{position:relative;flex:1;width:34px;min-height:92px;display:grid;place-items:center;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none;outline:none}
-  #gameClearanceSlider:focus-visible{box-shadow:0 0 0 2px #64e0ae88;border-radius:8px}
+  #gameClearanceSlider{position:relative;flex:1;width:34px;min-height:92px;display:grid;place-items:center;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none}
   #gameClearanceSlider .clearance-track{position:relative;width:7px;height:100%;border-radius:999px;background:#17263a;border:1px solid #344660;overflow:visible}
   #gameClearanceFill{position:absolute;left:-1px;right:-1px;bottom:-1px;height:0;border-radius:999px;background:#2e8f6d;border:1px solid #64e0ae66;pointer-events:none}
   #gameClearanceThumb{position:absolute;left:50%;bottom:-7px;width:20px;height:14px;transform:translateX(-50%);border-radius:7px;background:#dce9f7;border:2px solid #64e0ae;box-shadow:0 2px 8px #0009;pointer-events:none}
@@ -53,7 +52,7 @@ const gameStyle=document.createElement("style");gameStyle.textContent=`
 `;
 document.head.appendChild(gameStyle);
 const modeButton=document.createElement("button");modeButton.id="gameModeButton";modeButton.type="button";document.querySelector(".top").appendChild(modeButton);
-const gameClearancePanel=document.createElement("div");gameClearancePanel.id="gameClearance";gameClearancePanel.innerHTML=`<small>HEIGHT</small><strong id="gameClearanceValue">2.0 m</strong><div id="gameClearanceSlider" role="slider" tabindex="0" aria-label="Ground clearance" aria-valuemin="0.5" aria-valuemax="5" aria-valuenow="2"><div class="clearance-track"><div id="gameClearanceFill"></div><div id="gameClearanceThumb"></div></div></div><div id="gameSensorStatus">SENSORS —</div>`;document.querySelector(".sticks").appendChild(gameClearancePanel);
+const gameClearancePanel=document.createElement("div");gameClearancePanel.id="gameClearance";gameClearancePanel.innerHTML=`<small>HEIGHT</small><strong id="gameClearanceValue">2.0 m</strong><div id="gameClearanceSlider" role="slider" aria-label="Ground clearance" aria-valuemin="0.5" aria-valuemax="5" aria-valuenow="2"><div class="clearance-track"><div id="gameClearanceFill"></div><div id="gameClearanceThumb"></div></div></div><div id="gameSensorStatus">SENSORS —</div>`;document.querySelector(".sticks").appendChild(gameClearancePanel);
 const clearanceSlider=$("gameClearanceSlider"),clearanceValue=$("gameClearanceValue"),clearanceFill=$("gameClearanceFill"),clearanceThumb=$("gameClearanceThumb"),gameSensorStatus=$("gameSensorStatus");
 let clearancePointer=null;
 
@@ -83,13 +82,6 @@ clearanceSlider.addEventListener("pointermove",event=>{if(event.pointerId===clea
 const releaseClearance=event=>{if(event.pointerId!==clearancePointer)return;try{clearanceSlider.releasePointerCapture(clearancePointer);}catch{}clearancePointer=null;event.preventDefault();};
 clearanceSlider.addEventListener("pointerup",releaseClearance);clearanceSlider.addEventListener("pointercancel",releaseClearance);
 clearanceSlider.addEventListener("input",()=>{const value=Number(clearanceSlider.value);if(Number.isFinite(value))setGroundClearance(value);});
-clearanceSlider.addEventListener("keydown",event=>{
-  if(!["ArrowUp","ArrowRight","ArrowDown","ArrowLeft","Home","End"].includes(event.key))return;
-  event.preventDefault();
-  if(event.key==="Home")setGroundClearance(.5);
-  else if(event.key==="End")setGroundClearance(5);
-  else setGroundClearance(groundClearance+(["ArrowUp","ArrowRight"].includes(event.key)?.1:-.1));
-});
 
 function quantizedCentered(value){const raw=Math.round(992+820*clamp(Number(value)||0,-1,1));return clamp((raw-992)/820,-1,1);}
 function stateShape(value,deadband,expo){const x=clamp(Number(value)||0,-1,1),a=Math.abs(x);if(a<=deadband)return 0;const t=(a-deadband)/(1-deadband),v=t*(1-expo)+t*t*t*expo;return Math.sign(x)*clamp(v,0,1);}
@@ -220,7 +212,7 @@ function updateConnection(){
     setConnection("P2P LINKED","good");ui.connect.textContent="DISCONNECT";setPairStatus("Direct control active. Normal short interruptions reconnect automatically without pairing.","good");
     if(ui.pairDialog.open){answerScanner.stop();ui.pairDialog.close();}
   }else if(peer.pc&&peer.recentlyLinked){
-    setConnection(label,"warn");ui.connect.textContent="SESSION ACTIVE";setPairStatus("Recent peer session is reconnecting. Re-pair only if the underlying WebRTC session cannot recover.","warn");
+    setConnection(label,"warn");ui.connect.textContent="SESSION ACTIVE";setPairStatus("Recent peer session retained for up to 5 minutes while this WebRTC connection remains recoverable.","warn");
   }else if(peer.pc){setConnection(label,"warn");ui.connect.textContent="PAIRING…";}
   else{setConnection("DISCONNECTED","warn");ui.connect.textContent="CONNECT";}
   updateArm();
