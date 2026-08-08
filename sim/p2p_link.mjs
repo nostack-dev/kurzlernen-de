@@ -120,7 +120,7 @@ class PeerBase{
 }
 
 export class ViewPeerLink extends PeerBase{
-  constructor(){super();this.control=null;this.lastControlWall=0;this.lastSequence=null;this.staleArmLatch=false;}
+  constructor(){super();this.control=null;this.lastControlWall=0;this.lastSequence=null;this.staleArmLatch=false;this.telemetrySequence=1;}
   _channelClosed(){
     if(this.control?.arm===true)this.staleArmLatch=true;
     this.control=null;this.lastControlWall=0;this.lastSequence=null;
@@ -167,12 +167,12 @@ export class ViewPeerLink extends PeerBase{
     }
     return this.control;
   }
-  sendTelemetry(payload){return safeSend(this.channel,{type:"telemetry",protocol:P2P_PROTOCOL,...payload});}
+  sendTelemetry(payload){return safeSend(this.channel,{type:"telemetry",protocol:P2P_PROTOCOL,...payload,telemetrySequence:(this.telemetrySequence++>>>0)});}
   async disconnect(){this.staleArmLatch=false;await super.disconnect();}
 }
 
 export class ControllerPeerLink extends PeerBase{
-  constructor(){super();this.sequence=1;this.onTelemetry=null;this.reopenTimer=0;this.lastPublishedControl=null;}
+  constructor(){super();this.sequence=1;this.onTelemetry=null;this.reopenTimer=0;this.lastPublishedControl=null;this.lastTelemetrySequence=null;}
   _makeControlChannel(){
     if(!this.pc||this.pc.connectionState!=="connected"||this.channel?.readyState==="open"||this.channel?.readyState==="connecting")return;
     const channel=this.pc.createDataChannel("arondight45-control",{ordered:false,maxRetransmits:0});
@@ -193,6 +193,11 @@ export class ControllerPeerLink extends PeerBase{
     channel.onmessage=event=>{
       let message;try{message=JSON.parse(event.data);}catch{return;}
       if(message?.type!=="telemetry"||message.protocol!==P2P_PROTOCOL)return;
+      const telemetrySequence=Number(message.telemetrySequence);
+      if(!Number.isInteger(telemetrySequence)||telemetrySequence<0||telemetrySequence>0xffffffff)return;
+      const sequence=telemetrySequence>>>0;
+      if(!newerSequence(sequence,this.lastTelemetrySequence))return;
+      this.lastTelemetrySequence=sequence;
       this._markLinked();this.onTelemetry?.(message);
       // The normal 20 ms publisher remains primary. This telemetry-paced reply is
       // an independent keepalive tied to actual VIEW activity, so browser timer
@@ -221,7 +226,7 @@ export class ControllerPeerLink extends PeerBase{
       type:"control",protocol:P2P_PROTOCOL,sequence:(this.sequence++>>>0),...normalized,
     });
   }
-  async disconnect(){this.lastPublishedControl=null;await super.disconnect();}
+  async disconnect(){this.lastPublishedControl=null;this.lastTelemetrySequence=null;await super.disconnect();}
 }
 
 export async function copySignal(text){

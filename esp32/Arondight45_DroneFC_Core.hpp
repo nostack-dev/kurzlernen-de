@@ -465,6 +465,10 @@ public:
 
         if (!calibrated_) {
             calibrate(input.raw);
+            RC calibration_rc = input.rc;
+            calibration_rc.valid = calibration_rc.valid && input.rc_fresh;
+            const Command calibration_cmd = command(calibration_rc);
+            (void)arm_.run(input.now_us, calibration_rc.valid, calibration_cmd, false, 0.0f, 0.0f);
             return finalize(out, input.rc_fresh, true);
         }
 

@@ -28,7 +28,7 @@ constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
 
 constexpr float kStateMaxHorizontalSpeedMps = 5.0f;
-constexpr float kStateMaxYawRateDps = 100.0f;
+constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMinClearanceM = 0.50f;
 constexpr float kStateMaxClearanceM = 5.00f;
 

@@ -215,7 +215,7 @@ int main() {
     rc.ch[FC_SBUS_YAW] = fc::centered_raw(1.0f);
     for (int i = 0; i < 100; ++i)
         transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);
-    CHECK(controller.debug().target_yaw_deg > 90.0f);
+    CHECK(controller.debug().target_yaw_deg > 135.0f && controller.debug().target_yaw_deg < 145.0f);
     CHECK(std::fabs(fc::command(transformed).yaw - controller.debug().yaw_command) < 0.005f);
     rc.ch[FC_SBUS_YAW] = fc::centered_raw(0.0f);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);

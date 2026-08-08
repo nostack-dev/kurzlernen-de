@@ -641,7 +641,13 @@ async function loadLog(file){
   realLog=normalizeLog(rows);ui.logSamples.textContent=realLog.length;ui.fit.disabled=realLog.length<3;ui.fitStatus.textContent=realLog.length?`${realLog.length} real samples loaded.`:"No usable samples. Need time + 4 motor outputs.";replayIndex=0;if(mode==="replay"&&realLog.length){resetSimulation(realLog[0]);ui.run.disabled=false;}
 }
 function downloadJson(name,data){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),anchor=document.createElement("a");anchor.href=url;anchor.download=name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function exportSession(){downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});}
+function exportSession(){
+  if((latest.state&STATE_ARMED)&&inputSource==="remote"){
+    setStatus("Disarm before exporting a full flight log during P2P control.","warn");
+    return;
+  }
+  downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});
+}
 
 function angleDiff(a,b){let difference=(a-b)%360;if(difference>180)difference-=360;if(difference<-180)difference+=360;return difference;}
 function addResidual(accumulator,simulated,measured,scaleValue,weight=1){if(Number.isFinite(measured)){const e=(simulated-measured)/scaleValue;accumulator.error+=e*e*weight;accumulator.weight+=weight;}}

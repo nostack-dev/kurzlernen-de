@@ -176,6 +176,30 @@ requireText("tests/dual_phone_smoke.mjs","moving.forward>.30",
             "dual-phone GAME E2E must verify desired forward velocity produces real forward motion");
 requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65",
             "yaw E2E stimulus must make the unchanged four-degree physical rotation gate reachable after phone/C++ shaping");
+requireText("tests/browser_sim_smoke.mjs","right.cx+right.r*.65,right.cy",
+            "solo GAME yaw smoke must use the same 65-percent physical yaw stimulus as dual-phone GAME");
+requireText("tests/browser_sim_smoke.mjs","turnStart+.22",
+            "solo GAME yaw smoke must retain the same 220 ms physical response window as dual-phone GAME");
+requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f",
+            "GAME yaw authority must remain at the measured minimum that clears the strict physical gate");
+requireText("sim/controller.mjs","yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*140",
+            "controller state-vector debug must report the same GAME yaw authority as the flight controller");
+requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm',
+            "FC-authoritative disarm must clear any controller-side ARM request before re-arm");
+requireText("esp32/Arondight45_DroneFC_Core.hpp","const Command calibration_cmd = command(calibration_rc)",
+            "ARM-low safety interlock must observe receiver state during calibration");
+requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)",
+            "unordered telemetry must carry an independent monotonic sequence");
+requireText("sim/p2p_link.mjs","lastTelemetrySequence",
+            "controller must retain the newest accepted telemetry sequence");
+requireText("sim/p2p_link.mjs","newerSequence(sequence,this.lastTelemetrySequence)",
+            "out-of-order telemetry must never overwrite fresher flight state");
+requireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")',
+            "stale-control recovery must prove same-session re-arm only after restoring a safe upright simulator state");
+requireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)',
+            "same-session recovery must wait for fresh post-reset controller telemetry before re-arm");
+requireText("tests/dual_phone_smoke.mjs",'await clickWhenEnabled(controller,"#arm","ARM",15000);const rearmStart=await simTime(view);',
+            "re-arm duration must start at the actual ARM request, not during readiness waiting");
 requireText("esp32/Arondight45_StateControl.hpp","shaped_raw(yaw_command, 0.045f, 0.20f)",
             "physical yaw command must survive Runtime receiver shaping exactly once");
 requireText("esp32/Arondight45_StateControl.hpp","inverse_shape",

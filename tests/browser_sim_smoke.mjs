@@ -192,8 +192,8 @@ try{
 
   const yawBefore=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[])[2]||0));
   const right=await pointerDownOnly("#soloRight");
-  await page.mouse.move(right.cx+right.r*.45,right.cy-right.r*.2,{steps:5});
-  const turnStart=await simTime();await waitForSimTime(turnStart+.25,25000);await page.mouse.up();
+  await page.mouse.move(right.cx+right.r*.65,right.cy,{steps:5});
+  const turnStart=await simTime();await waitForSimTime(turnStart+.22,25000);await page.mouse.up();
   const yawAfter=await page.$eval("#attitude",e=>Number(((e.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[])[2]||0));
   let yawDelta=(yawAfter-yawBefore)%360;if(yawDelta>180)yawDelta-=360;if(yawDelta<-180)yawDelta+=360;
   if(Math.abs(yawDelta)<4)throw new Error(`solo heading control failed: ${yawBefore} -> ${yawAfter}`);

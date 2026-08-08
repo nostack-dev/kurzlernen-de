@@ -123,6 +123,21 @@ int main() {
     CHECK(fc::pulse(0.0f, true) == fc::kEscIdleUs);
     CHECK(fc::pulse(1.0f, true) == fc::kEscMaxUs);
 
+    fc::Runtime calibration_low_runtime;
+    uint64_t calibration_low_us = 0;
+    for (uint32_t i = 0; i < fc::kCalibrationSamples; ++i) {
+        auto low = stationary_input(calibration_low_us += 1000);
+        low.rc.ch[4] = 172;
+        CHECK(!calibration_low_runtime.step(low).armed);
+    }
+    fc::RuntimeOutput immediate_arm{};
+    for (int i = 0; i < 1002; ++i) {
+        auto high = stationary_input(calibration_low_us += 1000);
+        high.rc.ch[4] = 1811;
+        immediate_arm = calibration_low_runtime.step(high);
+    }
+    CHECK(immediate_arm.armed);
+
     fc::Runtime runtime;
     uint64_t now_us = 0;
     calibrate(runtime, now_us);

@@ -55,7 +55,7 @@ function stateShape(value,deadband,expo){const x=clamp(Number(value)||0,-1,1),a=
 function desiredGameState(){
   let right=stateShape(quantizedCentered(controls.roll),.035,.25),forward=stateShape(quantizedCentered(controls.pitch),.035,.25);
   const magnitude=Math.hypot(forward,right);if(magnitude>1){forward/=magnitude;right/=magnitude;}
-  return{forward:forward*5,right:right*5,agl:groundClearance,yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*100};
+  return{forward:forward*5,right:right*5,agl:groundClearance,yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*140};
 }
 function measuredGameState(){
   const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg);
@@ -188,7 +188,12 @@ function updateConnection(){
 
 peer.onState=()=>{updateConnection();if(!peer.linked)safetyNeutral(false);};
 peer.onTelemetry=message=>{
+  const previousFcState=lastTelemetry.fc_state;
   lastTelemetry=message;
+  if(previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm){
+    controls.arm=false;
+    publish();
+  }
   ui.fcState.textContent=message.fc_state||"—";
   ui.altitude.textContent=Number.isFinite(message.altitude)?`${message.altitude.toFixed(2)} m`:"—";
   ui.battery.textContent=Number.isFinite(message.battery_v)?`${message.battery_v.toFixed(2)} V`:"—";
