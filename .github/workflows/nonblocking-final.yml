@@ -41,6 +41,10 @@ jobs:
               assert s.count(old_assert)==1,s.count(old_assert);s=s.replace(old_assert,new_assert,1)
           unit.write_text(s)
           test=Path("tests/dual_phone_smoke.mjs");s=test.read_text()
+          old_args='const args=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--use-fake-ui-for-media-stream","--use-fake-device-for-media-stream"];'
+          new_args='const args=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--use-fake-ui-for-media-stream","--use-fake-device-for-media-stream","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion"];'
+          if new_args not in s:
+              assert s.count(old_args)==1,s.count(old_args);s=s.replace(old_args,new_args,1)
           assert 'await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});' in s
           assert 'const turnStart=await simTime(view);await waitSim(view,turnStart+.22,25000);await controller.mouse.up();' in s
           assert 'if(Math.abs(yawDelta)<4)' in s
