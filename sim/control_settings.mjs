@@ -1,4 +1,5 @@
 import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings} from "./control_semantics.mjs";
+import {installSoloFlightLayout} from "./solo_layout.mjs";
 
 export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV4";
 const OBSOLETE_KEYS=[
@@ -28,6 +29,7 @@ export function savePhoneControlSettings(settings){
 let styleInstalled=false;
 function installStyle(){
   if(styleInstalled)return;styleInstalled=true;
+  installSoloFlightLayout();
   const style=document.createElement("style");
   style.textContent=`
   .phone-settings-button{white-space:nowrap}
