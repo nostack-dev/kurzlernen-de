@@ -23,6 +23,8 @@ for(const level of [1,3,5,7,9,10]){
 assert.equal(phoneAxis(.5,1),.5);
 assert.ok(phoneAxis(.5,10)<phoneAxis(.5,9));
 assert.ok(phoneAxis(.5,10)>.2,"max fineness must soften centre without killing authority");
+const e2eYawPhoneCommand=phoneAxis(.65,DEFAULT_PHONE_SETTINGS.rightFineness);
+assert.ok(e2eYawPhoneCommand>.38,"0.65 yaw E2E stimulus must retain enough post-expo authority for the strict physical rotation gate");
 
 let c=neutralControls();
 assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
@@ -85,4 +87,4 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must no
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
 
-console.log("Phone controls passed: full authority, cubic fineness, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
+console.log("Phone controls passed: full authority, cubic fineness, strict yaw-E2E authority, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
