@@ -1,0 +1,79 @@
+name: Cleanup branch validation
+on:
+  push:
+    branches: [cleanup-digital-twin]
+permissions:
+  contents: read
+jobs:
+  host-and-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: C++ and architecture tests
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/core && /tmp/core
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state && /tmp/state
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil && ASAN_OPTIONS=detect_leaks=1 /tmp/hil
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil && /tmp/sil
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check sim/controller.mjs
+          node --check tests/dual_phone_smoke.mjs
+          node --check tools/s31_hil_bridge.mjs
+      - name: Build WASM and static pages
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='node' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core_node.mjs
+          node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
+          BUILD_DIR=/tmp/build; mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; npm init -y >/dev/null; npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0; ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"; cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/sim.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/controller.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/sim.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/controller.mjs')]:
+              p=Path(html_name); text=p.read_text(); assert marker in text; body=Path(bundle).read_text().replace('</script','<\\/script'); p.write_text(text.replace(marker,'<script type="module">\n'+body+'\n</script>'))
+          PY
+          rm -rf generated
+      - name: Browser E2E
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/static.log 2>&1 &
+          trap 'kill $! 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+  esp-idf-build:
+    runs-on: ubuntu-latest
+    container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production and HIL
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/prod /tmp/hil; mkdir -p /tmp/prod/main /tmp/hil/main
+          cp esp32/Arondight45_DroneFC_Core.hpp esp32/Arondight45_StateControl.hpp esp32/Arondight45_Navigation.hpp esp32/Arondight45_Navigation_Unavailable.cpp esp32/Arondight45_DroneFC_S31.cpp /tmp/prod/main/
+          cat >/tmp/prod/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(prod)
+          EOF
+          cat >/tmp/prod/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "Arondight45_DroneFC_S31.cpp" "Arondight45_Navigation_Unavailable.cpp" INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/prod; python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31; python "$IDF_PATH/tools/idf.py" --preview build
+          cd "$GITHUB_WORKSPACE"; cp esp32/Arondight45_DroneFC_Core.hpp esp32/Arondight45_StateControl.hpp esp32/Arondight45_HIL_Protocol.hpp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/hil/main/
+          cat >/tmp/hil/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(hil)
+          EOF
+          cat >/tmp/hil/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "Arondight45_DroneFC_HIL_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/hil; python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31; python "$IDF_PATH/tools/idf.py" --preview build
