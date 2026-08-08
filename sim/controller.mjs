@@ -23,7 +23,7 @@ let lastTelemetry={fc_state:"—"};
 let gameMode=localStorage.getItem("arondight45ControlMode")!=="manual";
 let groundClearance=clamp(Number(localStorage.getItem("arondight45GroundClearance"))||2,.5,5);
 
-function neutralForMode(){return{...neutralControls(),gameMode,groundClearance,lookPitch:0};}
+function neutralForMode(){return{...neutralControls(),gameMode,groundClearance};}
 let controls=neutralForMode();
 
 function setGroundClearance(value){
@@ -71,7 +71,7 @@ function renderMode(){
   ui.gameModeButton.textContent=gameMode?"MODE · GAME":"MODE · MANUAL";
   if(gameMode){
     ui.leftTopLabel.textContent="FORWARD";ui.leftBottomLabel.textContent="REVERSE";ui.leftLeftLabel.textContent="STRAFE L";ui.leftRightLabel.textContent="STRAFE R";
-    ui.rightTopLabel.textContent="CAM UP";ui.rightBottomLabel.textContent="CAM DOWN";ui.rightLeftLabel.textContent="TURN L";ui.rightRightLabel.textContent="TURN R";
+    ui.rightTopLabel.textContent="PITCH FWD";ui.rightBottomLabel.textContent="PITCH BACK";ui.rightLeftLabel.textContent="TURN L";ui.rightRightLabel.textContent="TURN R";
   }else{
     ui.leftTopLabel.textContent="THROTTLE +";ui.leftBottomLabel.textContent="THROTTLE −";ui.leftLeftLabel.textContent="YAW L";ui.leftRightLabel.textContent="YAW R";
     ui.rightTopLabel.textContent="PITCH +";ui.rightBottomLabel.textContent="PITCH −";ui.rightLeftLabel.textContent="ROLL L";ui.rightRightLabel.textContent="ROLL R";
@@ -101,9 +101,9 @@ function updateSticks(){
   let left,right;
   if(gameMode){
     left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
-    right={x:-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.lookPitch||0,phoneSettings.rightFineness)};
+    right={x:-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness)};
     ui.leftValue.textContent=`FWD ${(controls.pitch*100).toFixed(0)}% · STR ${(controls.roll*100).toFixed(0)}%`;
-    ui.rightValue.textContent=`TURN ${(controls.yaw*100).toFixed(0)}% · CAM ${((controls.lookPitch||0)*100).toFixed(0)}%`;
+    ui.rightValue.textContent=`TURN ${(controls.yaw*100).toFixed(0)}% · PITCH ${((controls.bodyPitch||0)*100).toFixed(0)}%`;
   }else{
     left=knobAxes(controls,"left",phoneSettings);right=knobAxes(controls,"right",phoneSettings);
     ui.leftValue.textContent=`T ${(controls.throttle*100).toFixed(0)}% · Y ${(controls.yaw*100).toFixed(0)}%`;
@@ -122,7 +122,7 @@ function bindStick(element,kind){
     endPointerDrag(element,event.pointerId);pointer=null;
     if(gameMode){
       if(kind==="left"){controls.roll=0;controls.pitch=0;controls.throttle=0;}
-      else{controls.yaw=0;controls.lookPitch=0;}
+      else{controls.yaw=0;controls.bodyPitch=0;}
     }else releaseStick(controls,kind);
     updateSticks();publish();event.preventDefault();
   };
@@ -136,7 +136,7 @@ function bindStick(element,kind){
         controls.throttle=0;
       }else{
         controls.yaw=phoneAxis(-point.x,phoneSettings.rightFineness);
-        controls.lookPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-point.y,phoneSettings.rightFineness);
+        controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-point.y,phoneSettings.rightFineness);
       }
     }else applyStick(controls,kind,point,phoneSettings);
     updateSticks();publish();
