@@ -23,6 +23,7 @@ jobs:
         run: |
           set -euxo pipefail
           python3 tools/finalize_game.py
+          python3 tools/finalize_arm_recovery.py
           git diff --check
 
       - name: Stage exact clean production tree
@@ -31,6 +32,7 @@ jobs:
           find .github/workflows -maxdepth 1 -type f ! -name deploy.yml ! -name s31-hil.yml -print0 | xargs -0 -r git rm -f --
           git rm -f --ignore-unmatch tools/apply_nonblocking_e2e_patch.py
           git rm -f --ignore-unmatch tools/finalize_game.py
+          git rm -f --ignore-unmatch tools/finalize_arm_recovery.py
           git diff --check
           test "$(find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "deploy.yml s31-hil.yml "
 
@@ -118,5 +120,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Finalize GAME flight control and ordered session recovery"
+          git commit -m "Finalize GAME flight control and FC-authoritative recovery"
           git push origin HEAD:main
