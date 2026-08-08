@@ -28,6 +28,7 @@ fc::RC base_rc(bool arm = false) {
     rc.ch[FC_SBUS_THROTTLE] = 172;
     rc.ch[FC_SBUS_ARM] = arm ? 1811 : 172;
     rc.ch[fc::kStateModeChannel] = 1811;
+    rc.ch[fc::kStateBodyPitchChannel] = centered_raw(0.0f);
     const float clearance01 = (2.0f - fc::kStateMinClearanceM) /
                               (fc::kStateMaxClearanceM - fc::kStateMinClearanceM);
     rc.ch[fc::kStateClearanceChannel] = throttle_raw(clearance01);
@@ -63,6 +64,7 @@ int main() {
     rc.ch[FC_SBUS_ROLL] = centered_raw(1.0f);
     rc.ch[FC_SBUS_PITCH] = centered_raw(-1.0f);
     rc.ch[FC_SBUS_YAW] = centered_raw(1.0f);
+    rc.ch[fc::kStateBodyPitchChannel] = centered_raw(1.0f);
     nav = {{1.5f, -1.2f, 0.8f}, 0.25f, true};
     cmd = controller.run(rc, nav, 37.0f, false, 0.001f);
     CHECK(std::fabs(cmd.roll) < 0.001f);
@@ -121,6 +123,25 @@ int main() {
     CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.001f);
     CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
     CHECK(std::fabs(cmd.pitch) < 0.01f);
+
+    controller.reset();
+    nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
+    rc = base_rc(true);
+    rc.ch[fc::kStateBodyPitchChannel] = centered_raw(1.0f);
+    const auto pitch_forward_intent = fc::state_intent(rc);
+    CHECK(pitch_forward_intent.body_pitch_deg < -24.9f);
+    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
+    CHECK(cmd.pitch < -0.77f);
+    CHECK(cmd.throttle > 0.40f);
+    CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.001f);
+
+    controller.reset();
+    rc.ch[fc::kStateBodyPitchChannel] = centered_raw(-1.0f);
+    const auto pitch_back_intent = fc::state_intent(rc);
+    CHECK(pitch_back_intent.body_pitch_deg > 24.9f);
+    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
+    CHECK(cmd.pitch > 0.77f);
+    CHECK(cmd.throttle > 0.40f);
 
     controller.reset();
     rc = base_rc(true);
