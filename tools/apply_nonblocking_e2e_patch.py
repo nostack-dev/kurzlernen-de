@@ -17,12 +17,7 @@ sim.write_text(s)
 
 test = Path("tests/dual_phone_smoke.mjs")
 s = test.read_text()
-anchor = '''function bodyMotion(sample){
-  const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-  return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
-}
-'''
-helper = anchor + '''async function liveMotion(view,controller){
+helper = '''async function liveMotion(view,controller){
   const ist=await controller.$eval("#stateVectorDebug [data-vector-ist-text]",element=>element.textContent||"");
   const match=ist.match(/v\\[F\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*R\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*Z\\s*([+-]?\\d+(?:\\.\\d+)?)\\]\\s*m\\/s.*?AGL\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*m\\s*R\\/P\\/Y\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)°/);
   if(!match)throw new Error(`cannot parse live measured-state telemetry: ${ist}`);
@@ -42,8 +37,9 @@ async function liveTrace(view,controller,start,offsets,timeout=90000){
 }
 '''
 if "async function liveMotion(view,controller)" not in s:
-    assert s.count(anchor) == 1, s.count(anchor)
-    s = s.replace(anchor, helper, 1)
+    marker = "function traceAtOffsets(samples,start,offsets){"
+    assert s.count(marker) == 1, s.count(marker)
+    s = s.replace(marker, helper + marker, 1)
 
 replacements = [
     ("const hold=bodyMotion(await latestFlightSample(view));", "const hold=await liveMotion(view,controller);"),
