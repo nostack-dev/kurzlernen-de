@@ -84,7 +84,6 @@ try{
 
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.evaluate(()=>{
-    // Dirty V1/V2/V3 mappings must not leak into the clean V4 controller model.
     localStorage.setItem("arondight45PhoneControlSettingsV1",JSON.stringify({leftSensitivity:1,rightSensitivity:1}));
     localStorage.setItem("arondight45PhoneControlSettingsV2",JSON.stringify({leftSensitivity:.02,rightSensitivity:.02}));
     localStorage.setItem("arondight45PhoneControlSettingsV3",JSON.stringify({leftSensitivity:.25,rightSensitivity:.25}));
@@ -154,7 +153,6 @@ try{
   let state=await page.$eval("#fcState",e=>e.textContent||"");
   if(state!=="DISARMED")throw new Error(`solo calibration failed: ${JSON.stringify(await snapshot())}`);
 
-  // One-phone mode uses exactly the same GAME/STATE contract as two-phone mode.
   await page.waitForFunction(()=>document.querySelector("#soloRangeStatus")?.textContent?.includes("AGL"),{timeout:15000});
   await page.waitForFunction(()=>{const b=document.querySelector("#soloArm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:15000});
   const armStart=await simTime();await page.click("#soloArm");await waitForSimTime(armStart+1.25,50000);
@@ -199,7 +197,7 @@ try{
   await page.mouse.move(pitchStick.cx,pitchStick.cy-pitchStick.r*.60,{steps:6});
   const pitchStart=await simTime();await waitForSimTime(pitchStart+.35,30000);
   const pitched=bodyMotion(await latestFlightSample());
-  if(!(pitched.pitch<pitchBefore.pitch-4.0))throw new Error(`body-pitch command did not rotate aircraft: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
+  if(!(pitched.pitch>pitchBefore.pitch+4.0))throw new Error(`body-pitch command did not rotate aircraft nose-up: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   if(Math.abs(pitched.yaw-pitchBefore.yaw)>4.0)throw new Error(`body-pitch command leaked into yaw: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   await page.mouse.up();
 
@@ -260,5 +258,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, real body-pitch + heading control, both right-axis inversions, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, both right-axis inversions, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}
