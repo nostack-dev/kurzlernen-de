@@ -51,8 +51,8 @@ try{
   let state=await view.$eval("#fcState",element=>element.textContent||"");
   if(state!=="DISARMED")throw new Error(`calibration failed: ${JSON.stringify(await snapshot(view))}`);
   await waitText(controller,"#gameModeButton","MODE · GAME",10000);
-  const labels=await controller.evaluate(()=>({top:document.querySelector("#rightTopLabel")?.textContent||"",bottom:document.querySelector("#rightBottomLabel")?.textContent||""}));
-  if(!labels.top.includes("PITCH")||!labels.bottom.includes("PITCH"))throw new Error(`GAME right-stick labels not physical pitch: ${JSON.stringify(labels)}`);
+  const labels=await controller.evaluate(()=>({leftTop:document.querySelector("#leftTopLabel")?.textContent||"",top:document.querySelector("#rightTopLabel")?.textContent||"",bottom:document.querySelector("#rightBottomLabel")?.textContent||""}));
+  if(!labels.leftTop.includes("W")||labels.top!=="NOSE UP"||labels.bottom!=="NOSE DOWN")throw new Error(`GAME shooter labels wrong: ${JSON.stringify(labels)}`);
   const clearance=await controller.$eval("#gameClearanceSlider",element=>Number(element.value));if(Math.abs(clearance-2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
 
@@ -71,6 +71,12 @@ try{
   if(!hold.motors.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${hold.motors.join(" ")}`);
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
 
+  await controller.click("#gameUp");
+  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearanceSlider")?.value)-2.1)<.01,{timeout:5000});
+  await controller.click("#gameDown");
+  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearanceSlider")?.value)-2.0)<.01,{timeout:5000});
+  console.log("Shooter height controls: E raises and Q lowers the real AGL target.");
+
   await setValue(controller,"#gameClearanceSlider","2.8");await waitText(controller,"#gameClearanceValue","2.8 m",10000);
   const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);const clearanceRise=await liveMotion(view,controller);
   if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance slider did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
@@ -80,12 +86,12 @@ try{
   const pitchBefore=await liveMotion(view,controller);
   await controller.mouse.move(pitchX,pitchY);await controller.mouse.down();await controller.mouse.move(pitchX,pitchY-pitchR*.60,{steps:6});
   const pitchStart=await simTime(view);await waitSim(view,pitchStart+.35,30000);const pitched=await liveMotion(view,controller);
-  if(!(pitched.pitch<pitchBefore.pitch-4.0))throw new Error(`body-pitch command did not rotate aircraft: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
+  if(!(pitched.pitch>pitchBefore.pitch+4.0))throw new Error(`body-pitch command did not rotate aircraft nose-up: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   if(pitched.state!=="ARMED"||!pitched.motors.some(value=>value>1050))throw new Error(`body-pitch motor authority missing: ${JSON.stringify(pitched)}`);
   let pitchYawDelta=(pitched.yaw-pitchBefore.yaw)%360;if(pitchYawDelta>180)pitchYawDelta-=360;if(pitchYawDelta<-180)pitchYawDelta+=360;
   if(Math.abs(pitchYawDelta)>4.0)throw new Error(`body-pitch command leaked into heading: ${JSON.stringify({pitchBefore,pitched,pitchYawDelta})}`);
   await controller.mouse.up();
-  console.log(`State-control E2E: right-stick Y physically pitched airframe ${pitchBefore.pitch.toFixed(1)}° -> ${pitched.pitch.toFixed(1)}° through motors.`);
+  console.log(`State-control E2E: right-stick up physically pitched airframe nose-up ${pitchBefore.pitch.toFixed(1)}° -> ${pitched.pitch.toFixed(1)}° through motors.`);
 
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
@@ -133,5 +139,5 @@ try{
   const status=await view.$eval("#remoteStatus",element=>element.textContent||"");if(!/fail-safe|stale|reconnect|disconnected/i.test(status))throw new Error(`controller loss not surfaced: ${status}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, functional AGL slider, real right-stick body pitch, forward/strafe physical convergence, heading control, stale-latched session recovery, hard-loss disarm.");
+  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, WASD translation, Q/E height target, measured-nav arm gate, real right-stick nose pitch, forward/strafe physical convergence, heading control, stale-latched session recovery, hard-loss disarm.");
 }finally{try{await controllerBrowser.close();}catch{}try{await viewBrowser.close();}catch{}}
