@@ -123,6 +123,18 @@ int main() {
     CHECK(fc::pulse(0.0f, true) == fc::kEscIdleUs);
     CHECK(fc::pulse(1.0f, true) == fc::kEscMaxUs);
 
+    // A 25-degree physical pitch request must create immediate differential
+    // motor authority in the real inner loop. This guards responsiveness at the
+    // motor-command layer without changing airframe or propulsion physics.
+    fc::Controller responsive_controller;
+    const auto responsive_mix = responsive_controller.run(
+        fc::Imu{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+        fc::Command{0.0f, 25.0f / 32.0f, 0.50f, 0.0f, false}, 0.001f, false);
+    CHECK(responsive_mix.motor[0] > 0.80f);
+    CHECK(responsive_mix.motor[1] > 0.80f);
+    CHECK(responsive_mix.motor[2] < 0.20f);
+    CHECK(responsive_mix.motor[3] < 0.20f);
+
     fc::Runtime calibration_low_runtime;
     uint64_t calibration_low_us = 0;
     for (uint32_t i = 0; i < fc::kCalibrationSamples; ++i) {
