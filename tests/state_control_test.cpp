@@ -169,7 +169,7 @@ int main() {
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     const float accel_norm = std::hypot(controller.debug().forward_accel_mps2,
                                         controller.debug().right_accel_mps2);
-    CHECK(accel_norm > 1.9f && accel_norm < 2.1f);
+    CHECK(accel_norm > 3.9f && accel_norm < 4.1f);
     CHECK(cmd.pitch < -0.10f);
     CHECK(cmd.roll > 0.10f);
 
