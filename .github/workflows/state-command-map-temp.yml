@@ -1,0 +1,100 @@
+name: Exact state-command mapping validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/state-command-map-temp.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: base-p060-d040, kv: "0.60f", kd: "0.40f" }
+          - { label: p065-d040, kv: "0.65f", kd: "0.40f" }
+          - { label: p070-d045, kv: "0.70f", kd: "0.45f" }
+          - { label: p075-d050, kv: "0.75f", kd: "0.50f" }
+    name: ${{ matrix.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact StateController to Runtime command map
+        env:
+          KV: ${{ matrix.kv }}
+          KD: ${{ matrix.kd }}
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text()
+          s,n=re.subn(r'static constexpr float kHorizontalVelocityGain = [0-9.]+f;',f'static constexpr float kHorizontalVelocityGain = {os.environ["KV"]};',s,count=1);assert n==1,n
+          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;',f'static constexpr float kHorizontalAccelerationDamping = {os.environ["KD"]};',s,count=1);assert n==1,n
+          marker='inline float wrap_degrees(float value) {'
+          assert s.count(marker)==1,s.count(marker)
+          helper='''inline uint16_t command_centered_raw(float command_value, float deadband, float expo) {
+              const float target = clamp(command_value, -1.0f, 1.0f);
+              if (std::fabs(target) < 1.0e-7f) return centered_raw(0.0f);
+              float lo = 0.0f, hi = 1.0f;
+              const float magnitude = std::fabs(target);
+              for (int i = 0; i < 24; ++i) {
+                  const float mid = 0.5f * (lo + hi);
+                  if (shape(mid, deadband, expo) < magnitude) lo = mid;
+                  else hi = mid;
+              }
+              return centered_raw(std::copysign(0.5f * (lo + hi), target));
+          }
+
+          '''
+          s=s.replace(marker,helper+marker,1)
+          replacements={
+              'out.ch[FC_SBUS_ROLL] = centered_raw(roll_command);':'out.ch[FC_SBUS_ROLL] = command_centered_raw(roll_command, 0.035f, 0.30f);',
+              'out.ch[FC_SBUS_PITCH] = centered_raw(pitch_channel);':'out.ch[FC_SBUS_PITCH] = command_centered_raw(pitch_channel, 0.035f, 0.30f);',
+              'out.ch[FC_SBUS_YAW] = centered_raw(yaw_command);':'out.ch[FC_SBUS_YAW] = command_centered_raw(yaw_command, 0.045f, 0.20f);',
+          }
+          for old,new in replacements.items():
+              assert s.count(old)==1,(old,s.count(old));s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          node tests/architecture_invariants.mjs
+          git diff --check
+      - name: Build self-contained pair
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight45-command-map
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle_name in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
+              p=Path(html_name);h=p.read_text();assert marker in h
+              b=Path(bundle_name).read_text().replace('</script','<\\/script')
+              p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          rm -rf generated
+      - name: Full unchanged GAME E2E
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
