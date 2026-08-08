@@ -24,15 +24,20 @@ let controls=neutralForMode();
 
 const gameStyle=document.createElement("style");gameStyle.textContent=`
   .sticks{position:relative}
-  body.game-state .stick-wrap{width:min(39vw,390px)}
+  body.game-state .sticks{grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr);gap:clamp(8px,2vw,22px)}
+  body.game-state .sticks>.stick-wrap:first-child{grid-column:1;grid-row:1}
+  body.game-state .sticks>.stick-wrap:nth-child(2){grid-column:3;grid-row:1}
+  body.game-state .stick-wrap{width:min(37vw,370px)}
   #gameModeButton.active{background:#17694f;border-color:#62d6aa;color:#fff}
-  #gameClearance{position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:210px;border:1px solid #3a4964;border-radius:14px;background:#0b1420e8;box-shadow:0 8px 28px #0009;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:9px 5px;backdrop-filter:blur(8px)}
+  #gameClearance{position:relative;z-index:4;grid-column:2;grid-row:1;align-self:center;justify-self:center;width:48px;height:190px;border:1px solid #3a4964;border-radius:14px;background:#0b1420e8;box-shadow:0 8px 28px #0007;display:flex;flex-direction:column;align-items:center;padding:8px 5px;backdrop-filter:blur(8px);touch-action:none}
   #gameClearance[hidden]{display:none!important}
-  #gameClearance strong{font:900 14px ui-monospace,SFMono-Regular,Menlo,monospace;color:#6be4b0;white-space:nowrap}
-  #gameClearance small{font:800 8px system-ui,-apple-system,sans-serif;color:#8fa1bb;letter-spacing:.08em;text-align:center}
-  #gameClearance .range-shell{height:135px;width:38px;display:grid;place-items:center;overflow:visible}
-  #gameClearance input{width:135px;transform:rotate(-90deg);accent-color:#6be4b0}
-  #gameSensorStatus{font:800 8px/1.2 system-ui,-apple-system,sans-serif;text-align:center;color:#ffd06d;max-width:56px}
+  #gameClearance strong{font:900 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#6be4b0;white-space:nowrap;margin:3px 0 5px}
+  #gameClearance small{font:900 8px system-ui,-apple-system,sans-serif;color:#8fa1bb;letter-spacing:.08em;text-align:center}
+  #gameClearanceSlider{position:relative;flex:1;width:34px;min-height:92px;display:grid;place-items:center;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+  #gameClearanceSlider .clearance-track{position:relative;width:7px;height:100%;border-radius:999px;background:#17263a;border:1px solid #344660;overflow:visible}
+  #gameClearanceFill{position:absolute;left:-1px;right:-1px;bottom:-1px;height:0;border-radius:999px;background:#2e8f6d;border:1px solid #64e0ae66;pointer-events:none}
+  #gameClearanceThumb{position:absolute;left:50%;bottom:-7px;width:20px;height:14px;transform:translateX(-50%);border-radius:7px;background:#dce9f7;border:2px solid #64e0ae;box-shadow:0 2px 8px #0009;pointer-events:none}
+  #gameSensorStatus{font:800 7px/1.15 system-ui,-apple-system,sans-serif;text-align:center;color:#ffd06d;max-width:42px;margin-top:5px}
   .state-vector-debug{margin:16px 0 4px;padding:12px;border:1px solid #ffffff25;border-radius:12px;background:#07101bc7}
   .state-vector-debug.inactive{opacity:.55}
   .state-vector-debug h4{margin:0 0 8px;font:900 12px system-ui,-apple-system,sans-serif;letter-spacing:.08em;color:#dbe8f6}
@@ -42,13 +47,41 @@ const gameStyle=document.createElement("style");gameStyle.textContent=`
   .state-vector-line{margin-top:7px;font:800 10.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}
   .state-vector-error{margin-top:7px;color:#c8d4e3;font:800 10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}
   .state-vector-note{margin-top:7px!important;margin-bottom:0!important;color:#7f93aa!important;font:10px/1.35 system-ui,-apple-system,sans-serif!important}
-  @media(max-height:500px){#gameClearance{height:170px}#gameClearance .range-shell{height:100px}#gameClearance input{width:100px}}
+  @media(max-width:800px) and (orientation:portrait){body.game-state .sticks{grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr);gap:6px}body.game-state .stick-wrap{width:min(38vw,310px)}#gameClearance{width:42px;height:170px;padding-left:3px;padding-right:3px}}
+  @media(max-height:500px){body.game-state .sticks{grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr);gap:10px}body.game-state .stick-wrap{width:min(34vw,310px)}#gameClearance{width:44px;height:150px;padding-top:5px;padding-bottom:5px}#gameClearanceSlider{min-height:74px}}
 `;
 document.head.appendChild(gameStyle);
 const modeButton=document.createElement("button");modeButton.id="gameModeButton";modeButton.type="button";document.querySelector(".top").appendChild(modeButton);
-const gameClearancePanel=document.createElement("div");gameClearancePanel.id="gameClearance";gameClearancePanel.innerHTML=`<small>GROUND<br>CLEARANCE</small><strong id="gameClearanceValue">2.0 m</strong><div class="range-shell"><input id="gameClearanceSlider" type="range" min="0.5" max="5" step="0.1"></div><div id="gameSensorStatus">SENSORS —</div>`;document.querySelector(".sticks").appendChild(gameClearancePanel);
-const clearanceSlider=$("gameClearanceSlider"),clearanceValue=$("gameClearanceValue"),gameSensorStatus=$("gameSensorStatus");
-clearanceSlider.value=String(groundClearance);
+const gameClearancePanel=document.createElement("div");gameClearancePanel.id="gameClearance";gameClearancePanel.innerHTML=`<small>HEIGHT</small><strong id="gameClearanceValue">2.0 m</strong><div id="gameClearanceSlider" role="slider" aria-label="Ground clearance" aria-valuemin="0.5" aria-valuemax="5" aria-valuenow="2"><div class="clearance-track"><div id="gameClearanceFill"></div><div id="gameClearanceThumb"></div></div></div><div id="gameSensorStatus">SENSORS —</div>`;document.querySelector(".sticks").appendChild(gameClearancePanel);
+const clearanceSlider=$("gameClearanceSlider"),clearanceValue=$("gameClearanceValue"),clearanceFill=$("gameClearanceFill"),clearanceThumb=$("gameClearanceThumb"),gameSensorStatus=$("gameSensorStatus");
+let clearancePointer=null;
+
+function renderClearance(){
+  const t=clamp((groundClearance-.5)/4.5,0,1);
+  clearanceValue.textContent=`${groundClearance.toFixed(1)} m`;
+  clearanceSlider.value=groundClearance.toFixed(1);
+  clearanceSlider.setAttribute("aria-valuenow",groundClearance.toFixed(1));
+  clearanceFill.style.height=`${(t*100).toFixed(2)}%`;
+  clearanceThumb.style.bottom=`calc(${(t*100).toFixed(2)}% - 7px)`;
+}
+function setGroundClearance(value){
+  groundClearance=clamp(Math.round(Number(value)*10)/10,.5,5);
+  localStorage.setItem("arondight45GroundClearance",String(groundClearance));
+  controls.groundClearance=groundClearance;
+  renderClearance();renderVectorDebug();publish();
+}
+function clearanceFromPointer(event){
+  const rect=clearanceSlider.getBoundingClientRect();
+  const t=clamp((rect.bottom-event.clientY)/Math.max(1,rect.height),0,1);
+  setGroundClearance(.5+t*4.5);
+}
+clearanceSlider.addEventListener("pointerdown",event=>{
+  clearancePointer=event.pointerId;clearanceSlider.setPointerCapture(clearancePointer);clearanceFromPointer(event);event.preventDefault();
+});
+clearanceSlider.addEventListener("pointermove",event=>{if(event.pointerId===clearancePointer){clearanceFromPointer(event);event.preventDefault();}});
+const releaseClearance=event=>{if(event.pointerId!==clearancePointer)return;try{clearanceSlider.releasePointerCapture(clearancePointer);}catch{}clearancePointer=null;event.preventDefault();};
+clearanceSlider.addEventListener("pointerup",releaseClearance);clearanceSlider.addEventListener("pointercancel",releaseClearance);
+clearanceSlider.addEventListener("input",()=>{const value=Number(clearanceSlider.value);if(Number.isFinite(value))setGroundClearance(value);});
 
 function quantizedCentered(value){const raw=Math.round(992+820*clamp(Number(value)||0,-1,1));return clamp((raw-992)/820,-1,1);}
 function stateShape(value,deadband,expo){const x=clamp(Number(value)||0,-1,1),a=Math.abs(x);if(a<=deadband)return 0;const t=(a-deadband)/(1-deadband),v=t*(1-expo)+t*t*t*expo;return Math.sign(x)*clamp(v,0,1);}
@@ -87,7 +120,7 @@ function renderMode(){
     leftLabels[0].textContent="THROTTLE +";leftLabels[1].textContent="THROTTLE −";leftLabels[2].textContent="YAW L";leftLabels[3].textContent="YAW R";
     rightLabels[0].textContent="PITCH +";rightLabels[1].textContent="PITCH −";rightLabels[2].textContent="ROLL L";rightLabels[3].textContent="ROLL R";
   }
-  clearanceValue.textContent=`${groundClearance.toFixed(1)} m`;updateSticks();renderVectorDebug();
+  renderClearance();updateSticks();renderVectorDebug();
 }
 
 function setConnection(text,kind="warn"){ui.connection.textContent=text;ui.connection.className=`pill ${kind}`;}
@@ -112,7 +145,7 @@ function updateSticks(){
   let left,right;
   if(gameMode){
     left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
-    right={x:inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.lookPitch||0,phoneSettings.rightFineness)};
+    right={x:-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),y:phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.lookPitch||0,phoneSettings.rightFineness)};
     ui.leftValue.textContent=`FWD ${(controls.pitch*5).toFixed(1)} · STR ${(controls.roll*5).toFixed(1)} m/s`;
     ui.rightValue.textContent=`TURN ${(controls.yaw*100).toFixed(0)}% · CAM ${((controls.lookPitch||0)*100).toFixed(0)}%`;
   }else{
@@ -141,7 +174,7 @@ function bindStick(element,kind){
         controls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);
         controls.throttle=0;
       }else{
-        controls.yaw=phoneAxis(point.x,phoneSettings.rightFineness);
+        controls.yaw=phoneAxis(-point.x,phoneSettings.rightFineness);
         controls.lookPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-point.y,phoneSettings.rightFineness);
       }
     }else applyStick(controls,kind,point,phoneSettings);
@@ -152,7 +185,6 @@ function bindStick(element,kind){
 modeButton.onclick=()=>{
   controls.arm=false;gameMode=!gameMode;localStorage.setItem("arondight45ControlMode",gameMode?"game":"manual");controls=neutralForMode();renderMode();publish();
 };
-clearanceSlider.oninput=()=>{groundClearance=clamp(Number(clearanceSlider.value),.5,5);localStorage.setItem("arondight45GroundClearance",String(groundClearance));controls.groundClearance=groundClearance;clearanceValue.textContent=`${groundClearance.toFixed(1)} m`;renderVectorDebug();publish();};
 
 async function applyAnswerCode(code){
   ui.answerCode.value=code;

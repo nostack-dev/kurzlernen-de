@@ -113,6 +113,7 @@ jobs:
           cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
           trap cleanup EXIT
           sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
@@ -125,11 +126,13 @@ jobs:
           node --check sim/qr_pairing.mjs
           node --check sim/control_semantics.mjs
           node --check sim/control_settings.mjs
+          node --check sim/solo_layout.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/sil_wasm_smoke.mjs
           node --check tests/browser_sim_smoke.mjs
           node --check tests/dual_phone_smoke.mjs
+          node --check tests/solo_layout_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
 
       - uses: actions/configure-pages@v5
