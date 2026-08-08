@@ -1,0 +1,58 @@
+name: Fix strict yaw E2E contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/yaw-contract-temp.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Correct yaw stimulus without weakening gate
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('tests/dual_phone_smoke.mjs')
+          s=p.read_text()
+          old='await controller.mouse.move(rcx+rr*.45,rcy,{steps:4});'
+          new='await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});'
+          assert s.count(old)==1,s.count(old)
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs')
+          s=p.read_text()
+          anchor='''requireText("tests/dual_phone_smoke.mjs","moving.forward>.30",\n            "dual-phone GAME E2E must verify desired forward velocity produces real forward motion");\n'''
+          assert s.count(anchor)==1,s.count(anchor)
+          s=s.replace(anchor,anchor+'''requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65",\n            "yaw E2E stimulus must make the unchanged four-degree physical rotation gate reachable after phone/C++ shaping");\nrequireText("esp32/Arondight45_StateControl.hpp","shaped_raw(yaw_command, 0.045f, 0.20f)",\n            "physical yaw command must survive Runtime receiver shaping exactly once");\nrequireText("esp32/Arondight45_StateControl.hpp","inverse_shape",\n            "StateController physical commands require transparent receiver-shape inversion");\n''',1)
+          list_anchor='''  ".github/workflows/oneoff-fusion-fix.yml",\n'''
+          assert s.count(list_anchor)==1,s.count(list_anchor)
+          s=s.replace(list_anchor,list_anchor+'''  ".github/workflows/fusion-single-temp.yml",\n  ".github/workflows/state-command-map-temp.yml",\n  ".github/workflows/finalize-state-vector.yml",\n  ".github/workflows/yaw-contract-temp.yml",\n''',1)
+          p.write_text(s)
+          PY
+
+          git rm -f .github/workflows/yaw-contract-temp.yml
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
+          /tmp/fc-core-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-tests
+          /tmp/state-control-tests
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check tests/dual_phone_smoke.mjs
+          git diff --check
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Make strict yaw rotation gate physically reachable"
+          git push origin HEAD:main
