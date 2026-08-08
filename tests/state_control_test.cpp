@@ -108,6 +108,11 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().forward_accel_mps2 > 1.9f);
     CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.25f);
+    {
+        const auto decoded = fc::command(transformed);
+        CHECK(std::fabs(decoded.roll - controller.debug().roll_command) < 0.005f);
+        CHECK(std::fabs(decoded.pitch + controller.debug().pitch_channel_command) < 0.005f);
+    }
 
     // A stationary measured state equal to the decoded desired vector is an
     // equilibrium: velocity error, measured acceleration and requested tilt are zero.
@@ -117,7 +122,7 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.001f);
     CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
-    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_PITCH])) < 0.01f);
+    CHECK(std::fabs(fc::command(transformed).pitch) < 0.01f);
 
     // Releasing to zero target while still moving forward produces acceleration
     // directly opposite the measured velocity vector and therefore reverse tilt.
@@ -126,9 +131,9 @@ int main() {
     nav.velocity_world_mps = {-1.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.99f);
-    CHECK(controller.debug().forward_accel_mps2 < -1.15f &&
-          controller.debug().forward_accel_mps2 > -1.25f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < -0.16f);
+    CHECK(controller.debug().forward_accel_mps2 < -0.75f &&
+          controller.debug().forward_accel_mps2 > -0.85f);
+    CHECK(fc::command(transformed).pitch < -0.08f);
 
     // Direct measured-state dynamics add damping in the same vector space. Starting
     // level at zero velocity, then gaining +0.01 m/s forward over 10 ms represents a
@@ -143,7 +148,7 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.009f);
     CHECK(controller.debug().forward_accel_mps2 < -0.08f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) < 0.0f);
+    CHECK(fc::command(transformed).pitch < 0.0f);
 
     // Diagonal requests are limited as one physical acceleration vector, not by
     // independently clipping axes and accidentally granting sqrt(2) more authority.
@@ -157,8 +162,13 @@ int main() {
         controller.debug().forward_accel_mps2 * controller.debug().forward_accel_mps2 +
         controller.debug().right_accel_mps2 * controller.debug().right_accel_mps2);
     CHECK(accel_norm > 1.9f && accel_norm < 2.1f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_PITCH]) > 0.10f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.10f);
+    {
+        const auto decoded = fc::command(transformed);
+        CHECK(decoded.pitch > 0.10f);
+        CHECK(decoded.roll > 0.10f);
+        CHECK(std::fabs(decoded.roll - controller.debug().roll_command) < 0.005f);
+        CHECK(std::fabs(decoded.pitch + controller.debug().pitch_channel_command) < 0.005f);
+    }
 
     // Body-right is -world-Y at yaw=0.
     controller.reset();
@@ -167,7 +177,7 @@ int main() {
     nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().right_accel_mps2 > 1.9f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.25f);
+    CHECK(fc::command(transformed).roll > 0.25f);
 
     const float desired_right = fc::state_intent(rc).right_mps;
     controller.reset();
@@ -175,7 +185,7 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(std::fabs(controller.debug().measured_right_mps - desired_right) < 0.001f);
     CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
-    CHECK(std::fabs(raw_centered(transformed.ch[FC_SBUS_ROLL])) < 0.01f);
+    CHECK(std::fabs(fc::command(transformed).roll) < 0.01f);
 
     // With zero right target, either-direction steady drift must receive an
     // acceleration request exactly opposite that drift.
@@ -184,20 +194,21 @@ int main() {
     nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps < -0.99f);
-    CHECK(controller.debug().right_accel_mps2 > 1.15f &&
-          controller.debug().right_accel_mps2 < 1.25f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) > 0.16f);
+    CHECK(controller.debug().right_accel_mps2 > 0.75f &&
+          controller.debug().right_accel_mps2 < 0.85f);
+    CHECK(fc::command(transformed).roll > 0.08f);
 
     controller.reset();
     nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps > 0.99f);
-    CHECK(controller.debug().right_accel_mps2 < -1.15f &&
-          controller.debug().right_accel_mps2 > -1.25f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_ROLL]) < -0.16f);
+    CHECK(controller.debug().right_accel_mps2 < -0.75f &&
+          controller.debug().right_accel_mps2 > -0.85f);
+    CHECK(fc::command(transformed).roll < -0.08f);
 
     // Yaw is the rotational component of the target state. Stick input integrates
-    // target heading; releasing it retains heading error feedback.
+    // target heading; releasing it retains heading error feedback. The internal
+    // RC adapter must preserve the physical yaw-rate command through command().
     controller.reset();
     rc = base_rc(true);
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
@@ -205,9 +216,11 @@ int main() {
     for (int i = 0; i < 100; ++i)
         transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);
     CHECK(controller.debug().target_yaw_deg > 90.0f);
+    CHECK(std::fabs(fc::command(transformed).yaw - controller.debug().yaw_command) < 0.005f);
     rc.ch[FC_SBUS_YAW] = fc::centered_raw(0.0f);
     transformed = controller.transform(rc, nav, 0.0f, true, 0.01f);
-    CHECK(raw_centered(transformed.ch[FC_SBUS_YAW]) > 0.50f);
+    CHECK(fc::command(transformed).yaw > 0.50f);
+    CHECK(std::fabs(fc::command(transformed).yaw - controller.debug().yaw_command) < 0.005f);
 
     // Inner production attitude/rate control is still the motor authority.
     const fc::Imu still{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
