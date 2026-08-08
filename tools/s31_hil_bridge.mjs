@@ -24,7 +24,7 @@ import fs from "node:fs/promises";
 import { WebSocketServer, WebSocket } from "ws";
 import { SerialPort } from "serialport";
 
-const INPUT_BYTES = 64;
+const INPUT_BYTES = 80;
 const OUTPUT_BYTES = 32;
 const INPUT_MAGIC = "HIL1";
 const OUTPUT_MAGIC = "HLO1";
@@ -51,7 +51,7 @@ function validateInputPacket(packet) {
   if (!Buffer.isBuffer(packet)) packet = Buffer.from(packet);
   if (packet.length !== INPUT_BYTES) throw new Error(`Expected ${INPUT_BYTES}-byte HIL1 packet`);
   if (packet.subarray(0, 4).toString("ascii") !== INPUT_MAGIC) throw new Error("Invalid HIL1 magic");
-  if (crc32(packet, 60) !== packet.readUInt32LE(60)) throw new Error("HIL1 CRC mismatch");
+  if (crc32(packet, 76) !== packet.readUInt32LE(76)) throw new Error("HIL1 CRC mismatch");
   return packet.readUInt32LE(4);
 }
 

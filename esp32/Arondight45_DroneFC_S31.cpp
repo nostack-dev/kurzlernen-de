@@ -8,7 +8,7 @@
  * plus hardware-only watchdog, kill and deadline supervision.
  */
 
-#include "Arondight45_StateControl.hpp"
+#include "Arondight45_FirmwareRuntime.hpp"
 
 #include <array>
 #include <atomic>
@@ -54,6 +54,17 @@ extern "C" {
 #ifndef FC_PIN_SBUS
 #define FC_PIN_SBUS 8
 #endif
+#ifndef FC_PIN_NAV_RX
+// Real navigation-module byte stream. GAME mode remains fail-closed unless a
+// physical NAV1 producer is connected. Override these for the target PCB.
+#define FC_PIN_NAV_RX 18
+#endif
+#ifndef FC_NAV_UART_BAUD
+#define FC_NAV_UART_BAUD 230400
+#endif
+#ifndef FC_NAV_UART_NUM
+#define FC_NAV_UART_NUM UART_NUM_0
+#endif
 #ifndef FC_PIN_M1
 #define FC_PIN_M1 4
 #endif
@@ -79,17 +90,19 @@ extern "C" {
 static_assert(FC_IMU_ROTATION == 0 || FC_IMU_ROTATION == 90 ||
               FC_IMU_ROTATION == 180 || FC_IMU_ROTATION == 270);
 
-extern "C" bool __attribute__((weak)) arondight45_navigation_sample(float* vx_mps,float* vy_mps,float* vz_mps,float* agl_m){(void)vx_mps;(void)vy_mps;(void)vz_mps;(void)agl_m;return false;}
-
 namespace hw {
 
 constexpr char kTag[] = "Arondight45-FC";
 constexpr auto kSpiHost = SPI2_HOST;
-constexpr auto kUart = UART_NUM_1;
+constexpr auto kSbusUart = UART_NUM_1;
+constexpr auto kNavUart = FC_NAV_UART_NUM;
 
 TaskHandle_t flight_task_handle{};
-portMUX_TYPE rc_mux = portMUX_INITIALIZER_UNLOCKED;
-fc::RC rc_snapshot{};
+portMUX_TYPE wire_mux = portMUX_INITIALIZER_UNLOCKED;
+std::array<uint8_t, 25> sbus_frame_snapshot{};
+uint32_t sbus_generation{};
+hwcontract::NavigationWireFrame navigation_frame_snapshot{};
+uint32_t navigation_generation{};
 spi_device_handle_t imu{};
 mcpwm_timer_handle_t motor_timer{};
 std::array<mcpwm_cmpr_handle_t, 4> motor_comparators{};
@@ -282,42 +295,8 @@ esp_err_t imu_init() {
     return gpio_isr_handler_add(static_cast<gpio_num_t>(FC_PIN_IMU_DRDY), imu_data_ready_isr, nullptr);
 }
 
-int16_t read_be_i16(const uint8_t* p) {
-    return static_cast<int16_t>((static_cast<uint16_t>(p[0]) << 8) | p[1]);
-}
-
-fc::V3 orient(fc::V3 v) {
-    fc::V3 out{};
-#if FC_IMU_ROTATION == 0
-    out = v;
-#elif FC_IMU_ROTATION == 90
-    out = {-v.y, v.x, v.z};
-#elif FC_IMU_ROTATION == 180
-    out = {-v.x, -v.y, v.z};
-#else
-    out = {v.y, -v.x, v.z};
-#endif
-#if FC_IMU_FLIPPED
-    out.y = -out.y;
-    out.z = -out.z;
-#endif
-    return out;
-}
-
-esp_err_t sample_imu(fc::Imu& sample) {
-    uint8_t bytes[14]{};
-    HW_TRY(imu_read(reg::kTempData1, bytes, sizeof(bytes)), "imu sample");
-    const int16_t ax = read_be_i16(bytes + 2);
-    const int16_t ay = read_be_i16(bytes + 4);
-    const int16_t az = read_be_i16(bytes + 6);
-    const int16_t gx = read_be_i16(bytes + 8);
-    const int16_t gy = read_be_i16(bytes + 10);
-    const int16_t gz = read_be_i16(bytes + 12);
-    const int16_t bad = std::numeric_limits<int16_t>::min();
-    if (ax == bad || ay == bad || az == bad || gx == bad || gy == bad || gz == bad) return ESP_ERR_INVALID_RESPONSE;
-    sample.a = orient({ax / 2048.0f, ay / 2048.0f, az / 2048.0f});
-    sample.g = orient({gx / 16.4f, gy / 16.4f, gz / 16.4f});
-    return fc::finite(sample.a) && fc::finite(sample.g) ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
+esp_err_t sample_imu_registers(std::array<uint8_t, 14>& sample) {
+    return imu_read(reg::kTempData1, sample.data(), sample.size());
 }
 
 esp_err_t sbus_init() {
@@ -328,73 +307,124 @@ esp_err_t sbus_init() {
     config.stop_bits = UART_STOP_BITS_2;
     config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
     config.source_clk = UART_SCLK_DEFAULT;
-    HW_TRY(uart_driver_install(kUart, 1024, 0, 0, nullptr, 0), "sbus uart driver");
-    HW_TRY(uart_param_config(kUart, &config), "sbus uart config");
-    HW_TRY(uart_set_pin(kUart, UART_PIN_NO_CHANGE, FC_PIN_SBUS, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE), "sbus pin");
-    HW_TRY(uart_set_line_inverse(kUart, UART_SIGNAL_RXD_INV), "sbus inversion");
-    return uart_flush_input(kUart);
+    HW_TRY(uart_driver_install(kSbusUart, 1024, 0, 0, nullptr, 0), "sbus uart driver");
+    HW_TRY(uart_param_config(kSbusUart, &config), "sbus uart config");
+    HW_TRY(uart_set_pin(kSbusUart, UART_PIN_NO_CHANGE, FC_PIN_SBUS, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE), "sbus pin");
+    HW_TRY(uart_set_line_inverse(kSbusUart, UART_SIGNAL_RXD_INV), "sbus inversion");
+    return uart_flush_input(kSbusUart);
 }
 
 void sbus_task(void*) {
-    fc::SbusParser parser;
+    hwcontract::SbusWireParser parser;
+    std::array<uint8_t, 25> frame{};
     uint8_t bytes[64];
     for (;;) {
-        const int count = uart_read_bytes(kUart, bytes, sizeof(bytes), pdMS_TO_TICKS(20));
+        const int count = uart_read_bytes(kSbusUart, bytes, sizeof(bytes), pdMS_TO_TICKS(20));
         for (int i = 0; i < count; ++i) {
-            fc::RC decoded;
-            if (parser.feed(bytes[i], now_us64(), decoded)) {
-                portENTER_CRITICAL(&rc_mux);
-                rc_snapshot = decoded;
-                portEXIT_CRITICAL(&rc_mux);
-            }
+            if (!parser.feed(bytes[i], now_us64(), frame)) continue;
+            portENTER_CRITICAL(&wire_mux);
+            sbus_frame_snapshot = frame;
+            ++sbus_generation;
+            portEXIT_CRITICAL(&wire_mux);
         }
     }
 }
 
-fc::RC get_rc_snapshot() {
-    fc::RC value;
-    portENTER_CRITICAL(&rc_mux);
-    value = rc_snapshot;
-    portEXIT_CRITICAL(&rc_mux);
-    return value;
+esp_err_t navigation_init() {
+#if FC_PIN_NAV_RX >= 0
+    uart_config_t config{};
+    config.baud_rate = FC_NAV_UART_BAUD;
+    config.data_bits = UART_DATA_8_BITS;
+    config.parity = UART_PARITY_DISABLE;
+    config.stop_bits = UART_STOP_BITS_1;
+    config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    config.source_clk = UART_SCLK_DEFAULT;
+    HW_TRY(uart_driver_install(kNavUart, 1024, 0, 0, nullptr, 0), "nav uart driver");
+    HW_TRY(uart_param_config(kNavUart, &config), "nav uart config");
+    HW_TRY(uart_set_pin(kNavUart, UART_PIN_NO_CHANGE, FC_PIN_NAV_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE), "nav uart pin");
+    return uart_flush_input(kNavUart);
+#else
+    return ESP_OK;
+#endif
+}
+
+void navigation_task(void*) {
+#if FC_PIN_NAV_RX >= 0
+    hwcontract::NavigationWireParser parser;
+    hwcontract::NavigationWireFrame frame{};
+    uint8_t bytes[64];
+    for (;;) {
+        const int count = uart_read_bytes(kNavUart, bytes, sizeof(bytes), pdMS_TO_TICKS(20));
+        for (int i = 0; i < count; ++i) {
+            if (!parser.feed(bytes[i], frame)) continue;
+            // Do not decode here. Bad CRC/version/sequence must reach exactly the
+            // same FirmwareRuntime validation path as browser SIL and S31 HIL.
+            portENTER_CRITICAL(&wire_mux);
+            navigation_frame_snapshot = frame;
+            ++navigation_generation;
+            portEXIT_CRITICAL(&wire_mux);
+        }
+    }
+#else
+    vTaskDelete(nullptr);
+#endif
+}
+
+void snapshot_wire(std::array<uint8_t, 25>& sbus, uint32_t& sbus_gen,
+                   hwcontract::NavigationWireFrame& navigation, uint32_t& nav_gen) {
+    portENTER_CRITICAL(&wire_mux);
+    sbus = sbus_frame_snapshot;
+    sbus_gen = sbus_generation;
+    navigation = navigation_frame_snapshot;
+    nav_gen = navigation_generation;
+    portEXIT_CRITICAL(&wire_mux);
 }
 
 void flight_task(void*) {
     if (esp_task_wdt_add(nullptr) != ESP_OK) fatal("flight watchdog registration");
     if (imu_init() != ESP_OK) fatal("imu init");
 
-    fc::StateRuntime runtime;
+    fc::FirmwareRuntime runtime;
     uint64_t last_us = 0;
+    uint32_t consumed_sbus_generation = 0;
+    uint32_t consumed_navigation_generation = 0;
 
     for (;;) {
         const uint32_t notifications = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5));
         if (!notifications) fatal("imu timeout");
 
         const uint64_t now = now_us64();
-        fc::Imu raw;
-        if (sample_imu(raw) != ESP_OK) fatal("imu data");
+        std::array<uint8_t, 14> imu_registers{};
+        if (sample_imu_registers(imu_registers) != ESP_OK) fatal("imu data");
         const uint32_t dt_us = last_us ? static_cast<uint32_t>(now - last_us) : fc::kNominalDtUs;
         last_us = now;
-
-        const fc::RC rc = get_rc_snapshot();
-        const bool rc_fresh = rc.valid && now >= rc.us && now - rc.us <= fc::kRcTimeoutUs;
 
 #if FC_PIN_KILL >= 0
         if (!gpio_get_level(static_cast<gpio_num_t>(FC_PIN_KILL))) fatal("kill switch");
 #endif
 
-        fc::RuntimeInput input{};
-        input.raw = raw;
-        input.rc = rc;
-        input.now_us = now;
-        input.dt_us = dt_us;
-        input.missed_samples = notifications > 1 ? notifications - 1 : 0;
-        input.imu_valid = true;
-        input.rc_fresh = rc_fresh;
-        fc::NavigationState navigation{};float nav_vx=0,nav_vy=0,nav_vz=0,nav_agl=0;
-        if(arondight45_navigation_sample(&nav_vx,&nav_vy,&nav_vz,&nav_agl)){navigation.velocity_world_mps={nav_vx,nav_vy,nav_vz};navigation.agl_m=nav_agl;navigation.valid=true;navigation.valid=fc::finite(navigation);}
-        fc::StateRuntimeInput state_input{};state_input.flight=input;state_input.navigation=navigation;
-        const fc::RuntimeOutput output = runtime.step(state_input);
+        std::array<uint8_t, 25> sbus_frame{};
+        hwcontract::NavigationWireFrame navigation_frame{};
+        uint32_t sbus_gen = 0, nav_gen = 0;
+        snapshot_wire(sbus_frame, sbus_gen, navigation_frame, nav_gen);
+
+        fc::HardwareFrame hardware{};
+        hardware.now_us = now;
+        hardware.dt_us = dt_us;
+        hardware.missed_samples = notifications > 1 ? notifications - 1 : 0;
+        hardware.imu_registers = imu_registers;
+        hardware.imu_present = true;
+        if (sbus_gen != consumed_sbus_generation) {
+            hardware.sbus_frame = sbus_frame;
+            hardware.sbus_present = true;
+            consumed_sbus_generation = sbus_gen;
+        }
+        if (nav_gen != consumed_navigation_generation) {
+            hardware.navigation_frame = navigation_frame;
+            hardware.navigation_present = true;
+            consumed_navigation_generation = nav_gen;
+        }
+        const fc::RuntimeOutput output = runtime.step(hardware);
 
         if (output.fault != fc::kFaultNone) fatal(fc::Runtime::fault_name(output.fault));
         armed.store(output.armed, std::memory_order_release);
@@ -447,6 +477,7 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(hw::setup_kill_switch());
     ESP_ERROR_CHECK(hw::motor_init());
     ESP_ERROR_CHECK(hw::sbus_init());
+    ESP_ERROR_CHECK(hw::navigation_init());
 
 #if CONFIG_FREERTOS_NUMBER_OF_CORES > 1
     constexpr BaseType_t kFlightCore = 1;
@@ -465,5 +496,8 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     created = xTaskCreatePinnedToCore(hw::sbus_task, "sbus", 4096, nullptr,
                                      12, nullptr, kServiceCore);
+    ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
+    created = xTaskCreatePinnedToCore(hw::navigation_task, "nav", 4096, nullptr,
+                                     11, nullptr, kServiceCore);
     ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }

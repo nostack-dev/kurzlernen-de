@@ -27,11 +27,14 @@ for(const path of [...walk("esp32",p=>/\.(?:cpp|hpp)$/.test(p)),...walk("sim",p=
   if(/#[ \t]*include[ \t]+["<][^">]*\.cpp[">]/.test(source))fail(`${path} includes a .cpp translation unit`);
   if(/#[ \t]*define[ \t]+main\b/.test(source))fail(`${path} rewrites main with the preprocessor`);
 }
-requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_StateControl.hpp");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","fc::StateRuntime runtime");
-requireText("esp32/Arondight45_DroneFC_S31.cpp","arondight45_navigation_sample");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","Arondight45_StateControl.hpp");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::StateRuntime runtime_");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","Arondight45_FirmwareRuntime.hpp");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","fc::FirmwareRuntime runtime");
+forbidText("esp32/Arondight45_DroneFC_S31.cpp","arondight45_navigation_sample","production must never accept cooked simulation-only navigation state");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","Arondight45_FirmwareRuntime.hpp");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::FirmwareRuntime runtime_");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_icm42688_registers");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_navigation_wire");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_sbus");
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","hil::RuntimeAdapter runtime");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
@@ -82,18 +85,22 @@ requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
 forbidText("esp32/Arondight45_StateControl.hpp","kAttitudeLead",
            "direction-specific measured-attitude lead shortcut returned");
 
-// HIL v2 keeps the packet physically identical in size and uses the eight former
-// reserved bytes for measured navigation state; no hidden side transport.
-requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 2");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_vx_cms");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","nav_agl_mm");
-requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 64");
+// HIL v3 carries only target-hardware bytes. Cooked NavigationState fields are
+// not legal at this boundary.
+requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 3");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","navigation_frame[hwcontract::kNavigationFrameBytes]");
+requireText("esp32/Arondight45_HIL_Protocol.hpp","sizeof(InputPacket) == 80");
+for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])forbidText("esp32/Arondight45_HIL_Protocol.hpp",cooked);
 
 // Production hardware safety/peripheral invariants must survive higher-level
 // control work.
 for(const marker of ["uart_set_line_inverse","kIntSource","esp_task_wdt"])
   requireText("esp32/Arondight45_DroneFC_S31.cpp",marker);
 requireText("esp32/Arondight45_DroneFC_HIL_S31.cpp","usb_serial_jtag");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","navigation_init");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","NavigationWireParser");
+requireText("esp32/Arondight45_DroneFC_S31.cpp","sample_imu_registers");
+forbidText("esp32/Arondight45_DroneFC_S31.cpp","sample_imu(fc::Imu","production must not own a second ICM decoder");
 
 // SIM navigation is a sensor adapter, not a truth-to-motor shortcut. Its output
 // is serialized through the same HIL packet consumed by the C++ StateRuntime.
@@ -107,8 +114,11 @@ requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN",
 requireText("sim/simulator.mjs","groundRange(12)");
 requireText("sim/simulator.mjs","neutralSoloControls");
 requireText("sim/simulator.mjs","soloClearanceSlider");
-requireText("sim/simulator.mjs","FLAG_NAVIGATION_VALID");
-requireText("sim/simulator.mjs","view.setInt16(52");
+requireText("sim/simulator.mjs","FLAG_NAVIGATION_PRESENT");
+requireText("sim/simulator.mjs","encodeNavigationWire");
+requireText("sim/simulator.mjs","class SimSbusReceiver");
+requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
+forbidText("sim/simulator.mjs","FLAG_NAVIGATION_VALID","browser may not inject decoded navigation validity");
 requireText("sim/simulator.mjs","backend.exchange(packet");
 requireText("sim/simulator.mjs","physics.step(latest.motors");
 forbidText("sim/simulator.mjs","stateControllerMotor");
