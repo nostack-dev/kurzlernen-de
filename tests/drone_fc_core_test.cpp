@@ -109,12 +109,13 @@ int main() {
 
     // A banked accelerating quad can still measure ~1 g almost entirely on
     // body Z. That is not evidence that the aircraft is level. Accelerometer
-    // fusion must therefore be far slower than flight-attitude dynamics.
+    // fusion must therefore be far slower than flight-attitude dynamics while
+    // remaining a real long-term drift anchor rather than being disabled.
     fc::Attitude translating_attitude{};
     translating_attitude.roll = 20.0f;
     for (int i = 0; i < 1000; ++i)
         translating_attitude.run(fc::Imu{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}}, 0.001f);
-    CHECK(translating_attitude.roll > 17.0f);
+    CHECK(translating_attitude.roll > 17.0f && translating_attitude.roll < 20.0f);
 
     const auto mixed = fc::mix(0.9f, 0.4f, -0.3f, 0.3f);
     for (float value : mixed.motor) CHECK(value >= 0.0f && value <= 1.0f);
