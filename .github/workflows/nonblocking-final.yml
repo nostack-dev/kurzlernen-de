@@ -13,84 +13,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: drone-fix-validation
-      - name: Apply candidate and nonblocking test path
+      - name: Apply candidate and nonblocking path
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           import re
           from pathlib import Path
-
-          state=Path('esp32/Arondight45_StateControl.hpp')
-          s=state.read_text()
-          s,n=re.subn(r'const float measured_right = s \* nav\.velocity_world_mps\.x - c \* nav\.velocity_world_mps\.y;', 'const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;',s,count=1); assert n==1,n
-          s,n=re.subn(r'const float measured_right_accel =\s*s \* measured_acceleration_world_mps2_\.x - c \* measured_acceleration_world_mps2_\.y;', 'const float measured_right_accel =\n            -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;',s,count=1); assert n==1,n
-          s,n=re.subn(r'const float roll_target_deg = std::atan2\(', 'const float roll_target_deg = -std::atan2(',s,count=1); assert n==1,n
-          s,n=re.subn(r'constexpr float kStateMaxYawRateDps = [0-9.]+f;', 'constexpr float kStateMaxYawRateDps = 180.0f;',s,count=1); assert n==1,n
-          s,n=re.subn(r'static constexpr float kHorizontalVelocityGain = [0-9.]+f;', 'static constexpr float kHorizontalVelocityGain = 0.70f;',s,count=1); assert n==1,n
-          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;', 'static constexpr float kHorizontalAccelerationDamping = 0.45f;',s,count=1); assert n==1,n
-          state.write_text(s)
-
-          core=Path('esp32/Arondight45_DroneFC_Core.hpp')
-          s=core.read_text()
-          s,n=re.subn(r'const float tau = 1\.0f / \(2\.0f \* kPi \* [0-9.]+f\);', 'const float tau = 1.0f / (2.0f * kPi * 0.02f);',s,count=1); assert n==1,n
-          s,n=re.subn(r'PID yaw_pid_\{Gains\{[0-9.]+f, 0\.0007f, 0\.0f, 0\.14f, 0\.28f, 40\.0f\}\};', 'PID yaw_pid_{Gains{0.0030f, 0.0007f, 0.0f, 0.14f, 0.28f, 40.0f}};',s,count=1); assert n==1,n
-          core.write_text(s)
-
-          controller=Path('sim/controller.mjs')
-          s=controller.read_text()
-          s=s.replace('right:s*vx-c*vy,vertical:vz','right:-s*vx+c*vy,vertical:vz',1)
-          s=s.replace('yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*100','yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*180',1)
-          assert 'right:-s*vx+c*vy,vertical:vz' in s
-          assert 'yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*180' in s
-          controller.write_text(s)
-
-          sim=Path('sim/simulator.mjs')
-          s=sim.read_text()
-          old='function exportSession(){downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});}'
-          new='''function exportSession(){
-            if((latest.state&STATE_ARMED)&&inputSource==="remote"){
-              setStatus("Disarm before exporting a full flight log during P2P control.","warn");
-              return;
-            }
-            downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});
-          }'''
-          if old in s:s=s.replace(old,new,1)
-          assert new in s
-          sim.write_text(s)
-
-          test=Path('tests/dual_phone_smoke.mjs')
-          s=test.read_text()
-          s,n=re.subn(r'right:s\*vx-c\*vy,','right:-s*vx+c*vy,',s,count=1); assert n==1,n
+          p=Path('esp32/Arondight45_StateControl.hpp');s=p.read_text()
+          s,n=re.subn(r'const float measured_right = s \* nav\.velocity_world_mps\.x - c \* nav\.velocity_world_mps\.y;','const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;',s,count=1);assert n==1,n
+          s,n=re.subn(r'const float measured_right_accel =\s*s \* measured_acceleration_world_mps2_\.x - c \* measured_acceleration_world_mps2_\.y;','const float measured_right_accel =\n            -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;',s,count=1);assert n==1,n
+          s,n=re.subn(r'const float roll_target_deg = std::atan2\(','const float roll_target_deg = -std::atan2(',s,count=1);assert n==1,n
+          s,n=re.subn(r'constexpr float kStateMaxYawRateDps = [0-9.]+f;','constexpr float kStateMaxYawRateDps = 180.0f;',s,count=1);assert n==1,n
+          s,n=re.subn(r'static constexpr float kHorizontalVelocityGain = [0-9.]+f;','static constexpr float kHorizontalVelocityGain = 0.70f;',s,count=1);assert n==1,n
+          s,n=re.subn(r'static constexpr float kHorizontalAccelerationDamping = [0-9.]+f;','static constexpr float kHorizontalAccelerationDamping = 0.45f;',s,count=1);assert n==1,n
+          p.write_text(s)
+          p=Path('esp32/Arondight45_DroneFC_Core.hpp');s=p.read_text()
+          s,n=re.subn(r'const float tau = 1\.0f / \(2\.0f \* kPi \* [0-9.]+f\);','const float tau = 1.0f / (2.0f * kPi * 0.02f);',s,count=1);assert n==1,n
+          s,n=re.subn(r'PID yaw_pid_\{Gains\{[0-9.]+f, 0\.0007f, 0\.0f, 0\.14f, 0\.28f, 40\.0f\}\};','PID yaw_pid_{Gains{0.0030f, 0.0007f, 0.0f, 0.14f, 0.28f, 40.0f}};',s,count=1);assert n==1,n
+          p.write_text(s)
+          p=Path('sim/controller.mjs');s=p.read_text();s=s.replace('right:s*vx-c*vy,vertical:vz','right:-s*vx+c*vy,vertical:vz',1);s=s.replace('yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*100','yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*180',1);p.write_text(s)
+          p=Path('sim/simulator.mjs');s=p.read_text();old='function exportSession(){downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});}';new='function exportSession(){if((latest.state&STATE_ARMED)&&inputSource==="remote"){setStatus("Disarm before exporting a full flight log during P2P control.","warn");return;}downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});}';s=s.replace(old,new,1);assert new in s;p.write_text(s)
+          p=Path('tests/dual_phone_smoke.mjs');s=p.read_text()
+          s,n=re.subn(r'right:s\*vx-c\*vy,','right:-s*vx+c*vy,',s,count=1);assert n==1,n
           s=s.replace('await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});','await controller.mouse.move(rcx+rr*.45,rcy,{steps:4});',1)
-          helper='''async function liveMotion(view,controller){
-            const ist=await controller.$eval("#stateVectorDebug [data-vector-ist-text]",element=>element.textContent||"");
-            const match=ist.match(/v\\[F\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*R\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*Z\\s*([+-]?\\d+(?:\\.\\d+)?)\\]\\s*m\\/s.*?AGL\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*m\\s*R\\/P\\/Y\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)°/);
-            if(!match)throw new Error(`cannot parse live measured-state telemetry: ${ist}`);
-            const v=await view.evaluate(()=>({speed:parseFloat(document.querySelector("#velocity")?.textContent||"NaN"),altitude:parseFloat(document.querySelector("#altitude")?.textContent||"NaN"),state:document.querySelector("#fcState")?.textContent||"",motors:(document.querySelector("#motors")?.textContent||"").trim().split(/\\s+/).map(Number)}));
-            const forward=Number(match[1]),right=Number(match[2]),vertical=Number(match[3]);
-            return{forward,right,horizontal:Math.hypot(forward,right),vertical,speed:v.speed,altitude:v.altitude,roll:Number(match[5]),pitch:Number(match[6]),yaw:Number(match[7]),state:v.state,motors:v.motors};
-          }
-          async function liveTrace(view,controller,start,offsets,timeout=90000){const trace=[];for(const offset of offsets){await waitSim(view,start+offset,timeout);trace.push({offset,...await liveMotion(view,controller)});}return trace;}
-          '''
-          if 'async function liveMotion(view,controller)' not in s:
-              marker='function traceAtOffsets(samples,start,offsets){'; assert s.count(marker)==1
-              s=s.replace(marker,helper+marker,1)
-          for a,b in [('const hold=bodyMotion(await latestFlightSample(view));','const hold=await liveMotion(view,controller);'),('const clearanceRise=bodyMotion(await latestFlightSample(view));','const clearanceRise=await liveMotion(view,controller);'),('const moving=bodyMotion(await latestFlightSample(view));','const moving=await liveMotion(view,controller);')]:s=s.replace(a,b,1)
-          s=s.replace('''  const brakeStart=await simTime(view);await waitSim(view,brakeStart+4.0,90000);
-  const samples=await flightSamples(view),trace=traceAtOffsets(samples,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);''','''  const brakeStart=await simTime(view);
-  const trace=await liveTrace(view,controller,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);''',1)
-          s=s.replace('''  const strafeStart=await simTime(view);await waitSim(view,strafeStart+1.0,45000);
-  const strafeCommandSamples=await flightSamples(view),strafeCommandTrace=traceAtOffsets(strafeCommandSamples,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0]);
-  const strafing=strafeCommandTrace[strafeCommandTrace.length-1];''','''  const strafeStart=await simTime(view);
-  const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);
-  const strafing=strafeCommandTrace[strafeCommandTrace.length-1];''',1)
-          s=s.replace('''  const strafeBrakeStart=await simTime(view);await waitSim(view,strafeBrakeStart+4.0,90000);
-  const strafeSamples=await flightSamples(view),strafeTrace=traceAtOffsets(strafeSamples,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];''','''  const strafeBrakeStart=await simTime(view);
-  const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];''',1)
-          armed=s[s.index('const left=await stickBox(controller,"#leftStick")'):s.index('const stall=controller.evaluate')]
-          assert 'flightSamples(view)' not in armed and 'latestFlightSample(view)' not in armed
-          assert 'rcx+rr*.45' in s and 'Math.abs(yawDelta)<4' in s
-          test.write_text(s)
+          helper='async function liveMotion(view,controller){const ist=await controller.$eval("#stateVectorDebug [data-vector-ist-text]",e=>e.textContent||"");const m=ist.match(/v\\[F\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*R\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*Z\\s*([+-]?\\d+(?:\\.\\d+)?)\\]\\s*m\\/s.*?AGL\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*m\\s*R\\/P\\/Y\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)°/);if(!m)throw new Error(`cannot parse live measured-state telemetry: ${ist}`);const v=await view.evaluate(()=>({speed:parseFloat(document.querySelector("#velocity")?.textContent||"NaN"),altitude:parseFloat(document.querySelector("#altitude")?.textContent||"NaN"),state:document.querySelector("#fcState")?.textContent||"",motors:(document.querySelector("#motors")?.textContent||"").trim().split(/\\s+/).map(Number)}));const forward=Number(m[1]),right=Number(m[2]),vertical=Number(m[3]);return{forward,right,horizontal:Math.hypot(forward,right),vertical,speed:v.speed,altitude:v.altitude,roll:Number(m[5]),pitch:Number(m[6]),yaw:Number(m[7]),state:v.state,motors:v.motors};}\nasync function liveTrace(view,controller,start,offsets,timeout=90000){const trace=[];for(const offset of offsets){await waitSim(view,start+offset,timeout);trace.push({offset,...await liveMotion(view,controller)});}return trace;}\n'
+          if 'async function liveMotion(view,controller)' not in s:s=s.replace('function traceAtOffsets(samples,start,offsets){',helper+'function traceAtOffsets(samples,start,offsets){',1)
+          s=s.replace('const hold=bodyMotion(await latestFlightSample(view));','const hold=await liveMotion(view,controller);',1)
+          s=s.replace('const clearanceRise=bodyMotion(await latestFlightSample(view));','const clearanceRise=await liveMotion(view,controller);',1)
+          s=s.replace('const moving=bodyMotion(await latestFlightSample(view));','const moving=await liveMotion(view,controller);',1)
+          s=s.replace('  const brakeStart=await simTime(view);await waitSim(view,brakeStart+4.0,90000);\n  const samples=await flightSamples(view),trace=traceAtOffsets(samples,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);','  const brakeStart=await simTime(view);\n  const trace=await liveTrace(view,controller,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);',1)
+          s=s.replace('  const strafeStart=await simTime(view);await waitSim(view,strafeStart+1.0,45000);\n  const strafeCommandSamples=await flightSamples(view),strafeCommandTrace=traceAtOffsets(strafeCommandSamples,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0]);\n  const strafing=strafeCommandTrace[strafeCommandTrace.length-1];','  const strafeStart=await simTime(view);\n  const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);\n  const strafing=strafeCommandTrace[strafeCommandTrace.length-1];',1)
+          s=s.replace('  const strafeBrakeStart=await simTime(view);await waitSim(view,strafeBrakeStart+4.0,90000);\n  const strafeSamples=await flightSamples(view),strafeTrace=traceAtOffsets(strafeSamples,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];','  const strafeBrakeStart=await simTime(view);\n  const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];',1)
+          armed=s[s.index('const left=await stickBox(controller,"#leftStick")'):s.index('const stall=controller.evaluate')];assert 'flightSamples(view)' not in armed and 'latestFlightSample(view)' not in armed;assert 'rcx+rr*.45' in s and 'Math.abs(yawDelta)<4' in s;p.write_text(s)
           PY
           node --check sim/controller.mjs
           node --check sim/simulator.mjs
@@ -114,10 +68,8 @@ jobs:
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
-          for html_name,marker,bundle_name in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
-              p=Path(html_name);h=p.read_text();assert marker in h
-              b=Path(bundle_name).read_text().replace('</script','<\\/script')
-              p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          for h,m,b in [('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
+              p=Path(h);text=p.read_text();assert m in text;p.write_text(text.replace(m,'<script type="module">\n'+Path(b).read_text().replace('</script','<\\/script')+'\n</script>'))
           PY
           rm -rf generated
       - name: Run strict E2E twice
@@ -129,8 +81,7 @@ jobs:
           test -n "$CHROME_BIN"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
           HTTP_PID=$!
-          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
-          trap cleanup EXIT
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
