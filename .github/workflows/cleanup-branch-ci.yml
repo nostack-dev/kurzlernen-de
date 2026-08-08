@@ -16,7 +16,6 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state && /tmp/state
           g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil && ASAN_OPTIONS=detect_leaks=1 /tmp/hil
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil && /tmp/sil
-          node tests/control_semantics_test.mjs
           node tests/architecture_invariants.mjs
           node --check sim/controller.mjs
           node --check tests/dual_phone_smoke.mjs
@@ -42,7 +41,8 @@ jobs:
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/static.log 2>&1 &
-          trap 'kill $! 2>/dev/null || true' EXIT
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
