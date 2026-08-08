@@ -92,6 +92,10 @@ replace_once(
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:30000});
   await waitText(view,"#remoteStatus","P2P LINKED",10000);
   await waitText(controller,"#connection","P2P LINKED",10000);
+  // Synchronize on post-reset controller telemetry, not stale pre-reset DOM text.
+  // updateArm() is driven by peer.onTelemetry, so this proves the controller has
+  // received the new safe FC state before testing whether ARM becomes available.
+  await waitText(controller,"#fcState","DISARMED",15000);
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
   const rearmStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});
@@ -111,7 +115,7 @@ if 'requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.
         raise RuntimeError("architecture yaw anchor missing")
     arch = arch.replace(
         anchor,
-        anchor + '''requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f",\n            "GAME yaw authority must remain at the measured minimum that clears the strict physical gate");\nrequireText("sim/controller.mjs","yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*140",\n            "controller state-vector debug must report the same GAME yaw authority as the flight controller");\nrequireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")',\n            "stale-control recovery must prove same-session re-arm only after restoring a safe upright simulator state");\n''',
+        anchor + '''requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f",\n            "GAME yaw authority must remain at the measured minimum that clears the strict physical gate");\nrequireText("sim/controller.mjs","yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*140",\n            "controller state-vector debug must report the same GAME yaw authority as the flight controller");\nrequireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")',\n            "stale-control recovery must prove same-session re-arm only after restoring a safe upright simulator state");\nrequireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)',\n            "same-session recovery must wait for fresh post-reset controller telemetry before re-arm");\n''',
         1,
     )
 architecture.write_text(arch)
@@ -131,6 +135,7 @@ assert 'await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});' in test
 assert 'const turnStart=await simTime(view);await waitSim(view,turnStart+.22,25000);await controller.mouse.up();' in test
 assert 'if(Math.abs(yawDelta)<4)' in test
 assert '--disable-background-timer-throttling' in test
+assert 'waitText(controller,"#fcState","DISARMED",15000)' in test
 armed = test[test.index('const left=await stickBox(controller,"#leftStick")'):test.index('const stall=controller.evaluate')]
 assert "flightSamples(view)" not in armed
 assert "latestFlightSample(view)" not in armed
