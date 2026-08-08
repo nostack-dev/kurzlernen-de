@@ -133,7 +133,7 @@ int main() {
     CHECK(controller.debug().measured_forward_mps > 0.99f);
     CHECK(controller.debug().forward_accel_mps2 < -0.75f &&
           controller.debug().forward_accel_mps2 > -0.85f);
-    CHECK(fc::command(transformed).pitch < -0.08f);
+    CHECK(fc::command(transformed).pitch > 0.08f);
 
     // Direct measured-state dynamics add damping in the same vector space. Starting
     // level at zero velocity, then gaining +0.01 m/s forward over 10 ms represents a
@@ -148,7 +148,7 @@ int main() {
     transformed = controller.transform(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.009f);
     CHECK(controller.debug().forward_accel_mps2 < -0.08f);
-    CHECK(fc::command(transformed).pitch < 0.0f);
+    CHECK(fc::command(transformed).pitch > 0.0f);
 
     // Diagonal requests are limited as one physical acceleration vector, not by
     // independently clipping axes and accidentally granting sqrt(2) more authority.
