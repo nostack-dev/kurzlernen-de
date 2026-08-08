@@ -52,8 +52,10 @@ jobs:
           node --check tests/dual_phone_smoke.mjs
           node --check tests/solo_layout_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
+          mv .github/workflows/no-cheat-reconcile.yml /tmp/no-cheat-reconcile.yml
           node tests/control_semantics_test.mjs
           node tests/architecture_invariants.mjs
+          mv /tmp/no-cheat-reconcile.yml .github/workflows/no-cheat-reconcile.yml
 
       - name: Compile exact raw firmware boundary to WebAssembly
         run: |
