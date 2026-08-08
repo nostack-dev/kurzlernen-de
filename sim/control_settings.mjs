@@ -80,7 +80,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     <label class="phone-settings-toggle"><span>INVERT RIGHT STICK HORIZONTAL (L/R)</span><input data-invert-right-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK LEFT STICK HORIZONTAL AXIS</span><input data-lock-left-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK RIGHT STICK VERTICAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
-    <p class="phone-settings-note">Right X invert reverses only left/right on the right stick in both MANUAL and GAME and is stored locally on this device. Left X lock keeps MANUAL yaw / GAME strafe centred. Right Y lock keeps MANUAL pitch / GAME camera look centred. Flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
+    <p class="phone-settings-note">Right X invert reverses only left/right on the right stick in both MANUAL and GAME and is stored locally on this device. Left X lock keeps MANUAL yaw / GAME strafe centred. Right Y lock keeps MANUAL pitch / GAME body pitch centred. Flight-controller code, motor/prop model and aircraft physics are never changed by these settings.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]');
