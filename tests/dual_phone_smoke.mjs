@@ -22,6 +22,11 @@ async function waitSim(page,target,timeout=60000){await page.waitForFunction(val
 async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||"",armSwitch:document.querySelector("#armSwitch")?.textContent||""}));}
 async function stickBox(page,selector){return page.$eval(selector,element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});}
 async function yaw(page){return page.$eval("#attitude",element=>{const parts=(element.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[];return Number(parts[2]||0);});}
+
+// Exporting the full 1 kHz session log can briefly block the page/download path.
+// Never do that in the successful armed-flight path: consume the existing live
+// navigation/FC telemetry instead. The full log helper is retained only for a
+// terminal diagnostic after an AGL timeout, where the test is already failing.
 async function flightSamples(page){
   return page.evaluate(async()=>{
     const original=URL.createObjectURL;let captured=null;
@@ -36,10 +41,9 @@ async function flightSamples(page){
     }finally{URL.createObjectURL=original;}
   });
 }
-async function latestFlightSample(page){const samples=await flightSamples(page);return samples[samples.length-1];}
 function bodyMotion(sample){
   const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-  return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0,fcRoll:Number(sample.fc_roll_deg)||0,fcPitch:Number(sample.fc_pitch_deg)||0,fcYaw:Number(sample.fc_yaw_deg)||0,motors:[Number(sample.motor1_us)||0,Number(sample.motor2_us)||0,Number(sample.motor3_us)||0,Number(sample.motor4_us)||0]};
+  return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};
 }
 function traceAtOffsets(samples,start,offsets){
   return offsets.map(offset=>{
@@ -48,6 +52,25 @@ function traceAtOffsets(samples,start,offsets){
     for(const sample of samples){const d=Math.abs((Number(sample.time_s)||0)-target);if(d<bestDistance){best=sample;bestDistance=d;}else if((Number(sample.time_s)||0)>target&&d>bestDistance)break;}
     return{offset,...bodyMotion(best)};
   });
+}
+async function liveMotion(view,controller){
+  const ist=await controller.$eval("#stateVectorDebug [data-vector-ist-text]",element=>element.textContent||"");
+  const match=ist.match(/v\[F\s*([+-]?\d+(?:\.\d+)?)\s*\|\s*R\s*([+-]?\d+(?:\.\d+)?)\s*\|\s*Z\s*([+-]?\d+(?:\.\d+)?)\]\s*m\/s.*?AGL\s*([+-]?\d+(?:\.\d+)?)\s*m\s*R\/P\/Y\s*([+-]?\d+(?:\.\d+)?)\s*\/\s*([+-]?\d+(?:\.\d+)?)\s*\/\s*([+-]?\d+(?:\.\d+)?)°/);
+  if(!match)throw new Error(`cannot parse live measured-state telemetry: ${ist}`);
+  const viewState=await view.evaluate(()=>({
+    time:parseFloat(document.querySelector("#simTime")?.textContent||"NaN"),
+    altitude:parseFloat(document.querySelector("#altitude")?.textContent||"NaN"),
+    speed:parseFloat(document.querySelector("#velocity")?.textContent||"NaN"),
+    state:document.querySelector("#fcState")?.textContent||"",
+    motors:(document.querySelector("#motors")?.textContent||"").trim().split(/\s+/).map(Number),
+  }));
+  const forward=Number(match[1]),right=Number(match[2]),vertical=Number(match[3]);
+  return{time:viewState.time,forward,right,horizontal:Math.hypot(forward,right),vertical,speed:viewState.speed,altitude:viewState.altitude,agl:Number(match[4]),roll:Number(match[5]),pitch:Number(match[6]),yaw:Number(match[7]),state:viewState.state,motors:viewState.motors};
+}
+async function liveTrace(view,controller,start,offsets,timeout=90000){
+  const trace=[];
+  for(const offset of offsets){await waitSim(view,start+offset,timeout);trace.push({offset,...await liveMotion(view,controller)});}
+  return trace;
 }
 
 const view=await viewBrowser.newPage(),controller=await controllerBrowser.newPage();watch(view,"view");watch(controller,"controller");
@@ -111,10 +134,10 @@ try{
   }
   clearInterval(traceTimer);
   const holdStart=await simTime(view);await waitSim(view,holdStart+.35,25000);
-  const hold=bodyMotion(await latestFlightSample(view));
+  const hold=await liveMotion(view,controller);
   if(!(hold.altitude>1.45&&hold.altitude<2.55&&Math.abs(hold.vertical)<.65))throw new Error(`2m AGL did not settle: ${JSON.stringify(hold)}`);
-  const liftPulses=await view.$eval("#motors",element=>(element.textContent||"").trim().split(/\s+/).map(Number));
-  if(!liftPulses.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${liftPulses.join(" ")}`);
+  if(hold.state!=="ARMED")throw new Error(`AGL settled without armed motor authority: ${JSON.stringify(hold)}`);
+  if(!hold.motors.some(value=>Number.isFinite(value)&&value>1050))throw new Error(`AGL controller produced no physical motor thrust: ${hold.motors.join(" ")}`);
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
   const debugState=await controller.$eval("#stateVectorDebug",element=>({
     soll:element.querySelector("[data-vector-soll-text]")?.textContent||"",
@@ -129,7 +152,7 @@ try{
   await setValue(controller,"#gameClearanceSlider","2.8");
   await waitText(controller,"#gameClearanceValue","2.8 m",10000);
   const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);
-  const clearanceRise=bodyMotion(await latestFlightSample(view));
+  const clearanceRise=await liveMotion(view,controller);
   if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance slider did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
   await setValue(controller,"#gameClearanceSlider","2.0");
   await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.70;},{timeout:90000});
@@ -147,31 +170,35 @@ try{
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);
-  const moving=bodyMotion(await latestFlightSample(view));
+  const moving=await liveMotion(view,controller);
+  if(moving.state!=="ARMED"||!moving.motors.some(value=>value>1050))throw new Error(`motor authority lost during forward vector: ${JSON.stringify(moving)}`);
   if(!(moving.forward>.30))throw new Error(`forward desired-vector did not produce forward motion: ${JSON.stringify(moving)}`);
   await controller.mouse.up();
   await waitText(controller,"#leftValue","FWD 0.0",10000);
 
-  const brakeStart=await simTime(view);await waitSim(view,brakeStart+4.0,90000);
-  const samples=await flightSamples(view),trace=traceAtOffsets(samples,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);
+  const brakeStart=await simTime(view);
+  const trace=await liveTrace(view,controller,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);
   const braked=trace[trace.length-1];
   console.log(`State-control braking trace: ${JSON.stringify(trace)}`);
   const peak=Math.max(...trace.map(point=>point.horizontal));
+  if(trace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during zero-vector braking: ${JSON.stringify(trace)}`);
   if(peak>2.5)throw new Error(`zero-velocity braking transient is unbounded: peak=${peak.toFixed(3)} trace=${JSON.stringify(trace)}`);
   if(braked.horizontal>Math.max(.45,moving.horizontal*.75))throw new Error(`zero-horizontal-velocity target did not converge after physical counter-tilt: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
   if(Math.abs(braked.vertical)>1.0)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
   console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
 
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
-  const strafeStart=await simTime(view);await waitSim(view,strafeStart+1.0,45000);
-  const strafeCommandSamples=await flightSamples(view),strafeCommandTrace=traceAtOffsets(strafeCommandSamples,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0]);
+  const strafeStart=await simTime(view);
+  const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);
   const strafing=strafeCommandTrace[strafeCommandTrace.length-1];
   console.log(`State-control strafe command trace: ${JSON.stringify(strafeCommandTrace)}`);
+  if(strafeCommandTrace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during strafe vector: ${JSON.stringify(strafeCommandTrace)}`);
   if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);
   await controller.mouse.up();
-  const strafeBrakeStart=await simTime(view);await waitSim(view,strafeBrakeStart+4.0,90000);
-  const strafeSamples=await flightSamples(view),strafeTrace=traceAtOffsets(strafeSamples,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];
+  const strafeBrakeStart=await simTime(view);
+  const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];
   const strafePeak=Math.max(...strafeTrace.map(point=>point.horizontal));
+  if(strafeTrace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during strafe braking: ${JSON.stringify(strafeTrace)}`);
   if(strafePeak>2.5)throw new Error(`strafe braking transient is unbounded: peak=${strafePeak.toFixed(3)} trace=${JSON.stringify(strafeTrace)}`);
   if(strafeBraked.horizontal>Math.max(.50,strafing.horizontal*.78))throw new Error(`strafe zero-vector braking did not converge: before=${JSON.stringify(strafing)}, trace=${JSON.stringify(strafeTrace)}`);
   console.log(`State-control E2E: strafe right=${strafing.right.toFixed(2)}m/s, peak=${strafePeak.toFixed(2)} -> ${strafeBraked.horizontal.toFixed(2)}m/s.`);
@@ -185,17 +212,20 @@ try{
   if(Math.abs(yawDelta)<4)throw new Error(`heading feedback did not rotate aircraft: before=${yawBefore}, after=${yawAfter}`);
   console.log(`State-control E2E: heading command rotated real attitude by ${yawDelta.toFixed(1)}°.`);
 
+  // Deliberately freeze the controller browser. 350 ms stale-control safety must
+  // still disarm; the new heartbeat path must not mask a genuinely blocked sender.
   const stall=controller.evaluate(()=>{const end=performance.now()+900;while(performance.now()<end){}return true;});
   await new Promise(resolve=>setTimeout(resolve,500));
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:10000});
   await stall;
   await waitText(view,"#remoteStatus","P2P LINKED",10000);
+  // Stale-arm latch requires an explicit low before a new ARM request.
   await controller.click("#kill");
   const rearmStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});
   const rearmDuration=(await simTime(view))-rearmStart;
   if(rearmDuration>1.5)throw new Error(`same-session GAME re-arm too slow: ${rearmDuration.toFixed(3)}s`);
-  console.log("Serverless P2P E2E: transient stale-control fail-safe recovered on the same session with zero re-pairing.");
+  console.log("Serverless P2P E2E: transient stale-control fail-safe recovered on the same session with explicit re-arm and zero re-pairing.");
 
   await controllerBrowser.close();await new Promise(resolve=>setTimeout(resolve,800));
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:10000});
@@ -205,5 +235,5 @@ try{
   if(!/fail-safe|stale|reconnect|disconnected/i.test(status))throw new Error(`controller loss not surfaced: ${status}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, functional AGL slider, camera-only free-look, forward/strafe physical convergence, heading control, session recovery, hard-loss disarm.");
+  console.log("Serverless dual-phone GAME/STATE E2E passed: QR UX, measured-nav arm gate, functional AGL slider, camera-only free-look, nonblocking forward/strafe physical convergence, heading control, stale-latched session recovery, hard-loss disarm.");
 }finally{try{await controllerBrowser.close();}catch{}try{await viewBrowser.close();}catch{}}
