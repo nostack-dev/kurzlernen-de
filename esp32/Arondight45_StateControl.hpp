@@ -266,7 +266,7 @@ private:
 
     void update_acceleration_estimator(V3 velocity_world_mps, float dt) {
         if (!acceleration_estimator_valid_) {
-            previous_velocity_world_mps_ = nav.velocity_world_mps;
+            previous_velocity_world_mps_ = velocity_world_mps;
             acceleration_estimator_valid_ = true;
             acceleration_sample_dt_s_ = 0.0f;
             return;
