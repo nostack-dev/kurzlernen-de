@@ -1,3 +1,4 @@
+// This shared semantics test is part of both final Pages and ESP32-S31 validation.
 import assert from "node:assert/strict";
 import {
   DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,neutralControls,armReady,applyStick,releaseStick,
