@@ -17,53 +17,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply coherent production fixes
+      - name: Apply deterministic production patch
         run: |
           set -euxo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          state=Path('esp32/Arondight45_StateControl.hpp')
-          s=state.read_text()
-          old='constexpr float kStateMaxYawRateDps = 100.0f;'
-          new='constexpr float kStateMaxYawRateDps = 180.0f;'
-          if new not in s:
-              assert s.count(old)==1,s.count(old)
-              s=s.replace(old,new,1)
-          state.write_text(s)
-
-          controller=Path('sim/controller.mjs')
-          s=controller.read_text()
-          old='yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*100'
-          new='yawRate:stateShape(quantizedCentered(controls.yaw),.045,.20)*180'
-          if new not in s:
-              assert s.count(old)==1,s.count(old)
-              s=s.replace(old,new,1)
-          controller.write_text(s)
-
-          sim=Path('sim/simulator.mjs')
-          s=sim.read_text()
-          old='function exportSession(){downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});}'
-          new='''function exportSession(){
-            if((latest.state&STATE_ARMED)&&inputSource==="remote"){
-              setStatus("Disarm before exporting a full flight log during P2P control.","warn");
-              return;
-            }
-            downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});
-          }'''
-          if new not in s:
-              assert s.count(old)==1,s.count(old)
-              s=s.replace(old,new,1)
-          sim.write_text(s)
-
-          test=Path('tests/dual_phone_smoke.mjs').read_text()
-          assert 'await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});' in test
-          assert 'const turnStart=await simTime(view);await waitSim(view,turnStart+.22,25000);await controller.mouse.up();' in test
-          assert 'if(Math.abs(yawDelta)<4)' in test
-          armed=test[test.index('const left=await stickBox(controller,"#leftStick")'):test.index('const stall=controller.evaluate')]
-          assert 'flightSamples(view)' not in armed
-          assert 'latestFlightSample(view)' not in armed
-          PY
+          python3 tools/finalize_game.py
+          git diff --check
 
       - name: Stage exact clean production tree
         run: |
@@ -74,13 +32,14 @@ jobs:
           git rm -f --ignore-unmatch .github/workflows/armed-telemetry-final.yml
           git rm -f --ignore-unmatch .github/workflows/yaw-p-strict-validation.yml
           git rm -f --ignore-unmatch .github/workflows/final-clean-promote.yml
+          git rm -f --ignore-unmatch .github/workflows/final-clean-promote-v2.yml
           git rm -f --ignore-unmatch tools/apply_nonblocking_e2e_patch.py
+          git rm -f --ignore-unmatch tools/finalize_game.py
           git diff --check
 
       - name: Validate shared runtime and architecture
         run: |
           set -euxo pipefail
-          git diff --check
           node --check sim/controller.mjs
           node --check sim/simulator.mjs
           node --check tests/dual_phone_smoke.mjs
@@ -117,13 +76,16 @@ jobs:
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
-          for html_name,marker,bundle_name in [
+          builds=[
               ('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
               ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
-          ]:
-              p=Path(html_name); h=p.read_text(); assert marker in h
-              b=Path(bundle_name).read_text().replace('</script','<\\/script')
-              p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          ]
+          for html_name,marker,bundle_name in builds:
+              p=Path(html_name)
+              html=p.read_text()
+              assert marker in html
+              bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
+              p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
           PY
           test -s drone_simulator.html
           test -s drone_controller.html
@@ -158,5 +120,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Finalize GAME flight control and clean validation tree"
+          git commit -m "Finalize GAME flight control and safe session recovery"
           git push origin HEAD:main
