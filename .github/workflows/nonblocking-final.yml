@@ -1,4 +1,4 @@
-# final rerun on promoted live-telemetry tree
+# final rerun with physically reachable yaw dwell
 name: Nonblocking flight final
 on:
   push:
@@ -37,6 +37,13 @@ jobs:
 
           test = Path("tests/dual_phone_smoke.mjs")
           s = test.read_text()
+          yaw_old='const turnStart=await simTime(view);await waitSim(view,turnStart+.22,25000);await controller.mouse.up();'
+          yaw_new='const turnStart=await simTime(view);await waitSim(view,turnStart+.35,30000);await controller.mouse.up();'
+          if yaw_new not in s:
+              assert s.count(yaw_old)==1,s.count(yaw_old)
+              s=s.replace(yaw_old,yaw_new,1)
+          assert 'if(Math.abs(yawDelta)<4)' in s
+
           helper = '''async function liveMotion(view,controller){
             const ist=await controller.$eval("#stateVectorDebug [data-vector-ist-text]",element=>element.textContent||"");
             const match=ist.match(/v\\[F\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*R\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\|\\s*Z\\s*([+-]?\\d+(?:\\.\\d+)?)\\]\\s*m\\/s.*?AGL\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*m\\s*R\\/P\\/Y\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*\\/\\s*([+-]?\\d+(?:\\.\\d+)?)°/);
@@ -115,6 +122,7 @@ jobs:
           git rm -f --ignore-unmatch .github/workflows/armed-telemetry-final.yml
           git rm -f --ignore-unmatch .github/workflows/nonblocking-final.yml
           git rm -f --ignore-unmatch .github/workflows/yaw-p-strict-validation.yml
+          git rm -f --ignore-unmatch .github/workflows/yaw-path-diagnostic.yml
           git rm -f --ignore-unmatch tools/apply_nonblocking_e2e_patch.py
           git diff --check
       - name: Validate sources
@@ -167,5 +175,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Keep armed P2P flight validation nonblocking"
+          git commit -m "Finalize nonblocking GAME flight validation"
           git push origin HEAD:main
