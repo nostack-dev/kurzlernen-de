@@ -13,11 +13,13 @@ namespace fc {
 // directly for fc::Runtime. No synthetic SBUS frames exist inside the controller.
 constexpr int kStateClearanceChannel = 5;
 constexpr int kStateModeChannel = 6;
+constexpr int kStateBodyPitchChannel = 7;
 constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
 
 constexpr float kStateMaxHorizontalSpeedMps = 5.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
+constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;
 constexpr float kStateMaxClearanceM = 5.00f;
 
@@ -42,6 +44,7 @@ struct StateIntent {
     float right_mps{};
     float forward_mps{};
     float yaw_rate_dps{};
+    float body_pitch_deg{};
     float clearance_m{2.0f};
     bool arm{};
     bool game_mode{};
@@ -57,10 +60,17 @@ inline StateIntent state_intent(const RC& rc) {
     }
 
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
+    // GAME right-stick Y is a real aircraft-attitude input. Positive phone input
+    // means stick-up / nose-forward. The flight-core Euler convention uses
+    // negative pitch for nose-forward, so the sign conversion happens once here.
+    const float body_pitch_deg =
+        -shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) *
+        kStateMaxBodyPitchDeg;
     return {
         right * kStateMaxHorizontalSpeedMps,
         forward * kStateMaxHorizontalSpeedMps,
         shape(centered(rc.ch[FC_SBUS_YAW]), 0.045f, 0.20f) * kStateMaxYawRateDps,
+        body_pitch_deg,
         kStateMinClearanceM + clearance01 * (kStateMaxClearanceM - kStateMinClearanceM),
         rc.ch[FC_SBUS_ARM] > 1300,
         rc.ch[kStateModeChannel] > 1300,
@@ -164,7 +174,14 @@ public:
             right_accel *= vector_scale;
         }
 
-        const float pitch_target_deg = -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
+        const float auto_pitch_target_deg =
+            -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
+        // The right-stick body-pitch request is an actual attitude bias, added at
+        // the physical attitude-target layer. Left-stick forward/reverse remains
+        // the velocity-state request; the two inputs combine at the one real pitch
+        // degree of freedom instead of abusing camera state or simulator truth.
+        const float pitch_target_deg = clamp(auto_pitch_target_deg + intent.body_pitch_deg,
+                                             -kMaxTiltDeg, kMaxTiltDeg);
         const float roll_target_deg = std::atan2(
             right_accel, std::sqrt(specific_up * specific_up + forward_accel * forward_accel)) *
             180.0f / kPi;
@@ -180,9 +197,14 @@ public:
 
         hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                             kMinHoverTrim, kMaxHoverTrim);
-        const float required_specific_force = std::sqrt(
-            forward_accel * forward_accel + right_accel * right_accel +
-            specific_up * specific_up);
+        // Compensate thrust from the final commanded body attitude, including the
+        // manual pitch bias. This keeps AGL control physical instead of letting a
+        // body-pitch command masquerade as an altitude loss in the outer loop.
+        const float roll_rad = roll_target_deg * kPi / 180.0f;
+        const float pitch_rad = pitch_target_deg * kPi / 180.0f;
+        const float vertical_thrust_fraction =
+            std::max(0.35f, std::cos(roll_rad) * std::cos(pitch_rad));
+        const float required_specific_force = specific_up / vertical_thrust_fraction;
         const float thrust_ratio = required_specific_force / kGravityMps2;
         const float hover_motor_command = kEscCommandOffset + kEscCommandScale * hover_trim_;
         const float required_motor_command = hover_motor_command * std::sqrt(thrust_ratio);
