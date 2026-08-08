@@ -383,7 +383,7 @@ public:
     }
 
     Mix run(Imu s, Command cmd, float dt, bool integrate) {
-        constexpr float kAngleToRate = 1.9f;
+        constexpr float kAngleToRate = 4.5f;
         const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
         const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
         const float yaw_rate = cmd.yaw * 180.0f;
