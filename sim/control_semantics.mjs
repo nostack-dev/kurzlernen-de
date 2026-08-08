@@ -9,6 +9,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   rightFineness:10,
   lockLeftHorizontal:false,
   lockRightHorizontal:false,
+  invertLeftHorizontal:false,
   invertRightHorizontal:false,
   invertRightVertical:false,
 });
@@ -29,15 +30,12 @@ export function normalizePhoneSettings(settings={}){
     rightFineness:clampLevel(settings.rightFineness??DEFAULT_PHONE_SETTINGS.rightFineness),
     lockLeftHorizontal:Boolean(settings.lockLeftHorizontal),
     lockRightHorizontal:Boolean(settings.lockRightHorizontal),
+    invertLeftHorizontal:Boolean(settings.invertLeftHorizontal),
     invertRightHorizontal:Boolean(settings.invertRightHorizontal),
     invertRightVertical:Boolean(settings.invertRightVertical),
   };
 }
 
-// Standard cubic transmitter-style expo for the phone input adapter only.
-// It preserves the exact center and exact +/-1 endpoints, so sensitivity never
-// removes controller authority. The shared C++ flight controller remains the
-// sole source of aircraft control law and applies its own RC shaping.
 export function phoneAxis(value,fineness=1){
   const x=clampControl(value),expo=finenessToExpo(fineness);
   return clampControl(x*(1-expo)+x*x*x*expo);
@@ -54,9 +52,6 @@ export function inversePhoneAxis(value,fineness=1){
   return sign*(lo+hi)/2;
 }
 
-// This is deliberately only a UI availability check. It never mirrors throttle,
-// stick, attitude or IMU arming thresholds. Every real arming gate lives once,
-// inside the shared C++ fc::Runtime used by production, HIL and SIL/WASM.
 export function armReady(fcState,_controls,available=true){
   return Boolean(available)&&fcState==="DISARMED";
 }
@@ -77,10 +72,6 @@ function renderedKnobAxes(element){
   };
 }
 
-// Virtual gimbals are displacement controls, not absolute touch pads.
-// On pointer-down the current rendered stick position is captured; subsequent
-// movement adds finger displacement to that position. Axis inversion belongs to
-// control semantics, not pointer geometry, so the knob always stays under the finger.
 const pointerDrags=new WeakMap();
 export function normalizedPointer(element,event){
   const rect=element.getBoundingClientRect();
@@ -108,7 +99,8 @@ export function endPointerDrag(element,pointerId){
 export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
-    controls.yaw=cfg.lockLeftHorizontal?0:phoneAxis(point.x,cfg.leftFineness);
+    const x=cfg.invertLeftHorizontal?-point.x:point.x;
+    controls.yaw=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness);
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
     const x=cfg.invertRightHorizontal?-point.x:point.x;
@@ -125,7 +117,10 @@ export function releaseStick(controls,kind){
 }
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
-  if(kind==="left")return{x:cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.yaw,cfg.leftFineness),y:1-2*controls.throttle};
+  if(kind==="left"){
+    const rawX=cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.yaw,cfg.leftFineness);
+    return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:1-2*controls.throttle};
+  }
   const rawX=-inversePhoneAxis(controls.roll,cfg.rightFineness),rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.pitch,cfg.rightFineness);
   return{x:cfg.invertRightHorizontal?-rawX:rawX,y:cfg.invertRightVertical?-rawY:rawY};
 }
