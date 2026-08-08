@@ -26,7 +26,9 @@ jobs:
           p=Path('tests/state_control_test.cpp')
           s=p.read_text()
           s=s.replace('CHECK(fc::command(transformed).pitch < -0.08f);','CHECK(fc::command(transformed).pitch > 0.08f);')
+          s=s.replace('CHECK(decoded.pitch > 0.10f);','CHECK(decoded.pitch < -0.10f);')
           assert 'CHECK(fc::command(transformed).pitch > 0.08f);' in s
+          assert 'CHECK(decoded.pitch < -0.10f);' in s
           p.write_text(s)
 
           p=Path('tests/dual_phone_smoke.mjs')
