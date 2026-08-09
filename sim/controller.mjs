@@ -64,7 +64,7 @@ function measuredGameState(){
   const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m);
   if(lastTelemetry.navigation_valid!==true||![vx,vy,vz,yaw,agl].every(Number.isFinite))return{valid:false};
   const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
-  return{valid:true,forward:-c*vx-s*vy,right:s*vx-c*vy,vertical:vz,agl,yaw};
+  return{valid:true,forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
 }
 function renderNavigation(){
   const nav=measuredGameState();
