@@ -1,0 +1,184 @@
+name: One-shot WORLD navigation interaction
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply WORLD grid 360 minimap and speed patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p=Path(path); s=p.read_text(); actual=s.count(old)
+              assert actual==count, f"{path}: expected {count} x {old!r}, got {actual}"
+              p.write_text(s.replace(old,new,count))
+
+          # Shared FC speed envelope: WORLD is not allowed to cheat with a visual
+          # multiplier. The same 10 m/s target exists in SIL/HIL/production.
+          replace('esp32/Arondight45_StateControl.hpp',
+                  'constexpr float kStateMaxHorizontalSpeedMps = 5.0f;',
+                  '// GAME/WORLD horizontal target. This is controller intent, not a simulator velocity hack.\nconstexpr float kStateMaxHorizontalSpeedMps = 10.0f;')
+
+          # WORLD view settings live on-device and are render/UI authority only.
+          p=Path('sim/real_world_bootstrap.mjs'); s=p.read_text()
+          s=s.replace('const WORLD_MAP_ANGLE_EPS_DEG=.18;\n', '''const WORLD_MAP_ANGLE_EPS_DEG=.18;\nconst WORLD_VIEW_SETTINGS_KEY="arondight45WorldViewSettingsV1";\nconst DEFAULT_WORLD_VIEW_SETTINGS=Object.freeze({grid:true,snapBack:true,minimapFollow360:true});\nconst WORLD_MINIMAP_FRAME_MS=125;\n''',1)
+          s=s.replace('const angularDistanceDeg=(a,b)=>Math.abs((((a-b)+540)%360)-180);\n', '''const angularDistanceDeg=(a,b)=>Math.abs((((a-b)+540)%360)-180);\nconst wrapDeg=value=>(((value+180)%360)+360)%360-180;\nfunction lngLatToMeters(originLon,originLat,longitude,latitude){\n  const north=(latitude-originLat)*Math.PI/180*EARTH_RADIUS_M;\n  const east=(longitude-originLon)*Math.PI/180*EARTH_RADIUS_M*Math.max(.01,Math.cos(originLat*Math.PI/180));\n  return[east,north];\n}\nfunction geometryPaths(geometry){\n  if(!geometry)return[];const c=geometry.coordinates||[];\n  if(geometry.type==="LineString")return[c];\n  if(geometry.type==="MultiLineString")return c;\n  if(geometry.type==="Polygon")return c.length?[c[0]]:[];\n  if(geometry.type==="MultiPolygon")return c.map(poly=>poly?.[0]).filter(Boolean);\n  return[];\n}\n''',1)
+          old='''    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.mapUpdates=0;\n    this.installUi();'''
+          new='''    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.mapUpdates=0;\n    this.viewSettings=this.loadViewSettings();this.lookPointer=null;this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnap=false;this.lookLastMs=performance.now();this.worldGrid=null;this.airframeGroup=null;this.minimap=null;this.minimapCanvas=null;this.minimapLastMs=-Infinity;\n    this.installUi();this.installLookAround();'''
+          assert s.count(old)==1; s=s.replace(old,new,1)
+          s=s.replace('''      #realWorldStatus{line-height:1.4}\n''','''      #realWorldStatus{line-height:1.4}\n      #worldMinimap{position:absolute;z-index:3;right:max(8px,env(safe-area-inset-right));top:max(48px,calc(env(safe-area-inset-top) + 43px));width:154px;height:108px;border:1px solid #8bdfff88;border-radius:10px;overflow:hidden;background:#071827e8;box-shadow:0 8px 24px #0008;backdrop-filter:blur(5px);pointer-events:none;display:none}\n      #worldMinimap canvas{display:block;width:100%;height:100%}\n      #worldMinimap .mini-title{position:absolute;left:6px;top:4px;color:#dff7ff;font:800 8px system-ui,-apple-system,sans-serif;letter-spacing:.1em;text-shadow:0 1px 3px #000}\n      #worldMinimap .mini-mode{position:absolute;right:6px;top:4px;color:#79dcff;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;text-shadow:0 1px 3px #000}\n      #worldMinimap .mini-hint{position:absolute;left:6px;bottom:4px;color:#9cc5d7;font:700 7px system-ui,-apple-system,sans-serif;letter-spacing:.05em;text-shadow:0 1px 3px #000}\n      @media(max-height:340px){#worldMinimap{top:max(40px,calc(env(safe-area-inset-top) + 35px));width:126px;height:88px}}\n''',1)
+          old='''    this.threeRenderer=renderer;this.threeScene=scene;this.threeCamera=camera;if(this.flightPixelRatio===null)this.flightPixelRatio=renderer.getPixelRatio();if(this.flightShadowEnabled===null)this.flightShadowEnabled=renderer.shadowMap.enabled;\n    renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="2";renderer.domElement.style.pointerEvents="none";'''
+          new='''    this.threeRenderer=renderer;this.threeScene=scene;this.threeCamera=camera;if(this.flightPixelRatio===null)this.flightPixelRatio=renderer.getPixelRatio();if(this.flightShadowEnabled===null)this.flightShadowEnabled=renderer.shadowMap.enabled;\n    renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="2";renderer.domElement.style.pointerEvents="none";\n    this.ensureWorldGrid(scene);this.ensureMinimap();'''
+          assert s.count(old)==1; s=s.replace(old,new,1)
+
+          marker='''  stripFlightClutter(){\n'''
+          methods=r'''  loadViewSettings(){
+    try{const raw=localStorage.getItem(WORLD_VIEW_SETTINGS_KEY),value=raw?JSON.parse(raw):{};return{grid:value.grid!==false,snapBack:value.snapBack!==false,minimapFollow360:value.minimapFollow360!==false};}catch{return{...DEFAULT_WORLD_VIEW_SETTINGS};}
+  }
+  getViewSettings(){return{...this.viewSettings};}
+  setViewSettings(next={}){
+    const previous=this.viewSettings;this.viewSettings={grid:next.grid??previous.grid,snapBack:next.snapBack??previous.snapBack,minimapFollow360:next.minimapFollow360??previous.minimapFollow360};
+    try{localStorage.setItem(WORLD_VIEW_SETTINGS_KEY,JSON.stringify(this.viewSettings));}catch{}
+    if(this.viewSettings.snapBack&&!previous.snapBack&&this.lookPointer===null)this.lookSnap=true;
+    this.updateWorldGrid();this.drawMinimap(performance.now(),true);return this.getViewSettings();
+  }
+  installLookAround(){
+    const viewport=$("viewport");if(!viewport)return;
+    const blocked=target=>target instanceof Element&&Boolean(target.closest("#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldMinimap"));
+    viewport.addEventListener("pointerdown",event=>{
+      if(!this.active||!document.body.classList.contains("solo-flight")||viewport.dataset.cameraMode==="fpv"||event.button!==0||blocked(event.target)||this.lookPointer!==null)return;
+      this.lookPointer=event.pointerId;this.lookStartX=event.clientX;this.lookStartY=event.clientY;this.lookBaseYaw=this.lookYawDeg;this.lookBasePitch=this.lookPitchDeg;this.lookSnap=false;
+      try{viewport.setPointerCapture(event.pointerId);}catch{}viewport.dataset.worldLookActive="1";event.preventDefault();
+    },{passive:false});
+    viewport.addEventListener("pointermove",event=>{
+      if(event.pointerId!==this.lookPointer)return;this.lookYawDeg=wrapDeg(this.lookBaseYaw-(event.clientX-this.lookStartX)*.28);this.lookPitchDeg=clamp(this.lookBasePitch+(event.clientY-this.lookStartY)*.22,-72,72);this.publishLookState();event.preventDefault();
+    },{passive:false});
+    const release=event=>{
+      if(event.pointerId!==this.lookPointer)return;try{viewport.releasePointerCapture(event.pointerId);}catch{}this.lookPointer=null;delete viewport.dataset.worldLookActive;if(this.viewSettings.snapBack)this.lookSnap=true;this.publishLookState();event.preventDefault();
+    };
+    viewport.addEventListener("pointerup",release,{passive:false});viewport.addEventListener("pointercancel",release,{passive:false});
+  }
+  publishLookState(){const viewport=$("viewport");if(!viewport)return;viewport.dataset.worldLookYawDeg=this.lookYawDeg.toFixed(2);viewport.dataset.worldLookPitchDeg=this.lookPitchDeg.toFixed(2);viewport.dataset.worldLookRelease=this.viewSettings.snapBack?"snap":"keep";}
+  advanceLook(){
+    const now=performance.now(),dt=clamp((now-this.lookLastMs)/1000,0,.1);this.lookLastMs=now;
+    if(this.lookSnap&&this.lookPointer===null){const decay=Math.exp(-dt/0.16);this.lookYawDeg*=decay;this.lookPitchDeg*=decay;if(Math.abs(this.lookYawDeg)<.08&&Math.abs(this.lookPitchDeg)<.08){this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnap=false;}this.publishLookState();}
+  }
+  findAirframe(scene){if(this.airframeGroup&&this.airframeGroup.parent)return this.airframeGroup;scene?.traverse?.(node=>{if(!this.airframeGroup&&node.userData?.arondightAirframe)this.airframeGroup=node;});return this.airframeGroup;}
+  applyLookAround(camera,scene){
+    this.advanceLook();const viewport=$("viewport");if(!this.active||viewport?.dataset.cameraMode==="fpv"||(Math.abs(this.lookYawDeg)<.001&&Math.abs(this.lookPitchDeg)<.001))return;
+    const airframe=this.findAirframe(scene);if(!airframe)return;const focus=airframe.position.clone();focus.z+=.12;const offset=camera.position.clone().sub(focus),radius=Math.max(.25,offset.length());
+    let azimuth=Math.atan2(offset.y,offset.x)+THREE.MathUtils.degToRad(this.lookYawDeg),elevation=Math.asin(clamp(offset.z/radius,-1,1))+THREE.MathUtils.degToRad(this.lookPitchDeg);elevation=clamp(elevation,THREE.MathUtils.degToRad(-82),THREE.MathUtils.degToRad(82));
+    const horizontal=radius*Math.cos(elevation);camera.position.set(focus.x+horizontal*Math.cos(azimuth),focus.y+horizontal*Math.sin(azimuth),focus.z+radius*Math.sin(elevation));camera.up.set(0,0,1);camera.lookAt(focus);
+  }
+  ensureWorldGrid(scene){
+    if(this.worldGrid||!scene)return;const group=new THREE.Group();group.userData.arondightWorldGrid=true;group.position.z=.006;group.renderOrder=800;
+    const make=(step,color,opacity)=>{const pts=[],half=200;for(let v=-half;v<=half+.001;v+=step){pts.push(new THREE.Vector3(-half,v,0),new THREE.Vector3(half,v,0),new THREE.Vector3(v,-half,0),new THREE.Vector3(v,half,0));}const geometry=new THREE.BufferGeometry().setFromPoints(pts),material=new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,depthTest:false});const lines=new THREE.LineSegments(geometry,material);lines.renderOrder=800;group.add(lines);};
+    make(5,0x5eb5d0,.13);make(25,0xa7ecff,.32);group.visible=false;scene.add(group);this.worldGrid=group;this.updateWorldGrid();
+  }
+  updateWorldGrid(){if(this.worldGrid)this.worldGrid.visible=Boolean(this.active&&this.viewSettings.grid);const viewport=$("viewport");if(viewport)viewport.dataset.worldGrid=this.active&&this.viewSettings.grid?"1":"0";}
+  ensureMinimap(){
+    if(this.minimap)return;const viewport=$("viewport");if(!viewport)return;const root=document.createElement("div");root.id="worldMinimap";root.innerHTML='<canvas width="308" height="216" aria-label="WORLD 3D minimap"></canvas><span class="mini-title">WORLD · 3D MAP</span><span class="mini-mode">CAM</span><span class="mini-hint">DRAG WORLD · 360° LOOK</span>';viewport.appendChild(root);this.minimap=root;this.minimapCanvas=root.querySelector("canvas");
+  }
+  drawMinimap(now=performance.now(),force=false){
+    if(!this.minimap||!this.minimapCanvas)return;if(!this.active||!document.body.classList.contains("solo-flight")){this.minimap.style.display="none";return;}this.minimap.style.display="block";if(!force&&now-this.minimapLastMs<WORLD_MINIMAP_FRAME_MS)return;this.minimapLastMs=now;
+    const canvas=this.minimapCanvas,ctx=canvas.getContext("2d"),w=canvas.width,h=canvas.height,airframe=this.findAirframe(this.threeScene);if(!ctx||!airframe)return;const position=airframe.position,alt=Math.max(0,position.z),radius=clamp(55+alt*2.4,60,180),scale=w/(2*radius),mainBearing=Number($("viewport")?.dataset.worldMapBearing||0),miniBearing=this.viewSettings.minimapFollow360&&Number.isFinite(mainBearing)?mainBearing:0,b=-miniBearing*Math.PI/180,c=Math.cos(b),si=Math.sin(b),baseY=h*.62;
+    const project=(longitude,latitude,height=0)=>{const en=lngLatToMeters(this.originLon,this.originLat,longitude,latitude),dx=en[0]-position.x,dy=en[1]-position.y,rx=dx*c-dy*si,ry=dx*si+dy*c;return[w/2+rx*scale,baseY-ry*scale*.62-height*scale*.13];};
+    const projectLocal=(dx,dy,height=0)=>{const rx=dx*c-dy*si,ry=dx*si+dy*c;return[w/2+rx*scale,baseY-ry*scale*.62-height*scale*.13];};
+    const gradient=ctx.createLinearGradient(0,0,0,h);gradient.addColorStop(0,"#0d3655");gradient.addColorStop(.55,"#0a2439");gradient.addColorStop(1,"#06131f");ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);
+    ctx.lineWidth=1;for(let v=-Math.ceil(radius/20)*20;v<=radius;v+=20){for(const axis of [0,1]){const a=axis?projectLocal(-radius,v):projectLocal(v,-radius),d=axis?projectLocal(radius,v):projectLocal(v,radius);ctx.strokeStyle=v===0?"rgba(153,232,255,.38)":"rgba(91,174,202,.15)";ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...d);ctx.stroke();}}
+    let features=[];try{features=this.map?.queryRenderedFeatures?.()||[];}catch{}let drawn=0;
+    for(const feature of features){if(drawn>120)break;const paths=geometryPaths(feature.geometry);if(!paths.length)continue;const building=feature.layer?.type==="fill-extrusion"||feature.sourceLayer==="building",line=feature.geometry?.type?.includes("Line"),heightM=building?clamp(Number(feature.properties?.render_height??feature.properties?.height??8)||8,2,80):0;
+      for(const path of paths){if(!Array.isArray(path)||path.length<2)continue;const pts=path.map(coord=>project(Number(coord[0]),Number(coord[1]),0));if(line){ctx.strokeStyle="rgba(175,207,220,.34)";ctx.lineWidth=1.4;ctx.beginPath();pts.forEach((pt,i)=>i?ctx.lineTo(...pt):ctx.moveTo(...pt));ctx.stroke();}else if(building){const top=path.map(coord=>project(Number(coord[0]),Number(coord[1]),heightM));ctx.fillStyle="rgba(127,169,190,.26)";ctx.strokeStyle="rgba(197,236,250,.48)";ctx.beginPath();top.forEach((pt,i)=>i?ctx.lineTo(...pt):ctx.moveTo(...pt));ctx.closePath();ctx.fill();ctx.stroke();for(let i=0;i<Math.min(pts.length,12);i+=Math.max(1,Math.floor(pts.length/5))){ctx.strokeStyle="rgba(100,145,165,.25)";ctx.beginPath();ctx.moveTo(...pts[i]);ctx.lineTo(...top[i]);ctx.stroke();}}else{ctx.strokeStyle="rgba(105,158,181,.20)";ctx.beginPath();pts.forEach((pt,i)=>i?ctx.lineTo(...pt):ctx.moveTo(...pt));ctx.closePath();ctx.stroke();}drawn++;}
+    }
+    const forward=new THREE.Vector3(-1,0,0).applyQuaternion(airframe.quaternion),airBearing=THREE.MathUtils.radToDeg(Math.atan2(forward.x,forward.y)),rel=(airBearing-miniBearing)*Math.PI/180,cx=w/2,cy=baseY;ctx.save();ctx.translate(cx,cy);ctx.rotate(rel);ctx.fillStyle="#ff5d70";ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(6,7);ctx.lineTo(0,4);ctx.lineTo(-6,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    const camRel=(mainBearing-miniBearing)*Math.PI/180;ctx.strokeStyle="#76e8ff";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.sin(camRel)*22,cy-Math.cos(camRel)*22);ctx.stroke();ctx.fillStyle="#d9f7ff";ctx.font="700 16px system-ui";ctx.fillText("N",w-22,22);ctx.font="700 14px ui-monospace,monospace";ctx.fillStyle="#9ccde0";ctx.fillText(`${alt.toFixed(0)}m · ±${Math.round(radius)}m`,8,h-11);
+    this.minimap.querySelector(".mini-mode").textContent=this.viewSettings.minimapFollow360?"CAM":"NORTH";const viewport=$("viewport");viewport.dataset.worldMinimapBearing=miniBearing.toFixed(3);viewport.dataset.worldMinimapFeatures=String(drawn);viewport.dataset.worldMinimapMode=this.viewSettings.minimapFollow360?"camera":"north";
+  }
+'''
+          assert marker in s;s=s.replace(marker,methods+marker,1)
+          # Activation/deactivation synchronize visual-only helpers.
+          old='''      await this.createMap(longitude,latitude);this.active=true;this.loading=false;\n      if(!this.threeRenderer)throw Error("Flight renderer is not ready");'''
+          new='''      await this.createMap(longitude,latitude);this.active=true;this.loading=false;\n      if(!this.threeRenderer)throw Error("Flight renderer is not ready");this.updateWorldGrid();this.ensureMinimap();if(this.minimap)this.minimap.style.display=document.body.classList.contains("solo-flight")?"block":"none";this.publishLookState();'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){'''
+          new='''    this.active=false;this.loading=false;this.lookPointer=null;this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnap=false;this.updateWorldGrid();if(this.minimap)this.minimap.style.display="none";const viewport0=$("viewport");if(viewport0){delete viewport0.dataset.worldMinimapBearing;delete viewport0.dataset.worldMinimapFeatures;delete viewport0.dataset.worldMinimapMode;delete viewport0.dataset.worldLookYawDeg;delete viewport0.dataset.worldLookPitchDeg;delete viewport0.dataset.worldLookRelease;}if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  renderReal(scene,camera){\n    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;'''
+          new='''  renderReal(scene,camera){\n    this.applyLookAround(camera,scene);this.syncMapCamera(camera);this.drawMinimap();this.updateWorldGrid();const renderer=this.threeRenderer;if(!renderer)return;'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Add the three requested controls to the existing phone SETTINGS dialog.
+          p=Path('sim/control_settings.mjs');s=p.read_text()
+          old='''    <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>\n    <div class="world-settings-actions"><button type="button" data-world-use>USE MY GPS LOCATION</button><button type="button" data-world-training>TRAINING RANGE</button></div>\n    <p class="phone-settings-note">OSM map/building data is render/geospatial context only. Motor, sensor, FC and rigid-body physics stay on the same hardware-fit digital-twin path; map geometry is not collision truth.</p>`;'''
+          new='''    <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>\n    <label class="phone-settings-toggle"><span>WORLD GRID</span><input data-world-grid type="checkbox"></label>\n    <label class="phone-settings-toggle"><span>360° VIEW · SNAP BACK ON RELEASE</span><input data-world-snapback type="checkbox"></label>\n    <label class="phone-settings-toggle"><span>MINIMAP FOLLOWS 360 CAMERA</span><input data-world-minimap-follow type="checkbox"></label>\n    <div class="world-settings-actions"><button type="button" data-world-use>USE MY GPS LOCATION</button><button type="button" data-world-training>TRAINING RANGE</button></div>\n    <p class="phone-settings-note">Drag the WORLD background for free 360° look. SNAP BACK off keeps the released view. MINIMAP follow off keeps the mini 3D map north-up. OSM map/building data is render/geospatial context only; motor, sensor, FC and rigid-body physics stay unchanged.</p>`;'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  const status=section.querySelector("[data-world-status]"),use=section.querySelector("[data-world-use]"),training=section.querySelector("[data-world-training]");'''
+          new='''  const status=section.querySelector("[data-world-status]"),use=section.querySelector("[data-world-use]"),training=section.querySelector("[data-world-training]"),grid=section.querySelector("[data-world-grid]"),snapback=section.querySelector("[data-world-snapback]"),minimapFollow=section.querySelector("[data-world-minimap-follow]");'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  const renderButton=()=>{worldButton.dataset.active=bridge.active?"1":"0";worldButton.dataset.loading=bridge.loading?"1":"0";worldButton.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";syncStatus();};'''
+          new='''  const renderButton=()=>{worldButton.dataset.active=bridge.active?"1":"0";worldButton.dataset.loading=bridge.loading?"1":"0";worldButton.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";const view=bridge.getViewSettings?.();if(view){grid.checked=Boolean(view.grid);snapback.checked=Boolean(view.snapBack);minimapFollow.checked=Boolean(view.minimapFollow360);}syncStatus();};'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  use.addEventListener("click",activate);training.addEventListener("click",()=>{bridge.deactivate();renderButton();});'''
+          new='''  grid.addEventListener("change",()=>{bridge.setViewSettings?.({grid:grid.checked});renderButton();});snapback.addEventListener("change",()=>{bridge.setViewSettings?.({snapBack:snapback.checked});renderButton();});minimapFollow.addEventListener("change",()=>{bridge.setViewSettings?.({minimapFollow360:minimapFollow.checked});renderButton();});\n  use.addEventListener("click",activate);training.addEventListener("click",()=>{bridge.deactivate();renderButton();});'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Lock the shared 10 m/s controller semantics in host tests/invariants.
+          replace('tests/state_control_test.cpp',
+                  '    fc::StateController controller;\n',
+                  '    CHECK(std::fabs(fc::kStateMaxHorizontalSpeedMps - 10.0f) < 0.001f);\n    fc::StateController controller;\n')
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          anchor='requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f");'
+          assert s.count(anchor)==1;s=s.replace(anchor,anchor+'\nrequireText("esp32/Arondight45_StateControl.hpp","kStateMaxHorizontalSpeedMps = 10.0f");',1)
+          anchor='for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","setSky({\\"sky-color\\":\\"#0a2845\\"","worldMapUpdates","angularDistanceDeg"])requireText("sim/real_world_bootstrap.mjs",marker);'
+          assert s.count(anchor)==1;s=s.replace(anchor,anchor+'\nfor(const marker of ["WORLD_VIEW_SETTINGS_KEY","WORLD GRID","worldMinimap","installLookAround","applyLookAround","MINIMAP FOLLOWS 360 CAMERA","worldMinimapMode","arondightWorldGrid"])requireText(marker.includes("WORLD GRID")||marker.includes("MINIMAP")?"sim/control_settings.mjs":"sim/real_world_bootstrap.mjs",marker);',1)
+          p.write_text(s)
+
+          # Browser gate: settings persistence + real free-look + snap/keep +
+          # minimap orientation + grid visibility. No second map/tile renderer.
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
+          old='''    note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""\n  }));\n  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);'''
+          new='''    note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||"",\n    grid:document.querySelector("[data-world-grid]")?.checked,\n    snapback:document.querySelector("[data-world-snapback]")?.checked,\n    minimapFollow:document.querySelector("[data-world-minimap-follow]")?.checked\n  }));\n  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||!config.note.includes("No account, API key, billing setup, backend or proxy")||config.grid!==true||config.snapback!==true||config.minimapFollow!==true)throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''      geoBackground:getComputedStyle(document.querySelector("#geoViewport")).backgroundImage\n    };'''
+          new='''      geoBackground:getComputedStyle(document.querySelector("#geoViewport")).backgroundImage,\n      minimap:!!document.querySelector("#worldMinimap"),\n      minimapVisible:getComputedStyle(document.querySelector("#worldMinimap")).display!=="none",\n      minimapMode:viewport?.dataset.worldMinimapMode||"",\n      grid:viewport?.dataset.worldGrid||"",\n      lookRelease:viewport?.dataset.worldLookRelease||""\n    };'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||live.mapFpsCap!==30||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient"))throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);\n  if(live.canvasCount!==2)throw new Error(`REAL WORLD must use exactly MapLibre + the existing flight canvas, got ${live.canvasCount}`);'''
+          new='''  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||live.mapFpsCap!==30||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient"))throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);\n  if(!live.minimap||!live.minimapVisible||live.minimapMode!=="camera"||live.grid!=="1"||live.lookRelease!=="snap")throw new Error(`WORLD navigation overlays missing: ${JSON.stringify(live)}`);\n  if(live.canvasCount!==3)throw new Error(`REAL WORLD must use MapLibre + existing flight canvas + one lightweight 2D minimap canvas, got ${live.canvasCount}`);'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          insert='''\n  // KEEP VIEW: drag the real WORLD background, release and verify that the\n  // render-only orbit persists. Then re-enable SNAP BACK and verify decay to zero.\n  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});\n  await page.click("[data-world-snapback]");await page.click('.phone-settings-dialog [data-close]');\n  await page.mouse.move(422,205);await page.mouse.down();await page.mouse.move(525,155,{steps:6});\n  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYawDeg||0))>10,{timeout:5000});await page.mouse.up();\n  const keptLook=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYawDeg||0));await new Promise(resolve=>setTimeout(resolve,350));const keptAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYawDeg||0));\n  if(Math.abs(keptLook)<10||Math.abs(keptAfter-keptLook)>2)throw new Error(`KEEP 360 view failed: ${JSON.stringify({keptLook,keptAfter})}`);\n  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click("[data-world-snapback]");\n  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYawDeg||0))<1,{timeout:3000});\n  await page.click("[data-world-minimap-follow]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapMode==="north",{timeout:3000});const northBearing=await page.$eval("#viewport",e=>Number(e.dataset.worldMinimapBearing||99));if(Math.abs(northBearing)>.01)throw new Error(`north-up minimap failed: ${northBearing}`);\n  await page.click("[data-world-grid]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldGrid==="0",{timeout:3000});await page.click("[data-world-grid]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldGrid==="1",{timeout:3000});\n  await page.click("[data-world-minimap-follow]");await page.click('.phone-settings-dialog [data-close]');\n'''
+          anchor='''  const framesBefore=live.frames;'''
+          assert s.count(anchor)==1;s=s.replace(anchor,insert+'\n'+anchor,1)
+          s=s.replace('console.log("REAL WORLD explicit shared-frame smoke passed: 50m hardware-fit range, blue contrast sky, WORLD acquisition halo, 30Hz map budget over full-rate flight frames, live FOLLOW/THIRD/FPV sync, clean training fallback.");','console.log("REAL WORLD smoke passed: 50m AGL, shared 10m/s GAME speed, blue contrast, WORLD grid, free 360 KEEP/SNAP view, camera/north-up lightweight 3D minimap, 30Hz map budget, live FOLLOW/THIRD/FPV sync.");',1)
+          p.write_text(s)
+
+          # Documentation keeps the truth boundary explicit.
+          p=Path('REAL_WORLD_DIGITAL_TWIN.md');doc=p.read_text().rstrip()+'''\n\n## WORLD navigation view\n\nGAME horizontal speed intent is now **10 m/s** instead of 5 m/s. This is a shared `fc::StateController` limit compiled into browser SIL, physical HIL and production firmware; WORLD does not multiply visual motion or bypass the plant. The existing 4 m/s² horizontal acceleration and 25° tilt envelope remain unchanged, so the aircraft gains range/speed without fake acceleration. With the default 10/10 stick fineness, the centre remains deliberately soft while full stick still commands the full 10 m/s target.\n\nWORLD has three locally persisted, render-only controls: **WORLD GRID**, **360° VIEW SNAP BACK ON RELEASE**, and **MINIMAP FOLLOWS 360 CAMERA**. Dragging empty WORLD space orbits the render camera around the aircraft in FOLLOW/THIRD without touching aircraft attitude or FPV optics. SNAP BACK returns smoothly after release; with it off the view remains where released. The top-right mini 3D map is generated from the already-decoded OpenFreeMap features plus the local aircraft/grid state, so it creates no second tile provider/map renderer and no extra network requests. With minimap follow off it stays north-up.\n''';p.write_text(doc)
+
+          # The one-shot scaffold must never survive in the production tree.
+          Path('.github/workflows/one-shot-world-navigation.yml').unlink()
+          import subprocess
+          for path in ['sim/real_world_bootstrap.mjs','sim/control_settings.mjs','tests/real_world_ui_smoke.mjs','tests/architecture_invariants.mjs']:
+              subprocess.run(['node','--check',path],check=True)
+          subprocess.run(['git','diff','--check'],check=True)
+          PY
+          git status --short
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Add WORLD grid 360 view minimap and speed"
+          git push origin HEAD:main
