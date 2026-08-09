@@ -57,13 +57,13 @@ try{
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const leftInvertInitially=await controller.$eval('.phone-settings-dialog [data-invert-left-horizontal]',e=>e.checked);if(leftInvertInitially)throw new Error("left invert unexpectedly enabled by default");
   await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
-  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}").invertLeftHorizontal===true,{timeout:5000});
+  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===true,{timeout:5000});
   await controller.click('.phone-settings-dialog [data-close]');
   const settingLeft=await stickBox(controller,"#leftStick"),settingX=settingLeft.x+settingLeft.w/2,settingY=settingLeft.y+settingLeft.h/2,settingR=Math.min(settingLeft.w,settingLeft.h)*.42;
   await controller.mouse.move(settingX,settingY);await controller.mouse.down();await controller.mouse.move(settingX+settingR*.55,settingY,{steps:4});
   await controller.waitForFunction(()=>/STR -[1-9]/.test(document.querySelector("#leftValue")?.textContent||""),{timeout:5000});await controller.mouse.up();
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
-  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}").invertLeftHorizontal===false,{timeout:5000});await controller.click('.phone-settings-dialog [data-close]');
+  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===false,{timeout:5000});await controller.click('.phone-settings-dialog [data-close]');
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
 
   const armStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);await waitText(controller,"#arm","ARM REQUESTED",10000);
