@@ -187,6 +187,9 @@ try{
   const thirdDistance=await page.$eval("#viewport",e=>Number(e.dataset.cameraDistanceM));
   if(!(thirdDistance>3.45&&thirdDistance<3.75))throw new Error(`third-person camera distance not applied: ${thirdDistance}`);
 
+  await page.click("#soloCamera");await page.click("#soloCamera");
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="follow",{timeout:5000});
+
   await page.$eval("#soloClearanceSlider",e=>{e.value="2.7";e.dispatchEvent(new Event("input",{bubbles:true}));});
   await page.waitForFunction(()=>document.querySelector("#soloClearanceValue")?.textContent?.includes("2.7 m"),{timeout:5000});
   const clearanceStart=await simTime();await waitForSimTime(clearanceStart+.50,30000);
