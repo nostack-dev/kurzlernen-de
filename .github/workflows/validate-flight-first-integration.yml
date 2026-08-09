@@ -20,8 +20,8 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          git fetch origin b96b5b46cdc7c7083d003f64a9e9731ce97f93f0
-          git checkout b96b5b46cdc7c7083d003f64a9e9731ce97f93f0 -- \
+          git fetch origin 4b5e00933c5c21d14756feb5dd56f707d4e37e41
+          git checkout 4b5e00933c5c21d14756feb5dd56f707d4e37e41 -- \
             REAL_WORLD_DIGITAL_TWIN.md \
             sim/simulator.mjs \
             tests/architecture_invariants.mjs \
@@ -95,16 +95,16 @@ jobs:
           cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
           trap cleanup EXIT
           sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
       - name: Squash to one clean integration commit
         shell: bash
         run: |
           set -euxo pipefail
           rm -f .github/workflows/validate-flight-first-integration.yml
-          git checkout b96b5b46cdc7c7083d003f64a9e9731ce97f93f0 -- \
+          git checkout 4b5e00933c5c21d14756feb5dd56f707d4e37e41 -- \
             REAL_WORLD_DIGITAL_TWIN.md \
             sim/simulator.mjs \
             tests/architecture_invariants.mjs \
