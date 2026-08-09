@@ -48,3 +48,5 @@ Release CI also measures simulator-time versus browser wall-time at runtime, so 
 ### Free look versus physical camera truth
 
 In FOLLOW/THIRD, dragging empty WORLD space or the MINI 3D control applies a temporary presentation-camera yaw/pitch offset. With **KEEP 360° LOOK ORIENTATION** OFF, release snaps smoothly back; ON retains the released orientation. Aircraft pose, navigation, SBUS, motor commands and Box3D state are untouched, and the simulator camera is restored after each WORLD composite render. **FPV is excluded from free look entirely**: its optics remain rigidly mounted to the airframe exactly as the physical-camera contract requires.
+
+The browser SIL fast path executes the exact same `fc::FirmwareRuntime` synchronously instead of inserting a JavaScript Promise boundary at every 1 ms control tick. Physical HIL remains asynchronous. Active physics parameters are read from the live PhysicsModel rather than from DOM controls at 1 kHz, and diagnostic DOM updates remain render-rate only. None of these optimizations changes control inputs, motor outputs, sensor bytes, physics integration, or model constants.

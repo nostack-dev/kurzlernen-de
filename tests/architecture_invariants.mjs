@@ -81,6 +81,9 @@ for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
 requireText("sim/simulator.mjs","SIM_FIXED_STEP_MS = DT * 1000");
 requireText("sim/simulator.mjs","accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS)");
 requireText("sim/simulator.mjs","Math.floor(accumulatorMs/SIM_FIXED_STEP_MS)");
+requireText("sim/simulator.mjs","exchangeSync(packet)");
+requireText("sim/simulator.mjs","backend instanceof WasmBackend");
+requireText("sim/simulator.mjs","physics.p.imuValid");
 forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
 
 // REAL WORLD is a geospatial/render adapter only. Browser GPS establishes the
@@ -123,6 +126,11 @@ requireText("sim/p2p_link.mjs","bodyPitch:clamp(numeric[4],-1,1)");
 const simulatorSource=read("sim/simulator.mjs"),controlsStart=simulatorSource.indexOf("function controls(){"),controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);
 if(controlsStart<0||controlsEnd<=controlsStart)fail("cannot isolate simulator controls() boundary");
 if(!simulatorSource.slice(controlsStart,controlsEnd).includes("bodyPitch"))fail("GAME body pitch does not cross the real SBUS boundary");
+const controllerHotStart=simulatorSource.indexOf("function prepareControllerStep(){"),controllerHotEnd=simulatorSource.indexOf("function recordSession(){",controllerHotStart);
+if(controllerHotStart<0||controllerHotEnd<=controllerHotStart)fail("cannot isolate simulator controller-step boundary");
+const controllerHotSource=simulatorSource.slice(controllerHotStart,controllerHotEnd);
+if(controllerHotSource.includes("defaultParams()"))fail("1 kHz controller step re-reads DOM-backed physical parameters");
+if(controllerHotSource.includes("ui.rtt.textContent"))fail("1 kHz controller step mutates RTT DOM");
 
 for(const dirty of ["quantizedCentered","stateShape","desiredGameState","stateVectorDebug","data-vector-soll","data-vector-ist"])
   forbidText("sim/controller.mjs",dirty,`browser controller duplicated flight-state logic/UI: ${dirty}`);
