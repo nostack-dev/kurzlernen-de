@@ -5,8 +5,8 @@ export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
 export const expoToFineness=expo=>clampLevel(1+9*clampControl(Number(expo)||0,0,MAX_PHONE_EXPO)/MAX_PHONE_EXPO);
 
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
-  leftFineness:7,
-  rightFineness:10,
+  leftFineness:1,
+  rightFineness:1,
   lockLeftHorizontal:false,
   lockRightHorizontal:false,
   invertLeftHorizontal:false,
@@ -102,7 +102,6 @@ export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTIN
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
     const x=cfg.invertLeftHorizontal?-point.x:point.x;
-    // FC GAME body-frame convention: positive roll channel is positive physical RIGHT intent.
     controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness);
     controls.pitch=phoneAxis(-point.y,cfg.leftFineness);
     controls.throttle=0;
