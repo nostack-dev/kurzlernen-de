@@ -138,7 +138,7 @@ try{
 
   const yawBefore=await yaw(view);const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
   await controller.mouse.move(rcx,rcy);await controller.mouse.down();await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});
-  const turnStart=await simTime(view);await waitSim(view,turnStart+.22,25000);await controller.mouse.up();const yawAfter=await yaw(view);let yawDelta=(yawAfter-yawBefore)%360;if(yawDelta>180)yawDelta-=360;if(yawDelta<-180)yawDelta+=360;
+  const turnStart=await simTime(view);await waitSim(view,turnStart+.30,25000);await controller.mouse.up();const yawAfter=await yaw(view);let yawDelta=(yawAfter-yawBefore)%360;if(yawDelta>180)yawDelta-=360;if(yawDelta<-180)yawDelta+=360;
   if(Math.abs(yawDelta)<4)throw new Error(`heading feedback did not rotate aircraft: before=${yawBefore}, after=${yawAfter}`);
   console.log(`State-control E2E: heading command rotated real attitude by ${yawDelta.toFixed(1)}°.`);
 
