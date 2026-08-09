@@ -1,0 +1,94 @@
+name: One-shot fix mobile real-world renderer v2
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch shared real-world renderer
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sim=Path('sim/simulator.mjs')
+          s=sim.read_text()
+          old='const renderer=new THREE.WebGLRenderer({antialias:true});'
+          new='const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});'
+          assert s.count(old)==1, f'unexpected simulator renderer declaration count: {s.count(old)}'
+          sim.write_text(s.replace(old,new,1))
+
+          p=Path('sim/real_world_bootstrap.mjs')
+          s=p.read_text()
+          def once(old,new):
+              global s
+              count=s.count(old)
+              assert count==1, f'expected exactly one match, got {count} for {old[:100]!r}'
+              s=s.replace(old,new,1)
+
+          once('this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";',
+               'this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.realFrames=0;')
+          once('renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="1";',
+               'renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="2";renderer.domElement.style.pointerEvents="none";')
+
+          start=s.index('  ensureOverlayRenderer(){')
+          end=s.index('  identifyTrainingObjects(scene){',start)
+          s=s[:start]+s[end:]
+
+          attribution='    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);\n'
+          assert s.count(attribution)==1
+          s=s.replace(attribution,'',1)
+          map_line='    this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});\n'
+          assert s.count(map_line)==1
+          s=s.replace(map_line,map_line+attribution,1)
+
+          once('      await this.createMap(longitude,latitude);this.ensureOverlayRenderer();this.active=true;this.loading=false;',
+               '      await this.createMap(longitude,latitude);this.active=true;this.loading=false;')
+          once('      if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;',
+               '      if(!this.threeRenderer)throw Error("Flight renderer is not ready");\n      this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;')
+          once('      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);',
+               '      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);')
+
+          once('this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";',
+               'this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.threeRenderer.setClearAlpha(1);}')
+          old_delete='delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;'
+          new_delete='delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;'
+          assert s.count(old_delete)==2, f'unexpected world dataset cleanup count: {s.count(old_delete)}'
+          s=s.replace(old_delete,new_delete)
+
+          once('    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});',
+               '    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});this.map.triggerRepaint();\n    const viewport=$("viewport");viewport.dataset.worldCameraMode=viewport.dataset.cameraMode||"follow";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);')
+
+          once('    this.syncMapCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();',
+               '    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;\n    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;\n    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);\n    try{originalRender.call(renderer,scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}')
+          once('  if(this===bridge.overlayRenderer)return originalRender.call(this,scene,camera);\n','')
+          assert 'overlayRenderer' not in s
+          p.write_text(s)
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/simulator.mjs
+          git diff --check
+          grep -q 'WebGLRenderer({antialias:true,alpha:true})' sim/simulator.mjs
+          grep -q 'worldRenderPath="shared-three-renderer"' sim/real_world_bootstrap.mjs
+          grep -q 'map.triggerRepaint' sim/real_world_bootstrap.mjs
+          ! grep -q 'overlayRenderer' sim/real_world_bootstrap.mjs
+      - name: Commit patch and remove one-shot scaffolds
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-fix-world-render.yml .github/workflows/one-shot-fix-world-render-v2.yml
+          git add sim/simulator.mjs sim/real_world_bootstrap.mjs
+          git commit -m "Fix mobile real-world camera rendering"
+          git push origin HEAD:main
