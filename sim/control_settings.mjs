@@ -2,6 +2,7 @@ import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings} from "./control_semantics
 import {installSoloFlightLayout} from "./solo_layout.mjs";
 
 export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV5";
+export const GOOGLE_TILES_KEY_STORAGE="arondight45GoogleTilesApiKeyV1";
 const OBSOLETE_KEYS=[
   "arondight45PhoneControlSettingsV1",
   "arondight45PhoneControlSettingsV2",
@@ -27,6 +28,18 @@ export function savePhoneControlSettings(settings){
   return normalized;
 }
 
+export function loadGoogleTilesApiKey(){
+  try{return(localStorage.getItem(GOOGLE_TILES_KEY_STORAGE)||"").trim();}catch{return"";}
+}
+
+export function saveGoogleTilesApiKey(value){
+  const key=String(value||"").trim();
+  try{if(key)localStorage.setItem(GOOGLE_TILES_KEY_STORAGE,key);else localStorage.removeItem(GOOGLE_TILES_KEY_STORAGE);}catch{}
+  const panelInput=document.getElementById("googleTilesKey");
+  if(panelInput&&panelInput.value!==key)panelInput.value=key;
+  return key;
+}
+
 let styleInstalled=false;
 function installStyle(){
   if(styleInstalled)return;styleInstalled=true;
@@ -37,8 +50,8 @@ function installStyle(){
   .phone-settings-dialog{width:min(92vw,390px)!important;max-height:90dvh!important;overflow:auto!important;border:1px solid #ffffff44!important;border-radius:14px!important;background:#0b1420f4!important;color:#fff!important;padding:16px!important;box-shadow:0 20px 70px #000a!important}
   .phone-settings-dialog::backdrop{background:#0009;backdrop-filter:blur(5px)}
   .phone-settings-dialog h3{margin:0 0 5px;font:800 17px system-ui,-apple-system,sans-serif}
-  .camera-settings-section{margin-top:18px;padding-top:4px;border-top:2px solid #ffffff2b}
-  .camera-settings-section h4{margin:12px 0 4px;font:850 14px system-ui,-apple-system,sans-serif;letter-spacing:.08em;color:#6be4b0}
+  .camera-settings-section,.world-settings-section{margin-top:18px;padding-top:4px;border-top:2px solid #ffffff2b}
+  .camera-settings-section h4,.world-settings-section h4{margin:12px 0 4px;font:850 14px system-ui,-apple-system,sans-serif;letter-spacing:.08em;color:#6be4b0}
   .phone-settings-dialog p{margin:0 0 14px;color:#aebdd0;font:12px/1.4 system-ui,-apple-system,sans-serif}
   .phone-settings-row{display:grid;grid-template-columns:1fr auto;gap:5px 10px;align-items:center;margin:15px 0}
   .phone-settings-row label{font:750 13px system-ui,-apple-system,sans-serif}
@@ -48,10 +61,100 @@ function installStyle(){
   .phone-settings-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 0 8px;padding:10px 0;border-top:1px solid #ffffff22;border-bottom:1px solid #ffffff22;font:750 13px system-ui,-apple-system,sans-serif}
   .phone-settings-toggle input{width:22px;height:22px;accent-color:#6be4b0}
   .phone-settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-  .phone-settings-actions button{border:1px solid #ffffff44;border-radius:9px;background:#162437;color:#fff;padding:8px 12px;font-weight:800}
+  .phone-settings-actions button,.world-settings-actions button{border:1px solid #ffffff44;border-radius:9px;background:#162437;color:#fff;padding:8px 12px;font-weight:800}
   .phone-settings-note{font-size:11px!important;color:#8fa1b8!important}
+  .world-settings-section label{font:750 13px system-ui,-apple-system,sans-serif;display:block;margin:12px 0 6px}
+  .world-settings-key{width:100%;border:1px solid #ffffff44;border-radius:9px;background:#0a111c;color:#fff;padding:10px;font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .world-settings-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+  .world-settings-actions [data-world-use]{grid-column:1/3;background:#175f49;border-color:#2e9b77}
+  .world-settings-status{padding:9px 10px;margin:8px 0 10px;border:1px solid #ffffff2e;border-radius:9px;background:#07101a;color:#9db0c9;font:750 11px/1.35 system-ui,-apple-system,sans-serif}
+  body.solo-flight #soloTopbar .world-mode-button{display:inline-flex!important;flex:0 0 auto;min-width:54px;min-height:28px;align-items:center;justify-content:center;white-space:nowrap}
+  body.solo-flight #soloTopbar .world-mode-button[data-active="1"]{background:#175f49!important;border-color:#62d6aa!important;color:#fff!important}
+  body.solo-flight #soloTopbar .world-mode-button[data-loading="1"]{background:#7b5a18!important;border-color:#ffd06d!important}
+  @media(max-height:340px){body.solo-flight #soloTopbar .world-mode-button{min-width:48px;min-height:24px;font-size:10px;padding:4px 7px}}
   `;
   document.head.appendChild(style);
+}
+
+function mountSoloWorldSettings({parent,dialog,settingsButton}){
+  if(parent?.id!=="soloTopbar"||!dialog)return null;
+  const bridge=globalThis.__arondightRealWorld;
+  if(!bridge)return null;
+
+  const section=document.createElement("section");
+  section.className="world-settings-section";
+  section.dataset.worldSettings="google-photorealistic-3d";
+  section.innerHTML=`
+    <h4>REAL WORLD</h4>
+    <p class="phone-settings-note">Static-only: your Google Maps Tiles API key stays in this browser. It is sent directly from this device to Google only when REAL WORLD is started. No backend, proxy or repository secret is involved.</p>
+    <label>GOOGLE MAPS TILES API KEY</label>
+    <input class="world-settings-key" data-world-key type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your Map Tiles API key">
+    <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>
+    <div class="world-settings-actions">
+      <button type="button" data-world-use>USE MY GPS LOCATION</button>
+      <button type="button" data-world-training>TRAINING RANGE</button>
+      <button type="button" data-world-forget>FORGET KEY</button>
+    </div>
+    <p class="phone-settings-note">Google photogrammetry is render/geospatial data only. Motor, sensor, FC and rigid-body physics stay on the same hardware-fit digital-twin path.</p>`;
+  const actions=dialog.querySelector(".phone-settings-actions");
+  dialog.insertBefore(section,actions);
+
+  const keyInput=section.querySelector("[data-world-key]");
+  const status=section.querySelector("[data-world-status]");
+  const use=section.querySelector("[data-world-use]");
+  const training=section.querySelector("[data-world-training]");
+  const forget=section.querySelector("[data-world-forget]");
+  keyInput.value=loadGoogleTilesApiKey();
+
+  const worldButton=document.createElement("button");
+  worldButton.id="soloWorld";
+  worldButton.type="button";
+  worldButton.className="world-mode-button";
+  worldButton.setAttribute("aria-label","Toggle real-world GPS map");
+  parent.insertBefore(worldButton,settingsButton||null);
+
+  const mainStatus=document.getElementById("realWorldStatus");
+  const syncStatus=()=>{
+    const text=mainStatus?.textContent?.trim();
+    if(text)status.textContent=text;
+    if(mainStatus){status.classList.toggle("good",mainStatus.classList.contains("good"));status.classList.toggle("warn",mainStatus.classList.contains("warn"));status.classList.toggle("bad",mainStatus.classList.contains("bad"));}
+  };
+  if(mainStatus)new MutationObserver(syncStatus).observe(mainStatus,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class"]});
+
+  const renderButton=()=>{
+    worldButton.dataset.active=bridge.active?"1":"0";
+    worldButton.dataset.loading=bridge.loading?"1":"0";
+    worldButton.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";
+    syncStatus();
+  };
+  const openWorldSettings=()=>{
+    keyInput.value=loadGoogleTilesApiKey();
+    if(!dialog.open)dialog.showModal();
+    requestAnimationFrame(()=>{section.scrollIntoView({block:"nearest"});keyInput.focus({preventScroll:true});});
+  };
+  const activate=async()=>{
+    const key=saveGoogleTilesApiKey(keyInput.value);
+    if(!key){status.textContent="Paste your Google Maps Tiles API key first.";status.classList.remove("good","bad");status.classList.add("warn");openWorldSettings();return;}
+    try{const pending=bridge.activate();renderButton();await pending;}
+    catch(error){if(typeof bridge.fail==="function")bridge.fail(error);else status.textContent=`REAL WORLD unavailable · ${error?.message||error}`;}
+    renderButton();
+  };
+
+  keyInput.addEventListener("change",()=>saveGoogleTilesApiKey(keyInput.value));
+  keyInput.addEventListener("blur",()=>saveGoogleTilesApiKey(keyInput.value));
+  use.addEventListener("click",activate);
+  training.addEventListener("click",()=>{bridge.deactivate();renderButton();});
+  forget.addEventListener("click",()=>{keyInput.value="";saveGoogleTilesApiKey("");if(typeof bridge.status==="function")bridge.status("API key removed from this device.","warn");renderButton();});
+  worldButton.addEventListener("click",async()=>{
+    if(bridge.loading)return;
+    if(bridge.active){bridge.deactivate();renderButton();return;}
+    if(!loadGoogleTilesApiKey()){openWorldSettings();return;}
+    await activate();
+  });
+  settingsButton?.addEventListener("click",()=>requestAnimationFrame(()=>{keyInput.value=loadGoogleTilesApiKey();renderButton();}));
+  new MutationObserver(()=>{if(document.body.classList.contains("solo-flight")){keyInput.value=loadGoogleTilesApiKey();renderButton();}}).observe(document.body,{attributes:true,attributeFilter:["class"]});
+  renderButton();
+  return{section,button:worldButton,keyInput,activate};
 }
 
 export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{}}={}){
@@ -111,6 +214,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);render();onChange({...settings});};
   dialog.querySelector("[data-close]").onclick=()=>dialog.close();
   button.onclick=()=>{settings=loadPhoneControlSettings();render();dialog.showModal();};
+  const world=mountSoloWorldSettings({parent,dialog,settingsButton:button});
   render();
-  return{button,dialog,get settings(){return{...settings};},reload(){settings=loadPhoneControlSettings();render();return{...settings};}};
+  return{button,dialog,world,get settings(){return{...settings};},reload(){settings=loadPhoneControlSettings();render();return{...settings};}};
 }
