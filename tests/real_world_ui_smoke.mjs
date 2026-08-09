@@ -20,30 +20,25 @@ const fixtureStyle={
   layers:[{id:"background",type:"background",paint:{"background-color":"#d8d4cc"}}]
 };
 
-await page.evaluateOnNewDocument(()=>{
-  const fix={
-    coords:{latitude:39.569600,longitude:2.650200,accuracy:4,altitude:12,altitudeAccuracy:8,heading:null,speed:null},
-    timestamp:Date.now()
-  };
-  Object.defineProperty(navigator,"geolocation",{
-    configurable:true,
-    value:{
-      getCurrentPosition(success){queueMicrotask(()=>success(fix));},
-      watchPosition(success){queueMicrotask(()=>success(fix));return 1;},
-      clearWatch(){}
-    }
-  });
-});
-
+await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
+await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
 await page.setRequestInterception(true);
 page.on("request",request=>{
   const url=request.url();
   const parsed=new URL(url);
-  if(["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
+  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){
+    request.continue();
+    return;
+  }
   external.push(url);
   if(url.startsWith(OPENFREEMAP_STYLE)){
     providerRequests.push(url);
-    request.respond({status:200,contentType:"application/json",body:JSON.stringify(fixtureStyle)});
+    request.respond({
+      status:200,
+      contentType:"application/json",
+      headers:{"access-control-allow-origin":"*","cache-control":"no-store"},
+      body:JSON.stringify(fixtureStyle)
+    });
     return;
   }
   request.abort();
@@ -89,14 +84,22 @@ try{
   if(external.length)throw new Error(`training/settings path triggered external network: ${JSON.stringify(external)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
-  // Exercise the real bridge, but serve a deterministic source-free MapLibre style.
-  // This verifies the exact render/camera integration without relying on public
-  // tile availability or exposing CI to third-party map content.
+  // Exercise the actual bridge with browser-granted GPS. Only the public style
+  // response is replaced by a deterministic source-free fixture; MapLibre's own
+  // blob/data workers remain intact and no public map tiles are fetched in CI.
   await page.click("#soloWorld");
-  await page.waitForFunction(()=>{
-    const viewport=document.querySelector("#viewport");
-    return viewport?.dataset.worldMode==="real"&&viewport?.dataset.worldProvider==="openfreemap"&&Number(viewport?.dataset.worldThreeFrames||0)>5;
-  },{timeout:20000});
+  try{
+    await page.waitForFunction(()=>{
+      const viewport=document.querySelector("#viewport");
+      return viewport?.dataset.worldMode==="real"&&viewport?.dataset.worldProvider==="openfreemap"&&Number(viewport?.dataset.worldThreeFrames||0)>5;
+    },{timeout:20000});
+  }catch(error){
+    const debug=await page.evaluate(()=>{
+      const viewport=document.querySelector("#viewport"),bridge=globalThis.__arondightRealWorld;
+      return{worldMode:viewport?.dataset.worldMode||"",provider:viewport?.dataset.worldProvider||"",path:viewport?.dataset.worldRenderPath||"",frames:viewport?.dataset.worldThreeFrames||"",status:document.querySelector("#realWorldStatus")?.textContent||"",active:Boolean(bridge?.active),loading:Boolean(bridge?.loading),map:Boolean(bridge?.map),renderer:Boolean(bridge?.threeRenderer)};
+    });
+    throw new Error(`REAL WORLD activation timeout: ${JSON.stringify({debug,external,providerRequests,cause:String(error)})}`);
+  }
 
   const live=await page.evaluate(()=>{
     const viewport=document.querySelector("#viewport"),bridge=globalThis.__arondightRealWorld;
@@ -127,7 +130,7 @@ try{
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldCameraMode==="third",{timeout:5000});
   const third=await cameraSnapshot();
   if(third.mode!=="third"||third.worldCameraMode!=="third")throw new Error(`THIRD camera mode did not propagate to WORLD: ${JSON.stringify(third)}`);
-  if(JSON.stringify(third)===JSON.stringify(follow))throw new Error(`THIRD did not move the geospatial camera: ${JSON.stringify({follow,third})}`);
+  if(third.center===follow.center&&third.zoom===follow.zoom&&third.pitch===follow.pitch&&third.bearing===follow.bearing)throw new Error(`THIRD geospatial camera stayed frozen: ${JSON.stringify({follow,third})}`);
 
   await page.click("#soloCamera");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldCameraMode==="fpv",{timeout:5000});
