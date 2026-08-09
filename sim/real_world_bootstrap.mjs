@@ -5,6 +5,12 @@ const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
 const MODE_STORAGE="arondight45WorldModeV2";
 const EARTH_RADIUS_M=6378137;
 const WORLD_MAP_FRAME_MS=1000/30;
+const WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20;
+const WORLD_MAP_FRAME_MS_CRITICAL=1000/15;
+const WORLD_PERF_WINDOW_MS=1000;
+const WORLD_FPS_CONSTRAINED=50;
+const WORLD_FPS_CRITICAL=36;
+const WORLD_FPS_RECOVER=57;
 const WORLD_MAP_MAX_ZOOM=20;
 const WORLD_MAP_PIXEL_RATIO=1.0;
 const WORLD_FLIGHT_PIXEL_RATIO=1.25;
@@ -33,7 +39,7 @@ function metersToLngLat(originLon,originLat,eastM,northM){
 
 class RealWorldBridge{
   constructor(){
-    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.mapUpdates=0;this.gridEnabled=loadBool(WORLD_GRID_STORAGE,true);this.keepLookOrientation=loadBool(WORLD_KEEP_LOOK_STORAGE,false);this.lookYawDeg=0;this.lookPitchDeg=0;this.lookDragging=false;this.lookSnapping=false;this.lookPointer=null;this.lookFrameMs=performance.now();this.lookHud=null;this.lookPlane=null;this.lookReadout=null;this.airframe=null;
+    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.mapUpdates=0;this.gridEnabled=loadBool(WORLD_GRID_STORAGE,true);this.keepLookOrientation=loadBool(WORLD_KEEP_LOOK_STORAGE,false);this.lookYawDeg=0;this.lookPitchDeg=0;this.lookDragging=false;this.lookSnapping=false;this.lookPointer=null;this.lookFrameMs=performance.now();this.lookHud=null;this.lookPlane=null;this.lookReadout=null;this.mapLegend=null;this.airframe=null;this.mapFrameMs=WORLD_MAP_FRAME_MS;this.perfMode="nominal";this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.flightFps=60;
     this.installUi();this.installLookHud();
   }
   installUi(){
@@ -52,7 +58,7 @@ class RealWorldBridge{
       #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
       #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
       #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:#07101acc;color:#d8e0ea;font:8px/1.25 system-ui,-apple-system,sans-serif;pointer-events:none}
-      #worldLookHud{display:none;position:absolute;z-index:4;right:max(10px,env(safe-area-inset-right));top:max(48px,calc(env(safe-area-inset-top) + 42px));width:116px;height:116px;border:1px solid #8cdcff88;border-radius:16px;background:#071522d9;box-shadow:0 8px 26px #0008,inset 0 0 22px #2f9bd322;backdrop-filter:blur(7px);touch-action:none;user-select:none;overflow:hidden;color:#dff7ff}
+      #worldLookHud{display:none;position:absolute;z-index:4;right:max(10px,env(safe-area-inset-right));top:max(48px,calc(env(safe-area-inset-top) + 42px));width:116px;height:116px;border:1px solid #8cdcff88;border-radius:16px;background:#071522ee;box-shadow:0 8px 26px #0008,inset 0 0 22px #2f9bd322;touch-action:none;user-select:none;overflow:hidden;color:#dff7ff}
       body.solo-flight #viewport[data-world-mode="real"] #worldLookHud{display:block}
       #worldLookHud .world-look-title{position:absolute;left:7px;right:7px;top:5px;z-index:3;display:flex;justify-content:space-between;font:800 7px/1.1 system-ui,-apple-system,sans-serif;letter-spacing:.09em;color:#aeeaff;pointer-events:none}
       #worldLookHud .world-look-stage{position:absolute;left:9px;right:9px;top:22px;bottom:8px;perspective:110px;border-radius:50%;overflow:hidden;border:1px solid #8cdcff55;background:radial-gradient(circle at 50% 44%,#274c6288 0 7%,#0a2134dd 48%,#06121ddd 72%);pointer-events:none}
@@ -62,11 +68,15 @@ class RealWorldBridge{
       #worldLookHud .world-look-drone:after{transform:rotate(90deg)}
       #worldLookHud .world-look-nose{position:absolute;left:9px;top:-4px;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:8px solid #ff5c76}
       #worldLookHud .world-look-cardinal{position:absolute;font:900 7px system-ui,-apple-system,sans-serif;color:#72d9ff;opacity:.85;pointer-events:none}.world-look-n{top:22px;left:53px}.world-look-e{top:62px;right:12px}.world-look-s{bottom:9px;left:54px}.world-look-w{top:62px;left:12px}
+      #worldMapLegend{display:none;position:absolute;z-index:4;left:max(10px,env(safe-area-inset-left));top:max(52px,calc(env(safe-area-inset-top) + 46px));padding:5px 7px;border-radius:8px;background:#071522e8;border:1px solid #ffffff25;color:#dce9f2;font:800 7px/1.4 system-ui,-apple-system,sans-serif;letter-spacing:.03em;pointer-events:none}
+      body.solo-flight #viewport[data-world-mode="real"] #worldMapLegend{display:grid;grid-template-columns:auto auto;gap:2px 7px}
+      #worldMapLegend i{width:9px;height:6px;border-radius:2px;display:inline-block;margin-right:4px}.legend-water i{background:#237db0}.legend-green i{background:#4f7b55}.legend-road i{background:#e3c56b}.legend-building i{background:#bdcbd3}
+      body.solo-flight #viewport[data-world-mode="real"] #soloTopbar span,body.solo-flight #viewport[data-world-mode="real"] #soloTopbar button,body.solo-flight #viewport[data-world-mode="real"] #soloRaceHud,body.solo-flight #viewport[data-world-mode="real"] #soloClearance,body.solo-flight #viewport[data-world-mode="real"] .solo-action{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
       #realWorldStatus{line-height:1.4}
     `;document.head.appendChild(style);
     const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
     mode.value="training";
-    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;delete viewport.dataset.worldSymbolsRemoved;delete viewport.dataset.worldLookYaw;delete viewport.dataset.worldLookPitch;delete viewport.dataset.worldLookKeep;delete viewport.dataset.worldGrid;}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;delete viewport.dataset.worldSymbolsRemoved;delete viewport.dataset.worldLookYaw;delete viewport.dataset.worldLookPitch;delete viewport.dataset.worldLookKeepEnabled;delete viewport.dataset.worldGridEnabled;delete viewport.dataset.worldFlightFps;delete viewport.dataset.worldPerfMode;delete viewport.dataset.worldPaletteLayers;}
     mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
     use.onclick=()=>this.activate().catch(error=>this.fail(error));
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
@@ -74,7 +84,7 @@ class RealWorldBridge{
   installLookHud(){
     const viewport=$("viewport");if(!viewport||this.lookHud)return;
     const hud=document.createElement("div");hud.id="worldLookHud";hud.setAttribute("aria-label","WORLD free 360 degree camera look");hud.innerHTML='<div class="world-look-title"><span>360° LOOK</span><span data-world-look-readout>SNAP</span></div><div class="world-look-stage"><div class="world-look-plane"></div><div class="world-look-drone"><i class="world-look-nose"></i></div></div><b class="world-look-cardinal world-look-n">N</b><b class="world-look-cardinal world-look-e">E</b><b class="world-look-cardinal world-look-s">S</b><b class="world-look-cardinal world-look-w">W</b>';
-    viewport.appendChild(hud);this.lookHud=hud;this.lookPlane=hud.querySelector(".world-look-plane");this.lookReadout=hud.querySelector("[data-world-look-readout]");
+    viewport.appendChild(hud);this.lookHud=hud;this.lookPlane=hud.querySelector(".world-look-plane");this.lookReadout=hud.querySelector("[data-world-look-readout]");const legend=document.createElement("div");legend.id="worldMapLegend";legend.innerHTML='<span class="legend-water"><i></i>WATER</span><span class="legend-green"><i></i>GREEN</span><span class="legend-road"><i></i>ROADS</span><span class="legend-building"><i></i>BUILDINGS</span>';viewport.appendChild(legend);this.mapLegend=legend;
     const update=(event)=>{if(!this.lookDragging||event.pointerId!==this.lookPointer?.id)return;const dx=event.clientX-this.lookPointer.x,dy=event.clientY-this.lookPointer.y;this.lookYawDeg=((this.lookPointer.yaw+dx*.85+540)%360)-180;this.lookPitchDeg=clamp(this.lookPointer.pitch-dy*.62,-75,60);this.lookSnapping=false;this.renderLookHud();};
     hud.addEventListener("pointerdown",event=>{event.preventDefault();hud.setPointerCapture?.(event.pointerId);this.lookDragging=true;this.lookSnapping=false;this.lookPointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw:this.lookYawDeg,pitch:this.lookPitchDeg};this.renderLookHud();});
     hud.addEventListener("pointermove",update);
@@ -84,7 +94,7 @@ class RealWorldBridge{
   renderLookHud(){
     if(this.lookPlane)this.lookPlane.style.transform=`rotateX(${clamp(60-this.lookPitchDeg*.28,38,78)}deg) rotateZ(${-this.lookYawDeg}deg)`;
     if(this.lookReadout)this.lookReadout.textContent=this.lookDragging?`${Math.round(this.lookYawDeg)}°`:this.keepLookOrientation?`KEEP · ${Math.round(this.lookYawDeg)}°`:this.lookSnapping?"SNAP ↺":"SNAP";
-    const viewport=$("viewport");if(viewport){viewport.dataset.worldLookYaw=this.lookYawDeg.toFixed(2);viewport.dataset.worldLookPitch=this.lookPitchDeg.toFixed(2);viewport.dataset.worldLookKeep=this.keepLookOrientation?"1":"0";viewport.dataset.worldGrid=this.gridEnabled?"1":"0";}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldLookYaw=this.lookYawDeg.toFixed(2);viewport.dataset.worldLookPitch=this.lookPitchDeg.toFixed(2);viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";}
   }
   setGridEnabled(value){this.gridEnabled=Boolean(value);try{localStorage.setItem(WORLD_GRID_STORAGE,this.gridEnabled?"1":"0");}catch{}this.renderLookHud();return this.gridEnabled;}
   setKeepLookOrientation(value){this.keepLookOrientation=Boolean(value);try{localStorage.setItem(WORLD_KEEP_LOOK_STORAGE,this.keepLookOrientation?"1":"0");}catch{}if(!this.keepLookOrientation&&!this.lookDragging&&(Math.abs(this.lookYawDeg)>.05||Math.abs(this.lookPitchDeg)>.05))this.lookSnapping=true;this.renderLookHud();return this.keepLookOrientation;}
@@ -114,6 +124,20 @@ class RealWorldBridge{
   }
   hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){if(child.isGridHelper&&this.gridEnabled)continue;this.frameVisibility.set(child,child.visible);child.visible=false;}}
   restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
+  applyFlightPalette(){
+    if(!this.map)return 0;let changed=0;const layers=this.map.getStyle()?.layers||[];
+    const set=(id,property,value)=>{try{this.map.setPaintProperty(id,property,value);changed++;}catch{}};
+    for(const layer of layers){const source=String(layer["source-layer"]||"").toLowerCase(),id=String(layer.id||"").toLowerCase();
+      if(layer.type==="background"){set(layer.id,"background-color","#304657");continue;}
+      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#237db0");set(layer.id,"fill-opacity",.96);continue;}
+      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#55b7df");continue;}
+      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#4f7b55":industry?"#675b58":"#53636b");set(layer.id,"fill-opacity",.92);continue;}
+      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#bdcbd3");set(layer.id,"fill-opacity",.82);continue;}
+      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#f0c85c":mid?"#d9d4ad":"#a9b8c1");set(layer.id,"line-opacity",.95);continue;}
+      if(layer.type==="line"&&source==="boundary")set(layer.id,"line-color","#8094a4");
+    }
+    const viewport=$("viewport");if(viewport)viewport.dataset.worldPaletteLayers=String(changed);return changed;
+  }
   stripFlightClutter(){
     if(!this.map)return 0;
     const symbolIds=(this.map.getStyle()?.layers||[]).filter(layer=>layer.type==="symbol").map(layer=>layer.id);
@@ -137,7 +161,7 @@ class RealWorldBridge{
     const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
     this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
     await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
-    this.stripFlightClutter();
+    this.applyFlightPalette();this.stripFlightClutter();
     try{this.map.setSky({"sky-color":"#0a2845","sky-horizon-blend":.42,"horizon-color":"#477493","horizon-fog-blend":.22,"fog-color":"#274d68","fog-ground-blend":.08});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}
     this.addBuildings();return this.map;
   }
@@ -150,10 +174,10 @@ class RealWorldBridge{
       this.originLat=latitude;this.originLon=longitude;this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");
       await this.createMap(longitude,latitude);this.active=true;this.loading=false;
       if(!this.threeRenderer)throw Error("Flight renderer is not ready");
-      this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.mapUpdates=0;
+      this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.mapUpdates=0;this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.perfMode="nominal";this.mapFrameMs=WORLD_MAP_FRAME_MS;
       this.threeRenderer.setPixelRatio(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));this.threeRenderer.shadowMap.enabled=false;
       this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
-      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);viewport.dataset.worldMapFpsCap="30";viewport.dataset.worldMapPixelRatio=String(WORLD_MAP_PIXEL_RATIO);viewport.dataset.worldFlightPixelRatio=String(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));viewport.dataset.worldMapUpdates="0";viewport.dataset.worldGrid=this.gridEnabled?"1":"0";viewport.dataset.worldLookKeep=this.keepLookOrientation?"1":"0";this.renderLookHud();
+      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);viewport.dataset.worldMapFpsCap="30";viewport.dataset.worldMapPixelRatio=String(WORLD_MAP_PIXEL_RATIO);viewport.dataset.worldFlightPixelRatio=String(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));viewport.dataset.worldMapUpdates="0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";this.renderLookHud();
       const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="real";if(config)config.hidden=false;
       this.status(`REAL WORLD LIVE · OpenFreeMap · GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
     }catch(error){this.loading=false;throw error;}
@@ -163,11 +187,20 @@ class RealWorldBridge{
     const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;delete viewport.dataset.worldSymbolsRemoved;}
     const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="training";if(config)config.hidden=true;this.status("TRAINING RANGE · local metric world");try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
+  setPerfMode(mode){
+    if(this.perfMode===mode)return;this.perfMode=mode;this.mapFrameMs=mode==="critical"?WORLD_MAP_FRAME_MS_CRITICAL:mode==="constrained"?WORLD_MAP_FRAME_MS_CONSTRAINED:WORLD_MAP_FRAME_MS;
+    if(this.threeRenderer){const ratio=mode==="nominal"?Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO):1;this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldPerfMode=mode;viewport.dataset.worldMapFpsCap=String(Math.round(1000/this.mapFrameMs));}
+  }
+  trackFlightPerformance(now){
+    this.perfFrames++;const elapsed=now-this.perfWindowStart;if(elapsed<WORLD_PERF_WINDOW_MS)return;this.flightFps=this.perfFrames*1000/Math.max(1,elapsed);this.perfFrames=0;this.perfWindowStart=now;const viewport=$("viewport");if(viewport)viewport.dataset.worldFlightFps=this.flightFps.toFixed(1);
+    if(this.flightFps<WORLD_FPS_CRITICAL){this.perfGoodWindows=0;this.setPerfMode("critical");return;}if(this.flightFps<WORLD_FPS_CONSTRAINED){this.perfGoodWindows=0;this.setPerfMode("constrained");return;}if(this.flightFps>WORLD_FPS_RECOVER){this.perfGoodWindows++;if(this.perfGoodWindows>=3)this.setPerfMode("nominal");}else this.perfGoodWindows=0;
+  }
   syncMapCamera(camera){
     if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
     const now=performance.now(),viewport=$("viewport"),cameraMode=viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||"");
     if(forceMode&&viewport.dataset.worldCameraMode)this.resetLook(true);
-    if(!forceMode&&now-this.lastMapSyncMs<WORLD_MAP_FRAME_MS)return;
+    if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;
     const p=camera.position,dir=new THREE.Vector3(),actualUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir).normalize();
     let focusDistance=10;if(dir.z<-.02&&p.z>0){const ground=-p.z/dir.z;if(Number.isFinite(ground)&&ground>0)focusDistance=clamp(ground,2,250);}
     const focus=p.clone().addScaledVector(dir,focusDistance),center=metersToLngLat(this.originLon,this.originLat,focus.x,focus.y),horizontal=Math.hypot(dir.x,dir.y);
@@ -181,7 +214,7 @@ class RealWorldBridge{
     viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);
   }
   renderReal(scene,camera){
-    const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone();
+    this.trackFlightPerformance(performance.now());const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone();
     this.applyLookCamera(scene,camera);this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}
     this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
     const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);

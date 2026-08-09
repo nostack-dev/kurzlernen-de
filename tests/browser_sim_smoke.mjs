@@ -99,9 +99,9 @@ try{
     settings:!!document.querySelector("#soloTopbar .phone-settings-button"),
     throttle:parseFloat(document.querySelector("#throttle")?.textContent||"0"),
     leftTop:parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.top||"0"),
-    clearance:!!document.querySelector("#soloClearanceSlider"),
-    clearanceValue:Number(document.querySelector("#soloClearanceSlider")?.value||0),
-    clearanceMax:Number(document.querySelector("#soloClearanceSlider")?.max||0),
+    clearance:!!document.querySelector("#soloHeightPad"),
+    clearanceValue:Number(document.querySelector("#soloClearance")?.dataset.targetAglM||0),
+    clearanceMax:50,
     rightLabel:document.querySelector("#soloRight span")?.textContent||"",
   }));
   if(!Object.values({hud:soloUi.hud,reset:soloUi.reset,lap:soloUi.lap,settings:soloUi.settings,clearance:soloUi.clearance}).every(Boolean))

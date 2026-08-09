@@ -17,6 +17,8 @@ async function waitSim(page,target,timeout=60000){await page.waitForFunction(val
 async function snapshot(page){return page.evaluate(()=>({simTime:document.querySelector("#simTime")?.textContent||"",state:document.querySelector("#fcState")?.textContent||"",remote:document.querySelector("#remoteStatus")?.textContent||"",motors:document.querySelector("#motors")?.textContent||"",altitude:document.querySelector("#altitude")?.textContent||"",velocity:document.querySelector("#velocity")?.textContent||"",attitude:document.querySelector("#attitude")?.textContent||"",armSwitch:document.querySelector("#armSwitch")?.textContent||""}));}
 async function stickBox(page,selector){return page.$eval(selector,element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});}
 async function yaw(page){return page.$eval("#attitude",element=>{const parts=(element.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[];return Number(parts[2]||0);});}
+async function setClearanceByButtons(page,target){for(let i=0;i<300;i++){const current=await page.$eval("#gameClearance",e=>Number(e.dataset.targetAglM));if(!Number.isFinite(current))throw new Error("target AGL dataset unavailable");if(Math.abs(current-target)<=.051)return current;await page.click(current<target?"#gameUp":"#gameDown");}throw new Error(`could not set target AGL ${target}`);}
+async function holdHeightPad(page,axis,ms){const b=await stickBox(page,"#gameHeightPad"),cx=b.x+b.w/2,cy=b.y+b.h/2,span=b.h*.40;await page.mouse.move(cx,cy);await page.mouse.down();await page.mouse.move(cx,cy-span*axis,{steps:4});await new Promise(r=>setTimeout(r,ms));await page.mouse.up();}
 
 async function flightSamples(page){return page.evaluate(async()=>{const original=URL.createObjectURL;let captured=null;URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text()),samples=log?.samples||[];if(!samples.length)throw new Error("flight log has no samples");return samples;}finally{URL.createObjectURL=original;}});}
 function bodyMotion(sample){const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};}
@@ -53,7 +55,7 @@ try{
   await waitText(controller,"#gameModeButton","MODE · GAME",10000);
   const labels=await controller.evaluate(()=>({leftTop:document.querySelector("#leftTopLabel")?.textContent||"",top:document.querySelector("#rightTopLabel")?.textContent||"",bottom:document.querySelector("#rightBottomLabel")?.textContent||""}));
   if(!labels.leftTop.includes("W")||labels.top!=="NOSE UP"||labels.bottom!=="NOSE DOWN")throw new Error(`GAME shooter labels wrong: ${JSON.stringify(labels)}`);
-  const clearance=await controller.$eval("#gameClearanceSlider",element=>({value:Number(element.value),max:Number(element.max)}));if(Math.abs(clearance.value-1.2)>0.01||clearance.max!==50)throw new Error(`unexpected ground-clearance config ${JSON.stringify(clearance)}`);
+  const clearance=await controller.$eval("#gameClearance",element=>({value:Number(element.dataset.targetAglM),pad:Boolean(document.querySelector("#gameHeightPad"))}));if(Math.abs(clearance.value-1.2)>0.01||!clearance.pad)throw new Error(`unexpected ground-clearance config ${JSON.stringify(clearance)}`);
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const leftInvertInitially=await controller.$eval('.phone-settings-dialog [data-invert-left-horizontal]',e=>e.checked);if(leftInvertInitially)throw new Error("left invert unexpectedly enabled by default");
   await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
@@ -65,7 +67,7 @@ try{
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
   await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===false,{timeout:5000});await controller.click('.phone-settings-dialog [data-close]');
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
-  await setValue(controller,"#gameClearanceSlider","2.0");await waitText(controller,"#gameClearanceValue","2.0 m",10000);
+  await setClearanceByButtons(controller,2.0);await waitText(controller,"#gameClearanceValue","2.0 m",10000);
 
   const armStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);await waitText(controller,"#arm","ARM REQUESTED",10000);
   try{await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});}catch{throw new Error(`GAME remote arming never reached ARMED: ${JSON.stringify(await snapshot(view))}`);}
@@ -83,15 +85,15 @@ try{
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
 
   await controller.click("#gameUp");
-  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearanceSlider")?.value)-2.1)<.01,{timeout:5000});
+  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.2)<.06,{timeout:5000});
   await controller.click("#gameDown");
-  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearanceSlider")?.value)-2.0)<.01,{timeout:5000});
-  console.log("Shooter height controls: E raises and Q lowers the real AGL target.");
-
-  await setValue(controller,"#gameClearanceSlider","2.8");await waitText(controller,"#gameClearanceValue","2.8 m",10000);
+  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.0)<.06,{timeout:5000});
+  const targetBeforePad=await controller.$eval("#gameClearance",e=>Number(e.dataset.targetAglM));await holdHeightPad(controller,1,.22e3);const targetAfterPad=await controller.$eval("#gameClearance",e=>Number(e.dataset.targetAglM));if(!(targetAfterPad>targetBeforePad+.35))throw new Error(`spring-centred height pad did not slew target: ${targetBeforePad} -> ${targetAfterPad}`);
+  await setClearanceByButtons(controller,2.8);await waitText(controller,"#gameClearanceValue","2.8 m",10000);
+  console.log("Human height controls: spring-centred climb/HOLD/descend pad plus deterministic nudge buttons drive the real AGL target.");
   const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);const clearanceRise=await liveMotion(view,controller);
   if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance slider did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
-  await setValue(controller,"#gameClearanceSlider","2.0");await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.45;},{timeout:90000});
+  await setClearanceByButtons(controller,2.0);await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.45;},{timeout:90000});
 
   const rightPitch=await stickBox(controller,"#rightStick"),pitchX=rightPitch.x+rightPitch.w/2,pitchY=rightPitch.y+rightPitch.h/2,pitchR=Math.min(rightPitch.w,rightPitch.h)*.42;
   const pitchBefore=await liveMotion(view,controller);

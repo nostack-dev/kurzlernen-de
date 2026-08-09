@@ -1,7 +1,11 @@
 export const MAX_PHONE_EXPO=0.70;
 export const MIN_GAME_CLEARANCE_M=0.5;
 export const MAX_GAME_CLEARANCE_M=50.0;
+export const MAX_GAME_CLEARANCE_RATE_MPS=5.0;
+export const GAME_CLEARANCE_RATE_DEADBAND=0.08;
 // UI/transport range mirrors the FC's hardware-side GAME clearance envelope.
+// Height input is spring-centred target slew: release means HOLD. It never writes
+// vehicle position/velocity and still crosses SBUS -> StateController -> motors.
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
@@ -28,6 +32,20 @@ export function copyControls(c){
   };
 }
 export function clampControl(value,lo=-1,hi=1){return Math.max(lo,Math.min(hi,value));}
+export function clearanceRateMps(input){
+  const x=clampControl(Number(input)||0),magnitude=Math.abs(x);
+  if(magnitude<=GAME_CLEARANCE_RATE_DEADBAND)return 0;
+  const unit=(magnitude-GAME_CLEARANCE_RATE_DEADBAND)/(1-GAME_CLEARANCE_RATE_DEADBAND);
+  const human=unit*(0.25+0.75*unit);
+  return Math.sign(x)*MAX_GAME_CLEARANCE_RATE_MPS*human;
+}
+export function stepGroundClearanceTarget(current,input,dtSeconds){
+  const base=clampControl(Number(current)||MIN_GAME_CLEARANCE_M,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
+  // Never integrate a stale held input across a long browser pause. Real command
+  // sampling is fresh/periodic too; a delayed UI frame must not create a target jump.
+  const dt=clampControl(Number(dtSeconds)||0,0,0.05);
+  return Math.round(clampControl(base+clearanceRateMps(input)*dt,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M)*100)/100;
+}
 export function normalizePhoneSettings(settings={}){
   return{
     leftFineness:clampLevel(settings.leftFineness??DEFAULT_PHONE_SETTINGS.leftFineness),

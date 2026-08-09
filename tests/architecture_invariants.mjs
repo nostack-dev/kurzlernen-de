@@ -71,7 +71,7 @@ for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
 
-for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = 60","groundRange(NAV_AGL_RAY_MAX_M)","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
+for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = 60","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
   requireText("sim/simulator.mjs",marker);
 requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
 requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM");
@@ -126,13 +126,17 @@ requireText("sim/controller.mjs","dataset.navForwardMps");
 requireText("sim/controller.mjs","W · FORWARD");
 requireText("sim/controller.mjs","NOSE UP");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameUp,+1)");
+requireText("sim/controller.mjs","stepGroundClearanceTarget(groundClearance,heightAxis,dt)");
+requireText("sim/simulator.mjs","stepGroundClearanceTarget(soloGroundClearance,soloHeightAxis,dt)");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameDown,-1)");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
 requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
 requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
+requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
+requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["TorusGeometry(.15","worldHalo.visible=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");
@@ -140,7 +144,7 @@ requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");
 requireText("sim/control_settings.mjs","INVERT RIGHT STICK HORIZONTAL (L/R)");
 requireText("sim/control_settings.mjs","INVERT RIGHT STICK VERTICAL (UP/DOWN)");
 requireText("drone_controller.html",'id="gameModeButton"');
-requireText("drone_controller.html",'id="gameClearanceSlider" type="range"');
+requireText("drone_controller.html",'id="gameHeightPad"');
 requireText("drone_controller.html",'id="gameUp"');
 requireText("drone_controller.html",'id="gameDown"');
 requireText("drone_controller.html",'id="leftTopLabel"');

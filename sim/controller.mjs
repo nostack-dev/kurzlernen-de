@@ -1,6 +1,6 @@
 import {ControllerPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M} from "./control_semantics.mjs";
+import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,clearanceRateMps,stepGroundClearanceTarget} from "./control_semantics.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const $=id=>document.getElementById(id);
@@ -9,7 +9,7 @@ const ui=Object.fromEntries([
   "connection","connect","gameModeButton","fullscreen","leftStick","leftKnob","leftValue",
   "rightStick","rightKnob","rightValue","leftTopLabel","leftBottomLabel","leftLeftLabel","leftRightLabel",
   "rightTopLabel","rightBottomLabel","rightLeftLabel","rightRightLabel","gameClearance","gameClearanceValue",
-  "gameClearanceSlider","gameUp","gameDown","gameSensorStatus","gameNav","arm","kill","pairDialog","pairStatus","createOffer",
+  "gameHeightPad","gameHeightKnob","gameUp","gameDown","gameSensorStatus","gameNav","arm","kill","pairDialog","pairStatus","createOffer",
   "offerCode","copyOffer","shareOffer","answerCode","applyAnswer","closePair","offerQr","answerVideo","answerCanvas",
   "fcState","altitude","battery","motors"
 ].map(id=>[id,$(id)]));
@@ -26,22 +26,30 @@ let groundClearance=phoneSettings.defaultHoverAgl;
 function neutralForMode(){return{...neutralControls(),gameMode,groundClearance};}
 let controls=neutralForMode();
 
-function setGroundClearance(value){
+function setGroundClearance(value,send=true){
   const numeric=Number(value);
   if(!Number.isFinite(numeric))return;
-  groundClearance=clamp(Math.round(numeric*10)/10,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
+  groundClearance=clamp(Math.round(numeric*20)/20,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
   controls.groundClearance=groundClearance;
-  renderClearance();publish();
+  renderClearance();if(send)publish();
 }
+let heightAxis=0,heightPointer=null,heightLastMs=performance.now();
+function renderHeightControl(){ui.gameHeightKnob.style.top=`${50-heightAxis*38}%`;ui.gameHeightPad.dataset.rateMps=clearanceRateMps(heightAxis).toFixed(2);}
 function renderClearance(){
-  ui.gameClearanceSlider.value=groundClearance.toFixed(1);
-  ui.gameClearanceValue.textContent=`${groundClearance.toFixed(1)} m`;
+  ui.gameClearanceValue.textContent=`${groundClearance.toFixed(1)} m`;ui.gameClearance.dataset.targetAglM=groundClearance.toFixed(2);renderHeightControl();
 }
-ui.gameClearanceSlider.addEventListener("input",event=>setGroundClearance(event.currentTarget.value));
+function setHeightAxis(value){heightAxis=clamp(Number(value)||0,-1,1);renderHeightControl();}
+function applyHeightPointer(event){const r=ui.gameHeightPad.getBoundingClientRect(),cy=r.top+r.height/2,span=Math.max(1,r.height*.40);setHeightAxis((cy-event.clientY)/span);event.preventDefault();}
+ui.gameHeightPad.addEventListener("pointerdown",event=>{if(heightPointer!==null)return;heightPointer=event.pointerId;ui.gameHeightPad.setPointerCapture?.(heightPointer);applyHeightPointer(event);});
+ui.gameHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===heightPointer)applyHeightPointer(event);});
+const releaseHeightPointer=event=>{if(heightPointer===null||(event?.pointerId!=null&&event.pointerId!==heightPointer))return;try{ui.gameHeightPad.releasePointerCapture?.(heightPointer);}catch{}heightPointer=null;setHeightAxis(0);event?.preventDefault();};
+ui.gameHeightPad.addEventListener("pointerup",releaseHeightPointer);ui.gameHeightPad.addEventListener("pointercancel",releaseHeightPointer);ui.gameHeightPad.addEventListener("lostpointercapture",releaseHeightPointer);
+function stepHeightTarget(now){const dt=Math.max(0,(now-heightLastMs)/1000);heightLastMs=now;if(gameMode&&Math.abs(heightAxis)>1e-4)setGroundClearance(stepGroundClearanceTarget(groundClearance,heightAxis,dt),false);requestAnimationFrame(stepHeightTarget);}
+requestAnimationFrame(stepHeightTarget);
 
 function bindHeightKey(button,direction){
   let pointer=null,timer=0;
-  const nudge=()=>setGroundClearance(groundClearance+direction*.1);
+  const nudge=()=>setGroundClearance(groundClearance+direction*.2);
   const stop=event=>{
     if(pointer!==null&&event?.pointerId!=null&&event.pointerId!==pointer)return;
     if(timer){clearInterval(timer);timer=0;}
@@ -131,7 +139,7 @@ function updateSticks(){
   setKnob(ui.leftKnob,left.x,left.y);setKnob(ui.rightKnob,right.x,right.y);updateArm();
 }
 function publish(){controls.gameMode=gameMode;controls.groundClearance=groundClearance;peer.publish(controls);}
-function safetyNeutral(send=true){stopHeightUp();stopHeightDown();controls=neutralForMode();updateSticks();if(send)publish();}
+function safetyNeutral(send=true){stopHeightUp();stopHeightDown();setHeightAxis(0);controls=neutralForMode();updateSticks();if(send)publish();}
 function bindStick(element,kind){
   let pointer=null;
   element.addEventListener("pointerdown",event=>{pointer=event.pointerId;element.setPointerCapture(pointer);apply(event);event.preventDefault();});
