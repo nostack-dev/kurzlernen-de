@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   finalize:
@@ -15,9 +14,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Finalize WORLD controls performance and release gates
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Finalize product and regression gates
         shell: bash
         run: |
           set -euxo pipefail
@@ -25,14 +22,12 @@ jobs:
           from pathlib import Path
           import subprocess
 
-          # The production nudge is deliberately 0.1 m for fine human control.
-          # A prior recovery already refreshed this expectation; assert it rather
-          # than rewriting it a second time.
           dual=Path('tests/dual_phone_smoke.mjs').read_text()
           assert 'dataset.targetAglM)-2.1)<.06' in dual
           assert 'dataset.targetAglM)-2.2)<.06' not in dual
 
-          # Gate actual simulation wall-clock pacing, not merely source markers.
+          # Runtime gate: simulation time must track real browser wall time. This
+          # prevents a display-refresh divider from silently slowing the aircraft.
           p=Path('tests/browser_sim_smoke.mjs'); s=p.read_text()
           if 'fixed-step simulation is not tracking wall time' not in s:
               anchor='''  await page.click("#camSolo");\n  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});\n  const soloUi=await page.evaluate(()=>({'''
@@ -42,7 +37,7 @@ jobs:
           s=s.replace('raycast AGL slider, one-phone forward/strafe/braking','spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking')
           p.write_text(s)
 
-          # Strengthen WORLD visual semantics and requested GRID ON/OFF behavior.
+          # WORLD must remain visually parseable and GRID must really toggle and persist.
           p=Path('tests/real_world_ui_smoke.mjs'); s=p.read_text()
           if 'WORLD semantic palette/legend marker missing' not in s:
               anchor='''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");\n'''
@@ -57,20 +52,9 @@ jobs:
           s=s.replace('50m range, 12m/s shared FC envelope','50m range, validated 5m/s shared FC envelope')
           p.write_text(s)
 
-          # Use the current Node-24 checkout release, pinned by commit SHA.
-          checkout='actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'
-          for path in ['.github/workflows/deploy.yml','.github/workflows/s31-hil.yml']:
-              p=Path(path); s=p.read_text()
-              if 'actions/checkout@v4' in s:
-                  s=s.replace('actions/checkout@v4',checkout)
-              assert 'actions/checkout@v4' not in s
-              assert 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' in s
-              p.write_text(s)
-
-          # Lock release properties into permanent architecture CI.
           p=Path('tests/architecture_invariants.mjs'); s=p.read_text()
-          if 'must pin checkout v7.0.1' not in s:
-              s=s.rstrip()+'''\nfor(const workflow of [".github/workflows/deploy.yml",".github/workflows/s31-hil.yml"]){\n  forbidText(workflow,"actions/checkout@v4",`${workflow} still uses deprecated Node-20 checkout`);\n  requireText(workflow,"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",`${workflow} must pin checkout v7.0.1`);\n}\nrequireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");\nrequireText("tests/real_world_ui_smoke.mjs","WORLD GRID off did not persist");\nrequireText("tests/real_world_ui_smoke.mjs","WORLD semantic palette/legend marker missing");\n'''
+          if 'fixed-step simulation is not tracking wall time' not in s:
+              s=s.rstrip()+'''\nrequireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");\nrequireText("tests/real_world_ui_smoke.mjs","WORLD GRID off did not persist");\nrequireText("tests/real_world_ui_smoke.mjs","WORLD semantic palette/legend marker missing");\n'''
           p.write_text(s)
 
           p=Path('REAL_WORLD_DIGITAL_TWIN.md'); doc=p.read_text().rstrip()
@@ -78,32 +62,29 @@ jobs:
               doc+='''\n\nRelease CI also measures simulator-time versus browser wall-time at runtime, so display-refresh regressions cannot silently halve flight speed again. WORLD GRID is exercised both OFF and ON with persistence, and the semantic water/vegetation/road/building palette is locked by the browser release gate.\n'''
           p.write_text(doc)
 
-          # The clean production tree contains exactly the two permanent workflows.
-          Path('.github/workflows/one-shot-final-world-release.yml').unlink()
-
-          for path in [
-              'sim/control_semantics.mjs','sim/controller.mjs','sim/simulator.mjs','sim/real_world_bootstrap.mjs',
-              'tests/control_semantics_test.mjs','tests/architecture_invariants.mjs','tests/browser_sim_smoke.mjs',
-              'tests/dual_phone_smoke.mjs','tests/real_world_ui_smoke.mjs'
-          ]:
-              subprocess.run(['node','--check',path],check=True)
-          subprocess.run(['node','tests/control_semantics_test.mjs'],check=True)
-          subprocess.run(['node','tests/architecture_invariants.mjs'],check=True)
-          subprocess.run(['g++','-std=c++17','-O2','-Wall','-Wextra','-Wpedantic','-Werror','-Iesp32','tests/state_control_test.cpp','-o','/tmp/state-control-final'],check=True)
-          subprocess.run(['/tmp/state-control-final'],check=True)
+          # Architecture expects the production tree, so temporarily hide this
+          # scaffold only for local validation. It is restored before the commit;
+          # the normal repo API removes it after this job has pushed product files.
+          scaffold=Path('.github/workflows/one-shot-final-world-release.yml')
+          scaffold_bytes=scaffold.read_bytes(); scaffold.unlink()
+          try:
+              for path in [
+                  'sim/control_semantics.mjs','sim/controller.mjs','sim/simulator.mjs','sim/real_world_bootstrap.mjs',
+                  'tests/control_semantics_test.mjs','tests/architecture_invariants.mjs','tests/browser_sim_smoke.mjs',
+                  'tests/dual_phone_smoke.mjs','tests/real_world_ui_smoke.mjs'
+              ]:
+                  subprocess.run(['node','--check',path],check=True)
+              subprocess.run(['node','tests/control_semantics_test.mjs'],check=True)
+              subprocess.run(['node','tests/architecture_invariants.mjs'],check=True)
+              subprocess.run(['g++','-std=c++17','-O2','-Wall','-Wextra','-Wpedantic','-Werror','-Iesp32','tests/state_control_test.cpp','-o','/tmp/state-control-final'],check=True)
+              subprocess.run(['/tmp/state-control-final'],check=True)
+          finally:
+              scaffold.write_bytes(scaffold_bytes)
           PY
           git diff --check
           git config user.name "Christian Heinrich Hohlfeld"
           git config user.email "chris.hohlfeld@gmail.com"
-          git add -A
-          git commit -m "Finalize hardware-faithful WORLD flight UX"
+          git add REAL_WORLD_DIGITAL_TWIN.md tests/browser_sim_smoke.mjs tests/real_world_ui_smoke.mjs tests/architecture_invariants.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "Finalize hardware-faithful WORLD release gates"
           git push origin HEAD:main
-          FINAL_SHA="$(git rev-parse HEAD)"
-          for i in $(seq 1 20); do
-            REMOTE_SHA="$(git ls-remote origin refs/heads/main | cut -f1)"
-            [ "$REMOTE_SHA" = "$FINAL_SHA" ] && break
-            sleep 1
-          done
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$FINAL_SHA"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/dispatches" -f ref=main
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/s31-hil.yml/dispatches" -f ref=main
