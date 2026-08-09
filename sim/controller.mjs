@@ -121,7 +121,7 @@ function updateSticks(){
   let left,right;
   if(gameMode){
     const leftRawX=phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness);
-    left={x:phoneSettings.invertLeftHorizontal?-leftRawX:leftRawX,y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
+    left={x:leftRawX,y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
     const rawX=-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness);
     right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};
     ui.leftValue.textContent=`FWD ${(controls.pitch*100).toFixed(0)}% · STR ${(controls.roll*100).toFixed(0)}%`;
