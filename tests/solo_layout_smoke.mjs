@@ -13,6 +13,8 @@ try{
     await page.setViewport({width:viewport.width,height:viewport.height,deviceScaleFactor:1});
     await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
+    const startCue=await page.evaluate(()=>{const e=document.querySelector("#camSolo"),style=getComputedStyle(e);return{text:e?.textContent?.trim()||"",className:e?.className||"",animation:style.animationName,background:style.backgroundColor};});
+    if(startCue.text!=="START SIM"||!startCue.className.includes("start-sim-cta")||startCue.animation==="none")throw new Error(`${viewport.name}: START SIM cue missing: ${JSON.stringify(startCue)}`);
     await page.click("#camSolo");
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
     const g=await page.evaluate(()=>{
@@ -20,10 +22,12 @@ try{
       return{
         width:innerWidth,height:innerHeight,
         cameraDisplay:getComputedStyle(document.querySelector("#cameraModes")).display,
-        topbar:rect("#soloTopbar"),race:rect("#soloRaceHud"),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill")
+        topbar:rect("#soloTopbar"),race:rect("#soloRaceHud"),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
+        armCueClass:document.querySelector("#soloArm")?.className||"",armLabel:document.querySelector("#soloArm")?.textContent?.trim()||""
       };
     });
     for(const key of ["topbar","race","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);
+    if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM start cue class missing: ${JSON.stringify({className:g.armCueClass,label:g.armLabel})}`);
     if(g.cameraDisplay!=="none")throw new Error(`${viewport.name}: legacy camera strip still visible: ${g.cameraDisplay}`);
     const expectedStickMax=viewport.height<=340?129:151;
     if(g.left.width>expectedStickMax||g.right.width>expectedStickMax)throw new Error(`${viewport.name}: sticks still dominate viewport: ${JSON.stringify({left:g.left,right:g.right})}`);
