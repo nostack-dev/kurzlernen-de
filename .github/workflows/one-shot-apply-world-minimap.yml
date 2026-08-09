@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
       - name: Repair strict migration marker
         run: python3 tools/fix_minimap_patcher.py
-      - name: Apply and validate
+      - name: Apply and validate on clean tree
         run: python3 tools/apply_world_minimap_rigid_fpv.py
       - name: Commit clean product tree
         run: |
