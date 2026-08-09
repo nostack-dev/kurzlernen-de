@@ -2,8 +2,10 @@ name: One-shot physics audio runtime fix
 
 on:
   push:
-    branches: ["main"]
-    paths: [".github/workflows/one-shot-audio-runtime-fix.yml"]
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-audio-runtime-fix.yml
 
 permissions:
   contents: write
@@ -15,98 +17,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Fix live WebAudio state and physical propeller audibility
+      - name: Apply audio patch
+        run: python3 tools/one_shot_audio_fix.py
+      - name: Validate and commit
         run: |
           set -euxo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('sim/simulator.mjs')
-          text=p.read_text()
-
-          old='''class MotorSound {
-  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque";}
-  ensure(){
-    if(this.ctx)return true;const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return false;
-    try{this.ctx=new AudioCtx({latencyHint:"interactive"});}catch{this.ctx=new AudioCtx();}
-    this.master=this.ctx.createGain();this.master.gain.value=0;this.master.connect(this.ctx.destination);
-    for(let i=0;i<4;i++){const gain=this.ctx.createGain(),fundamental=this.ctx.createOscillator(),harmonic=this.ctx.createOscillator(),harmonicGain=this.ctx.createGain();fundamental.type="triangle";harmonic.type="sine";gain.gain.value=0;harmonicGain.gain.value=.32;fundamental.connect(gain);harmonic.connect(harmonicGain);harmonicGain.connect(gain);gain.connect(this.master);fundamental.start();harmonic.start();this.voices.push({fundamental,harmonic,gain});}
-    return true;
-  }
-  async unlock(){if(!this.enabled)return false;try{if(!this.ensure())return false;if(this.ctx.state!=="running")await this.ctx.resume();this.unlocked=this.ctx.state==="running";return this.unlocked;}catch{return false;}}
-  setEnabled(value){this.enabled=Boolean(value);localStorage.setItem("arondight45MotorSound",this.enabled?"on":"off");if(!this.enabled&&this.master&&this.ctx)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.025);}
-  update(model,cameraPosition){
-    const omega=model.motorOmega||[],motorTorque=model.motorTorque||[],propTorque=model.propTorque||[];let weightedHz=0,totalPropPower=0;
-    for(let i=0;i<4;i++){const w=Math.max(0,Number(omega[i])||0),rotorHz=w/(2*Math.PI),shaftPower=Math.max(0,(Number(propTorque[i])||0)*w),electromagneticPower=Math.max(0,(Number(motorTorque[i])||0)*w);weightedHz+=rotorHz*shaftPower;totalPropPower+=shaftPower;const voice=this.voices[i];if(!voice||!this.ctx)continue;const now=this.ctx.currentTime,drive=rotorHz>2?Math.tanh((shaftPower+electromagneticPower*.20)/28):0;voice.fundamental.frequency.setTargetAtTime(Math.max(18,rotorHz),now,.012);voice.harmonic.frequency.setTargetAtTime(Math.max(36,rotorHz*2),now,.012);voice.gain.gain.setTargetAtTime(.03*drive,now,.018);}
-    const meanHz=totalPropPower>1e-9?weightedHz/totalPropPower:omega.reduce((s,w)=>s+Math.max(0,Number(w)||0)/(2*Math.PI),0)/4;this.viewport.dataset.motorAudioHz=String(meanHz);this.viewport.dataset.motorAudioPowerW=String(totalPropPower);
-    if(this.master&&this.ctx){const p=model.position(),distance=cameraPosition?Math.hypot(cameraPosition.x-p[0],cameraPosition.y-p[1],cameraPosition.z-p[2]):1,distanceGain=1/(1+.12*distance*distance),target=(this.enabled&&this.unlocked)?.72*distanceGain:0;this.master.gain.setTargetAtTime(target,this.ctx.currentTime,.035);}
-  }
-}
-'''
-          new='''class MotorSound {
-  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque:2bladeBPF";this.viewport.dataset.motorAudioContextState="uninitialized";}
-  isRunning(){return Boolean(this.ctx&&this.ctx.state==="running");}
-  syncState(){this.unlocked=this.isRunning();this.viewport.dataset.motorAudioContextState=this.ctx?.state||"uninitialized";return this.unlocked;}
-  ensure(){
-    if(this.ctx){this.syncState();return true;}const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return false;
-    try{this.ctx=new AudioCtx({latencyHint:"interactive"});}catch{this.ctx=new AudioCtx();}
-    this.master=this.ctx.createGain();this.master.gain.value=0;this.master.connect(this.ctx.destination);
-    for(let i=0;i<4;i++){const gain=this.ctx.createGain(),fundamental=this.ctx.createOscillator(),harmonic=this.ctx.createOscillator(),harmonicGain=this.ctx.createGain();fundamental.type="triangle";harmonic.type="sine";gain.gain.value=0;harmonicGain.gain.value=.28;fundamental.connect(gain);harmonic.connect(harmonicGain);harmonicGain.connect(gain);gain.connect(this.master);fundamental.start();harmonic.start();this.voices.push({fundamental,harmonic,gain});}
-    this.ctx.addEventListener?.("statechange",()=>this.syncState());this.syncState();return true;
-  }
-  async unlock(){
-    if(!this.enabled)return false;
-    try{
-      if(!this.ensure())return false;
-      if(!this.isRunning()){
-        // iOS can suspend/interupt WebAudio after fullscreen/orientation changes.
-        // Resume from the *current* user gesture, not from a stale cached flag.
-        const resume=this.ctx.resume();
-        const primer=this.ctx.createBufferSource();primer.buffer=this.ctx.createBuffer(1,1,this.ctx.sampleRate);primer.connect(this.master);primer.start(0);
-        await resume;
-      }
-      return this.syncState();
-    }catch{this.syncState();return false;}
-  }
-  setEnabled(value){this.enabled=Boolean(value);localStorage.setItem("arondight45MotorSound",this.enabled?"on":"off");if(!this.enabled&&this.master&&this.ctx)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.025);this.syncState();}
-  update(model,cameraPosition){
-    const running=this.syncState(),omega=model.motorOmega||[],motorTorque=model.motorTorque||[],propTorque=model.propTorque||[];let weightedHz=0,totalPropPower=0;
-    for(let i=0;i<4;i++){
-      const w=Math.max(0,Number(omega[i])||0),rotorHz=w/(2*Math.PI),bladePassHz=rotorHz*2,shaftPower=Math.max(0,(Number(propTorque[i])||0)*w),electromagneticPower=Math.max(0,(Number(motorTorque[i])||0)*w);
-      weightedHz+=bladePassHz*shaftPower;totalPropPower+=shaftPower;
-      const voice=this.voices[i];if(!voice||!this.ctx)continue;
-      const now=this.ctx.currentTime,drive=rotorHz>2?Math.tanh((shaftPower+electromagneticPower*.20)/24):0;
-      // Two-blade prop: dominant aerodynamic tonal component is blade-pass frequency.
-      voice.fundamental.frequency.setTargetAtTime(Math.max(36,bladePassHz),now,.012);
-      voice.harmonic.frequency.setTargetAtTime(Math.max(72,bladePassHz*2),now,.012);
-      voice.gain.gain.setTargetAtTime(.04*drive,now,.018);
-    }
-    const meanHz=totalPropPower>1e-9?weightedHz/totalPropPower:omega.reduce((s,w)=>s+Math.max(0,Number(w)||0)/Math.PI,0)/4;
-    this.viewport.dataset.motorAudioHz=String(meanHz);this.viewport.dataset.motorAudioPowerW=String(totalPropPower);
-    if(this.master&&this.ctx){const p=model.position(),distance=cameraPosition?Math.hypot(cameraPosition.x-p[0],cameraPosition.y-p[1],cameraPosition.z-p[2]):1,distanceGain=1/(1+.12*distance*distance),target=(this.enabled&&running)?.72*distanceGain:0;this.viewport.dataset.motorAudioGain=String(target);this.master.gain.setTargetAtTime(target,this.ctx.currentTime,.035);}
-  }
-}
-'''
-          assert text.count(old)==1, f'MotorSound block matches: {text.count(old)}'
-          text=text.replace(old,new)
-
-          old2='''function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.unlocked?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
-$("soundToggle").onclick=async()=>{if(!motorSound.enabled||!motorSound.unlocked){motorSound.setEnabled(true);await motorSound.unlock();}else motorSound.setEnabled(false);updateSoundButton();};
-document.addEventListener("pointerdown",event=>{if(event.target?.id!=="soundToggle"&&motorSound.enabled&&!motorSound.unlocked)motorSound.unlock().then(updateSoundButton);},{passive:true});
-updateSoundButton();'''
-          new2='''function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.isRunning()?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
-$("soundToggle").onclick=async()=>{if(!motorSound.enabled||!motorSound.isRunning()){motorSound.setEnabled(true);await motorSound.unlock();}else motorSound.setEnabled(false);updateSoundButton();};
-document.addEventListener("pointerdown",event=>{if(event.target?.id!=="soundToggle"&&motorSound.enabled&&!motorSound.isRunning())motorSound.unlock().then(updateSoundButton);},{passive:true});
-document.addEventListener("visibilitychange",()=>{motorSound.syncState();updateSoundButton();},{passive:true});
-updateSoundButton();'''
-          assert text.count(old2)==1, f'sound UI block matches: {text.count(old2)}'
-          text=text.replace(old2,new2)
-          p.write_text(text)
-          PY
           node --check sim/simulator.mjs
           git diff --check
+          rm tools/one_shot_audio_fix.py
           rm .github/workflows/one-shot-audio-runtime-fix.yml
           git config user.name "Christian Heinrich Hohlfeld"
           git config user.email "chris.hohlfeld@gmail.com"
-          git add sim/simulator.mjs .github/workflows/one-shot-audio-runtime-fix.yml
+          git add sim/simulator.mjs tools/one_shot_audio_fix.py .github/workflows/one-shot-audio-runtime-fix.yml
           git commit -m "Fix live physics audio on iOS"
           git push
