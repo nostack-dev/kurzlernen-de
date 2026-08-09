@@ -182,7 +182,7 @@ try{
   const hold=bodyMotion(await latestFlightSample());
   if(!(hold.altitude>1.35&&hold.altitude<2.65&&Math.abs(hold.vertical)<.80))throw new Error(`solo 2m AGL hold failed: ${JSON.stringify(hold)}`);
   const audioDrive=await page.$eval("#viewport",e=>({source:e.dataset.motorAudioSource,hz:Number(e.dataset.motorAudioHz),power:Number(e.dataset.motorAudioPowerW),gain:Number(e.dataset.motorAudioGain),context:e.dataset.motorAudioContextState,armEvent:e.dataset.motorAudioArmEvent,escTones:Number(e.dataset.motorAudioEscToneCount)||0}));
-  if(audioDrive.source!=="motorOmega+motorTorque+propTorque+tipSpeed:bladeImpulseNoise"||!(audioDrive.hz>20)||!(audioDrive.power>0)||!(audioDrive.gain>0)||audioDrive.context!=="running"||audioDrive.armEvent!=="armed"||audioDrive.escTones<escToneStart+4)throw new Error(`physics/ESC audio runtime failed: ${JSON.stringify(audioDrive)}`);
+  if(audioDrive.source!=="motorOmega+motorTorque+propTorque+tipSpeed:hybridBladeMotor"||!(audioDrive.hz>20)||!(audioDrive.power>0)||!(audioDrive.gain>0)||audioDrive.context!=="running"||audioDrive.armEvent!=="armed"||audioDrive.escTones<escToneStart+4)throw new Error(`physics/ESC audio runtime failed: ${JSON.stringify(audioDrive)}`);
   await page.$eval("#camFpv",e=>e.click());
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.cameraMode==="fpv"&&Number(v.dataset.cameraFov)===101&&Number(v.dataset.cameraTiltDeg)===18;},{timeout:5000});
   const fpvOptics=await page.$eval("#viewport",e=>({fov:Number(e.dataset.cameraFov),tilt:Number(e.dataset.cameraTiltDeg)}));
