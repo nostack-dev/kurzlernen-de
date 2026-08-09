@@ -126,7 +126,9 @@ public:
         const float c = std::cos(yaw_rad);
         const float s = std::sin(yaw_rad);
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
-        const float measured_right = s * nav.velocity_world_mps.x - c * nav.velocity_world_mps.y;
+        // Body forward is -X. With +Z up, physical body-right is forward × up,
+        // i.e. (-sin(yaw), +cos(yaw)). Keep GAME D/right in that real frame.
+        const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;
 
         if (!inner_armed) {
             reset_acceleration_estimator();
@@ -144,7 +146,7 @@ public:
         const float measured_forward_accel =
             -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
         const float measured_right_accel =
-            s * measured_acceleration_world_mps2_.x - c * measured_acceleration_world_mps2_.y;
+            -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
 
         const float agl_error = intent.clearance_m - nav.agl_m;
         const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
@@ -181,7 +183,10 @@ public:
         // degree of freedom instead of abusing camera state or simulator truth.
         const float pitch_target_deg = clamp(auto_pitch_target_deg + intent.body_pitch_deg,
                                              -kMaxTiltDeg, kMaxTiltDeg);
-        const float roll_target_deg = std::atan2(
+        // Positive Euler roll is about body +X, which points toward the tail because
+        // this airframe's nose is -X. A physical rightward (+body-Y) acceleration
+        // therefore requires negative roll.
+        const float roll_target_deg = -std::atan2(
             right_accel, std::sqrt(specific_up * specific_up + forward_accel * forward_accel)) *
             180.0f / kPi;
         const float roll_command = clamp(roll_target_deg / kInnerAttitudeRangeDeg,
