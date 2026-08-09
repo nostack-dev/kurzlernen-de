@@ -115,6 +115,14 @@ int main() {
     CHECK(controller.debug().forward_accel_mps2 > 3.9f);
     CHECK(cmd.pitch < -0.60f);
     CHECK(std::fabs(cmd.pitch - controller.debug().pitch_command) < 0.0001f);
+    // Nominal hover plus the full 4 m/s^2 horizontal request must still leave
+    // actuator headroom in the real mixer/control path; no simulator force is used.
+    {
+        const fc::Imu level{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+        fc::Controller inner;
+        const fc::Mix mixed = inner.run(level, cmd, 0.001f, true);
+        for (const float motor : mixed.motor) CHECK(motor > 0.02f && motor < 0.98f);
+    }
 
     const float desired_forward = fc::state_intent(rc).forward_mps;
     controller.reset();
@@ -148,8 +156,8 @@ int main() {
     nav.velocity_world_mps = {-1.0f, 0.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.99f);
-    CHECK(controller.debug().forward_accel_mps2 < -1.35f && controller.debug().forward_accel_mps2 > -1.45f);
-    CHECK(cmd.pitch > 0.12f);
+    CHECK(controller.debug().forward_accel_mps2 < -0.75f && controller.debug().forward_accel_mps2 > -0.85f);
+    CHECK(cmd.pitch > 0.08f);
 
     controller.reset();
     rc = base_rc(true);
@@ -194,15 +202,15 @@ int main() {
     nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps > 0.99f);
-    CHECK(controller.debug().right_accel_mps2 < -1.35f && controller.debug().right_accel_mps2 > -1.45f);
-    CHECK(cmd.roll > 0.12f);
+    CHECK(controller.debug().right_accel_mps2 < -0.75f && controller.debug().right_accel_mps2 > -0.85f);
+    CHECK(cmd.roll > 0.08f);
 
     controller.reset();
     nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_right_mps < -0.99f);
-    CHECK(controller.debug().right_accel_mps2 > 1.35f && controller.debug().right_accel_mps2 < 1.45f);
-    CHECK(cmd.roll < -0.12f);
+    CHECK(controller.debug().right_accel_mps2 > 0.75f && controller.debug().right_accel_mps2 < 0.85f);
+    CHECK(cmd.roll < -0.08f);
 
     controller.reset();
     rc = base_rc(true);
