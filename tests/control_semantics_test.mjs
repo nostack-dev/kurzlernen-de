@@ -6,9 +6,6 @@ import {
   knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes
 } from "../sim/control_semantics.mjs";
 
-// Production CI is intentionally limited to the two real workflows. Temporary
-// tuning/validator workflows caused stale trees and competing main pushes during
-// development; any reintroduction must fail both Pages and S31 validation.
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
   ["deploy.yml","s31-hil.yml"],
@@ -17,8 +14,8 @@ assert.deepEqual(
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
 
-assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,7);
-assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,10);
+assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,1);
+assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,1);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightHorizontal,false);
@@ -37,7 +34,7 @@ assert.equal(phoneAxis(.5,1),.5);
 assert.ok(phoneAxis(.5,10)<phoneAxis(.5,9));
 assert.ok(phoneAxis(.5,10)>.2,"max fineness must soften centre without killing authority");
 const e2eYawPhoneCommand=phoneAxis(.65,DEFAULT_PHONE_SETTINGS.rightFineness);
-assert.ok(e2eYawPhoneCommand>.38,"0.65 yaw E2E stimulus must retain enough post-expo authority for the strict physical rotation gate");
+assert.ok(e2eYawPhoneCommand>.38,"0.65 yaw E2E stimulus must retain enough authority for the strict physical rotation gate");
 
 let c=neutralControls();
 assert.equal(c.bodyPitch,0);
@@ -47,15 +44,10 @@ assert.equal(armReady("DISARMED",c,false,DEFAULT_PHONE_SETTINGS),false);
 
 applyStick(c,"left",{x:.4,y:.5},DEFAULT_PHONE_SETTINGS);
 near(c.yaw,phoneAxis(.4,DEFAULT_PHONE_SETTINGS.leftFineness));near(c.throttle,.25);
-// The browser deliberately does not clone production arming thresholds. It may
-// issue the request; shared fc::Runtime alone decides whether that request arms.
 assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true);
 let leftKnob=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);near(leftKnob.x,.4,3e-6);near(leftKnob.y,.5,3e-6);
 releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.25,1e-6,"left release retains throttle");
 
-// The requested left-stick horizontal lock must lock only X/yaw. Vertical/Y
-// remains fully live and still owns throttle, including the retained-throttle
-// release behavior. The rendered knob must stay exactly centered horizontally.
 c=neutralControls();
 const lockedLeft={...DEFAULT_PHONE_SETTINGS,lockLeftHorizontal:true};
 applyStick(c,"left",{x:.9,y:-.5},lockedLeft);
@@ -65,38 +57,34 @@ releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left lock
 
 c.throttle=0;
 applyStick(c,"right",{x:-.3,y:.2},DEFAULT_PHONE_SETTINGS);
-near(c.roll,phoneAxis(.3,10));near(c.pitch,phoneAxis(-.2,10));
+near(c.roll,phoneAxis(.3,DEFAULT_PHONE_SETTINGS.rightFineness));
+near(c.pitch,phoneAxis(-.2,DEFAULT_PHONE_SETTINGS.rightFineness));
 assert.notEqual(c.roll,0);assert.notEqual(c.pitch,0);
 let rightKnob=knobAxes(c,"right",DEFAULT_PHONE_SETTINGS);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 releaseStick(c,"right");assert.equal(c.roll,0);assert.equal(c.pitch,0);
 
-// Inversion changes control semantics but never pointer geometry. The rendered
-// knob therefore stays under the finger while the commanded axis changes sign.
 const invertX={...DEFAULT_PHONE_SETTINGS,invertRightHorizontal:true};
 c=neutralControls();applyStick(c,"right",{x:-.3,y:.2},invertX);
-near(c.roll,phoneAxis(-.3,10));near(c.pitch,phoneAxis(-.2,10));
+near(c.roll,phoneAxis(-.3,invertX.rightFineness));near(c.pitch,phoneAxis(-.2,invertX.rightFineness));
 rightKnob=knobAxes(c,"right",invertX);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 
 const invertY={...DEFAULT_PHONE_SETTINGS,invertRightVertical:true};
 c=neutralControls();applyStick(c,"right",{x:-.3,y:.2},invertY);
-near(c.roll,phoneAxis(.3,10));near(c.pitch,phoneAxis(.2,10));
+near(c.roll,phoneAxis(.3,invertY.rightFineness));near(c.pitch,phoneAxis(.2,invertY.rightFineness));
 rightKnob=knobAxes(c,"right",invertY);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 
 const invertBoth={...DEFAULT_PHONE_SETTINGS,invertRightHorizontal:true,invertRightVertical:true};
 c=neutralControls();applyStick(c,"right",{x:.45,y:-.35},invertBoth);
-near(c.roll,phoneAxis(.45,10));near(c.pitch,phoneAxis(-.35,10));
+near(c.roll,phoneAxis(.45,invertBoth.rightFineness));near(c.pitch,phoneAxis(-.35,invertBoth.rightFineness));
 rightKnob=knobAxes(c,"right",invertBoth);near(rightKnob.x,.45,3e-6);near(rightKnob.y,-.35,3e-6);
 releaseStick(c,"right");
 
-// Explicit right vertical-axis lock is likewise an input mode, not a control-law change.
 const lockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
 applyStick(c,"right",{x:-.6,y:.8},lockedRight);
-near(c.roll,phoneAxis(.6,10));assert.equal(c.pitch,0);
+near(c.roll,phoneAxis(.6,lockedRight.rightFineness));assert.equal(c.pitch,0);
 rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);assert.equal(rightKnob.y,0);
 releaseStick(c,"right");
 
-// GAME left-stick physical strafe contract. Both 1-PHONE and 2-PHONE call this exact function.
-// The FC decodes positive roll-channel intent as positive body-right velocity.
 let game=neutralControls();
 applyGameStick(game,"left",{x:-.60,y:0},DEFAULT_PHONE_SETTINGS);
 assert.ok(game.roll<0,"LEFT stick motion must produce physical LEFT strafe");
@@ -113,7 +101,6 @@ assert.ok(game.roll>0,"inverted LEFT motion must produce physical RIGHT strafe")
 game=neutralControls();applyGameStick(game,"left",{x:.60,y:0},gameInvertLeft);
 assert.ok(game.roll<0,"inverted RIGHT motion must produce physical LEFT strafe");
 
-// Re-touching a retained throttle must not teleport it to the absolute touch point.
 const knob={style:{left:"50%",top:"71%"}};
 const element={
   querySelector:()=>knob,
@@ -125,8 +112,6 @@ const move=normalizedPointer(element,{type:"pointermove",pointerId:1,clientX:90,
 near(move.x,0);near(move.y,0,1e-6,"relative drag should move by half radius, not jump absolute");
 endPointerDrag(element,1);
 
-// The real FC keeps its hardware RC deadband. Max phone fineness still crosses it
-// with a normal deliberate movement and retains full +/-1 at the edge.
 const tenPxRaw=phoneAxis(10/(180*.42),10);
 assert.ok(tenPxRaw>.035,"10 px max-fine movement must cross production roll/pitch deadband");
 near(phoneAxis(1,10),1,1e-12,"right full stick authority");
@@ -137,4 +122,4 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must no
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
 
-console.log("Phone controls passed: workflow set locked, full authority, cubic fineness, strict yaw-E2E authority, semantic right X/Y inversion with pointer tracking, correct roll sign, both optional axis locks, relative throttle re-touch, and FC-authoritative arming.");
+console.log("Phone controls passed: direct production defaults, optional cubic fineness, full authority, semantic inversion, axis locks, relative throttle re-touch, and FC-authoritative arming.");
