@@ -36,9 +36,9 @@ const SIM_AUX_INTERVAL_S = .01;
 
 // Presentation is explicitly subordinate to the 1 kHz digital-twin clock.
 // These budgets may skip visual work; they never skip FC/sensor/motor/Box3D ticks.
-const PRESENTATION_HUD_INTERVAL_MS = 50;
-const PRESENTATION_AUDIO_INTERVAL_MS = 33;
-const PRESENTATION_SHADOW_INTERVAL_MS = 100;
+const PRESENTATION_HUD_INTERVAL_MS = 75;
+const PRESENTATION_AUDIO_INTERVAL_MS = 50;
+const PRESENTATION_SHADOW_INTERVAL_MS = 250;
 const PRESENTATION_MAX_DRAW_GAP_MS = 50;
 const PRESENTATION_SOFT_BACKLOG_MS = 1.5;
 const PRESENTATION_CONSTRAINED_BACKLOG_MS = 4;
@@ -431,7 +431,7 @@ function daylightSky(){
 }
 const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,90,700);
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
 const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});

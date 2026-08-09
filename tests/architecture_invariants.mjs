@@ -89,11 +89,13 @@ requireText("sim/simulator.mjs","if(accumulatorMs>=SIM_FIXED_STEP_MS)await yield
 requireText("sim/simulator.mjs","exchangeSync(packet)");
 requireText("sim/simulator.mjs","backend instanceof WasmBackend");
 requireText("sim/simulator.mjs","physics.p.imuValid");
-requireText("sim/simulator.mjs","PRESENTATION_HUD_INTERVAL_MS = 50");
-requireText("sim/simulator.mjs","PRESENTATION_AUDIO_INTERVAL_MS = 33");
+requireText("sim/simulator.mjs","PRESENTATION_HUD_INTERVAL_MS = 75");
+requireText("sim/simulator.mjs","PRESENTATION_AUDIO_INTERVAL_MS = 50");
 requireText("sim/simulator.mjs","PRESENTATION_MAX_DRAW_GAP_MS = 50");
 requireText("sim/simulator.mjs","simulationBacklogMs=accumulatorMs");
 requireText("sim/simulator.mjs","renderer.shadowMap.autoUpdate=false");
+requireText("sim/simulator.mjs","PRESENTATION_SHADOW_INTERVAL_MS = 250");
+requireText("sim/simulator.mjs","renderer.shadowMap.type=THREE.BasicShadowMap");
 requireText("sim/simulator.mjs","viewport.dataset.presentationDraws");
 requireText("sim/simulator.mjs",'Object.defineProperty(globalThis,"__arondightDiagnostics"');
 requireText("sim/simulator.mjs","simTime:{get:()=>simTime");
