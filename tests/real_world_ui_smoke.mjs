@@ -176,7 +176,7 @@ try{
   });
   if(fallback.text!=="WORLD"||fallback.active!=="0"||fallback.provider||fallback.path||!fallback.rendererVisible)throw new Error(`WORLD training fallback failed: ${JSON.stringify(fallback)}`);
 
-  console.log("REAL WORLD explicit shared-frame smoke passed: 50m range, 12m/s shared FC envelope, grid toggle, SNAP/KEEP 360 look HUD, semantic map palette/legend, stripped symbol clutter, adaptive 15/20/30Hz map budget, live camera sync, clean fallback.");
+  console.log("REAL WORLD explicit shared-frame smoke passed: 50m range, validated 5m/s shared FC envelope, grid toggle, SNAP/KEEP 360 look HUD, semantic map palette/legend, stripped symbol clutter, adaptive 15/20/30Hz map budget, live camera sync, clean fallback.");
 }finally{
   await browser.close();
 }

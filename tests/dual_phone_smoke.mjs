@@ -85,7 +85,7 @@ try{
   console.log(`State-control E2E: 2m AGL settled at ${hold.altitude.toFixed(2)}m, vz=${hold.vertical.toFixed(2)}m/s.`);
 
   await controller.click("#gameUp");
-  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.2)<.06,{timeout:5000});
+  await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.1)<.06,{timeout:5000});
   await controller.click("#gameDown");
   await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.0)<.06,{timeout:5000});
   const targetBeforePad=await controller.$eval("#gameClearance",e=>Number(e.dataset.targetAglM));await holdHeightPad(controller,1,.22e3);const targetAfterPad=await controller.$eval("#gameClearance",e=>Number(e.dataset.targetAglM));if(!(targetAfterPad>targetBeforePad+.35))throw new Error(`spring-centred height pad did not slew target: ${targetBeforePad} -> ${targetAfterPad}`);
