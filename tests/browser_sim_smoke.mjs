@@ -79,7 +79,7 @@ try{
   if(cameraBoot.mode!=="follow"||cameraBoot.follow!=="1")throw new Error(`FOLLOW camera default failed: ${JSON.stringify(cameraBoot)}`);
   await page.click("#camFpv");
   const fpv=await page.$eval("#viewport",e=>({mode:e.dataset.cameraMode||"",tilt:e.dataset.fpvTiltDeg||""}));
-  if(fpv.mode!=="fpv"||fpv.tilt!=="30")throw new Error(`FPV camera failed: ${JSON.stringify(fpv)}`);
+  if(fpv.mode!=="fpv"||fpv.tilt!=="-15")throw new Error(`FPV camera failed: ${JSON.stringify(fpv)}`);
   await page.click("#camFollow");
 
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
@@ -105,7 +105,7 @@ try{
   }));
   if(!Object.values({hud:soloUi.hud,reset:soloUi.reset,lap:soloUi.lap,settings:soloUi.settings,clearance:soloUi.clearance}).every(Boolean))
     throw new Error(`solo HUD incomplete: ${JSON.stringify(soloUi)}`);
-  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-2)>.01||!soloUi.rightLabel.includes("PITCH"))throw new Error(`solo GAME neutral/labels wrong: ${JSON.stringify(soloUi)}`);
+  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-1.2)>.01||!soloUi.rightLabel.includes("PITCH"))throw new Error(`solo GAME neutral/labels wrong: ${JSON.stringify(soloUi)}`);
 
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
@@ -118,13 +118,17 @@ try{
     invertX:document.querySelector('.phone-settings-dialog [data-invert-right-horizontal]')?.checked,
     invertY:document.querySelector('.phone-settings-dialog [data-invert-right-vertical]')?.checked,
     rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
+    hover:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.value,
+    cameraTilt:document.querySelector('.phone-settings-dialog [data-camera-slider="tilt"]')?.value,
+    cameraFov:document.querySelector('.phone-settings-dialog [data-camera-slider="fov"]')?.value,
+    cameraThird:document.querySelector('.phone-settings-dialog [data-camera-slider="third"]')?.value,
     v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),
     v2:localStorage.getItem("arondight45PhoneControlSettingsV2"),
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="1"||defaults.right!=="1"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
-    throw new Error(`clean V5 direct defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
+  if(defaults.left!=="10"||defaults.right!=="10"||defaults.hover!=="1.2"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+    throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);
 
@@ -141,10 +145,10 @@ try{
   await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
-  if(stored.invertRightVertical!==true)throw new Error(`right vertical invert did not persist: ${JSON.stringify(stored)}`);
+  if(stored.invertRightVertical!==false)throw new Error(`right vertical invert disable did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
-  if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==false)throw new Error(`right-axis invert restore failed: ${JSON.stringify(stored)}`);
+  if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==true)throw new Error(`right-axis invert default restore failed: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.lockLeftHorizontal!==true)throw new Error(`left horizontal lock did not persist: ${JSON.stringify(stored)}`);
@@ -228,7 +232,7 @@ try{
   await page.click("#soloCamera");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="third",{timeout:5000});
   const pitchBefore=bodyMotion(await latestFlightSample()),pitchStick=await pointerDownOnly("#soloRight");
-  await page.mouse.move(pitchStick.cx,pitchStick.cy-pitchStick.r*.85,{steps:6});
+  await page.mouse.move(pitchStick.cx,pitchStick.cy+pitchStick.r*.85,{steps:6});
   const pitchStart=await simTime();await waitForSimTime(pitchStart+.45,30000);
   const pitched=bodyMotion(await latestFlightSample());
   if(!(pitched.pitch>pitchBefore.pitch+4.0))throw new Error(`body-pitch command did not rotate aircraft nose-up: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);

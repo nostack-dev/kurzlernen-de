@@ -5,14 +5,14 @@ export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
 export const expoToFineness=expo=>clampLevel(1+9*clampControl(Number(expo)||0,0,MAX_PHONE_EXPO)/MAX_PHONE_EXPO);
 
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
-  leftFineness:1,
-  rightFineness:1,
+  leftFineness:10,
+  rightFineness:10,
   lockLeftHorizontal:false,
   lockRightHorizontal:false,
   invertLeftHorizontal:false,
   invertRightHorizontal:false,
-  invertRightVertical:false,
-  defaultHoverAgl:2,
+  invertRightVertical:true,
+  defaultHoverAgl:1.2,
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,bodyPitch:0,arm:false};}

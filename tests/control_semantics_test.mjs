@@ -14,13 +14,14 @@ assert.deepEqual(
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
 
-assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,1);
-assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,1);
+assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,10);
+assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,10);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);
+assert.equal(DEFAULT_PHONE_SETTINGS.invertLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightHorizontal,false);
-assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,false);
-assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,2);
+assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,true);
+assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,1.2);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
 near(MAX_PHONE_EXPO,.70,1e-12,"max phone expo");
@@ -58,14 +59,14 @@ releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left lock
 c.throttle=0;
 applyStick(c,"right",{x:-.3,y:.2},DEFAULT_PHONE_SETTINGS);
 near(c.roll,phoneAxis(.3,DEFAULT_PHONE_SETTINGS.rightFineness));
-near(c.pitch,phoneAxis(-.2,DEFAULT_PHONE_SETTINGS.rightFineness));
+near(c.pitch,phoneAxis(.2,DEFAULT_PHONE_SETTINGS.rightFineness));
 assert.notEqual(c.roll,0);assert.notEqual(c.pitch,0);
 let rightKnob=knobAxes(c,"right",DEFAULT_PHONE_SETTINGS);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 releaseStick(c,"right");assert.equal(c.roll,0);assert.equal(c.pitch,0);
 
 const invertX={...DEFAULT_PHONE_SETTINGS,invertRightHorizontal:true};
 c=neutralControls();applyStick(c,"right",{x:-.3,y:.2},invertX);
-near(c.roll,phoneAxis(-.3,invertX.rightFineness));near(c.pitch,phoneAxis(-.2,invertX.rightFineness));
+near(c.roll,phoneAxis(-.3,invertX.rightFineness));near(c.pitch,phoneAxis(.2,invertX.rightFineness));
 rightKnob=knobAxes(c,"right",invertX);near(rightKnob.x,-.3,3e-6);near(rightKnob.y,.2,3e-6);
 
 const invertY={...DEFAULT_PHONE_SETTINGS,invertRightVertical:true};
@@ -82,7 +83,7 @@ releaseStick(c,"right");
 const lockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
 applyStick(c,"right",{x:-.6,y:.8},lockedRight);
 near(c.roll,phoneAxis(.6,lockedRight.rightFineness));assert.equal(c.pitch,0);
-rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);assert.equal(rightKnob.y,0);
+rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);near(rightKnob.y,0,1e-12);
 releaseStick(c,"right");
 
 let game=neutralControls();
@@ -122,4 +123,4 @@ assert.equal(armReady("DISARMED",c,true,DEFAULT_PHONE_SETTINGS),true,"UI must no
 releaseStick(c,"right");
 const l=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);assert.equal(l.x,0);assert.equal(l.y,1);
 
-console.log("Phone controls passed: direct production defaults, optional cubic fineness, full authority, semantic inversion, axis locks, relative throttle re-touch, and FC-authoritative arming.");
+console.log("Phone controls passed: requested 10/10 production defaults, optional cubic fineness, full authority, semantic inversion, axis locks, relative throttle re-touch, and FC-authoritative arming.");

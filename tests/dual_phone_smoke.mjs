@@ -53,7 +53,7 @@ try{
   await waitText(controller,"#gameModeButton","MODE · GAME",10000);
   const labels=await controller.evaluate(()=>({leftTop:document.querySelector("#leftTopLabel")?.textContent||"",top:document.querySelector("#rightTopLabel")?.textContent||"",bottom:document.querySelector("#rightBottomLabel")?.textContent||""}));
   if(!labels.leftTop.includes("W")||labels.top!=="NOSE UP"||labels.bottom!=="NOSE DOWN")throw new Error(`GAME shooter labels wrong: ${JSON.stringify(labels)}`);
-  const clearance=await controller.$eval("#gameClearanceSlider",element=>Number(element.value));if(Math.abs(clearance-2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);
+  const clearance=await controller.$eval("#gameClearanceSlider",element=>Number(element.value));if(Math.abs(clearance-1.2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const leftInvertInitially=await controller.$eval('.phone-settings-dialog [data-invert-left-horizontal]',e=>e.checked);if(leftInvertInitially)throw new Error("left invert unexpectedly enabled by default");
   await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
@@ -65,6 +65,7 @@ try{
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
   await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===false,{timeout:5000});await controller.click('.phone-settings-dialog [data-close]');
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
+  await setValue(controller,"#gameClearanceSlider","2.0");await waitText(controller,"#gameClearanceValue","2.0 m",10000);
 
   const armStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);await waitText(controller,"#arm","ARM REQUESTED",10000);
   try{await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});}catch{throw new Error(`GAME remote arming never reached ARMED: ${JSON.stringify(await snapshot(view))}`);}
@@ -94,7 +95,7 @@ try{
 
   const rightPitch=await stickBox(controller,"#rightStick"),pitchX=rightPitch.x+rightPitch.w/2,pitchY=rightPitch.y+rightPitch.h/2,pitchR=Math.min(rightPitch.w,rightPitch.h)*.42;
   const pitchBefore=await liveMotion(view,controller);
-  await controller.mouse.move(pitchX,pitchY);await controller.mouse.down();await controller.mouse.move(pitchX,pitchY-pitchR*.85,{steps:6});
+  await controller.mouse.move(pitchX,pitchY);await controller.mouse.down();await controller.mouse.move(pitchX,pitchY+pitchR*.85,{steps:6});
   const pitchStart=await simTime(view);await waitSim(view,pitchStart+.45,30000);const pitched=await liveMotion(view,controller);
   if(!(pitched.pitch>pitchBefore.pitch+4.0))throw new Error(`body-pitch command did not rotate aircraft nose-up: before=${JSON.stringify(pitchBefore)}, after=${JSON.stringify(pitched)}`);
   if(pitched.state!=="ARMED"||!pitched.motors.some(value=>value>1050))throw new Error(`body-pitch motor authority missing: ${JSON.stringify(pitched)}`);

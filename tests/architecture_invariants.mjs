@@ -78,15 +78,19 @@ requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
 for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
   forbidText("sim/simulator.mjs",dirty,`simulator contains decoded/control shortcut: ${dirty}`);
 
-// REAL WORLD is a geospatial/render adapter only. It may establish the WGS84
-// origin and display photogrammetry, but flight dynamics and motor authority stay
-// exclusively in simulator.mjs + the shared C++ runtime.
-for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tile.googleapis.com/v1/3dtiles/root.json","showCreditsOnScreen:true","eastNorthUpToFixedFrame","sampleHeightMostDetailed",'await import("./simulator.mjs")'])
+// REAL WORLD is a geospatial/render adapter only. Browser GPS establishes the
+// WGS84 horizontal origin; local x/y/z remain east/north/up SI metres.
+// OpenFreeMap/OpenStreetMap are visual context only and never gain motor,
+// controller or rigid-body authority.
+for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tiles.openfreemap.org/styles/liberty","new MapLibreMap","metersToLngLat","source-layer\":\"building","render_height","render_min_height",'await import("./simulator.mjs")'])
   requireText("sim/real_world_bootstrap.mjs",marker);
 for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step"])
   forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
-requireText("sim/real_world_bootstrap.mjs","eastNorthUpToFixedFrame(this.origin)");
-requireText("sim/real_world_bootstrap.mjs","local launch plane is anchored to the sampled 3D surface");
+for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","tests/real_world_ui_smoke.mjs","REAL_WORLD_DIGITAL_TWIN.md"])
+  for(const dirty of ["Google"+" Maps","google"+"apis.com","Google"+"Tiles","Ces"+"ium","AI"+"za"])
+    forbidText(path,dirty,`${path} still contains removed map-provider dependency: ${dirty}`);
+requireText("sim/control_settings.mjs","openfreemap-osm-3d");
+requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
 
 for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
@@ -122,7 +126,7 @@ requireText("sim/controller.mjs","bindHeightKey(ui.gameUp,+1)");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameDown,-1)");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
 requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
-requireText("sim/control_semantics.mjs","defaultHoverAgl:2");
+requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");

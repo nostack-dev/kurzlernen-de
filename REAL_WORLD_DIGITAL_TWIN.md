@@ -1,23 +1,13 @@
 # Real-world digital twin
 
-The simulator supports two world modes: the local training range and a georeferenced real-world view at the user's current browser location.
+The browser simulator has two world modes: **TRAINING RANGE** and **REAL WORLD · MY LOCATION**.
 
-## Architecture boundary
+REAL WORLD is deliberately static/serverless. A user gesture requests high-accuracy browser geolocation, the WGS84 latitude/longitude becomes the horizontal origin of the existing local east/north/up metre frame, and the browser loads the map directly from **OpenFreeMap** using **OpenStreetMap / OpenMapTiles** data. There is no account, API key, billing setup, application backend, proxy, or repository secret.
 
-Real-world rendering is an adapter around the existing flight simulator. It does not replace or modify the flight plant, motor model, sensor model, firmware runtime, controller, mass, inertia, thrust, drag, or Box3D dynamics.
+The real-world renderer uses MapLibre GL JS with the OpenFreeMap Liberty style. The OpenMapTiles `building` layer is extruded from `render_height` and `render_min_height` when those OSM-derived values exist. This gives a simple 3D city/world context without changing the aircraft model.
 
-The browser requests an explicit high-accuracy geolocation fix, anchors a local east-north-up (ENU) metric frame to that WGS84 location, and renders Google Photorealistic 3D Tiles through CesiumJS. The existing Three.js camera pose is transformed from the local SI frame into Earth-fixed coordinates for rendering.
+Flight truth remains unchanged: the exact shared firmware runtime still consumes the same raw ICM/SBUS/NAV1 hardware boundary; motor pulses still drive the same Box3D plant; mass, inertia, motor/prop dynamics, drag, battery model, sensor cadence and controller semantics are untouched by world selection.
 
-The sampled 3D surface at the GPS origin is used only to georeference the local launch plane. Streamed photogrammetry is not silently treated as collision truth. Building and terrain collision physics remain limited to geometry that is explicitly represented in the simulator's physics world.
+Map geometry is **visual/geospatial context, not collision truth**. No building or map polygon is silently turned into a physics collider. The existing local collision/rangefinder world remains authoritative until a separately verified collision/elevation source is introduced. Likewise, OpenFreeMap vector data is not treated as a terrain-elevation measurement; local `z=0` remains the simulator launch plane.
 
-## Hardware-fit principle
-
-The control path remains:
-
-`raw sensor wire -> fc::FirmwareRuntime -> fc::StateRuntime -> fc::Runtime -> ESC pulses -> physical plant`
-
-The real-world visual layer is outside that path. This keeps SIL, physical S31 HIL, and production firmware on the same control/runtime boundary.
-
-## Location and API key
-
-Geolocation is requested through the browser permission model. The Google Maps Tiles API key is entered by the user and stored only in that browser's local storage; it is not committed to the repository. Google/Cesium attribution remains visible in real-world mode.
+Training mode performs no external map request. REAL WORLD fetches OpenFreeMap tiles only after the user explicitly chooses WORLD / USE MY GPS LOCATION.

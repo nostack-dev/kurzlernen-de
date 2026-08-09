@@ -1,43 +1,27 @@
 import * as THREE from "three";
+import {Map as MapLibreMap} from "maplibre-gl";
 
-const CESIUM_VERSION="1.143";
-const CESIUM_BASE=`https://cesium.com/downloads/cesiumjs/releases/${CESIUM_VERSION}/Build/Cesium`;
-const GOOGLE_TILES_ROOT="https://tile.googleapis.com/v1/3dtiles/root.json";
-const KEY_STORAGE="arondight45GoogleTilesApiKeyV1";
-const MODE_STORAGE="arondight45WorldModeV1";
+const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
+const MODE_STORAGE="arondight45WorldModeV2";
+const EARTH_RADIUS_M=6378137;
 const $=id=>document.getElementById(id);
 const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
-
-function loadScript(src){
-  return new Promise((resolve,reject)=>{
-    if(globalThis.Cesium)return resolve();
-    const existing=[...document.scripts].find(script=>script.src===src);
-    if(existing){existing.addEventListener("load",resolve,{once:true});existing.addEventListener("error",()=>reject(Error("CesiumJS failed to load")),{once:true});return;}
-    const script=document.createElement("script");script.src=src;script.crossOrigin="anonymous";script.onload=resolve;script.onerror=()=>reject(Error("CesiumJS failed to load"));document.head.appendChild(script);
-  });
-}
-function loadCss(href){
-  if([...document.styleSheets].some(sheet=>sheet.href===href))return;
-  const link=document.createElement("link");link.rel="stylesheet";link.href=href;link.crossOrigin="anonymous";document.head.appendChild(link);
-}
-async function ensureCesium(){
-  if(globalThis.Cesium)return globalThis.Cesium;
-  loadCss(`${CESIUM_BASE}/Widgets/widgets.css`);
-  await loadScript(`${CESIUM_BASE}/Cesium.js`);
-  if(!globalThis.Cesium)throw Error("CesiumJS did not initialize");
-  // Google recommends higher parallel request capacity for faster 3D Tiles loading.
-  globalThis.Cesium.RequestScheduler.requestsByServer["tile.googleapis.com:443"]=18;
-  return globalThis.Cesium;
-}
 
 function geolocate(){
   if(!navigator.geolocation)return Promise.reject(Error("Geolocation is not available in this browser"));
   return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,error=>reject(Error(error.message||"Location permission failed")),{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
 }
 
+function metersToLngLat(originLon,originLat,eastM,northM){
+  const latRad=originLat*Math.PI/180;
+  const latitude=originLat+(northM/EARTH_RADIUS_M)*180/Math.PI;
+  const longitude=originLon+(eastM/(EARTH_RADIUS_M*Math.max(.01,Math.cos(latRad))))*180/Math.PI;
+  return[longitude,latitude];
+}
+
 class RealWorldBridge{
   constructor(){
-    this.active=false;this.loading=false;this.viewer=null;this.tileset=null;this.origin=null;this.enuToFixed=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.surfaceHeight=null;
+    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";
     this.installUi();
   }
   installUi(){
@@ -46,30 +30,26 @@ class RealWorldBridge{
       <h2>World / geospatial twin</h2>
       <label>World<select id="worldMode"><option value="training">TRAINING RANGE</option><option value="real">REAL WORLD · MY LOCATION</option></select></label>
       <div id="realWorldConfig" hidden>
-        <label style="margin-top:8px">Google Maps Tiles API key<input id="googleTilesKey" type="password" autocomplete="off" spellcheck="false" placeholder="Map Tiles API key · stored only on this device"></label>
-        <div class="row"><button id="useMyLocation" class="primary">USE MY GPS LOCATION</button><button id="forgetTilesKey">FORGET KEY</button></div>
-        <div class="help">Photorealistic 3D Tiles are visual/geospatial world truth. Flight dynamics, motors, sensors and FC remain the same local SI digital twin. The local launch plane is anchored to the sampled 3D surface at your GPS fix; streamed building meshes are not silently converted into fake collision physics.</div>
+        <div class="row"><button id="useMyLocation" class="primary">USE MY GPS LOCATION</button></div>
+        <div class="help">OpenFreeMap + OpenStreetMap render the real map directly in this browser. No account, API key or billing setup is required. OSM building heights are visual/geospatial data only; the flight controller, motors, sensors and rigid-body physics stay on the same local SI digital-twin path, and map geometry is never silently treated as collision truth.</div>
       </div>
       <div id="realWorldStatus" class="statusline">TRAINING RANGE · local metric world</div>`;
     const remote=document.querySelector(".remote-card");panel.insertBefore(card,remote||panel.children[3]||null);this.worldCard=card;
     const style=document.createElement("style");style.textContent=`
-      .real-world-card input[type=password]{width:100%;background:#0d1420;color:#fff;border:1px solid #303a4e;border-radius:6px;padding:6px}
-      #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:#000}
-      #geoViewport .cesium-viewer,#geoViewport .cesium-viewer-cesiumWidgetContainer,#geoViewport .cesium-widget,#geoViewport canvas{width:100%!important;height:100%!important}
-      #geoViewport .cesium-viewer-bottom{z-index:3!important;pointer-events:auto}
+      #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:#0b1018}
+      #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
+      #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
+      #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:#07101acc;color:#d8e0ea;font:8px/1.25 system-ui,-apple-system,sans-serif;pointer-events:none}
       #realWorldStatus{line-height:1.4}
     `;document.head.appendChild(style);
-    const mode=$("worldMode"),config=$("realWorldConfig"),key=$("googleTilesKey"),use=$("useMyLocation"),forget=$("forgetTilesKey");
-    try{key.value=localStorage.getItem(KEY_STORAGE)||"";}catch{}
+    const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
     mode.value="training";
     mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
-    key.onchange=()=>{try{const value=key.value.trim();if(value)localStorage.setItem(KEY_STORAGE,value);else localStorage.removeItem(KEY_STORAGE);}catch{}};
     use.onclick=()=>this.activate().catch(error=>this.fail(error));
-    forget.onclick=()=>{key.value="";try{localStorage.removeItem(KEY_STORAGE);}catch{};this.status("API key removed from this device.","warn");};
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
   status(text,kind=""){const el=$("realWorldStatus");if(!el)return;el.textContent=text;el.className=`statusline ${kind}`;}
-  fail(error){this.loading=false;this.status(`REAL WORLD unavailable · ${error.message}`,"bad");}
+  fail(error){this.loading=false;this.active=false;this.status(`REAL WORLD unavailable · ${error?.message||error}`,"bad");}
   attachThree(renderer,scene,camera){
     if(this.threeRenderer===renderer&&this.threeScene===scene&&this.threeCamera===camera)return;
     this.threeRenderer=renderer;this.threeScene=scene;this.threeCamera=camera;
@@ -91,48 +71,55 @@ class RealWorldBridge{
   }
   hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);child.visible=false;}}
   restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
-  async createViewer(){
-    if(this.viewer)return this.viewer;
-    const Cesium=await ensureCesium(),viewport=$("viewport");
-    const container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
-    this.viewer=new Cesium.Viewer(container,{animation:false,baseLayerPicker:false,fullscreenButton:false,geocoder:false,homeButton:false,infoBox:false,navigationHelpButton:false,sceneModePicker:false,selectionIndicator:false,timeline:false,globe:false,skyBox:false,skyAtmosphere:false,shouldAnimate:false});
-    this.viewer.scene.backgroundColor=Cesium.Color.BLACK;this.viewer.scene.fog.enabled=true;this.viewer.scene.fog.density=.00018;
-    return this.viewer;
+  addBuildings(){
+    if(!this.map||this.map.getLayer("arondight45-buildings-3d"))return;
+    const style=this.map.getStyle(),sourceId=Object.entries(style.sources||{}).find(([,source])=>source?.type==="vector")?.[0];
+    if(!sourceId){console.warn("OpenFreeMap style has no vector source for 3D buildings");return;}
+    const before=(style.layers||[]).find(layer=>layer.type==="symbol")?.id;
+    const layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":"#b9b6ad","fill-extrusion-height":["coalesce",["to-number",["get","render_height"]],8],"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.84,"fill-extrusion-vertical-gradient":true}};
+    try{if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}catch(error){console.warn("OpenFreeMap 3D building layer unavailable:",error);}
   }
-  key(){const input=$("googleTilesKey");let stored="";try{stored=localStorage.getItem(KEY_STORAGE)||"";}catch{}const value=(input?.value||stored).trim();if(input&&value)input.value=value;if(value)try{localStorage.setItem(KEY_STORAGE,value);}catch{}return value;}
+  async createMap(longitude,latitude){
+    if(this.map){this.geoContainer.hidden=false;this.map.resize();this.map.jumpTo({center:[longitude,latitude],zoom:19,pitch:55,bearing:0});return this.map;}
+    const viewport=$("viewport"),container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
+    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
+    this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});
+    this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
+    await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
+    this.addBuildings();return this.map;
+  }
   async activate(){
-    if(this.loading)return;const key=this.key();if(!key){$("realWorldConfig").hidden=false;this.status("REAL WORLD needs a browser-restricted Google Maps Tiles API key.","warn");return;}
+    if(this.loading)return;if(this.active)return;
     this.loading=true;this.status("REAL WORLD · requesting high-accuracy GPS permission…","warn");
-    const fix=await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy,altitude}=fix.coords;
-    if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");
-    this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading photorealistic 3D…`,"warn");
-    const Cesium=await ensureCesium(),viewer=await this.createViewer();this.geoContainer.hidden=false;
-    if(this.tileset){viewer.scene.primitives.remove(this.tileset);try{this.tileset.destroy();}catch{}this.tileset=null;}
-    const resource=`${GOOGLE_TILES_ROOT}?key=${encodeURIComponent(key)}`;
-    this.tileset=await Cesium.Cesium3DTileset.fromUrl(resource,{showCreditsOnScreen:true,maximumScreenSpaceError:12,skipLevelOfDetail:true});viewer.scene.primitives.add(this.tileset);
-    viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(longitude,latitude,1500),orientation:{heading:0,pitch:-Cesium.Math.PI_OVER_TWO,roll:0}});
-    let surface=Number.isFinite(altitude)?altitude:0;
     try{
-      if(!viewer.scene.sampleHeightSupported)throw Error("browser does not support scene height sampling");
-      const samples=[Cesium.Cartographic.fromDegrees(longitude,latitude,0)];
-      const result=await Promise.race([viewer.scene.sampleHeightMostDetailed(samples),new Promise((_,reject)=>setTimeout(()=>reject(Error("surface sampling timeout")),15000))]);
-      if(Number.isFinite(result?.[0]?.height))surface=result[0].height;
-    }catch(error){console.warn("Real-world surface sample fallback:",error);}
-    this.surfaceHeight=surface;this.origin=Cesium.Cartesian3.fromDegrees(longitude,latitude,surface);this.enuToFixed=Cesium.Transforms.eastNorthUpToFixedFrame(this.origin);this.ensureOverlayRenderer();this.active=true;this.loading=false;
-    if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;$("viewport").dataset.worldMode="real";$("viewport").dataset.worldLatitude=String(latitude);$("viewport").dataset.worldLongitude=String(longitude);$("viewport").dataset.worldSurfaceHeightM=String(surface);this.status(`REAL WORLD LIVE · GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · launch surface ${surface.toFixed(1)} m WGS84`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
+      const fix=await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;
+      if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");
+      this.originLat=latitude;this.originLon=longitude;this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");
+      await this.createMap(longitude,latitude);this.ensureOverlayRenderer();this.active=true;this.loading=false;
+      if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
+      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);
+      const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="real";if(config)config.hidden=false;
+      this.status(`REAL WORLD LIVE · OpenFreeMap · GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
+    }catch(error){this.loading=false;throw error;}
   }
   deactivate(){
-    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}$("viewport")?.removeAttribute("data-world-latitude");$("viewport")?.removeAttribute("data-world-longitude");if($("viewport"))$("viewport").dataset.worldMode="training";this.status("TRAINING RANGE · local metric world");try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
+    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;}
+    const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="training";if(config)config.hidden=true;this.status("TRAINING RANGE · local metric world");try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
-  syncCesiumCamera(camera){
-    if(!this.active||!this.viewer||!this.enuToFixed)return;const Cesium=globalThis.Cesium;
-    const p=camera.position,dir3=new THREE.Vector3(),up3=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir3);
-    const localPoint=new Cesium.Cartesian3(p.x,p.y,p.z),localDir=new Cesium.Cartesian3(dir3.x,dir3.y,dir3.z),localUp=new Cesium.Cartesian3(up3.x,up3.y,up3.z);
-    const destination=Cesium.Matrix4.multiplyByPoint(this.enuToFixed,localPoint,new Cesium.Cartesian3());const direction=Cesium.Cartesian3.normalize(Cesium.Matrix4.multiplyByPointAsVector(this.enuToFixed,localDir,new Cesium.Cartesian3()),new Cesium.Cartesian3());const up=Cesium.Cartesian3.normalize(Cesium.Matrix4.multiplyByPointAsVector(this.enuToFixed,localUp,new Cesium.Cartesian3()),new Cesium.Cartesian3());
-    this.viewer.camera.setView({destination,orientation:{direction,up}});if(this.viewer.camera.frustum?.fov!=null)this.viewer.camera.frustum.fov=THREE.MathUtils.degToRad(clamp(camera.fov,10,120));
+  syncMapCamera(camera){
+    if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
+    const p=camera.position,dir=new THREE.Vector3(),actualUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir).normalize();
+    let focusDistance=10;if(dir.z<-.02&&p.z>0){const ground=-p.z/dir.z;if(Number.isFinite(ground)&&ground>0)focusDistance=clamp(ground,2,250);}
+    const focus=p.clone().addScaledVector(dir,focusDistance),center=metersToLngLat(this.originLon,this.originLat,focus.x,focus.y),horizontal=Math.hypot(dir.x,dir.y);
+    const bearing=THREE.MathUtils.radToDeg(Math.atan2(dir.x,dir.y));const pitch=clamp(90+THREE.MathUtils.radToDeg(Math.atan2(dir.z,Math.max(1e-6,horizontal))),0,85);
+    let roll=0;if(horizontal>.02){const worldUp=new THREE.Vector3(0,0,1),right0=new THREE.Vector3().crossVectors(dir,worldUp).normalize(),up0=new THREE.Vector3().crossVectors(right0,dir).normalize();roll=THREE.MathUtils.radToDeg(Math.atan2(dir.dot(new THREE.Vector3().crossVectors(up0,actualUp)),up0.dot(actualUp)));}
+    const rect=$("viewport").getBoundingClientRect(),height=Math.max(1,rect.height),metersPerPixel=Math.max(.01,2*focusDistance*Math.tan(THREE.MathUtils.degToRad(clamp(camera.fov,10,120))/2)/height),cosLat=Math.max(.05,Math.cos(center[1]*Math.PI/180)),zoom=clamp(Math.log2(156543.03392804097*cosLat/metersPerPixel),14,22),size=`${Math.round(rect.width)}x${Math.round(rect.height)}`;
+    if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
+    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});
   }
   renderReal(scene,camera,originalRender){
-    this.syncCesiumCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();
+    this.syncMapCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();
   }
 }
 
