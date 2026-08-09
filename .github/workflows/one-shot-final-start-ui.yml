@@ -1,0 +1,79 @@
+name: One shot final simulator start UI
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/one-shot-final-start-ui.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install START SIM and ARM attention cues
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path=Path('sim/simulator.mjs')
+          s=path.read_text()
+
+          old="""cameraHud.innerHTML='<button id=\"camFollow\" type=\"button\">FOLLOW</button><button id=\"camFpv\" type=\"button\">FPV</button><button id=\"camThird\" type=\"button\">THIRD</button><button id=\"camSolo\" type=\"button\">1 PHONE</button><button id=\"soundToggle\" type=\"button\">SOUND</button>';"""
+          new="""cameraHud.innerHTML='<button id=\"camFollow\" type=\"button\">FOLLOW</button><button id=\"camFpv\" type=\"button\">FPV</button><button id=\"camThird\" type=\"button\">THIRD</button><button id=\"camSolo\" class=\"start-sim-cta\" type=\"button\">START SIM</button><button id=\"soundToggle\" type=\"button\">SOUND</button>';"""
+          if old not in s: raise SystemExit('camSolo label anchor missing')
+          s=s.replace(old,new,1)
+
+          old='''  <button id="soloArm" class="solo-action" type="button">ARM</button>'''
+          new='''  <button id="soloArm" class="solo-action arm-start-cta" type="button">ARM</button>'''
+          if old not in s: raise SystemExit('soloArm class anchor missing')
+          s=s.replace(old,new,1)
+
+          old='''  #soloArm{left:50%;transform:translateX(-105%);background:#17694fdd!important} #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}\n'''
+          new='''  @keyframes startSimPulse{0%,100%{box-shadow:0 0 0 0 #63e7b833,0 0 10px #32d89a44}50%{box-shadow:0 0 0 5px #63e7b822,0 0 26px #32d89a99}}\n  @keyframes armStartPulse{0%,100%{box-shadow:0 0 0 0 #63e7b844,0 0 12px #32d89a55}50%{box-shadow:0 0 0 6px #63e7b822,0 0 30px #32d89aaa}}\n  #camSolo.start-sim-cta{background:#17694f!important;border-color:#63e7b8!important;color:#fff!important;animation:startSimPulse 1.55s ease-in-out infinite;transition:filter .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease}\n  #camSolo.start-sim-cta:hover,#camSolo.start-sim-cta:focus-visible{background:#218865!important;border-color:#b2ffe3!important;filter:brightness(1.14);box-shadow:0 0 0 4px #63e7b833,0 0 32px #32d89acc!important;outline:none}\n  #soloArm{left:50%;transform:translateX(-105%);background:#17694fdd!important;transition:filter .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease}\n  body.solo-flight #soloArm.arm-start-cta.attention:not(:disabled){animation:armStartPulse 1.3s ease-in-out infinite;border-color:#7ff0c5!important}\n  body.solo-flight #soloArm:not(:disabled):hover,body.solo-flight #soloArm:not(:disabled):focus-visible{background:#218865!important;border-color:#c2ffea!important;filter:brightness(1.16);box-shadow:0 0 0 4px #63e7b833,0 0 32px #32d89acc!important;outline:none}\n  body.solo-flight #soloArm.arming,body.solo-flight #soloArm.armed{animation:none!important}\n  #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}\n'''
+          if old not in s: raise SystemExit('solo action style anchor missing')
+          s=s.replace(old,new,1)
+
+          old='''soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&(!(fcState&STATE_NAVIGATION_VALID)||!sharedArmReady(stateText,soloControls,true,phoneSettings));soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");'''
+          new='''const soloCanArm=!soloControls.arm&&Boolean(fcState&STATE_NAVIGATION_VALID)&&sharedArmReady(stateText,soloControls,true,phoneSettings);soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.classList.toggle("armed",stateText==="ARMED");soloArm.classList.toggle("attention",soloCanArm);soloArm.disabled=!soloControls.arm&&!soloCanArm;soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");'''
+          if old not in s: raise SystemExit('solo ARM render anchor missing')
+          s=s.replace(old,new,1)
+
+          path.write_text(s)
+
+          test=Path('tests/solo_layout_smoke.mjs')
+          t=test.read_text()
+          old='''    await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});\n    await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});\n    await page.click("#camSolo");'''
+          new='''    await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});\n    await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});\n    const startCue=await page.evaluate(()=>{const e=document.querySelector("#camSolo"),style=getComputedStyle(e);return{text:e?.textContent?.trim()||"",className:e?.className||"",animation:style.animationName,background:style.backgroundColor};});\n    if(startCue.text!=="START SIM"||!startCue.className.includes("start-sim-cta")||startCue.animation==="none")throw new Error(`${viewport.name}: START SIM cue missing: ${JSON.stringify(startCue)}`);\n    await page.click("#camSolo");'''
+          if old not in t: raise SystemExit('solo layout test entry anchor missing')
+          t=t.replace(old,new,1)
+
+          old='''        topbar:rect("#soloTopbar"),race:rect("#soloRaceHud"),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill")\n      };'''
+          new='''        topbar:rect("#soloTopbar"),race:rect("#soloRaceHud"),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),\n        armCueClass:document.querySelector("#soloArm")?.className||"",armLabel:document.querySelector("#soloArm")?.textContent?.trim()||""\n      };'''
+          if old not in t: raise SystemExit('solo layout test geometry anchor missing')
+          t=t.replace(old,new,1)
+
+          old='''    for(const key of ["topbar","race","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);'''
+          new='''    for(const key of ["topbar","race","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);\n    if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM start cue class missing: ${JSON.stringify({className:g.armCueClass,label:g.armLabel})}`);'''
+          if old not in t: raise SystemExit('solo layout test cue anchor missing')
+          t=t.replace(old,new,1)
+          test.write_text(t)
+          PY
+
+          node --check sim/simulator.mjs
+          node --check tests/solo_layout_smoke.mjs
+          grep -q 'START SIM' sim/simulator.mjs
+          grep -q 'startSimPulse' sim/simulator.mjs
+          grep -q 'armStartPulse' sim/simulator.mjs
+          ! grep -q '>1 PHONE<' sim/simulator.mjs
+          git diff --check
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add sim/simulator.mjs tests/solo_layout_smoke.mjs
+          git commit -m "Make simulator start and ARM actions obvious"
+          git push origin HEAD:main
