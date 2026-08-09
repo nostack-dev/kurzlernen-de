@@ -1,6 +1,7 @@
 export const MAX_PHONE_EXPO=0.70;
 export const MIN_GAME_CLEARANCE_M=0.5;
 export const MAX_GAME_CLEARANCE_M=50.0;
+// UI/transport range mirrors the FC's hardware-side GAME clearance envelope.
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
