@@ -48,6 +48,7 @@ jobs:
       - name: Architecture and JavaScript validation
         run: |
           set -euxo pipefail
+          node --check sim/real_world_bootstrap.mjs
           node --check sim/simulator.mjs
           node --check sim/controller.mjs
           node --check sim/p2p_link.mjs
