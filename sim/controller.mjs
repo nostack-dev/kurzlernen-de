@@ -21,7 +21,7 @@ let phoneSettings=loadPhoneControlSettings();
 let offerCreating=false;
 let lastTelemetry={fc_state:"—"};
 let gameMode=localStorage.getItem("arondight45ControlMode")!=="manual";
-let groundClearance=clamp(Number(localStorage.getItem("arondight45GroundClearance"))||2,.5,5);
+let groundClearance=phoneSettings.defaultHoverAgl;
 
 function neutralForMode(){return{...neutralControls(),gameMode,groundClearance};}
 let controls=neutralForMode();
@@ -30,7 +30,6 @@ function setGroundClearance(value){
   const numeric=Number(value);
   if(!Number.isFinite(numeric))return;
   groundClearance=clamp(Math.round(numeric*10)/10,.5,5);
-  localStorage.setItem("arondight45GroundClearance",String(groundClearance));
   controls.groundClearance=groundClearance;
   renderClearance();publish();
 }
@@ -230,14 +229,15 @@ mountPhoneControlSettings({
   onChange:next=>{
     phoneSettings=next;
     const keepArm=gameMode&&controls.arm;
+    if(!keepArm)groundClearance=next.defaultHoverAgl;
     controls=neutralForMode();controls.arm=keepArm;
     updateSticks();publish();
   },
 });
 
 addEventListener("pagehide",()=>safetyNeutral(true));
-addEventListener("pageshow",()=>{phoneSettings=loadPhoneControlSettings();safetyNeutral(false);publish();updateConnection();});
-document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{phoneSettings=loadPhoneControlSettings();publish();updateConnection();}});
+addEventListener("pageshow",()=>{phoneSettings=loadPhoneControlSettings();if(!controls.arm)groundClearance=phoneSettings.defaultHoverAgl;safetyNeutral(false);publish();updateConnection();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{phoneSettings=loadPhoneControlSettings();if(!controls.arm)groundClearance=phoneSettings.defaultHoverAgl;publish();updateConnection();}});
 setInterval(()=>publish(),SEND_INTERVAL_MS);
 setInterval(updateConnection,250);
 

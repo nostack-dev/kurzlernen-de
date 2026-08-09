@@ -397,24 +397,16 @@ function integrateDuration(model,pulses,duration){
 }
 
 class MotorSound {
-  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque:2bladeBPF";this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";this.viewport.dataset.motorAudioEscToneCount="0";}
+  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque+tipSpeed:bladeImpulseNoise";this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";this.viewport.dataset.motorAudioEscToneCount="0";}
   isRunning(){return Boolean(this.ctx&&this.ctx.state==="running");}
   syncState(){this.unlocked=this.isRunning();this.viewport.dataset.motorAudioContextState=this.ctx?.state||"uninitialized";return this.unlocked;}
   ensure(){
     if(this.ctx){this.syncState();return true;}const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return false;
     try{this.ctx=new AudioCtx({latencyHint:"interactive"});}catch{this.ctx=new AudioCtx();}
-    this.master=this.ctx.createGain();this.master.gain.value=0;
-    this.compressor=this.ctx.createDynamicsCompressor();this.compressor.threshold.value=-18;this.compressor.knee.value=18;this.compressor.ratio.value=3;this.compressor.attack.value=.004;this.compressor.release.value=.12;this.master.connect(this.compressor);this.compressor.connect(this.ctx.destination);
-    const real=new Float32Array(7),imag=new Float32Array([0,1,.36,.17,.09,.05,.025]);
-    this.bladeWave=this.ctx.createPeriodicWave(real,imag,{disableNormalization:false});
-    for(let i=0;i<4;i++){
-      const blade=this.ctx.createOscillator(),bladeGain=this.ctx.createGain(),rotor=this.ctx.createOscillator(),rotorGain=this.ctx.createGain();
-      blade.setPeriodicWave(this.bladeWave);rotor.type="sine";bladeGain.gain.value=0;rotorGain.gain.value=0;
-      blade.connect(bladeGain);rotor.connect(rotorGain);bladeGain.connect(this.master);rotorGain.connect(this.master);blade.start();rotor.start();this.voices.push({blade,bladeGain,rotor,rotorGain});
-    }
-    const noiseBuffer=this.ctx.createBuffer(1,this.ctx.sampleRate*2,this.ctx.sampleRate),noise=noiseBuffer.getChannelData(0);let seed=0x45a31f27;
-    for(let i=0;i<noise.length;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;noise[i]=((seed>>>0)/2147483648)-1;}
-    this.airNoise=this.ctx.createBufferSource();this.airNoise.buffer=noiseBuffer;this.airNoise.loop=true;this.airHighpass=this.ctx.createBiquadFilter();this.airHighpass.type="highpass";this.airHighpass.frequency.value=120;this.airBandpass=this.ctx.createBiquadFilter();this.airBandpass.type="bandpass";this.airBandpass.Q.value=.72;this.airNoiseGain=this.ctx.createGain();this.airNoiseGain.gain.value=0;this.airNoise.connect(this.airHighpass);this.airHighpass.connect(this.airBandpass);this.airBandpass.connect(this.airNoiseGain);this.airNoiseGain.connect(this.master);this.airNoise.start();
+    this.master=this.ctx.createGain();this.master.gain.value=0;this.compressor=this.ctx.createDynamicsCompressor();this.compressor.threshold.value=-16;this.compressor.knee.value=20;this.compressor.ratio.value=3;this.compressor.attack.value=.003;this.compressor.release.value=.14;this.master.connect(this.compressor);this.compressor.connect(this.ctx.destination);
+    const noiseBuffer=this.ctx.createBuffer(1,this.ctx.sampleRate*3,this.ctx.sampleRate),data=noiseBuffer.getChannelData(0);let seed=0x45a31f27;for(let i=0;i<data.length;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;data[i]=((seed>>>0)/2147483648)-1;}
+    for(let i=0;i<4;i++){const noise=this.ctx.createBufferSource(),band=this.ctx.createBiquadFilter(),pulseGain=this.ctx.createGain(),pulseLfo=this.ctx.createOscillator(),pulseDepth=this.ctx.createGain();noise.buffer=noiseBuffer;noise.loop=true;band.type="bandpass";band.Q.value=.72;pulseGain.gain.value=0;pulseLfo.type="sine";pulseDepth.gain.value=0;noise.connect(band);band.connect(pulseGain);pulseGain.connect(this.master);pulseLfo.connect(pulseDepth);pulseDepth.connect(pulseGain.gain);noise.start(0,i*.413);pulseLfo.start();this.voices.push({noise,band,pulseGain,pulseLfo,pulseDepth});}
+    this.washNoise=this.ctx.createBufferSource();this.washNoise.buffer=noiseBuffer;this.washNoise.loop=true;this.washBand=this.ctx.createBiquadFilter();this.washBand.type="bandpass";this.washBand.Q.value=.48;this.washGain=this.ctx.createGain();this.washGain.gain.value=0;this.washNoise.connect(this.washBand);this.washBand.connect(this.washGain);this.washGain.connect(this.master);this.washNoise.start(0,1.37);
     this.ctx.addEventListener?.("statechange",()=>this.syncState());this.syncState();return true;
   }
   async unlock(){
@@ -462,20 +454,11 @@ class MotorSound {
   }
   update(model,cameraPosition){
     const running=this.syncState(),omega=model.motorOmega||[],motorTorque=model.motorTorque||[],propTorque=model.propTorque||[],diameter=Math.max(.02,Number(model.p?.propD)||.127);let weightedHz=0,totalPropPower=0,totalTipSpeed=0;
-    for(let i=0;i<4;i++){
-      const w=Math.max(0,Number(omega[i])||0),rotorHz=w/(2*Math.PI),bladePassHz=rotorHz*2,shaftPower=Math.max(0,(Number(propTorque[i])||0)*w),electromagneticPower=Math.max(0,(Number(motorTorque[i])||0)*w),tipSpeed=w*diameter*.5;
-      weightedHz+=bladePassHz*shaftPower;totalPropPower+=shaftPower;totalTipSpeed+=tipSpeed;
-      const voice=this.voices[i];if(!voice||!this.ctx)continue;
-      const now=this.ctx.currentTime,drive=rotorHz>2?Math.tanh((shaftPower+electromagneticPower*.12)/30):0;
-      voice.blade.frequency.setTargetAtTime(Math.max(45,bladePassHz),now,.016);
-      voice.rotor.frequency.setTargetAtTime(Math.max(32,rotorHz),now,.018);
-      voice.bladeGain.gain.setTargetAtTime(.022*drive,now,.025);
-      voice.rotorGain.gain.setTargetAtTime(.0055*drive,now,.030);
-    }
+    for(let i=0;i<4;i++){const w=Math.max(0,Number(omega[i])||0),rotorHz=w/(2*Math.PI),bladePassHz=rotorHz*2,shaftPower=Math.max(0,(Number(propTorque[i])||0)*w),electromagneticPower=Math.max(0,(Number(motorTorque[i])||0)*w),tipSpeed=w*diameter*.5;weightedHz+=bladePassHz*shaftPower;totalPropPower+=shaftPower;totalTipSpeed+=tipSpeed;const voice=this.voices[i];if(!voice||!this.ctx)continue;const now=this.ctx.currentTime,drive=rotorHz>2?Math.tanh((shaftPower+electromagneticPower*.12)/34):0,centre=Math.max(180,Math.min(6200,bladePassHz*1.32+tipSpeed*3.0));voice.band.frequency.setTargetAtTime(centre,now,.025);voice.pulseLfo.frequency.setTargetAtTime(Math.max(12,bladePassHz),now,.018);voice.pulseGain.gain.setTargetAtTime(.014*drive,now,.030);voice.pulseDepth.gain.setTargetAtTime(.0105*drive,now,.030);}
     const meanHz=totalPropPower>1e-9?weightedHz/totalPropPower:omega.reduce((sum,w)=>sum+Math.max(0,Number(w)||0)/Math.PI,0)/4,meanTipSpeed=totalTipSpeed/4;
-    if(this.airBandpass&&this.airNoiseGain&&this.ctx){const now=this.ctx.currentTime,airDrive=Math.tanh(totalPropPower/85)*(.30+.70*Math.tanh(meanTipSpeed/95));this.airBandpass.frequency.setTargetAtTime(Math.max(180,Math.min(5200,meanHz*1.65)),now,.045);this.airNoiseGain.gain.setTargetAtTime(.045*airDrive,now,.055);}
+    if(this.washBand&&this.washGain&&this.ctx){const now=this.ctx.currentTime,washDrive=Math.tanh(totalPropPower/95)*(.25+.75*Math.tanh(meanTipSpeed/105));this.washBand.frequency.setTargetAtTime(Math.max(220,Math.min(7000,meanHz*2.15+meanTipSpeed*4)),now,.055);this.washGain.gain.setTargetAtTime(.033*washDrive,now,.060);}
     this.viewport.dataset.motorAudioHz=String(meanHz);this.viewport.dataset.motorAudioPowerW=String(totalPropPower);
-    if(this.master&&this.ctx){const p=model.position(),distance=cameraPosition?Math.hypot(cameraPosition.x-p[0],cameraPosition.y-p[1],cameraPosition.z-p[2]):1,distanceGain=1/(1+.12*distance*distance),target=(this.enabled&&running)?.48*distanceGain:0;this.viewport.dataset.motorAudioGain=String(target);this.master.gain.setTargetAtTime(target,this.ctx.currentTime,.045);}
+    if(this.master&&this.ctx){const p=model.position(),distance=cameraPosition?Math.hypot(cameraPosition.x-p[0],cameraPosition.y-p[1],cameraPosition.z-p[2]):1,distanceGain=1/(1+.12*distance*distance),target=(this.enabled&&running)?.60*distanceGain:0;this.viewport.dataset.motorAudioGain=String(target);this.master.gain.setTargetAtTime(target,this.ctx.currentTime,.050);}
   }
 
 }
@@ -602,7 +585,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
 document.head.appendChild(soloStyle);
 
 let soloMode=false,soloPreviousInputSource="remote",phoneSettings=loadPhoneControlSettings();
-let soloGroundClearance=clamp(Number(localStorage.getItem("arondight45GroundClearance"))||2,.5,5);
+let soloGroundClearance=phoneSettings.defaultHoverAgl;
 function neutralSoloControls(){return{...neutralControls(),gameMode:true,groundClearance:soloGroundClearance};}
 let soloControls=neutralSoloControls();
 const soloClearanceSlider=$("soloClearanceSlider"),soloClearanceValue=$("soloClearanceValue"),soloRangeStatus=$("soloRangeStatus");soloClearanceSlider.value=String(soloGroundClearance);
@@ -620,16 +603,16 @@ function soloStick(el,kind){
   const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.bodyPitch=0;}updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);
 }
-soloClearanceSlider.oninput=()=>{soloGroundClearance=clamp(Number(soloClearanceSlider.value),.5,5);localStorage.setItem("arondight45GroundClearance",String(soloGroundClearance));soloControls.groundClearance=soloGroundClearance;updateSoloSticks();};
+soloClearanceSlider.oninput=()=>{soloGroundClearance=clamp(Number(soloClearanceSlider.value),.5,5);soloControls.groundClearance=soloGroundClearance;updateSoloSticks();};
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
 const soloSettingsMount=mountPhoneControlSettings({
   parent:$("soloTopbar"),
   buttonText:"SETTINGS",
-  onChange:next=>{phoneSettings=next;const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;},
+  onChange:next=>{phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm){soloGroundClearance=next.defaultHoverAgl;soloClearanceSlider.value=String(soloGroundClearance);}soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
 async function enterSolo(){
-  soloMode=true;soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=clamp(Number(localStorage.getItem("arondight45GroundClearance"))||soloGroundClearance,.5,5);soloClearanceSlider.value=String(soloGroundClearance);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
+  soloMode=true;soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;soloClearanceSlider.value=String(soloGroundClearance);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   if(mode==="sim"&&backend&&!running)startRun();
@@ -672,6 +655,7 @@ async function switchMode(next){
   updateModeUI();
 }
 function resetSimulation(initial=null){
+  phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;soloClearanceSlider.value=String(soloGroundClearance);
   physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }

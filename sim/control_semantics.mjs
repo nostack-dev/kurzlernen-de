@@ -12,6 +12,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   invertLeftHorizontal:false,
   invertRightHorizontal:false,
   invertRightVertical:false,
+  defaultHoverAgl:2,
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,bodyPitch:0,arm:false};}
@@ -33,6 +34,7 @@ export function normalizePhoneSettings(settings={}){
     invertLeftHorizontal:Boolean(settings.invertLeftHorizontal),
     invertRightHorizontal:Boolean(settings.invertRightHorizontal),
     invertRightVertical:Boolean(settings.invertRightVertical),
+    defaultHoverAgl:Math.round(clampControl(Number(settings.defaultHoverAgl??DEFAULT_PHONE_SETTINGS.defaultHoverAgl),.5,5)*10)/10,
   };
 }
 

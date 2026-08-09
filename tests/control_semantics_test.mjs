@@ -23,6 +23,7 @@ assert.equal(DEFAULT_PHONE_SETTINGS.lockLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,false);
+assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,2);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
 near(MAX_PHONE_EXPO,.70,1e-12,"max phone expo");
