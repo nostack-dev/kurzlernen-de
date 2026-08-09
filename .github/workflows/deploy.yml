@@ -5,30 +5,126 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-concurrency:
-  group: github-pages
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  align:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      # ALIGN_MIGRATION_BEGIN
-      - name: One-time unify 1-PHONE and 2-PHONE GAME semantics
+      - name: Align 1-PHONE and 2-PHONE GAME controls
         run: |
           set -euxo pipefail
-          python3 -c "$(printf '%s' 'CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKZGVmIHJlcGxhY2Vfb25jZShwYXRoLCBvbGQsIG5ldyk6CiAgICBwPVBhdGgocGF0aCk7IHRleHQ9cC5yZWFkX3RleHQoKQogICAgY291bnQ9dGV4dC5jb3VudChvbGQpCiAgICBhc3NlcnQgY291bnQ9PTEsIGYie3BhdGh9OiBleHBlY3RlZCBleGFjdGx5IG9uZSBtYXRjaCwgZ290IHtjb3VudH0iCiAgICBwLndyaXRlX3RleHQodGV4dC5yZXBsYWNlKG9sZCxuZXcsMSkpCgpzZW1hbnRpY3M9UGF0aCgic2ltL2NvbnRyb2xfc2VtYW50aWNzLm1qcyIpCnRleHQ9c2VtYW50aWNzLnJlYWRfdGV4dCgpCm1hcmtlcj0nZXhwb3J0IGZ1bmN0aW9uIGFwcGx5U3RpY2soY29udHJvbHMsa2luZCxwb2ludCxzZXR0aW5ncz1ERUZBVUxUX1BIT05FX1NFVFRJTkdTKXtcbicKYXNzZXJ0IG1hcmtlciBpbiB0ZXh0CnNoYXJlZD0nJydleHBvcnQgZnVuY3Rpb24gYXBwbHlHYW1lU3RpY2soY29udHJvbHMsa2luZCxwb2ludCxzZXR0aW5ncz1ERUZBVUxUX1BIT05FX1NFVFRJTkdTKXsKICBjb25zdCBjZmc9bm9ybWFsaXplUGhvbmVTZXR0aW5ncyhzZXR0aW5ncyk7CiAgaWYoa2luZD09PSJsZWZ0Iil7CiAgICBjb25zdCB4PWNmZy5pbnZlcnRMZWZ0SG9yaXpvbnRhbD8tcG9pbnQueDpwb2ludC54OwogICAgY29udHJvbHMucm9sbD1jZmcubG9ja0xlZnRIb3Jpem9udGFsPzA6cGhvbmVBeGlzKHgsY2ZnLmxlZnRGaW5lbmVzcyk7CiAgICBjb250cm9scy5waXRjaD1waG9uZUF4aXMoLXBvaW50LnksY2ZnLmxlZnRGaW5lbmVzcyk7CiAgICBjb250cm9scy50aHJvdHRsZT0wOwogIH1lbHNlewogICAgY29uc3QgeD1jZmcuaW52ZXJ0UmlnaHRIb3Jpem9udGFsPy1wb2ludC54OnBvaW50Lng7CiAgICBjb25zdCB5PWNmZy5pbnZlcnRSaWdodFZlcnRpY2FsPy1wb2ludC55OnBvaW50Lnk7CiAgICBjb250cm9scy55YXc9cGhvbmVBeGlzKC14LGNmZy5yaWdodEZpbmVuZXNzKTsKICAgIGNvbnRyb2xzLmJvZHlQaXRjaD1jZmcubG9ja1JpZ2h0SG9yaXpvbnRhbD8wOnBob25lQXhpcygteSxjZmcucmlnaHRGaW5lbmVzcyk7CiAgfQogIHJldHVybiBjb250cm9sczsKfQpleHBvcnQgZnVuY3Rpb24gZ2FtZUtub2JBeGVzKGNvbnRyb2xzLGtpbmQsc2V0dGluZ3M9REVGQVVMVF9QSE9ORV9TRVRUSU5HUyl7CiAgY29uc3QgY2ZnPW5vcm1hbGl6ZVBob25lU2V0dGluZ3Moc2V0dGluZ3MpOwogIGlmKGtpbmQ9PT0ibGVmdCIpewogICAgY29uc3QgcmF3WD1jZmcubG9ja0xlZnRIb3Jpem9udGFsPzA6aW52ZXJzZVBob25lQXhpcyhjb250cm9scy5yb2xsLGNmZy5sZWZ0RmluZW5lc3MpOwogICAgcmV0dXJue3g6Y2ZnLmludmVydExlZnRIb3Jpem9udGFsPy1yYXdYOnJhd1gseTotaW52ZXJzZVBob25lQXhpcyhjb250cm9scy5waXRjaCxjZmcubGVmdEZpbmVuZXNzKX07CiAgfQogIGNvbnN0IHJhd1g9LWludmVyc2VQaG9uZUF4aXMoY29udHJvbHMueWF3LGNmZy5yaWdodEZpbmVuZXNzKTsKICBjb25zdCByYXdZPWNmZy5sb2NrUmlnaHRIb3Jpem9udGFsPzA6LWludmVyc2VQaG9uZUF4aXMoY29udHJvbHMuYm9keVBpdGNofHwwLGNmZy5yaWdodEZpbmVuZXNzKTsKICByZXR1cm57eDpjZmcuaW52ZXJ0UmlnaHRIb3Jpem9udGFsPy1yYXdYOnJhd1gseTpjZmcuaW52ZXJ0UmlnaHRWZXJ0aWNhbD8tcmF3WTpyYXdZfTsKfQoKJycnCnNlbWFudGljcy53cml0ZV90ZXh0KHRleHQucmVwbGFjZShtYXJrZXIsc2hhcmVkK21hcmtlciwxKSkKCnJlcGxhY2Vfb25jZSgic2ltL2NvbnRyb2xsZXIubWpzIiwKJ2FwcGx5U3RpY2sscmVsZWFzZVN0aWNrLGtub2JBeGVzLGtub2JQZXJjZW50LHBob25lQXhpcyxpbnZlcnNlUGhvbmVBeGlzfScsCidhcHBseVN0aWNrLHJlbGVhc2VTdGljayxrbm9iQXhlcyxrbm9iUGVyY2VudCxwaG9uZUF4aXMsaW52ZXJzZVBob25lQXhpcyxhcHBseUdhbWVTdGljayxnYW1lS25vYkF4ZXN9JykKcmVwbGFjZV9vbmNlKCJzaW0vY29udHJvbGxlci5tanMiLAonJycgICAgY29uc3QgbGVmdFJhd1g9cGhvbmVTZXR0aW5ncy5sb2NrTGVmdEhvcml6b250YWw/MDppbnZlcnNlUGhvbmVBeGlzKGNvbnRyb2xzLnJvbGwscGhvbmVTZXR0aW5ncy5sZWZ0RmluZW5lc3MpOwogICAgbGVmdD17eDpwaG9uZVNldHRpbmdzLmludmVydExlZnRIb3Jpem9udGFsPy1sZWZ0UmF3WDpsZWZ0UmF3WCx5Oi1pbnZlcnNlUGhvbmVBeGlzKGNvbnRyb2xzLnBpdGNoLHBob25lU2V0dGluZ3MubGVmdEZpbmVuZXNzKX07CiAgICBjb25zdCByYXdYPS1pbnZlcnNlUGhvbmVBeGlzKGNvbnRyb2xzLnlhdyxwaG9uZVNldHRpbmdzLnJpZ2h0RmluZW5lc3MpLHJhd1k9cGhvbmVTZXR0aW5ncy5sb2NrUmlnaHRIb3Jpem9udGFsPzA6LWludmVyc2VQaG9uZUF4aXMoY29udHJvbHMuYm9keVBpdGNofHwwLHBob25lU2V0dGluZ3MucmlnaHRGaW5lbmVzcyk7CiAgICByaWdodD17eDpwaG9uZVNldHRpbmdzLmludmVydFJpZ2h0SG9yaXpvbnRhbD8tcmF3WDpyYXdYLHk6cGhvbmVTZXR0aW5ncy5pbnZlcnRSaWdodFZlcnRpY2FsPy1yYXdZOnJhd1l9OycnJywKJycnICAgIGxlZnQ9Z2FtZUtub2JBeGVzKGNvbnRyb2xzLCJsZWZ0IixwaG9uZVNldHRpbmdzKTsKICAgIHJpZ2h0PWdhbWVLbm9iQXhlcyhjb250cm9scywicmlnaHQiLHBob25lU2V0dGluZ3MpOycnJykKcmVwbGFjZV9vbmNlKCJzaW0vY29udHJvbGxlci5tanMiLAonJycgICAgaWYoZ2FtZU1vZGUpewogICAgICBpZihraW5kPT09ImxlZnQiKXsKICAgICAgICBjb25zdCB4PXBob25lU2V0dGluZ3MuaW52ZXJ0TGVmdEhvcml6b250YWw/LXBvaW50Lng6cG9pbnQueDsKICAgICAgICBjb250cm9scy5yb2xsPXBob25lU2V0dGluZ3MubG9ja0xlZnRIb3Jpem9udGFsPzA6cGhvbmVBeGlzKHgscGhvbmVTZXR0aW5ncy5sZWZ0RmluZW5lc3MpOwogICAgICAgIGNvbnRyb2xzLnBpdGNoPXBob25lQXhpcygtcG9pbnQueSxwaG9uZVNldHRpbmdzLmxlZnRGaW5lbmVzcyk7CiAgICAgICAgY29udHJvbHMudGhyb3R0bGU9MDsKICAgICAgfWVsc2V7CiAgICAgICAgY29uc3QgeD1waG9uZVNldHRpbmdzLmludmVydFJpZ2h0SG9yaXpvbnRhbD8tcG9pbnQueDpwb2ludC54OwogICAgICAgIGNvbnN0IHk9cGhvbmVTZXR0aW5ncy5pbnZlcnRSaWdodFZlcnRpY2FsPy1wb2ludC55OnBvaW50Lnk7CiAgICAgICAgY29udHJvbHMueWF3PXBob25lQXhpcygteCxwaG9uZVNldHRpbmdzLnJpZ2h0RmluZW5lc3MpOwogICAgICAgIGNvbnRyb2xzLmJvZHlQaXRjaD1waG9uZVNldHRpbmdzLmxvY2tSaWdodEhvcml6b250YWw/MDpwaG9uZUF4aXMoLXkscGhvbmVTZXR0aW5ncy5yaWdodEZpbmVuZXNzKTsKICAgICAgfQogICAgfWVsc2UgYXBwbHlTdGljayhjb250cm9scyxraW5kLHBvaW50LHBob25lU2V0dGluZ3MpOycnJywKJycnICAgIGlmKGdhbWVNb2RlKWFwcGx5R2FtZVN0aWNrKGNvbnRyb2xzLGtpbmQscG9pbnQscGhvbmVTZXR0aW5ncyk7CiAgICBlbHNlIGFwcGx5U3RpY2soY29udHJvbHMsa2luZCxwb2ludCxwaG9uZVNldHRpbmdzKTsnJycpCgpyZXBsYWNlX29uY2UoInNpbS9zaW11bGF0b3IubWpzIiwKJ2FwcGx5U3RpY2sscmVsZWFzZVN0aWNrLGtub2JBeGVzLGtub2JQZXJjZW50LHBob25lQXhpcyxpbnZlcnNlUGhvbmVBeGlzfScsCidhcHBseVN0aWNrLHJlbGVhc2VTdGljayxrbm9iQXhlcyxrbm9iUGVyY2VudCxwaG9uZUF4aXMsaW52ZXJzZVBob25lQXhpcyxhcHBseUdhbWVTdGljayxnYW1lS25vYkF4ZXN9JykKcmVwbGFjZV9vbmNlKCJzaW0vc2ltdWxhdG9yLm1qcyIsCicnJyAgY29uc3QgbGVmdD17eDpwaG9uZVNldHRpbmdzLmxvY2tMZWZ0SG9yaXpvbnRhbD8wOmludmVyc2VQaG9uZUF4aXMoc29sb0NvbnRyb2xzLnJvbGwscGhvbmVTZXR0aW5ncy5sZWZ0RmluZW5lc3MpLHk6LWludmVyc2VQaG9uZUF4aXMoc29sb0NvbnRyb2xzLnBpdGNoLHBob25lU2V0dGluZ3MubGVmdEZpbmVuZXNzKX07CiAgY29uc3QgcmF3WD0taW52ZXJzZVBob25lQXhpcyhzb2xvQ29udHJvbHMueWF3LHBob25lU2V0dGluZ3MucmlnaHRGaW5lbmVzcykscmF3WT1waG9uZVNldHRpbmdzLmxvY2tSaWdodEhvcml6b250YWw/MDotaW52ZXJzZVBob25lQXhpcyhzb2xvQ29udHJvbHMuYm9keVBpdGNofHwwLHBob25lU2V0dGluZ3MucmlnaHRGaW5lbmVzcyk7CiAgY29uc3QgcmlnaHQ9e3g6cGhvbmVTZXR0aW5ncy5pbnZlcnRSaWdodEhvcml6b250YWw/LXJhd1g6cmF3WCx5OnBob25lU2V0dGluZ3MuaW52ZXJ0UmlnaHRWZXJ0aWNhbD8tcmF3WTpyYXdZfTsnJycsCicnJyAgY29uc3QgbGVmdD1nYW1lS25vYkF4ZXMoc29sb0NvbnRyb2xzLCJsZWZ0IixwaG9uZVNldHRpbmdzKTsKICBjb25zdCByaWdodD1nYW1lS25vYkF4ZXMoc29sb0NvbnRyb2xzLCJyaWdodCIscGhvbmVTZXR0aW5ncyk7JycnKQpyZXBsYWNlX29uY2UoInNpbS9zaW11bGF0b3IubWpzIiwKJycnICBjb25zdCBhcHBseT1lPT57Y29uc3QgcG9pbnQ9bm9ybWFsaXplZFBvaW50ZXIoZWwsZSk7aWYoa2luZD09PSJsZWZ0Iil7c29sb0NvbnRyb2xzLnJvbGw9cGhvbmVTZXR0aW5ncy5sb2NrTGVmdEhvcml6b250YWw/MDpwaG9uZUF4aXMocG9pbnQueCxwaG9uZVNldHRpbmdzLmxlZnRGaW5lbmVzcyk7c29sb0NvbnRyb2xzLnBpdGNoPXBob25lQXhpcygtcG9pbnQueSxwaG9uZVNldHRpbmdzLmxlZnRGaW5lbmVzcyk7c29sb0NvbnRyb2xzLnRocm90dGxlPTA7fWVsc2V7Y29uc3QgeD1waG9uZVNldHRpbmdzLmludmVydFJpZ2h0SG9yaXpvbnRhbD8tcG9pbnQueDpwb2ludC54LHk9cGhvbmVTZXR0aW5ncy5pbnZlcnRSaWdodFZlcnRpY2FsPy1wb2ludC55OnBvaW50Lnk7c29sb0NvbnRyb2xzLnlhdz1waG9uZUF4aXMoLXgscGhvbmVTZXR0aW5ncy5yaWdodEZpbmVuZXNzKTtzb2xvQ29udHJvbHMuYm9keVBpdGNoPXBob25lU2V0dGluZ3MubG9ja1JpZ2h0SG9yaXpvbnRhbD8wOnBob25lQXhpcygteSxwaG9uZVNldHRpbmdzLnJpZ2h0RmluZW5lc3MpO311cGRhdGVTb2xvU3RpY2tzKCk7ZS5wcmV2ZW50RGVmYXVsdCgpO307JycnLAonJycgIGNvbnN0IGFwcGx5PWU9Pntjb25zdCBwb2ludD1ub3JtYWxpemVkUG9pbnRlcihlbCxlKTthcHBseUdhbWVTdGljayhzb2xvQ29udHJvbHMsa2luZCxwb2ludCxwaG9uZVNldHRpbmdzKTt1cGRhdGVTb2xvU3RpY2tzKCk7ZS5wcmV2ZW50RGVmYXVsdCgpO307JycnKQoKcmVwbGFjZV9vbmNlKCJ0ZXN0cy9jb250cm9sX3NlbWFudGljc190ZXN0Lm1qcyIsCidrbm9iQXhlcyxwaG9uZUF4aXMsaW52ZXJzZVBob25lQXhpcyxmaW5lbmVzc1RvRXhwbyxub3JtYWxpemVkUG9pbnRlcixlbmRQb2ludGVyRHJhZycsCidrbm9iQXhlcyxwaG9uZUF4aXMsaW52ZXJzZVBob25lQXhpcyxmaW5lbmVzc1RvRXhwbyxub3JtYWxpemVkUG9pbnRlcixlbmRQb2ludGVyRHJhZyxhcHBseUdhbWVTdGljayxnYW1lS25vYkF4ZXMnKQp0ZXN0PVBhdGgoInRlc3RzL2NvbnRyb2xfc2VtYW50aWNzX3Rlc3QubWpzIikKdGV4dD10ZXN0LnJlYWRfdGV4dCgpCm1hcmtlcj0nLy8gUmUtdG91Y2hpbmcgYSByZXRhaW5lZCB0aHJvdHRsZSBtdXN0IG5vdCB0ZWxlcG9ydCBpdCB0byB0aGUgYWJzb2x1dGUgdG91Y2ggcG9pbnQuXG4nCmFzc2VydCBtYXJrZXIgaW4gdGV4dApibG9jaz0nJycvLyBHQU1FIG1vZGUgaXMgb25lIHNoYXJlZCBzZW1hbnRpYyBwYXRoIGZvciBib3RoIDEtUEhPTkUgYW5kIDItUEhPTkUuCmNvbnN0IGdhbWVEZWZhdWx0PXsuLi5ERUZBVUxUX1BIT05FX1NFVFRJTkdTfTsKYz1uZXV0cmFsQ29udHJvbHMoKTthcHBseUdhbWVTdGljayhjLCJsZWZ0Iix7eDouNCx5Oi0uM30sZ2FtZURlZmF1bHQpOwpuZWFyKGMucm9sbCxwaG9uZUF4aXMoLjQsZ2FtZURlZmF1bHQubGVmdEZpbmVuZXNzKSk7bmVhcihjLnBpdGNoLHBob25lQXhpcyguMyxnYW1lRGVmYXVsdC5sZWZ0RmluZW5lc3MpKTthc3NlcnQuZXF1YWwoYy50aHJvdHRsZSwwKTsKbGV0IGdhbWVLbm9iPWdhbWVLbm9iQXhlcyhjLCJsZWZ0IixnYW1lRGVmYXVsdCk7bmVhcihnYW1lS25vYi54LC40LDNlLTYpO25lYXIoZ2FtZUtub2IueSwtLjMsM2UtNik7CmNvbnN0IGdhbWVJbnZlcnRMZWZ0PXsuLi5nYW1lRGVmYXVsdCxpbnZlcnRMZWZ0SG9yaXpvbnRhbDp0cnVlfTsKYz1uZXV0cmFsQ29udHJvbHMoKTthcHBseUdhbWVTdGljayhjLCJsZWZ0Iix7eDouNCx5Oi0uM30sZ2FtZUludmVydExlZnQpOwpuZWFyKGMucm9sbCxwaG9uZUF4aXMoLS40LGdhbWVJbnZlcnRMZWZ0LmxlZnRGaW5lbmVzcykpO25lYXIoYy5waXRjaCxwaG9uZUF4aXMoLjMsZ2FtZUludmVydExlZnQubGVmdEZpbmVuZXNzKSk7CmdhbWVLbm9iPWdhbWVLbm9iQXhlcyhjLCJsZWZ0IixnYW1lSW52ZXJ0TGVmdCk7bmVhcihnYW1lS25vYi54LC40LDNlLTYpO25lYXIoZ2FtZUtub2IueSwtLjMsM2UtNik7CmNvbnN0IGdhbWVSaWdodEludmVydD17Li4uZ2FtZURlZmF1bHQsaW52ZXJ0UmlnaHRIb3Jpem9udGFsOnRydWUsaW52ZXJ0UmlnaHRWZXJ0aWNhbDp0cnVlfTsKYz1uZXV0cmFsQ29udHJvbHMoKTthcHBseUdhbWVTdGljayhjLCJyaWdodCIse3g6LjM1LHk6LS4yNX0sZ2FtZVJpZ2h0SW52ZXJ0KTsKbmVhcihjLnlhdyxwaG9uZUF4aXMoLjM1LGdhbWVSaWdodEludmVydC5yaWdodEZpbmVuZXNzKSk7bmVhcihjLmJvZHlQaXRjaCxwaG9uZUF4aXMoLS4yNSxnYW1lUmlnaHRJbnZlcnQucmlnaHRGaW5lbmVzcykpOwpnYW1lS25vYj1nYW1lS25vYkF4ZXMoYywicmlnaHQiLGdhbWVSaWdodEludmVydCk7bmVhcihnYW1lS25vYi54LC4zNSwzZS02KTtuZWFyKGdhbWVLbm9iLnksLS4yNSwzZS02KTsKY29uc3QgZ2FtZUxvY2tlZD17Li4uZ2FtZURlZmF1bHQsbG9ja0xlZnRIb3Jpem9udGFsOnRydWUsbG9ja1JpZ2h0SG9yaXpvbnRhbDp0cnVlfTsKYz1uZXV0cmFsQ29udHJvbHMoKTthcHBseUdhbWVTdGljayhjLCJsZWZ0Iix7eDouOCx5Oi0uNH0sZ2FtZUxvY2tlZCk7YXNzZXJ0LmVxdWFsKGMucm9sbCwwKTtuZWFyKGMucGl0Y2gscGhvbmVBeGlzKC40LGdhbWVMb2NrZWQubGVmdEZpbmVuZXNzKSk7CmFwcGx5R2FtZVN0aWNrKGMsInJpZ2h0Iix7eDouNix5Oi43fSxnYW1lTG9ja2VkKTtuZWFyKGMueWF3LHBob25lQXhpcygtLjYsZ2FtZUxvY2tlZC5yaWdodEZpbmVuZXNzKSk7YXNzZXJ0LmVxdWFsKGMuYm9keVBpdGNoLDApOwoKJycnCnRlc3Qud3JpdGVfdGV4dCh0ZXh0LnJlcGxhY2UobWFya2VyLGJsb2NrK21hcmtlciwxKSkKCndvcmtmbG93PVBhdGgoIi5naXRodWIvd29ya2Zsb3dzL2RlcGxveS55bWwiKQp3PXdvcmtmbG93LnJlYWRfdGV4dCgpCmJlZ2luPScgICAgICAjIEFMSUdOX01JR1JBVElPTl9CRUdJTlxuJzsgZW5kPScgICAgICAjIEFMSUdOX01JR1JBVElPTl9FTkRcbicKYT13LmluZGV4KGJlZ2luKTsgYj13LmluZGV4KGVuZCxhKStsZW4oZW5kKQp3PXdbOmFdK3dbYjpdCnc9dy5yZXBsYWNlKCcgICAgICBjb250ZW50czogd3JpdGVcbiAgICAgIHBhZ2VzOiB3cml0ZVxuJywnICAgICAgY29udGVudHM6IHJlYWRcbiAgICAgIHBhZ2VzOiB3cml0ZVxuJywxKQp3b3JrZmxvdy53cml0ZV90ZXh0KHcpCg==' | base64 -d)"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); text=p.read_text()
+              if new in text:
+                  return
+              count=text.count(old)
+              assert count==1, f"{path}: expected one match, got {count}"
+              p.write_text(text.replace(old,new,1))
+
+          semantics=Path("sim/control_semantics.mjs")
+          text=semantics.read_text()
+          if "export function applyGameStick" not in text:
+              marker='export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){\n'
+              assert marker in text
+              shared='''export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
+            const cfg=normalizePhoneSettings(settings);
+            if(kind==="left"){
+              const x=cfg.invertLeftHorizontal?-point.x:point.x;
+              // FC GAME convention: negative roll command is physical RIGHT strafe.
+              controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(-x,cfg.leftFineness);
+              controls.pitch=phoneAxis(-point.y,cfg.leftFineness);
+              controls.throttle=0;
+            }else{
+              const x=cfg.invertRightHorizontal?-point.x:point.x;
+              const y=cfg.invertRightVertical?-point.y:point.y;
+              controls.yaw=phoneAxis(-x,cfg.rightFineness);
+              controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y,cfg.rightFineness);
+            }
+            return controls;
+          }
+          export function gameKnobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
+            const cfg=normalizePhoneSettings(settings);
+            if(kind==="left"){
+              const rawX=cfg.lockLeftHorizontal?0:-inversePhoneAxis(controls.roll,cfg.leftFineness);
+              return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-inversePhoneAxis(controls.pitch,cfg.leftFineness)};
+            }
+            const rawX=-inversePhoneAxis(controls.yaw,cfg.rightFineness);
+            const rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,cfg.rightFineness);
+            return{x:cfg.invertRightHorizontal?-rawX:rawX,y:cfg.invertRightVertical?-rawY:rawY};
+          }
+
+          '''
+              semantics.write_text(text.replace(marker,shared+marker,1))
+
+          replace_once("sim/controller.mjs",
+            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis}',
+            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes}')
+          replace_once("sim/controller.mjs",'''    const leftRawX=phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness);
+            left={x:phoneSettings.invertLeftHorizontal?-leftRawX:leftRawX,y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
+            const rawX=-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness);
+            right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};''','''    left=gameKnobAxes(controls,"left",phoneSettings);
+            right=gameKnobAxes(controls,"right",phoneSettings);''')
+          replace_once("sim/controller.mjs",'''    if(gameMode){
+              if(kind==="left"){
+                const x=phoneSettings.invertLeftHorizontal?-point.x:point.x;
+                controls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(x,phoneSettings.leftFineness);
+                controls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);
+                controls.throttle=0;
+              }else{
+                const x=phoneSettings.invertRightHorizontal?-point.x:point.x;
+                const y=phoneSettings.invertRightVertical?-point.y:point.y;
+                controls.yaw=phoneAxis(-x,phoneSettings.rightFineness);
+                controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);
+              }
+            }else applyStick(controls,kind,point,phoneSettings);''','''    if(gameMode)applyGameStick(controls,kind,point,phoneSettings);
+            else applyStick(controls,kind,point,phoneSettings);''')
+
+          replace_once("sim/simulator.mjs",
+            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis}',
+            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes}')
+          replace_once("sim/simulator.mjs",'''  const left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(soloControls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(soloControls.pitch,phoneSettings.leftFineness)};
+            const rawX=-inversePhoneAxis(soloControls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(soloControls.bodyPitch||0,phoneSettings.rightFineness);
+            const right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};''','''  const left=gameKnobAxes(soloControls,"left",phoneSettings);
+            const right=gameKnobAxes(soloControls,"right",phoneSettings);''')
+          replace_once("sim/simulator.mjs",'''  const apply=e=>{const point=normalizedPointer(el,e);if(kind==="left"){soloControls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(point.x,phoneSettings.leftFineness);soloControls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);soloControls.throttle=0;}else{const x=phoneSettings.invertRightHorizontal?-point.x:point.x,y=phoneSettings.invertRightVertical?-point.y:point.y;soloControls.yaw=phoneAxis(-x,phoneSettings.rightFineness);soloControls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);}updateSoloSticks();e.preventDefault();};''','''  const apply=e=>{const point=normalizedPointer(el,e);applyGameStick(soloControls,kind,point,phoneSettings);updateSoloSticks();e.preventDefault();};''')
+
+          test=Path("tests/control_semantics_test.mjs")
+          text=test.read_text()
+          if "applyGameStick,gameKnobAxes" not in text:
+              text=text.replace('knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag','knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes',1)
+          marker='// Re-touching a retained throttle must not teleport it to the absolute touch point.\n'
+          if "GAME left-stick physical strafe contract" not in text:
+              assert marker in text
+              block='''// GAME left-stick physical strafe contract. This is shared by 1-PHONE and 2-PHONE.
+          // FC convention after the body-frame fix: +roll command produces LEFT strafe,
+          // -roll command produces RIGHT strafe. Pointer direction must therefore map oppositely.
+          let game=neutralControls();
+          applyGameStick(game,"left",{x:-.60,y:0},DEFAULT_PHONE_SETTINGS);
+          assert.ok(game.roll>0,"left-stick LEFT must command physical LEFT strafe");
+          let gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);
+          near(gameKnob.x,-.60,3e-6,"left-strife knob must remain under left pointer");
+          game=neutralControls();
+          applyGameStick(game,"left",{x:.60,y:0},DEFAULT_PHONE_SETTINGS);
+          assert.ok(game.roll<0,"left-stick RIGHT must command physical RIGHT strafe");
+          gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);
+          near(gameKnob.x,.60,3e-6,"right-strafe knob must remain under right pointer");
+          const gameInvertLeft={...DEFAULT_PHONE_SETTINGS,invertLeftHorizontal:true};
+          game=neutralControls();applyGameStick(game,"left",{x:-.60,y:0},gameInvertLeft);
+          assert.ok(game.roll<0,"invert-left-horizontal must swap LEFT to physical RIGHT strafe");
+          game=neutralControls();applyGameStick(game,"left",{x:.60,y:0},gameInvertLeft);
+          assert.ok(game.roll>0,"invert-left-horizontal must swap RIGHT to physical LEFT strafe");
+
+          '''
+              text=text.replace(marker,block+marker,1)
+          test.write_text(text)
+          PY
           node --check sim/control_semantics.mjs
           node --check sim/controller.mjs
           node --check sim/simulator.mjs
@@ -36,128 +132,9 @@ jobs:
           node tests/architecture_invariants.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sim/control_semantics.mjs sim/controller.mjs sim/simulator.mjs tests/control_semantics_test.mjs .github/workflows/deploy.yml
+          git add sim/control_semantics.mjs sim/controller.mjs sim/simulator.mjs tests/control_semantics_test.mjs
           git diff --cached --check
-          git commit -m "Unify one-phone and two-phone GAME controls"
-          git push origin HEAD:main
-      # ALIGN_MIGRATION_END
-
-      - name: Host-test shared Production HIL and SIL runtime
-        run: |
-          set -euxo pipefail
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
-          /tmp/fc_core_test
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
-          /tmp/state_control_test
-          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil_test
-          ASAN_OPTIONS=detect_leaks=1 /tmp/hil_test
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil_test
-          /tmp/sil_test
-          node tests/control_semantics_test.mjs
-          node tests/architecture_invariants.mjs
-
-      - name: Build exact shared controller runtime to WebAssembly
-        run: |
-          set -euxo pipefail
-          mkdir -p generated
-          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
-            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
-              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
-              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
-              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
-              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
-              -o generated/flight_core.mjs
-          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
-            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
-              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='node' \
-              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
-              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
-              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
-              -o generated/flight_core_node.mjs
-          node --check generated/flight_core.mjs
-          node --check generated/flight_core_node.mjs
-          node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
-
-      - name: Bundle two self-contained GitHub Pages
-        run: |
-          set -euxo pipefail
-          BUILD_DIR=/tmp/arondight45-web-build
-          rm -rf "$BUILD_DIR"
-          mkdir -p "$BUILD_DIR"
-          cd "$BUILD_DIR"
-          npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund \
-            three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 \
-            qrcode-generator@1.4.4 jsqr@1.4.0
-          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
-          cd "$GITHUB_WORKSPACE"
-          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
-          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
-          node --check /tmp/arondight45-simulator.bundle.mjs
-          node --check /tmp/arondight45-controller.bundle.mjs
-          python3 - <<'PY'
-          from pathlib import Path
-          builds=[
-              ('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
-              ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
-          ]
-          for html_name,marker,bundle_name in builds:
-              path=Path(html_name);html=path.read_text();assert marker in html,f'{html_name}: source module tag missing'
-              bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
-              path.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
-          PY
-          test -s drone_simulator.html
-          test -s drone_controller.html
-          test "$(wc -c < drone_simulator.html)" -gt 100000
-          test "$(wc -c < drone_controller.html)" -gt 10000
-          ! grep -q 'src="./sim/simulator.mjs"' drone_simulator.html
-          ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
-          ! grep -q 'cdn.jsdelivr.net' drone_simulator.html
-          ! grep -q 'generated/flight_core.mjs' drone_simulator.html
-          grep -q 'RTCPeerConnection' drone_simulator.html
-          grep -q 'RTCPeerConnection' drone_controller.html
-          grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
-          grep -q 'SCAN VIEW ANSWER' drone_controller.html
-          ! grep -q '/control' drone_controller.html
-          rm -rf generated
-
-      - name: Execute static-only GAME and standalone browser E2E
-        run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
-          HTTP_PID=$!
-          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
-          trap cleanup EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
-
-      - name: Validate JavaScript sources after browser E2E
-        run: |
-          set -euxo pipefail
-          node --check sim/simulator.mjs
-          node --check sim/controller.mjs
-          node --check sim/p2p_link.mjs
-          node --check sim/qr_pairing.mjs
-          node --check sim/control_semantics.mjs
-          node --check sim/control_settings.mjs
-          node --check sim/solo_layout.mjs
-          node --check tests/architecture_invariants.mjs
-          node --check tests/control_semantics_test.mjs
-          node --check tests/sil_wasm_smoke.mjs
-          node --check tests/browser_sim_smoke.mjs
-          node --check tests/dual_phone_smoke.mjs
-          node --check tests/solo_layout_smoke.mjs
-          node --check tools/s31_hil_bridge.mjs
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          if ! git diff --cached --quiet; then
+            git commit -m "Unify GAME controls and lock strafe direction [skip ci]"
+            git push origin HEAD:main
+          fi
