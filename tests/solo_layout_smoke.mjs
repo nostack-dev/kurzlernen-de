@@ -15,6 +15,9 @@ try{
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
     const startCue=await page.evaluate(()=>{const e=document.querySelector("#camSolo"),style=getComputedStyle(e);return{text:e?.textContent?.trim()||"",className:e?.className||"",animation:style.animationName,background:style.backgroundColor};});
     if(startCue.text!=="START SIM"||!startCue.className.includes("start-sim-cta")||startCue.animation==="none")throw new Error(`${viewport.name}: START SIM cue missing: ${JSON.stringify(startCue)}`);
+    await page.hover("#camSolo");
+    const startHover=await page.evaluate(()=>{const style=getComputedStyle(document.querySelector("#camSolo"));return{filter:style.filter,border:style.borderColor};});
+    if(startHover.filter==="none")throw new Error(`${viewport.name}: START SIM hover feedback missing: ${JSON.stringify(startHover)}`);
     await page.click("#camSolo");
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
     const g=await page.evaluate(()=>{
@@ -38,6 +41,12 @@ try{
     if(g.race.top<g.topbar.bottom-2)throw new Error(`${viewport.name}: race HUD overlaps top controls: ${JSON.stringify({topbar:g.topbar,race:g.race})}`);
     if(overlap(g.race,g.clearance)>0)throw new Error(`${viewport.name}: race HUD overlaps height control`);
     for(const key of ["left","right","clearance","arm","kill","race"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
-    console.log(`Solo layout ${viewport.name} passed: center clear, compact sticks, no duplicate camera strip.`);
+    await page.waitForFunction(()=>{const e=document.querySelector("#soloArm");return Boolean(e&&!e.disabled&&e.textContent?.trim()==="ARM"&&e.classList.contains("attention"));},{timeout:12000});
+    const armCue=await page.evaluate(()=>{const e=document.querySelector("#soloArm"),style=getComputedStyle(e);return{text:e?.textContent?.trim()||"",className:e?.className||"",animation:style.animationName};});
+    if(armCue.text!=="ARM"||!armCue.className.includes("attention")||armCue.animation==="none")throw new Error(`${viewport.name}: ready ARM attention cue missing: ${JSON.stringify(armCue)}`);
+    await page.hover("#soloArm");
+    const armHover=await page.evaluate(()=>{const style=getComputedStyle(document.querySelector("#soloArm"));return{filter:style.filter,border:style.borderColor};});
+    if(armHover.filter==="none")throw new Error(`${viewport.name}: ARM hover feedback missing: ${JSON.stringify(armHover)}`);
+    console.log(`Solo layout ${viewport.name} passed: START SIM + ARM cues visible, center clear, compact sticks, no duplicate camera strip.`);
   }
 }finally{await browser.close();}
