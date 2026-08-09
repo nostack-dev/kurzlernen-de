@@ -11,117 +11,15 @@ jobs:
   optimize:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Remove non-physical 1kHz browser overhead
+      - name: Apply and validate realtime optimization
         shell: bash
         run: |
           set -euxo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-
-          def one(path, old, new):
-              p=Path(path); s=p.read_text(); n=s.count(old)
-              assert n==1, f"{path}: expected one occurrence, got {n}: {old[:140]!r}"
-              p.write_text(s.replace(old,new,1))
-
-          # SIL/WASM execution is inherently synchronous. Keep the async exchange
-          # interface for physical HIL, but do not force 1000 Promise/microtask
-          # boundaries per second in browser SIL.
-          one('sim/simulator.mjs', '''  async exchange(packet){
-    if(!this.ready) throw Error("WASM flight core not ready");
-    this.module.HEAPU8.set(packet,this.inPtr);
-    this.module._fc_process();
-    return parseOutput(this.module.HEAPU8.slice(this.outPtr,this.outPtr+OUTPUT_BYTES));
-  }
-''', '''  exchangeSync(packet){
-    if(!this.ready) throw Error("WASM flight core not ready");
-    this.module.HEAPU8.set(packet,this.inPtr);
-    this.module._fc_process();
-    return parseOutput(this.module.HEAPU8.subarray(this.outPtr,this.outPtr+OUTPUT_BYTES));
-  }
-  async exchange(packet){return this.exchangeSync(packet);}
-''')
-
-          # Packet preparation stays exactly the raw ICM/SBUS/NAV1 boundary. The
-          # only change is that immutable physics configuration comes from the
-          # active PhysicsModel instead of re-reading many DOM controls at 1 kHz,
-          # and RTT DOM text is deferred to render cadence.
-          one('sim/simulator.mjs', '''async function controllerStep(){
-  const params=defaultParams(),seq=sequence++,navigationFrame=navigationSensors.sampleFrame(physics,DT),sbusFrame=sbusReceiver.sample(controls,DT);
-  latestNavigation=navigationSensors.last;
-  let flags=(params.imuValid?FLAG_IMU_PRESENT:0)|(resetFlag?FLAG_RESET:0);if(sbusFrame)flags|=FLAG_SBUS_PRESENT;if(navigationFrame)flags|=FLAG_NAVIGATION_PRESENT;
-  const packet=makeInput(seq,physics.imuRaw(DT),sbusFrame,flags,1000,navigationFrame,0);resetFlag=false;
-  const started=performance.now(),out=await backend.exchange(packet,seq);ui.rtt.textContent=(performance.now()-started).toFixed(2)+" ms";return out;
-}
-''', '''let latestControllerRttMs=0;
-function prepareControllerStep(){
-  const seq=sequence++,navigationFrame=navigationSensors.sampleFrame(physics,DT),sbusFrame=sbusReceiver.sample(controls,DT);
-  latestNavigation=navigationSensors.last;
-  let flags=(physics.p.imuValid?FLAG_IMU_PRESENT:0)|(resetFlag?FLAG_RESET:0);if(sbusFrame)flags|=FLAG_SBUS_PRESENT;if(navigationFrame)flags|=FLAG_NAVIGATION_PRESENT;
-  const packet=makeInput(seq,physics.imuRaw(DT),sbusFrame,flags,1000,navigationFrame,0);resetFlag=false;return{seq,packet};
-}
-function controllerStepSync(){
-  const {packet}=prepareControllerStep(),started=performance.now(),out=backend.exchangeSync(packet);latestControllerRttMs=performance.now()-started;return out;
-}
-async function controllerStep(){
-  const {seq,packet}=prepareControllerStep(),started=performance.now(),out=await backend.exchange(packet,seq);latestControllerRttMs=performance.now()-started;return out;
-}
-''')
-
-          one('sim/simulator.mjs', '''    const due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_FRAME);
-    for(let i=0;i<due&&running;i++){
-      latest=await controllerStep();physics.step(latest.motors,DT);simTime+=DT;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();accumulatorMs-=SIM_FIXED_STEP_MS;
-    }
-''', '''    const due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_FRAME),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
-    for(let i=0;i<due&&running;i++){
-      latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();accumulatorMs-=SIM_FIXED_STEP_MS;
-    }
-''')
-
-          one('sim/simulator.mjs', 'ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";', 'ui.processing.textContent=latest.processingUs+" μs";ui.rtt.textContent=latestControllerRttMs.toFixed(2)+" ms";ui.armSwitch.textContent=arm?"ON":"OFF";')
-
-          # Prevent regression back to expensive non-physical browser work in the
-          # 1 kHz authority loop while retaining the runtime wall-clock gate.
-          p=Path('tests/architecture_invariants.mjs'); s=p.read_text()
-          anchor='''requireText("sim/simulator.mjs","Math.floor(accumulatorMs/SIM_FIXED_STEP_MS)");
-forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
-'''
-          replacement='''requireText("sim/simulator.mjs","Math.floor(accumulatorMs/SIM_FIXED_STEP_MS)");
-requireText("sim/simulator.mjs","exchangeSync(packet)");
-requireText("sim/simulator.mjs","backend instanceof WasmBackend");
-requireText("sim/simulator.mjs","physics.p.imuValid");
-forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
-const controllerStepStart=simulatorSource.indexOf("function prepareControllerStep(){"),controllerStepEnd=simulatorSource.indexOf("function recordSession(){",controllerStepStart);
-if(controllerStepStart<0||controllerStepEnd<=controllerStepStart)fail("cannot isolate simulator controller-step boundary");
-const controllerStepSource=simulatorSource.slice(controllerStepStart,controllerStepEnd);
-if(controllerStepSource.includes("defaultParams()"))fail("1 kHz controller step re-reads DOM-backed physical parameters");
-if(controllerStepSource.includes("ui.rtt.textContent"))fail("1 kHz controller step mutates RTT DOM");
-'''
-          assert s.count(anchor)==1
-          p.write_text(s.replace(anchor,replacement,1))
-
-          p=Path('REAL_WORLD_DIGITAL_TWIN.md'); doc=p.read_text().rstrip()
-          note='''
-
-The browser SIL fast path executes the exact same `fc::FirmwareRuntime` synchronously instead of inserting a JavaScript Promise boundary at every 1 ms control tick. Physical HIL remains asynchronous. Active physics parameters are read from the live PhysicsModel rather than from DOM controls at 1 kHz, and diagnostic DOM updates remain render-rate only. None of these optimizations changes control inputs, motor outputs, sensor bytes, physics integration, or model constants.
-'''
-          if 'Promise boundary at every 1 ms control tick' not in doc:p.write_text(doc+note)
-
-          # Locally validate the clean production tree; restore scaffold afterward
-          # because workflow-token pushes may not modify workflow files.
-          scaffold=Path('.github/workflows/one-shot-fix-sim-realtime.yml'); raw=scaffold.read_bytes(); scaffold.unlink()
-          try:
-              for path in ['sim/simulator.mjs','tests/architecture_invariants.mjs','tests/browser_sim_smoke.mjs','tests/dual_phone_smoke.mjs','tests/real_world_ui_smoke.mjs']:
-                  subprocess.run(['node','--check',path],check=True)
-              subprocess.run(['node','tests/control_semantics_test.mjs'],check=True)
-              subprocess.run(['node','tests/architecture_invariants.mjs'],check=True)
-              subprocess.run(['g++','-std=c++17','-O2','-Wall','-Wextra','-Wpedantic','-Werror','-Iesp32','tests/state_control_test.cpp','-o','/tmp/state-control-final'],check=True)
-              subprocess.run(['/tmp/state-control-final'],check=True)
-          finally: scaffold.write_bytes(raw)
-          PY
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCBzdWJwcm9jZXNzCgpkZWYgb25lKHBhdGgsIG9sZCwgbmV3KToKICAgIHA9UGF0aChwYXRoKTsgcz1wLnJlYWRfdGV4dCgpOyBuPXMuY291bnQob2xkKQogICAgYXNzZXJ0IG49PTEsIGYie3BhdGh9OiBleHBlY3RlZCBvbmUgb2NjdXJyZW5jZSwgZ290IHtufToge29sZFs6MTQwXSFyfSIKICAgIHAud3JpdGVfdGV4dChzLnJlcGxhY2Uob2xkLG5ldywxKSkKCm9uZSgnc2ltL3NpbXVsYXRvci5tanMnLCAnJycgIGFzeW5jIGV4Y2hhbmdlKHBhY2tldCl7CiAgICBpZighdGhpcy5yZWFkeSkgdGhyb3cgRXJyb3IoIldBU00gZmxpZ2h0IGNvcmUgbm90IHJlYWR5Iik7CiAgICB0aGlzLm1vZHVsZS5IRUFQVTguc2V0KHBhY2tldCx0aGlzLmluUHRyKTsKICAgIHRoaXMubW9kdWxlLl9mY19wcm9jZXNzKCk7CiAgICByZXR1cm4gcGFyc2VPdXRwdXQodGhpcy5tb2R1bGUuSEVBUFU4LnNsaWNlKHRoaXMub3V0UHRyLHRoaXMub3V0UHRyK09VVFBVVF9CWVRFUykpOwogIH0KJycnLCAnJycgIGV4Y2hhbmdlU3luYyhwYWNrZXQpewogICAgaWYoIXRoaXMucmVhZHkpIHRocm93IEVycm9yKCJXQVNNIGZsaWdodCBjb3JlIG5vdCByZWFkeSIpOwogICAgdGhpcy5tb2R1bGUuSEVBUFU4LnNldChwYWNrZXQsdGhpcy5pblB0cik7CiAgICB0aGlzLm1vZHVsZS5fZmNfcHJvY2VzcygpOwogICAgcmV0dXJuIHBhcnNlT3V0cHV0KHRoaXMubW9kdWxlLkhFQVBVOC5zdWJhcnJheSh0aGlzLm91dFB0cix0aGlzLm91dFB0citPVVRQVVRfQllURVMpKTsKICB9CiAgYXN5bmMgZXhjaGFuZ2UocGFja2V0KXtyZXR1cm4gdGhpcy5leGNoYW5nZVN5bmMocGFja2V0KTt9CicnJykKCm9uZSgnc2ltL3NpbXVsYXRvci5tanMnLCAnJydhc3luYyBmdW5jdGlvbiBjb250cm9sbGVyU3RlcCgpewogIGNvbnN0IHBhcmFtcz1kZWZhdWx0UGFyYW1zKCksc2VxPXNlcXVlbmNlKyssbmF2aWdhdGlvbkZyYW1lPW5hdmlnYXRpb25TZW5zb3JzLnNhbXBsZUZyYW1lKHBoeXNpY3MsRFQpLHNidXNGcmFtZT1zYnVzUmVjZWl2ZXIuc2FtcGxlKGNvbnRyb2xzLERUKTsKICBsYXRlc3ROYXZpZ2F0aW9uPW5hdmlnYXRpb25TZW5zb3JzLmxhc3Q7CiAgbGV0IGZsYWdzPShwYXJhbXMuaW11VmFsaWQ/RkxBR19JTVVfUFJFU0VOVDowKXwocmVzZXRGbGFnP0ZMQUdfUkVTRVQ6MCk7aWYoc2J1c0ZyYW1lKWZsYWdzfD1GTEFHX1NCVVNfUFJFU0VOVDtpZihuYXZpZ2F0aW9uRnJhbWUpZmxhZ3N8PUZMQUdfTkFWSUdBVElPTl9QUkVTRU5UOwogIGNvbnN0IHBhY2tldD1tYWtlSW5wdXQoc2VxLHBoeXNpY3MuaW11UmF3KERUKSxzYnVzRnJhbWUsZmxhZ3MsMTAwMCxuYXZpZ2F0aW9uRnJhbWUsMCk7cmVzZXRGbGFnPWZhbHNlOwogIGNvbnN0IHN0YXJ0ZWQ9cGVyZm9ybWFuY2Uubm93KCksb3V0PWF3YWl0IGJhY2tlbmQuZXhjaGFuZ2UocGFja2V0LHNlcSk7dWkucnR0LnRleHRDb250ZW50PShwZXJmb3JtYW5jZS5ub3coKS1zdGFydGVkKS50b0ZpeGVkKDIpKyIgbXMiO3JldHVybiBvdXQ7Cn0KJycnLCAnJydsZXQgbGF0ZXN0Q29udHJvbGxlclJ0dE1zPTA7CmZ1bmN0aW9uIHByZXBhcmVDb250cm9sbGVyU3RlcCgpewogIGNvbnN0IHNlcT1zZXF1ZW5jZSsrLG5hdmlnYXRpb25GcmFtZT1uYXZpZ2F0aW9uU2Vuc29ycy5zYW1wbGVGcmFtZShwaHlzaWNzLERUKSxzYnVzRnJhbWU9c2J1c1JlY2VpdmVyLnNhbXBsZShjb250cm9scyxEVCk7CiAgbGF0ZXN0TmF2aWdhdGlvbj1uYXZpZ2F0aW9uU2Vuc29ycy5sYXN0OwogIGxldCBmbGFncz0ocGh5c2ljcy5wLmltdVZhbGlkP0ZMQUdfSU1VX1BSRVNFTlQ6MCl8KHJlc2V0RmxhZz9GTEFHX1JFU0VUOjApO2lmKHNidXNGcmFtZSlmbGFnc3w9RkxBR19TQlVTX1BSRVNFTlQ7aWYobmF2aWdhdGlvbkZyYW1lKWZsYWdzfD1GTEFHX05BVklHQVRJT05fUFJFU0VOVDsKICBjb25zdCBwYWNrZXQ9bWFrZUlucHV0KHNlcSxwaHlzaWNzLmltdVJhdyhEVCksc2J1c0ZyYW1lLGZsYWdzLDEwMDAsbmF2aWdhdGlvbkZyYW1lLDApO3Jlc2V0RmxhZz1mYWxzZTtyZXR1cm57c2VxLHBhY2tldH07Cn0KZnVuY3Rpb24gY29udHJvbGxlclN0ZXBTeW5jKCl7CiAgY29uc3Qge3BhY2tldH09cHJlcGFyZUNvbnRyb2xsZXJTdGVwKCksc3RhcnRlZD1wZXJmb3JtYW5jZS5ub3coKSxvdXQ9YmFja2VuZC5leGNoYW5nZVN5bmMocGFja2V0KTtsYXRlc3RDb250cm9sbGVyUnR0TXM9cGVyZm9ybWFuY2Uubm93KCktc3RhcnRlZDtyZXR1cm4gb3V0Owp9CmFzeW5jIGZ1bmN0aW9uIGNvbnRyb2xsZXJTdGVwKCl7CiAgY29uc3Qge3NlcSxwYWNrZXR9PXByZXBhcmVDb250cm9sbGVyU3RlcCgpLHN0YXJ0ZWQ9cGVyZm9ybWFuY2Uubm93KCksb3V0PWF3YWl0IGJhY2tlbmQuZXhjaGFuZ2UocGFja2V0LHNlcSk7bGF0ZXN0Q29udHJvbGxlclJ0dE1zPXBlcmZvcm1hbmNlLm5vdygpLXN0YXJ0ZWQ7cmV0dXJuIG91dDsKfQonJycpCgpvbmUoJ3NpbS9zaW11bGF0b3IubWpzJywgJycnICAgIGNvbnN0IGR1ZT1NYXRoLm1pbihNYXRoLmZsb29yKGFjY3VtdWxhdG9yTXMvU0lNX0ZJWEVEX1NURVBfTVMpLFNJTV9NQVhfU1RFUFNfUEVSX0ZSQU1FKTsKICAgIGZvcihsZXQgaT0wO2k8ZHVlJiZydW5uaW5nO2krKyl7CiAgICAgIGxhdGVzdD1hd2FpdCBjb250cm9sbGVyU3RlcCgpO3BoeXNpY3Muc3RlcChsYXRlc3QubW90b3JzLERUKTtzaW1UaW1lKz1EVDtyYWNlVHJhY2sudXBkYXRlKHBoeXNpY3MucG9zaXRpb24oKSxzaW1UaW1lLEJvb2xlYW4obGF0ZXN0LnN0YXRlJlNUQVRFX0FSTUVEKSk7cmVjb3JkU2Vzc2lvbigpO2FjY3VtdWxhdG9yTXMtPVNJTV9GSVhFRF9TVEVQX01TOwogICAgfQonJycsICcnJyAgICBjb25zdCBkdWU9TWF0aC5taW4oTWF0aC5mbG9vcihhY2N1bXVsYXRvck1zL1NJTV9GSVhFRF9TVEVQX01TKSxTSU1fTUFYX1NURVBTX1BFUl9GUkFNRSksd2FzbUZhc3RQYXRoPW1vZGU9PT0ic2ltIiYmYmFja2VuZCBpbnN0YW5jZW9mIFdhc21CYWNrZW5kOwogICAgZm9yKGxldCBpPTA7aTxkdWUmJnJ1bm5pbmc7aSsrKXsKICAgICAgbGF0ZXN0PXdhc21GYXN0UGF0aD9jb250cm9sbGVyU3RlcFN5bmMoKTphd2FpdCBjb250cm9sbGVyU3RlcCgpO3BoeXNpY3Muc3RlcChsYXRlc3QubW90b3JzLERUKTtzaW1UaW1lKz1EVDtyYWNlVHJhY2sudXBkYXRlKHBoeXNpY3MucG9zaXRpb24oKSxzaW1UaW1lLEJvb2xlYW4obGF0ZXN0LnN0YXRlJlNUQVRFX0FSTUVEKSk7cmVjb3JkU2Vzc2lvbigpO2FjY3VtdWxhdG9yTXMtPVNJTV9GSVhFRF9TVEVQX01TOwogICAgfQonJycpCgpvbmUoJ3NpbS9zaW11bGF0b3IubWpzJywKICAgICd1aS5wcm9jZXNzaW5nLnRleHRDb250ZW50PWxhdGVzdC5wcm9jZXNzaW5nVXMrIiDOvHMiO3VpLmFybVN3aXRjaC50ZXh0Q29udGVudD1hcm0/Ik9OIjoiT0ZGIjsnLAogICAgJ3VpLnByb2Nlc3NpbmcudGV4dENvbnRlbnQ9bGF0ZXN0LnByb2Nlc3NpbmdVcysiIM68cyI7dWkucnR0LnRleHRDb250ZW50PWxhdGVzdENvbnRyb2xsZXJSdHRNcy50b0ZpeGVkKDIpKyIgbXMiO3VpLmFybVN3aXRjaC50ZXh0Q29udGVudD1hcm0/Ik9OIjoiT0ZGIjsnKQoKcD1QYXRoKCd0ZXN0cy9hcmNoaXRlY3R1cmVfaW52YXJpYW50cy5tanMnKTsgcz1wLnJlYWRfdGV4dCgpCmFuY2hvcj0nJydyZXF1aXJlVGV4dCgic2ltL3NpbXVsYXRvci5tanMiLCJNYXRoLmZsb29yKGFjY3VtdWxhdG9yTXMvU0lNX0ZJWEVEX1NURVBfTVMpIik7CmZvcmJpZFRleHQoInNpbS9zaW11bGF0b3IubWpzIiwiKHNlcXVlbmNlJjcpPT09MCIsICJzaW11bGF0b3IgZml4ZWQtc3RlcCBjYWRlbmNlIG11c3Qgbm90IGJlIGRpc3BsYXktSHogZGl2aWRlZCIpOwonJycKcmVwbGFjZW1lbnQ9JycncmVxdWlyZVRleHQoInNpbS9zaW11bGF0b3IubWpzIiwiTWF0aC5mbG9vcihhY2N1bXVsYXRvck1zL1NJTV9GSVhFRF9TVEVQX01TKSIpOwpyZXF1aXJlVGV4dCgic2ltL3NpbXVsYXRvci5tanMiLCJleGNoYW5nZVN5bmMocGFja2V0KSIpOwpyZXF1aXJlVGV4dCgic2ltL3NpbXVsYXRvci5tanMiLCJiYWNrZW5kIGluc3RhbmNlb2YgV2FzbUJhY2tlbmQiKTsKcmVxdWlyZVRleHQoInNpbS9zaW11bGF0b3IubWpzIiwicGh5c2ljcy5wLmltdVZhbGlkIik7CmZvcmJpZFRleHQoInNpbS9zaW11bGF0b3IubWpzIiwiKHNlcXVlbmNlJjcpPT09MCIsICJzaW11bGF0b3IgZml4ZWQtc3RlcCBjYWRlbmNlIG11c3Qgbm90IGJlIGRpc3BsYXktSHogZGl2aWRlZCIpOwpjb25zdCBjb250cm9sbGVyU3RlcFN0YXJ0PXNpbXVsYXRvclNvdXJjZS5pbmRleE9mKCJmdW5jdGlvbiBwcmVwYXJlQ29udHJvbGxlclN0ZXAoKXsiKSxjb250cm9sbGVyU3RlcEVuZD1zaW11bGF0b3JTb3VyY2UuaW5kZXhPZigiZnVuY3Rpb24gcmVjb3JkU2Vzc2lvbigpeyIsY29udHJvbGxlclN0ZXBTdGFydCk7CmlmKGNvbnRyb2xsZXJTdGVwU3RhcnQ8MHx8Y29udHJvbGxlclN0ZXBFbmQ8PWNvbnRyb2xsZXJTdGVwU3RhcnQpZmFpbCgiY2Fubm90IGlzb2xhdGUgc2ltdWxhdG9yIGNvbnRyb2xsZXItc3RlcCBib3VuZGFyeSIpOwpjb25zdCBjb250cm9sbGVyU3RlcFNvdXJjZT1zaW11bGF0b3JTb3VyY2Uuc2xpY2UoY29udHJvbGxlclN0ZXBTdGFydCxjb250cm9sbGVyU3RlcEVuZCk7CmlmKGNvbnRyb2xsZXJTdGVwU291cmNlLmluY2x1ZGVzKCJkZWZhdWx0UGFyYW1zKCkiKSlmYWlsKCIxIGtIeiBjb250cm9sbGVyIHN0ZXAgcmUtcmVhZHMgRE9NLWJhY2tlZCBwaHlzaWNhbCBwYXJhbWV0ZXJzIik7CmlmKGNvbnRyb2xsZXJTdGVwU291cmNlLmluY2x1ZGVzKCJ1aS5ydHQudGV4dENvbnRlbnQiKSlmYWlsKCIxIGtIeiBjb250cm9sbGVyIHN0ZXAgbXV0YXRlcyBSVFQgRE9NIik7CicnJwphc3NlcnQgcy5jb3VudChhbmNob3IpPT0xCnAud3JpdGVfdGV4dChzLnJlcGxhY2UoYW5jaG9yLHJlcGxhY2VtZW50LDEpKQoKcD1QYXRoKCdSRUFMX1dPUkxEX0RJR0lUQUxfVFdJTi5tZCcpOyBkb2M9cC5yZWFkX3RleHQoKS5yc3RyaXAoKQpub3RlPScnJwoKVGhlIGJyb3dzZXIgU0lMIGZhc3QgcGF0aCBleGVjdXRlcyB0aGUgZXhhY3Qgc2FtZSBgZmM6OkZpcm13YXJlUnVudGltZWAgc3luY2hyb25vdXNseSBpbnN0ZWFkIG9mIGluc2VydGluZyBhIEphdmFTY3JpcHQgUHJvbWlzZSBib3VuZGFyeSBhdCBldmVyeSAxIG1zIGNvbnRyb2wgdGljay4gUGh5c2ljYWwgSElMIHJlbWFpbnMgYXN5bmNocm9ub3VzLiBBY3RpdmUgcGh5c2ljcyBwYXJhbWV0ZXJzIGFyZSByZWFkIGZyb20gdGhlIGxpdmUgUGh5c2ljc01vZGVsIHJhdGhlciB0aGFuIGZyb20gRE9NIGNvbnRyb2xzIGF0IDEga0h6LCBhbmQgZGlhZ25vc3RpYyBET00gdXBkYXRlcyByZW1haW4gcmVuZGVyLXJhdGUgb25seS4gTm9uZSBvZiB0aGVzZSBvcHRpbWl6YXRpb25zIGNoYW5nZXMgY29udHJvbCBpbnB1dHMsIG1vdG9yIG91dHB1dHMsIHNlbnNvciBieXRlcywgcGh5c2ljcyBpbnRlZ3JhdGlvbiwgb3IgbW9kZWwgY29uc3RhbnRzLgonJycKaWYgJ1Byb21pc2UgYm91bmRhcnkgYXQgZXZlcnkgMSBtcyBjb250cm9sIHRpY2snIG5vdCBpbiBkb2M6CiAgICBwLndyaXRlX3RleHQoZG9jK25vdGUpCgpzY2FmZm9sZD1QYXRoKCcuZ2l0aHViL3dvcmtmbG93cy9vbmUtc2hvdC1maXgtc2ltLXJlYWx0aW1lLnltbCcpOyByYXc9c2NhZmZvbGQucmVhZF9ieXRlcygpOyBzY2FmZm9sZC51bmxpbmsoKQp0cnk6CiAgICBmb3IgcGF0aCBpbiBbJ3NpbS9zaW11bGF0b3IubWpzJywndGVzdHMvYXJjaGl0ZWN0dXJlX2ludmFyaWFudHMubWpzJywndGVzdHMvYnJvd3Nlcl9zaW1fc21va2UubWpzJywndGVzdHMvZHVhbF9waG9uZV9zbW9rZS5tanMnLCd0ZXN0cy9yZWFsX3dvcmxkX3VpX3Ntb2tlLm1qcyddOgogICAgICAgIHN1YnByb2Nlc3MucnVuKFsnbm9kZScsJy0tY2hlY2snLHBhdGhdLGNoZWNrPVRydWUpCiAgICBzdWJwcm9jZXNzLnJ1bihbJ25vZGUnLCd0ZXN0cy9jb250cm9sX3NlbWFudGljc190ZXN0Lm1qcyddLGNoZWNrPVRydWUpCiAgICBzdWJwcm9jZXNzLnJ1bihbJ25vZGUnLCd0ZXN0cy9hcmNoaXRlY3R1cmVfaW52YXJpYW50cy5tanMnXSxjaGVjaz1UcnVlKQogICAgc3VicHJvY2Vzcy5ydW4oWydnKysnLCctc3RkPWMrKzE3JywnLU8yJywnLVdhbGwnLCctV2V4dHJhJywnLVdwZWRhbnRpYycsJy1XZXJyb3InLCctSWVzcDMyJywndGVzdHMvc3RhdGVfY29udHJvbF90ZXN0LmNwcCcsJy1vJywnL3RtcC9zdGF0ZS1jb250cm9sLWZpbmFsJ10sY2hlY2s9VHJ1ZSkKICAgIHN1YnByb2Nlc3MucnVuKFsnL3RtcC9zdGF0ZS1jb250cm9sLWZpbmFsJ10sY2hlY2s9VHJ1ZSkKZmluYWxseToKICAgIHNjYWZmb2xkLndyaXRlX2J5dGVzKHJhdykK' | base64 -d > /tmp/patch.py
+          python3 /tmp/patch.py
           git diff --check
           git config user.name "Christian Heinrich Hohlfeld"
           git config user.email "chris.hohlfeld@gmail.com"
