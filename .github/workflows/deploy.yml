@@ -73,14 +73,14 @@ jobs:
             qrcode-generator@1.4.4 jsqr@1.4.0
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
-          ./node_modules/.bin/esbuild sim/simulator.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           node --check /tmp/arondight45-simulator.bundle.mjs
           node --check /tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
           builds=[
-              ('drone_simulator.html','<script type="module" src="./sim/simulator.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
+              ('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
               ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
           ]
           for html_name,marker,bundle_name in builds:
@@ -92,10 +92,12 @@ jobs:
           test -s drone_controller.html
           test "$(wc -c < drone_simulator.html)" -gt 100000
           test "$(wc -c < drone_controller.html)" -gt 10000
-          ! grep -q 'src="./sim/simulator.mjs"' drone_simulator.html
+          ! grep -q 'src="./sim/real_world_bootstrap.mjs"' drone_simulator.html
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
           ! grep -q 'cdn.jsdelivr.net' drone_simulator.html
           ! grep -q 'generated/flight_core.mjs' drone_simulator.html
+          grep -q 'REAL WORLD · MY LOCATION' drone_simulator.html
+          grep -q 'tile.googleapis.com/v1/3dtiles/root.json' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
@@ -120,6 +122,7 @@ jobs:
       - name: Validate JavaScript sources after browser E2E
         run: |
           set -euxo pipefail
+          node --check sim/real_world_bootstrap.mjs
           node --check sim/simulator.mjs
           node --check sim/controller.mjs
           node --check sim/p2p_link.mjs
