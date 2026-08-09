@@ -44,6 +44,7 @@ class RealWorldBridge{
     `;document.head.appendChild(style);
     const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
     mode.value="training";
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;}
     mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
     use.onclick=()=>this.activate().catch(error=>this.fail(error));
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
