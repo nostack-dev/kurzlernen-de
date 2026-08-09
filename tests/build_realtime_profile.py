@@ -27,6 +27,8 @@ def replace_render(text,body):
 def source_for(name):
     s=original
     draw='if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);'
+    audio='motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);'
+    render_head='requestAnimationFrame(render);const renderNow=performance.now();physics.render();updateCamera();const fcState=latest.state;motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);const state=physics.state();'
     if name=='no-render':
         s=replace_render(s,'function render(){requestAnimationFrame(render);ui.simTime.textContent=simTime.toFixed(3)+" s";}')
     elif name=='no-draw':
@@ -35,10 +37,18 @@ def source_for(name):
         body='function render(){requestAnimationFrame(render);const renderNow=performance.now();physics.render();updateCamera();ui.simTime.textContent=simTime.toFixed(3)+" s";'+draw+'}'
         s=replace_render(s,body)
     elif name=='no-audio':
-        audio='motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);'
         s=one(s,audio,'','motor audio update')
     elif name=='shadows-off':
         s=one(s,'renderer.shadowMap.enabled=true;','renderer.shadowMap.enabled=false;','shadow map')
+    elif name=='shadow10':
+        s=one(s,'function render(){','let PROFILE_LAST_SHADOW=0;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;\nfunction render(){','shadow state')
+        s=one(s,draw,'if(renderNow-PROFILE_LAST_SHADOW>=100){PROFILE_LAST_SHADOW=renderNow;renderer.shadowMap.needsUpdate=true;}'+draw,'shadow cadence')
+    elif name=='optimized':
+        s=one(s,'function render(){','let PROFILE_LAST_SHADOW=0,PROFILE_LAST_AUDIO=0,PROFILE_LAST_HUD=0;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;\nfunction render(){','presentation budget state')
+        new_head='requestAnimationFrame(render);const renderNow=performance.now();physics.render();updateCamera();const fcState=latest.state;if(renderNow-PROFILE_LAST_AUDIO>=33){PROFILE_LAST_AUDIO=renderNow;'+audio+'}if(renderNow-PROFILE_LAST_HUD>=50){PROFILE_LAST_HUD=renderNow;const state=physics.state();'
+        s=one(s,render_head,new_head,'render budget head')
+        new_draw='}if(renderNow-PROFILE_LAST_SHADOW>=100){PROFILE_LAST_SHADOW=renderNow;renderer.shadowMap.needsUpdate=true;}'+draw
+        s=one(s,draw,new_draw,'render budget tail')
     elif name in ('draw45','draw30'):
         interval='22' if name=='draw45' else '33'
         s=one(s,'function render(){','let PROFILE_LAST_DRAW=0;\nfunction render(){','draw budget state')
@@ -67,7 +77,7 @@ def source_for(name):
         raise ValueError(name)
     return s
 
-variants=['baseline','no-render','no-draw','no-hud','no-audio','shadows-off','draw45','draw30','no-physics','no-fc','no-imu','no-nav']
+variants=['baseline','no-render','no-draw','no-hud','no-audio','shadows-off','shadow10','optimized','draw45','draw30','no-physics','no-fc','no-imu','no-nav']
 try:
     for name in variants:
         SIM.write_text(source_for(name))
