@@ -84,6 +84,10 @@ requireText("sim/simulator.mjs","Math.floor(accumulatorMs/SIM_FIXED_STEP_MS)");
 requireText("sim/simulator.mjs","exchangeSync(packet)");
 requireText("sim/simulator.mjs","backend instanceof WasmBackend");
 requireText("sim/simulator.mjs","physics.p.imuValid");
+requireText("sim/simulator.mjs","b3.b3World_Step(this.world,dt,4)");
+requireText("sim/simulator.mjs","SIM_AUX_INTERVAL_S = .01");
+requireText("sim/simulator.mjs","auxAccumulatorS+=DT");
+requireText("sim/simulator.mjs","(seq%20)===0");
 forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
 
 // REAL WORLD is a geospatial/render adapter only. Browser GPS establishes the

@@ -31,6 +31,7 @@ const NAV_AGL_RAY_MAX_M = 60;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
 const SIM_MAX_STEPS_PER_FRAME = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
+const SIM_AUX_INTERVAL_S = .01;
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
@@ -390,7 +391,6 @@ class PhysicsModel {
     const before=this.linear();
     b3.b3World_Step(this.world,dt,4);
     this.worldAcceleration=scale(sub(this.linear(),before),1/dt);
-    return this.state();
   }
   state(){const p=this.position(),q=this.rotation(),v=this.linear();return{x:p[0],y:p[1],z:p[2],vx:v[0],vy:v[1],vz:v[2],speed:norm(v),attitude:quatToEuler(q),battery_v:this.batteryVoltage,current_a:this.batteryCurrent};}
   render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);if(this.worldHalo){const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow";this.worldHalo.visible=worldActive&&cameraMode!=="fpv";}}
@@ -398,9 +398,9 @@ class PhysicsModel {
 
 function integrateDuration(model,pulses,duration){
   if(!(duration>0))return model.state();
-  let remaining=duration,state=model.state();
-  while(remaining>1e-9){const step=Math.min(DT,remaining);state=model.step(pulses,step);remaining-=step;}
-  return state;
+  let remaining=duration;
+  while(remaining>1e-9){const step=Math.min(DT,remaining);model.step(pulses,step);remaining-=step;}
+  return model.state();
 }
 
 THREE.Object3D.DEFAULT_UP.set(0,0,1);
@@ -643,7 +643,9 @@ function prepareControllerStep(){
   const packet=makeInput(seq,physics.imuRaw(DT),sbusFrame,flags,1000,navigationFrame,0);resetFlag=false;return{seq,packet};
 }
 function controllerStepSync(){
-  const {packet}=prepareControllerStep(),started=performance.now(),out=backend.exchangeSync(packet);latestControllerRttMs=performance.now()-started;return out;
+  const {seq,packet}=prepareControllerStep();
+  if((seq%20)===0){const started=performance.now(),out=backend.exchangeSync(packet);latestControllerRttMs=performance.now()-started;return out;}
+  return backend.exchangeSync(packet);
 }
 async function controllerStep(){
   const {seq,packet}=prepareControllerStep(),started=performance.now(),out=await backend.exchange(packet,seq);latestControllerRttMs=performance.now()-started;return out;
@@ -653,7 +655,7 @@ function recordSession(){
   sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
 }
 async function loop(){
-  let schedulerWallMs=performance.now(),accumulatorMs=0;
+  let schedulerWallMs=performance.now(),accumulatorMs=0,auxAccumulatorS=0;
   while(running){
     if(mode==="replay"){await replayStep();continue;}
     await new Promise(requestAnimationFrame);
@@ -661,7 +663,8 @@ async function loop(){
     accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);
     const due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_FRAME),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
     for(let i=0;i<due&&running;i++){
-      latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();accumulatorMs-=SIM_FIXED_STEP_MS;
+      latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;auxAccumulatorS+=DT;accumulatorMs-=SIM_FIXED_STEP_MS;
+      if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
     }
   }
 }
