@@ -30,8 +30,14 @@ const TERRAIN_HALF = TERRAIN_SIZE / 2;
 const NAV_AGL_RAY_MAX_M = 60;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
-const SIM_MAX_STEPS_PER_FRAME = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
+const SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
+const SIM_WORK_SLICE_MS = 6;
 const SIM_AUX_INTERVAL_S = .01;
+const yieldToBrowser=(()=>{
+  const queue=[],channel=new MessageChannel();
+  channel.port1.onmessage=()=>queue.shift()?.();
+  return()=>new Promise(resolve=>{queue.push(resolve);channel.port2.postMessage(0);});
+})();
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
@@ -657,15 +663,19 @@ function recordSession(){
 async function loop(){
   let schedulerWallMs=performance.now(),accumulatorMs=0,auxAccumulatorS=0;
   while(running){
-    if(mode==="replay"){await replayStep();continue;}
-    await new Promise(requestAnimationFrame);
+    if(mode==="replay"){await replayStep();schedulerWallMs=performance.now();continue;}
     const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=now;
     accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);
-    const due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_FRAME),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
+    if(accumulatorMs<SIM_FIXED_STEP_MS){await new Promise(requestAnimationFrame);continue;}
+    const sliceStart=performance.now(),due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_SLICE),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
     for(let i=0;i<due&&running;i++){
       latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;auxAccumulatorS+=DT;accumulatorMs-=SIM_FIXED_STEP_MS;
       if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
+      if(performance.now()-sliceStart>=SIM_WORK_SLICE_MS)break;
     }
+    const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=afterWork;
+    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_CATCHUP_MS);
+    if(accumulatorMs>=SIM_FIXED_STEP_MS)await yieldToBrowser();else await new Promise(requestAnimationFrame);
   }
 }
 async function replayStep(){

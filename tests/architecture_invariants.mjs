@@ -81,6 +81,11 @@ for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
 requireText("sim/simulator.mjs","SIM_FIXED_STEP_MS = DT * 1000");
 requireText("sim/simulator.mjs","accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS)");
 requireText("sim/simulator.mjs","Math.floor(accumulatorMs/SIM_FIXED_STEP_MS)");
+requireText("sim/simulator.mjs","SIM_WORK_SLICE_MS = 6");
+requireText("sim/simulator.mjs","SIM_MAX_STEPS_PER_SLICE");
+requireText("sim/simulator.mjs","yieldToBrowser()");
+requireText("sim/simulator.mjs","workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS)");
+requireText("sim/simulator.mjs","if(accumulatorMs>=SIM_FIXED_STEP_MS)await yieldToBrowser();else await new Promise(requestAnimationFrame)");
 requireText("sim/simulator.mjs","exchangeSync(packet)");
 requireText("sim/simulator.mjs","backend instanceof WasmBackend");
 requireText("sim/simulator.mjs","physics.p.imuValid");

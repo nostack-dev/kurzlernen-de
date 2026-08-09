@@ -96,7 +96,8 @@ try{
   await wait(1200);
   const cadenceEnd=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
   const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000);
-  if(!(cadenceRatio>.70&&cadenceRatio<1.30))throw new Error(`fixed-step simulation is not tracking wall time: ${cadenceRatio.toFixed(3)}x`);
+  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x`);
+  if(!(cadenceRatio>.90&&cadenceRatio<1.10))throw new Error(`fixed-step simulation is not tracking wall time closely enough: ${cadenceRatio.toFixed(3)}x`);
   const soloUi=await page.evaluate(()=>({
     hud:!document.querySelector("#soloHud")?.hidden,
     reset:!!document.querySelector("#soloReset"),
