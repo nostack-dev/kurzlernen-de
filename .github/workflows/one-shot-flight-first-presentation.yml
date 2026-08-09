@@ -37,7 +37,11 @@ jobs:
           replacement="""requireText(\"sim/simulator.mjs\",\"viewport.dataset.presentationDraws\");
           const presentationStart"""
           assert s.count(duplicate)==1, s.count(duplicate)
-          p.write_text(s.replace(duplicate,replacement,1))
+          s=s.replace(duplicate,replacement,1)
+          boundary_start=s.index('const presentationStart=simulatorSource.indexOf("function render(){")')
+          boundary_end=s.index("'''",boundary_start)
+          s=s[:boundary_start]+s[boundary_end:]
+          p.write_text(s)
           PY
           python3 tools/flight_first_patch.py
           git config user.name "Christian Heinrich Hohlfeld"
