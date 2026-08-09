@@ -87,7 +87,8 @@ try{
     localStorage.setItem("arondight45PhoneControlSettingsV1",JSON.stringify({leftSensitivity:1,rightSensitivity:1}));
     localStorage.setItem("arondight45PhoneControlSettingsV2",JSON.stringify({leftSensitivity:.02,rightSensitivity:.02}));
     localStorage.setItem("arondight45PhoneControlSettingsV3",JSON.stringify({leftSensitivity:.25,rightSensitivity:.25}));
-    localStorage.removeItem("arondight45PhoneControlSettingsV4");
+    localStorage.setItem("arondight45PhoneControlSettingsV4",JSON.stringify({leftFineness:7,rightFineness:10}));
+    localStorage.removeItem("arondight45PhoneControlSettingsV5");
   });
   await page.click("#camSolo");
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
@@ -120,43 +121,44 @@ try{
     v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),
     v2:localStorage.getItem("arondight45PhoneControlSettingsV2"),
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
+    v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
-    throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
-  if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null)
-    throw new Error(`obsolete phone settings not wiped: ${JSON.stringify(defaults)}`);
+  if(defaults.left!=="1"||defaults.right!=="1"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+    throw new Error(`clean V5 direct defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
+  if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
+    throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);
 
   await page.click('.phone-settings-dialog [data-invert-left-horizontal]');
-  let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertLeftHorizontal!==true)throw new Error(`left horizontal invert did not persist live: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-invert-left-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertLeftHorizontal!==false)throw new Error(`left horizontal invert restore failed: ${JSON.stringify(stored)}`);
 
   await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertRightHorizontal!==true)throw new Error(`right horizontal invert did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertRightVertical!==true)throw new Error(`right vertical invert did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==false)throw new Error(`right-axis invert restore failed: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.lockLeftHorizontal!==true)throw new Error(`left horizontal lock did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.lockLeftHorizontal!==false)throw new Error(`left horizontal unlock did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.lockRightHorizontal!==true)throw new Error(`right vertical lock did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-lock-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.lockRightHorizontal!==false)throw new Error(`right vertical unlock did not persist: ${JSON.stringify(stored)}`);
   await page.$eval('.phone-settings-dialog [data-slider="hover"]',e=>{e.value="2.2";e.dispatchEvent(new Event("input",{bubbles:true}));});
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(Math.abs(stored.defaultHoverAgl-2.2)>.001)throw new Error(`default hover AGL did not persist: ${JSON.stringify(stored)}`);
   await page.$eval('.phone-settings-dialog [data-camera-slider="tilt"]',e=>{e.value="18";e.dispatchEvent(new Event("input",{bubbles:true}));});
   await page.$eval('.phone-settings-dialog [data-camera-slider="fov"]',e=>{e.value="101";e.dispatchEvent(new Event("input",{bubbles:true}));});
