@@ -12,6 +12,8 @@ if(!bootstrapSource.includes("renderFrame(renderer,scene,camera)"))throw new Err
 if(!simulatorSource.includes("__arondightRealWorld?.renderFrame?.(renderer,scene,camera)"))throw new Error("simulator render loop does not explicitly call the REAL WORLD frame bridge");
 if(!bootstrapSource.includes("WORLD_MAP_FRAME_MS=1000/30")||!bootstrapSource.includes("pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO)")||!bootstrapSource.includes("setSky({\"sky-color\":\"#0a2845\""))throw new Error("WORLD mobile render/contrast budget missing");
 if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");
+for(const marker of ["#237db0","#4f7b55","#f0c85c","#bdcbd3","WATER","GREEN","ROADS","BUILDINGS"])
+  if(!bootstrapSource.includes(marker))throw new Error(`WORLD semantic palette/legend marker missing: ${marker}`);
 
 const browser=await puppeteer.launch({
   headless:true,
@@ -141,6 +143,21 @@ try{
   if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||![15,20,30].includes(live.mapFpsCap)||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient")||live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||live.legend==="none"||!["nominal","constrained","critical"].includes(live.perfMode)||live.paletteLayers<1)throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
   if(live.canvasCount!==2)throw new Error(`REAL WORLD must use exactly MapLibre + the existing flight canvas, got ${live.canvasCount}`);
   if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);
+
+  await page.click("#soloTopbar .phone-settings-button");
+  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await page.click('.phone-settings-dialog [data-world-grid]');
+  await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldGridEnabled==="0",{timeout:3000});
+  let gridPersist=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));
+  if(gridPersist!=="0")throw new Error(`WORLD GRID off did not persist: ${gridPersist}`);
+  await page.click("#soloTopbar .phone-settings-button");
+  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await page.click('.phone-settings-dialog [data-world-grid]');
+  await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldGridEnabled==="1",{timeout:3000});
+  gridPersist=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));
+  if(gridPersist!=="1")throw new Error(`WORLD GRID on did not persist: ${gridPersist}`);
 
   const lookBox=await page.$eval("#worldLookHud",element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});
   await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.82,lookBox.y+lookBox.h*.30,{steps:5});await page.mouse.up();

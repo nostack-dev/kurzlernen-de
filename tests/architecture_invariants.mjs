@@ -198,3 +198,6 @@ for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/wor
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, geospatial WGS84/ENU render adapter only, one shared 1-PHONE/2-PHONE GAME mapping, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
+requireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");
+requireText("tests/real_world_ui_smoke.mjs","WORLD GRID off did not persist");
+requireText("tests/real_world_ui_smoke.mjs","WORLD semantic palette/legend marker missing");

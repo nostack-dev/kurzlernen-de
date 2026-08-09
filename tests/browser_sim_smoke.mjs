@@ -92,6 +92,11 @@ try{
   });
   await page.click("#camSolo");
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+  const cadenceStart=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
+  await wait(1200);
+  const cadenceEnd=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
+  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000);
+  if(!(cadenceRatio>.70&&cadenceRatio<1.30))throw new Error(`fixed-step simulation is not tracking wall time: ${cadenceRatio.toFixed(3)}x`);
   const soloUi=await page.evaluate(()=>({
     hud:!document.querySelector("#soloHud")?.hidden,
     reset:!!document.querySelector("#soloReset"),
@@ -307,5 +312,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, axis settings, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, axis settings, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}
