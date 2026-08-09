@@ -1,0 +1,37 @@
+name: One-shot camera E2E state cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-camera-e2e-state.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore FOLLOW after camera settings assertion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/browser_sim_smoke.mjs')
+          s=p.read_text()
+          old='''  const thirdDistance=await page.$eval("#viewport",e=>Number(e.dataset.cameraDistanceM));\n  if(!(thirdDistance>3.45&&thirdDistance<3.75))throw new Error(`third-person camera distance not applied: ${thirdDistance}`);\n\n'''
+          new=old+'''  await page.click("#soloCamera");await page.click("#soloCamera");\n  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="follow",{timeout:5000});\n\n'''
+          assert s.count(old)==1, s.count(old)
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check tests/browser_sim_smoke.mjs
+          git diff --check
+      - name: Commit test only
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add tests/browser_sim_smoke.mjs
+          git commit -m "Restore camera state after optics E2E"
+          git push
