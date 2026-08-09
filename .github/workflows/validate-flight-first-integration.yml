@@ -38,8 +38,8 @@ jobs:
           ASAN_OPTIONS=detect_leaks=1 /tmp/hil_test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil_test
           /tmp/sil_test
-          node tests/control_semantics_test.mjs
           rm .github/workflows/validate-flight-first-integration.yml
+          node tests/control_semantics_test.mjs
           node tests/architecture_invariants.mjs
           git checkout HEAD -- .github/workflows/validate-flight-first-integration.yml
       - name: Build exact shared controller runtime to WebAssembly
