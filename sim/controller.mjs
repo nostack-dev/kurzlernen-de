@@ -29,7 +29,7 @@ let controls=neutralForMode();
 function setGroundClearance(value,send=true){
   const numeric=Number(value);
   if(!Number.isFinite(numeric))return;
-  groundClearance=clamp(Math.round(numeric*20)/20,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
+  groundClearance=clamp(numeric,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
   controls.groundClearance=groundClearance;
   renderClearance();if(send)publish();
 }
@@ -42,14 +42,14 @@ function setHeightAxis(value){heightAxis=clamp(Number(value)||0,-1,1);renderHeig
 function applyHeightPointer(event){const r=ui.gameHeightPad.getBoundingClientRect(),cy=r.top+r.height/2,span=Math.max(1,r.height*.40);setHeightAxis((cy-event.clientY)/span);event.preventDefault();}
 ui.gameHeightPad.addEventListener("pointerdown",event=>{if(heightPointer!==null)return;heightPointer=event.pointerId;ui.gameHeightPad.setPointerCapture?.(heightPointer);applyHeightPointer(event);});
 ui.gameHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===heightPointer)applyHeightPointer(event);});
-const releaseHeightPointer=event=>{if(heightPointer===null||(event?.pointerId!=null&&event.pointerId!==heightPointer))return;try{ui.gameHeightPad.releasePointerCapture?.(heightPointer);}catch{}heightPointer=null;setHeightAxis(0);event?.preventDefault();};
+const releaseHeightPointer=event=>{if(heightPointer===null||(event?.pointerId!=null&&event.pointerId!==heightPointer))return;const released=heightPointer;heightPointer=null;setHeightAxis(0);try{ui.gameHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 ui.gameHeightPad.addEventListener("pointerup",releaseHeightPointer);ui.gameHeightPad.addEventListener("pointercancel",releaseHeightPointer);ui.gameHeightPad.addEventListener("lostpointercapture",releaseHeightPointer);
 function stepHeightTarget(now){const dt=Math.max(0,(now-heightLastMs)/1000);heightLastMs=now;if(gameMode&&Math.abs(heightAxis)>1e-4)setGroundClearance(stepGroundClearanceTarget(groundClearance,heightAxis,dt),false);requestAnimationFrame(stepHeightTarget);}
 requestAnimationFrame(stepHeightTarget);
 
 function bindHeightKey(button,direction){
   let pointer=null,timer=0;
-  const nudge=()=>setGroundClearance(groundClearance+direction*.2);
+  const nudge=()=>setGroundClearance(Math.round((groundClearance+direction*.1)*10)/10);
   const stop=event=>{
     if(pointer!==null&&event?.pointerId!=null&&event.pointerId!==pointer)return;
     if(timer){clearInterval(timer);timer=0;}

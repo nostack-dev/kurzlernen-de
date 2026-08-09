@@ -132,3 +132,4 @@ if(clearanceRateMps(0)!==0||clearanceRateMps(.05)!==0)throw new Error("height HO
 if(Math.abs(clearanceRateMps(1)-MAX_GAME_CLEARANCE_RATE_MPS)>1e-9||Math.abs(clearanceRateMps(-1)+MAX_GAME_CLEARANCE_RATE_MPS)>1e-9)throw new Error("height full-rate authority failed");
 if(Math.abs(stepGroundClearanceTarget(1.2,1,.05)-1.45)>.011)throw new Error("height target slew failed");
 if(stepGroundClearanceTarget(49.9,1,1)>50||stepGroundClearanceTarget(.6,-1,1)<.5)throw new Error("height target envelope failed");
+let fineHeight=1.2;for(let i=0;i<60;i++)fineHeight=stepGroundClearanceTarget(fineHeight,.2,1/60);if(!(fineHeight>1.25))throw new Error(`fine height input stalled instead of accumulating: ${fineHeight}`);

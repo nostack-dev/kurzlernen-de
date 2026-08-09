@@ -44,7 +44,7 @@ export function stepGroundClearanceTarget(current,input,dtSeconds){
   // Never integrate a stale held input across a long browser pause. Real command
   // sampling is fresh/periodic too; a delayed UI frame must not create a target jump.
   const dt=clampControl(Number(dtSeconds)||0,0,0.05);
-  return Math.round(clampControl(base+clearanceRateMps(input)*dt,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M)*100)/100;
+  return clampControl(base+clearanceRateMps(input)*dt,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
 }
 export function normalizePhoneSettings(settings={}){
   return{

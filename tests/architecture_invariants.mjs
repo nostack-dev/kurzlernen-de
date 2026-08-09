@@ -37,7 +37,7 @@ requireText("esp32/Arondight45_StateControl.hpp","vertical_thrust_fraction");
 requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f");
-requireText("esp32/Arondight45_StateControl.hpp","kStateMaxHorizontalSpeedMps = 12.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kStateMaxHorizontalSpeedMps = 5.0f");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f");
 
@@ -78,6 +78,10 @@ requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime 
 requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
 for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
   forbidText("sim/simulator.mjs",dirty,`simulator contains decoded/control shortcut: ${dirty}`);
+requireText("sim/simulator.mjs","SIM_FIXED_STEP_MS = DT * 1000");
+requireText("sim/simulator.mjs","accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS)");
+requireText("sim/simulator.mjs","Math.floor(accumulatorMs/SIM_FIXED_STEP_MS)");
+forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
 
 // REAL WORLD is a geospatial/render adapter only. Browser GPS establishes the
 // WGS84 horizontal origin; local x/y/z remain east/north/up SI metres.

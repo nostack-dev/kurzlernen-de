@@ -17,9 +17,9 @@ constexpr int kStateBodyPitchChannel = 7;
 constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
 
-// 5 m/s was a training-range UX cap. WORLD uses the same real FC path,
-// so enlarge the shared command envelope instead of adding a simulator speed hack.
-constexpr float kStateMaxHorizontalSpeedMps = 12.0f;
+// Shared Production/HIL/WASM speed envelope. Do not widen this to mask
+// simulator frame pacing; retune only from measured physical-airframe evidence.
+constexpr float kStateMaxHorizontalSpeedMps = 5.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;

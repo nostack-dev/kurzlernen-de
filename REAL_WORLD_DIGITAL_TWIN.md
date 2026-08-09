@@ -26,7 +26,7 @@ Production CI explicitly gates the 50 m range contract, 60 m navigation-ray cove
 
 ## WORLD navigation and camera ergonomics
 
-The shared GAME horizontal speed command envelope is **12 m/s** in Production, HIL and WASM. This replaces the former 5 m/s training-range cap; it is not a WORLD-only velocity multiplier and the physical plant still decides what speed the configured airframe can actually achieve under its 25° tilt, thrust and drag limits. Phone fineness/expo remains unchanged, so full stick still reaches the full command envelope while centre stick remains precise.
+The shared GAME horizontal speed command envelope remains **5 m/s** in Production, HIL and WASM until measured physical-airframe data justifies a retune. WORLD never multiplies physical speed for visual effect. The simulator instead runs the same 1 ms controller/physics step from a wall-time accumulator, independent of 60/120 Hz display refresh, with a bounded 50 ms catch-up window to avoid a post-stall spiral. Phone fineness/expo remains unchanged, so full stick reaches the full validated command envelope while centre stick remains precise.
 
 WORLD settings include a **WORLD GRID** toggle, default ON. It reuses the simulator's existing local metric THREE grid as a render-only depth/scale cue above the geospatial map; it never becomes collision or navigation truth.
 

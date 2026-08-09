@@ -92,7 +92,7 @@ try{
   await setClearanceByButtons(controller,2.8);await waitText(controller,"#gameClearanceValue","2.8 m",10000);
   console.log("Human height controls: spring-centred climb/HOLD/descend pad plus deterministic nudge buttons drive the real AGL target.");
   const clearanceStart=await simTime(view);await waitSim(view,clearanceStart+.55,30000);const clearanceRise=await liveMotion(view,controller);
-  if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance slider did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
+  if(!(clearanceRise.altitude>hold.altitude+.08||clearanceRise.vertical>.18))throw new Error(`ground-clearance target did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
   await setClearanceByButtons(controller,2.0);await view.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.45;},{timeout:90000});
 
   const rightPitch=await stickBox(controller,"#rightStick"),pitchX=rightPitch.x+rightPitch.w/2,pitchY=rightPitch.y+rightPitch.h/2,pitchR=Math.min(rightPitch.w,rightPitch.h)*.42;

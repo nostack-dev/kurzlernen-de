@@ -203,13 +203,14 @@ try{
   await page.$eval("#camFollow",e=>e.click());
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="follow",{timeout:5000});
 
-  await page.$eval("#soloClearanceSlider",e=>{e.value="2.7";e.dispatchEvent(new Event("input",{bubbles:true}));});
-  await page.waitForFunction(()=>document.querySelector("#soloClearanceValue")?.textContent?.includes("2.7 m"),{timeout:5000});
-  const clearanceStart=await simTime();await waitForSimTime(clearanceStart+.50,30000);
-  const clearanceRise=bodyMotion(await latestFlightSample());
-  if(!(clearanceRise.altitude>hold.altitude+.07||clearanceRise.vertical>.16))throw new Error(`solo clearance slider did not command climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
-  await page.$eval("#soloClearanceSlider",e=>{e.value="2";e.dispatchEvent(new Event("input",{bubbles:true}));});
-  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.75;},{timeout:90000});
+  const heightPad=await stickGeometry("#soloHeightPad"),heightX=heightPad.x+heightPad.width/2,heightY=heightPad.y+heightPad.height/2,heightSpan=heightPad.height*.40;
+  const heightTargetBefore=await page.$eval("#soloClearance",e=>Number(e.dataset.targetAglM));
+  await page.mouse.move(heightX,heightY);await page.mouse.down();await page.mouse.move(heightX,heightY-heightSpan,{steps:4});await wait(220);await page.mouse.up();
+  const heightTargetAfter=await page.$eval("#soloClearance",e=>Number(e.dataset.targetAglM));if(!(heightTargetAfter>heightTargetBefore+.45))throw new Error(`solo spring height control did not slew target up: ${heightTargetBefore} -> ${heightTargetAfter}`);
+  const clearanceStart=await simTime();await waitForSimTime(clearanceStart+.50,30000);const clearanceRise=bodyMotion(await latestFlightSample());
+  if(!(clearanceRise.altitude>hold.altitude+.07||clearanceRise.vertical>.16))throw new Error(`solo height target did not command physical climb: before=${JSON.stringify(hold)}, after=${JSON.stringify(clearanceRise)}`);
+  await page.mouse.move(heightX,heightY);await page.mouse.down();await page.mouse.move(heightX,heightY+heightSpan,{steps:4});await wait(220);await page.mouse.up();
+  await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<3.0&&v<.85;},{timeout:90000});
 
   const left=await pointerDownOnly("#soloLeft");
   await page.mouse.move(left.cx,left.cy-left.r*.65,{steps:6});

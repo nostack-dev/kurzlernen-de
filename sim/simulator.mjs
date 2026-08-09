@@ -28,6 +28,9 @@ const STATE_GAME_MODE = 1 << 6;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
 const NAV_AGL_RAY_MAX_M = 60;
+const SIM_FIXED_STEP_MS = DT * 1000;
+const SIM_MAX_CATCHUP_MS = 50;
+const SIM_MAX_STEPS_PER_FRAME = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
@@ -542,7 +545,7 @@ function setSoloHeightAxis(value){soloHeightAxis=clamp(Number(value)||0,-1,1);re
 function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),cy=r.top+r.height/2,span=Math.max(1,r.height*.40);setSoloHeightAxis((cy-event.clientY)/span);event.preventDefault();}
 soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;soloHeightPad.setPointerCapture?.(soloHeightPointer);applySoloHeightPointer(event);});
 soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHeightPointer)applySoloHeightPointer(event);});
-const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;try{soloHeightPad.releasePointerCapture?.(soloHeightPointer);}catch{}soloHeightPointer=null;setSoloHeightAxis(0);event?.preventDefault();};
+const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 soloHeightPad.addEventListener("pointerup",releaseSoloHeight);soloHeightPad.addEventListener("pointercancel",releaseSoloHeight);soloHeightPad.addEventListener("lostpointercapture",releaseSoloHeight);
 function stepSoloHeightTarget(now){
   const dt=Math.max(0,(now-soloHeightLastMs)/1000);soloHeightLastMs=now;if(!soloMode||Math.abs(soloHeightAxis)<1e-4)return;
@@ -646,10 +649,16 @@ function recordSession(){
   sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
 }
 async function loop(){
+  let schedulerWallMs=performance.now(),accumulatorMs=0;
   while(running){
-    if(mode==="replay") await replayStep();
-    else {latest=await controllerStep();physics.step(latest.motors,DT);simTime+=DT;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
-    if((sequence&7)===0)await new Promise(requestAnimationFrame);
+    if(mode==="replay"){await replayStep();continue;}
+    await new Promise(requestAnimationFrame);
+    const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=now;
+    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);
+    const due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_FRAME);
+    for(let i=0;i<due&&running;i++){
+      latest=await controllerStep();physics.step(latest.motors,DT);simTime+=DT;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();accumulatorMs-=SIM_FIXED_STEP_MS;
+    }
   }
 }
 async function replayStep(){
