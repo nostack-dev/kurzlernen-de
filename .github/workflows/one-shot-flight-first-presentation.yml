@@ -20,6 +20,25 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tools/flight_first_patch.py")
+          s=p.read_text()
+          old='''anchor = '''requireText("sim/simulator.mjs","physics.p.imuValid");
+          forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
+          ''''''
+          new='''anchor = '''requireText("sim/simulator.mjs","physics.p.imuValid");
+          ''''''
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          duplicate='''requireText("sim/simulator.mjs","viewport.dataset.presentationDraws");
+          forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
+          const presentationStart'''
+          replacement='''requireText("sim/simulator.mjs","viewport.dataset.presentationDraws");
+          const presentationStart'''
+          assert s.count(duplicate)==1, s.count(duplicate)
+          p.write_text(s.replace(duplicate,replacement,1))
+          PY
           python3 tools/flight_first_patch.py
           git config user.name "Christian Heinrich Hohlfeld"
           git config user.email "chris.hohlfeld@gmail.com"
