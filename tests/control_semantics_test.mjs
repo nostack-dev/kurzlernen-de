@@ -1,6 +1,6 @@
 // This shared semantics + workflow-hygiene test is part of both final Pages and ESP32-S31 validation.
 import assert from "node:assert/strict";
-import {readdirSync} from "node:fs";
+import {readdirSync,readFileSync} from "node:fs";
 import {
   DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,neutralControls,copyControls,armReady,applyStick,releaseStick,
   knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes
@@ -133,3 +133,15 @@ if(Math.abs(clearanceRateMps(1)-MAX_GAME_CLEARANCE_RATE_MPS)>1e-9||Math.abs(clea
 if(Math.abs(stepGroundClearanceTarget(1.2,1,.05)-1.45)>.011)throw new Error("height target slew failed");
 if(stepGroundClearanceTarget(49.9,1,1)>50||stepGroundClearanceTarget(.6,-1,1)<.5)throw new Error("height target envelope failed");
 let fineHeight=1.2;for(let i=0;i<60;i++)fineHeight=stepGroundClearanceTarget(fineHeight,.2,1/60);if(!(fineHeight>1.25))throw new Error(`fine height input stalled instead of accumulating: ${fineHeight}`);
+
+// Release gate for the browser SIL hot path. It may remove JavaScript overhead,
+// but it must still execute the exact compiled runtime and 1 ms physics step.
+const simulatorSource=readFileSync("sim/simulator.mjs","utf8");
+assert.ok(simulatorSource.includes("exchangeSync(packet)"),"browser SIL must expose synchronous exact-runtime exchange");
+assert.ok(simulatorSource.includes('wasmFastPath=mode==="sim"&&backend instanceof WasmBackend'),"browser SIM must use the synchronous WASM fast path");
+const hotStart=simulatorSource.indexOf("function prepareControllerStep(){"),hotEnd=simulatorSource.indexOf("function recordSession(){",hotStart);
+assert.ok(hotStart>=0&&hotEnd>hotStart,"cannot isolate 1 kHz browser SIL authority boundary");
+const hotSource=simulatorSource.slice(hotStart,hotEnd);
+assert.ok(!hotSource.includes("defaultParams()"),"1 kHz SIL authority loop must not re-read DOM-backed physical parameters");
+assert.ok(!hotSource.includes("ui.rtt.textContent"),"1 kHz SIL authority loop must not mutate diagnostic DOM");
+assert.ok(simulatorSource.includes("physics.step(latest.motors,DT)"),"SIL optimization must retain the same 1 ms physics integration path");
