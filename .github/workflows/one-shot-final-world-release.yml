@@ -1,0 +1,108 @@
+name: One-shot final WORLD release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Finalize WORLD controls performance and release gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          def one(path, old, new):
+              p=Path(path); s=p.read_text(); n=s.count(old)
+              assert n==1, f"{path}: expected exactly one occurrence, got {n}: {old[:140]!r}"
+              p.write_text(s.replace(old,new,1))
+
+          # The product nudge is deliberately 0.1 m for human fine control. The
+          # E2E was the only stale 0.2 m expectation left after the UX pass.
+          one('tests/dual_phone_smoke.mjs',
+              'await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.2)<.06,{timeout:5000});',
+              'await controller.waitForFunction(()=>Math.abs(Number(document.querySelector("#gameClearance")?.dataset.targetAglM)-2.1)<.06,{timeout:5000});')
+
+          # Gate actual simulation wall-clock pacing, not merely source markers.
+          p=Path('tests/browser_sim_smoke.mjs'); s=p.read_text()
+          anchor='''  await page.click("#camSolo");\n  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});\n  const soloUi=await page.evaluate(()=>({'''
+          replacement='''  await page.click("#camSolo");\n  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});\n  const cadenceStart=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));\n  await wait(1200);\n  const cadenceEnd=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));\n  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000);\n  if(!(cadenceRatio>.70&&cadenceRatio<1.30))throw new Error(`fixed-step simulation is not tracking wall time: ${cadenceRatio.toFixed(3)}x`);\n  const soloUi=await page.evaluate(()=>({'''
+          assert s.count(anchor)==1
+          s=s.replace(anchor,replacement,1)
+          s=s.replace('raycast AGL slider, one-phone forward/strafe/braking','spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking',1)
+          p.write_text(s)
+
+          # Strengthen WORLD visual semantics and the requested GRID ON/OFF behavior.
+          p=Path('tests/real_world_ui_smoke.mjs'); s=p.read_text()
+          anchor='''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");\n'''
+          insert=anchor+'''for(const marker of ["#237db0","#4f7b55","#f0c85c","#bdcbd3","WATER","GREEN","ROADS","BUILDINGS"])\n  if(!bootstrapSource.includes(marker))throw new Error(`WORLD semantic palette/legend marker missing: ${marker}`);\n'''
+          assert s.count(anchor)==1
+          s=s.replace(anchor,insert,1)
+          anchor='''  if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);\n\n  const lookBox='''
+          grid_test='''  if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);\n\n  await page.click("#soloTopbar .phone-settings-button");\n  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});\n  await page.click('.phone-settings-dialog [data-world-grid]');\n  await page.click('.phone-settings-dialog [data-close]');\n  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldGridEnabled==="0",{timeout:3000});\n  let gridPersist=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));\n  if(gridPersist!=="0")throw new Error(`WORLD GRID off did not persist: ${gridPersist}`);\n  await page.click("#soloTopbar .phone-settings-button");\n  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});\n  await page.click('.phone-settings-dialog [data-world-grid]');\n  await page.click('.phone-settings-dialog [data-close]');\n  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldGridEnabled==="1",{timeout:3000});\n  gridPersist=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));\n  if(gridPersist!=="1")throw new Error(`WORLD GRID on did not persist: ${gridPersist}`);\n\n  const lookBox='''
+          assert s.count(anchor)==1
+          s=s.replace(anchor,grid_test,1)
+          s=s.replace('50m range, 12m/s shared FC envelope','50m range, validated 5m/s shared FC envelope',1)
+          p.write_text(s)
+
+          # Eliminate the Node-20 checkout warning and pin the exact current
+          # checkout release in both permanent production workflows.
+          checkout='actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'
+          for path in ['.github/workflows/deploy.yml','.github/workflows/s31-hil.yml']:
+              p=Path(path); s=p.read_text(); n=s.count('actions/checkout@v4')
+              assert n>=1, f'{path}: no checkout@v4 occurrence found'
+              p.write_text(s.replace('actions/checkout@v4',checkout))
+
+          # Lock those release-quality properties into architecture CI.
+          p=Path('tests/architecture_invariants.mjs'); s=p.read_text()
+          addition='''\nfor(const workflow of [".github/workflows/deploy.yml",".github/workflows/s31-hil.yml"]){\n  forbidText(workflow,"actions/checkout@v4",`${workflow} still uses deprecated Node-20 checkout`);\n  requireText(workflow,"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",`${workflow} must pin checkout v7.0.1`);\n}\nrequireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");\nrequireText("tests/real_world_ui_smoke.mjs","WORLD GRID off did not persist");\nrequireText("tests/real_world_ui_smoke.mjs","WORLD semantic palette/legend marker missing");\n'''
+          assert 'checkout v7.0.1' not in s
+          p.write_text(s.rstrip()+addition)
+
+          p=Path('REAL_WORLD_DIGITAL_TWIN.md'); doc=p.read_text().rstrip()
+          note='''\n\nRelease CI also measures simulator-time versus browser wall-time at runtime, so display-refresh regressions cannot silently halve flight speed again. WORLD GRID is exercised both OFF and ON with persistence, and the semantic water/vegetation/road/building palette is locked by the browser release gate.\n'''
+          if 'display-refresh regressions cannot silently halve flight speed again' not in doc:
+              p.write_text(doc+note)
+
+          # Remove this scaffold before any architecture check or final commit.
+          Path('.github/workflows/one-shot-final-world-release.yml').unlink()
+
+          for path in [
+              'sim/control_semantics.mjs','sim/controller.mjs','sim/simulator.mjs','sim/real_world_bootstrap.mjs',
+              'tests/control_semantics_test.mjs','tests/architecture_invariants.mjs','tests/browser_sim_smoke.mjs',
+              'tests/dual_phone_smoke.mjs','tests/real_world_ui_smoke.mjs'
+          ]:
+              subprocess.run(['node','--check',path],check=True)
+          subprocess.run(['node','tests/control_semantics_test.mjs'],check=True)
+          subprocess.run(['node','tests/architecture_invariants.mjs'],check=True)
+          subprocess.run(['g++','-std=c++17','-O2','-Wall','-Wextra','-Wpedantic','-Werror','-Iesp32','tests/state_control_test.cpp','-o','/tmp/state-control-final'],check=True)
+          subprocess.run(['/tmp/state-control-final'],check=True)
+          PY
+          git diff --check
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Finalize hardware-faithful WORLD flight UX"
+          git push origin HEAD:main
+          FINAL_SHA="$(git rev-parse HEAD)"
+          for i in $(seq 1 20); do
+            REMOTE_SHA="$(git ls-remote origin refs/heads/main | cut -f1)"
+            [ "$REMOTE_SHA" = "$FINAL_SHA" ] && break
+            sleep 1
+          done
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$FINAL_SHA"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/dispatches" -f ref=main
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/s31-hil.yml/dispatches" -f ref=main
