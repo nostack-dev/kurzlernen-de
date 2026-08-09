@@ -20,8 +20,8 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          git fetch origin 4b5e00933c5c21d14756feb5dd56f707d4e37e41
-          git checkout 4b5e00933c5c21d14756feb5dd56f707d4e37e41 -- \
+          git fetch origin e00d8081e7f9a1671d734c883f3b804699c12b7e
+          git checkout e00d8081e7f9a1671d734c883f3b804699c12b7e -- \
             REAL_WORLD_DIGITAL_TWIN.md \
             sim/simulator.mjs \
             tests/architecture_invariants.mjs \
@@ -104,7 +104,7 @@ jobs:
         run: |
           set -euxo pipefail
           rm -f .github/workflows/validate-flight-first-integration.yml
-          git checkout 4b5e00933c5c21d14756feb5dd56f707d4e37e41 -- \
+          git checkout e00d8081e7f9a1671d734c883f3b804699c12b7e -- \
             REAL_WORLD_DIGITAL_TWIN.md \
             sim/simulator.mjs \
             tests/architecture_invariants.mjs \
