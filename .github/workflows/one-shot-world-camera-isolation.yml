@@ -1,0 +1,43 @@
+name: One-shot WORLD camera isolation
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Isolate WORLD camera look from simulator base camera
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
+          old='airframeFor(scene){if(this.airframe?.parent)return this.airframe;scene.traverse(node=>{if(!this.airframe&&node.userData?.arondightAirframe)this.airframe=node;});return this.airframe;}'
+          new='airframeFor(scene){if(this.airframe?.parent)return this.airframe;this.airframe=null;scene.traverse(node=>{if(!this.airframe&&node.userData?.arondightAirframe)this.airframe=node;});return this.airframe;}'
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  renderReal(scene,camera){\n    this.applyLookCamera(scene,camera);this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;\n    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;\n    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);\n    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}\n  }'''
+          new='''  renderReal(scene,camera){\n    const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone();\n    this.applyLookCamera(scene,camera);this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}\n    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;\n    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);\n    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}\n  }'''
+          assert s.count(old)==1;s=s.replace(old,new,1);p.write_text(s)
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          needle='"applyLookCamera(scene,camera)","child.isGridHelper&&this.gridEnabled"'
+          assert s.count(needle)==1;s=s.replace(needle,'"applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"',1);p.write_text(s)
+          Path('.github/workflows/one-shot-world-camera-isolation.yml').unlink()
+          import subprocess
+          subprocess.run(['node','--check','sim/real_world_bootstrap.mjs'],check=True)
+          subprocess.run(['node','--check','tests/architecture_invariants.mjs'],check=True)
+          PY
+          git diff --check
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Isolate WORLD orbit from base flight camera"
+          git push origin HEAD:main
