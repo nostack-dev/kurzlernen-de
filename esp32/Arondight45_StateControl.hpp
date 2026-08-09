@@ -60,8 +60,6 @@ inline StateIntent state_intent(const RC& rc) {
     }
 
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
-    // GAME right-stick Y is a real aircraft-attitude input. Positive input is
-    // physical nose-up pitch in the same Euler convention reported by the FC.
     const float body_pitch_deg =
         shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) *
         kStateMaxBodyPitchDeg;
@@ -126,8 +124,6 @@ public:
         const float c = std::cos(yaw_rad);
         const float s = std::sin(yaw_rad);
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
-        // Body forward is -X. With +Z up, physical body-right is forward × up,
-        // i.e. (-sin(yaw), +cos(yaw)). Keep GAME D/right in that real frame.
         const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;
 
         if (!inner_armed) {
@@ -177,15 +173,8 @@ public:
 
         const float auto_pitch_target_deg =
             -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
-        // The right-stick body-pitch request is an actual attitude bias, added at
-        // the physical attitude-target layer. Left-stick forward/reverse remains
-        // the velocity-state request; the two inputs combine at the one real pitch
-        // degree of freedom instead of abusing camera state or simulator truth.
         const float pitch_target_deg = clamp(auto_pitch_target_deg + intent.body_pitch_deg,
                                              -kMaxTiltDeg, kMaxTiltDeg);
-        // Positive Euler roll is about body +X, which points toward the tail because
-        // this airframe's nose is -X. A physical rightward (+body-Y) acceleration
-        // therefore requires negative roll.
         const float roll_target_deg = -std::atan2(
             right_accel, std::sqrt(specific_up * specific_up + forward_accel * forward_accel)) *
             180.0f / kPi;
@@ -201,9 +190,6 @@ public:
 
         hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                             kMinHoverTrim, kMaxHoverTrim);
-        // Compensate thrust from the final commanded body attitude, including the
-        // manual pitch bias. This keeps AGL control physical instead of letting a
-        // body-pitch command masquerade as an altitude loss in the outer loop.
         const float roll_rad = roll_target_deg * kPi / 180.0f;
         const float pitch_rad = pitch_target_deg * kPi / 180.0f;
         const float vertical_thrust_fraction =
@@ -236,11 +222,13 @@ private:
     static constexpr float kMaxTiltTangent = 0.46630766f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
 
-    static constexpr float kHorizontalVelocityGain = 0.80f;
+    // Real controller tuning: use the acceleration authority already permitted by
+    // the 25-degree attitude envelope. This changes no vehicle or simulator physics.
+    static constexpr float kHorizontalVelocityGain = 1.40f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    static constexpr float kMaxHorizontalAccelerationMps2 = 2.0f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 4.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;
     static constexpr float kMaxVerticalSpeedMps = 2.0f;
