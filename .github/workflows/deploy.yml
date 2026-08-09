@@ -96,8 +96,10 @@ jobs:
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
           ! grep -q 'cdn.jsdelivr.net' drone_simulator.html
           ! grep -q 'generated/flight_core.mjs' drone_simulator.html
-          grep -q 'REAL WORLD · MY LOCATION' drone_simulator.html
+          grep -q 'REAL WORLD' drone_simulator.html
           grep -q 'tile.googleapis.com/v1/3dtiles/root.json' drone_simulator.html
+          grep -q 'eastNorthUpToFixedFrame' drone_simulator.html
+          grep -q 'navigator.geolocation' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
