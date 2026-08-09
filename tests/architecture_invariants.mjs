@@ -132,7 +132,7 @@ requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
 requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["TorusGeometry(.15","worldHalo.visible=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");

@@ -90,7 +90,7 @@ class RealWorldBridge{
   setKeepLookOrientation(value){this.keepLookOrientation=Boolean(value);try{localStorage.setItem(WORLD_KEEP_LOOK_STORAGE,this.keepLookOrientation?"1":"0");}catch{}if(!this.keepLookOrientation&&!this.lookDragging&&(Math.abs(this.lookYawDeg)>.05||Math.abs(this.lookPitchDeg)>.05))this.lookSnapping=true;this.renderLookHud();return this.keepLookOrientation;}
   resetLook(immediate=false){this.lookDragging=false;this.lookPointer=null;if(immediate){this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnapping=false;}else this.lookSnapping=true;this.renderLookHud();}
   stepLook(now){const dt=clamp((now-this.lookFrameMs)/1000,0,.05);this.lookFrameMs=now;if(this.lookSnapping&&!this.lookDragging){const decay=Math.exp(-WORLD_LOOK_SNAP_RATE*dt);this.lookYawDeg*=decay;this.lookPitchDeg*=decay;if(Math.abs(this.lookYawDeg)<.08&&Math.abs(this.lookPitchDeg)<.08){this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnapping=false;}this.renderLookHud();}}
-  airframeFor(scene){if(this.airframe?.parent)return this.airframe;scene.traverse(node=>{if(!this.airframe&&node.userData?.arondightAirframe)this.airframe=node;});return this.airframe;}
+  airframeFor(scene){if(this.airframe?.parent)return this.airframe;this.airframe=null;scene.traverse(node=>{if(!this.airframe&&node.userData?.arondightAirframe)this.airframe=node;});return this.airframe;}
   applyLookCamera(scene,camera){
     this.stepLook(performance.now());if(Math.abs(this.lookYawDeg)<.001&&Math.abs(this.lookPitchDeg)<.001)return;const airframe=this.airframeFor(scene);if(!airframe)return;const mode=$("viewport")?.dataset.cameraMode||"follow",yaw=THREE.MathUtils.degToRad(this.lookYawDeg),pitch=THREE.MathUtils.degToRad(this.lookPitchDeg),worldUp=new THREE.Vector3(0,0,1);
     if(mode==="fpv"){const qYaw=new THREE.Quaternion().setFromAxisAngle(worldUp,-yaw);camera.quaternion.premultiply(qYaw);const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize(),qPitch=new THREE.Quaternion().setFromAxisAngle(right,pitch);camera.quaternion.premultiply(qPitch);return;}
@@ -181,10 +181,11 @@ class RealWorldBridge{
     viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);
   }
   renderReal(scene,camera){
-    this.applyLookCamera(scene,camera);this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;
+    const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone();
+    this.applyLookCamera(scene,camera);this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}
     this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
     const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
-    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}
+    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}
   }
   renderFrame(renderer,scene,camera){
     this.attachThree(renderer,scene,camera);
