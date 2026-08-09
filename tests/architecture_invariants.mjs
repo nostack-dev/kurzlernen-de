@@ -82,7 +82,11 @@ for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
 requireText("sim/simulator.mjs","channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1))");
 requireText("sim/simulator.mjs","FPV optics are rigidly mounted to the airframe");
-requireText("sim/controller.mjs","controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y");
+requireText("sim/control_semantics.mjs","export function applyGameStick");
+requireText("sim/control_semantics.mjs","controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y");
+requireText("sim/control_semantics.mjs","cfg.invertLeftHorizontal?-point.x:point.x");
+requireText("sim/controller.mjs","applyGameStick(controls,kind,point,phoneSettings)");
+requireText("sim/simulator.mjs","applyGameStick(soloControls,kind,point,phoneSettings)");
 requireText("sim/p2p_link.mjs","bodyPitch:clamp(numeric[4],-1,1)");
 const simulatorSource=read("sim/simulator.mjs"),controlsStart=simulatorSource.indexOf("function controls(){"),controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);
 if(controlsStart<0||controlsEnd<=controlsStart)fail("cannot isolate simulator controls() boundary");
@@ -97,6 +101,7 @@ requireText("sim/controller.mjs","NOSE UP");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameUp,+1)");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameDown,-1)");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
+requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");
 requireText("sim/control_settings.mjs","INVERT RIGHT STICK HORIZONTAL (L/R)");
 requireText("sim/control_settings.mjs","INVERT RIGHT STICK VERTICAL (UP/DOWN)");
 requireText("drone_controller.html",'id="gameModeButton"');
@@ -146,4 +151,4 @@ requireText("tests/browser_sim_smoke.mjs","turnStart+.22");
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
-console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, WASD translation, Q/E physical height target, real GAME nose-pitch/yaw attitude, direct WebRTC control and HIL-only bridge.");
+console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, one shared 1-PHONE/2-PHONE GAME mapping, WASD translation, Q/E physical height target, real GAME nose-pitch/yaw attitude, direct WebRTC control and HIL-only bridge.");
