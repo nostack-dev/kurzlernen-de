@@ -140,6 +140,15 @@ function bindStick(element,kind){
   const release=event=>{
     if(event.pointerId!==pointer)return;
     endPointerDrag(element,event.pointerId);pointer=null;
+    if(gameMode){
+      if(kind==="left"){controls.roll=0;controls.pitch=0;controls.throttle=0;}
+      else{controls.yaw=0;controls.bodyPitch=0;}
+    }else releaseStick(controls,kind);
+    updateSticks();publish();event.preventDefault();
+  };
+  element.addEventListener("pointerup",release);element.addEventListener("pointercancel",release);
+  function apply(event){
+    const point=normalizedPointer(element,event);
     if(gameMode)applyGameStick(controls,kind,point,phoneSettings);
     else applyStick(controls,kind,point,phoneSettings);
     updateSticks();publish();
