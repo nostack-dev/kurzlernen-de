@@ -148,7 +148,7 @@ requireText("tests/dual_phone_smoke.mjs","body-pitch command did not rotate airc
 requireText("tests/dual_phone_smoke.mjs","#gameUp");
 requireText("tests/dual_phone_smoke.mjs","#gameDown");
 requireText("tests/dual_phone_smoke.mjs","rcx+rr*.65");
-requireText("tests/dual_phone_smoke.mjs","turnStart+.22");
+requireText("tests/dual_phone_smoke.mjs","turnStart+.30");
 requireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")');
 requireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)');
 requireText("tests/browser_sim_smoke.mjs","body-pitch command did not rotate aircraft nose-up");
