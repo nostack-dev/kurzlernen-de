@@ -1,0 +1,50 @@
+name: One-shot refresh browser V5 test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/one-shot-refresh-browser-v5.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh stale V4 browser assertions to production V5 contract
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/browser_sim_smoke.mjs')
+          s=p.read_text()
+          old='''    localStorage.setItem("arondight45PhoneControlSettingsV3",JSON.stringify({leftSensitivity:.25,rightSensitivity:.25}));\n    localStorage.removeItem("arondight45PhoneControlSettingsV4");'''
+          new='''    localStorage.setItem("arondight45PhoneControlSettingsV3",JSON.stringify({leftSensitivity:.25,rightSensitivity:.25}));\n    localStorage.setItem("arondight45PhoneControlSettingsV4",JSON.stringify({leftFineness:7,rightFineness:10}));\n    localStorage.removeItem("arondight45PhoneControlSettingsV5");'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''    v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),\n  }));\n  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))\n    throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);\n  if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null)\n    throw new Error(`obsolete phone settings not wiped: ${JSON.stringify(defaults)}`);'''
+          new='''    v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),\n    v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),\n  }));\n  if(defaults.left!=="1"||defaults.right!=="1"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))\n    throw new Error(`clean V5 direct defaults/settings labels wrong: ${JSON.stringify(defaults)}`);\n  if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)\n    throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);'''
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace('arondight45PhoneControlSettingsV4','arondight45PhoneControlSettingsV5')
+          # Restore the deliberately stale V4 fixture and v4 cleanup assertion after global persistence-key migration.
+          s=s.replace('localStorage.setItem("arondight45PhoneControlSettingsV5",JSON.stringify({leftFineness:7,rightFineness:10}));','localStorage.setItem("arondight45PhoneControlSettingsV4",JSON.stringify({leftFineness:7,rightFineness:10}));',1)
+          s=s.replace('v4:localStorage.getItem("arondight45PhoneControlSettingsV5"),','v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),',1)
+          p.write_text(s)
+          PY
+          node --check tests/browser_sim_smoke.mjs
+          grep -q 'clean V5 direct defaults/settings labels wrong' tests/browser_sim_smoke.mjs
+          grep -q 'arondight45PhoneControlSettingsV5' tests/browser_sim_smoke.mjs
+          git diff --check
+      - name: Commit refreshed permanent test
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/browser_sim_smoke.mjs
+          git commit -m "Refresh browser smoke for V5 direct controls"
+          git push origin HEAD:main
