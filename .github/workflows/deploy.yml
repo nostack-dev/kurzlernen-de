@@ -19,14 +19,13 @@ jobs:
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(path, old, new):
+          def replace_one(path, pattern, replacement, flags=0):
               p=Path(path); text=p.read_text()
-              if new in text:
-                  return
-              count=text.count(old)
-              assert count==1, f"{path}: expected one match, got {count}"
-              p.write_text(text.replace(old,new,1))
+              new,count=re.subn(pattern,replacement,text,count=1,flags=flags)
+              assert count==1, f"{path}: pattern matched {count} times: {pattern}"
+              p.write_text(new)
 
           semantics=Path("sim/control_semantics.mjs")
           text=semantics.read_text()
@@ -37,7 +36,7 @@ jobs:
             const cfg=normalizePhoneSettings(settings);
             if(kind==="left"){
               const x=cfg.invertLeftHorizontal?-point.x:point.x;
-              // FC GAME convention: negative roll command is physical RIGHT strafe.
+              // FC GAME body-frame convention: negative roll command is physical RIGHT strafe.
               controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(-x,cfg.leftFineness);
               controls.pitch=phoneAxis(-point.y,cfg.leftFineness);
               controls.throttle=0;
@@ -63,63 +62,54 @@ jobs:
           '''
               semantics.write_text(text.replace(marker,shared+marker,1))
 
-          replace_once("sim/controller.mjs",
-            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis}',
-            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes}')
-          replace_once("sim/controller.mjs",'''    const leftRawX=phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness);
-            left={x:phoneSettings.invertLeftHorizontal?-leftRawX:leftRawX,y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
-            const rawX=-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness);
-            right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};''','''    left=gameKnobAxes(controls,"left",phoneSettings);
-            right=gameKnobAxes(controls,"right",phoneSettings);''')
-          replace_once("sim/controller.mjs",'''    if(gameMode){
-              if(kind==="left"){
-                const x=phoneSettings.invertLeftHorizontal?-point.x:point.x;
-                controls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(x,phoneSettings.leftFineness);
-                controls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);
-                controls.throttle=0;
-              }else{
-                const x=phoneSettings.invertRightHorizontal?-point.x:point.x;
-                const y=phoneSettings.invertRightVertical?-point.y:point.y;
-                controls.yaw=phoneAxis(-x,phoneSettings.rightFineness);
-                controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);
-              }
-            }else applyStick(controls,kind,point,phoneSettings);''','''    if(gameMode)applyGameStick(controls,kind,point,phoneSettings);
-            else applyStick(controls,kind,point,phoneSettings);''')
+          for path in ["sim/controller.mjs","sim/simulator.mjs"]:
+              p=Path(path); text=p.read_text()
+              old='applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis}'
+              new='applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes}'
+              if new not in text:
+                  assert text.count(old)==1, f"{path}: control import mismatch"
+                  p.write_text(text.replace(old,new,1))
 
-          replace_once("sim/simulator.mjs",
-            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis}',
-            'applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes}')
-          replace_once("sim/simulator.mjs",'''  const left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(soloControls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(soloControls.pitch,phoneSettings.leftFineness)};
-            const rawX=-inversePhoneAxis(soloControls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(soloControls.bodyPitch||0,phoneSettings.rightFineness);
-            const right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};''','''  const left=gameKnobAxes(soloControls,"left",phoneSettings);
-            const right=gameKnobAxes(soloControls,"right",phoneSettings);''')
-          replace_once("sim/simulator.mjs",'''  const apply=e=>{const point=normalizedPointer(el,e);if(kind==="left"){soloControls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(point.x,phoneSettings.leftFineness);soloControls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);soloControls.throttle=0;}else{const x=phoneSettings.invertRightHorizontal?-point.x:point.x,y=phoneSettings.invertRightVertical?-point.y:point.y;soloControls.yaw=phoneAxis(-x,phoneSettings.rightFineness);soloControls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);}updateSoloSticks();e.preventDefault();};''','''  const apply=e=>{const point=normalizedPointer(el,e);applyGameStick(soloControls,kind,point,phoneSettings);updateSoloSticks();e.preventDefault();};''')
+          replace_one("sim/controller.mjs",
+              r'    const leftRawX=phoneSettings\.lockLeftHorizontal\?0:inversePhoneAxis\(controls\.roll,phoneSettings\.leftFineness\);\n\s*left=\{x:.*?\};\n\s*const rawX=.*?;\n\s*right=\{x:.*?\};',
+              '    left=gameKnobAxes(controls,"left",phoneSettings);\n    right=gameKnobAxes(controls,"right",phoneSettings);',re.S)
+          replace_one("sim/controller.mjs",
+              r'    if\(gameMode\)\{\n\s*if\(kind==="left"\)\{.*?\n\s*\}else applyStick\(controls,kind,point,phoneSettings\);',
+              '    if(gameMode)applyGameStick(controls,kind,point,phoneSettings);\n    else applyStick(controls,kind,point,phoneSettings);',re.S)
+
+          replace_one("sim/simulator.mjs",
+              r'  const left=\{x:phoneSettings\.lockLeftHorizontal\?0:inversePhoneAxis\(soloControls\.roll,phoneSettings\.leftFineness\),y:-inversePhoneAxis\(soloControls\.pitch,phoneSettings\.leftFineness\)\};\n\s*const rawX=.*?;\n\s*const right=\{x:.*?\};',
+              '  const left=gameKnobAxes(soloControls,"left",phoneSettings);\n  const right=gameKnobAxes(soloControls,"right",phoneSettings);',re.S)
+          replace_one("sim/simulator.mjs",
+              r'  const apply=e=>\{const point=normalizedPointer\(el,e\);if\(kind==="left"\)\{.*?updateSoloSticks\(\);e\.preventDefault\(\);\};',
+              '  const apply=e=>{const point=normalizedPointer(el,e);applyGameStick(soloControls,kind,point,phoneSettings);updateSoloSticks();e.preventDefault();};',re.S)
 
           test=Path("tests/control_semantics_test.mjs")
           text=test.read_text()
           if "applyGameStick,gameKnobAxes" not in text:
-              text=text.replace('knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag','knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes',1)
+              old='knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag'
+              assert old in text
+              text=text.replace(old,old+',applyGameStick,gameKnobAxes',1)
           marker='// Re-touching a retained throttle must not teleport it to the absolute touch point.\n'
           if "GAME left-stick physical strafe contract" not in text:
               assert marker in text
-              block='''// GAME left-stick physical strafe contract. This is shared by 1-PHONE and 2-PHONE.
-          // FC convention after the body-frame fix: +roll command produces LEFT strafe,
-          // -roll command produces RIGHT strafe. Pointer direction must therefore map oppositely.
+              block='''// GAME left-stick physical strafe contract. Both 1-PHONE and 2-PHONE call this exact function.
+          // After the FC body-frame correction, +roll is physical LEFT and -roll is physical RIGHT.
           let game=neutralControls();
           applyGameStick(game,"left",{x:-.60,y:0},DEFAULT_PHONE_SETTINGS);
-          assert.ok(game.roll>0,"left-stick LEFT must command physical LEFT strafe");
+          assert.ok(game.roll>0,"LEFT stick motion must produce physical LEFT strafe");
           let gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);
-          near(gameKnob.x,-.60,3e-6,"left-strife knob must remain under left pointer");
+          near(gameKnob.x,-.60,3e-6,"LEFT strafe knob must stay under the left pointer");
           game=neutralControls();
           applyGameStick(game,"left",{x:.60,y:0},DEFAULT_PHONE_SETTINGS);
-          assert.ok(game.roll<0,"left-stick RIGHT must command physical RIGHT strafe");
+          assert.ok(game.roll<0,"RIGHT stick motion must produce physical RIGHT strafe");
           gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);
-          near(gameKnob.x,.60,3e-6,"right-strafe knob must remain under right pointer");
+          near(gameKnob.x,.60,3e-6,"RIGHT strafe knob must stay under the right pointer");
           const gameInvertLeft={...DEFAULT_PHONE_SETTINGS,invertLeftHorizontal:true};
           game=neutralControls();applyGameStick(game,"left",{x:-.60,y:0},gameInvertLeft);
-          assert.ok(game.roll<0,"invert-left-horizontal must swap LEFT to physical RIGHT strafe");
+          assert.ok(game.roll<0,"inverted LEFT motion must produce physical RIGHT strafe");
           game=neutralControls();applyGameStick(game,"left",{x:.60,y:0},gameInvertLeft);
-          assert.ok(game.roll>0,"invert-left-horizontal must swap RIGHT to physical LEFT strafe");
+          assert.ok(game.roll>0,"inverted RIGHT motion must produce physical LEFT strafe");
 
           '''
               text=text.replace(marker,block+marker,1)
@@ -134,7 +124,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add sim/control_semantics.mjs sim/controller.mjs sim/simulator.mjs tests/control_semantics_test.mjs
           git diff --cached --check
-          if ! git diff --cached --quiet; then
-            git commit -m "Unify GAME controls and lock strafe direction [skip ci]"
-            git push origin HEAD:main
-          fi
+          git commit -m "Unify GAME controls and lock strafe direction [skip ci]"
+          git push origin HEAD:main
