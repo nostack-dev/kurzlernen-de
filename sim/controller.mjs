@@ -1,6 +1,6 @@
 import {ControllerPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis} from "./control_semantics.mjs";
+import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes} from "./control_semantics.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const $=id=>document.getElementById(id);
@@ -120,10 +120,8 @@ function setKnob(knob,x,y){knob.style.left=`${knobPercent(x)}%`;knob.style.top=`
 function updateSticks(){
   let left,right;
   if(gameMode){
-    const leftRawX=phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,phoneSettings.leftFineness);
-    left={x:phoneSettings.invertLeftHorizontal?-leftRawX:leftRawX,y:-inversePhoneAxis(controls.pitch,phoneSettings.leftFineness)};
-    const rawX=-inversePhoneAxis(controls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,phoneSettings.rightFineness);
-    right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};
+    left=gameKnobAxes(controls,"left",phoneSettings);
+    right=gameKnobAxes(controls,"right",phoneSettings);
     ui.leftValue.textContent=`FWD ${(controls.pitch*100).toFixed(0)}% · STR ${(controls.roll*100).toFixed(0)}%`;
     ui.rightValue.textContent=`TURN ${(controls.yaw*100).toFixed(0)}% · PITCH ${((controls.bodyPitch||0)*100).toFixed(0)}%`;
   }else{
@@ -142,28 +140,8 @@ function bindStick(element,kind){
   const release=event=>{
     if(event.pointerId!==pointer)return;
     endPointerDrag(element,event.pointerId);pointer=null;
-    if(gameMode){
-      if(kind==="left"){controls.roll=0;controls.pitch=0;controls.throttle=0;}
-      else{controls.yaw=0;controls.bodyPitch=0;}
-    }else releaseStick(controls,kind);
-    updateSticks();publish();event.preventDefault();
-  };
-  element.addEventListener("pointerup",release);element.addEventListener("pointercancel",release);
-  function apply(event){
-    const point=normalizedPointer(element,event);
-    if(gameMode){
-      if(kind==="left"){
-        const x=phoneSettings.invertLeftHorizontal?-point.x:point.x;
-        controls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(x,phoneSettings.leftFineness);
-        controls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);
-        controls.throttle=0;
-      }else{
-        const x=phoneSettings.invertRightHorizontal?-point.x:point.x;
-        const y=phoneSettings.invertRightVertical?-point.y:point.y;
-        controls.yaw=phoneAxis(-x,phoneSettings.rightFineness);
-        controls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);
-      }
-    }else applyStick(controls,kind,point,phoneSettings);
+    if(gameMode)applyGameStick(controls,kind,point,phoneSettings);
+    else applyStick(controls,kind,point,phoneSettings);
     updateSticks();publish();
   }
 }

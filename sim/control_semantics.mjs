@@ -96,6 +96,33 @@ export function endPointerDrag(element,pointerId){
   if(!drag||pointerId==null||drag.pointerId===pointerId)pointerDrags.delete(element);
 }
 
+export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
+  const cfg=normalizePhoneSettings(settings);
+  if(kind==="left"){
+    const x=cfg.invertLeftHorizontal?-point.x:point.x;
+    // FC GAME body-frame convention: negative roll command is physical RIGHT strafe.
+    controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(-x,cfg.leftFineness);
+    controls.pitch=phoneAxis(-point.y,cfg.leftFineness);
+    controls.throttle=0;
+  }else{
+    const x=cfg.invertRightHorizontal?-point.x:point.x;
+    const y=cfg.invertRightVertical?-point.y:point.y;
+    controls.yaw=phoneAxis(-x,cfg.rightFineness);
+    controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y,cfg.rightFineness);
+  }
+  return controls;
+}
+export function gameKnobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
+  const cfg=normalizePhoneSettings(settings);
+  if(kind==="left"){
+    const rawX=cfg.lockLeftHorizontal?0:-inversePhoneAxis(controls.roll,cfg.leftFineness);
+    return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-inversePhoneAxis(controls.pitch,cfg.leftFineness)};
+  }
+  const rawX=-inversePhoneAxis(controls.yaw,cfg.rightFineness);
+  const rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,cfg.rightFineness);
+  return{x:cfg.invertRightHorizontal?-rawX:rawX,y:cfg.invertRightVertical?-rawY:rawY};
+}
+
 export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){

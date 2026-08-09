@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readdirSync} from "node:fs";
 import {
   DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,neutralControls,armReady,applyStick,releaseStick,
-  knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag
+  knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes
 } from "../sim/control_semantics.mjs";
 
 // Production CI is intentionally limited to the two real workflows. Temporary
@@ -93,6 +93,24 @@ applyStick(c,"right",{x:-.6,y:.8},lockedRight);
 near(c.roll,phoneAxis(.6,10));assert.equal(c.pitch,0);
 rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);assert.equal(rightKnob.y,0);
 releaseStick(c,"right");
+
+// GAME left-stick physical strafe contract. Both 1-PHONE and 2-PHONE call this exact function.
+// After the FC body-frame correction, +roll is physical LEFT and -roll is physical RIGHT.
+let game=neutralControls();
+applyGameStick(game,"left",{x:-.60,y:0},DEFAULT_PHONE_SETTINGS);
+assert.ok(game.roll>0,"LEFT stick motion must produce physical LEFT strafe");
+let gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);
+near(gameKnob.x,-.60,3e-6,"LEFT strafe knob must stay under the left pointer");
+game=neutralControls();
+applyGameStick(game,"left",{x:.60,y:0},DEFAULT_PHONE_SETTINGS);
+assert.ok(game.roll<0,"RIGHT stick motion must produce physical RIGHT strafe");
+gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);
+near(gameKnob.x,.60,3e-6,"RIGHT strafe knob must stay under the right pointer");
+const gameInvertLeft={...DEFAULT_PHONE_SETTINGS,invertLeftHorizontal:true};
+game=neutralControls();applyGameStick(game,"left",{x:-.60,y:0},gameInvertLeft);
+assert.ok(game.roll<0,"inverted LEFT motion must produce physical RIGHT strafe");
+game=neutralControls();applyGameStick(game,"left",{x:.60,y:0},gameInvertLeft);
+assert.ok(game.roll>0,"inverted RIGHT motion must produce physical LEFT strafe");
 
 // Re-touching a retained throttle must not teleport it to the absolute touch point.
 const knob={style:{left:"50%",top:"71%"}};

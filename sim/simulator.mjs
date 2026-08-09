@@ -3,7 +3,7 @@ import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
 import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis} from "./control_semantics.mjs";
+import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes} from "./control_semantics.mjs";
 import {RaceTrack} from "./race_track.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
@@ -511,15 +511,14 @@ function neutralSoloControls(){return{...neutralControls(),gameMode:true,groundC
 let soloControls=neutralSoloControls();
 const soloClearanceSlider=$("soloClearanceSlider"),soloClearanceValue=$("soloClearanceValue"),soloRangeStatus=$("soloRangeStatus");soloClearanceSlider.value=String(soloGroundClearance);
 function updateSoloSticks(){
-  const left={x:phoneSettings.lockLeftHorizontal?0:inversePhoneAxis(soloControls.roll,phoneSettings.leftFineness),y:-inversePhoneAxis(soloControls.pitch,phoneSettings.leftFineness)};
-  const rawX=-inversePhoneAxis(soloControls.yaw,phoneSettings.rightFineness),rawY=phoneSettings.lockRightHorizontal?0:-inversePhoneAxis(soloControls.bodyPitch||0,phoneSettings.rightFineness);
-  const right={x:phoneSettings.invertRightHorizontal?-rawX:rawX,y:phoneSettings.invertRightVertical?-rawY:rawY};
+  const left=gameKnobAxes(soloControls,"left",phoneSettings);
+  const right=gameKnobAxes(soloControls,"right",phoneSettings);
   for(const [id,axes] of [["soloLeft",left],["soloRight",right]]){const knob=$(id).querySelector(".solo-knob");knob.style.left=`${knobPercent(axes.x)}%`;knob.style.top=`${knobPercent(axes.y)}%`;}
   soloClearanceValue.textContent=`${soloGroundClearance.toFixed(1)} m`;
 }
 function soloStick(el,kind){
   let pointer=null;
-  const apply=e=>{const point=normalizedPointer(el,e);if(kind==="left"){soloControls.roll=phoneSettings.lockLeftHorizontal?0:phoneAxis(point.x,phoneSettings.leftFineness);soloControls.pitch=phoneAxis(-point.y,phoneSettings.leftFineness);soloControls.throttle=0;}else{const x=phoneSettings.invertRightHorizontal?-point.x:point.x,y=phoneSettings.invertRightVertical?-point.y:point.y;soloControls.yaw=phoneAxis(-x,phoneSettings.rightFineness);soloControls.bodyPitch=phoneSettings.lockRightHorizontal?0:phoneAxis(-y,phoneSettings.rightFineness);}updateSoloSticks();e.preventDefault();};
+  const apply=e=>{const point=normalizedPointer(el,e);applyGameStick(soloControls,kind,point,phoneSettings);updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);});
   el.addEventListener("pointermove",e=>{if(e.pointerId===pointer)apply(e);});
   const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.bodyPitch=0;}updateSoloSticks();e.preventDefault();};
