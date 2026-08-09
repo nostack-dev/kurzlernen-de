@@ -21,7 +21,7 @@ function metersToLngLat(originLon,originLat,eastM,northM){
 
 class RealWorldBridge{
   constructor(){
-    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";
+    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.realFrames=0;
     this.installUi();
   }
   installUi(){
@@ -44,7 +44,7 @@ class RealWorldBridge{
     `;document.head.appendChild(style);
     const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
     mode.value="training";
-    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;}
     mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
     use.onclick=()=>this.activate().catch(error=>this.fail(error));
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
@@ -54,13 +54,8 @@ class RealWorldBridge{
   attachThree(renderer,scene,camera){
     if(this.threeRenderer===renderer&&this.threeScene===scene&&this.threeCamera===camera)return;
     this.threeRenderer=renderer;this.threeScene=scene;this.threeCamera=camera;
-    renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="1";
+    renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="2";renderer.domElement.style.pointerEvents="none";
   }
-  ensureOverlayRenderer(){
-    if(this.overlayRenderer)return;
-    const viewport=$("viewport"),r=new THREE.WebGLRenderer({antialias:true,alpha:true});r.setClearColor(0x000000,0);r.setPixelRatio(Math.min(devicePixelRatio,2));r.outputColorSpace=THREE.SRGBColorSpace;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.05;r.shadowMap.enabled=true;r.shadowMap.type=THREE.PCFSoftShadowMap;r.domElement.style.position="absolute";r.domElement.style.inset="0";r.domElement.style.zIndex="2";r.domElement.style.pointerEvents="none";viewport.appendChild(r.domElement);this.overlayRenderer=r;
-  }
-  resizeOverlay(){if(!this.overlayRenderer)return;const b=$("viewport").getBoundingClientRect(),w=Math.max(1,b.width),h=Math.max(1,b.height);if(this.overlayRenderer.domElement.width!==Math.round(w*this.overlayRenderer.getPixelRatio())||this.overlayRenderer.domElement.height!==Math.round(h*this.overlayRenderer.getPixelRatio()))this.overlayRenderer.setSize(w,h,false);}
   identifyTrainingObjects(scene){
     for(const child of scene.children){
       if(this.trainingObjects.has(child))continue;
@@ -83,8 +78,8 @@ class RealWorldBridge{
   async createMap(longitude,latitude){
     if(this.map){this.geoContainer.hidden=false;this.map.resize();this.map.jumpTo({center:[longitude,latitude],zoom:19,pitch:55,bearing:0});return this.map;}
     const viewport=$("viewport"),container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
-    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
     this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});
+    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
     this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
     await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
     this.addBuildings();return this.map;
@@ -96,16 +91,17 @@ class RealWorldBridge{
       const fix=await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;
       if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");
       this.originLat=latitude;this.originLon=longitude;this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");
-      await this.createMap(longitude,latitude);this.ensureOverlayRenderer();this.active=true;this.loading=false;
-      if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
-      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);
+      await this.createMap(longitude,latitude);this.active=true;this.loading=false;
+      if(!this.threeRenderer)throw Error("Flight renderer is not ready");
+      this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
+      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);
       const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="real";if(config)config.hidden=false;
       this.status(`REAL WORLD LIVE · OpenFreeMap · GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
     }catch(error){this.loading=false;throw error;}
   }
   deactivate(){
-    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
-    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;}
+    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.threeRenderer.setClearAlpha(1);}if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;}
     const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="training";if(config)config.hidden=true;this.status("TRAINING RANGE · local metric world");try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
   syncMapCamera(camera){
@@ -117,10 +113,14 @@ class RealWorldBridge{
     let roll=0;if(horizontal>.02){const worldUp=new THREE.Vector3(0,0,1),right0=new THREE.Vector3().crossVectors(dir,worldUp).normalize(),up0=new THREE.Vector3().crossVectors(right0,dir).normalize();roll=THREE.MathUtils.radToDeg(Math.atan2(dir.dot(new THREE.Vector3().crossVectors(up0,actualUp)),up0.dot(actualUp)));}
     const rect=$("viewport").getBoundingClientRect(),height=Math.max(1,rect.height),metersPerPixel=Math.max(.01,2*focusDistance*Math.tan(THREE.MathUtils.degToRad(clamp(camera.fov,10,120))/2)/height),cosLat=Math.max(.05,Math.cos(center[1]*Math.PI/180)),zoom=clamp(Math.log2(156543.03392804097*cosLat/metersPerPixel),14,22),size=`${Math.round(rect.width)}x${Math.round(rect.height)}`;
     if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
-    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});
+    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});this.map.triggerRepaint();
+    const viewport=$("viewport");viewport.dataset.worldCameraMode=viewport.dataset.cameraMode||"follow";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);
   }
   renderReal(scene,camera,originalRender){
-    this.syncMapCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();
+    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;
+    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
+    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
+    try{originalRender.call(renderer,scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}
   }
 }
 
@@ -128,7 +128,6 @@ const bridge=new RealWorldBridge();
 globalThis.__arondightRealWorld=bridge;
 const originalRender=THREE.WebGLRenderer.prototype.render;
 THREE.WebGLRenderer.prototype.render=function(scene,camera){
-  if(this===bridge.overlayRenderer)return originalRender.call(this,scene,camera);
   if(this.domElement?.closest?.("#viewport"))bridge.attachThree(this,scene,camera);
   if(bridge.active&&this===bridge.threeRenderer){bridge.renderReal(scene,camera,originalRender);return;}
   return originalRender.call(this,scene,camera);
