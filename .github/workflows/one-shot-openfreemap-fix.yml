@@ -1,0 +1,42 @@
+name: One shot OpenFreeMap migration fix
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/one-shot-openfreemap-fix.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Execute corrected migration
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('.github/workflows/one-shot-openfreemap.yml').read_text().splitlines()
+          indices=[i for i,line in enumerate(src) if line.strip()=='run: |']
+          if not indices: raise SystemExit('migration run block not found')
+          lines=src[indices[-1]+1:]
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)+'\n'
+          script=script.replace(
+              'for(const dirty of ["Google Maps","googleapis.com","GoogleTiles","Cesium","AIza"])',
+              'for(const dirty of ["Google"+" Maps","google"+"apis.com","Google"+"Tiles","Ces"+"ium","AI"+"za"])',
+          )
+          script=script.replace(
+              "if not path.is_file() or '.git' in path.parts: continue",
+              "if not path.is_file() or '.git' in path.parts or path.name.startswith('one-shot-openfreemap'): continue",
+          )
+          script=script.replace(
+              'rm .github/workflows/one-shot-openfreemap.yml',
+              'rm .github/workflows/one-shot-openfreemap.yml\nrm .github/workflows/one-shot-openfreemap-fix.yml',
+          )
+          Path('/tmp/openfreemap-migrate.sh').write_text(script)
+          PY
+          bash /tmp/openfreemap-migrate.sh
