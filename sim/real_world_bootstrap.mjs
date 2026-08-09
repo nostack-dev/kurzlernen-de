@@ -52,7 +52,7 @@ class RealWorldBridge{
     `;document.head.appendChild(style);
     const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
     mode.value="training";
-    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;delete viewport.dataset.worldSymbolsRemoved;}
     mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
     use.onclick=()=>this.activate().catch(error=>this.fail(error));
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
@@ -75,6 +75,14 @@ class RealWorldBridge{
   }
   hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);child.visible=false;}}
   restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
+  stripFlightClutter(){
+    if(!this.map)return 0;
+    const symbolIds=(this.map.getStyle()?.layers||[]).filter(layer=>layer.type==="symbol").map(layer=>layer.id);
+    let removed=0;
+    for(const id of symbolIds){try{this.map.removeLayer(id);removed++;}catch(error){console.warn("OpenFreeMap symbol-layer removal warning:",id,error);}}
+    const viewport=$("viewport");if(viewport)viewport.dataset.worldSymbolsRemoved=String(removed);
+    return removed;
+  }
   addBuildings(){
     if(!this.map||this.map.getLayer("arondight45-buildings-3d"))return;
     const style=this.map.getStyle(),sourceId=Object.entries(style.sources||{}).find(([,source])=>source?.type==="vector")?.[0];
@@ -86,10 +94,11 @@ class RealWorldBridge{
   async createMap(longitude,latitude){
     if(this.map){this.geoContainer.hidden=false;this.map.resize();this.map.jumpTo({center:[longitude,latitude],zoom:19,pitch:55,bearing:0});return this.map;}
     const viewport=$("viewport"),container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
-    this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,maxZoom:WORLD_MAP_MAX_ZOOM,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO),maxTileCacheZoomLevels:2,maxCanvasSize:[2048,2048],cancelPendingTileRequestsWhileZooming:true,refreshExpiredTiles:false,validateStyle:false,canvasContextAttributes:{antialias:false,powerPreference:"high-performance",desynchronized:true}});
+    this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,maxZoom:WORLD_MAP_MAX_ZOOM,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO),maxTileCacheZoomLevels:2,maxCanvasSize:[2048,2048],cancelPendingTileRequestsWhileZooming:true,refreshExpiredTiles:false,validateStyle:false,crossSourceCollisions:false,trackResize:false,reduceMotion:true,canvasContextAttributes:{antialias:false,powerPreference:"high-performance",desynchronized:true}});
     const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
     this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
     await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
+    this.stripFlightClutter();
     try{this.map.setSky({"sky-color":"#0a2845","sky-horizon-blend":.42,"horizon-color":"#477493","horizon-fog-blend":.22,"fog-color":"#274d68","fog-ground-blend":.08});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}
     this.addBuildings();return this.map;
   }
@@ -112,7 +121,7 @@ class RealWorldBridge{
   }
   deactivate(){
     this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.threeRenderer.setClearAlpha(1);if(this.flightPixelRatio!==null)this.threeRenderer.setPixelRatio(this.flightPixelRatio);if(this.flightShadowEnabled!==null)this.threeRenderer.shadowMap.enabled=this.flightShadowEnabled;}if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
-    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;}
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;delete viewport.dataset.worldMapUpdates;delete viewport.dataset.worldMapFpsCap;delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;delete viewport.dataset.worldSymbolsRemoved;}
     const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="training";if(config)config.hidden=true;this.status("TRAINING RANGE · local metric world");try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
   syncMapCamera(camera){
