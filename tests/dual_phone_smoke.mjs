@@ -103,9 +103,6 @@ try{
   await controller.mouse.up();
   console.log(`State-control E2E: right-stick up physically pitched airframe nose-up ${pitchBefore.pitch.toFixed(1)}° -> ${pitched.pitch.toFixed(1)}° through motors.`);
 
-  // A body-pitch maneuver leaves real angular/linear momentum. Do not start the
-  // independent W-axis assertion until the closed-loop aircraft has physically
-  // recovered to near-hover; otherwise this test mixes two control objectives.
   await view.waitForFunction(()=>{const parts=(document.querySelector("#attitude")?.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[],pitch=Number(parts[1]||0),speed=parseFloat(document.querySelector("#velocity")?.textContent||"99");return Math.abs(pitch)<2.0&&speed<.55;},{timeout:90000});
   const recovered=await liveMotion(view,controller);
   if(recovered.state!=="ARMED"||Math.abs(recovered.pitch)>=2.0||recovered.speed>=.55)throw new Error(`aircraft did not physically recover after body-pitch maneuver: ${JSON.stringify(recovered)}`);
@@ -144,7 +141,11 @@ try{
 
   const stall=controller.evaluate(()=>{const end=performance.now()+900;while(performance.now()<end){}return true;});await new Promise(resolve=>setTimeout(resolve,500));
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:10000});await stall;await waitText(view,"#remoteStatus","P2P LINKED",10000);
-  await controller.click("#kill");await view.waitForFunction(()=>document.querySelector("#armSwitch")?.textContent==="OFF",{timeout:10000});await view.click("#reset");await waitSim(view,2.2,60000);
+  await controller.click("#kill");
+  await view.waitForFunction(()=>document.querySelector("#armSwitch")?.textContent==="OFF",{timeout:10000});
+  await view.click("#reset");
+  await view.waitForFunction(()=>parseFloat(document.querySelector("#simTime")?.textContent||"99")<.25,{timeout:5000});
+  await waitSim(view,2.2,60000);
   await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:30000});await waitText(view,"#remoteStatus","P2P LINKED",10000);await waitText(controller,"#connection","P2P LINKED",10000);
   await waitText(controller,"#fcState","DISARMED",15000);await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
   await clickWhenEnabled(controller,"#arm","ARM",15000);const rearmStart=await simTime(view);await view.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});
