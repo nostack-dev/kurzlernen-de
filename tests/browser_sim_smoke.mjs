@@ -155,6 +155,11 @@ try{
   await page.click('.phone-settings-dialog [data-lock-horizontal]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
   if(stored.lockRightHorizontal!==false)throw new Error(`right vertical unlock did not persist: ${JSON.stringify(stored)}`);
+  await page.$eval('.phone-settings-dialog [data-camera-slider="tilt"]',e=>{e.value="18";e.dispatchEvent(new Event("input",{bubbles:true}));});
+  await page.$eval('.phone-settings-dialog [data-camera-slider="fov"]',e=>{e.value="101";e.dispatchEvent(new Event("input",{bubbles:true}));});
+  await page.$eval('.phone-settings-dialog [data-camera-slider="third"]',e=>{e.value="3.6";e.dispatchEvent(new Event("input",{bubbles:true}));});
+  const storedCamera=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}"));
+  if(storedCamera.fpvTiltDeg!==18||storedCamera.fpvFovDeg!==101||Math.abs(storedCamera.thirdDistanceM-3.6)>.001)throw new Error(`camera settings did not persist: ${JSON.stringify(storedCamera)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
   await waitForSimTime(2.2,60000);
@@ -163,6 +168,7 @@ try{
 
   await page.waitForFunction(()=>document.querySelector("#soloRangeStatus")?.textContent?.includes("AGL"),{timeout:15000});
   await page.waitForFunction(()=>{const b=document.querySelector("#soloArm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:15000});
+  const escToneStart=await page.$eval("#viewport",e=>Number(e.dataset.motorAudioEscToneCount)||0);
   const armStart=await simTime();await page.click("#soloArm");await waitForSimTime(armStart+1.25,50000);
   state=await page.$eval("#fcState",e=>e.textContent||"");
   if(state!=="ARMED")throw new Error(`solo GAME ARM failed: ${JSON.stringify(await snapshot())}`);
@@ -170,8 +176,16 @@ try{
   const holdStart=await simTime();await waitForSimTime(holdStart+.35,25000);
   const hold=bodyMotion(await latestFlightSample());
   if(!(hold.altitude>1.35&&hold.altitude<2.65&&Math.abs(hold.vertical)<.80))throw new Error(`solo 2m AGL hold failed: ${JSON.stringify(hold)}`);
-  const audioDrive=await page.$eval("#viewport",e=>({source:e.dataset.motorAudioSource,hz:Number(e.dataset.motorAudioHz),power:Number(e.dataset.motorAudioPowerW)}));
-  if(audioDrive.source!=="motorOmega+motorTorque+propTorque"||!(audioDrive.hz>20)||!(audioDrive.power>0))throw new Error(`motor sound is not driven by live rotor physics: ${JSON.stringify(audioDrive)}`);
+  const audioDrive=await page.$eval("#viewport",e=>({source:e.dataset.motorAudioSource,hz:Number(e.dataset.motorAudioHz),power:Number(e.dataset.motorAudioPowerW),gain:Number(e.dataset.motorAudioGain),context:e.dataset.motorAudioContextState,armEvent:e.dataset.motorAudioArmEvent,escTones:Number(e.dataset.motorAudioEscToneCount)||0}));
+  if(audioDrive.source!=="motorOmega+motorTorque+propTorque:2bladeBPF"||!(audioDrive.hz>20)||!(audioDrive.power>0)||!(audioDrive.gain>0)||audioDrive.context!=="running"||audioDrive.armEvent!=="armed"||audioDrive.escTones<escToneStart+4)throw new Error(`physics/ESC audio runtime failed: ${JSON.stringify(audioDrive)}`);
+  await page.click("#soloCamera");await page.click("#soloCamera");
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
+  const fpvOptics=await page.$eval("#viewport",e=>({fov:Number(e.dataset.cameraFov),tilt:Number(e.dataset.cameraTiltDeg)}));
+  if(fpvOptics.fov!==101||fpvOptics.tilt!==18)throw new Error(`FPV optics settings not applied: ${JSON.stringify(fpvOptics)}`);
+  await page.click("#soloCamera");await page.click("#soloCamera");
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="third",{timeout:5000});
+  const thirdDistance=await page.$eval("#viewport",e=>Number(e.dataset.cameraDistanceM));
+  if(!(thirdDistance>3.45&&thirdDistance<3.75))throw new Error(`third-person camera distance not applied: ${thirdDistance}`);
 
   await page.$eval("#soloClearanceSlider",e=>{e.value="2.7";e.dispatchEvent(new Event("input",{bubbles:true}));});
   await page.waitForFunction(()=>document.querySelector("#soloClearanceValue")?.textContent?.includes("2.7 m"),{timeout:5000});
@@ -223,6 +237,9 @@ try{
   state=await page.$eval("#fcState",e=>e.textContent||"");
   const killed=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
   if(state!=="DISARMED"||!killed.every(v=>v===1000))throw new Error(`solo GAME KILL failed: ${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.motorAudioArmEvent==="disarmed",{timeout:5000});
+  const killAudio=await page.$eval("#viewport",e=>({event:e.dataset.motorAudioArmEvent,escTones:Number(e.dataset.motorAudioEscToneCount)||0}));
+  if(killAudio.event!=="disarmed"||killAudio.escTones<audioDrive.escTones+2)throw new Error(`ESC disarm tones did not fire: ${JSON.stringify(killAudio)}`);
 
   const beforeReset=await simTime();if(beforeReset<3)throw new Error(`sim too short before reset: ${beforeReset}`);
   await page.click("#soloReset");
@@ -268,5 +285,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, both right-axis inversions, both axis locks, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, raycast AGL slider, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, axis settings, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}

@@ -6,6 +6,7 @@ import {QrScanner,renderQr} from "./qr_pairing.mjs";
 import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes} from "./control_semantics.mjs";
 import {RaceTrack} from "./race_track.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
+import {loadCameraSettings,mountCameraSettings} from "./camera_settings.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -396,7 +397,7 @@ function integrateDuration(model,pulses,duration){
 }
 
 class MotorSound {
-  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque:2bladeBPF";this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";}
+  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque:2bladeBPF";this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";this.viewport.dataset.motorAudioEscToneCount="0";}
   isRunning(){return Boolean(this.ctx&&this.ctx.state==="running");}
   syncState(){this.unlocked=this.isRunning();this.viewport.dataset.motorAudioContextState=this.ctx?.state||"uninitialized";return this.unlocked;}
   ensure(){
@@ -421,7 +422,7 @@ class MotorSound {
   setEnabled(value){this.enabled=Boolean(value);localStorage.setItem("arondight45MotorSound",this.enabled?"on":"off");if(!this.enabled&&this.master&&this.ctx)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.025);this.syncState();}
   escWindingTone(frequencyHz,offsetSec=0,durationSec=.075,level=.20){
     if(!this.enabled||!this.isRunning()||!this.ctx||!this.master)return;
-    const start=this.ctx.currentTime+Math.max(0,offsetSec),stop=start+Math.max(.025,durationSec);
+    const start=this.ctx.currentTime+Math.max(0,offsetSec),stop=start+Math.max(.025,durationSec);this.viewport.dataset.motorAudioEscToneCount=String((Number(this.viewport.dataset.motorAudioEscToneCount)||0)+1);
     // Real ESC beeps use the motor windings as the acoustic transducer. Four
     // slightly detuned electrical voices represent the four physical motors.
     for(const detune of [-5,-1.5,1.5,5]){
@@ -499,8 +500,9 @@ let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
 let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFollowInitialized=false;
 const followHeading=new THREE.Vector3(-1,0,0),thirdHeading=new THREE.Vector3(-1,0,0);
-const FPV_CAMERA_UPTILT_DEG=30,FPV_CAMERA_UPTILT_RAD=FPV_CAMERA_UPTILT_DEG*Math.PI/180;
-$("viewport").dataset.fpvTiltDeg=String(FPV_CAMERA_UPTILT_DEG);
+let cameraSettings=loadCameraSettings();
+function applyCameraSettings(next){cameraSettings=next;cameraFollowInitialized=false;$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);$("viewport").dataset.fpvFovDeg=String(cameraSettings.fpvFovDeg);$("viewport").dataset.thirdCameraDistanceM=String(cameraSettings.thirdDistanceM);}
+applyCameraSettings(cameraSettings);
 function setCameraMode(next){
   cameraMode=["follow","fpv","third"].includes(next)?next:"follow";cameraFollowInitialized=false;localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
   for(const [id,value] of [["camFollow","follow"],["camFpv","fpv"],["camThird","third"]]){
@@ -514,24 +516,27 @@ function updateCamera(){
     const bodyUp=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();
     // FPV optics are rigidly mounted to the airframe. GAME right-stick pitch now
     // moves the physical body through the motors; there is no virtual camera axis.
-    const c=Math.cos(FPV_CAMERA_UPTILT_RAD),si=Math.sin(FPV_CAMERA_UPTILT_RAD);
+    const fpvTiltRad=cameraSettings.fpvTiltDeg*Math.PI/180,c=Math.cos(fpvTiltRad),si=Math.sin(fpvTiltRad);
     const fpvForward=bodyForward.clone().multiplyScalar(c).addScaledVector(bodyUp,si).normalize();
     const fpvUp=bodyUp.clone().multiplyScalar(c).addScaledVector(bodyForward,-si).normalize();
     camera.position.copy(position).addScaledVector(bodyForward,.095).addScaledVector(bodyUp,.045);
     camera.up.copy(fpvUp);camera.lookAt(camera.position.clone().addScaledVector(fpvForward,4));
-    if(camera.fov!==84){camera.fov=84;camera.updateProjectionMatrix();}
+    if(camera.fov!==cameraSettings.fpvFovDeg){camera.fov=cameraSettings.fpvFovDeg;camera.updateProjectionMatrix();}
+    $("viewport").dataset.cameraFov=String(camera.fov);$("viewport").dataset.cameraTiltDeg=String(cameraSettings.fpvTiltDeg);$("viewport").dataset.cameraDistanceM="0";
     return;
   }
   const horizontal=bodyForward.clone();horizontal.z=0;
   if(horizontal.lengthSq()>.04)horizontal.normalize();
   if(cameraMode==="third"){
     if(horizontal.lengthSq()>.04)thirdHeading.lerp(horizontal,.22).normalize();
-    const desired=position.clone().addScaledVector(thirdHeading,-2.25);desired.z+=1.05;
+    const thirdBaseLength=Math.hypot(2.25,1.05),thirdBack=cameraSettings.thirdDistanceM*(2.25/thirdBaseLength),thirdUp=cameraSettings.thirdDistanceM*(1.05/thirdBaseLength);
+    const desired=position.clone().addScaledVector(thirdHeading,-thirdBack);desired.z+=thirdUp;
     const look=position.clone().addScaledVector(thirdHeading,.55);look.z+=.18;
     camera.up.set(0,0,1);
     if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.16);
     camera.lookAt(look);
     if(camera.fov!==62){camera.fov=62;camera.updateProjectionMatrix();}
+    $("viewport").dataset.cameraFov=String(camera.fov);$("viewport").dataset.cameraTiltDeg="0";$("viewport").dataset.cameraDistanceM=String(camera.position.distanceTo(position));
     return;
   }
   if(horizontal.lengthSq()>.04)followHeading.lerp(horizontal,.12).normalize();
@@ -604,11 +609,12 @@ function soloStick(el,kind){
 }
 soloClearanceSlider.oninput=()=>{soloGroundClearance=clamp(Number(soloClearanceSlider.value),.5,5);localStorage.setItem("arondight45GroundClearance",String(soloGroundClearance));soloControls.groundClearance=soloGroundClearance;updateSoloSticks();};
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
-mountPhoneControlSettings({
+const soloSettingsMount=mountPhoneControlSettings({
   parent:$("soloTopbar"),
   buttonText:"SETTINGS",
   onChange:next=>{phoneSettings=next;const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;},
 });
+mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
 async function enterSolo(){
   soloMode=true;soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=clamp(Number(localStorage.getItem("arondight45GroundClearance"))||soloGroundClearance,.5,5);soloClearanceSlider.value=String(soloGroundClearance);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}

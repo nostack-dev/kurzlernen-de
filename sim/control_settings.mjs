@@ -33,9 +33,11 @@ function installStyle(){
   const style=document.createElement("style");
   style.textContent=`
   .phone-settings-button{white-space:nowrap}
-  .phone-settings-dialog{width:min(92vw,390px)!important;border:1px solid #ffffff44!important;border-radius:14px!important;background:#0b1420f4!important;color:#fff!important;padding:16px!important;box-shadow:0 20px 70px #000a!important}
+  .phone-settings-dialog{width:min(92vw,390px)!important;max-height:90dvh!important;overflow:auto!important;border:1px solid #ffffff44!important;border-radius:14px!important;background:#0b1420f4!important;color:#fff!important;padding:16px!important;box-shadow:0 20px 70px #000a!important}
   .phone-settings-dialog::backdrop{background:#0009;backdrop-filter:blur(5px)}
   .phone-settings-dialog h3{margin:0 0 5px;font:800 17px system-ui,-apple-system,sans-serif}
+  .camera-settings-section{margin-top:18px;padding-top:4px;border-top:2px solid #ffffff2b}
+  .camera-settings-section h4{margin:12px 0 4px;font:850 14px system-ui,-apple-system,sans-serif;letter-spacing:.08em;color:#6be4b0}
   .phone-settings-dialog p{margin:0 0 14px;color:#aebdd0;font:12px/1.4 system-ui,-apple-system,sans-serif}
   .phone-settings-row{display:grid;grid-template-columns:1fr auto;gap:5px 10px;align-items:center;margin:15px 0}
   .phone-settings-row label{font:750 13px system-ui,-apple-system,sans-serif}
