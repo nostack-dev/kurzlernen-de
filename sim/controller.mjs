@@ -33,7 +33,7 @@ function setGroundClearance(value,send=true){
   controls.groundClearance=groundClearance;
   renderClearance();if(send)publish();
 }
-let heightAxis=0,heightPointer=null,heightLastMs=performance.now();
+let heightAxis=0,heightPointer=null;
 function renderHeightControl(){ui.gameHeightKnob.style.top=`${50-heightAxis*38}%`;ui.gameHeightPad.dataset.rateMps=clearanceRateMps(heightAxis).toFixed(2);}
 function renderClearance(){
   ui.gameClearanceValue.textContent=`${groundClearance.toFixed(1)} m`;ui.gameClearance.dataset.targetAglM=groundClearance.toFixed(2);renderHeightControl();
@@ -44,8 +44,7 @@ ui.gameHeightPad.addEventListener("pointerdown",event=>{if(heightPointer!==null)
 ui.gameHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===heightPointer)applyHeightPointer(event);});
 const releaseHeightPointer=event=>{if(heightPointer===null||(event?.pointerId!=null&&event.pointerId!==heightPointer))return;const released=heightPointer;heightPointer=null;setHeightAxis(0);try{ui.gameHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 ui.gameHeightPad.addEventListener("pointerup",releaseHeightPointer);ui.gameHeightPad.addEventListener("pointercancel",releaseHeightPointer);ui.gameHeightPad.addEventListener("lostpointercapture",releaseHeightPointer);
-function stepHeightTarget(now){const dt=Math.max(0,(now-heightLastMs)/1000);heightLastMs=now;if(gameMode&&Math.abs(heightAxis)>1e-4)setGroundClearance(stepGroundClearanceTarget(groundClearance,heightAxis,dt),false);requestAnimationFrame(stepHeightTarget);}
-requestAnimationFrame(stepHeightTarget);
+function publishControlTick(){if(gameMode&&Math.abs(heightAxis)>1e-4)setGroundClearance(stepGroundClearanceTarget(groundClearance,heightAxis,SEND_INTERVAL_MS/1000),false);publish();}
 
 function bindHeightKey(button,direction){
   let pointer=null,timer=0;
@@ -246,7 +245,7 @@ mountPhoneControlSettings({
 addEventListener("pagehide",()=>safetyNeutral(true));
 addEventListener("pageshow",()=>{phoneSettings=loadPhoneControlSettings();if(!controls.arm)groundClearance=phoneSettings.defaultHoverAgl;safetyNeutral(false);publish();updateConnection();});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)safetyNeutral(true);else{phoneSettings=loadPhoneControlSettings();if(!controls.arm)groundClearance=phoneSettings.defaultHoverAgl;publish();updateConnection();}});
-setInterval(()=>publish(),SEND_INTERVAL_MS);
+setInterval(publishControlTick,SEND_INTERVAL_MS);
 setInterval(updateConnection,250);
 
 renderMode();updateSticks();updateConnection();renderNavigation();

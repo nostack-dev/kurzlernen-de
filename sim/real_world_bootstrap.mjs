@@ -140,9 +140,9 @@ class RealWorldBridge{
   }
   stripFlightClutter(){
     if(!this.map)return 0;
-    const symbolIds=(this.map.getStyle()?.layers||[]).filter(layer=>layer.type==="symbol").map(layer=>layer.id);
+    const clutterIds=(this.map.getStyle()?.layers||[]).filter(layer=>layer.type==="symbol"||(layer.type==="fill"&&String(layer["source-layer"]||"").toLowerCase()==="building")).map(layer=>layer.id);
     let removed=0;
-    for(const id of symbolIds){try{this.map.removeLayer(id);removed++;}catch(error){console.warn("OpenFreeMap symbol-layer removal warning:",id,error);}}
+    for(const id of clutterIds){try{this.map.removeLayer(id);removed++;}catch(error){console.warn("OpenFreeMap flight-clutter layer removal warning:",id,error);}}
     const viewport=$("viewport");if(viewport)viewport.dataset.worldSymbolsRemoved=String(removed);
     return removed;
   }

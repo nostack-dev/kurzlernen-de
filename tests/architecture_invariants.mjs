@@ -130,8 +130,9 @@ requireText("sim/controller.mjs","dataset.navForwardMps");
 requireText("sim/controller.mjs","W · FORWARD");
 requireText("sim/controller.mjs","NOSE UP");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameUp,+1)");
-requireText("sim/controller.mjs","stepGroundClearanceTarget(groundClearance,heightAxis,dt)");
-requireText("sim/simulator.mjs","stepGroundClearanceTarget(soloGroundClearance,soloHeightAxis,dt)");
+requireText("sim/controller.mjs","stepGroundClearanceTarget(groundClearance,heightAxis,SEND_INTERVAL_MS/1000)");
+requireText("sim/controller.mjs","setInterval(publishControlTick,SEND_INTERVAL_MS)");
+requireText("sim/simulator.mjs","stepGroundClearanceTarget(soloGroundClearance,soloHeightAxis,.01)");
 requireText("sim/controller.mjs","bindHeightKey(ui.gameDown,-1)");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
 requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
@@ -195,3 +196,5 @@ for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/wor
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, geospatial WGS84/ENU render adapter only, one shared 1-PHONE/2-PHONE GAME mapping, direct WebRTC control and HIL-only bridge.");
+forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
+forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
