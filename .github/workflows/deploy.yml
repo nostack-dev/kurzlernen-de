@@ -69,7 +69,7 @@ jobs:
           cd "$BUILD_DIR"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund \
-            three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 \
+            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 \
             qrcode-generator@1.4.4 jsqr@1.4.0
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
@@ -98,11 +98,10 @@ jobs:
           ! grep -q 'generated/flight_core.mjs' drone_simulator.html
           grep -q 'REAL WORLD' drone_simulator.html
           grep -q 'soloWorld' drone_simulator.html
-          grep -q 'GOOGLE MAPS TILES API KEY' drone_simulator.html
           grep -q 'USE MY GPS LOCATION' drone_simulator.html
-          grep -q 'arondight45GoogleTilesApiKeyV1' drone_simulator.html
-          grep -q 'tile.googleapis.com/v1/3dtiles/root.json' drone_simulator.html
-          grep -q 'eastNorthUpToFixedFrame' drone_simulator.html
+          grep -q 'tiles.openfreemap.org/styles/liberty' drone_simulator.html
+          grep -q 'OpenFreeMap' drone_simulator.html
+          grep -q 'render_height' drone_simulator.html
           grep -q 'navigator.geolocation' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
