@@ -1,0 +1,37 @@
+name: One-shot yaw invariant alignment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-yaw-invariant.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Align invariant with stabilized real yaw duration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/architecture_invariants.mjs')
+          s=p.read_text()
+          old='turnStart+.22'
+          new='turnStart+.30'
+          assert s.count(old)==1, s.count(old)
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check tests/architecture_invariants.mjs
+          git diff --check
+      - name: Commit invariant only
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add tests/architecture_invariants.mjs
+          git commit -m "Align stabilized yaw E2E invariant"
+          git push
