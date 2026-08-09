@@ -1,0 +1,41 @@
+name: One-shot register world renderer
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Explicitly register the existing flight renderer
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/simulator.mjs')
+          s=p.read_text()
+          old='$("viewport").appendChild(renderer.domElement);'
+          new='$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);'
+          assert s.count(old)==1, f'unexpected renderer append count: {s.count(old)}'
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/simulator.mjs
+          git diff --check
+          grep -q '__arondightRealWorld?.attachThree?.(renderer,scene,camera)' sim/simulator.mjs
+      - name: Commit renderer registration and remove scaffold
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-register-world-renderer.yml
+          git add sim/simulator.mjs
+          git commit -m "Register flight renderer with real-world adapter"
+          git push origin HEAD:main
