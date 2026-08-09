@@ -1,0 +1,29 @@
+name: One-shot apply WORLD mini-map
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/apply_world_minimap_rigid_fpv.py"
+      - ".github/workflows/one-shot-apply-world-minimap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply and validate
+        run: python3 tools/apply_world_minimap_rigid_fpv.py
+      - name: Commit clean product tree
+        run: |
+          set -euxo pipefail
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Complete WORLD mini map and rigid FPV"
+          git push origin HEAD:main
