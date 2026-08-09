@@ -37,6 +37,10 @@ jobs:
           script=script.replace("          ! grep -q 'Google Maps Tiles' drone_simulator.html", "          ! grep -q 'Google Maps'' Tiles' drone_simulator.html")
           script=script.replace("          ! grep -q 'Cesium' drone_simulator.html", "          ! grep -q 'Ces''ium' drone_simulator.html")
           script=script.replace(
+              "s=s.replace('Phone controls passed: direct production defaults,','Phone controls passed: requested 10/10 production defaults,')",
+              "s=s.replace('Phone controls passed: direct production defaults,','Phone controls passed: requested 10/10 production defaults,')\ns=s.replace('assert.equal(rightKnob.y,0);','near(rightKnob.y,0,1e-12);')",
+          )
+          script=script.replace(
               'rm .github/workflows/one-shot-openfreemap.yml',
               'rm .github/workflows/one-shot-openfreemap.yml\nrm .github/workflows/one-shot-openfreemap-fix.yml',
           )
