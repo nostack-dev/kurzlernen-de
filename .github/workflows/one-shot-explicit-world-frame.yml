@@ -20,62 +20,30 @@ jobs:
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           sim=Path('sim/simulator.mjs')
           s=sim.read_text()
           old='}renderer.render(scene,camera);\n}'
           new='}if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);\n}'
           assert s.count(old)==1, f'unexpected main render call count: {s.count(old)}'
           sim.write_text(s.replace(old,new,1))
-
           p=Path('sim/real_world_bootstrap.mjs')
           s=p.read_text()
-          old='''  renderReal(scene,camera,originalRender){
-    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;
-    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
-    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
-    try{originalRender.call(renderer,scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}
-  }
-}'''
-          new='''  renderReal(scene,camera){
-    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;
-    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
-    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
-    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}
-  }
-  renderFrame(renderer,scene,camera){
-    this.attachThree(renderer,scene,camera);
-    if(!this.active)return false;
-    this.renderReal(scene,camera);
-    return true;
-  }
-}'''
-          assert s.count(old)==1, 'renderReal block mismatch'
+          old='  renderReal(scene,camera,originalRender){\n    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;\n    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;\n    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);\n    try{originalRender.call(renderer,scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}\n  }\n}'
+          new='  renderReal(scene,camera){\n    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;\n    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;\n    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);\n    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}\n  }\n  renderFrame(renderer,scene,camera){\n    this.attachThree(renderer,scene,camera);\n    if(!this.active)return false;\n    this.renderReal(scene,camera);\n    return true;\n  }\n}'
+          assert s.count(old)==1, f'renderReal block mismatch: {s.count(old)}'
           s=s.replace(old,new,1)
-          old='''const bridge=new RealWorldBridge();
-globalThis.__arondightRealWorld=bridge;
-const originalRender=THREE.WebGLRenderer.prototype.render;
-THREE.WebGLRenderer.prototype.render=function(scene,camera){
-  if(this.domElement?.closest?.("#viewport"))bridge.attachThree(this,scene,camera);
-  if(bridge.active&&this===bridge.threeRenderer){bridge.renderReal(scene,camera,originalRender);return;}
-  return originalRender.call(this,scene,camera);
-};
-
-await import("./simulator.mjs");'''
-          new='''const bridge=new RealWorldBridge();
-globalThis.__arondightRealWorld=bridge;
-
-await import("./simulator.mjs");'''
-          assert s.count(old)==1, 'prototype hook block mismatch'
+          old='const bridge=new RealWorldBridge();\nglobalThis.__arondightRealWorld=bridge;\nconst originalRender=THREE.WebGLRenderer.prototype.render;\nTHREE.WebGLRenderer.prototype.render=function(scene,camera){\n  if(this.domElement?.closest?.("#viewport"))bridge.attachThree(this,scene,camera);\n  if(bridge.active&&this===bridge.threeRenderer){bridge.renderReal(scene,camera,originalRender);return;}\n  return originalRender.call(this,scene,camera);\n};\n\nawait import("./simulator.mjs");'
+          new='const bridge=new RealWorldBridge();\nglobalThis.__arondightRealWorld=bridge;\n\nawait import("./simulator.mjs");'
+          assert s.count(old)==1, f'prototype hook block mismatch: {s.count(old)}'
           s=s.replace(old,new,1)
           p.write_text(s)
           PY
           node --check sim/simulator.mjs
           node --check sim/real_world_bootstrap.mjs
           git diff --check
-          grep -q '__arondightRealWorld?.renderFrame?.(renderer,scene,camera)' sim/simulator.mjs
-          grep -q 'renderFrame(renderer,scene,camera)' sim/real_world_bootstrap.mjs
-          ! grep -q 'WebGLRenderer.prototype.render' sim/real_world_bootstrap.mjs
+          grep -Fq '__arondightRealWorld?.renderFrame?.(renderer,scene,camera)' sim/simulator.mjs
+          grep -Fq 'renderFrame(renderer,scene,camera)' sim/real_world_bootstrap.mjs
+          ! grep -Fq 'WebGLRenderer.prototype.render' sim/real_world_bootstrap.mjs
       - name: Commit explicit frame path and remove scaffold
         shell: bash
         run: |
