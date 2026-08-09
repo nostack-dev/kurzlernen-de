@@ -89,6 +89,12 @@ requireText("sim/simulator.mjs","if(accumulatorMs>=SIM_FIXED_STEP_MS)await yield
 requireText("sim/simulator.mjs","exchangeSync(packet)");
 requireText("sim/simulator.mjs","backend instanceof WasmBackend");
 requireText("sim/simulator.mjs","physics.p.imuValid");
+requireText("sim/simulator.mjs","PRESENTATION_HUD_INTERVAL_MS = 50");
+requireText("sim/simulator.mjs","PRESENTATION_AUDIO_INTERVAL_MS = 33");
+requireText("sim/simulator.mjs","PRESENTATION_MAX_DRAW_GAP_MS = 50");
+requireText("sim/simulator.mjs","simulationBacklogMs=accumulatorMs");
+requireText("sim/simulator.mjs","renderer.shadowMap.autoUpdate=false");
+requireText("sim/simulator.mjs","viewport.dataset.presentationDraws");
 requireText("sim/simulator.mjs","b3.b3World_Step(this.world,dt,4)");
 requireText("sim/simulator.mjs","SIM_AUX_INTERVAL_S = .01");
 requireText("sim/simulator.mjs","auxAccumulatorS+=DT");

@@ -92,12 +92,14 @@ try{
   });
   await page.click("#camSolo");
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
-  const cadenceStart=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
-  await wait(1200);
-  const cadenceEnd=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
-  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000);
-  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x`);
+  await wait(700); // exclude layout/solo-transition startup from the steady-state clock proof
+  const cadenceStart=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0"),draws:Number(document.querySelector("#viewport")?.dataset.presentationDraws||0)}));
+  await wait(2500);
+  const cadenceEnd=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0"),draws:Number(document.querySelector("#viewport")?.dataset.presentationDraws||0),backlog:Number(document.querySelector("#viewport")?.dataset.presentationBacklogMs||0)}));
+  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000),presentationDraws=cadenceEnd.draws-cadenceStart.draws;
+  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x · presentation draws ${presentationDraws} · backlog ${cadenceEnd.backlog.toFixed(2)} ms`);
   if(!(cadenceRatio>.90&&cadenceRatio<1.10))throw new Error(`fixed-step simulation is not tracking wall time closely enough: ${cadenceRatio.toFixed(3)}x`);
+  if(presentationDraws<35)throw new Error(`flight-first presentation starved visual output: only ${presentationDraws} draws in 2.5s`);
   const soloUi=await page.evaluate(()=>({
     hud:!document.querySelector("#soloHud")?.hidden,
     reset:!!document.querySelector("#soloReset"),
