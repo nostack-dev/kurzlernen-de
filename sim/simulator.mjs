@@ -396,7 +396,7 @@ function integrateDuration(model,pulses,duration){
 }
 
 class MotorSound {
-  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque:2bladeBPF";this.viewport.dataset.motorAudioContextState="uninitialized";}
+  constructor(viewport){this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque:2bladeBPF";this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";}
   isRunning(){return Boolean(this.ctx&&this.ctx.state==="running");}
   syncState(){this.unlocked=this.isRunning();this.viewport.dataset.motorAudioContextState=this.ctx?.state||"uninitialized";return this.unlocked;}
   ensure(){
@@ -419,6 +419,36 @@ class MotorSound {
     }catch{this.syncState();return false;}
   }
   setEnabled(value){this.enabled=Boolean(value);localStorage.setItem("arondight45MotorSound",this.enabled?"on":"off");if(!this.enabled&&this.master&&this.ctx)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.025);this.syncState();}
+  escWindingTone(frequencyHz,offsetSec=0,durationSec=.075,level=.20){
+    if(!this.enabled||!this.isRunning()||!this.ctx||!this.master)return;
+    const start=this.ctx.currentTime+Math.max(0,offsetSec),stop=start+Math.max(.025,durationSec);
+    // Real ESC beeps use the motor windings as the acoustic transducer. Four
+    // slightly detuned electrical voices represent the four physical motors.
+    for(const detune of [-5,-1.5,1.5,5]){
+      const oscillator=this.ctx.createOscillator(),gain=this.ctx.createGain();oscillator.type="sine";oscillator.frequency.setValueAtTime(Math.max(80,frequencyHz+detune),start);
+      gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(Math.max(.0002,level/4),start+.008);gain.gain.setValueAtTime(Math.max(.0002,level/4),Math.max(start+.009,stop-.018));gain.gain.exponentialRampToValueAtTime(.0001,stop);
+      oscillator.connect(gain);gain.connect(this.master);oscillator.start(start);oscillator.stop(stop+.01);
+    }
+  }
+  armToneSequence(kind){
+    if(kind==="request"){
+      this.viewport.dataset.motorAudioArmEvent="arm-request";
+      this.escWindingTone(880,0,.065,.24);this.escWindingTone(1175,.105,.065,.24);this.escWindingTone(1568,.210,.075,.25);
+    }else if(kind==="armed"){
+      this.viewport.dataset.motorAudioArmEvent="armed";
+      this.escWindingTone(1760,0,.145,.28);
+    }else if(kind==="disarmed"){
+      this.viewport.dataset.motorAudioArmEvent="disarmed";
+      this.escWindingTone(659,0,.075,.18);this.escWindingTone(523,.105,.090,.18);
+    }
+  }
+  syncFcState(fcState,armRequested){
+    const state=Number(fcState)||0,requested=Boolean(armRequested),wasArmed=Boolean(this.previousFcState&STATE_ARMED),isArmed=Boolean(state&STATE_ARMED),fault=Boolean(state&STATE_FAULT);
+    if(requested&&!this.previousArmRequested&&!isArmed&&!fault)this.armToneSequence("request");
+    if(!wasArmed&&isArmed)this.armToneSequence("armed");
+    if(wasArmed&&!isArmed&&!fault)this.armToneSequence("disarmed");
+    this.previousArmRequested=requested;this.previousFcState=state;
+  }
   update(model,cameraPosition){
     const running=this.syncState(),omega=model.motorOmega||[],motorTorque=model.motorTorque||[],propTorque=model.propTorque||[];let weightedHz=0,totalPropPower=0;
     for(let i=0;i<4;i++){
@@ -671,8 +701,8 @@ async function replayStep(){
 
 function currentFcStateText(){const fcState=latest.state,fault=fcState>>8&255;return fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";}
 function render(){
-  requestAnimationFrame(render);physics.render();updateCamera();motorSound.update(physics,camera.position);const state=physics.state();
-  const fcState=latest.state,fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
+  requestAnimationFrame(render);physics.render();updateCamera();const fcState=latest.state;motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);const state=physics.state();
+  const fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
   const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,.5,5):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});}
   const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.disabled=!soloControls.arm&&(!(fcState&STATE_NAVIGATION_VALID)||!sharedArmReady(stateText,soloControls,true,phoneSettings));soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}renderer.render(scene,camera);
