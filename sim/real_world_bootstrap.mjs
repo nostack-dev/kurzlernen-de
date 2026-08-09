@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-const CESIUM_VERSION="1.124";
+const CESIUM_VERSION="1.143";
 const CESIUM_BASE=`https://cesium.com/downloads/cesiumjs/releases/${CESIUM_VERSION}/Build/Cesium`;
 const GOOGLE_TILES_ROOT="https://tile.googleapis.com/v1/3dtiles/root.json";
 const KEY_STORAGE="arondight45GoogleTilesApiKeyV1";
@@ -25,6 +25,8 @@ async function ensureCesium(){
   loadCss(`${CESIUM_BASE}/Widgets/widgets.css`);
   await loadScript(`${CESIUM_BASE}/Cesium.js`);
   if(!globalThis.Cesium)throw Error("CesiumJS did not initialize");
+  // Google recommends higher parallel request capacity for faster 3D Tiles loading.
+  globalThis.Cesium.RequestScheduler.requestsByServer["tile.googleapis.com:443"]=18;
   return globalThis.Cesium;
 }
 
@@ -35,7 +37,7 @@ function geolocate(){
 
 class RealWorldBridge{
   constructor(){
-    this.active=false;this.loading=false;this.viewer=null;this.tileset=null;this.origin=null;this.enuToFixed=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.lastStatusUpdate=0;this.trainingVisibility=new Map();this.lastLocation=null;this.surfaceHeight=null;
+    this.active=false;this.loading=false;this.viewer=null;this.tileset=null;this.origin=null;this.enuToFixed=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.surfaceHeight=null;
     this.installUi();
   }
   installUi(){
@@ -62,7 +64,7 @@ class RealWorldBridge{
     mode.value="training";
     mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
     key.onchange=()=>{try{const value=key.value.trim();if(value)localStorage.setItem(KEY_STORAGE,value);else localStorage.removeItem(KEY_STORAGE);}catch{}};
-    use.onclick=()=>this.activate(true).catch(error=>this.fail(error));
+    use.onclick=()=>this.activate().catch(error=>this.fail(error));
     forget.onclick=()=>{key.value="";try{localStorage.removeItem(KEY_STORAGE);}catch{};this.status("API key removed from this device.","warn");};
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
@@ -79,16 +81,16 @@ class RealWorldBridge{
   }
   resizeOverlay(){if(!this.overlayRenderer)return;const b=$("viewport").getBoundingClientRect(),w=Math.max(1,b.width),h=Math.max(1,b.height);if(this.overlayRenderer.domElement.width!==Math.round(w*this.overlayRenderer.getPixelRatio())||this.overlayRenderer.domElement.height!==Math.round(h*this.overlayRenderer.getPixelRatio()))this.overlayRenderer.setSize(w,h,false);}
   identifyTrainingObjects(scene){
-    if(this.trainingVisibility.size)return;
     for(const child of scene.children){
+      if(this.trainingObjects.has(child))continue;
       let training=Boolean(child.isGridHelper);
       if(child.isMesh&&child.geometry?.type==="BoxGeometry"){const p=child.geometry.parameters||{};if((p.width||0)>100&&(p.height||0)>100)training=true;}
       if(child.isGroup){let race=false;child.traverse(node=>{if(node.userData?.normal&&node.userData?.rightAxis)race=true;});if(race)training=true;}
-      if(training)this.trainingVisibility.set(child,child.visible);
+      if(training)this.trainingObjects.add(child);
     }
   }
-  hideTrainingWorld(scene){this.identifyTrainingObjects(scene);for(const child of this.trainingVisibility.keys())child.visible=false;}
-  restoreTrainingWorld(){for(const[child,visible]of this.trainingVisibility)child.visible=visible;}
+  hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);child.visible=false;}}
+  restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
   async createViewer(){
     if(this.viewer)return this.viewer;
     const Cesium=await ensureCesium(),viewport=$("viewport");
@@ -97,8 +99,8 @@ class RealWorldBridge{
     this.viewer.scene.backgroundColor=Cesium.Color.BLACK;this.viewer.scene.fog.enabled=true;this.viewer.scene.fog.density=.00018;
     return this.viewer;
   }
-  key(){const input=$("googleTilesKey");const query=new URLSearchParams(location.search).get("googleTilesKey");const value=(query||input?.value||localStorage.getItem(KEY_STORAGE)||"").trim();if(input&&value)input.value=value;if(value)try{localStorage.setItem(KEY_STORAGE,value);}catch{}return value;}
-  async activate(forceLocation=false){
+  key(){const input=$("googleTilesKey");let stored="";try{stored=localStorage.getItem(KEY_STORAGE)||"";}catch{}const value=(input?.value||stored).trim();if(input&&value)input.value=value;if(value)try{localStorage.setItem(KEY_STORAGE,value);}catch{}return value;}
+  async activate(){
     if(this.loading)return;const key=this.key();if(!key){$("realWorldConfig").hidden=false;this.status("REAL WORLD needs a browser-restricted Google Maps Tiles API key.","warn");return;}
     this.loading=true;this.status("REAL WORLD · requesting high-accuracy GPS permission…","warn");
     const fix=await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy,altitude}=fix.coords;
@@ -111,6 +113,7 @@ class RealWorldBridge{
     viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(longitude,latitude,1500),orientation:{heading:0,pitch:-Cesium.Math.PI_OVER_TWO,roll:0}});
     let surface=Number.isFinite(altitude)?altitude:0;
     try{
+      if(!viewer.scene.sampleHeightSupported)throw Error("browser does not support scene height sampling");
       const samples=[Cesium.Cartographic.fromDegrees(longitude,latitude,0)];
       const result=await Promise.race([viewer.scene.sampleHeightMostDetailed(samples),new Promise((_,reject)=>setTimeout(()=>reject(Error("surface sampling timeout")),15000))]);
       if(Number.isFinite(result?.[0]?.height))surface=result[0].height;
