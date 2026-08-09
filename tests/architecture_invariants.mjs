@@ -95,6 +95,8 @@ requireText("sim/simulator.mjs","PRESENTATION_MAX_DRAW_GAP_MS = 50");
 requireText("sim/simulator.mjs","simulationBacklogMs=accumulatorMs");
 requireText("sim/simulator.mjs","renderer.shadowMap.autoUpdate=false");
 requireText("sim/simulator.mjs","viewport.dataset.presentationDraws");
+requireText("sim/simulator.mjs",'Object.defineProperty(globalThis,"__arondightDiagnostics"');
+requireText("sim/simulator.mjs","simTime:{get:()=>simTime");
 requireText("sim/simulator.mjs","b3.b3World_Step(this.world,dt,4)");
 requireText("sim/simulator.mjs","SIM_AUX_INTERVAL_S = .01");
 requireText("sim/simulator.mjs","auxAccumulatorS+=DT");

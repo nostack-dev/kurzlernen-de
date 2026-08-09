@@ -702,6 +702,14 @@ async function replayStep(){
 
 function currentFcStateText(){const fcState=latest.state,fault=fcState>>8&255;return fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";}
 let lastPresentationHudMs=-Infinity,lastPresentationAudioMs=-Infinity,lastPresentationDrawMs=-Infinity,lastPresentationShadowMs=-Infinity,presentationDraws=0;
+const simulatorDiagnostics={};
+Object.defineProperties(simulatorDiagnostics,{
+  simTime:{get:()=>simTime,enumerable:true},
+  simulationBacklogMs:{get:()=>simulationBacklogMs,enumerable:true},
+  presentationDraws:{get:()=>presentationDraws,enumerable:true},
+});
+Object.freeze(simulatorDiagnostics);
+Object.defineProperty(globalThis,"__arondightDiagnostics",{value:simulatorDiagnostics,writable:false,configurable:false});
 function render(){
   requestAnimationFrame(render);
   const renderNow=performance.now(),fcState=latest.state;
