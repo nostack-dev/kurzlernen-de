@@ -1,3 +1,4 @@
+// Camera settings remain optics-only; WORLD orbit/look is applied later by the geospatial render adapter.
 export const CAMERA_SETTINGS_KEY="arondight45CameraSettingsV1";
 export const DEFAULT_CAMERA_SETTINGS=Object.freeze({fpvTiltDeg:-15,fpvFovDeg:105,thirdDistanceM:1.5});
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
