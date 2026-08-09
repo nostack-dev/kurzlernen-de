@@ -1,0 +1,155 @@
+name: One-shot WORLD minimap rigid FPV
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add cached real mini-map and preserve rigid FPV
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          def one(path, old, new):
+              p=Path(path);s=p.read_text();n=s.count(old)
+              assert n==1,f"{path}: expected one occurrence, got {n}: {old[:140]!r}"
+              p.write_text(s.replace(old,new,1))
+
+          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
+          s=s.replace('const WORLD_KEEP_LOOK_STORAGE="arondight45WorldKeepLookV1";\nconst WORLD_LOOK_SNAP_RATE=8;\n',
+'''const WORLD_KEEP_LOOK_STORAGE="arondight45WorldKeepLookV1";
+const WORLD_MINIMAP_FOLLOW_STORAGE="arondight45WorldMinimapFollowV1";
+const WORLD_MINIMAP_QUERY_MS=1000;
+const WORLD_MINIMAP_DRAW_MS=125;
+const WORLD_MINIMAP_MAX_FEATURES=80;
+const WORLD_LOOK_SNAP_RATE=8;
+''',1)
+          s=s.replace('const loadBool=(key,fallback)=>{try{const raw=localStorage.getItem(key);return raw===null?fallback:raw==="1";}catch{return fallback;}};\n',
+'''const loadBool=(key,fallback)=>{try{const raw=localStorage.getItem(key);return raw===null?fallback:raw==="1";}catch{return fallback;}};
+function lngLatToMeters(originLon,originLat,longitude,latitude){
+  const north=(latitude-originLat)*Math.PI/180*EARTH_RADIUS_M;
+  const east=(longitude-originLon)*Math.PI/180*EARTH_RADIUS_M*Math.max(.01,Math.cos(originLat*Math.PI/180));
+  return[east,north];
+}
+function geometryPaths(geometry){
+  if(!geometry)return[];const c=geometry.coordinates||[];
+  if(geometry.type==="LineString")return[c];
+  if(geometry.type==="MultiLineString")return c;
+  if(geometry.type==="Polygon")return c.length?[c[0]]:[];
+  if(geometry.type==="MultiPolygon")return c.map(poly=>poly?.[0]).filter(Boolean);
+  return[];
+}
+''',1)
+          s=s.replace('this.lookReadout=null;this.mapLegend=null;this.airframe=null;this.mapFrameMs=',
+'''this.lookReadout=null;this.mapLegend=null;this.minimapCanvas=null;this.minimapCtx=null;this.minimapFeatures=[];this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.minimapFollowLook=loadBool(WORLD_MINIMAP_FOLLOW_STORAGE,true);this.airframe=null;this.mapFrameMs=''',1)
+          s=s.replace('#worldLookHud .world-look-stage{position:absolute;left:9px;right:9px;top:22px;bottom:8px;perspective:110px;border-radius:50%;overflow:hidden;border:1px solid #8cdcff55;background:radial-gradient(circle at 50% 44%,#274c6288 0 7%,#0a2134dd 48%,#06121ddd 72%);pointer-events:none}\n',
+'''#worldLookHud .world-look-stage{position:absolute;left:9px;right:9px;top:22px;bottom:8px;perspective:110px;border-radius:50%;overflow:hidden;border:1px solid #8cdcff55;background:#071522;pointer-events:none}
+      #worldLookHud .world-mini-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+''',1)
+          s=s.replace('#worldLookHud .world-look-plane{position:absolute;inset:17px 8px 5px;background:repeating-linear-gradient(0deg,#7bdcff42 0 1px,transparent 1px 11px),repeating-linear-gradient(90deg,#7bdcff42 0 1px,transparent 1px 11px);border:1px solid #7bdcff66;transform-origin:50% 58%;transform:rotateX(60deg) rotateZ(0deg);box-shadow:0 0 14px #55cfff22}\n',
+'#worldLookHud .world-look-plane{position:absolute;inset:17px 8px 5px;border:1px solid #7bdcff33;transform-origin:50% 58%;transform:rotateX(60deg) rotateZ(0deg);opacity:.25;box-shadow:0 0 14px #55cfff18}\n',1)
+          old='''hud.innerHTML='<div class="world-look-title"><span>360° LOOK</span><span data-world-look-readout>SNAP</span></div><div class="world-look-stage"><div class="world-look-plane"></div><div class="world-look-drone"><i class="world-look-nose"></i></div></div><b class="world-look-cardinal world-look-n">N</b><b class="world-look-cardinal world-look-e">E</b><b class="world-look-cardinal world-look-s">S</b><b class="world-look-cardinal world-look-w">W</b>';'''
+          new='''hud.innerHTML='<div class="world-look-title"><span>MINI 3D · 360°</span><span data-world-look-readout>SNAP</span></div><div class="world-look-stage"><canvas class="world-mini-canvas" width="196" height="172"></canvas><div class="world-look-plane"></div><div class="world-look-drone"><i class="world-look-nose"></i></div></div><b class="world-look-cardinal world-look-n">N</b><b class="world-look-cardinal world-look-e">E</b><b class="world-look-cardinal world-look-s">S</b><b class="world-look-cardinal world-look-w">W</b>';'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''viewport.appendChild(hud);this.lookHud=hud;this.lookPlane=hud.querySelector(".world-look-plane");this.lookReadout=hud.querySelector("[data-world-look-readout]");const legend=document.createElement("div");'''
+          new='''viewport.appendChild(hud);this.lookHud=hud;this.lookPlane=hud.querySelector(".world-look-plane");this.lookReadout=hud.querySelector("[data-world-look-readout]");this.minimapCanvas=hud.querySelector(".world-mini-canvas");this.minimapCtx=this.minimapCanvas?.getContext("2d");const legend=document.createElement("div");'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''hud.addEventListener("pointerdown",event=>{event.preventDefault();hud.setPointerCapture?.(event.pointerId);this.lookDragging=true;'''
+          new='''hud.addEventListener("pointerdown",event=>{if($("viewport")?.dataset.cameraMode==="fpv")return;event.preventDefault();hud.setPointerCapture?.(event.pointerId);this.lookDragging=true;'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''if(this.lookReadout)this.lookReadout.textContent=this.lookDragging?`${Math.round(this.lookYawDeg)}°`:this.keepLookOrientation?`KEEP · ${Math.round(this.lookYawDeg)}°`:this.lookSnapping?"SNAP ↺":"SNAP";'''
+          new='''const cameraMode=$("viewport")?.dataset.cameraMode||"follow";if(this.lookReadout)this.lookReadout.textContent=cameraMode==="fpv"?"FPV LOCK":this.lookDragging?`${Math.round(this.lookYawDeg)}°`:this.keepLookOrientation?`KEEP · ${Math.round(this.lookYawDeg)}°`:this.lookSnapping?"SNAP ↺":"SNAP";'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";'''
+          new='''viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldMinimapFollow=this.minimapFollowLook?"1":"0";'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''setKeepLookOrientation(value){this.keepLookOrientation=Boolean(value);try{localStorage.setItem(WORLD_KEEP_LOOK_STORAGE,this.keepLookOrientation?"1":"0");}catch{}if(!this.keepLookOrientation&&!this.lookDragging&&(Math.abs(this.lookYawDeg)>.05||Math.abs(this.lookPitchDeg)>.05))this.lookSnapping=true;this.renderLookHud();return this.keepLookOrientation;}'''
+          new=old+'''\n  setMinimapFollowLook(value){this.minimapFollowLook=Boolean(value);try{localStorage.setItem(WORLD_MINIMAP_FOLLOW_STORAGE,this.minimapFollowLook?"1":"0");}catch{}this.minimapLastDrawMs=-Infinity;this.renderLookHud();return this.minimapFollowLook;}'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''this.stepLook(performance.now());if(Math.abs(this.lookYawDeg)<.001&&Math.abs(this.lookPitchDeg)<.001)return;const airframe=this.airframeFor(scene);if(!airframe)return;const mode=$("viewport")?.dataset.cameraMode||"follow",yaw=THREE.MathUtils.degToRad(this.lookYawDeg),pitch=THREE.MathUtils.degToRad(this.lookPitchDeg),worldUp=new THREE.Vector3(0,0,1);\n    if(mode==="fpv"){const qYaw=new THREE.Quaternion().setFromAxisAngle(worldUp,-yaw);camera.quaternion.premultiply(qYaw);const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize(),qPitch=new THREE.Quaternion().setFromAxisAngle(right,pitch);camera.quaternion.premultiply(qPitch);return;}'''
+          new='''this.stepLook(performance.now());const mode=$("viewport")?.dataset.cameraMode||"follow";if(mode==="fpv")return;if(Math.abs(this.lookYawDeg)<.001&&Math.abs(this.lookPitchDeg)<.001)return;const airframe=this.airframeFor(scene);if(!airframe)return;const yaw=THREE.MathUtils.degToRad(this.lookYawDeg),pitch=THREE.MathUtils.degToRad(this.lookPitchDeg),worldUp=new THREE.Vector3(0,0,1);'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          marker='''  status(text,kind=""){const el=$("realWorldStatus");'''
+          methods=r'''  cacheMinimapFeatures(now){
+    const interval=this.perfMode==="critical"?WORLD_MINIMAP_QUERY_MS*2:WORLD_MINIMAP_QUERY_MS;if(!this.map||now-this.minimapLastQueryMs<interval)return;this.minimapLastQueryMs=now;const cached=[];
+    try{for(const feature of this.map.queryRenderedFeatures()){if(cached.length>=WORLD_MINIMAP_MAX_FEATURES)break;const source=String(feature.sourceLayer||feature.layer?.["source-layer"]||"").toLowerCase(),id=String(feature.layer?.id||"").toLowerCase();let kind="";if(source==="water"||source==="waterway")kind="water";else if(source==="building")kind="building";else if(source==="transportation")kind="road";else if((source==="landcover"||source==="landuse")&&/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id))kind="green";if(!kind)continue;const paths=geometryPaths(feature.geometry).map(path=>{const step=Math.max(1,Math.ceil(path.length/28));return path.filter((_,i)=>i%step===0).map(point=>[Number(point[0]),Number(point[1])]).filter(point=>point.every(Number.isFinite));}).filter(path=>path.length>=2);if(!paths.length)continue;cached.push({kind,height:kind==="building"?clamp(Number(feature.properties?.render_height??feature.properties?.height??8)||8,2,80):0,paths});}}catch{}this.minimapFeatures=cached;
+  }
+  drawMinimap(now){
+    if(!this.active||!this.minimapCtx||!this.minimapCanvas||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;const drawInterval=this.perfMode==="critical"?WORLD_MINIMAP_DRAW_MS*2:WORLD_MINIMAP_DRAW_MS;if(now-this.minimapLastDrawMs<drawInterval)return;this.minimapLastDrawMs=now;this.cacheMinimapFeatures(now);const airframe=this.airframeFor(this.threeScene);if(!airframe)return;
+    const canvas=this.minimapCanvas,ctx=this.minimapCtx,w=canvas.width,h=canvas.height,position=airframe.position,viewport=$("viewport"),mainBearing=Number(viewport?.dataset.worldMapBearing||0),miniBearing=this.minimapFollowLook&&Number.isFinite(mainBearing)?mainBearing:0,rad=-miniBearing*Math.PI/180,c=Math.cos(rad),si=Math.sin(rad),radius=clamp(55+Math.max(0,position.z)*2,60,170),scale=w/(radius*2),baseY=h*.62;
+    const projectLocal=(east,north,height=0)=>{const dx=east-position.x,dy=north-position.y,rx=dx*c-dy*si,ry=dx*si+dy*c;return[w/2+rx*scale,baseY-ry*scale*.60-height*scale*.13];};
+    const project=(lon,lat,height=0)=>{const [east,north]=lngLatToMeters(this.originLon,this.originLat,lon,lat);return projectLocal(east,north,height);};
+    const gradient=ctx.createLinearGradient(0,0,0,h);gradient.addColorStop(0,"#18384d");gradient.addColorStop(1,"#071522");ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);
+    if(this.gridEnabled){ctx.lineWidth=1;for(let v=-Math.ceil(radius/20)*20;v<=radius;v+=20){for(const axis of [0,1]){const a=axis?projectLocal(position.x-radius,position.y+v):projectLocal(position.x+v,position.y-radius),b=axis?projectLocal(position.x+radius,position.y+v):projectLocal(position.x+v,position.y+radius);ctx.strokeStyle=v===0?"rgba(157,233,255,.35)":"rgba(103,188,215,.14)";ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}}}
+    for(const feature of this.minimapFeatures){for(const path of feature.paths){const bottom=path.map(point=>project(point[0],point[1],0));if(feature.kind==="road"||feature.kind==="water"){ctx.strokeStyle=feature.kind==="road"?"#e3c56b":"#4aa7d1";ctx.lineWidth=feature.kind==="road"?2:2.5;ctx.beginPath();bottom.forEach((point,i)=>i?ctx.lineTo(...point):ctx.moveTo(...point));ctx.stroke();continue;}if(feature.kind==="green"){ctx.fillStyle="rgba(79,123,85,.62)";ctx.beginPath();bottom.forEach((point,i)=>i?ctx.lineTo(...point):ctx.moveTo(...point));ctx.closePath();ctx.fill();continue;}const top=path.map(point=>project(point[0],point[1],feature.height));ctx.fillStyle="rgba(189,203,211,.64)";ctx.strokeStyle="rgba(226,240,247,.78)";ctx.lineWidth=1;ctx.beginPath();top.forEach((point,i)=>i?ctx.lineTo(...point):ctx.moveTo(...point));ctx.closePath();ctx.fill();ctx.stroke();for(let i=0;i<Math.min(bottom.length,10);i+=Math.max(1,Math.floor(bottom.length/4))){ctx.strokeStyle="rgba(154,177,190,.38)";ctx.beginPath();ctx.moveTo(...bottom[i]);ctx.lineTo(...top[i]);ctx.stroke();}}}
+    const forward=new THREE.Vector3(-1,0,0).applyQuaternion(airframe.quaternion),airBearing=THREE.MathUtils.radToDeg(Math.atan2(forward.x,forward.y)),rel=(airBearing-miniBearing)*Math.PI/180,cx=w/2,cy=baseY;ctx.save();ctx.translate(cx,cy);ctx.rotate(rel);ctx.fillStyle="#ff5c76";ctx.strokeStyle="#ffffff";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,7);ctx.lineTo(0,4);ctx.lineTo(-6,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();ctx.fillStyle="#d8f7ff";ctx.font="800 12px system-ui";ctx.fillText(this.minimapFollowLook?"CAM":"N",7,15);ctx.fillStyle="#9bc5d8";ctx.font="700 9px ui-monospace,monospace";ctx.fillText(`${Math.round(position.z)}m`,7,h-7);if(viewport){viewport.dataset.worldMinimapMode=this.minimapFollowLook?"camera":"north";viewport.dataset.worldMinimapBearing=miniBearing.toFixed(2);viewport.dataset.worldMinimapFeatures=String(this.minimapFeatures.length);}
+  }
+'''
+          assert s.count(marker)==1;s=s.replace(marker,methods+marker,1)
+          s=s.replace('''this.applyLookCamera(scene,camera);this.syncMapCamera(camera);const renderer=this.threeRenderer;''','''this.applyLookCamera(scene,camera);this.syncMapCamera(camera);this.drawMinimap(performance.now());const renderer=this.threeRenderer;''',1)
+          s=s.replace('''viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";this.renderLookHud();''','''viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldMinimapFollow=this.minimapFollowLook?"1":"0";this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.renderLookHud();''',1)
+          s=s.replace('''delete viewport.dataset.worldSymbolsRemoved;}''','''delete viewport.dataset.worldSymbolsRemoved;delete viewport.dataset.worldMinimapMode;delete viewport.dataset.worldMinimapBearing;delete viewport.dataset.worldMinimapFeatures;delete viewport.dataset.worldMinimapFollow;}''',1)
+          p.write_text(s)
+
+          # Settings: explicit minimap orientation policy.
+          one('sim/control_settings.mjs',
+              '<label class="phone-settings-toggle"><span>KEEP 360° LOOK ORIENTATION</span><input data-world-keep-look type="checkbox"></label>\n    <p class="phone-settings-note">WORLD GRID is a render-only local metre reference. 360° LOOK is camera-only: OFF snaps smoothly back on release; ON keeps the released orientation. Neither changes flight state or map tile traffic.</p>',
+              '<label class="phone-settings-toggle"><span>KEEP 360° LOOK ORIENTATION</span><input data-world-keep-look type="checkbox"></label>\n    <label class="phone-settings-toggle"><span>MINIMAP FOLLOWS 360° CAMERA</span><input data-world-minimap-follow type="checkbox"></label>\n    <p class="phone-settings-note">WORLD GRID is a render-only local metre reference. 360° LOOK is camera-only: OFF snaps smoothly back on release; ON keeps the released orientation. MINIMAP follow ON rotates the cached mini-map with the camera; OFF keeps north-up. FPV remains rigidly mounted and cannot be virtually panned.</p>')
+          one('sim/control_settings.mjs',
+              'grid=section.querySelector("[data-world-grid]"),keepLook=section.querySelector("[data-world-keep-look]");',
+              'grid=section.querySelector("[data-world-grid]"),keepLook=section.querySelector("[data-world-keep-look]"),minimapFollow=section.querySelector("[data-world-minimap-follow]");')
+          one('sim/control_settings.mjs',
+              'grid.checked=bridge.gridEnabled!==false;keepLook.checked=Boolean(bridge.keepLookOrientation);syncStatus();',
+              'grid.checked=bridge.gridEnabled!==false;keepLook.checked=Boolean(bridge.keepLookOrientation);minimapFollow.checked=bridge.minimapFollowLook!==false;syncStatus();')
+          one('sim/control_settings.mjs',
+              'grid.addEventListener("change",()=>{bridge.setGridEnabled?.(grid.checked);renderButton();});keepLook.addEventListener("change",()=>{bridge.setKeepLookOrientation?.(keepLook.checked);renderButton();});dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{bridge.setGridEnabled?.(true);bridge.setKeepLookOrientation?.(false);bridge.resetLook?.(true);renderButton();});',
+              'grid.addEventListener("change",()=>{bridge.setGridEnabled?.(grid.checked);renderButton();});keepLook.addEventListener("change",()=>{bridge.setKeepLookOrientation?.(keepLook.checked);renderButton();});minimapFollow.addEventListener("change",()=>{bridge.setMinimapFollowLook?.(minimapFollow.checked);renderButton();});dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{bridge.setGridEnabled?.(true);bridge.setKeepLookOrientation?.(false);bridge.setMinimapFollowLook?.(true);bridge.resetLook?.(true);renderButton();});')
+
+          # CI contracts.
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          s=s.replace('requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");','requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");\nrequireText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA");',1)
+          old='''for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\\"sky-color\\":\\"#0a2845\\"","worldMapUpdates","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);'''
+          new='''for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\\"sky-color\\":\\"#0a2845\\"","worldMapUpdates","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_FOLLOW_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures()","world-mini-canvas","worldMinimapMode","installLookHud()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          s=s.replace('for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step"])','for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step","new MapLibreMap({container:this.minimap"])',1)
+          p.write_text(s)
+
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
+          s=s.replace('''keepLook:document.querySelector("[data-world-keep-look]")?.checked,''','''keepLook:document.querySelector("[data-world-keep-look]")?.checked,\n    minimapFollow:document.querySelector("[data-world-minimap-follow]")?.checked,''',1)
+          s=s.replace('''config.grid!==true||config.keepLook!==false||''','''config.grid!==true||config.keepLook!==false||config.minimapFollow!==true||''',1)
+          s=s.replace('''grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display''','''grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display,minimapCanvas:!!document.querySelector("#worldLookHud .world-mini-canvas"),minimapMode:viewport?.dataset.worldMinimapMode||"",minimapFollow:viewport?.dataset.worldMinimapFollow||""''',1)
+          s=s.replace('''live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none")''','''live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||!live.minimapCanvas||live.minimapMode!=="camera"||live.minimapFollow!=="1")''',1)
+          s=s.replace('''if(live.canvasCount!==2)throw new Error(`REAL WORLD must use exactly MapLibre + the existing flight canvas, got ${live.canvasCount}`);''','''if(live.canvasCount!==3)throw new Error(`REAL WORLD must use MapLibre + existing flight canvas + one lightweight cached mini-map canvas, got ${live.canvasCount}`);''',1)
+          anchor='''  const follow=await cameraSnapshot();'''
+          insert='''  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click("[data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapMode==="north",{timeout:3000});const northMini=await page.$eval("#viewport",e=>Number(e.dataset.worldMinimapBearing||99));if(Math.abs(northMini)>.01)throw new Error(`north-up minimap failed: ${northMini}`);\n  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click("[data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");\n\n'''
+          assert s.count(anchor)==1;s=s.replace(anchor,insert+anchor,1)
+          fpv_anchor='''  if(fpv.center===third.center&&fpv.zoom===third.zoom&&fpv.pitch===third.pitch&&fpv.bearing===third.bearing)throw new Error(`FPV geospatial camera stayed frozen: ${JSON.stringify({third,fpv})}`);'''
+          fpv_test='''\n  const fpvLookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));const fpvBox=await page.$eval("#worldLookHud",element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});await page.mouse.move(fpvBox.x+fpvBox.w/2,fpvBox.y+fpvBox.h/2);await page.mouse.down();await page.mouse.move(fpvBox.x+fpvBox.w*.82,fpvBox.y+fpvBox.h*.35,{steps:4});await page.mouse.up();await new Promise(resolve=>setTimeout(resolve,180));const fpvLookAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));if(Math.abs(fpvLookAfter-fpvLookBefore)>.1)throw new Error(`FPV was virtually panned by WORLD look: ${JSON.stringify({fpvLookBefore,fpvLookAfter})}`);'''
+          assert s.count(fpv_anchor)==1;s=s.replace(fpv_anchor,fpv_anchor+fpv_test,1)
+          s=s.replace('SNAP/KEEP 360 look HUD','cached MINI 3D + SNAP/KEEP 360 look, rigid FPV',1)
+          p.write_text(s)
+
+          p=Path('REAL_WORLD_DIGITAL_TWIN.md');doc=p.read_text().rstrip()+'''\n\n### Mini 3D map and rigid FPV\n\nThe top-right WORLD control is a lightweight **MINI 3D** map built from the already loaded MapLibre/OpenMapTiles vector features. It reuses cached rendered water, vegetation, road and building geometry at a throttled cadence and draws it into one small 2D canvas; it creates **no second MapLibre instance, WebGL renderer, tile stream or network request**. **MINIMAP FOLLOWS 360° CAMERA** defaults ON; OFF keeps the mini-map north-up. Query/draw cadence is reduced further by the existing critical FPS governor.\n\nFree 360° look applies only to FOLLOW/THIRD presentation cameras. **FPV remains rigidly mounted to the simulated airframe**, matching the physical camera contract; WORLD cannot virtually yaw/pitch FPV. Camera-only look is restored after each render and never reaches controller, sensor or plant state.\n''';p.write_text(doc)
+
+          Path('.github/workflows/one-shot-world-minimap-fpv.yml').unlink()
+          for path in ['sim/real_world_bootstrap.mjs','sim/control_settings.mjs','tests/architecture_invariants.mjs','tests/real_world_ui_smoke.mjs']:
+              subprocess.run(['node','--check',path],check=True)
+          subprocess.run(['git','diff','--check'],check=True)
+          PY
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Add true WORLD mini map and keep FPV hardware rigid"
+          git push origin HEAD:main
