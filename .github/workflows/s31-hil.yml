@@ -28,7 +28,7 @@ jobs:
   host-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Shared raw-hardware runtime and protocol tests
         run: |
           set -euxo pipefail
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Activate ESP-IDF
         shell: bash
         run: |
