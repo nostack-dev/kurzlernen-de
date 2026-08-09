@@ -6,8 +6,9 @@ const page=await browser.newPage(),external=[];page.on("request",request=>{const
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
   await page.click("#camSolo");await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
-  const entry=await page.evaluate(()=>{const button=document.querySelector("#soloWorld"),settings=document.querySelector("#soloTopbar .phone-settings-button");return{world:!!button,worldText:button?.textContent||"",worldVisible:!!button&&getComputedStyle(button).display!=="none",settings:!!settings};});
+  const entry=await page.evaluate(()=>{const button=document.querySelector("#soloWorld"),settings=document.querySelector("#soloTopbar .phone-settings-button"),viewport=document.querySelector("#viewport"),bridge=globalThis.__arondightRealWorld;return{world:!!button,worldText:button?.textContent||"",worldVisible:!!button&&getComputedStyle(button).display!=="none",settings:!!settings,worldMode:viewport?.dataset.worldMode||"",provider:viewport?.dataset.worldProvider||"",mapCreated:Boolean(bridge?.map)};});
   if(!entry.world||!entry.worldVisible||entry.worldText!=="WORLD"||!entry.settings)throw new Error(`REAL WORLD solo entry missing: ${JSON.stringify(entry)}`);
+  if(entry.worldMode!=="training"||entry.provider||entry.mapCreated)throw new Error(`REAL WORLD provider must stay lazy until explicit user activation: ${JSON.stringify(entry)}`);
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const config=await page.evaluate(()=>({section:!!document.querySelector('[data-world-settings="openfreemap-osm-3d"]'),key:!!document.querySelector("[data-world-key]"),forget:!!document.querySelector("[data-world-forget]"),use:document.querySelector("[data-world-use]")?.textContent?.trim()||"",training:document.querySelector("[data-world-training]")?.textContent?.trim()||"",note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""}));
   if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
@@ -19,5 +20,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click("[data-world-use]");await page.waitForFunction(()=>document.querySelector("#soloWorld")?.dataset.active==="1",{timeout:5000});
   const settingsActivation=await page.evaluate(()=>globalThis.__worldActivateCalls||0);if(settingsActivation!==2)throw new Error(`settings GPS action did not use bridge: ${settingsActivation}`);await page.click("[data-world-training]");
   if(external.length)throw new Error(`static-only UI smoke made external requests before real provider activation: ${JSON.stringify(external)}`);
-  console.log("REAL WORLD no-key OpenFreeMap UI + one-tap bridge wiring smoke passed.");
+  console.log("REAL WORLD no-key OpenFreeMap UI + lazy one-tap bridge wiring smoke passed.");
 }finally{await browser.close();}
