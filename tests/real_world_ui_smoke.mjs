@@ -1,8 +1,15 @@
 import puppeteer from "puppeteer-core";
+import {readFileSync} from "node:fs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
 const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
+
+const bootstrapSource=readFileSync("sim/real_world_bootstrap.mjs","utf8");
+const simulatorSource=readFileSync("sim/simulator.mjs","utf8");
+if(bootstrapSource.includes("WebGLRenderer.prototype.render"))throw new Error("REAL WORLD must not monkey-patch THREE.WebGLRenderer.prototype.render");
+if(!bootstrapSource.includes("renderFrame(renderer,scene,camera)"))throw new Error("REAL WORLD explicit renderFrame bridge is missing");
+if(!simulatorSource.includes("__arondightRealWorld?.renderFrame?.(renderer,scene,camera)"))throw new Error("simulator render loop does not explicitly call the REAL WORLD frame bridge");
 
 const browser=await puppeteer.launch({
   headless:true,
@@ -150,7 +157,7 @@ try{
   });
   if(fallback.text!=="WORLD"||fallback.active!=="0"||fallback.provider||fallback.path||!fallback.rendererVisible)throw new Error(`WORLD training fallback failed: ${JSON.stringify(fallback)}`);
 
-  console.log("REAL WORLD shared-renderer smoke passed: no key, lazy OpenFreeMap, one flight WebGL layer, live FOLLOW/THIRD/FPV camera sync, clean training fallback.");
+  console.log("REAL WORLD explicit shared-frame smoke passed: no key, lazy OpenFreeMap, one flight WebGL layer, live FOLLOW/THIRD/FPV camera sync, clean training fallback.");
 }finally{
   await browser.close();
 }
