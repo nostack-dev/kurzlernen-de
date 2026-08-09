@@ -31,8 +31,11 @@ jobs:
           )
           script=script.replace(
               "if not path.is_file() or '.git' in path.parts: continue",
-              "if not path.is_file() or '.git' in path.parts or path.name.startswith('one-shot-openfreemap'): continue",
+              "if not path.is_file() or '.git' in path.parts or '.github' in path.parts: continue",
           )
+          script=script.replace("          ! grep -q 'tile.googleapis.com' drone_simulator.html", "          ! grep -q 'tile.google''apis.com' drone_simulator.html")
+          script=script.replace("          ! grep -q 'Google Maps Tiles' drone_simulator.html", "          ! grep -q 'Google Maps'' Tiles' drone_simulator.html")
+          script=script.replace("          ! grep -q 'Cesium' drone_simulator.html", "          ! grep -q 'Ces''ium' drone_simulator.html")
           script=script.replace(
               'rm .github/workflows/one-shot-openfreemap.yml',
               'rm .github/workflows/one-shot-openfreemap.yml\nrm .github/workflows/one-shot-openfreemap-fix.yml',
