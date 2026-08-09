@@ -3,7 +3,7 @@ import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
 import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes} from "./control_semantics.mjs";
+import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M} from "./control_semantics.mjs";
 import {RaceTrack} from "./race_track.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 import {loadCameraSettings,mountCameraSettings} from "./camera_settings.mjs";
@@ -27,6 +27,7 @@ const STATE_NAVIGATION_VALID = 1 << 5;
 const STATE_GAME_MODE = 1 << 6;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
+const NAV_AGL_RAY_MAX_M = 60;
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
@@ -235,7 +236,7 @@ class SimNavigationSensors {
     this.elapsed+=dt;if(this.elapsed<.01)return null;this.elapsed-=.01;
     const truth=model.linear(),alpha=.42;
     for(let i=0;i<3;i++){const measured=truth[i]+this.noise.gaussian()*.025;this.filtered[i]+=alpha*(measured-this.filtered[i]);}
-    const range=model.groundRange(12);let valid=range.valid,agl=0;
+    const range=model.groundRange(NAV_AGL_RAY_MAX_M);let valid=range.valid,agl=0;
     if(valid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;}
     this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};
     return encodeNavigationWire(this.sequence++,this.last);
@@ -315,15 +316,16 @@ class PhysicsModel {
   }
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
-    this.group=new THREE.Group();this.scene.add(this.group);this.rotors=[];
-    const frameMaterial=new THREE.MeshStandardMaterial({color:0x252d3b,metalness:.35,roughness:.35}),bodyMaterial=new THREE.MeshStandardMaterial({color:0x121820,metalness:.5,roughness:.25});
+    this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
+    const frameMaterial=new THREE.MeshStandardMaterial({color:0x6f8399,emissive:0x10273b,emissiveIntensity:.18,metalness:.30,roughness:.38}),bodyMaterial=new THREE.MeshStandardMaterial({color:0x26394e,emissive:0x0d2235,emissiveIntensity:.20,metalness:.42,roughness:.30});
     const center=new THREE.Mesh(new THREE.BoxGeometry(.11,.09,.044),bodyMaterial);center.castShadow=true;this.group.add(center);
     for(let i=0;i<4;i++){
       const position=this.motorPos[i],length=Math.hypot(position[0],position[1]),armMesh=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,length,12),frameMaterial);armMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(position[0],position[1],0).normalize());armMesh.position.set(position[0]/2,position[1]/2,0);this.group.add(armMesh);
       const motor=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.025,20),bodyMaterial);motor.rotation.x=Math.PI/2;motor.position.set(...position);this.group.add(motor);
       const rotor=new THREE.Mesh(new THREE.BoxGeometry(this.p.propD,.012,.002),new THREE.MeshStandardMaterial({color:i%2?0xffa34d:0x4dd6ff,transparent:true,opacity:.72}));rotor.position.set(...position);this.group.add(rotor);this.rotors.push(rotor);
     }
-    const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);
+    const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);
+    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0045,8,48),new THREE.MeshBasicMaterial({color:0xbdefff,transparent:true,opacity:.88,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;
   }
   localVector(v){return b3.b3Body_GetLocalVector([0,0,0],this.body,v);}
   worldVector(v){return b3.b3Body_GetWorldVector([0,0,0],this.body,v);}
@@ -387,7 +389,7 @@ class PhysicsModel {
     return this.state();
   }
   state(){const p=this.position(),q=this.rotation(),v=this.linear();return{x:p[0],y:p[1],z:p[2],vx:v[0],vy:v[1],vz:v[2],speed:norm(v),attitude:quatToEuler(q),battery_v:this.batteryVoltage,current_a:this.batteryCurrent};}
-  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);}
+  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);if(this.worldHalo){const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow";this.worldHalo.visible=worldActive&&cameraMode!=="fpv";}}
 }
 
 function integrateDuration(model,pulses,duration){
@@ -485,7 +487,7 @@ soloHud.innerHTML=`
   <div id="soloRaceHud"><span id="soloLap">READY · 3 LAPS</span><strong id="soloRaceTime">00:00.000</strong><span id="soloGate">NEXT · START / FINISH</span><span id="soloBest">BEST —</span></div>
   <div id="soloRotate">ROTATE PHONE TO LANDSCAPE</div>
   <div id="soloLeft" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>FWD / STRAFE</span></div>
-  <div id="soloClearance"><small>FLY HEIGHT</small><strong id="soloClearanceValue">2.0 m</strong><div class="solo-range-shell"><input id="soloClearanceSlider" type="range" min="0.5" max="5" step="0.1"></div><span id="soloRangeStatus">AGL —</span></div>
+  <div id="soloClearance"><small>FLY HEIGHT</small><strong id="soloClearanceValue">2.0 m</strong><div class="solo-range-shell"><input id="soloClearanceSlider" type="range" min="0.5" max="50" step="0.1"></div><span id="soloRangeStatus">AGL —</span></div>
   <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>TURN / PITCH</span></div>
   <button id="soloArm" class="solo-action arm-start-cta" type="button">ARM</button>
   <button id="soloKill" class="solo-action" type="button">KILL</button>`;
@@ -545,7 +547,7 @@ function soloStick(el,kind){
   const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.bodyPitch=0;}updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);
 }
-soloClearanceSlider.oninput=()=>{soloGroundClearance=clamp(Number(soloClearanceSlider.value),.5,5);soloControls.groundClearance=soloGroundClearance;updateSoloSticks();};
+soloClearanceSlider.oninput=()=>{soloGroundClearance=clamp(Number(soloClearanceSlider.value),MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);soloControls.groundClearance=soloGroundClearance;updateSoloSticks();};
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
 const soloSettingsMount=mountPhoneControlSettings({
   parent:$("soloTopbar"),
@@ -615,7 +617,7 @@ function activeControlState(){
 function controls(){
   const c=activeControlState(),channels=new Array(16).fill(992);
   channels[0]=Math.round(992+820*clamp(c.roll||0,-1,1));channels[1]=Math.round(992+820*clamp(c.pitch||0,-1,1));channels[3]=Math.round(992+820*clamp(c.yaw||0,-1,1));channels[4]=c.arm?1811:172;
-  if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,.5,5),normalized=(clearance-.5)/4.5;channels[5]=Math.round(172+1639*normalized);channels[6]=1811;channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1));}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));
+  if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M),normalized=(clearance-MIN_GAME_CLEARANCE_M)/(MAX_GAME_CLEARANCE_M-MIN_GAME_CLEARANCE_M);channels[5]=Math.round(172+1639*normalized);channels[6]=1811;channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1));}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));
   return encodeSbus(channels);
 }
 async function controllerStep(){
@@ -649,7 +651,7 @@ function render(){
   requestAnimationFrame(render);physics.render();updateCamera();const fcState=latest.state;motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);const state=physics.state();
   const fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
-  const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,.5,5):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});}
+  const now=performance.now();if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});}
   const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;const soloCanArm=!soloControls.arm&&Boolean(fcState&STATE_NAVIGATION_VALID)&&sharedArmReady(stateText,soloControls,true,phoneSettings);soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.classList.toggle("armed",stateText==="ARMED");soloArm.classList.toggle("attention",soloCanArm);soloArm.disabled=!soloControls.arm&&!soloCanArm;soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);
 }
 render();

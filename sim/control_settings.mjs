@@ -108,8 +108,8 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     </div>
     <div class="phone-settings-row">
       <label>DEFAULT HOVER ABOVE GROUND</label><output data-out="hover"></output>
-      <input data-slider="hover" type="range" min="0.5" max="5" step="0.1">
-      <div class="phone-settings-scale"><span>0.5 m</span><span>5.0 m</span></div>
+      <input data-slider="hover" type="range" min="0.5" max="50" step="0.1">
+      <div class="phone-settings-scale"><span>0.5 m</span><span>50.0 m</span></div>
     </div>
     <label class="phone-settings-toggle"><span>INVERT LEFT STICK HORIZONTAL (L/R)</span><input data-invert-left-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>INVERT RIGHT STICK HORIZONTAL (L/R)</span><input data-invert-right-horizontal type="checkbox"></label>

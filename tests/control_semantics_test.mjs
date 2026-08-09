@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import {readdirSync} from "node:fs";
 import {
-  DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,neutralControls,armReady,applyStick,releaseStick,
+  DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,neutralControls,copyControls,armReady,applyStick,releaseStick,
   knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes
 } from "../sim/control_semantics.mjs";
 
@@ -22,6 +22,8 @@ assert.equal(DEFAULT_PHONE_SETTINGS.invertLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,true);
 assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,1.2);
+assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
+assert.equal(copyControls({groundClearance:999}).groundClearance,50);assert.equal(copyControls({groundClearance:-5}).groundClearance,.5);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
 near(MAX_PHONE_EXPO,.70,1e-12,"max phone expo");

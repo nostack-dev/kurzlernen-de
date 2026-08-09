@@ -101,11 +101,12 @@ try{
     leftTop:parseFloat(document.querySelector("#soloLeft .solo-knob")?.style.top||"0"),
     clearance:!!document.querySelector("#soloClearanceSlider"),
     clearanceValue:Number(document.querySelector("#soloClearanceSlider")?.value||0),
+    clearanceMax:Number(document.querySelector("#soloClearanceSlider")?.max||0),
     rightLabel:document.querySelector("#soloRight span")?.textContent||"",
   }));
   if(!Object.values({hud:soloUi.hud,reset:soloUi.reset,lap:soloUi.lap,settings:soloUi.settings,clearance:soloUi.clearance}).every(Boolean))
     throw new Error(`solo HUD incomplete: ${JSON.stringify(soloUi)}`);
-  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-1.2)>.01||!soloUi.rightLabel.includes("PITCH"))throw new Error(`solo GAME neutral/labels wrong: ${JSON.stringify(soloUi)}`);
+  if(soloUi.throttle!==0||Math.abs(soloUi.leftTop-50)>1||Math.abs(soloUi.clearanceValue-1.2)>.01||soloUi.clearanceMax!==50||!soloUi.rightLabel.includes("PITCH"))throw new Error(`solo GAME neutral/labels wrong: ${JSON.stringify(soloUi)}`);
 
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
@@ -119,6 +120,7 @@ try{
     invertY:document.querySelector('.phone-settings-dialog [data-invert-right-vertical]')?.checked,
     rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
     hover:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.value,
+    hoverMax:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.max,
     cameraTilt:document.querySelector('.phone-settings-dialog [data-camera-slider="tilt"]')?.value,
     cameraFov:document.querySelector('.phone-settings-dialog [data-camera-slider="fov"]')?.value,
     cameraThird:document.querySelector('.phone-settings-dialog [data-camera-slider="third"]')?.value,
@@ -127,7 +129,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="10"||defaults.right!=="10"||defaults.hover!=="1.2"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="10"||defaults.right!=="10"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);

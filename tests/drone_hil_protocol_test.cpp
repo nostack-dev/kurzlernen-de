@@ -75,6 +75,10 @@ int main() {
     CHECK(std::fabs(nav.velocity_world_mps.y + 2.5f) < 0.011f);
     CHECK(std::fabs(nav.velocity_world_mps.z - 0.4f) < 0.011f);
     CHECK(std::fabs(nav.agl_m - 2.35f) < 0.002f);
+    const auto high_wire = hwcontract::encode_navigation_wire(78, 0, 0, 0, 50.0f, true);
+    CHECK(hwcontract::decode_navigation_wire(high_wire, nav));
+    CHECK(nav.valid);
+    CHECK(std::fabs(nav.agl_m - 50.0f) < 0.002f);
     auto corrupt = wire;
     ++corrupt.vx_cms;
     CHECK(!hwcontract::decode_navigation_wire(corrupt, nav));

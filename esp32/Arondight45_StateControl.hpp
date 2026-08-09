@@ -21,7 +21,9 @@ constexpr float kStateMaxHorizontalSpeedMps = 5.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;
-constexpr float kStateMaxClearanceM = 5.00f;
+// NAV1 represents AGL in uint16 millimetres (65.535 m wire ceiling).
+// Keep margin below that hardware boundary instead of inventing a wider protocol.
+constexpr float kStateMaxClearanceM = 50.00f;
 
 struct NavigationState {
     V3 velocity_world_mps{};

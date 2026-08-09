@@ -53,7 +53,7 @@ try{
   await waitText(controller,"#gameModeButton","MODE · GAME",10000);
   const labels=await controller.evaluate(()=>({leftTop:document.querySelector("#leftTopLabel")?.textContent||"",top:document.querySelector("#rightTopLabel")?.textContent||"",bottom:document.querySelector("#rightBottomLabel")?.textContent||""}));
   if(!labels.leftTop.includes("W")||labels.top!=="NOSE UP"||labels.bottom!=="NOSE DOWN")throw new Error(`GAME shooter labels wrong: ${JSON.stringify(labels)}`);
-  const clearance=await controller.$eval("#gameClearanceSlider",element=>Number(element.value));if(Math.abs(clearance-1.2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);
+  const clearance=await controller.$eval("#gameClearanceSlider",element=>({value:Number(element.value),max:Number(element.max)}));if(Math.abs(clearance.value-1.2)>0.01||clearance.max!==50)throw new Error(`unexpected ground-clearance config ${JSON.stringify(clearance)}`);
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const leftInvertInitially=await controller.$eval('.phone-settings-dialog [data-invert-left-horizontal]',e=>e.checked);if(leftInvertInitially)throw new Error("left invert unexpectedly enabled by default");
   await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');

@@ -1,6 +1,6 @@
 import {ControllerPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes} from "./control_semantics.mjs";
+import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M} from "./control_semantics.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const $=id=>document.getElementById(id);
@@ -29,7 +29,7 @@ let controls=neutralForMode();
 function setGroundClearance(value){
   const numeric=Number(value);
   if(!Number.isFinite(numeric))return;
-  groundClearance=clamp(Math.round(numeric*10)/10,.5,5);
+  groundClearance=clamp(Math.round(numeric*10)/10,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);
   controls.groundClearance=groundClearance;
   renderClearance();publish();
 }

@@ -98,6 +98,13 @@ int main() {
     CHECK(cmd.throttle > bootstrap_throttle + 0.10f);
 
     {
+        auto high = base_rc(true);
+        high.ch[fc::kStateClearanceChannel] = 1811;
+        const auto intent = fc::state_intent(high);
+        CHECK(std::fabs(intent.clearance_m - 50.0f) < 0.02f);
+    }
+
+    {
         auto diagonal = base_rc(true);
         diagonal.ch[FC_SBUS_ROLL] = centered_raw(1.0f);
         diagonal.ch[FC_SBUS_PITCH] = centered_raw(1.0f);

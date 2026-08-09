@@ -70,7 +70,7 @@ for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
 
-for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","groundRange(12)","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
+for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = 60","groundRange(NAV_AGL_RAY_MAX_M)","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
   requireText("sim/simulator.mjs",marker);
 requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
 requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM");
@@ -127,6 +127,10 @@ requireText("sim/controller.mjs","bindHeightKey(ui.gameDown,-1)");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
 requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
 requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");
+requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
+requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
+for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","angularDistanceDeg"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["TorusGeometry(.15","worldHalo.visible=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");

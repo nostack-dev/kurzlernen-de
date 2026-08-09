@@ -10,6 +10,8 @@ const simulatorSource=readFileSync("sim/simulator.mjs","utf8");
 if(bootstrapSource.includes("WebGLRenderer.prototype.render"))throw new Error("REAL WORLD must not monkey-patch THREE.WebGLRenderer.prototype.render");
 if(!bootstrapSource.includes("renderFrame(renderer,scene,camera)"))throw new Error("REAL WORLD explicit renderFrame bridge is missing");
 if(!simulatorSource.includes("__arondightRealWorld?.renderFrame?.(renderer,scene,camera)"))throw new Error("simulator render loop does not explicitly call the REAL WORLD frame bridge");
+if(!bootstrapSource.includes("WORLD_MAP_FRAME_MS=1000/30")||!bootstrapSource.includes("pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO)")||!bootstrapSource.includes("setSky({\"sky-color\":\"#0a2845\""))throw new Error("WORLD mobile render/contrast budget missing");
+if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");
 
 const browser=await puppeteer.launch({
   headless:true,
@@ -123,11 +125,17 @@ try{
       hasSharedRenderer:Boolean(renderer),
       hasLegacyOverlay:Boolean(bridge&&"overlayRenderer" in bridge&&bridge.overlayRenderer),
       rendererVisible:style?.visibility!=="hidden"&&style?.display!=="none",
-      alpha:Boolean(renderer?.getContext?.().getContextAttributes?.()?.alpha)
+      alpha:Boolean(renderer?.getContext?.().getContextAttributes?.()?.alpha),
+      mapUpdates:Number(viewport?.dataset.worldMapUpdates||0),
+      mapFpsCap:Number(viewport?.dataset.worldMapFpsCap||0),
+      mapPixelRatio:Number(viewport?.dataset.worldMapPixelRatio||0),
+      flightPixelRatio:Number(viewport?.dataset.worldFlightPixelRatio||0),
+      geoBackground:getComputedStyle(document.querySelector("#geoViewport")).backgroundImage
     };
   });
   if(live.button!=="WORLD ✓"||live.active!=="1"||live.provider!=="openfreemap")throw new Error(`WORLD did not become live: ${JSON.stringify(live)}`);
   if(live.path!=="shared-three-renderer"||live.frames<=5||!live.mapCreated||!live.hasSharedRenderer||live.hasLegacyOverlay||!live.rendererVisible||!live.alpha)throw new Error(`shared real-world THREE renderer contract failed: ${JSON.stringify(live)}`);
+  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||live.mapFpsCap!==30||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient"))throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
   if(live.canvasCount!==2)throw new Error(`REAL WORLD must use exactly MapLibre + the existing flight canvas, got ${live.canvasCount}`);
   if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);
 
@@ -157,7 +165,7 @@ try{
   });
   if(fallback.text!=="WORLD"||fallback.active!=="0"||fallback.provider||fallback.path||!fallback.rendererVisible)throw new Error(`WORLD training fallback failed: ${JSON.stringify(fallback)}`);
 
-  console.log("REAL WORLD explicit shared-frame smoke passed: no key, lazy OpenFreeMap, one flight WebGL layer, live FOLLOW/THIRD/FPV camera sync, clean training fallback.");
+  console.log("REAL WORLD explicit shared-frame smoke passed: 50m hardware-fit range, blue contrast sky, WORLD acquisition halo, 30Hz map budget over full-rate flight frames, live FOLLOW/THIRD/FPV sync, clean training fallback.");
 }finally{
   await browser.close();
 }
