@@ -1,0 +1,52 @@
+name: Presentation quality profile
+
+on:
+  push:
+    branches: [diagnostic/presentation-quality-v3]
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build exact shared firmware WASM
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+      - name: Install browser dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null 2>&1 || true
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+      - name: Build presentation variants
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 tests/build_presentation_quality_profile.py
+          git diff --exit-code -- sim/simulator.mjs
+      - name: Measure variants on identical runner
+        shell: bash
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          cd /tmp/arondight45-presentation-quality
+          python3 -m http.server 4178 --bind 127.0.0.1 >/tmp/arondight45-quality-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          cd "$GITHUB_WORKSPACE"
+          CHROME_BIN="$CHROME_BIN" node tests/presentation_quality_profile.mjs http://127.0.0.1:4178 baseline no-shadows res75 res60 no-shadows-res75 no-shadows-res60 no-aa lean75 lean60
