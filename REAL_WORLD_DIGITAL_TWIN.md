@@ -30,7 +30,7 @@ The shared GAME horizontal speed command envelope remains **5 m/s** in Productio
 
 WORLD settings include a **WORLD GRID** toggle, default ON. It reuses the simulator's existing local metric THREE grid as a render-only depth/scale cue above the geospatial map; it never becomes collision or navigation truth.
 
-A lightweight top-right **360° LOOK** orientation HUD provides free yaw/pitch camera inspection without another MapLibre instance, tile stream or WebGL renderer. With **KEEP 360° LOOK ORIENTATION** OFF (default), releasing the pointer smoothly snaps the camera offset back to the normal FOLLOW/THIRD/FPV view. With it ON, the released camera offset is retained. Changing camera mode resets the offset. The HUD is DOM/CSS only and the look transform exists solely in the REAL WORLD camera adapter.
+The top-right **MINI 3D · 360°** view is built from already-loaded MapLibre/OpenMapTiles vector features and one lightweight 2D canvas. It does not create a second MapLibre instance, WebGL renderer, tile stream or network request. Water, vegetation, roads and buildings use the same semantic colors as the main WORLD view; buildings are given a lightweight height projection for depth. **MINIMAP FOLLOWS 360° CAMERA** defaults ON; OFF keeps the mini-map north-up. Feature queries are capped at 1 Hz (2 s in critical performance mode), drawing at 8 Hz (4 Hz critical), and at most 80 cached features are retained.
 
 ## Human altitude command and render performance
 
@@ -43,3 +43,8 @@ WORLD rendering has a flight-first performance governor. The flight/FC/physics c
 Altitude target slew is clocked by the control transport rather than rendering: 100 Hz SBUS sampling in one-phone SIM and the 20 ms P2P control publisher on the remote controller. Dropped visual frames therefore cannot change the intended height-control law.
 
 Release CI also measures simulator-time versus browser wall-time at runtime, so display-refresh regressions cannot silently halve flight speed again. WORLD GRID is exercised both OFF and ON with persistence, and the semantic water/vegetation/road/building palette is locked by the browser release gate.
+
+
+### Free look versus physical camera truth
+
+In FOLLOW/THIRD, dragging empty WORLD space or the MINI 3D control applies a temporary presentation-camera yaw/pitch offset. With **KEEP 360° LOOK ORIENTATION** OFF, release snaps smoothly back; ON retains the released orientation. Aircraft pose, navigation, SBUS, motor commands and Box3D state are untouched, and the simulator camera is restored after each WORLD composite render. **FPV is excluded from free look entirely**: its optics remain rigidly mounted to the airframe exactly as the physical-camera contract requires.

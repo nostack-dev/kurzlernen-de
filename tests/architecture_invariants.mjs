@@ -89,7 +89,7 @@ forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence
 // controller or rigid-body authority.
 for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tiles.openfreemap.org/styles/liberty","new MapLibreMap","metersToLngLat","source-layer\":\"building","render_height","render_min_height",'await import("./simulator.mjs")'])
   requireText("sim/real_world_bootstrap.mjs",marker);
-for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step"])
+for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step","new MapLibreMap({container:this.minimap"])
   forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
 for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","tests/real_world_ui_smoke.mjs","REAL_WORLD_DIGITAL_TWIN.md"])
   for(const dirty of ["Google"+" Maps","google"+"apis.com","Google"+"Tiles","Ces"+"ium","AI"+"za"])
@@ -98,6 +98,7 @@ requireText("sim/control_settings.mjs","openfreemap-osm-3d");
 requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
 requireText("sim/control_settings.mjs","WORLD GRID");
 requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");
+requireText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA");
 
 for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
@@ -141,8 +142,9 @@ requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
 requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_FOLLOW_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["TorusGeometry(.15","worldHalo.visible=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
+forbidText("sim/real_world_bootstrap.mjs",'if(mode==="fpv"){const qYaw',"WORLD must never virtually pan rigid FPV optics");
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");

@@ -91,9 +91,10 @@ try{
     training:document.querySelector("[data-world-training]")?.textContent?.trim()||"",
     grid:document.querySelector('.phone-settings-dialog [data-world-grid]')?.checked,
     keepLook:document.querySelector('.phone-settings-dialog [data-world-keep-look]')?.checked,
+    minimapFollow:document.querySelector('.phone-settings-dialog [data-world-minimap-follow]')?.checked,
     note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""
   }));
-  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
+  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||config.minimapFollow!==true||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
   if(external.length)throw new Error(`training/settings path triggered external network: ${JSON.stringify(external)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
@@ -135,14 +136,24 @@ try{
       mapPixelRatio:Number(viewport?.dataset.worldMapPixelRatio||0),
       flightPixelRatio:Number(viewport?.dataset.worldFlightPixelRatio||0),
       geoBackground:getComputedStyle(document.querySelector("#geoViewport")).backgroundImage,
-      grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display,legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,perfMode:viewport?.dataset.worldPerfMode||"",flightFps:Number(viewport?.dataset.worldFlightFps||0),paletteLayers:Number(viewport?.dataset.worldPaletteLayers||0)
+      grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display,minimapCanvas:!!document.querySelector("#worldLookHud .world-mini-canvas"),minimapMode:viewport?.dataset.worldMinimapMode||"",minimapFollow:viewport?.dataset.worldMinimapFollow||"",legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,perfMode:viewport?.dataset.worldPerfMode||"",flightFps:Number(viewport?.dataset.worldFlightFps||0),paletteLayers:Number(viewport?.dataset.worldPaletteLayers||0)
     };
   });
   if(live.button!=="WORLD ✓"||live.active!=="1"||live.provider!=="openfreemap")throw new Error(`WORLD did not become live: ${JSON.stringify(live)}`);
   if(live.path!=="shared-three-renderer"||live.frames<=5||!live.mapCreated||!live.hasSharedRenderer||live.hasLegacyOverlay||!live.rendererVisible||!live.alpha)throw new Error(`shared real-world THREE renderer contract failed: ${JSON.stringify(live)}`);
-  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||![15,20,30].includes(live.mapFpsCap)||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient")||live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||live.legend==="none"||!["nominal","constrained","critical"].includes(live.perfMode)||live.paletteLayers<1)throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
-  if(live.canvasCount!==2)throw new Error(`REAL WORLD must use exactly MapLibre + the existing flight canvas, got ${live.canvasCount}`);
+  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||![15,20,30].includes(live.mapFpsCap)||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient")||live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||!live.minimapCanvas||live.minimapMode!=="camera"||live.minimapFollow!=="1"||live.legend==="none"||!["nominal","constrained","critical"].includes(live.perfMode)||live.paletteLayers<1)throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
+  if(live.canvasCount!==3)throw new Error(`REAL WORLD must use MapLibre + existing flight canvas + one lightweight cached mini-map canvas, got ${live.canvasCount}`);
   if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);
+
+  const miniFixture=await page.evaluate(()=>{
+    const bridge=globalThis.__arondightRealWorld,lat=bridge.originLat,lon=bridge.originLon,d=.00012;bridge.minimapLayerIds=["fixture"];bridge.map.queryRenderedFeatures=()=>[
+      {sourceLayer:"water",layer:{id:"water",type:"fill"},geometry:{type:"Polygon",coordinates:[[[lon-d,lat-d],[lon+d,lat-d],[lon+d,lat],[lon-d,lat-d]]]},properties:{}},
+      {sourceLayer:"transportation",layer:{id:"road-primary",type:"line"},geometry:{type:"LineString",coordinates:[[lon-d,lat],[lon+d,lat]]},properties:{}},
+      {sourceLayer:"landcover",layer:{id:"park",type:"fill"},geometry:{type:"Polygon",coordinates:[[[lon-d,lat],[lon,lat],[lon,lat+d],[lon-d,lat]]]},properties:{}},
+      {sourceLayer:"building",layer:{id:"arondight45-buildings-3d",type:"fill-extrusion"},geometry:{type:"Polygon",coordinates:[[[lon,lat],[lon+d,lat],[lon+d,lat+d],[lon,lat]]]},properties:{render_height:14}}
+    ];bridge.minimapLastQueryMs=-Infinity;bridge.minimapLastDrawMs=-Infinity;bridge.drawMinimap(performance.now());return{count:bridge.minimapFeatures.length,kinds:bridge.minimapFeatures.map(f=>f.kind).sort(),queries:bridge.minimapQueries,mode:document.querySelector("#viewport")?.dataset.worldMinimapMode||""};
+  });
+  if(miniFixture.count!==4||miniFixture.kinds.join(",")!=="building,green,road,water"||miniFixture.queries<1||miniFixture.mode!=="camera")throw new Error(`cached mini-map semantic projection failed: ${JSON.stringify(miniFixture)}`);
 
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
@@ -159,6 +170,9 @@ try{
   gridPersist=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));
   if(gridPersist!=="1")throw new Error(`WORLD GRID on did not persist: ${gridPersist}`);
 
+  await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(330,125,{steps:5});await page.mouse.up();
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))>8,{timeout:3000});
+  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))<1,{timeout:3000});
   const lookBox=await page.$eval("#worldLookHud",element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});
   await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.82,lookBox.y+lookBox.h*.30,{steps:5});await page.mouse.up();
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))>8,{timeout:3000});
@@ -166,6 +180,9 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-keep-look]");await page.click(".phone-settings-dialog [data-close]");
   await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.80,lookBox.y+lookBox.h*.58,{steps:5});await page.mouse.up();await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))>8,{timeout:3000});
   await new Promise(resolve=>setTimeout(resolve,450));const keptLook=await page.$eval("#viewport",element=>({yaw:Number(element.dataset.worldLookYaw||0),keep:element.dataset.worldLookKeepEnabled||""}));if(Math.abs(keptLook.yaw)<8||keptLook.keep!=="1")throw new Error(`WORLD KEEP look did not persist after release: ${JSON.stringify(keptLook)}`);
+
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapMode==="north",{timeout:3000});const northMini=await page.$eval("#viewport",e=>Number(e.dataset.worldMinimapBearing||99));if(Math.abs(northMini)>.01)throw new Error(`north-up mini-map failed: ${northMini}`);
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");
 
   const follow=await cameraSnapshot();
   if(follow.mode!=="follow"||follow.worldCameraMode!=="follow"||!follow.center||!follow.zoom)throw new Error(`FOLLOW world-camera sync missing: ${JSON.stringify(follow)}`);
@@ -181,6 +198,7 @@ try{
   const fpv=await cameraSnapshot();
   if(fpv.mode!=="fpv"||fpv.worldCameraMode!=="fpv")throw new Error(`FPV camera mode did not propagate to WORLD: ${JSON.stringify(fpv)}`);
   if(fpv.center===third.center&&fpv.zoom===third.zoom&&fpv.pitch===third.pitch&&fpv.bearing===third.bearing)throw new Error(`FPV geospatial camera stayed frozen: ${JSON.stringify({third,fpv})}`);
+  const fpvLookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(350,120,{steps:5});await page.mouse.up();await new Promise(resolve=>setTimeout(resolve,180));const fpvLookAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));if(Math.abs(fpvLookAfter-fpvLookBefore)>.1)throw new Error(`rigid FPV was virtually panned: ${JSON.stringify({fpvLookBefore,fpvLookAfter})}`);
 
   const framesBefore=live.frames;
   await page.waitForFunction(before=>Number(document.querySelector("#viewport")?.dataset.worldThreeFrames||0)>before+3,{timeout:5000},framesBefore);
