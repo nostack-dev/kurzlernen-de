@@ -1,0 +1,30 @@
+name: One-shot camera render E2E synchronization v2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-camera-render-e2e-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 tools/camera_render_e2e_patch.py
+      - name: Validate patch
+        run: |
+          node --check tests/browser_sim_smoke.mjs
+          git diff --check
+      - name: Commit test only
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add tests/browser_sim_smoke.mjs
+          git commit -m "Synchronize camera optics E2E with render"
+          git push
