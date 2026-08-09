@@ -43,15 +43,18 @@ try{
     for(const key of ["left","right","clearance","arm","kill","race"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
 
     // Validate the ARM attention affordance independent of calibration timing.
-    await page.evaluate(()=>{
+    // Mutation and computed-style read are one browser task so the live render
+    // loop cannot legitimately remove the synthetic test state in between.
+    const armCue=await page.evaluate(()=>{
       const e=document.querySelector("#soloArm");
       if(!e)throw new Error("ARM button missing");
       e.disabled=false;
       e.classList.remove("arming","armed");
       e.classList.add("attention");
       e.textContent="ARM";
+      const style=getComputedStyle(e);
+      return{text:e.textContent.trim(),className:e.className,animation:style.animationName};
     });
-    const armCue=await page.evaluate(()=>{const e=document.querySelector("#soloArm"),style=getComputedStyle(e);return{text:e?.textContent?.trim()||"",className:e?.className||"",animation:style.animationName};});
     if(armCue.text!=="ARM"||!armCue.className.includes("attention")||armCue.animation==="none")throw new Error(`${viewport.name}: ARM attention cue missing: ${JSON.stringify(armCue)}`);
     const armHoverContract=await page.evaluate(()=>{
       for(const sheet of document.styleSheets){
