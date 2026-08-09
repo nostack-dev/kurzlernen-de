@@ -18,22 +18,33 @@ def one(text,old,new,label):
     return text.replace(old,new,1)
 
 
+def replace_render(text,body):
+    start=text.index('function render(){')
+    end=text.index('\n}\nrender();',start)+2
+    return text[:start]+body+text[end:]
+
+
 def source_for(name):
     s=original
+    draw='if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);'
     if name=='no-render':
-        old='''}
-render();
-
-function parseCsv'''
-        new='''}
-function profileRender(){requestAnimationFrame(profileRender);ui.simTime.textContent=simTime.toFixed(3)+" s";}
-profileRender();
-
-function parseCsv'''
-        s=one(s,old,new,'render loop activation')
+        s=replace_render(s,'function render(){requestAnimationFrame(render);ui.simTime.textContent=simTime.toFixed(3)+" s";}')
+    elif name=='no-draw':
+        s=one(s,draw,'void 0;','Three draw')
+    elif name=='no-hud':
+        body='function render(){requestAnimationFrame(render);const renderNow=performance.now();physics.render();updateCamera();ui.simTime.textContent=simTime.toFixed(3)+" s";'+draw+'}'
+        s=replace_render(s,body)
+    elif name=='no-audio':
+        audio='motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);'
+        s=one(s,audio,'','motor audio update')
+    elif name=='shadows-off':
+        s=one(s,'renderer.shadowMap.enabled=true;','renderer.shadowMap.enabled=false;','shadow map')
+    elif name in ('draw45','draw30'):
+        interval='22' if name=='draw45' else '33'
+        s=one(s,'function render(){','let PROFILE_LAST_DRAW=0;\nfunction render(){','draw budget state')
+        s=one(s,draw,f'if(renderNow-PROFILE_LAST_DRAW>={interval}){{PROFILE_LAST_DRAW=renderNow;{draw}}}','draw budget')
     elif name=='no-physics':
-        needle='physics.step(latest.motors,DT);simTime+=DT;'
-        s=one(s,needle,'simTime+=DT;','physics step')
+        s=one(s,'physics.step(latest.motors,DT);simTime+=DT;','simTime+=DT;','physics step')
     elif name=='no-fc':
         old='''function controllerStepSync(){
   const {seq,packet}=prepareControllerStep();
@@ -56,7 +67,7 @@ function parseCsv'''
         raise ValueError(name)
     return s
 
-variants=['baseline','no-render','no-physics','no-fc','no-imu','no-nav']
+variants=['baseline','no-render','no-draw','no-hud','no-audio','shadows-off','draw45','draw30','no-physics','no-fc','no-imu','no-nav']
 try:
     for name in variants:
         SIM.write_text(source_for(name))
