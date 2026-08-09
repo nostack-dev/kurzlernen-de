@@ -23,3 +23,11 @@ The aircraft/controller/Box3D loop is not throttled for map performance. THREE s
 For human visual acquisition, WORLD uses a dark-blue sky/horizon instead of a black void, brighter 3D-building contrast, a more readable aircraft material palette and a thin WORLD-only cyan orientation halo around the aircraft in FOLLOW/THIRD. The halo is hidden in FPV. These are render cues only; they do not affect collision, sensors, controller state or dynamics.
 
 Production CI explicitly gates the 50 m range contract, 60 m navigation-ray coverage, WORLD visual cues, capped geospatial update rate, full-rate flight rendering, and FOLLOW/THIRD/FPV camera propagation before GitHub Pages deployment.
+
+## WORLD navigation and camera ergonomics
+
+The shared GAME horizontal speed command envelope is **12 m/s** in Production, HIL and WASM. This replaces the former 5 m/s training-range cap; it is not a WORLD-only velocity multiplier and the physical plant still decides what speed the configured airframe can actually achieve under its 25° tilt, thrust and drag limits. Phone fineness/expo remains unchanged, so full stick still reaches the full command envelope while centre stick remains precise.
+
+WORLD settings include a **WORLD GRID** toggle, default ON. It reuses the simulator's existing local metric THREE grid as a render-only depth/scale cue above the geospatial map; it never becomes collision or navigation truth.
+
+A lightweight top-right **360° LOOK** orientation HUD provides free yaw/pitch camera inspection without another MapLibre instance, tile stream or WebGL renderer. With **KEEP 360° LOOK ORIENTATION** OFF (default), releasing the pointer smoothly snaps the camera offset back to the normal FOLLOW/THIRD/FPV view. With it ON, the released camera offset is retained. Changing camera mode resets the offset. The HUD is DOM/CSS only and the look transform exists solely in the REAL WORLD camera adapter.

@@ -70,16 +70,19 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
     <p class="phone-settings-note">OpenFreeMap + OpenStreetMap. No account, API key, billing setup, backend or proxy is required.</p>
     <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>
     <div class="world-settings-actions"><button type="button" data-world-use>USE MY GPS LOCATION</button><button type="button" data-world-training>TRAINING RANGE</button></div>
+    <label class="phone-settings-toggle"><span>WORLD GRID</span><input data-world-grid type="checkbox"></label>
+    <label class="phone-settings-toggle"><span>KEEP 360° LOOK ORIENTATION</span><input data-world-keep-look type="checkbox"></label>
+    <p class="phone-settings-note">WORLD GRID is a render-only local metre reference. 360° LOOK is camera-only: OFF snaps smoothly back on release; ON keeps the released orientation. Neither changes flight state or map tile traffic.</p>
     <p class="phone-settings-note">OSM map/building data is render/geospatial context only. Motor, sensor, FC and rigid-body physics stay on the same hardware-fit digital-twin path; map geometry is not collision truth.</p>`;
   const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
-  const status=section.querySelector("[data-world-status]"),use=section.querySelector("[data-world-use]"),training=section.querySelector("[data-world-training]");
+  const status=section.querySelector("[data-world-status]"),use=section.querySelector("[data-world-use]"),training=section.querySelector("[data-world-training]"),grid=section.querySelector("[data-world-grid]"),keepLook=section.querySelector("[data-world-keep-look]");
   const worldButton=document.createElement("button");worldButton.id="soloWorld";worldButton.type="button";worldButton.className="world-mode-button";worldButton.setAttribute("aria-label","Toggle real-world GPS map");parent.insertBefore(worldButton,settingsButton||null);
   const mainStatus=document.getElementById("realWorldStatus");
   const syncStatus=()=>{const text=mainStatus?.textContent?.trim();if(text)status.textContent=text;if(mainStatus){status.classList.toggle("good",mainStatus.classList.contains("good"));status.classList.toggle("warn",mainStatus.classList.contains("warn"));status.classList.toggle("bad",mainStatus.classList.contains("bad"));}};
   if(mainStatus)new MutationObserver(syncStatus).observe(mainStatus,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class"]});
-  const renderButton=()=>{worldButton.dataset.active=bridge.active?"1":"0";worldButton.dataset.loading=bridge.loading?"1":"0";worldButton.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";syncStatus();};
+  const renderButton=()=>{worldButton.dataset.active=bridge.active?"1":"0";worldButton.dataset.loading=bridge.loading?"1":"0";worldButton.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";grid.checked=bridge.gridEnabled!==false;keepLook.checked=Boolean(bridge.keepLookOrientation);syncStatus();};
   const activate=async()=>{try{const pending=bridge.activate();renderButton();await pending;}catch(error){if(typeof bridge.fail==="function")bridge.fail(error);else status.textContent=`REAL WORLD unavailable · ${error?.message||error}`;}renderButton();};
-  use.addEventListener("click",activate);training.addEventListener("click",()=>{bridge.deactivate();renderButton();});
+  use.addEventListener("click",activate);training.addEventListener("click",()=>{bridge.deactivate();renderButton();});grid.addEventListener("change",()=>{bridge.setGridEnabled?.(grid.checked);renderButton();});keepLook.addEventListener("change",()=>{bridge.setKeepLookOrientation?.(keepLook.checked);renderButton();});dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{bridge.setGridEnabled?.(true);bridge.setKeepLookOrientation?.(false);bridge.resetLook?.(true);renderButton();});
   worldButton.addEventListener("click",async()=>{if(bridge.loading)return;if(bridge.active){bridge.deactivate();renderButton();return;}await activate();});
   settingsButton?.addEventListener("click",()=>requestAnimationFrame(renderButton));
   new MutationObserver(()=>{if(document.body.classList.contains("solo-flight"))renderButton();}).observe(document.body,{attributes:true,attributeFilter:["class"]});

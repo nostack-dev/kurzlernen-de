@@ -37,6 +37,7 @@ requireText("esp32/Arondight45_StateControl.hpp","vertical_thrust_fraction");
 requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kStateMaxHorizontalSpeedMps = 12.0f");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f");
 
@@ -91,6 +92,8 @@ for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","te
     forbidText(path,dirty,`${path} still contains removed map-provider dependency: ${dirty}`);
 requireText("sim/control_settings.mjs","openfreemap-osm-3d");
 requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
+requireText("sim/control_settings.mjs","WORLD GRID");
+requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");
 
 for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
@@ -129,7 +132,7 @@ requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
 requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","angularDistanceDeg"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#0a2845\"","worldMapUpdates","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","installLookHud()","applyLookCamera(scene,camera)","child.isGridHelper&&this.gridEnabled"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["TorusGeometry(.15","worldHalo.visible=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");
