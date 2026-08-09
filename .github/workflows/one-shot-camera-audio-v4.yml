@@ -1,0 +1,39 @@
+name: One-shot camera audio product migration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-camera-audio-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply product patch
+        run: python3 tools/camera_audio_patch_runner.py
+      - name: Hide temporary workflow from architecture gates
+        run: rm .github/workflows/one-shot-camera-audio-v4.yml
+      - name: Validate product tree
+        run: |
+          node --check sim/simulator.mjs
+          node --check sim/camera_settings.mjs
+          node --check sim/control_settings.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+      - name: Commit product files only
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add sim/simulator.mjs sim/camera_settings.mjs sim/control_settings.mjs tests/browser_sim_smoke.mjs tests/architecture_invariants.mjs
+          git commit -m "Add live camera optics settings and finalize audio E2E"
+          git push
