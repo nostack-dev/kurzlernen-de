@@ -158,7 +158,7 @@ requireText("tests/dual_phone_smoke.mjs",'await view.click("#reset")');
 requireText("tests/dual_phone_smoke.mjs",'waitText(controller,"#fcState","DISARMED",15000)');
 requireText("tests/browser_sim_smoke.mjs","body-pitch command did not rotate aircraft nose-up");
 requireText("tests/browser_sim_smoke.mjs","right.cx+right.r*.65,right.cy");
-requireText("tests/browser_sim_smoke.mjs","turnStart+.22");
+requireText("tests/browser_sim_smoke.mjs","turnStart+.30");
 
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
