@@ -44,6 +44,10 @@ jobs:
               'rm .github/workflows/one-shot-openfreemap.yml',
               'rm .github/workflows/one-shot-openfreemap.yml\nrm .github/workflows/one-shot-openfreemap-fix.yml',
           )
+          script=script.replace(
+              'git add -A',
+              'git checkout HEAD -- .github/workflows/deploy.yml .github/workflows/one-shot-openfreemap.yml .github/workflows/one-shot-openfreemap-fix.yml\ngit add -A',
+          )
           Path('/tmp/openfreemap-migrate.sh').write_text(script)
           PY
           bash /tmp/openfreemap-migrate.sh
