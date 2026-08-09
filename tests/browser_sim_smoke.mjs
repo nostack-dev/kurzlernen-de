@@ -241,7 +241,12 @@ try{
   let yawDelta=(yawAfter-yawBefore)%360;if(yawDelta>180)yawDelta-=360;if(yawDelta<-180)yawDelta+=360;
   if(Math.abs(yawDelta)<4)throw new Error(`solo heading control failed: ${yawBefore} -> ${yawAfter}`);
 
-  const killStart=await simTime();await page.click("#soloKill");await waitForSimTime(killStart+.03,10000);
+  await page.click("#soloKill");
+  await page.waitForFunction(()=>{
+    const state=(document.querySelector("#fcState")?.textContent||"").trim();
+    const motors=(document.querySelector("#motors")?.textContent||"").trim().split(/\s+/).map(Number);
+    return state==="DISARMED"&&motors.length===4&&motors.every(v=>v===1000);
+  },{timeout:10000});
   state=await page.$eval("#fcState",e=>e.textContent||"");
   const killed=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
   if(state!=="DISARMED"||!killed.every(v=>v===1000))throw new Error(`solo GAME KILL failed: ${JSON.stringify(await snapshot())}`);
