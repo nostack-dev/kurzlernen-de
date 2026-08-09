@@ -30,79 +30,45 @@ jobs:
 
           p=Path('sim/real_world_bootstrap.mjs')
           s=p.read_text()
-          old='this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";'
-          new='this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.realFrames=0;'
-          assert old in s
-          s=s.replace(old,new)
+          def once(old,new):
+              global s
+              assert s.count(old)==1, f'expected exactly one match, got {s.count(old)} for {old[:80]!r}'
+              s=s.replace(old,new,1)
 
-          old='renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="1";'
-          new='renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="2";renderer.domElement.style.pointerEvents="none";'
-          assert old in s
-          s=s.replace(old,new)
+          once('this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";',
+               'this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.realFrames=0;')
+          once('renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="1";',
+               'renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="2";renderer.domElement.style.pointerEvents="none";')
 
           start=s.index('  ensureOverlayRenderer(){')
           end=s.index('  identifyTrainingObjects(scene){',start)
           s=s[:start]+s[end:]
 
-          old='''    const viewport=$("viewport"),container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
-              const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
-              this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});'''
-          new='''    const viewport=$("viewport"),container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
-              this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});
-              const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);'''
-          assert old in s
-          s=s.replace(old,new)
+          attribution='    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);\n'
+          assert s.count(attribution)==1
+          s=s.replace(attribution,'',1)
+          map_line='    this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});\n'
+          assert s.count(map_line)==1
+          s=s.replace(map_line,map_line+attribution,1)
 
-          old='''      await this.createMap(longitude,latitude);this.ensureOverlayRenderer();this.active=true;this.loading=false;
-              if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
-              const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);'''
-          new='''      await this.createMap(longitude,latitude);this.active=true;this.loading=false;
-              if(!this.threeRenderer)throw Error("Flight renderer is not ready");
-              this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
-              const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);'''
-          assert old in s
-          s=s.replace(old,new)
+          once('      await this.createMap(longitude,latitude);this.ensureOverlayRenderer();this.active=true;this.loading=false;',
+               '      await this.createMap(longitude,latitude);this.active=true;this.loading=false;')
+          once('      if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;',
+               '      if(!this.threeRenderer)throw Error("Flight renderer is not ready");\n      this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;')
+          once('      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);',
+               '      const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);')
 
-          old='''    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
-              const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;}'''
-          new='''    this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.threeRenderer.setClearAlpha(1);}if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
-              const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;}'''
-          assert old in s
-          s=s.replace(old,new)
+          once('this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";',
+               'this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.threeRenderer){this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.threeRenderer.setClearAlpha(1);}')
+          once('delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;',
+               'delete viewport.dataset.worldProvider;delete viewport.dataset.worldRenderPath;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;delete viewport.dataset.worldCameraMode;delete viewport.dataset.worldMapCenter;delete viewport.dataset.worldMapZoom;delete viewport.dataset.worldMapPitch;delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;')
 
-          old='''    if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
-              this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});'''
-          new='''    if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
-              this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});this.map.triggerRepaint();
-              const viewport=$("viewport");viewport.dataset.worldCameraMode=viewport.dataset.cameraMode||"follow";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);'''
-          assert old in s
-          s=s.replace(old,new)
+          once('    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});',
+               '    this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});this.map.triggerRepaint();\n    const viewport=$("viewport");viewport.dataset.worldCameraMode=viewport.dataset.cameraMode||"follow";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);')
 
-          old='''  renderReal(scene,camera,originalRender){
-              this.syncMapCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();
-            }'''
-          new='''  renderReal(scene,camera,originalRender){
-              this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;
-              this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
-              const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
-              try{originalRender.call(renderer,scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}
-            }'''
-          assert old in s
-          s=s.replace(old,new)
-
-          old='''THREE.WebGLRenderer.prototype.render=function(scene,camera){
-            if(this===bridge.overlayRenderer)return originalRender.call(this,scene,camera);
-            if(this.domElement?.closest?.("#viewport"))bridge.attachThree(this,scene,camera);
-            if(bridge.active&&this===bridge.threeRenderer){bridge.renderReal(scene,camera,originalRender);return;}
-            return originalRender.call(this,scene,camera);
-          };'''
-          new='''THREE.WebGLRenderer.prototype.render=function(scene,camera){
-            if(this.domElement?.closest?.("#viewport"))bridge.attachThree(this,scene,camera);
-            if(bridge.active&&this===bridge.threeRenderer){bridge.renderReal(scene,camera,originalRender);return;}
-            return originalRender.call(this,scene,camera);
-          };'''
-          assert old in s
-          s=s.replace(old,new)
+          once('    this.syncMapCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();',
+               '    this.syncMapCamera(camera);const renderer=this.threeRenderer;if(!renderer)return;\n    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;\n    const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);\n    try{originalRender.call(renderer,scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();}')
+          once('  if(this===bridge.overlayRenderer)return originalRender.call(this,scene,camera);\n','')
           assert 'overlayRenderer' not in s
           p.write_text(s)
           PY
