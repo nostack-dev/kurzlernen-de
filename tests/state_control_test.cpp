@@ -171,7 +171,7 @@ int main() {
                                         controller.debug().right_accel_mps2);
     CHECK(accel_norm > 1.9f && accel_norm < 2.1f);
     CHECK(cmd.pitch < -0.10f);
-    CHECK(cmd.roll > 0.10f);
+    CHECK(cmd.roll < -0.10f);
 
     controller.reset();
     rc = base_rc(true);
@@ -179,11 +179,11 @@ int main() {
     nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().right_accel_mps2 > 1.9f);
-    CHECK(cmd.roll > 0.25f);
+    CHECK(cmd.roll < -0.25f);
 
     const float desired_right = fc::state_intent(rc).right_mps;
     controller.reset();
-    nav.velocity_world_mps = {0.0f, -desired_right, 0.0f};
+    nav.velocity_world_mps = {0.0f, desired_right, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(std::fabs(controller.debug().measured_right_mps - desired_right) < 0.001f);
     CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
@@ -193,15 +193,15 @@ int main() {
     rc = base_rc(true);
     nav.velocity_world_mps = {0.0f, 1.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().measured_right_mps < -0.99f);
-    CHECK(controller.debug().right_accel_mps2 > 0.75f && controller.debug().right_accel_mps2 < 0.85f);
+    CHECK(controller.debug().measured_right_mps > 0.99f);
+    CHECK(controller.debug().right_accel_mps2 < -0.75f && controller.debug().right_accel_mps2 > -0.85f);
     CHECK(cmd.roll > 0.08f);
 
     controller.reset();
     nav.velocity_world_mps = {0.0f, -1.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().measured_right_mps > 0.99f);
-    CHECK(controller.debug().right_accel_mps2 < -0.75f && controller.debug().right_accel_mps2 > -0.85f);
+    CHECK(controller.debug().measured_right_mps < -0.99f);
+    CHECK(controller.debug().right_accel_mps2 > 0.75f && controller.debug().right_accel_mps2 < 0.85f);
     CHECK(cmd.roll < -0.08f);
 
     controller.reset();
