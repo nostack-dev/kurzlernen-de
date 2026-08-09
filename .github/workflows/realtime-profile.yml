@@ -49,4 +49,4 @@ jobs:
           trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
           cd "$GITHUB_WORKSPACE"
-          CHROME_BIN="$CHROME_BIN" node tests/realtime_profile.mjs http://127.0.0.1:4177 baseline no-render no-draw no-hud no-audio shadows-off draw45 draw30 no-physics no-fc no-imu no-nav
+          CHROME_BIN="$CHROME_BIN" node tests/realtime_profile.mjs http://127.0.0.1:4177 baseline no-render no-draw no-hud no-audio shadows-off shadow10 optimized draw45 draw30 no-physics no-fc no-imu no-nav
