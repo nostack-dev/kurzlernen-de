@@ -78,6 +78,16 @@ requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
 for(const dirty of ["FLAG_NAVIGATION_VALID","stateControllerMotor"])
   forbidText("sim/simulator.mjs",dirty,`simulator contains decoded/control shortcut: ${dirty}`);
 
+// REAL WORLD is a geospatial/render adapter only. It may establish the WGS84
+// origin and display photogrammetry, but flight dynamics and motor authority stay
+// exclusively in simulator.mjs + the shared C++ runtime.
+for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tile.googleapis.com/v1/3dtiles/root.json","showCreditsOnScreen:true","eastNorthUpToFixedFrame","sampleHeightMostDetailed",'await import("./simulator.mjs")'])
+  requireText("sim/real_world_bootstrap.mjs",marker);
+for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step"])
+  forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
+requireText("sim/real_world_bootstrap.mjs","eastNorthUpToFixedFrame(this.origin)");
+requireText("sim/real_world_bootstrap.mjs","local launch plane is anchored to the sampled 3D surface");
+
 for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
 requireText("sim/simulator.mjs","channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1))");
@@ -124,7 +134,7 @@ requireText("drone_controller.html",'id="gameUp"');
 requireText("drone_controller.html",'id="gameDown"');
 requireText("drone_controller.html",'id="leftTopLabel"');
 requireText("drone_controller.html",'<script type="module" src="./sim/controller.mjs"></script>');
-requireText("drone_simulator.html",'<script type="module" src="./sim/simulator.mjs"></script>');
+requireText("drone_simulator.html",'<script type="module" src="./sim/real_world_bootstrap.mjs"></script>');
 
 requireText("sim/p2p_link.mjs","P2P_PROTOCOL = 5");
 requireText("sim/p2p_link.mjs","new RTCPeerConnection");
@@ -165,4 +175,4 @@ requireText("tests/browser_sim_smoke.mjs","turnStart+.30");
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
-console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, one shared 1-PHONE/2-PHONE GAME mapping, WASD translation, Q/E physical height target, real GAME nose-pitch/yaw attitude, direct WebRTC control and HIL-only bridge.");
+console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, geospatial WGS84/ENU render adapter only, one shared 1-PHONE/2-PHONE GAME mapping, direct WebRTC control and HIL-only bridge.");
