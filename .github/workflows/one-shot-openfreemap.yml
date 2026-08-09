@@ -1,0 +1,347 @@
+name: One shot OpenFreeMap migration
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/one-shot-openfreemap.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace paid map path and install requested defaults
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path): return Path(path).read_text()
+          def write(path,text): Path(path).write_text(text)
+          def must_replace(text,old,new,label):
+              if old not in text: raise SystemExit(f"missing patch anchor: {label}")
+              return text.replace(old,new)
+
+          bootstrap = r'''import * as THREE from "three";
+          import {Map as MapLibreMap} from "maplibre-gl";
+
+          const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
+          const MODE_STORAGE="arondight45WorldModeV2";
+          const EARTH_RADIUS_M=6378137;
+          const $=id=>document.getElementById(id);
+          const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+
+          function geolocate(){
+            if(!navigator.geolocation)return Promise.reject(Error("Geolocation is not available in this browser"));
+            return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,error=>reject(Error(error.message||"Location permission failed")),{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
+          }
+
+          function metersToLngLat(originLon,originLat,eastM,northM){
+            const latRad=originLat*Math.PI/180;
+            const latitude=originLat+(northM/EARTH_RADIUS_M)*180/Math.PI;
+            const longitude=originLon+(eastM/(EARTH_RADIUS_M*Math.max(.01,Math.cos(latRad))))*180/Math.PI;
+            return[longitude,latitude];
+          }
+
+          class RealWorldBridge{
+            constructor(){
+              this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.overlayRenderer=null;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";
+              this.installUi();
+            }
+            installUi(){
+              const panel=document.querySelector(".panel");if(!panel)return;
+              const card=document.createElement("div");card.className="card real-world-card";card.innerHTML=`
+                <h2>World / geospatial twin</h2>
+                <label>World<select id="worldMode"><option value="training">TRAINING RANGE</option><option value="real">REAL WORLD · MY LOCATION</option></select></label>
+                <div id="realWorldConfig" hidden>
+                  <div class="row"><button id="useMyLocation" class="primary">USE MY GPS LOCATION</button></div>
+                  <div class="help">OpenFreeMap + OpenStreetMap render the real map directly in this browser. No account, API key or billing setup is required. OSM building heights are visual/geospatial data only; the flight controller, motors, sensors and rigid-body physics stay on the same local SI digital-twin path, and map geometry is never silently treated as collision truth.</div>
+                </div>
+                <div id="realWorldStatus" class="statusline">TRAINING RANGE · local metric world</div>`;
+              const remote=document.querySelector(".remote-card");panel.insertBefore(card,remote||panel.children[3]||null);this.worldCard=card;
+              const style=document.createElement("style");style.textContent=`
+                #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:#0b1018}
+                #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
+                #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
+                #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:#07101acc;color:#d8e0ea;font:8px/1.25 system-ui,-apple-system,sans-serif;pointer-events:none}
+                #realWorldStatus{line-height:1.4}
+              `;document.head.appendChild(style);
+              const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
+              mode.value="training";
+              mode.onchange=()=>{config.hidden=mode.value!=="real";if(mode.value==="training")this.deactivate();else this.activate().catch(error=>this.fail(error));};
+              use.onclick=()=>this.activate().catch(error=>this.fail(error));
+              try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
+            }
+            status(text,kind=""){const el=$("realWorldStatus");if(!el)return;el.textContent=text;el.className=`statusline ${kind}`;}
+            fail(error){this.loading=false;this.active=false;this.status(`REAL WORLD unavailable · ${error?.message||error}`,"bad");}
+            attachThree(renderer,scene,camera){
+              if(this.threeRenderer===renderer&&this.threeScene===scene&&this.threeCamera===camera)return;
+              this.threeRenderer=renderer;this.threeScene=scene;this.threeCamera=camera;
+              renderer.domElement.style.position="absolute";renderer.domElement.style.inset="0";renderer.domElement.style.zIndex="1";
+            }
+            ensureOverlayRenderer(){
+              if(this.overlayRenderer)return;
+              const viewport=$("viewport"),r=new THREE.WebGLRenderer({antialias:true,alpha:true});r.setClearColor(0x000000,0);r.setPixelRatio(Math.min(devicePixelRatio,2));r.outputColorSpace=THREE.SRGBColorSpace;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.05;r.shadowMap.enabled=true;r.shadowMap.type=THREE.PCFSoftShadowMap;r.domElement.style.position="absolute";r.domElement.style.inset="0";r.domElement.style.zIndex="2";r.domElement.style.pointerEvents="none";viewport.appendChild(r.domElement);this.overlayRenderer=r;
+            }
+            resizeOverlay(){if(!this.overlayRenderer)return;const b=$("viewport").getBoundingClientRect(),w=Math.max(1,b.width),h=Math.max(1,b.height);if(this.overlayRenderer.domElement.width!==Math.round(w*this.overlayRenderer.getPixelRatio())||this.overlayRenderer.domElement.height!==Math.round(h*this.overlayRenderer.getPixelRatio()))this.overlayRenderer.setSize(w,h,false);}
+            identifyTrainingObjects(scene){
+              for(const child of scene.children){
+                if(this.trainingObjects.has(child))continue;
+                let training=Boolean(child.isGridHelper);
+                if(child.isMesh&&child.geometry?.type==="BoxGeometry"){const p=child.geometry.parameters||{};if((p.width||0)>100&&(p.height||0)>100)training=true;}
+                if(child.isGroup){let race=false;child.traverse(node=>{if(node.userData?.normal&&node.userData?.rightAxis)race=true;});if(race)training=true;}
+                if(training)this.trainingObjects.add(child);
+              }
+            }
+            hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);child.visible=false;}}
+            restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
+            addBuildings(){
+              if(!this.map||this.map.getLayer("arondight45-buildings-3d"))return;
+              const style=this.map.getStyle(),sourceId=Object.entries(style.sources||{}).find(([,source])=>source?.type==="vector")?.[0];
+              if(!sourceId){console.warn("OpenFreeMap style has no vector source for 3D buildings");return;}
+              const before=(style.layers||[]).find(layer=>layer.type==="symbol")?.id;
+              const layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":"#b9b6ad","fill-extrusion-height":["coalesce",["to-number",["get","render_height"]],8],"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.84,"fill-extrusion-vertical-gradient":true}};
+              try{if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}catch(error){console.warn("OpenFreeMap 3D building layer unavailable:",error);}
+            }
+            async createMap(longitude,latitude){
+              if(this.map){this.geoContainer.hidden=false;this.map.resize();this.map.jumpTo({center:[longitude,latitude],zoom:19,pitch:55,bearing:0});return this.map;}
+              const viewport=$("viewport"),container=document.createElement("div");container.id="geoViewport";container.hidden=true;viewport.insertBefore(container,viewport.firstChild);this.geoContainer=container;
+              const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors";container.appendChild(attribution);
+              this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:85,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,canvasContextAttributes:{antialias:true}});
+              this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
+              await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
+              this.addBuildings();return this.map;
+            }
+            async activate(){
+              if(this.loading)return;if(this.active)return;
+              this.loading=true;this.status("REAL WORLD · requesting high-accuracy GPS permission…","warn");
+              try{
+                const fix=await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;
+                if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");
+                this.originLat=latitude;this.originLon=longitude;this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");
+                await this.createMap(longitude,latitude);this.ensureOverlayRenderer();this.active=true;this.loading=false;
+                if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="hidden";this.overlayRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
+                const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);
+                const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="real";if(config)config.hidden=false;
+                this.status(`REAL WORLD LIVE · OpenFreeMap · GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
+              }catch(error){this.loading=false;throw error;}
+            }
+            deactivate(){
+              this.active=false;this.loading=false;if(this.geoContainer)this.geoContainer.hidden=true;if(this.overlayRenderer)this.overlayRenderer.domElement.style.display="none";if(this.threeRenderer)this.threeRenderer.domElement.style.visibility="visible";if(this.threeScene){this.restoreTrainingWorld();if(this.savedBackground!==null)this.threeScene.background=this.savedBackground;if(this.savedFog!==null)this.threeScene.fog=this.savedFog;}
+              const viewport=$("viewport");if(viewport){viewport.dataset.worldMode="training";delete viewport.dataset.worldProvider;delete viewport.dataset.worldLatitude;delete viewport.dataset.worldLongitude;}
+              const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="training";if(config)config.hidden=true;this.status("TRAINING RANGE · local metric world");try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
+            }
+            syncMapCamera(camera){
+              if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
+              const p=camera.position,dir=new THREE.Vector3(),actualUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir).normalize();
+              let focusDistance=10;if(dir.z<-.02&&p.z>0){const ground=-p.z/dir.z;if(Number.isFinite(ground)&&ground>0)focusDistance=clamp(ground,2,250);}
+              const focus=p.clone().addScaledVector(dir,focusDistance),center=metersToLngLat(this.originLon,this.originLat,focus.x,focus.y),horizontal=Math.hypot(dir.x,dir.y);
+              const bearing=THREE.MathUtils.radToDeg(Math.atan2(dir.x,dir.y));const pitch=clamp(90+THREE.MathUtils.radToDeg(Math.atan2(dir.z,Math.max(1e-6,horizontal))),0,85);
+              let roll=0;if(horizontal>.02){const worldUp=new THREE.Vector3(0,0,1),right0=new THREE.Vector3().crossVectors(dir,worldUp).normalize(),up0=new THREE.Vector3().crossVectors(right0,dir).normalize();roll=THREE.MathUtils.radToDeg(Math.atan2(dir.dot(new THREE.Vector3().crossVectors(up0,actualUp)),up0.dot(actualUp)));}
+              const rect=$("viewport").getBoundingClientRect(),height=Math.max(1,rect.height),metersPerPixel=Math.max(.01,2*focusDistance*Math.tan(THREE.MathUtils.degToRad(clamp(camera.fov,10,120))/2)/height),cosLat=Math.max(.05,Math.cos(center[1]*Math.PI/180)),zoom=clamp(Math.log2(156543.03392804097*cosLat/metersPerPixel),14,22),size=`${Math.round(rect.width)}x${Math.round(rect.height)}`;
+              if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
+              this.map.jumpTo({center,zoom,bearing,pitch,roll:clamp(roll,-85,85)});
+            }
+            renderReal(scene,camera,originalRender){
+              this.syncMapCamera(camera);this.ensureOverlayRenderer();this.resizeOverlay();this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;originalRender.call(this.overlayRenderer,scene,camera);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();
+            }
+          }
+
+          const bridge=new RealWorldBridge();
+          globalThis.__arondightRealWorld=bridge;
+          const originalRender=THREE.WebGLRenderer.prototype.render;
+          THREE.WebGLRenderer.prototype.render=function(scene,camera){
+            if(this===bridge.overlayRenderer)return originalRender.call(this,scene,camera);
+            if(this.domElement?.closest?.("#viewport"))bridge.attachThree(this,scene,camera);
+            if(bridge.active&&this===bridge.threeRenderer){bridge.renderReal(scene,camera,originalRender);return;}
+            return originalRender.call(this,scene,camera);
+          };
+
+          await import("./simulator.mjs");
+          '''.replace("\n          ","\n").lstrip()
+          write("sim/real_world_bootstrap.mjs",bootstrap)
+
+          # Requested phone-control defaults from the supplied settings screenshots.
+          p="sim/control_semantics.mjs";s=read(p)
+          old='''export const DEFAULT_PHONE_SETTINGS=Object.freeze({\n  leftFineness:1,\n  rightFineness:1,\n  lockLeftHorizontal:false,\n  lockRightHorizontal:false,\n  invertLeftHorizontal:false,\n  invertRightHorizontal:false,\n  invertRightVertical:false,\n  defaultHoverAgl:2,\n});'''
+          new='''export const DEFAULT_PHONE_SETTINGS=Object.freeze({\n  leftFineness:10,\n  rightFineness:10,\n  lockLeftHorizontal:false,\n  lockRightHorizontal:false,\n  invertLeftHorizontal:false,\n  invertRightHorizontal:false,\n  invertRightVertical:true,\n  defaultHoverAgl:1.2,\n});'''
+          s=must_replace(s,old,new,"phone defaults");write(p,s)
+
+          p="sim/camera_settings.mjs";s=read(p)
+          s=must_replace(s,'export const DEFAULT_CAMERA_SETTINGS=Object.freeze({fpvTiltDeg:30,fpvFovDeg:84,thirdDistanceM:2.5});','export const DEFAULT_CAMERA_SETTINGS=Object.freeze({fpvTiltDeg:-15,fpvFovDeg:105,thirdDistanceM:1.5});',"camera defaults");write(p,s)
+
+          # Remove key-management UI and make WORLD a one-tap GPS action.
+          p="sim/control_settings.mjs";s=read(p)
+          s=re.sub(r'export const GOOGLE_TILES_KEY_STORAGE=.*?\n','',s,count=1)
+          m=re.search(r'\nexport function loadGoogleTilesApiKey\(\)\{.*?\nlet styleInstalled=false;',s,re.S)
+          if not m: raise SystemExit("missing key helper block")
+          s=s[:m.start()]+"\nlet styleInstalled=false;"+s[m.end():]
+          s=re.sub(r'\n  \.world-settings-key\{[^\n]*\}','',s)
+          s=s.replace('  .world-settings-actions [data-world-use]{grid-column:1/3;background:#175f49;border-color:#2e9b77}','  .world-settings-actions [data-world-use]{background:#175f49;border-color:#2e9b77}')
+          world_fn=r'''function mountSoloWorldSettings({parent,dialog,settingsButton}){
+            if(parent?.id!=="soloTopbar"||!dialog)return null;
+            const bridge=globalThis.__arondightRealWorld;if(!bridge)return null;
+            const section=document.createElement("section");section.className="world-settings-section";section.dataset.worldSettings="openfreemap-osm-3d";section.innerHTML=`
+              <h4>REAL WORLD</h4>
+              <p class="phone-settings-note">OpenFreeMap + OpenStreetMap. No account, API key, billing setup, backend or proxy is required.</p>
+              <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>
+              <div class="world-settings-actions"><button type="button" data-world-use>USE MY GPS LOCATION</button><button type="button" data-world-training>TRAINING RANGE</button></div>
+              <p class="phone-settings-note">OSM map/building data is render/geospatial context only. Motor, sensor, FC and rigid-body physics stay on the same hardware-fit digital-twin path; map geometry is not collision truth.</p>`;
+            const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
+            const status=section.querySelector("[data-world-status]"),use=section.querySelector("[data-world-use]"),training=section.querySelector("[data-world-training]");
+            const worldButton=document.createElement("button");worldButton.id="soloWorld";worldButton.type="button";worldButton.className="world-mode-button";worldButton.setAttribute("aria-label","Toggle real-world GPS map");parent.insertBefore(worldButton,settingsButton||null);
+            const mainStatus=document.getElementById("realWorldStatus");
+            const syncStatus=()=>{const text=mainStatus?.textContent?.trim();if(text)status.textContent=text;if(mainStatus){status.classList.toggle("good",mainStatus.classList.contains("good"));status.classList.toggle("warn",mainStatus.classList.contains("warn"));status.classList.toggle("bad",mainStatus.classList.contains("bad"));}};
+            if(mainStatus)new MutationObserver(syncStatus).observe(mainStatus,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class"]});
+            const renderButton=()=>{worldButton.dataset.active=bridge.active?"1":"0";worldButton.dataset.loading=bridge.loading?"1":"0";worldButton.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";syncStatus();};
+            const activate=async()=>{try{const pending=bridge.activate();renderButton();await pending;}catch(error){if(typeof bridge.fail==="function")bridge.fail(error);else status.textContent=`REAL WORLD unavailable · ${error?.message||error}`;}renderButton();};
+            use.addEventListener("click",activate);training.addEventListener("click",()=>{bridge.deactivate();renderButton();});
+            worldButton.addEventListener("click",async()=>{if(bridge.loading)return;if(bridge.active){bridge.deactivate();renderButton();return;}await activate();});
+            settingsButton?.addEventListener("click",()=>requestAnimationFrame(renderButton));
+            new MutationObserver(()=>{if(document.body.classList.contains("solo-flight"))renderButton();}).observe(document.body,{attributes:true,attributeFilter:["class"]});
+            renderButton();return{section,button:worldButton,activate};
+          }'''.replace("\n          ","\n").lstrip()
+          pat=r'function mountSoloWorldSettings\(\{parent,dialog,settingsButton\}\)\{.*?\n\}\n\nexport function mountPhoneControlSettings'
+          if not re.search(pat,s,re.S): raise SystemExit("missing solo world settings block")
+          s=re.sub(pat,world_fn+'\n\nexport function mountPhoneControlSettings',s,count=1,flags=re.S)
+          write(p,s)
+
+          # Source-level architecture guard now requires the free map provider and forbids the removed provider stack.
+          p="tests/architecture_invariants.mjs";s=read(p)
+          start=s.find('// REAL WORLD is a geospatial/render adapter only.')
+          end=s.find('for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"]',start)
+          if start<0 or end<0: raise SystemExit("missing REAL WORLD invariant block")
+          block=r'''// REAL WORLD is a geospatial/render adapter only. Browser GPS establishes the
+          // WGS84 horizontal origin; local x/y/z remain east/north/up SI metres.
+          // OpenFreeMap/OpenStreetMap are visual context only and never gain motor,
+          // controller or rigid-body authority.
+          for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tiles.openfreemap.org/styles/liberty","new MapLibreMap","metersToLngLat","source-layer\":\"building","render_height","render_min_height",'await import("./simulator.mjs")'])
+            requireText("sim/real_world_bootstrap.mjs",marker);
+          for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step"])
+            forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
+          for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","tests/real_world_ui_smoke.mjs","REAL_WORLD_DIGITAL_TWIN.md"])
+            for(const dirty of ["Google Maps","googleapis.com","GoogleTiles","Cesium","AIza"])
+              forbidText(path,dirty,`${path} still contains removed map-provider dependency: ${dirty}`);
+          requireText("sim/control_settings.mjs","openfreemap-osm-3d");
+          requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
+
+          '''.replace("\n          ","\n").lstrip()
+          s=s[:start]+block+s[end:]
+          s=s.replace('requireText("sim/control_semantics.mjs","defaultHoverAgl:2");','requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");')
+          write(p,s)
+
+          # Functional semantics test: new defaults, same full-stick authority and physical mapping.
+          p="tests/control_semantics_test.mjs";s=read(p)
+          s=must_replace(s,'assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,1);','assert.equal(DEFAULT_PHONE_SETTINGS.leftFineness,10);',"test left default")
+          s=must_replace(s,'assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,1);','assert.equal(DEFAULT_PHONE_SETTINGS.rightFineness,10);',"test right default")
+          s=must_replace(s,'assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,false);','assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,true);',"test vertical invert default")
+          s=must_replace(s,'assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,2);','assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,1.2);',"test hover default")
+          anchor='assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);\n'
+          if 'assert.equal(DEFAULT_PHONE_SETTINGS.invertLeftHorizontal,false);' not in s:s=s.replace(anchor,anchor+'assert.equal(DEFAULT_PHONE_SETTINGS.invertLeftHorizontal,false);\n')
+          s=s.replace('near(c.pitch,phoneAxis(-.2,DEFAULT_PHONE_SETTINGS.rightFineness));','near(c.pitch,phoneAxis(.2,DEFAULT_PHONE_SETTINGS.rightFineness));')
+          s=s.replace('near(c.roll,phoneAxis(-.3,invertX.rightFineness));near(c.pitch,phoneAxis(-.2,invertX.rightFineness));','near(c.roll,phoneAxis(-.3,invertX.rightFineness));near(c.pitch,phoneAxis(.2,invertX.rightFineness));')
+          s=s.replace('Phone controls passed: direct production defaults,','Phone controls passed: requested 10/10 production defaults,')
+          write(p,s)
+
+          # Standalone browser gate: assert all screenshot defaults and account for default right-Y inversion.
+          p="tests/browser_sim_smoke.mjs";s=read(p)
+          s=s.replace('fpv.tilt!=="30"','fpv.tilt!=="-15"')
+          s=s.replace('Math.abs(soloUi.clearanceValue-2)>.01','Math.abs(soloUi.clearanceValue-1.2)>.01')
+          old='''    rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",\n    v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),'''
+          new='''    rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",\n    hover:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.value,\n    cameraTilt:document.querySelector('.phone-settings-dialog [data-camera-slider="tilt"]')?.value,\n    cameraFov:document.querySelector('.phone-settings-dialog [data-camera-slider="fov"]')?.value,\n    cameraThird:document.querySelector('.phone-settings-dialog [data-camera-slider="third"]')?.value,\n    v1:localStorage.getItem("arondight45PhoneControlSettingsV1"),'''
+          s=must_replace(s,old,new,"browser default fields")
+          old='''  if(defaults.left!=="1"||defaults.right!=="1"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))\n    throw new Error(`clean V5 direct defaults/settings labels wrong: ${JSON.stringify(defaults)}`);'''
+          new='''  if(defaults.left!=="10"||defaults.right!=="10"||defaults.hover!=="1.2"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))\n    throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);'''
+          s=must_replace(s,old,new,"browser default assertion")
+          old='''  await page.click('.phone-settings-dialog [data-invert-right-vertical]');\n  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));\n  if(stored.invertRightVertical!==true)throw new Error(`right vertical invert did not persist: ${JSON.stringify(stored)}`);\n  await page.click('.phone-settings-dialog [data-invert-right-vertical]');\n  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));\n  if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==false)throw new Error(`right-axis invert restore failed: ${JSON.stringify(stored)}`);'''
+          new='''  await page.click('.phone-settings-dialog [data-invert-right-vertical]');\n  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));\n  if(stored.invertRightVertical!==false)throw new Error(`right vertical invert disable did not persist: ${JSON.stringify(stored)}`);\n  await page.click('.phone-settings-dialog [data-invert-right-vertical]');\n  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));\n  if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==true)throw new Error(`right-axis invert default restore failed: ${JSON.stringify(stored)}`);'''
+          s=must_replace(s,old,new,"browser right-Y default toggle")
+          s=s.replace('pitchStick.cx,pitchStick.cy-pitchStick.r*.85','pitchStick.cx,pitchStick.cy+pitchStick.r*.85')
+          write(p,s)
+
+          # Two-phone gate verifies 1.2m is the UI default, then deliberately uses 2m for the existing flight-response gate.
+          p="tests/dual_phone_smoke.mjs";s=read(p)
+          s=s.replace('if(Math.abs(clearance-2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);','if(Math.abs(clearance-1.2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);')
+          anchor='  await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});\n\n  const armStart='
+          replacement='  await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});\n  await setValue(controller,"#gameClearanceSlider","2.0");await waitText(controller,"#gameClearanceValue","2.0 m",10000);\n\n  const armStart='
+          s=must_replace(s,anchor,replacement,"dual phone explicit 2m gate target")
+          s=s.replace('pitchX,pitchY-pitchR*.85','pitchX,pitchY+pitchR*.85')
+          write(p,s)
+
+          ui_smoke=r'''import puppeteer from "puppeteer-core";
+          const base=process.argv[2]||"http://127.0.0.1:4174";
+          const executablePath=process.env.CHROME_BIN;if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
+          const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
+          const page=await browser.newPage(),external=[];page.on("request",request=>{const u=new URL(request.url());if(!["127.0.0.1","localhost"].includes(u.hostname))external.push(request.url());});
+          try{
+            await page.setViewport({width:844,height:390,deviceScaleFactor:1});await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
+            await page.click("#camSolo");await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+            const entry=await page.evaluate(()=>{const button=document.querySelector("#soloWorld"),settings=document.querySelector("#soloTopbar .phone-settings-button");return{world:!!button,worldText:button?.textContent||"",worldVisible:!!button&&getComputedStyle(button).display!=="none",settings:!!settings};});
+            if(!entry.world||!entry.worldVisible||entry.worldText!=="WORLD"||!entry.settings)throw new Error(`REAL WORLD solo entry missing: ${JSON.stringify(entry)}`);
+            await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+            const config=await page.evaluate(()=>({section:!!document.querySelector('[data-world-settings="openfreemap-osm-3d"]'),key:!!document.querySelector("[data-world-key]"),forget:!!document.querySelector("[data-world-forget]"),use:document.querySelector("[data-world-use]")?.textContent?.trim()||"",training:document.querySelector("[data-world-training]")?.textContent?.trim()||"",note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""}));
+            if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
+            if(external.length)throw new Error(`training/settings path triggered external network: ${JSON.stringify(external)}`);await page.click('.phone-settings-dialog [data-close]');
+            await page.evaluate(()=>{const bridge=globalThis.__arondightRealWorld;if(!bridge)throw new Error("real-world bridge missing");bridge.activate=async function(){globalThis.__worldActivateCalls=(globalThis.__worldActivateCalls||0)+1;this.loading=true;await Promise.resolve();this.loading=false;this.active=true;};bridge.deactivate=function(){globalThis.__worldDeactivateCalls=(globalThis.__worldDeactivateCalls||0)+1;this.active=false;this.loading=false;};});
+            await page.click("#soloWorld");await page.waitForFunction(()=>document.querySelector("#soloWorld")?.dataset.active==="1",{timeout:5000});
+            let state=await page.evaluate(()=>({calls:globalThis.__worldActivateCalls||0,text:document.querySelector("#soloWorld")?.textContent||"",active:document.querySelector("#soloWorld")?.dataset.active||""}));if(state.calls!==1||state.text!=="WORLD ✓"||state.active!=="1")throw new Error(`WORLD did not invoke geospatial bridge: ${JSON.stringify(state)}`);
+            await page.click("#soloWorld");state=await page.evaluate(()=>({calls:globalThis.__worldDeactivateCalls||0,text:document.querySelector("#soloWorld")?.textContent||"",active:document.querySelector("#soloWorld")?.dataset.active||""}));if(state.calls!==1||state.text!=="WORLD"||state.active!=="0")throw new Error(`WORLD training fallback failed: ${JSON.stringify(state)}`);
+            await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click("[data-world-use]");await page.waitForFunction(()=>document.querySelector("#soloWorld")?.dataset.active==="1",{timeout:5000});
+            const settingsActivation=await page.evaluate(()=>globalThis.__worldActivateCalls||0);if(settingsActivation!==2)throw new Error(`settings GPS action did not use bridge: ${settingsActivation}`);await page.click("[data-world-training]");
+            if(external.length)throw new Error(`static-only UI smoke made external requests before real provider activation: ${JSON.stringify(external)}`);
+            console.log("REAL WORLD no-key OpenFreeMap UI + one-tap bridge wiring smoke passed.");
+          }finally{await browser.close();}
+          '''.replace("\n          ","\n").lstrip()
+          write("tests/real_world_ui_smoke.mjs",ui_smoke)
+
+          # Production workflow bundles MapLibre locally; only map data is fetched when WORLD is explicitly activated.
+          p=".github/workflows/deploy.yml";s=read(p)
+          s=s.replace('three@0.185.1 box3d.js@0.1.1 esbuild@0.25.8 puppeteer-core@24.16.0 \\', 'three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 \\')
+          for old in [
+            "          grep -q 'GOOGLE MAPS TILES API KEY' drone_simulator.html\n",
+            "          grep -q 'arondight45GoogleTilesApiKeyV1' drone_simulator.html\n",
+            "          grep -q 'tile.googleapis.com/v1/3dtiles/root.json' drone_simulator.html\n",
+            "          grep -q 'eastNorthUpToFixedFrame' drone_simulator.html\n",
+          ]: s=s.replace(old,'')
+          marker="          grep -q 'USE MY GPS LOCATION' drone_simulator.html\n"
+          addition="          grep -q 'USE MY GPS LOCATION' drone_simulator.html\n          grep -q 'tiles.openfreemap.org/styles/liberty' drone_simulator.html\n          grep -q 'OpenFreeMap' drone_simulator.html\n          grep -q 'render_height' drone_simulator.html\n          ! grep -q 'tile.googleapis.com' drone_simulator.html\n          ! grep -q 'Google Maps Tiles' drone_simulator.html\n          ! grep -q 'Cesium' drone_simulator.html\n"
+          if marker not in s: raise SystemExit("missing deploy real-world marker")
+          s=s.replace(marker,addition,1)
+          write(p,s)
+
+          doc='''# Real-world digital twin\n\nThe browser simulator has two world modes: **TRAINING RANGE** and **REAL WORLD · MY LOCATION**.\n\nREAL WORLD is deliberately static/serverless. A user gesture requests high-accuracy browser geolocation, the WGS84 latitude/longitude becomes the horizontal origin of the existing local east/north/up metre frame, and the browser loads the map directly from **OpenFreeMap** using **OpenStreetMap / OpenMapTiles** data. There is no account, API key, billing setup, application backend, proxy, or repository secret.\n\nThe real-world renderer uses MapLibre GL JS with the OpenFreeMap Liberty style. The OpenMapTiles `building` layer is extruded from `render_height` and `render_min_height` when those OSM-derived values exist. This gives a simple 3D city/world context without changing the aircraft model.\n\nFlight truth remains unchanged: the exact shared firmware runtime still consumes the same raw ICM/SBUS/NAV1 hardware boundary; motor pulses still drive the same Box3D plant; mass, inertia, motor/prop dynamics, drag, battery model, sensor cadence and controller semantics are untouched by world selection.\n\nMap geometry is **visual/geospatial context, not collision truth**. No building or map polygon is silently turned into a physics collider. The existing local collision/rangefinder world remains authoritative until a separately verified collision/elevation source is introduced. Likewise, OpenFreeMap vector data is not treated as a terrain-elevation measurement; local `z=0` remains the simulator launch plane.\n\nTraining mode performs no external map request. REAL WORLD fetches OpenFreeMap tiles only after the user explicitly chooses WORLD / USE MY GPS LOCATION.\n'''
+          write("REAL_WORLD_DIGITAL_TWIN.md",doc)
+
+          # No map-provider remnants in the permanent tree.
+          for path in Path('.').rglob('*'):
+              if not path.is_file() or '.git' in path.parts: continue
+              try:text=path.read_text()
+              except:continue
+              for dirty in ["Google Maps Tiles","tile.googleapis.com","arondight45GoogleTilesApiKey","GoogleTiles","CesiumJS","Cesium3DTileset"]:
+                  if dirty in text: raise SystemExit(f"removed map-provider token {dirty!r} remains in {path}")
+          PY
+
+          rm .github/workflows/one-shot-openfreemap.yml
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/control_settings.mjs
+          node --check sim/control_semantics.mjs
+          node --check sim/camera_settings.mjs
+          node --check tests/real_world_ui_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node --check tests/dual_phone_smoke.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+          ! git grep -n -E 'Google Maps Tiles|tile\.googleapis\.com|arondight45GoogleTilesApiKey|GoogleTiles|CesiumJS|Cesium3DTileset'
+
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Replace real-world map with no-key OpenFreeMap"
+          git push origin HEAD:main
