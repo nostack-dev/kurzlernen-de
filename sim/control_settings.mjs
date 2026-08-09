@@ -1,11 +1,12 @@
 import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings} from "./control_semantics.mjs";
 import {installSoloFlightLayout} from "./solo_layout.mjs";
 
-export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV4";
+export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV5";
 const OBSOLETE_KEYS=[
   "arondight45PhoneControlSettingsV1",
   "arondight45PhoneControlSettingsV2",
   "arondight45PhoneControlSettingsV3",
+  "arondight45PhoneControlSettingsV4",
 ];
 
 function clearObsoleteSettings(){
