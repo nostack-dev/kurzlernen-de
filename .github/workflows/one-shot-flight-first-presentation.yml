@@ -41,6 +41,10 @@ jobs:
           boundary_start=s.index('const presentationStart=simulatorSource.indexOf("function render(){")')
           boundary_end=s.index("'''",boundary_start)
           s=s[:boundary_start]+s[boundary_end:]
+          old_doc='p.write_text(doc + note + "\\n")'
+          new_doc='p.write_text(doc + note.rstrip() + "\\n")'
+          assert s.count(old_doc)==1, s.count(old_doc)
+          s=s.replace(old_doc,new_doc,1)
           p.write_text(s)
           PY
           python3 tools/flight_first_patch.py
