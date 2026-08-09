@@ -1,6 +1,7 @@
 export const P2P_PROTOCOL = 5;
 export const CONTROL_STALE_MS = 350;
 export const SESSION_GRACE_MS = 5 * 60 * 1000;
+export const P2P_MAX_GROUND_CLEARANCE_M = 50;
 
 const clamp = (value,lo,hi) => Math.max(lo,Math.min(hi,value));
 const rtcConfig = Object.freeze({iceServers:[],bundlePolicy:"max-bundle",iceCandidatePoolSize:4});
@@ -55,7 +56,7 @@ function normalizedControl(control){
     roll:clamp(numeric[0],-1,1),pitch:clamp(numeric[1],-1,1),
     yaw:clamp(numeric[2],-1,1),throttle:clamp(numeric[3],0,1),bodyPitch:clamp(numeric[4],-1,1),
     arm:control.arm===true,gameMode:control.gameMode===true,
-    groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,5):2,
+    groundClearance:Number.isFinite(groundClearance)?clamp(groundClearance,.5,P2P_MAX_GROUND_CLEARANCE_M):2,
   };
 }
 function latchedSafeControl(control){
