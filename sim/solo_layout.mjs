@@ -25,7 +25,8 @@ export function installSoloFlightLayout(){
     /* Keep the visible rail slim but make the actual iOS touch target finger-sized. */
     body.solo-flight .solo-range-shell{height:72px;width:70px;margin-left:-11px;margin-right:-11px;touch-action:none;overflow:visible}
     body.solo-flight .solo-range-shell input{width:72px;height:70px;margin:0;transform:rotate(-90deg);touch-action:none;cursor:ns-resize}
-    body.solo-flight .solo-action{bottom:max(22px,calc(env(safe-area-inset-bottom) + 8px));width:72px;height:44px;font-size:13px}
+    /* State labels such as CALIBRATING… / ARMING… / ARMED ✓ must stay inside the action pill. */
+    body.solo-flight .solo-action{bottom:max(22px,calc(env(safe-area-inset-bottom) + 8px));width:104px;height:44px;padding:0 10px;font-size:12px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:clip}
 
     @media(max-height:340px){
       body.solo-flight #soloTopbar{top:max(3px,env(safe-area-inset-top));gap:4px}
@@ -42,7 +43,7 @@ export function installSoloFlightLayout(){
       body.solo-flight #soloClearance span{font-size:6.5px}
       body.solo-flight .solo-range-shell{height:58px;width:66px;margin-left:-12px;margin-right:-12px}
       body.solo-flight .solo-range-shell input{width:58px;height:66px}
-      body.solo-flight .solo-action{bottom:max(16px,env(safe-area-inset-bottom));width:66px;height:40px;font-size:12px}
+      body.solo-flight .solo-action{bottom:max(16px,env(safe-area-inset-bottom));width:92px;height:40px;padding:0 8px;font-size:10px}
     }
   `;
   document.head.appendChild(style);
