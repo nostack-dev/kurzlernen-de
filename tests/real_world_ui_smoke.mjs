@@ -84,9 +84,10 @@ try{
   if(external.length)throw new Error(`training/settings path triggered external network: ${JSON.stringify(external)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
-  // Exercise the actual bridge with browser-granted GPS. Only the public style
-  // response is replaced by a deterministic source-free fixture; MapLibre's own
-  // blob/data workers remain intact and no public map tiles are fetched in CI.
+  // Exercise the actual bridge with browser-granted GPS and the explicitly
+  // registered production flight renderer. Only the public style response is
+  // replaced by a deterministic source-free fixture; MapLibre's own blob/data
+  // workers remain intact and no public map tiles are fetched in CI.
   await page.click("#soloWorld");
   try{
     await page.waitForFunction(()=>{
