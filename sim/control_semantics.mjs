@@ -100,8 +100,8 @@ export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTIN
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
     const x=cfg.invertLeftHorizontal?-point.x:point.x;
-    // FC GAME body-frame convention: negative roll command is physical RIGHT strafe.
-    controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(-x,cfg.leftFineness);
+    // FC GAME body-frame convention: positive roll channel is positive physical RIGHT intent.
+    controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness);
     controls.pitch=phoneAxis(-point.y,cfg.leftFineness);
     controls.throttle=0;
   }else{
@@ -115,7 +115,7 @@ export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTIN
 export function gameKnobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
-    const rawX=cfg.lockLeftHorizontal?0:-inversePhoneAxis(controls.roll,cfg.leftFineness);
+    const rawX=cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,cfg.leftFineness);
     return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-inversePhoneAxis(controls.pitch,cfg.leftFineness)};
   }
   const rawX=-inversePhoneAxis(controls.yaw,cfg.rightFineness);

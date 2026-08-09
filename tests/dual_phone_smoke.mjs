@@ -19,7 +19,7 @@ async function stickBox(page,selector){return page.$eval(selector,element=>{cons
 async function yaw(page){return page.$eval("#attitude",element=>{const parts=(element.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[];return Number(parts[2]||0);});}
 
 async function flightSamples(page){return page.evaluate(async()=>{const original=URL.createObjectURL;let captured=null;URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text()),samples=log?.samples||[];if(!samples.length)throw new Error("flight log has no samples");return samples;}finally{URL.createObjectURL=original;}});}
-function bodyMotion(sample){const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};}
+function bodyMotion(sample){const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,speed:Math.hypot(vx,vy,vz),altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0,roll:Number(sample.roll_deg)||0};}
 function traceAtOffsets(samples,start,offsets){return offsets.map(offset=>{const target=start+offset;let best=samples[0],bestDistance=Infinity;for(const sample of samples){const d=Math.abs((Number(sample.time_s)||0)-target);if(d<bestDistance){best=sample;bestDistance=d;}else if((Number(sample.time_s)||0)>target&&d>bestDistance)break;}return{offset,...bodyMotion(best)};});}
 async function liveMotion(view,controller){
   const measured=await controller.$eval("#gameClearance",element=>({forward:Number(element.dataset.navForwardMps),right:Number(element.dataset.navRightMps),vertical:Number(element.dataset.navVerticalMps),agl:Number(element.dataset.aglM),yaw:Number(element.dataset.yawDeg)}));
@@ -54,6 +54,16 @@ try{
   const labels=await controller.evaluate(()=>({leftTop:document.querySelector("#leftTopLabel")?.textContent||"",top:document.querySelector("#rightTopLabel")?.textContent||"",bottom:document.querySelector("#rightBottomLabel")?.textContent||""}));
   if(!labels.leftTop.includes("W")||labels.top!=="NOSE UP"||labels.bottom!=="NOSE DOWN")throw new Error(`GAME shooter labels wrong: ${JSON.stringify(labels)}`);
   const clearance=await controller.$eval("#gameClearanceSlider",element=>Number(element.value));if(Math.abs(clearance-2)>0.01)throw new Error(`unexpected default ground clearance ${clearance}`);
+  await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  const leftInvertInitially=await controller.$eval('.phone-settings-dialog [data-invert-left-horizontal]',e=>e.checked);if(leftInvertInitially)throw new Error("left invert unexpectedly enabled by default");
+  await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
+  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}").invertLeftHorizontal===true,{timeout:5000});
+  await controller.click('.phone-settings-dialog [data-close]');
+  const settingLeft=await stickBox(controller,"#leftStick"),settingX=settingLeft.x+settingLeft.w/2,settingY=settingLeft.y+settingLeft.h/2,settingR=Math.min(settingLeft.w,settingLeft.h)*.42;
+  await controller.mouse.move(settingX,settingY);await controller.mouse.down();await controller.mouse.move(settingX+settingR*.55,settingY,{steps:4});
+  await controller.waitForFunction(()=>/STR -[1-9]/.test(document.querySelector("#leftValue")?.textContent||""),{timeout:5000});await controller.mouse.up();
+  await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
+  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}").invertLeftHorizontal===false,{timeout:5000});await controller.click('.phone-settings-dialog [data-close]');
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
 
   const armStart=await simTime(view);await clickWhenEnabled(controller,"#arm","ARM",15000);await waitText(controller,"#arm","ARM REQUESTED",10000);

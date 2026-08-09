@@ -82,10 +82,15 @@ for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
 requireText("sim/simulator.mjs","channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1))");
 requireText("sim/simulator.mjs","FPV optics are rigidly mounted to the airframe");
+for(const marker of ["class MotorSound","model.motorOmega","model.motorTorque","model.propTorque","motorAudioPowerW"])requireText("sim/simulator.mjs",marker);
+requireText("sim/simulator.mjs",'this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque"');
 requireText("sim/control_semantics.mjs","export function applyGameStick");
 requireText("sim/control_semantics.mjs","controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y");
 requireText("sim/control_semantics.mjs","cfg.invertLeftHorizontal?-point.x:point.x");
+requireText("sim/control_semantics.mjs","controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness)");
 requireText("sim/controller.mjs","applyGameStick(controls,kind,point,phoneSettings)");
+requireText("sim/controller.mjs","const keepArm=gameMode&&controls.arm");
+requireText("sim/simulator.mjs","const keepArm=soloControls.arm");
 requireText("sim/simulator.mjs","applyGameStick(soloControls,kind,point,phoneSettings)");
 requireText("sim/p2p_link.mjs","bodyPitch:clamp(numeric[4],-1,1)");
 const simulatorSource=read("sim/simulator.mjs"),controlsStart=simulatorSource.indexOf("function controls(){"),controlsEnd=simulatorSource.indexOf("async function controllerStep()",controlsStart);

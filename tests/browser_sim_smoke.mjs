@@ -52,7 +52,7 @@ async function latestFlightSample(){
 }
 function bodyMotion(sample){
   const yawRad=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yawRad),s=Math.sin(yawRad),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;
-  return{forward:-c*vx-s*vy,right:s*vx-c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0};
+  return{forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,altitude:Number(sample.z)||0,yaw:Number(sample.yaw_deg)||0,pitch:Number(sample.pitch_deg)||0};
 }
 
 try{
@@ -113,6 +113,7 @@ try{
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
     lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
     lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
+    invertLeft:document.querySelector('.phone-settings-dialog [data-invert-left-horizontal]')?.checked,
     invertX:document.querySelector('.phone-settings-dialog [data-invert-right-horizontal]')?.checked,
     invertY:document.querySelector('.phone-settings-dialog [data-invert-right-vertical]')?.checked,
     rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
@@ -120,13 +121,20 @@ try{
     v2:localStorage.getItem("arondight45PhoneControlSettingsV2"),
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
   }));
-  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="7"||defaults.right!=="10"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==false||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V4 defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null)
     throw new Error(`obsolete phone settings not wiped: ${JSON.stringify(defaults)}`);
 
-  await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
+  await page.click('.phone-settings-dialog [data-invert-left-horizontal]');
   let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.invertLeftHorizontal!==true)throw new Error(`left horizontal invert did not persist live: ${JSON.stringify(stored)}`);
+  await page.click('.phone-settings-dialog [data-invert-left-horizontal]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
+  if(stored.invertLeftHorizontal!==false)throw new Error(`left horizontal invert restore failed: ${JSON.stringify(stored)}`);
+
+  await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV4")||"{}"));
   if(stored.invertRightHorizontal!==true)throw new Error(`right horizontal invert did not persist: ${JSON.stringify(stored)}`);
   await page.click('.phone-settings-dialog [data-invert-right-horizontal]');
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
@@ -162,6 +170,8 @@ try{
   const holdStart=await simTime();await waitForSimTime(holdStart+.35,25000);
   const hold=bodyMotion(await latestFlightSample());
   if(!(hold.altitude>1.35&&hold.altitude<2.65&&Math.abs(hold.vertical)<.80))throw new Error(`solo 2m AGL hold failed: ${JSON.stringify(hold)}`);
+  const audioDrive=await page.$eval("#viewport",e=>({source:e.dataset.motorAudioSource,hz:Number(e.dataset.motorAudioHz),power:Number(e.dataset.motorAudioPowerW)}));
+  if(audioDrive.source!=="motorOmega+motorTorque+propTorque"||!(audioDrive.hz>20)||!(audioDrive.power>0))throw new Error(`motor sound is not driven by live rotor physics: ${JSON.stringify(audioDrive)}`);
 
   await page.$eval("#soloClearanceSlider",e=>{e.value="2.7";e.dispatchEvent(new Event("input",{bubbles:true}));});
   await page.waitForFunction(()=>document.querySelector("#soloClearanceValue")?.textContent?.includes("2.7 m"),{timeout:5000});

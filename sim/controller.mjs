@@ -227,7 +227,12 @@ ui.fullscreen.onclick=async()=>{try{if(!document.fullscreenElement)await documen
 mountPhoneControlSettings({
   parent:document.querySelector(".top"),
   buttonText:"SETTINGS",
-  onChange:next=>{phoneSettings=next;safetyNeutral(true);},
+  onChange:next=>{
+    phoneSettings=next;
+    const keepArm=gameMode&&controls.arm;
+    controls=neutralForMode();controls.arm=keepArm;
+    updateSticks();publish();
+  },
 });
 
 addEventListener("pagehide",()=>safetyNeutral(true));
