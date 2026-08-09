@@ -21,7 +21,16 @@ def one(text,old,new,label):
 def source_for(name):
     s=original
     if name=='no-render':
-        s=one(s,'render();','function profileRender(){requestAnimationFrame(profileRender);ui.simTime.textContent=simTime.toFixed(3)+" s";}profileRender();','render start')
+        old='''}
+render();
+
+function parseCsv'''
+        new='''}
+function profileRender(){requestAnimationFrame(profileRender);ui.simTime.textContent=simTime.toFixed(3)+" s";}
+profileRender();
+
+function parseCsv'''
+        s=one(s,old,new,'render loop activation')
     elif name=='no-physics':
         needle='physics.step(latest.motors,DT);simTime+=DT;'
         s=one(s,needle,'simTime+=DT;','physics step')
