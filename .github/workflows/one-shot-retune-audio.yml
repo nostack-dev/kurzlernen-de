@@ -1,0 +1,29 @@
+name: One-shot motor audio retune
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-retune-audio.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retune physical motor audio model
+        run: |
+          python3 tools/retune_motor_audio.py
+          node --check sim/simulator.mjs
+          git diff --check
+      - name: Commit product change
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add sim/simulator.mjs
+          git commit -m "Retune physics-driven quad motor sound"
+          git push
