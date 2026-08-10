@@ -6,10 +6,8 @@ const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 
 const source=readFileSync("sim/real_world_bootstrap.mjs","utf8");
-for(const marker of ["WORLD_FPV_DIRECT_DEDUP_MS","presentationFrameSerial","lastFpvSyncFrameSerial","syncMapCamera(camera,frameSerial=null)","syncMapCamera(camera,this.presentationFrameSerial)"])
-  if(!source.includes(marker))throw new Error(`FPV frame-lock source contract missing: ${marker}`);
-if(source.includes('if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;'))
-  throw new Error("FPV regressed to the shared 30/20/15 Hz map throttle");
+for(const marker of ["WORLD_FPV_DIRECT_DEDUP_MS","presentationFrameSerial","lastFpvSyncFrameSerial","syncMapCamera(camera,frameSerial=null)","syncMapCamera(camera,this.presentationFrameSerial)","if(fpv){","frameSerial===this.lastFpvSyncFrameSerial","}else if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;"])
+  if(!source.includes(marker))throw new Error(`FPV frame-lock/non-FPV budget source contract missing: ${marker}`);
 
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
@@ -24,8 +22,6 @@ page.on("request",request=>{
   if(url.startsWith(OPENFREEMAP_STYLE)){request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
   request.abort();
 });
-
-const percentile=(values,p)=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.min(sorted.length-1,Math.max(0,Math.floor((sorted.length-1)*p)))];};
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
