@@ -32,7 +32,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),candidates=[],intersections=[],hitNormal=new THREE.Vector3(),decalForward=new THREE.Vector3(0,0,1);
   const decalGeometry=new THREE.CircleGeometry(.022,12),decalMaterial=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.94,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,side:THREE.DoubleSide});
   const decalPool=Array.from({length:DECAL_POOL_SIZE},()=>{const mesh=new THREE.Mesh(decalGeometry,decalMaterial);mesh.visible=false;mesh.renderOrder=8;mesh.userData.flightFireDecal=true;scene.add(mesh);return mesh;});
-  let decalCursor=0,decalWrites=0,active=null,lastShot=-Infinity,raf=0,audioCtx=null,noiseBuffer=null;
+  let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null;
 
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
   function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}
@@ -50,18 +50,20 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     const rect=viewport.getBoundingClientRect(),dx=active?.dx||0,dy=active?.dy||0,span=Math.min(rect.width,rect.height)*AIM_RADIUS_FRACTION;return{x:rect.width/2+dx/STICK_RADIUS_PX*span,y:rect.height/2+dy/STICK_RADIUS_PX*span,rect};
   }
   function fire(now){
-    if(!active||now-lastShot<SHOT_INTERVAL_MS)return;lastShot=now;const aim=aimPoint();reticle.style.left=`${aim.x}px`;reticle.style.top=`${aim.y}px`;reticle.style.display="block";pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
+    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();reticle.style.left=`${aim.x}px`;reticle.style.top=`${aim.y}px`;reticle.style.display="block";pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
     candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];
     if(hit)addThreeDecal(hit);else worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect);
-    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);
+    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);return true;
   }
-  function frame(now){if(active){fire(now);raf=requestAnimationFrame(frame);}else raf=0;}
+  function scheduleFire(){
+    if(!active||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;const now=performance.now();fire(now);fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));
+  }
   function renderStick(){if(!active)return;stick.style.left=`${active.startX}px`;stick.style.top=`${active.startY}px`;knob.style.transform=`translate(${active.dx}px,${active.dy}px)`;}
-  function move(event){if(!active||event.pointerId!==active.id)return;const dx=event.clientX-active.startX,dy=event.clientY-active.startY,len=Math.hypot(dx,dy),scale=len>STICK_RADIUS_PX?STICK_RADIUS_PX/len:1;active.dx=dx*scale;active.dy=dy*scale;renderStick();fire(performance.now());event.preventDefault();}
-  function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;stick.style.display="none";reticle.style.display="none";try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
+  function move(event){if(!active||event.pointerId!==active.id)return;const dx=event.clientX-active.startX,dy=event.clientY-active.startY,len=Math.hypot(dx,dy),scale=len>STICK_RADIUS_PX?STICK_RADIUS_PX/len:1;active.dx=dx*scale;active.dy=dy*scale;renderStick();fire(performance.now());scheduleFire();event.preventDefault();}
+  function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}stick.style.display="none";reticle.style.display="none";try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
   viewport.addEventListener("pointerdown",event=>{
-    if(!isEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,startX:event.clientX,startY:event.clientY,dx:0,dy:0};try{viewport.setPointerCapture?.(event.pointerId);}catch{}stick.style.display="block";renderStick();ensureAudio();lastShot=-Infinity;fire(performance.now());if(!raf)raf=requestAnimationFrame(frame);event.preventDefault();
+    if(!isEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,startX:event.clientX,startY:event.clientY,dx:0,dy:0};try{viewport.setPointerCapture?.(event.pointerId);}catch{}stick.style.display="block";renderStick();ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
   },{passive:false});
   viewport.addEventListener("pointermove",move,{passive:false});viewport.addEventListener("pointerup",stop,{passive:false});viewport.addEventListener("pointercancel",stop,{passive:false});
-  return{stop,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();if(raf)cancelAnimationFrame(raf);for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();stick.remove();reticle.remove();style.remove();try{audioCtx?.close();}catch{}}};
+  return{stop,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();stick.remove();reticle.remove();style.remove();try{audioCtx?.close();}catch{}}};
 }
