@@ -18,7 +18,7 @@ constexpr uint16_t kStateNavigationDegraded = 1u << 7;
 // Shared Production/HIL/WASM velocity envelope. GAME phone settings encode a
 // fraction of this real velocity target; the FC remains the only authority that
 // turns velocity error into bounded acceleration, attitude and motor commands.
-constexpr float kStateMaxHorizontalSpeedMps = 15.0f;
+constexpr float kStateMaxHorizontalSpeedMps = 25.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;
@@ -237,7 +237,6 @@ public:
         const float desired_yaw_rate = clamp(intent.yaw_rate_dps + kHeadingKp * yaw_error,
                                              -180.0f, 180.0f);
         const float yaw_command = desired_yaw_rate / 180.0f;
-
         if (agl_valid) {
             hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                                 kMinHoverTrim, kMaxHoverTrim);
