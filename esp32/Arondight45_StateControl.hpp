@@ -18,9 +18,10 @@ constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
 constexpr uint16_t kStateNavigationDegraded = 1u << 7;
 
-// Shared Production/HIL/WASM hard speed envelope. Phone GAME settings scale the
-// normalized SBUS translation request below this ceiling; the physical outer loop
-// still limits acceleration and tilt before the one shared motor-authority path.
+// Shared Production/HIL/WASM hard speed envelope. Phone GAME settings encode the
+// requested fraction into the existing translation-vector magnitude below this
+// ceiling; the physical outer loop still limits acceleration and tilt before the
+// one shared motor-authority path.
 constexpr float kStateMaxHorizontalSpeedMps = 15.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
@@ -70,12 +71,26 @@ struct StateIntent {
 };
 
 inline StateIntent state_intent(const RC& rc) {
-    float right = shape(centered(rc.ch[FC_SBUS_ROLL]), 0.035f, 0.25f);
-    float forward = shape(centered(rc.ch[FC_SBUS_PITCH]), 0.035f, 0.25f);
-    const float magnitude = std::sqrt(forward * forward + right * right);
+    // Treat translation as one physical 2-D velocity vector. Radial shaping keeps
+    // the selected speed independent of heading: full forward and full diagonal
+    // both reach the same horizontal-speed envelope instead of diagonal becoming
+    // slower through per-axis expo.
+    float right = centered(rc.ch[FC_SBUS_ROLL]);
+    float forward = centered(rc.ch[FC_SBUS_PITCH]);
+    float magnitude = std::sqrt(forward * forward + right * right);
     if (magnitude > 1.0f) {
         forward /= magnitude;
         right /= magnitude;
+        magnitude = 1.0f;
+    }
+    if (magnitude > 1.0e-6f) {
+        const float shaped_magnitude = shape(magnitude, 0.035f, 0.25f);
+        const float radial_scale = shaped_magnitude / magnitude;
+        forward *= radial_scale;
+        right *= radial_scale;
+    } else {
+        forward = 0.0f;
+        right = 0.0f;
     }
 
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
