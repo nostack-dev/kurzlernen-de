@@ -30,6 +30,13 @@ async function liveMotion(view,controller){
   return{...viewState,...measured,horizontal:Math.hypot(measured.forward,measured.right)};
 }
 async function liveTrace(view,controller,start,offsets,timeout=90000){const trace=[];for(const offset of offsets){await waitSim(view,start+offset,timeout);trace.push({offset,...await liveMotion(view,controller)});}return trace;}
+function assertReleaseBraking(label,trace){
+  const release=trace[0]?.horizontal??0,postPeak=Math.max(...trace.slice(1).map(point=>point.horizontal));
+  if(postPeak>release+.15)throw new Error(`${label} accelerated after zero-vector release: release=${release.toFixed(3)} postPeak=${postPeak.toFixed(3)} trace=${JSON.stringify(trace)}`);
+  for(let i=2;i<trace.length;i++)if(trace[i].horizontal>trace[i-1].horizontal+.18)throw new Error(`${label} braking reversed into renewed acceleration: trace=${JSON.stringify(trace)}`);
+  if(trace[2]&&trace[2].horizontal>release*.90+.08)throw new Error(`${label} failed to shed speed promptly after release: release=${release.toFixed(3)} at0.8s=${trace[2].horizontal.toFixed(3)} trace=${JSON.stringify(trace)}`);
+  return{release,postPeak};
+}
 
 const view=await viewBrowser.newPage(),controller=await controllerBrowser.newPage();watch(view,"view");watch(controller,"controller");
 try{
@@ -118,23 +125,21 @@ try{
   await controller.mouse.up();await waitText(controller,"#leftValue","FWD 0%",10000);
 
   const brakeStart=await simTime(view);const trace=await liveTrace(view,controller,brakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]);const braked=trace[trace.length-1];console.log(`State-control braking trace: ${JSON.stringify(trace)}`);
-  const peak=Math.max(...trace.map(point=>point.horizontal));
+  const braking=assertReleaseBraking("forward zero-vector",trace);
   if(trace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during zero-vector braking: ${JSON.stringify(trace)}`);
-  if(peak>2.5)throw new Error(`zero-velocity braking transient is unbounded: peak=${peak.toFixed(3)} trace=${JSON.stringify(trace)}`);
   if(braked.horizontal>Math.max(.45,moving.horizontal*.75))throw new Error(`zero-horizontal-velocity target did not converge after physical counter-tilt: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
   if(Math.abs(braked.vertical)>1.0)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
-  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
+  console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, release=${braking.release.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
 
   await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
   const strafeStart=await simTime(view);const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);const strafing=strafeCommandTrace[strafeCommandTrace.length-1];console.log(`State-control strafe command trace: ${JSON.stringify(strafeCommandTrace)}`);
   if(strafeCommandTrace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during strafe vector: ${JSON.stringify(strafeCommandTrace)}`);
   if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);
   await controller.mouse.up();
-  const strafeBrakeStart=await simTime(view);const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];const strafePeak=Math.max(...strafeTrace.map(point=>point.horizontal));
+  const strafeBrakeStart=await simTime(view);const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];const strafeBraking=assertReleaseBraking("strafe zero-vector",strafeTrace);
   if(strafeTrace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during strafe braking: ${JSON.stringify(strafeTrace)}`);
-  if(strafePeak>2.5)throw new Error(`strafe braking transient is unbounded: peak=${strafePeak.toFixed(3)} trace=${JSON.stringify(strafeTrace)}`);
   if(strafeBraked.horizontal>Math.max(.50,strafing.horizontal*.78))throw new Error(`strafe zero-vector braking did not converge: before=${JSON.stringify(strafing)}, trace=${JSON.stringify(strafeTrace)}`);
-  console.log(`State-control E2E: strafe right=${strafing.right.toFixed(2)}m/s, peak=${strafePeak.toFixed(2)} -> ${strafeBraked.horizontal.toFixed(2)}m/s.`);
+  console.log(`State-control E2E: strafe right=${strafing.right.toFixed(2)}m/s, release=${strafeBraking.release.toFixed(2)} -> ${strafeBraked.horizontal.toFixed(2)}m/s.`);
 
   const yawBefore=await yaw(view);const right=await stickBox(controller,"#rightStick"),rcx=right.x+right.w/2,rcy=right.y+right.h/2,rr=Math.min(right.w,right.h)*.42;
   await controller.mouse.move(rcx,rcy);await controller.mouse.down();await controller.mouse.move(rcx+rr*.65,rcy,{steps:4});
