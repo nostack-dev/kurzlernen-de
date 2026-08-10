@@ -24,6 +24,7 @@ jobs:
           python3 tools/finalize_flight_first_release.py
           python3 tools/finalize_flight_first_release_v2.py
           python3 tools/finalize_flight_first_release_v3.py
+          python3 tools/finalize_flight_first_release_v4.py
           rm .github/workflows/finalize-flight-first-release.yml
           node --check sim/simulator.mjs
           node --check sim/real_world_bootstrap.mjs
