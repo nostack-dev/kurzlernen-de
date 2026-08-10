@@ -1,0 +1,34 @@
+name: Make touch UX E2E deterministic
+on:
+  workflow_dispatch:
+  push:
+    branches: ["fix/world-fpv-eye-altitude"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/world-fpv-eye-altitude
+          fetch-depth: 0
+      - run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
+          old='''  const box=await minimapBox();await page.mouse.click(box.x+box.w/2,box.y+box.h/2);await new Promise(r=>setTimeout(r,120));await page.mouse.click(box.x+box.w/2,box.y+box.h/2);await page.waitForFunction(()=>document.querySelector("#worldLookHud")?.classList.contains("expanded"),{timeout:2000});\n'''
+          new='''  const expandedByTouch=await page.evaluate(async()=>{const hud=document.querySelector("#worldLookHud"),r=hud.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,send=(type,id)=>hud.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",clientX:x,clientY:y,button:0}));send("pointerdown",71);send("pointerup",71);await new Promise(resolve=>setTimeout(resolve,120));send("pointerdown",72);send("pointerup",72);return hud.classList.contains("expanded");});if(!expandedByTouch)throw new Error("double-tap touch sequence did not expand minimap");\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  const shots0=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.fireShots||0));await page.mouse.move(viewportRect.x+viewportRect.w*.50,viewportRect.y+viewportRect.h*.48);await page.mouse.down();await new Promise(r=>setTimeout(r,240));await page.mouse.up();await page.waitForFunction(n=>Number(document.querySelector("#viewport")?.dataset.fireShots||0)>n,{timeout:2000},shots0);const shots1=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.fireShots||0));\n  const mini=await minimapBox();await page.mouse.move(mini.x+mini.w*.4,mini.y+mini.h*.5);await page.mouse.down();await new Promise(r=>setTimeout(r,220));await page.mouse.up();const shots2=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.fireShots||0));if(shots2!==shots1)throw new Error(`minimap touch leaked into fire control: ${shots1} -> ${shots2}`);\n'''
+          new='''  const shots0=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.fireShots||0));await page.evaluate(async()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),x=r.left+r.width*.50,y=r.top+r.height*.48,send=type=>v.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:81,pointerType:"touch",clientX:x,clientY:y,button:0}));send("pointerdown");await new Promise(resolve=>setTimeout(resolve,240));send("pointerup");});await page.waitForFunction(n=>Number(document.querySelector("#viewport")?.dataset.fireShots||0)>n,{timeout:2000},shots0);const shots1=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.fireShots||0));\n  await page.evaluate(async()=>{const h=document.querySelector("#worldLookHud"),r=h.getBoundingClientRect(),x=r.left+r.width*.4,y=r.top+r.height*.5,send=type=>h.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:82,pointerType:"touch",clientX:x,clientY:y,button:0}));send("pointerdown");await new Promise(resolve=>setTimeout(resolve,220));send("pointerup");});const shots2=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.fireShots||0));if(shots2!==shots1)throw new Error(`minimap touch leaked into fire control: ${shots1} -> ${shots2}`);\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          rm -f .github/workflows/one-shot-touch-ux-e2e.yml
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Exercise touch interactions through pointer handlers'
+          git push origin HEAD:fix/world-fpv-eye-altitude
