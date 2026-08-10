@@ -457,6 +457,12 @@ function setDebugGridEnabled(enabled){debugGridEnabled=Boolean(enabled);grid.vis
 setDebugGridEnabled(debugGridEnabled);
 const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});
+let raceWorldActive=false;
+function updateTrainingRace(position){
+  const worldActive=$("viewport")?.dataset.worldMode==="real";
+  if(worldActive!==raceWorldActive){raceWorldActive=worldActive;raceTrack.reset();}
+  if(!worldActive)raceTrack.update(position,simTime,Boolean(latest.state&STATE_ARMED));
+}
 const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camThird" type="button">THIRD</button><button id="camSolo" class="start-sim-cta" type="button">START SIM</button><button id="soundToggle" type="button">SOUND</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
 for(const button of cameraHud.querySelectorAll("button"))Object.assign(button.style,{minWidth:"76px",padding:"7px 10px",borderRadius:"7px",border:"1px solid rgba(255,255,255,.3)",background:"rgba(17,29,43,.82)",color:"#fff",font:"700 12px system-ui,-apple-system,sans-serif",letterSpacing:".04em"});
@@ -722,7 +728,7 @@ async function loop(epoch){
     const sliceStart=performance.now(),due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_SLICE),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
     for(let i=0;i<due&&running&&epoch===runEpoch;i++){
       latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;auxAccumulatorS+=DT;accumulatorMs-=SIM_FIXED_STEP_MS;
-      if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();if(++flightLogAuxTicks>=10){flightLogAuxTicks=0;flightLogbook.observe(flightLogSample());}}
+      if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;updateTrainingRace(physics.position());recordSession();if(++flightLogAuxTicks>=10){flightLogAuxTicks=0;flightLogbook.observe(flightLogSample());}}
       if(performance.now()-sliceStart>=SIM_WORK_SLICE_MS)break;
     }
     const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=afterWork;

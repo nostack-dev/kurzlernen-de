@@ -94,6 +94,7 @@ class RealWorldBridge{
       body.solo-flight #viewport[data-world-mode="real"] #worldMapLegend{display:grid;grid-template-columns:auto auto;gap:2px 7px}
       #worldMapLegend i{width:10px;height:7px;border-radius:2px;display:inline-block;margin-right:4px;box-shadow:0 0 0 1px #ffffff24}.legend-water i{background:#086a9d}.legend-green i{background:#2f7044}.legend-road i{background:#ffd34f}.legend-building i{background:#dbe4e9}
       body.solo-flight #viewport[data-world-mode="real"] #soloTopbar span,body.solo-flight #viewport[data-world-mode="real"] #soloTopbar button,body.solo-flight #viewport[data-world-mode="real"] #soloRaceHud,body.solo-flight #viewport[data-world-mode="real"] #soloClearance,body.solo-flight #viewport[data-world-mode="real"] .solo-action{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+      body.solo-flight #viewport[data-world-mode="real"] #soloRaceHud{display:none!important}
       #realWorldStatus{line-height:1.4}
     `;document.head.appendChild(style);
     const mode=$("worldMode"),config=$("realWorldConfig"),use=$("useMyLocation");
