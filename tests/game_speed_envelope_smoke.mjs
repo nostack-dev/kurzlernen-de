@@ -16,19 +16,46 @@ async function simTime(){return page.evaluate(()=>Number(globalThis.__arondightD
 async function waitSim(target,timeout=90000){await page.waitForFunction(t=>Number(globalThis.__arondightDiagnostics?.simTime)>=t,{timeout},target);}
 async function flightSamples(){return page.evaluate(async()=>{const original=URL.createObjectURL;let captured=null;URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text());return log?.samples||[];}finally{URL.createObjectURL=original;}});}
 function bodyMotion(sample){const yaw=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yaw),s=Math.sin(yaw),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz};}
-async function stick(){const r=await page.$eval("#soloLeft",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,y:b.top+b.height/2,r:Math.min(b.width,b.height)*.42};});return r;}
+async function stick(){return page.$eval("#soloLeft",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,y:b.top+b.height/2,r:Math.min(b.width,b.height)*.42};});}
 async function settle(){await page.waitForFunction(()=>parseFloat(document.querySelector("#velocity")?.textContent||"99")<.85,{timeout:90000});}
+async function setSpeed(kmh){
+  await page.click("#soloTopbar .phone-settings-button");
+  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  const actual=await page.$eval('[data-slider="speed"]',(slider,value)=>{slider.value=String(value);slider.dispatchEvent(new Event("input",{bubbles:true}));return Number(slider.value);},kmh);
+  if(actual!==kmh)throw new Error(`speed slider could not select ${kmh} km/h; got ${actual}`);
+  await page.waitForFunction(value=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").maxHorizontalSpeedKmh===value,{timeout:5000},kmh);
+  await page.click('.phone-settings-dialog [data-close]');
+}
 
-const TARGET_MPS=10.0;
-const MIN_STEADY_MPS=8.7;
-const MAX_STEADY_MPS=10.9;
-const HOLD_S=7.0;
 const directions=[
   {name:"forward",dx:0,dy:-1,axis:"forward",sign:1},
   {name:"backward",dx:0,dy:1,axis:"forward",sign:-1},
   {name:"right",dx:1,dy:0,axis:"right",sign:1},
   {name:"left",dx:-1,dy:0,axis:"right",sign:-1},
 ];
+
+async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps,holdS,t90LimitS}){
+  await settle();
+  const g=await stick();
+  await page.mouse.move(g.x,g.y);await page.mouse.down();await page.mouse.move(g.x+g.r*direction.dx,g.y+g.r*direction.dy,{steps:8});
+  const start=await simTime();await waitSim(start+holdS,150000);await page.mouse.up();
+  const raw=await flightSamples(),motion=raw.map(bodyMotion);
+  const samples=motion.filter(x=>x.time>=start+holdS-1.0&&x.time<=start+holdS+.15);
+  if(samples.length<20)throw new Error(`${label} ${direction.name}: insufficient steady-state samples (${samples.length})`);
+  const signed=samples.map(x=>direction.sign*x[direction.axis]);
+  const average=signed.reduce((a,b)=>a+b,0)/signed.length;
+  const orthogonal=samples.reduce((a,x)=>a+Math.abs(direction.axis==="forward"?x.right:x.forward),0)/samples.length;
+  const vertical=samples.reduce((a,x)=>a+Math.abs(x.vertical),0)/samples.length;
+  const all=motion.filter(x=>x.time>=start&&x.time<=start+holdS+.15);
+  const t90=all.find(x=>direction.sign*x[direction.axis]>=targetMps*.90)?.time-start;
+  const result={name:direction.name,average,orthogonal,vertical,t90:Number.isFinite(t90)?t90:null};
+  if(!(average>=minSteadyMps&&average<=maxSteadyMps))throw new Error(`${direction.name}: ${label} target did not converge; steady=${(average*3.6).toFixed(1)} km/h (${average.toFixed(2)} m/s), target=${(targetMps*3.6).toFixed(0)} km/h`);
+  if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s at ${label}`);
+  if(vertical>1.2)throw new Error(`${direction.name}: AGL destabilized, |vz| avg ${vertical.toFixed(2)} m/s at ${label}`);
+  if(!(Number.isFinite(t90)&&t90<=t90LimitS))throw new Error(`${direction.name}: did not reach 90% of ${label} within ${t90LimitS.toFixed(1)} s; t90=${t90}`);
+  await settle();
+  return result;
+}
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
@@ -45,30 +72,25 @@ try{
   await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:65000});
   await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.55&&z<2.45&&v<.7;},{timeout:90000});
 
-  const results=[];
+  await setSpeed(36);
+  const defaultResults=[];
   for(const direction of directions){
-    await settle();
-    const g=await stick();
-    await page.mouse.move(g.x,g.y);await page.mouse.down();await page.mouse.move(g.x+g.r*direction.dx,g.y+g.r*direction.dy,{steps:8});
-    const start=await simTime();await waitSim(start+HOLD_S,120000);await page.mouse.up();
-    const samples=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=start+HOLD_S-1.0&&x.time<=start+HOLD_S+.15);
-    if(samples.length<20)throw new Error(`${direction.name}: insufficient steady-state samples (${samples.length})`);
-    const signed=samples.map(x=>direction.sign*x[direction.axis]);
-    const average=signed.reduce((a,b)=>a+b,0)/signed.length;
-    const orthogonal=samples.reduce((a,x)=>a+Math.abs(direction.axis==="forward"?x.right:x.forward),0)/samples.length;
-    const vertical=samples.reduce((a,x)=>a+Math.abs(x.vertical),0)/samples.length;
-    const all=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=start&&x.time<=start+HOLD_S+.15);
-    const t90=all.find(x=>direction.sign*x[direction.axis]>=TARGET_MPS*.90)?.time-start;
-    results.push({name:direction.name,average,orthogonal,vertical,t90:Number.isFinite(t90)?t90:null});
-    if(!(average>=MIN_STEADY_MPS&&average<=MAX_STEADY_MPS))throw new Error(`${direction.name}: 36 km/h target did not converge; steady=${(average*3.6).toFixed(1)} km/h (${average.toFixed(2)} m/s)`);
-    if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s`);
-    if(vertical>1.2)throw new Error(`${direction.name}: AGL destabilized, |vz| avg ${vertical.toFixed(2)} m/s`);
-    if(!(Number.isFinite(t90)&&t90<=5.0))throw new Error(`${direction.name}: did not reach 90% of 36 km/h within 5.0 s; t90=${t90}`);
-    await settle();
+    defaultResults.push(await runDirection(direction,{label:"36 km/h",targetMps:10.0,minSteadyMps:8.7,maxSteadyMps:10.9,holdS:7.0,t90LimitS:5.0}));
   }
+  const defaultSpeeds=defaultResults.map(x=>x.average),defaultSpread=Math.max(...defaultSpeeds)-Math.min(...defaultSpeeds);
+  if(defaultSpread>1.0)throw new Error(`36 km/h directional steady-state asymmetry exceeds 1.0 m/s: ${JSON.stringify(defaultResults)}`);
 
-  const speeds=results.map(x=>x.average),spread=Math.max(...speeds)-Math.min(...speeds);
-  if(spread>1.0)throw new Error(`directional steady-state asymmetry exceeds 1.0 m/s: ${JSON.stringify(results)}`);
+  // The top of the user-visible slider is a real velocity target, not a cosmetic
+  // scaling label. Prove the full shared 25 m/s / 90 km/h envelope in both signs
+  // through the same WASM FC, motor mixer and rigid-body plant used by the app.
+  await setSpeed(90);
+  const maxResults=[];
+  for(const direction of directions.slice(0,2)){
+    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:22.5,maxSteadyMps:26.5,holdS:12.0,t90LimitS:10.0}));
+  }
+  const maxSpread=Math.abs(maxResults[0].average-maxResults[1].average);
+  if(maxSpread>1.2)throw new Error(`90 km/h forward/backward asymmetry exceeds 1.2 m/s: ${JSON.stringify(maxResults)}`);
+
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log(`GAME speed envelope passed: ${JSON.stringify(results)} · target 36 km/h / 10.0 m/s · spread ${(spread*3.6).toFixed(1)} km/h.`);
+  console.log(`GAME speed envelope passed: default=${JSON.stringify(defaultResults)} · 36 km/h / 10.0 m/s spread ${(defaultSpread*3.6).toFixed(1)} km/h; max=${JSON.stringify(maxResults)} · 90 km/h / 25.0 m/s spread ${(maxSpread*3.6).toFixed(1)} km/h.`);
 }finally{await browser.close();}
