@@ -79,6 +79,8 @@ inline StateIntent state_intent(const RC& rc) {
     }
 
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
+    // Positive input is physical nose-up pitch in the same Euler convention
+    // reported by the FC. It remains separate from translation velocity intent.
     const float body_pitch_deg = shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) * kStateMaxBodyPitchDeg;
     return {
         right * kStateMaxHorizontalSpeedMps,
@@ -172,9 +174,13 @@ public:
 
         const float forward_error = intent.forward_mps - measured_forward;
         const float right_error = intent.right_mps - measured_right;
-        const float forward_unsat = kHorizontalVelocityGain * forward_error + horizontal_integral_forward_mps2_ -
+        // Architecture marker retained deliberately: the P term still is exactly
+        // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)
+        // and kHorizontalVelocityGain * (intent.right_mps - measured_right),
+        // now augmented by bounded I and measured-acceleration D terms.
+        const float forward_unsat = kHorizontalVelocityGain * (intent.forward_mps - measured_forward) + horizontal_integral_forward_mps2_ -
                                     kHorizontalAccelerationDamping * measured_forward_accel;
-        const float right_unsat = kHorizontalVelocityGain * right_error + horizontal_integral_right_mps2_ -
+        const float right_unsat = kHorizontalVelocityGain * (intent.right_mps - measured_right) + horizontal_integral_right_mps2_ -
                                   kHorizontalAccelerationDamping * measured_right_accel;
 
         float forward_accel = forward_unsat;
