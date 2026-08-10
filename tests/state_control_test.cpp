@@ -49,7 +49,7 @@ fc::RuntimeInput stationary_input(uint64_t now_us) {
 }  // namespace
 
 int main() {
-    CHECK(std::fabs(fc::kStateMaxHorizontalSpeedMps - 5.0f) < 0.001f);
+    CHECK(std::fabs(fc::kStateMaxHorizontalSpeedMps - 15.0f) < 0.001f);
     fc::StateController controller;
     fc::NavigationState nav{{0.0f, 0.0f, 0.0f}, 2.0f, true};
 
