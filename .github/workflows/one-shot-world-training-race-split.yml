@@ -6,53 +6,40 @@ permissions:
   contents: write
 jobs:
   patch:
-    if: github.event.head_commit.message != 'WORLD race UI belongs only to training'
+    if: github.event.head_commit.message != 'WORLD race HUD belongs only to training'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/final-flight-safety-ux
           fetch-depth: 0
-      - name: Patch mode contract
-        run: |
+      - run: |
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
-          p=Path('sim/simulator.mjs'); s=p.read_text()
-          old='let flightLogAuxTicks=0,simulationBacklogMs=0;'
-          new='let flightLogAuxTicks=0,simulationBacklogMs=0;\nlet raceWorldActive=false;'
-          assert s.count(old)==1, s.count(old)
-          s=s.replace(old,new,1)
-          old='raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();'
-          new='const worldActive=$("viewport")?.dataset.worldMode==="real";if(worldActive!==raceWorldActive){raceWorldActive=worldActive;raceTrack.reset();}raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED)&&!worldActive);recordSession();'
-          assert s.count(old)==1, s.count(old)
-          p.write_text(s.replace(old,new,1))
-
-          p=Path('sim/control_settings.mjs'); s=p.read_text()
+          p=Path('sim/control_settings.mjs');s=p.read_text()
           marker='  body.solo-flight #soloTopbar .world-mode-button[data-loading="1"]{background:#7b5a18!important;border-color:#ffd06d!important}\n'
           addition='  body.solo-flight #viewport[data-world-mode="real"] #soloRaceHud{display:none!important}\n'
-          assert s.count(marker)==1, s.count(marker)
-          assert addition not in s
-          p.write_text(s.replace(marker,marker+addition,1))
+          assert s.count(marker)==1,s.count(marker)
+          if addition not in s:s=s.replace(marker,marker+addition,1)
+          p.write_text(s)
 
-          p=Path('tests/real_world_ui_smoke.mjs'); s=p.read_text()
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
           marker='  if(live.canvasCount!==3)throw new Error(`REAL WORLD must use MapLibre + existing flight canvas + one lightweight cached mini-map canvas, got ${live.canvasCount}`);\n'
           addition='  const worldRaceDisplay=await page.$eval("#soloRaceHud",element=>getComputedStyle(element).display);\n  if(worldRaceDisplay!=="none")throw new Error(`WORLD must not expose training laps/timer HUD, got display=${worldRaceDisplay}`);\n'
-          assert s.count(marker)==1, s.count(marker)
-          assert addition not in s
-          p.write_text(s.replace(marker,addition+marker,1))
+          assert s.count(marker)==1,s.count(marker)
+          if addition not in s:s=s.replace(marker,addition+marker,1)
+          p.write_text(s)
           PY
-          node --check sim/simulator.mjs
           node --check sim/control_settings.mjs
           node --check tests/real_world_ui_smoke.mjs
-          grep -q 'Boolean(latest.state&STATE_ARMED)&&!worldActive' sim/simulator.mjs
           grep -q 'data-world-mode="real".*soloRaceHud' sim/control_settings.mjs
           grep -q 'WORLD must not expose training laps/timer HUD' tests/real_world_ui_smoke.mjs
+          grep -q 'function updateTrainingRace(position)' sim/simulator.mjs
           git diff --check
           rm .github/workflows/one-shot-world-training-race-split.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sim/simulator.mjs sim/control_settings.mjs tests/real_world_ui_smoke.mjs .github/workflows/one-shot-world-training-race-split.yml
-          git commit -m 'WORLD race UI belongs only to training'
+          git add sim/control_settings.mjs tests/real_world_ui_smoke.mjs .github/workflows/one-shot-world-training-race-split.yml
+          git commit -m 'WORLD race HUD belongs only to training'
           git push origin HEAD:fix/final-flight-safety-ux
