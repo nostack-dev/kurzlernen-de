@@ -9,229 +9,186 @@ permissions:
 
 jobs:
   patch-test-commit:
-    if: github.event.head_commit.message != 'Apply shared NAV degraded state machine'
+    if: github.event.head_commit.message != 'Apply NAV1 component validity and sensor continuity'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/final-flight-safety-ux
           fetch-depth: 0
-      - name: Patch shared C++ state machine
+      - name: Patch NAV1 hardware contract and simulator sensor source
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
-          p=Path('esp32/Arondight45_StateControl.hpp'); s=p.read_text()
-          def rep(old,new,label):
-              global s
-              n=s.count(old); assert n==1, f'{label}: {n}'
-              s=s.replace(old,new,1)
 
-          rep('''struct NavigationState {
-              V3 velocity_world_mps{};
-              float agl_m{};
-              bool valid{};
-          };
+          def patch(path, old, new, label):
+              p=Path(path); s=p.read_text(); n=s.count(old)
+              assert n==1, f'{label}: expected 1, got {n}'
+              p.write_text(s.replace(old,new,1))
 
-          inline bool finite(const NavigationState& n) {
-              return n.valid && finite(n.velocity_world_mps) && std::isfinite(n.agl_m) &&
-                     n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+          patch('esp32/Arondight45_HardwareSensors.hpp',
+          '''constexpr uint16_t kNavigationValid = 1u << 0;
+          constexpr uint32_t kNavigationTimeoutUs = 60000;
+          ''',
+          '''constexpr uint16_t kNavigationValid = 1u << 0;
+          constexpr uint16_t kNavigationVelocityValid = 1u << 1;
+          constexpr uint16_t kNavigationAglValid = 1u << 2;
+          // New producers set this marker and publish velocity/AGL validity independently.
+          // Legacy NAV1 modules omit it; their bit 0 remains "all navigation valid".
+          constexpr uint16_t kNavigationSplitValidity = 1u << 15;
+          constexpr uint32_t kNavigationTimeoutUs = 60000;
+          ''','NAV1 constants')
+
+          patch('esp32/Arondight45_HardwareSensors.hpp',
+          '''    out.agl_m = frame.agl_mm * 0.001f;
+              out.valid = (frame.flags & kNavigationValid) != 0;
+              return !out.valid || fc::finite(out);
           }
-          ''','''struct NavigationState {
-              V3 velocity_world_mps{};
-              float agl_m{};
-              bool valid{};
-              bool velocity_valid{};
-              bool agl_valid{};
-
-              NavigationState() = default;
-              NavigationState(V3 velocity, float agl, bool all_valid)
-                  : velocity_world_mps(velocity), agl_m(agl), valid(all_valid),
-                    velocity_valid(all_valid), agl_valid(all_valid) {}
-              NavigationState(V3 velocity, float agl, bool velocity_ok, bool agl_ok)
-                  : velocity_world_mps(velocity), agl_m(agl), valid(velocity_ok && agl_ok),
-                    velocity_valid(velocity_ok), agl_valid(agl_ok) {}
-          };
-
-          inline bool finite_velocity(const NavigationState& n) {
-              return n.velocity_valid && finite(n.velocity_world_mps);
+          ''',
+          '''    out.agl_m = frame.agl_mm * 0.001f;
+              const bool split = (frame.flags & kNavigationSplitValidity) != 0;
+              const bool legacy_valid = (frame.flags & kNavigationValid) != 0;
+              out.velocity_valid = split ? (frame.flags & kNavigationVelocityValid) != 0 : legacy_valid;
+              out.agl_valid = split ? (frame.flags & kNavigationAglValid) != 0 : legacy_valid;
+              out.valid = out.velocity_valid && out.agl_valid;
+              return (!out.velocity_valid || fc::finite(out.velocity_world_mps)) &&
+                     (!out.agl_valid || (std::isfinite(out.agl_m) && out.agl_m >= 0.0f && out.agl_m < 1000.0f));
           }
-          inline bool finite_agl(const NavigationState& n) {
-              return n.agl_valid && std::isfinite(n.agl_m) && n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+          ''','NAV1 decode')
+
+          patch('esp32/Arondight45_HardwareSensors.hpp',
+          '''inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                            float vx_mps, float vy_mps, float vz_mps,
+                                                            float agl_m, bool valid) {
+          ''',
+          '''inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                            float vx_mps, float vy_mps, float vz_mps,
+                                                            float agl_m, bool velocity_valid, bool agl_valid) {
+          ''','NAV1 encoder signature')
+
+          patch('esp32/Arondight45_HardwareSensors.hpp',
+          '''    frame.flags = valid ? kNavigationValid : 0u;
+          ''',
+          '''    frame.flags = kNavigationSplitValidity |
+                            (velocity_valid ? kNavigationVelocityValid : 0u) |
+                            (agl_valid ? kNavigationAglValid : 0u) |
+                            ((velocity_valid && agl_valid) ? kNavigationValid : 0u);
+          ''','NAV1 encoder flags')
+
+          patch('esp32/Arondight45_HardwareSensors.hpp',
+          '''    return frame;
           }
-          inline bool finite(const NavigationState& n) {
-              return finite_velocity(n) && finite_agl(n);
+
+          class NavigationWireParser {
+          ''',
+          '''    return frame;
           }
-          ''','NavigationState')
-          rep('''constexpr uint16_t kStateNavigationValid = 1u << 5;
-          constexpr uint16_t kStateGameMode = 1u << 6;
-          ''','''constexpr uint16_t kStateNavigationValid = 1u << 5;
-          constexpr uint16_t kStateGameMode = 1u << 6;
-          constexpr uint16_t kStateNavigationDegraded = 1u << 7;
-          ''','degraded bit')
-          rep('''    Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
-                          bool inner_armed, float dt) {
-          ''','''    Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
-                          bool inner_armed, float dt, bool agl_valid = true) {
-          ''','run signature')
-          rep('''        const float agl_error = intent.clearance_m - nav.agl_m;
-                  const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
-                                                -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps);
-                  const float vz_error = target_vz - nav.velocity_world_mps.z;
-          ''','''        // Loss of AGL alone degrades to vertical-speed hold. It is not a motor-stop condition.
-                  const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
-                  const float target_vz = agl_valid
-                      ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
-                      : 0.0f;
-                  const float vz_error = target_vz - nav.velocity_world_mps.z;
-          ''','AGL fallback')
 
-          pattern=r'class StateRuntime \{.*?\n\};\n\n\}  // namespace fc'
-          replacement=r'''class StateRuntime {
-          public:
-              StateRuntime() { reset(); }
+          inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                            float vx_mps, float vy_mps, float vz_mps,
+                                                            float agl_m, bool valid) {
+              return encode_navigation_wire(sequence, vx_mps, vy_mps, vz_mps, agl_m, valid, valid);
+          }
 
-              void reset() {
-                  runtime_.reset();
-                  state_controller_.reset();
-                  last_yaw_deg_ = 0.0f;
-                  game_active_ = false;
-              }
+          class NavigationWireParser {
+          ''','NAV1 legacy encoder overload')
 
-              RuntimeOutput step(StateRuntimeInput input) {
-                  const StateIntent intent = state_intent(input.flight.rc);
-                  if (!intent.game_mode) {
-                      if (game_active_) state_controller_.leave_mode();
-                      game_active_ = false;
-                      RuntimeOutput out = runtime_.step(input.flight);
-                      update_attitude(out);
-                      return out;
-                  }
+          patch('esp32/Arondight45_FirmwareRuntime.hpp',
+          '''            navigation.valid = false;
+          ''',
+          '''            navigation.valid = false;
+                      navigation.velocity_valid = false;
+                      navigation.agl_valid = false;
+          ''','NAV freshness components')
 
-                  game_active_ = true;
-                  const bool receiver_valid = input.flight.rc.valid && input.flight.rc_fresh;
-                  if (!receiver_valid) {
-                      // Receiver freshness is a real control-loss condition and remains a hard disarm boundary.
-                      state_controller_.leave_mode();
-                      RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
-                      out.state |= kStateGameMode;
-                      update_attitude(out);
-                      return out;
-                  }
+          patch('sim/p2p_link.mjs',
+          '''    if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState)){
+          ''',
+          '''    // "disconnected" is transient in WebRTC. Freshness is independently enforced by
+              // CONTROL_STALE_MS, so only terminal peer states erase the last control sample here.
+              if(!this.pc||["failed","closed"].includes(this.pc.connectionState)){
+          ''','transient WebRTC state')
 
-                  const bool velocity_valid = finite_velocity(input.navigation);
-                  const bool agl_valid = finite_agl(input.navigation);
-                  const bool full_navigation = velocity_valid && agl_valid;
+          patch('sim/simulator.mjs',
+          '''const STATE_NAVIGATION_VALID = 1 << 5;
+          const STATE_GAME_MODE = 1 << 6;
+          const TERRAIN_SIZE = 600;
+          const TERRAIN_HALF = TERRAIN_SIZE / 2;
+          ''',
+          '''const STATE_NAVIGATION_VALID = 1 << 5;
+          const STATE_GAME_MODE = 1 << 6;
+          const STATE_NAVIGATION_DEGRADED = 1 << 7;
+          const TERRAIN_SIZE = 600;
+          const TERRAIN_HALF = TERRAIN_SIZE / 2;
+          // TERRAIN_SIZE is only the visible training-grid size. Sensor/collision truth must not
+          // end at the drawing edge and fabricate NAV loss during long WORLD flights.
+          const PHYSICS_GROUND_HALF = 10000;
+          ''','sim state constants')
 
-                  // Full NAV is required to enter flight. command_valid=false here deliberately
-                  // resets the ARM low/high qualifier so NAV recovery cannot auto-arm a held switch.
-                  if (!runtime_.armed() && !full_navigation) {
-                      state_controller_.leave_mode();
-                      RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
-                      out.state |= kStateGameMode | kStateNavigationDegraded;
-                      update_attitude(out);
-                      return out;
-                  }
+          patch('sim/simulator.mjs',
+          '''b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);''',
+          '''b3.b3CreateBoxShape(ground,groundShape,PHYSICS_GROUND_HALF,PHYSICS_GROUND_HALF,.05);''','physics ground extent')
 
-                  const float dt = (input.flight.dt_us > 0 && input.flight.dt_us < 100000)
-                                       ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
-                                       : 0.001f;
-                  Command physical_command{};
-                  if (velocity_valid) {
-                      physical_command = state_controller_.run(
-                          input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt, agl_valid);
-                  } else {
-                      // Complete NAV loss while airborne: retain the same shared inner attitude controller,
-                      // pilot attitude authority, yaw-rate authority and learned hover trim. No simulator state
-                      // is injected. RC loss and IMU/fatal faults remain separate safety boundaries.
-                      state_controller_.leave_mode();
-                      physical_command = degraded_attitude_command(intent);
-                  }
+          patch('sim/simulator.mjs',
+          '''  view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,measurement.valid?1:0,true);
+          ''',
+          '''  const velocityValid=measurement.velocityValid??measurement.valid,aglValid=measurement.aglValid??measurement.valid;
+            const navFlags=(1<<15)|(velocityValid?(1<<1):0)|(aglValid?(1<<2):0)|((velocityValid&&aglValid)?1:0);
+            view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,navFlags,true);
+          ''','sim NAV1 flags')
 
-                  RuntimeOutput out = runtime_.step_command(input.flight, physical_command, true);
-                  out.state |= kStateGameMode;
-                  if (full_navigation) out.state |= kStateNavigationValid;
-                  else out.state |= kStateNavigationDegraded;
-                  update_attitude(out);
-                  return out;
-              }
+          patch('sim/simulator.mjs',
+          '''  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
+          ''',
+          '''  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};}
+          ''','sim NAV reset')
 
-              Runtime& inner() { return runtime_; }
-              const Runtime& inner() const { return runtime_; }
-              const StateController& state_controller() const { return state_controller_; }
-              bool game_active() const { return game_active_; }
+          patch('sim/simulator.mjs',
+          '''    const range=model.groundRange(NAV_AGL_RAY_MAX_M);let valid=range.valid,agl=0;
+              if(valid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;}
+              this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};
+          ''',
+          '''    const range=model.groundRange(NAV_AGL_RAY_MAX_M),velocityValid=this.filtered.every(Number.isFinite);let aglValid=range.valid,agl=0;
+              if(aglValid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;if(!Number.isFinite(agl)||agl>65.4)aglValid=false;}
+              this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl:aglValid?agl:0,valid:velocityValid&&aglValid,velocityValid,aglValid};
+          ''','sim component validity')
 
-          private:
-              Command degraded_attitude_command(const StateIntent& intent) const {
-                  constexpr float kInnerAttitudeRangeDeg = 32.0f;
-                  const float forward_unit = clamp(intent.forward_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
-                  const float right_unit = clamp(intent.right_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
-                  const float roll_target_deg = -right_unit * kStateMaxBodyPitchDeg;
-                  const float pitch_target_deg = clamp(
-                      -forward_unit * kStateMaxBodyPitchDeg + intent.body_pitch_deg,
-                      -kStateMaxBodyPitchDeg, kStateMaxBodyPitchDeg);
-                  return sanitize(Command{
-                      roll_target_deg / kInnerAttitudeRangeDeg,
-                      pitch_target_deg / kInnerAttitudeRangeDeg,
-                      state_controller_.hover_trim(),
-                      clamp(intent.yaw_rate_dps / 180.0f, -1.0f, 1.0f),
-                      intent.arm,
-                  });
-              }
+          patch('sim/simulator.mjs',
+          '''let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};''',
+          '''let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};''','latest nav state')
 
-              void update_attitude(const RuntimeOutput& out) {
-                  last_yaw_deg_ = static_cast<float>(out.attitude_cdeg[2]) * 0.01f;
-              }
-
-              Runtime runtime_{};
-              StateController state_controller_{};
-              float last_yaw_deg_{};
-              bool game_active_{};
-          };
-
-          }  // namespace fc'''
-          s,n=re.subn(pattern,replacement,s,count=1,flags=re.S); assert n==1, f'StateRuntime: {n}'
-          p.write_text(s)
-
-          p=Path('tests/state_control_test.cpp'); s=p.read_text()
-          marker='    std::puts("All direct state-vector control tests passed.");'
-          assert s.count(marker)==1
-          test=r'''
-              // GAME NAV degradation must never masquerade as RC/control loss after arming.
-              fc::StateRuntime state_runtime;
-              uint64_t state_now = 0;
-              fc::StateRuntimeInput si{};
-              si.navigation = fc::NavigationState{{0.0f,0.0f,0.0f},2.0f,true};
-              for (uint32_t i=0;i<fc::kCalibrationSamples+1;++i) {
-                  si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(false);
-                  CHECK(state_runtime.step(si).fault==fc::kFaultNone);
-              }
-              for (int i=0;i<1002;++i) {
-                  si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true);
-                  const auto o=state_runtime.step(si); if(i==1001) CHECK(o.armed);
-              }
-              si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true);
-              si.navigation=fc::NavigationState{{0.0f,0.0f,0.0f},0.0f,true,false};
-              const auto agl_lost=state_runtime.step(si);
-              CHECK(agl_lost.armed); CHECK((agl_lost.state&fc::kStateNavigationDegraded)!=0);
-              for(auto pulse:agl_lost.motor_us) CHECK(pulse>fc::kEscIdleUs);
-              si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true);
-              si.navigation=fc::NavigationState{{0.0f,0.0f,0.0f},0.0f,false,false};
-              const auto nav_lost=state_runtime.step(si);
-              CHECK(nav_lost.armed); CHECK((nav_lost.state&fc::kStateNavigationDegraded)!=0);
-              for(auto pulse:nav_lost.motor_us) CHECK(pulse>fc::kEscIdleUs);
-              si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true); si.flight.rc_fresh=false;
-              const auto rc_lost=state_runtime.step(si);
-              CHECK(!rc_lost.armed); for(auto pulse:rc_lost.motor_us) CHECK(pulse==fc::kEscMinUs);
-
+          # Hardware-wire contract tests: legacy frame compatibility + component validity.
+          p=Path('tests/drone_hil_protocol_test.cpp'); s=p.read_text()
+          marker='''    const auto high_wire = hwcontract::encode_navigation_wire(78, 0, 0, 0, 50.0f, true);
+              CHECK(hwcontract::decode_navigation_wire(high_wire, nav));
+              CHECK(nav.valid);
+              CHECK(std::fabs(nav.agl_m - 50.0f) < 0.002f);
           '''
-          p.write_text(s.replace(marker,test+marker,1))
+          assert s.count(marker)==1, 'wire test marker'
+          addition=marker+'''    const auto agl_lost_wire = hwcontract::encode_navigation_wire(79, 1.0f, -0.5f, 0.1f, 0.0f, true, false);
+              CHECK(hwcontract::decode_navigation_wire(agl_lost_wire, nav));
+              CHECK(!nav.valid);
+              CHECK(nav.velocity_valid);
+              CHECK(!nav.agl_valid);
+              CHECK(std::fabs(nav.velocity_world_mps.x - 1.0f) < 0.011f);
+              auto legacy_wire = wire;
+              legacy_wire.flags = hwcontract::kNavigationValid;
+              legacy_wire.crc16 = hwcontract::crc16_ccitt(&legacy_wire, offsetof(hwcontract::NavigationWireFrame, crc16));
+              CHECK(hwcontract::decode_navigation_wire(legacy_wire, nav));
+              CHECK(nav.valid && nav.velocity_valid && nav.agl_valid);
+          '''
+          s=s.replace(marker,addition,1)
+          p.write_text(s)
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/drone_hil_protocol_test
+          /tmp/drone_hil_protocol_test
+          node --check sim/simulator.mjs
+          node --check sim/p2p_link.mjs
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp
-          git commit -m 'Apply shared NAV degraded state machine'
+          git add esp32/Arondight45_HardwareSensors.hpp esp32/Arondight45_FirmwareRuntime.hpp sim/simulator.mjs sim/p2p_link.mjs tests/drone_hil_protocol_test.cpp
+          git commit -m 'Apply NAV1 component validity and sensor continuity'
           git push origin HEAD:fix/final-flight-safety-ux
