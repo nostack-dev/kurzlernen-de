@@ -4,6 +4,7 @@ import {neutralControls,armReady as sharedArmReady,normalizedPointer,endPointerD
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 
 const $=id=>document.getElementById(id);
+const mobileControlStyle=document.createElement("style");mobileControlStyle.textContent=`html,body,button,.stick,.game-height-pad{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}input,textarea{-webkit-user-select:text!important;user-select:text!important}`;document.head.appendChild(mobileControlStyle);for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(event.target instanceof Element&&!event.target.closest("input,textarea"))event.preventDefault();},{passive:false});
 const clamp=(value,lo,hi)=>Math.max(lo,Math.min(hi,value));
 const ui=Object.fromEntries([
   "connection","connect","gameModeButton","fullscreen","leftStick","leftKnob","leftValue",

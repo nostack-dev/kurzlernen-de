@@ -8,6 +8,8 @@ import {RaceTrack} from "./race_track.mjs";
 import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
 import {loadCameraSettings,mountCameraSettings} from "./camera_settings.mjs";
 import {HybridMotorSound} from "./motor_sound.mjs";
+import {FlightLogbook} from "./flight_logbook.mjs";
+import {installFlightFireFx} from "./flight_fire_fx.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -508,7 +510,7 @@ function updateCamera(){
     camera.up.set(0,0,1);
     if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.16);
     camera.lookAt(look);
-    if(camera.fov!==62){camera.fov=62;camera.updateProjectionMatrix();}
+    const thirdFov=clamp(62*(cameraSettings.fpvFovDeg/105),35,100);if(Math.abs(camera.fov-thirdFov)>.01){camera.fov=thirdFov;camera.updateProjectionMatrix();}
     $("viewport").dataset.cameraFov=String(camera.fov);$("viewport").dataset.cameraTiltDeg="0";$("viewport").dataset.cameraDistanceM=String(camera.position.distanceTo(position));
     return;
   }
@@ -518,7 +520,8 @@ function updateCamera(){
   camera.up.set(0,0,1);
   if(!cameraFollowInitialized){camera.position.copy(desired);cameraFollowInitialized=true;}else camera.position.lerp(desired,.075);
   camera.lookAt(look);
-  if(camera.fov!==52){camera.fov=52;camera.updateProjectionMatrix();}
+  const followFov=clamp(52*(cameraSettings.fpvFovDeg/105),30,90);if(Math.abs(camera.fov-followFov)>.01){camera.fov=followFov;camera.updateProjectionMatrix();}
+  $("viewport").dataset.cameraFov=String(camera.fov);
 }
 $("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");$("camThird").onclick=()=>setCameraMode("third");setCameraMode(cameraMode);
 
@@ -534,7 +537,9 @@ soloHud.innerHTML=`
   <button id="soloKill" class="solo-action" type="button">KILL</button>`;
 $("viewport").appendChild(soloHud);
 const soloStyle=document.createElement("style");soloStyle.textContent=`
-  body.solo-flight{overflow:hidden!important;background:#000!important}
+  body.solo-flight{overflow:hidden!important;background:#000!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
+  body.solo-flight #viewport,body.solo-flight #viewport *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
+  body.solo-flight dialog input,body.solo-flight dialog textarea{-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
   body.solo-flight .panel,body.solo-flight .telemetry{display:none!important}
   body.solo-flight #viewport{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;z-index:50!important}
   body.solo-flight #cameraModes{top:max(8px,env(safe-area-inset-top))!important;left:50%!important}
@@ -607,6 +612,10 @@ const soloSettingsMount=mountPhoneControlSettings({
   onChange:next=>{phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
+const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});globalThis.__arondightFlightLogbook=flightLogbook;
+installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode});
+const flightSelectionBlocked=target=>target instanceof Element&&Boolean(target.closest("dialog,input,textarea,select,option"));for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(soloMode&&event.target instanceof Element&&event.target.closest("#viewport")&&!flightSelectionBlocked(event.target))event.preventDefault();},{passive:false});
+let pendingDisarmReason=null;
 async function enterSolo(){
   soloMode=true;soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
@@ -614,13 +623,13 @@ async function enterSolo(){
   if(mode==="sim"&&backend&&!running)startRun();
 }
 async function exitSolo(){
-  setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
+  pendingDisarmReason="SOLO_EXIT";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
 }
 $("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
-function resetSoloSimulation(){const restart=mode==="sim"&&Boolean(backend);stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);if(restart)startRun();}
+function resetSoloSimulation(){flightLogbook.finish("SIM_RESET");const restart=mode==="sim"&&Boolean(backend);stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);if(restart)startRun();}
 $("soloReset").onclick=resetSoloSimulation;
 $("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;};
-$("soloKill").onclick=()=>{setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;};
+$("soloKill").onclick=()=>{pendingDisarmReason="KILL_SWITCH";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;};
 $("soloCamera").onclick=()=>{const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();};
 document.addEventListener("fullscreenchange",()=>{if(!soloMode)return;const viewport=$("viewport");if(viewport)viewport.dataset.soloFullscreen=document.fullscreenElement?"1":"0";resize();});
 let mode="sim",backend=null,running=false,runEpoch=0,sequence=1,simTime=0,resetFlag=true;
@@ -651,6 +660,7 @@ async function switchMode(next){
   updateModeUI();
 }
 function resetSimulation(initial=null){
+  if(typeof flightLogbook!=="undefined")flightLogbook.finish("SIM_RESET");
   phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
   physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
@@ -689,8 +699,11 @@ async function controllerStep(){
   const {seq,packet}=prepareControllerStep(),started=performance.now(),out=await backend.exchange(packet,seq);latestControllerRttMs=performance.now()-started;return out;
 }
 function recordSession(){
-  const state=physics.state();
-  sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
+  const state=physics.state(),fault=latest.state>>8&255,armed=Boolean(latest.state&STATE_ARMED),remoteFresh=inputSource!=="remote"||Boolean(remoteLink.current());
+  sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state,navigation_valid:latestNavigation.valid,nav_velocity_valid:latestNavigation.velocityValid,nav_agl_valid:latestNavigation.aglValid});
+  const disarmReason=pendingDisarmReason||(fault?`FC_FAULT_${fault}`:!remoteFresh?"CONTROL_LINK_LOSS":!arm?"ARM_COMMAND_LOW":"FC_DISARM");
+  flightLogbook.observe({simTime,armed,disarmReason,x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,yawDeg:latest.attitude[2],speed:state.speed,agl:latestNavigation.agl,aglValid:latestNavigation.aglValid,batteryV:state.battery_v,worldMode:globalThis.__arondightRealWorld?.active?"real":"training",worldOrigin:globalThis.__arondightRealWorld?.active?{latitude:globalThis.__arondightRealWorld.originLat,longitude:globalThis.__arondightRealWorld.originLon}:null});
+  if(!armed)pendingDisarmReason=null;
 }
 let simulationBacklogMs=0;
 async function loop(epoch){

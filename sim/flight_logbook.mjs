@@ -70,11 +70,11 @@ export class FlightLogbook{
   }
   record(sample,forcePath=false){
     const flight=this.active;if(!flight)return;
-    const t=Number(sample.simTime)||0,x=Number(sample.x),y=Number(sample.y),z=Number(sample.z),speed=Math.max(0,Number(sample.speed)||0),agl=Math.max(0,Number(sample.agl)||z),battery=Number(sample.batteryV)||flight.batteryEndV;
-    if(t+1e-6<flight.lastSim){this.finish("SIM_RESET",sample);return;}
+    const t=Number(sample.simTime)||0,x=Number(sample.x),y=Number(sample.y),z=Number(sample.z),speed=Math.max(0,Number(sample.speed)||0),aglValue=Number(sample.agl),aglValid=sample.aglValid!==false&&Number.isFinite(aglValue),agl=aglValid?Math.max(0,aglValue):null,battery=Number(sample.batteryV)||flight.batteryEndV;
+    if(t+1e-6<flight.lastSim){this.finish("SIM_RESET",null);return;}
     if(finite(x,y,z)&&flight.lastPosition){const dx=x-flight.lastPosition[0],dy=y-flight.lastPosition[1],dz=z-flight.lastPosition[2],step=Math.hypot(dx,dy,dz);if(step<20)flight.distanceM+=step;flight.lastPosition=[x,y,z];}else if(finite(x,y,z))flight.lastPosition=[x,y,z];
-    const body=bodyVelocity(sample);flight.maxSpeedMps=Math.max(flight.maxSpeedMps,speed);flight.maxAglM=Math.max(flight.maxAglM,agl);flight.maxAltitudeM=Math.max(flight.maxAltitudeM,z);flight.maxForwardMps=Math.max(flight.maxForwardMps,Math.abs(body.forward));flight.maxRightMps=Math.max(flight.maxRightMps,Math.abs(body.right));flight.batteryEndV=battery;flight.batteryMinV=flight.samples?Math.min(flight.batteryMinV,battery):battery;flight.samples++;flight.lastSim=t;
-    if(forcePath||t-flight.lastPathSim>=PATH_INTERVAL_S){flight.lastPathSim=t;if(flight.path.length<MAX_PATH_POINTS)flight.path.push({t:+(t-flight.simStart).toFixed(2),x:+(x||0).toFixed(2),y:+(y||0).toFixed(2),agl:+agl.toFixed(2),z:+z.toFixed(2)});}
+    const body=bodyVelocity(sample);flight.maxSpeedMps=Math.max(flight.maxSpeedMps,speed);if(aglValid)flight.maxAglM=Math.max(flight.maxAglM,agl);flight.maxAltitudeM=Math.max(flight.maxAltitudeM,z);flight.maxForwardMps=Math.max(flight.maxForwardMps,Math.abs(body.forward));flight.maxRightMps=Math.max(flight.maxRightMps,Math.abs(body.right));flight.batteryEndV=battery;flight.batteryMinV=flight.samples?Math.min(flight.batteryMinV,battery):battery;flight.samples++;flight.lastSim=t;
+    if(forcePath||t-flight.lastPathSim>=PATH_INTERVAL_S){flight.lastPathSim=t;if(flight.path.length<MAX_PATH_POINTS)flight.path.push({t:+(t-flight.simStart).toFixed(2),x:+(x||0).toFixed(2),y:+(y||0).toFixed(2),agl:aglValid?+agl.toFixed(2):null,z:+z.toFixed(2)});}
   }
   observe(sample){
     const armed=Boolean(sample.armed);

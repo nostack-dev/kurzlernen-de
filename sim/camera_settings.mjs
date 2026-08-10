@@ -27,9 +27,9 @@ export function mountCameraSettings({dialog,onChange=()=>{}}={}){
   section.innerHTML=`
     <h4>CAMERA</h4>
     <div class="phone-settings-row"><label>FPV VERTICAL TILT</label><output data-camera-out="tilt"></output><input data-camera-slider="tilt" type="range" min="-15" max="50" step="1"><div class="phone-settings-scale"><span>DOWN</span><span>UP</span></div></div>
-    <div class="phone-settings-row"><label>FPV FOV</label><output data-camera-out="fov"></output><input data-camera-slider="fov" type="range" min="50" max="120" step="1"><div class="phone-settings-scale"><span>NARROW</span><span>WIDE</span></div></div>
+    <div class="phone-settings-row"><label>VIEW FOV</label><output data-camera-out="fov"></output><input data-camera-slider="fov" type="range" min="50" max="120" step="1"><div class="phone-settings-scale"><span>NARROW</span><span>WIDE</span></div></div>
     <div class="phone-settings-row"><label>THIRD PERSON DISTANCE</label><output data-camera-out="third"></output><input data-camera-slider="third" type="range" min="1.5" max="6" step="0.1"><div class="phone-settings-scale"><span>NEAR</span><span>FAR</span></div></div>
-    <p class="phone-settings-note">FOV is the same persisted value changed by pinch on the WORLD mini-map. Camera-only optics never alter aircraft attitude, motor commands, flight-controller code or physics.</p>`;
+    <p class="phone-settings-note">VIEW FOV is the same persisted value changed by pinch on the WORLD mini-map. Camera-only optics never alter aircraft attitude, motor commands, flight-controller code or physics.</p>`;
   const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
   const tilt=section.querySelector('[data-camera-slider="tilt"]'),fov=section.querySelector('[data-camera-slider="fov"]'),third=section.querySelector('[data-camera-slider="third"]');
   const tiltOut=section.querySelector('[data-camera-out="tilt"]'),fovOut=section.querySelector('[data-camera-out="fov"]'),thirdOut=section.querySelector('[data-camera-out="third"]');
