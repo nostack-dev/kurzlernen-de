@@ -80,14 +80,15 @@ try{
   if(Math.abs(eyeHeights.low.eye-5)>.01||Math.abs(eyeHeights.high.eye-50)>.01||eyeHeights.low.sync!=="rigid-eye-target"||eyeHeights.high.sync!=="rigid-eye-target"||eyeHeights.high.eye-eyeHeights.low.eye<44.9)throw new Error(`FPV eye altitude not preserved: ${JSON.stringify(eyeHeights)}`);
 
   // Same north-up minimap and same 360-look input in every camera mode.
-  for(const button of ["#camFollow","#camThird","#camFpv"]){
-    await page.click(button);await new Promise(r=>setTimeout(r,120));
+  for(const expected of ["follow","third","fpv"]){
+    await page.waitForFunction(mode=>document.querySelector("#viewport")?.dataset.cameraMode===mode,{timeout:3000},expected);
     const before=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0));
     const box=await minimapBox();await page.mouse.move(box.x+box.w*.45,box.y+box.h*.58);await page.mouse.down();await page.mouse.move(box.x+box.w*.72,box.y+box.h*.46,{steps:4});await page.mouse.up();
     await page.waitForFunction(start=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0)-start)>5,{timeout:3000},before);
-    const mode=await page.evaluate(()=>({mini:document.querySelector("#viewport")?.dataset.worldMinimapMode,bearing:Number(document.querySelector("#viewport")?.dataset.worldMinimapBearing||99)}));
-    if(mode.mini!=="north"||Math.abs(mode.bearing)>.01)throw new Error(`${button} changed minimap orientation: ${JSON.stringify(mode)}`);
+    const mode=await page.evaluate(()=>({camera:document.querySelector("#viewport")?.dataset.cameraMode,mini:document.querySelector("#viewport")?.dataset.worldMinimapMode,bearing:Number(document.querySelector("#viewport")?.dataset.worldMinimapBearing||99)}));
+    if(mode.camera!==expected||mode.mini!=="north"||Math.abs(mode.bearing)>.01)throw new Error(`${expected} changed minimap contract: ${JSON.stringify(mode)}`);
     await page.evaluate(()=>globalThis.__arondightRealWorld.resetLook(true));
+    await page.click("#soloCamera");
   }
 
   // Pinch the minimap: it updates the one persisted VIEW FOV, which Settings reads.
