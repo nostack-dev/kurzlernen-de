@@ -174,9 +174,6 @@ try{
   gridPersist=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));
   if(gridPersist!=="1")throw new Error(`WORLD GRID on did not persist: ${gridPersist}`);
 
-  await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(330,125,{steps:5});await page.mouse.up();
-  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))>8,{timeout:3000});
-  await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))<1,{timeout:3000});
   const lookBox=await page.$eval("#worldLookHud",element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});
   await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.82,lookBox.y+lookBox.h*.30,{steps:5});await page.mouse.up();
   await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))>8,{timeout:3000});
