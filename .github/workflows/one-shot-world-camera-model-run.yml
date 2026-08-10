@@ -1,0 +1,35 @@
+name: one-shot WORLD camera-model transaction
+
+on:
+  push:
+    branches: ["fix/world-fpv-camera-model"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/world-fpv-camera-model
+          fetch-depth: 0
+      - name: Apply and verify
+        run: |
+          set -euxo pipefail
+          python3 tools/apply_world_camera_model_patch.py
+          test "$(find .github/workflows -maxdepth 1 -type f | wc -l)" -eq 2
+          node --check sim/world_camera_math.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/simulator.mjs
+          node --check tests/real_world_ui_smoke.mjs
+          node --check tests/architecture_invariants.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Stabilize WORLD FPV camera projection"
+          git push origin HEAD:fix/world-fpv-camera-model
