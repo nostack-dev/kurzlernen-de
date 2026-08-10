@@ -64,6 +64,13 @@ try{
   if(external.length)throw new Error(`settings path triggered external network: ${JSON.stringify(external)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await page.click('.phone-settings-dialog [data-world-grid]');await page.click('.phone-settings-dialog [data-close]');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="0",{timeout:3000});
+  const gridOff=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOff!=="0")throw new Error(`WORLD GRID off did not persist: ${gridOff}`);
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await page.click('.phone-settings-dialog [data-world-grid]');await page.click('.phone-settings-dialog [data-close]');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="1",{timeout:3000});
+  const gridOn=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOn!=="1")throw new Error(`WORLD GRID on did not persist: ${gridOn}`);
+
   await page.click("#soloWorld");await waitWorld();
   const live=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{button:document.querySelector("#soloWorld")?.textContent||"",mode:v?.dataset.worldMode,provider:v?.dataset.worldProvider,map:Boolean(b?.map),renderer:Boolean(b?.threeRenderer),minimap:v?.dataset.worldMinimapMode,miniBearing:v?.dataset.worldMinimapBearing,legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,palette:Number(v?.dataset.worldPaletteLayers||0),canvasCount:document.querySelectorAll("#viewport canvas").length};});
   if(live.button!=="WORLD ✓"||live.mode!=="real"||live.provider!=="openfreemap"||!live.map||!live.renderer||live.minimap!=="north"||Number(live.miniBearing)!==0||live.legend==="none"||live.palette<1||live.canvasCount!==3)throw new Error(`WORLD live contract failed: ${JSON.stringify(live)}`);

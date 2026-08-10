@@ -115,7 +115,7 @@ class RealWorldBridge{
     hud.addEventListener("pointerdown",event=>{event.preventDefault();try{hud.setPointerCapture?.(event.pointerId);}catch{}this.minimapPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});if(this.minimapPointers.size===1){this.lookDragging=true;this.lookSnapping=false;this.lookPointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw:this.lookYawDeg,pitch:this.lookPitchDeg,moved:0};}else{this.minimapPinch={distance:Math.max(1,pointerDistance()),fov:this.viewFovDeg};this.lookDragging=false;this.lookPointer=null;}this.renderLookHud();},{passive:false});
     hud.addEventListener("pointermove",update,{passive:false});
     const release=event=>{if(!this.minimapPointers.has(event.pointerId))return;const wasPrimary=event.pointerId===this.lookPointer?.id,moved=this.lookPointer?.moved||0;this.minimapPointers.delete(event.pointerId);try{hud.releasePointerCapture?.(event.pointerId);}catch{}if(this.minimapPointers.size<2)this.minimapPinch=null;if(wasPrimary){this.lookDragging=false;this.lookPointer=null;if(!this.keepLookOrientation)this.lookSnapping=true;if(moved<8){const now=performance.now();if(now-this.lastMinimapTapMs<360)this.toggleMinimapExpanded();this.lastMinimapTapMs=now;}}this.renderLookHud();event.preventDefault();};
-    hud.addEventListener("pointerup",release,{passive:false});hud.addEventListener("pointercancel",release,{passive:false});hud.addEventListener("dblclick",event=>{event.preventDefault();this.toggleMinimapExpanded();});this.renderLookHud();
+    hud.addEventListener("pointerup",release,{passive:false});hud.addEventListener("pointercancel",release,{passive:false});this.renderLookHud();
   }
   installFreeLookSurface(){this.lookSurfaceInstalled=true;}
   renderLookHud(){
