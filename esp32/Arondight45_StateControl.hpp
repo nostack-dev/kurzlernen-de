@@ -8,9 +8,6 @@
 
 namespace fc {
 
-// GAME control is a state-vector feedback controller. Receiver channels are
-// decoded once into user intent; the outer loop then produces a physical Command
-// directly for fc::Runtime. No synthetic SBUS frames exist inside the controller.
 constexpr int kStateClearanceChannel = 5;
 constexpr int kStateModeChannel = 6;
 constexpr int kStateBodyPitchChannel = 7;
@@ -18,24 +15,18 @@ constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
 constexpr uint16_t kStateNavigationDegraded = 1u << 7;
 
-// Shared Production/HIL/WASM hard speed envelope. Phone GAME settings encode the
-// requested fraction into the existing translation-vector magnitude below this
-// ceiling; the physical outer loop still limits acceleration and tilt before the
-// one shared motor-authority path.
+// Shared Production/HIL/WASM velocity envelope. GAME phone settings encode a
+// fraction of this real velocity target; the FC remains the only authority that
+// turns velocity error into bounded acceleration, attitude and motor commands.
 constexpr float kStateMaxHorizontalSpeedMps = 15.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;
-// NAV1 represents AGL in uint16 millimetres (65.535 m wire ceiling).
-// Keep margin below that hardware boundary instead of inventing a wider protocol.
 constexpr float kStateMaxClearanceM = 50.00f;
 
 struct NavigationState {
     V3 velocity_world_mps{};
     float agl_m{};
-    // valid remains the aggregate/full-NAV indicator for source compatibility.
-    // Split fields let a real rangefinder disappear without throwing away an
-    // otherwise healthy velocity solution.
     bool valid{};
     bool velocity_valid{};
     bool agl_valid{};
@@ -44,16 +35,12 @@ struct NavigationState {
 inline bool navigation_velocity_valid(const NavigationState& n) {
     return (n.velocity_valid || n.valid) && finite(n.velocity_world_mps);
 }
-
 inline bool navigation_agl_valid(const NavigationState& n) {
-    return (n.agl_valid || n.valid) && std::isfinite(n.agl_m) &&
-           n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+    return (n.agl_valid || n.valid) && std::isfinite(n.agl_m) && n.agl_m >= 0.0f && n.agl_m < 1000.0f;
 }
-
 inline bool finite(const NavigationState& n) {
     return navigation_velocity_valid(n) && navigation_agl_valid(n);
 }
-
 inline float wrap_degrees(float value) {
     while (value > 180.0f) value -= 360.0f;
     while (value < -180.0f) value += 360.0f;
@@ -71,10 +58,8 @@ struct StateIntent {
 };
 
 inline StateIntent state_intent(const RC& rc) {
-    // Treat translation as one physical 2-D velocity vector. Radial shaping keeps
-    // the selected speed independent of heading: full forward and full diagonal
-    // both reach the same horizontal-speed envelope instead of diagonal becoming
-    // slower through per-axis expo.
+    // One radial 2-D velocity vector: stick direction is preserved and full stick
+    // has the same speed magnitude forward/backward/left/right/diagonal.
     float right = centered(rc.ch[FC_SBUS_ROLL]);
     float forward = centered(rc.ch[FC_SBUS_PITCH]);
     float magnitude = std::sqrt(forward * forward + right * right);
@@ -94,11 +79,7 @@ inline StateIntent state_intent(const RC& rc) {
     }
 
     const float clearance01 = throttle(rc.ch[kStateClearanceChannel]);
-    // GAME right-stick Y is a real aircraft-attitude input. Positive input is
-    // physical nose-up pitch in the same Euler convention reported by the FC.
-    const float body_pitch_deg =
-        shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) *
-        kStateMaxBodyPitchDeg;
+    const float body_pitch_deg = shape(centered(rc.ch[kStateBodyPitchChannel]), 0.045f, 0.20f) * kStateMaxBodyPitchDeg;
     return {
         right * kStateMaxHorizontalSpeedMps,
         forward * kStateMaxHorizontalSpeedMps,
@@ -135,13 +116,13 @@ public:
         active_ = false;
         target_yaw_deg_ = 0.0f;
         hover_trim_ = kInitialHoverThrottle;
-        reset_acceleration_estimator();
+        reset_horizontal_state();
         debug_ = {};
     }
 
     void leave_mode() {
         active_ = false;
-        reset_acceleration_estimator();
+        reset_horizontal_state();
         debug_ = {};
     }
 
@@ -160,12 +141,10 @@ public:
         const float c = std::cos(yaw_rad);
         const float s = std::sin(yaw_rad);
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
-        // Body forward is -X. With +Z up, physical body-right is forward × up,
-        // i.e. (-sin(yaw), +cos(yaw)). Keep GAME D/right in that real frame.
         const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;
 
         if (!inner_armed) {
-            reset_acceleration_estimator();
+            reset_horizontal_state();
             target_yaw_deg_ = wrap_degrees(yaw_deg);
             debug_ = {intent.forward_mps, measured_forward,
                       intent.right_mps, measured_right,
@@ -177,14 +156,9 @@ public:
         }
 
         update_acceleration_estimator(nav.velocity_world_mps, dt);
-        const float measured_forward_accel =
-            -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
-        const float measured_right_accel =
-            -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
+        const float measured_forward_accel = -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
+        const float measured_right_accel = -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
 
-        // AGL is a degradable aid, not an arming kill-switch. If the range source
-        // is unavailable in flight, command zero vertical speed from the still
-        // valid velocity solution. Never fabricate a ground distance.
         const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
         const float target_vz = agl_valid
             ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
@@ -196,34 +170,40 @@ public:
         const float specific_up = clamp(kGravityMps2 + vertical_accel,
                                         kMinSpecificUpMps2, kMaxSpecificUpMps2);
 
-        float forward_accel =
-            kHorizontalVelocityGain * (intent.forward_mps - measured_forward) -
-            kHorizontalAccelerationDamping * measured_forward_accel;
-        float right_accel =
-            kHorizontalVelocityGain * (intent.right_mps - measured_right) -
-            kHorizontalAccelerationDamping * measured_right_accel;
+        const float forward_error = intent.forward_mps - measured_forward;
+        const float right_error = intent.right_mps - measured_right;
+        const float forward_unsat = kHorizontalVelocityGain * forward_error + horizontal_integral_forward_mps2_ -
+                                    kHorizontalAccelerationDamping * measured_forward_accel;
+        const float right_unsat = kHorizontalVelocityGain * right_error + horizontal_integral_right_mps2_ -
+                                  kHorizontalAccelerationDamping * measured_right_accel;
 
-        const float horizontal_accel = std::sqrt(forward_accel * forward_accel +
-                                                 right_accel * right_accel);
+        float forward_accel = forward_unsat;
+        float right_accel = right_unsat;
         const float allowed_horizontal_accel = std::min(kMaxHorizontalAccelerationMps2,
                                                         specific_up * kMaxTiltTangent);
+        const float horizontal_accel = std::sqrt(forward_accel * forward_accel + right_accel * right_accel);
         if (horizontal_accel > allowed_horizontal_accel && horizontal_accel > 1.0e-6f) {
             const float vector_scale = allowed_horizontal_accel / horizontal_accel;
             forward_accel *= vector_scale;
             right_accel *= vector_scale;
         }
 
-        const float auto_pitch_target_deg =
-            -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
-        // The right-stick body-pitch request is an actual attitude bias, added at
-        // the physical attitude-target layer. Left-stick forward/reverse remains
-        // the velocity-state request; the two inputs combine at the one real pitch
-        // degree of freedom instead of abusing camera state or simulator truth.
+        // PI+D velocity loop with back-calculation anti-windup. The integral term
+        // supplies the sustained acceleration needed to cancel aerodynamic drag,
+        // so a km/h setting is a true steady-state velocity target rather than a
+        // proportional hint that necessarily settles slow. Acceleration/tilt are
+        // still hard-bounded below, and the integrator itself is vector-clamped.
+        horizontal_integral_forward_mps2_ +=
+            (kHorizontalIntegralGain * forward_error +
+             kHorizontalAntiWindupGain * (forward_accel - forward_unsat)) * dt;
+        horizontal_integral_right_mps2_ +=
+            (kHorizontalIntegralGain * right_error +
+             kHorizontalAntiWindupGain * (right_accel - right_unsat)) * dt;
+        clamp_horizontal_integral();
+
+        const float auto_pitch_target_deg = -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
         const float pitch_target_deg = clamp(auto_pitch_target_deg + intent.body_pitch_deg,
                                              -kMaxTiltDeg, kMaxTiltDeg);
-        // Positive Euler roll is about body +X, which points toward the tail because
-        // this airframe's nose is -X. A physical rightward (+body-Y) acceleration
-        // therefore requires negative roll.
         const float roll_target_deg = -std::atan2(
             right_accel, std::sqrt(specific_up * specific_up + forward_accel * forward_accel)) *
             180.0f / kPi;
@@ -241,13 +221,9 @@ public:
             hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                                 kMinHoverTrim, kMaxHoverTrim);
         }
-        // Compensate thrust from the final commanded body attitude, including the
-        // manual pitch bias. This keeps AGL control physical instead of letting a
-        // body-pitch command masquerade as an altitude loss in the outer loop.
         const float roll_rad = roll_target_deg * kPi / 180.0f;
         const float pitch_rad = pitch_target_deg * kPi / 180.0f;
-        const float vertical_thrust_fraction =
-            std::max(0.35f, std::cos(roll_rad) * std::cos(pitch_rad));
+        const float vertical_thrust_fraction = std::max(0.35f, std::cos(roll_rad) * std::cos(pitch_rad));
         const float required_specific_force = specific_up / vertical_thrust_fraction;
         const float thrust_ratio = required_specific_force / kGravityMps2;
         const float hover_motor_command = kEscCommandOffset + kEscCommandScale * hover_trim_;
@@ -266,10 +242,6 @@ public:
         return sanitize(Command{roll_command, pitch_command, throttle_command, yaw_command, intent.arm});
     }
 
-    // Full navigation can disappear while IMU and pilot control remain healthy.
-    // This fallback deliberately uses no invented position/velocity/height: it
-    // maps GAME sticks to bounded attitude/rate commands and the learned physical
-    // hover trim, leaving the shared inner FC as the sole motor authority.
     Command degraded_attitude_command(const RC& receiver) const {
         const StateIntent intent = state_intent(receiver);
         const float right_unit = clamp(intent.right_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
@@ -283,8 +255,7 @@ public:
         const float pitch_command = clamp(pitch_target_deg / kInnerAttitudeRangeDeg,
                                           -kMaxAttitudeCommand, kMaxAttitudeCommand);
         const float vertical_fraction = std::max(0.50f,
-            std::cos(roll_target_deg * kPi / 180.0f) *
-            std::cos(pitch_target_deg * kPi / 180.0f));
+            std::cos(roll_target_deg * kPi / 180.0f) * std::cos(pitch_target_deg * kPi / 180.0f));
         const float hover_motor_command = kEscCommandOffset + kEscCommandScale * hover_trim_;
         const float required_motor_command = hover_motor_command / std::sqrt(vertical_fraction);
         const float throttle_command = clamp(
@@ -306,17 +277,13 @@ private:
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
 
-    // Preserve the previously validated small-signal velocity loop gain. The
-    // responsiveness change comes only from removing the old 2 m/s^2 authority
-    // bottleneck, so simulator and hardware run the same controller without an
-    // unmeasured gain change hidden inside the tuning pass.
     static constexpr float kHorizontalVelocityGain = 0.80f;
+    static constexpr float kHorizontalIntegralGain = 0.55f;
+    static constexpr float kHorizontalAntiWindupGain = 2.50f;
+    static constexpr float kHorizontalIntegralLimitMps2 = 4.0f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    // 25 deg permits g*tan(25 deg) ~= 4.57 m/s^2 at level hover. Keep margin for
-    // thrust reserve, battery sag and attitude tracking instead of commanding the
-    // geometric limit itself. This is a controller envelope, not simulated force.
     static constexpr float kMaxHorizontalAccelerationMps2 = 4.0f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;
@@ -339,11 +306,23 @@ private:
     static constexpr float kMinFlightThrottle = 0.08f;
     static constexpr float kMaxFlightThrottle = 0.85f;
 
-    void reset_acceleration_estimator() {
+    void reset_horizontal_state() {
         acceleration_estimator_valid_ = false;
         acceleration_sample_dt_s_ = 0.0f;
         previous_velocity_world_mps_ = {};
         measured_acceleration_world_mps2_ = {};
+        horizontal_integral_forward_mps2_ = 0.0f;
+        horizontal_integral_right_mps2_ = 0.0f;
+    }
+
+    void clamp_horizontal_integral() {
+        const float magnitude = std::sqrt(horizontal_integral_forward_mps2_ * horizontal_integral_forward_mps2_ +
+                                          horizontal_integral_right_mps2_ * horizontal_integral_right_mps2_);
+        if (magnitude > kHorizontalIntegralLimitMps2 && magnitude > 1.0e-6f) {
+            const float scale = kHorizontalIntegralLimitMps2 / magnitude;
+            horizontal_integral_forward_mps2_ *= scale;
+            horizontal_integral_right_mps2_ *= scale;
+        }
     }
 
     void update_acceleration_estimator(V3 velocity_world_mps, float dt) {
@@ -358,8 +337,7 @@ private:
         const float dx = velocity_world_mps.x - previous_velocity_world_mps_.x;
         const float dy = velocity_world_mps.y - previous_velocity_world_mps_.y;
         const float dz = velocity_world_mps.z - previous_velocity_world_mps_.z;
-        if (dx * dx + dy * dy + dz * dz < 1.0e-10f || acceleration_sample_dt_s_ < 0.002f)
-            return;
+        if (dx * dx + dy * dy + dz * dz < 1.0e-10f || acceleration_sample_dt_s_ < 0.002f) return;
 
         const float sample_dt = acceleration_sample_dt_s_;
         const float inv_dt = 1.0f / sample_dt;
@@ -373,14 +351,10 @@ private:
             return;
         }
 
-        const float alpha = clamp(sample_dt / (kMeasuredAccelerationFilterTauS + sample_dt),
-                                  0.0f, 1.0f);
-        measured_acceleration_world_mps2_.x +=
-            alpha * (sample.x - measured_acceleration_world_mps2_.x);
-        measured_acceleration_world_mps2_.y +=
-            alpha * (sample.y - measured_acceleration_world_mps2_.y);
-        measured_acceleration_world_mps2_.z +=
-            alpha * (sample.z - measured_acceleration_world_mps2_.z);
+        const float alpha = clamp(sample_dt / (kMeasuredAccelerationFilterTauS + sample_dt), 0.0f, 1.0f);
+        measured_acceleration_world_mps2_.x += alpha * (sample.x - measured_acceleration_world_mps2_.x);
+        measured_acceleration_world_mps2_.y += alpha * (sample.y - measured_acceleration_world_mps2_.y);
+        measured_acceleration_world_mps2_.z += alpha * (sample.z - measured_acceleration_world_mps2_.z);
     }
 
     bool active_{};
@@ -388,6 +362,8 @@ private:
     float acceleration_sample_dt_s_{};
     V3 previous_velocity_world_mps_{};
     V3 measured_acceleration_world_mps2_{};
+    float horizontal_integral_forward_mps2_{};
+    float horizontal_integral_right_mps2_{};
     float target_yaw_deg_{};
     float hover_trim_{kInitialHoverThrottle};
     StateControllerDebug debug_{};
@@ -422,8 +398,6 @@ public:
         game_active_ = true;
         const bool receiver_valid = input.flight.rc.valid && input.flight.rc_fresh;
         if (!receiver_valid) {
-            // Real control-link loss remains a hard fail-safe. Navigation loss is
-            // handled separately below and must never masquerade as RC loss.
             state_controller_.leave_mode();
             RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
             out.state |= kStateGameMode;
@@ -436,9 +410,6 @@ public:
         const bool full_navigation = velocity_valid && agl_valid;
 
         if (!runtime_.armed() && !full_navigation) {
-            // Arming still requires the complete navigation contract. command_valid
-            // stays false so an ARM-high request cannot satisfy the low-before-arm
-            // latch while sensors are degraded.
             state_controller_.leave_mode();
             RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
             out.state |= kStateGameMode | kStateNavigationDegraded;
@@ -454,9 +425,6 @@ public:
             physical_command = state_controller_.run(
                 input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt, agl_valid);
         } else {
-            // Complete nav loss while already flying degrades to bounded IMU
-            // attitude/rate control plus learned hover trim. No position, velocity
-            // or terrain value is invented.
             state_controller_.leave_mode();
             physical_command = state_controller_.degraded_attitude_command(input.flight.rc);
         }
