@@ -9,14 +9,14 @@ permissions:
 
 jobs:
   patch-test-commit:
-    if: github.event.head_commit.message != 'Wire final flight observer and presentation UX'
+    if: github.event.head_commit.message != 'Update final flight safety and UX regression gates'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/final-flight-safety-ux
           fetch-depth: 0
-      - name: Wire logbook fire feedback degraded HUD and P2P safety
+      - name: Update permanent regression gates
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -24,145 +24,121 @@ jobs:
           def one(path,old,new,label):
               p=Path(path);s=p.read_text();n=s.count(old);assert n==1,f'{label}: {n}';p.write_text(s.replace(old,new,1))
 
-          one('sim/simulator.mjs',
-          '''import {HybridMotorSound} from "./motor_sound.mjs";
+          # WORLD browser contract.
+          one('tests/real_world_ui_smoke.mjs',
+          '''if(!bootstrapSource.includes('fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)')||!bootstrapSource.includes('setVerticalFieldOfView(verticalFov)')||!bootstrapSource.includes('elevation:fpv?target.z:0'))throw new Error("WORLD FPV stable 3D camera model missing");''',
+          '''if(!bootstrapSource.includes('fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)')||!bootstrapSource.includes('setVerticalFieldOfView(verticalFov)')||!bootstrapSource.includes('calculateCameraOptionsFromTo(eye,p.z,aim,target.z)'))throw new Error("WORLD FPV exact-eye 3D camera model missing");''','WORLD static camera gate')
+          one('tests/real_world_ui_smoke.mjs',
+          '''    minimapFollow:document.querySelector('.phone-settings-dialog [data-world-minimap-follow]')?.checked,
+          ''','', 'remove minimap setting field')
+          one('tests/real_world_ui_smoke.mjs',
+          '''if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||config.minimapFollow!==true||!config.note.includes("No account, API key, billing setup, backend or proxy"))''',
+          '''if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||document.querySelector('.phone-settings-dialog [data-world-minimap-follow]')||!config.note.includes("No account, API key, billing setup, backend or proxy"))''','settings expectation')
+          one('tests/real_world_ui_smoke.mjs',
+          '''      syncMode:viewport?.dataset.worldMapSyncMode||""
           ''',
-          '''import {HybridMotorSound} from "./motor_sound.mjs";
-          import {FlightLogbook} from "./flight_logbook.mjs";
-          import {installPresentationFire} from "./presentation_fire.mjs";
-          ''','sim imports')
+          '''      syncMode:viewport?.dataset.worldMapSyncMode||"",eyeElevation:viewport?.dataset.worldMapEyeElevation||""
+          ''','camera snapshot eye')
+          one('tests/real_world_ui_smoke.mjs',
+          '''minimapMode:viewport?.dataset.worldMinimapMode||"",minimapFollow:viewport?.dataset.worldMinimapFollow||"",legend:''',
+          '''minimapMode:viewport?.dataset.worldMinimapMode||"",minimapExpanded:viewport?.dataset.worldMinimapExpanded||"",legend:''','live minimap fields')
+          one('tests/real_world_ui_smoke.mjs',
+          '''live.minimapCanvas||live.minimapMode!=="camera"||live.minimapFollow!=="1"||live.legend==="none"''',
+          '''live.minimapCanvas||live.minimapMode!=="north"||live.minimapExpanded!=="0"||live.legend==="none"''','live north-up expectation')
+          one('tests/real_world_ui_smoke.mjs',
+          '''miniFixture.mode!=="camera"''',
+          '''miniFixture.mode!=="north"''','fixture north-up')
 
-          one('sim/simulator.mjs',
-          '''mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
-          async function enterSolo(){
-          ''',
-          '''mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
-          const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});
-          const presentationRaycaster=new THREE.Raycaster(),presentationPointer=new THREE.Vector2();
-          function trainingPresentationHit({x,y}){
-            const viewport=$("viewport"),rect=viewport.getBoundingClientRect();if(!(rect.width>0&&rect.height>0))return false;
-            presentationPointer.set(x/rect.width*2-1,-(y/rect.height*2-1));presentationRaycaster.setFromCamera(presentationPointer,camera);
-            const hit=presentationRaycaster.intersectObject(groundMesh,false)[0];if(!hit)return false;
-            const material=new THREE.MeshBasicMaterial({color:0x65ffa8,transparent:true,opacity:.82,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}),decal=new THREE.Mesh(new THREE.RingGeometry(.035,.065,14),material);decal.position.copy(hit.point);decal.position.z+=.004;decal.renderOrder=30;scene.add(decal);const started=performance.now();
-            const fade=now=>{const t=(now-started)/900;if(t>=1){scene.remove(decal);decal.geometry.dispose();material.dispose();return;}material.opacity=.82*(1-t);decal.scale.setScalar(1+t*.9);requestAnimationFrame(fade);};requestAnimationFrame(fade);return true;
-          }
-          const presentationFire=installPresentationFire({viewport:$("viewport"),onShot:shot=>{if(globalThis.__arondightRealWorld?.active)globalThis.__arondightRealWorld.presentationHit?.(shot);else trainingPresentationHit(shot);}});
-          Object.defineProperty(globalThis,"__arondightPresentationFire",{value:presentationFire,writable:false,configurable:false});
-          async function enterSolo(){
-          ''','wire observer/presentation')
-
-          one('sim/simulator.mjs',
-          '''function resetSimulation(initial=null){
-            phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
-            physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
-          ''',
-          '''function resetSimulation(initial=null){
-            if(flightLogbook.active)flightLogbook.finish("SIM_RESET");
-            phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
-            physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];flightLogAuxTicks=0;
-          ''','reset logbook/nav')
-
-          one('sim/simulator.mjs',
-          '''function recordSession(){
-            const state=physics.state();
-            sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
-          }
-          let simulationBacklogMs=0;
-          ''',
-          '''function recordSession(){
-            const state=physics.state();
-            sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
-          }
-          function flightLogSample(){
-            const state=physics.state(),fcState=latest.state,fault=fcState>>8&255,remoteMissing=inputSource==="remote"&&!remoteLink.current();let disarmReason="FC_DISARM";if(fault)disarmReason=`FAULT_${fault}`;else if(!arm)disarmReason="ARM_OFF";else if(remoteMissing)disarmReason="CONTROL_LOSS";
-            const bridge=globalThis.__arondightRealWorld;return{simTime,x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,speed:state.speed,yawDeg:state.attitude[2],agl:latestNavigation.agl,aglValid:latestNavigation.aglValid!==false,batteryV:state.battery_v,armed:Boolean(fcState&STATE_ARMED),navDegraded:Boolean(fcState&STATE_NAVIGATION_DEGRADED),worldMode:bridge?.active?"real":"training",worldOrigin:bridge?.active&&Number.isFinite(bridge.originLat)&&Number.isFinite(bridge.originLon)?{lat:bridge.originLat,lon:bridge.originLon}:null,disarmReason};
-          }
-          let flightLogAuxTicks=0,simulationBacklogMs=0;
-          ''','logbook sampling')
-
-          one('sim/simulator.mjs',
-          '''if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
-          ''',
-          '''if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();if(++flightLogAuxTicks>=10){flightLogAuxTicks=0;flightLogbook.observe(flightLogSample());}}
-          ''','observe logbook')
-
-          one('sim/simulator.mjs',
-          '''remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});''',
-          '''remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),navigation_degraded:Boolean(fcState&STATE_NAVIGATION_DEGRADED),navigation_velocity_valid:latestNavigation.velocityValid!==false,navigation_agl_valid:latestNavigation.aglValid!==false,target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});''','remote degraded telemetry')
-
-          old='''$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";'''
-          new='''$("soloState").textContent=stateText;const navDegraded=Boolean(fcState&STATE_NAVIGATION_DEGRADED),aglOk=latestNavigation.aglValid!==false;$("soloAlt").textContent=`AGL ${aglOk?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=aglOk?`AGL ${latestNavigation.agl.toFixed(1)} m`:navDegraded?"NAV DEGRADED · AGL LOST":"NAV INVALID";soloRangeStatus.style.color=aglOk?"#64e0ae":"#ffd06d";'''
-          one('sim/simulator.mjs',old,new,'solo degraded HUD')
-
-          # Controller: telemetry can remain useful with AGL degraded; transient link states must not synthesize ARM-low.
-          one('sim/controller.mjs',
-          '''function measuredGameState(){
-            const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m);
-            if(lastTelemetry.navigation_valid!==true||![vx,vy,vz,yaw,agl].every(Number.isFinite))return{valid:false};
-            const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
-            return{valid:true,forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
-          }
-          ''',
-          '''function measuredGameState(){
-            const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m),velocityValid=lastTelemetry.navigation_velocity_valid??lastTelemetry.navigation_valid,aglValid=lastTelemetry.navigation_agl_valid??lastTelemetry.navigation_valid;
-            if(velocityValid!==true||![vx,vy,vz,yaw].every(Number.isFinite))return{valid:false,aglValid:false};
-            const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
-            return{valid:true,aglValid:aglValid===true&&Number.isFinite(agl),forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
-          }
-          ''','controller split nav')
-          one('sim/controller.mjs',
-          '''  ui.gameSensorStatus.textContent=`AGL ${nav.agl.toFixed(1)} m`;
-            ui.gameSensorStatus.style.color="#64e0ae";
-          ''',
-          '''  ui.gameSensorStatus.textContent=nav.aglValid?`AGL ${nav.agl.toFixed(1)} m`:"NAV DEGRADED · AGL LOST";
-            ui.gameSensorStatus.style.color=nav.aglValid?"#64e0ae":"#ffd06d";
-          ''','controller degraded label')
-          one('sim/controller.mjs',
-          '''  ui.gameClearance.dataset.aglM=String(nav.agl);
-          ''',
-          '''  if(nav.aglValid)ui.gameClearance.dataset.aglM=String(nav.agl);else delete ui.gameClearance.dataset.aglM;
-          ''','controller AGL dataset')
-          one('sim/controller.mjs',
-          '''peer.onState=()=>{updateConnection();if(!peer.linked)safetyNeutral(false);};
-          ''',
-          '''// A transient WebRTC state change must not synthesize ARM-low. The VIEW-side
-          // 350ms control freshness contract remains the authoritative real link-loss failsafe.
-          peer.onState=()=>{updateConnection();};
-          ''','controller transient P2P')
-
-          one('sim/control_settings.mjs','''    <h3>PHONE CONTROLS</h3>''','''    <h3>FLIGHT CONTROLS</h3>''','settings heading')
-
-          # WORLD presentation-only map-anchored fading acknowledgement.
-          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
-          s=s.replace('''import {Map as MapLibreMap} from "maplibre-gl";''','''import {Map as MapLibreMap,Marker} from "maplibre-gl";''',1)
-          anchor='''  status(text,kind=""){const el=$("realWorldStatus");if(!el)return;el.textContent=text;el.className=`statusline ${kind}`;}
+          old='''  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapMode==="north",{timeout:3000});const northMini=await page.$eval("#viewport",e=>Number(e.dataset.worldMinimapBearing||99));if(Math.abs(northMini)>.01)throw new Error(`north-up mini-map failed: ${northMini}`);
+            await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");
           '''
-          assert s.count(anchor)==1,'WORLD status anchor'
-          method='''  presentationHit({x,y}={}){
-              if(!this.active||!this.map||!this.geoContainer)return false;const rect=$("viewport")?.getBoundingClientRect();if(!rect)return false;const point=[clamp(Number(x)||0,0,rect.width),clamp(Number(y)||0,0,rect.height)];let lngLat;try{lngLat=this.map.unproject(point);}catch{return false;}
-              const element=document.createElement("div");element.className="world-presentation-hit";Object.assign(element.style,{width:"9px",height:"9px",borderRadius:"50%",border:"1px solid #d9ffe8",background:"#62ffa6",boxShadow:"0 0 9px #44ff99",opacity:".9",transition:"opacity .8s ease,transform .8s ease",pointerEvents:"none"});const marker=new Marker({element,anchor:"center"}).setLngLat(lngLat).addTo(this.map);requestAnimationFrame(()=>{element.style.opacity="0";element.style.transform="scale(2.1)";});setTimeout(()=>marker.remove(),850);const viewport=$("viewport");if(viewport)viewport.dataset.worldPresentationHits=String((Number(viewport.dataset.worldPresentationHits)||0)+1);return true;
-            }
+          new='''  const northMini=await page.$eval("#viewport",e=>({mode:e.dataset.worldMinimapMode||"",bearing:Number(e.dataset.worldMinimapBearing||99)}));if(northMini.mode!=="north"||Math.abs(northMini.bearing)>.01)throw new Error(`north-up mini-map failed: ${JSON.stringify(northMini)}`);
+            const initialFov=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}").fpvFovDeg||105);
+            const pinchResult=await page.$eval("#worldLookHud",(hud,initial)=>{hud.setPointerCapture=()=>{};const fire=(type,id,x,y)=>hud.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",button:0,clientX:x,clientY:y}));const r=hud.getBoundingClientRect(),cy=r.top+r.height/2;fire("pointerdown",41,r.left+35,cy);fire("pointerdown",42,r.right-35,cy);fire("pointermove",42,r.right-5,cy);fire("pointerup",42,r.right-5,cy);fire("pointerup",41,r.left+35,cy);return{before:initial,after:JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}").fpvFovDeg};},initialFov);
+            if(!Number.isFinite(pinchResult.after)||Math.abs(pinchResult.after-pinchResult.before)<2)throw new Error(`minimap pinch did not change shared FOV: ${JSON.stringify(pinchResult)}`);
+            await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});const syncedFov=await page.$eval('.phone-settings-dialog [data-camera-slider="fov"]',e=>Number(e.value));await page.click('.phone-settings-dialog [data-close]');if(Math.abs(syncedFov-pinchResult.after)>.01)throw new Error(`settings FOV did not synchronize with minimap pinch: ${JSON.stringify({syncedFov,pinchResult})}`);
+            await page.$eval("#worldLookHud",hud=>hud.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true})));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapExpanded==="1",{timeout:2000});await page.$eval("#worldLookHud",hud=>hud.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true})));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapExpanded==="0",{timeout:2000});
           '''
-          s=s.replace(anchor,method+anchor,1);p.write_text(s)
+          one('tests/real_world_ui_smoke.mjs',old,new,'replace minimap-follow interaction')
+
+          one('tests/real_world_ui_smoke.mjs',
+          '''if(fpv.syncMode!=="rigid-3d-target"||!Number.isFinite(Number(fpv.targetElevation)))throw new Error(`FPV WORLD camera did not use stable elevated 3D target: ${JSON.stringify(fpv)}`);''',
+          '''if(fpv.syncMode!=="exact-eye-to-target"||!Number.isFinite(Number(fpv.targetElevation))||!Number.isFinite(Number(fpv.eyeElevation)))throw new Error(`FPV WORLD camera did not use exact eye-to-target pose: ${JSON.stringify(fpv)}`);''','FPV exact-eye expectation')
+          one('tests/real_world_ui_smoke.mjs',
+          '''if(fpvSyncEnd.mode!=="rigid-3d-target"||fpvMapDelta<fpvFrameDelta-1)''',
+          '''if(fpvSyncEnd.mode!=="exact-eye-to-target"||fpvMapDelta<fpvFrameDelta-1)''','FPV frame lock mode')
+          old='''  const fpvLookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(350,120,{steps:5});await page.mouse.up();await new Promise(resolve=>setTimeout(resolve,180));const fpvLookAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));if(Math.abs(fpvLookAfter-fpvLookBefore)>.1)throw new Error(`rigid FPV was virtually panned: ${JSON.stringify({fpvLookBefore,fpvLookAfter})}`);
+          '''
+          new='''  const fpvEyeProbe=await page.evaluate(()=>{const bridge=globalThis.__arondightRealWorld,cam=bridge.threeCamera,viewport=document.querySelector("#viewport"),saved=cam.position.clone();cam.position.z=5;bridge.syncMapCamera(cam);const five=Number(viewport.dataset.worldMapEyeElevation);cam.position.z=50;bridge.syncMapCamera(cam);const fifty=Number(viewport.dataset.worldMapEyeElevation);cam.position.copy(saved);return{five,fifty};});if(Math.abs(fpvEyeProbe.five-5)>.02||Math.abs(fpvEyeProbe.fifty-50)>.02)throw new Error(`FPV eye altitude was reconstructed instead of preserved: ${JSON.stringify(fpvEyeProbe)}`);
+            const shotsBefore=await page.$eval("#viewport",e=>Number(e.dataset.presentationShots||0));await page.mouse.click(250,220);await page.waitForFunction(before=>Number(document.querySelector("#viewport")?.dataset.presentationShots||0)>before,{timeout:2000},shotsBefore);const lookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.80,lookBox.y+lookBox.h*.30,{steps:5});await page.mouse.up();await page.waitForFunction(before=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0)-before)>8,{timeout:3000},lookBefore);
+          '''
+          one('tests/real_world_ui_smoke.mjs',old,new,'FPV unified look and fire')
+          one('tests/real_world_ui_smoke.mjs',
+          '''adaptive 15/20/30Hz FOLLOW/THIRD map budget, rigid elevated FPV camera target, semantic depth palette''',
+          '''adaptive FOLLOW/THIRD map budget, exact-eye FPV pose, NORTH-UP expandable minimap with shared FOV, presentation-only viewport fire acknowledgement, semantic depth palette''','WORLD success text')
+
+          # Forward/strafe physical comparison must start each axis from rest and use identical stick magnitude.
+          one('tests/dual_phone_smoke.mjs',
+          '''return Math.abs(pitch)<2.0&&speed<.55;''',
+          '''return Math.abs(pitch)<2.0&&speed<.12;''','neutral speed gate')
+          one('tests/dual_phone_smoke.mjs',
+          '''recovered.speed>=.55''',
+          '''recovered.speed>=.12''','neutral recovered assertion')
+          one('tests/dual_phone_smoke.mjs',
+          '''await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
+            const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);const moving=await liveMotion(view,controller);''',
+          '''const forwardBaseline=await liveMotion(view,controller);await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.70,{steps:5});
+            const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);const moving=await liveMotion(view,controller);''','equal forward command')
+          one('tests/dual_phone_smoke.mjs',
+          '''await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
+            const strafeStart=await simTime(view);''',
+          '''await view.waitForFunction(()=>parseFloat(document.querySelector("#velocity")?.textContent||"99")<.12,{timeout:90000});const strafeBaseline=await liveMotion(view,controller);await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.70,lcy,{steps:5});
+            const strafeStart=await simTime(view);''','equal strafe command')
+          one('tests/dual_phone_smoke.mjs',
+          '''if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);
+            await controller.mouse.up();''',
+          '''if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);const forwardGain=moving.forward-forwardBaseline.forward,strafeGain=strafing.right-strafeBaseline.right,axisRatio=Math.min(Math.abs(forwardGain),Math.abs(strafeGain))/Math.max(Math.abs(forwardGain),Math.abs(strafeGain));console.log(`Equal-axis response: forward Δ=${forwardGain.toFixed(3)} m/s · strafe Δ=${strafeGain.toFixed(3)} m/s · ratio=${axisRatio.toFixed(3)}`);if(axisRatio<.65)throw new Error(`equal physical stick commands are materially axis-asymmetric: ${JSON.stringify({forwardBaseline,moving,strafeBaseline,strafing,forwardGain,strafeGain,axisRatio})}`);
+            await controller.mouse.up();''','axis response invariant')
+
+          # Architecture invariants reflect new safety and presentation separation.
+          one('tests/architecture_invariants.mjs','''requireText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA");''','''forbidText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA");''','remove minimap toggle invariant')
+          old='''for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\\"sky-color\\":\\"#071b2e\\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","elevation:fpv?target.z:0","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_FOLLOW_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);'''
+          new='''for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\\"sky-color\\":\\"#071b2e\\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","calculateCameraOptionsFromTo(eye,p.z,aim,target.z)","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode=\\"north\\"","toggleMinimapExpanded()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);'''
+          one('tests/architecture_invariants.mjs',old,new,'WORLD architecture markers')
+          one('tests/architecture_invariants.mjs',
+          '''forbidText("sim/real_world_bootstrap.mjs",'if(mode==="fpv"){const qYaw',"WORLD must never virtually pan rigid FPV optics");''',
+          '''requireText("sim/real_world_bootstrap.mjs","One orientation-only look transform for FOLLOW, THIRD and FPV");''','unified look invariant')
+          insert='''
+          requireText("esp32/Arondight45_StateControl.hpp","kStateNavigationDegraded = 1u << 7");
+          requireText("esp32/Arondight45_StateControl.hpp","Full NAV is required to enter flight");
+          requireText("esp32/Arondight45_StateControl.hpp","NAV loss while airborne");
+          requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationSplitValidity = 1u << 15");
+          requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationVelocityValid = 1u << 1");
+          requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationAglValid = 1u << 2");
+          requireText("sim/simulator.mjs","PHYSICS_GROUND_HALF = 10000");
+          requireText("sim/simulator.mjs","FlightLogbook");
+          requireText("sim/simulator.mjs","installPresentationFire");
+          requireText("sim/presentation_fire.mjs","-webkit-touch-callout:none");
+          requireText("sim/presentation_fire.mjs","document.body.classList.contains(\"solo-flight\")");
+          for(const dirty of ["PhysicsModel","StateController","motorOmega","physics.step","backend.exchange","applyForces("])forbidText("sim/presentation_fire.mjs",dirty,`presentation fire crossed flight authority boundary: ${dirty}`);
+          requireText("sim/flight_logbook.mjs","Logging is observer-only");
+          for(const dirty of ["PhysicsModel","StateController","motorOmega","physics.step","backend.exchange","applyForces("])forbidText("sim/flight_logbook.mjs",dirty,`flight logbook crossed flight authority boundary: ${dirty}`);
+          forbidText("sim/controller.mjs","if(!peer.linked)safetyNeutral(false)","transient WebRTC state must not synthesize ARM-low");
+          requireText("sim/p2p_link.mjs",'["failed","closed"].includes(this.pc.connectionState)');
+          '''
+          anchor='''requireText("tools/s31_hil_bridge.mjs",'pathname!=="/hil"');'''
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text();assert s.count(anchor)==1;s=s.replace(anchor,insert+'\n'+anchor,1);p.write_text(s)
           PY
-          node --check sim/simulator.mjs
-          node --check sim/controller.mjs
-          node --check sim/control_settings.mjs
-          node --check sim/real_world_bootstrap.mjs
-          node --check sim/flight_logbook.mjs
-          node --check sim/presentation_fire.mjs
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
-          /tmp/state_control_test
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/drone_hil_protocol_test
-          /tmp/drone_hil_protocol_test
-          grep -q 'NAV DEGRADED · AGL LOST' sim/simulator.mjs
-          grep -q 'presentationHit' sim/real_world_bootstrap.mjs
-          grep -q 'FlightLogbook' sim/simulator.mjs
-          grep -q 'installPresentationFire' sim/simulator.mjs
-          ! grep -q 'if(!peer.linked)safetyNeutral' sim/controller.mjs
+          node --check tests/real_world_ui_smoke.mjs
+          node --check tests/dual_phone_smoke.mjs
+          node --check tests/architecture_invariants.mjs
+          # Remove this one-shot file only in the validation worktree so the permanent two-workflow invariant can run.
+          rm .github/workflows/one-shot-final-flight-safety-ux.yml
+          node tests/architecture_invariants.mjs
           git diff --check
+          git checkout -- .github/workflows/one-shot-final-flight-safety-ux.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sim/simulator.mjs sim/controller.mjs sim/control_settings.mjs sim/real_world_bootstrap.mjs
-          git commit -m 'Wire final flight observer and presentation UX'
+          git add tests/real_world_ui_smoke.mjs tests/dual_phone_smoke.mjs tests/architecture_invariants.mjs
+          git commit -m 'Update final flight safety and UX regression gates'
           git push origin HEAD:fix/final-flight-safety-ux
