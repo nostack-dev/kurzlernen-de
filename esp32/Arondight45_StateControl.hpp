@@ -174,6 +174,19 @@ public:
 
         const float forward_error = intent.forward_mps - measured_forward;
         const float right_error = intent.right_mps - measured_right;
+        const float target_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                                        intent.right_mps * intent.right_mps);
+        // The I term is drag compensation for a non-zero cruise target. It must
+        // never become stored propulsion after the pilot releases translation.
+        // Neutral means an immediate zero-velocity target, so clear the cruise
+        // compensation before computing the braking acceleration. The P/D path
+        // then commands counter-tilt immediately, still under the same 4 m/s² and
+        // 25° physical envelopes.
+        if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {
+            horizontal_integral_forward_mps2_ = 0.0f;
+            horizontal_integral_right_mps2_ = 0.0f;
+        }
+
         // Architecture marker retained deliberately: the P term still is exactly
         // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)
         // and kHorizontalVelocityGain * (intent.right_mps - measured_right),
@@ -199,13 +212,15 @@ public:
         // so a km/h setting is a true steady-state velocity target rather than a
         // proportional hint that necessarily settles slow. Acceleration/tilt are
         // still hard-bounded below, and the integrator itself is vector-clamped.
-        horizontal_integral_forward_mps2_ +=
-            (kHorizontalIntegralGain * forward_error +
-             kHorizontalAntiWindupGain * (forward_accel - forward_unsat)) * dt;
-        horizontal_integral_right_mps2_ +=
-            (kHorizontalIntegralGain * right_error +
-             kHorizontalAntiWindupGain * (right_accel - right_unsat)) * dt;
-        clamp_horizontal_integral();
+        if (target_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {
+            horizontal_integral_forward_mps2_ +=
+                (kHorizontalIntegralGain * forward_error +
+                 kHorizontalAntiWindupGain * (forward_accel - forward_unsat)) * dt;
+            horizontal_integral_right_mps2_ +=
+                (kHorizontalIntegralGain * right_error +
+                 kHorizontalAntiWindupGain * (right_accel - right_unsat)) * dt;
+            clamp_horizontal_integral();
+        }
 
         const float auto_pitch_target_deg = -std::atan2(forward_accel, specific_up) * 180.0f / kPi;
         const float pitch_target_deg = clamp(auto_pitch_target_deg + intent.body_pitch_deg,
@@ -287,6 +302,7 @@ private:
     static constexpr float kHorizontalIntegralGain = 0.55f;
     static constexpr float kHorizontalAntiWindupGain = 2.50f;
     static constexpr float kHorizontalIntegralLimitMps2 = 4.0f;
+    static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
