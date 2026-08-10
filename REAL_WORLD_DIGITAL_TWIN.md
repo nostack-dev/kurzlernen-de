@@ -65,3 +65,10 @@ Browser SIL treats visual work as an observer with an explicit CPU/GPU budget. T
 STOP / RESET / START uses a monotonic run epoch. A loop from an older epoch cannot resume after a new run begins, including across `requestAnimationFrame`, `MessageChannel`, or asynchronous HIL waits. This prevents two 1 kHz schedulers from ever sharing the same FirmwareRuntime/Box3D authority after an immediate restart.
 
 Visual resolution is a production presentation governor, not a simulation time-scale. Hardware-accelerated WebGL starts at up to 1.25 CSS pixel ratio and measures authoritative simulator-time versus wall-time in 250 ms windows. A browser that reports a software rasterizer such as SwiftShader or llvmpipe starts directly at the same 0.60 presentation floor and caps presentation draw work to roughly 16–17 fps because it has no GPU raster budget; this is a renderer-capability choice, not a simulation-time choice. Hardware WebGL keeps the normal display-rate/adaptive draw path. On hardware WebGL, only measured presentation pressure may step the THREE backbuffer down to 0.80 and ultimately 0.60, and sustained headroom is required before resolution recovers. REAL WORLD keeps its independent map/flight governor and uses a 0.75 flight-overlay floor only in its critical visual-pressure tier. None of these paths changes the 1 ms timestep, sensor cadence, FC code, motor pulses, plant parameters, collision, or Box3D solver work.
+
+
+### Fullscreen and grid ownership
+
+Fullscreen/orientation is presentation state only. A browser dropping fullscreen must not exit SOLO, clear the arm request, stop the scheduler, or alter FC state. Flight termination remains explicit (`EXIT` / `KILL`) or comes from the real shared FC safety path.
+
+`DEBUG GRIDLINES` and `WORLD GRID` are intentionally separate renderer controls. Debug gridlines default OFF and affect only the training renderer. WORLD GRID remains an independent local-metre orientation overlay in REAL WORLD. Neither grid participates in navigation measurement, collision, controller state, motor output, or Box3D physics.

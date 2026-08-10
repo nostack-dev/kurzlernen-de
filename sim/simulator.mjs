@@ -27,6 +27,7 @@ const STATE_NAVIGATION_VALID = 1 << 5;
 const STATE_GAME_MODE = 1 << 6;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
+const DEBUG_GRID_STORAGE = "arondight45DebugGridlinesV1";
 const NAV_AGL_RAY_MAX_M = 60;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
@@ -440,7 +441,11 @@ const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");const presentationSoftwareRaster=/(swiftshader|llvmpipe|software raster|software renderer)/i.test(presentationRendererName),presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX);let presentationPixelRatio=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
-const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
+const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);
+let debugGridEnabled=false;try{debugGridEnabled=localStorage.getItem(DEBUG_GRID_STORAGE)==="1";}catch{}
+function setDebugGridEnabled(enabled){debugGridEnabled=Boolean(enabled);grid.visible=debugGridEnabled;const viewport=$("viewport");if(viewport)viewport.dataset.debugGridEnabled=debugGridEnabled?"1":"0";try{localStorage.setItem(DEBUG_GRID_STORAGE,debugGridEnabled?"1":"0");}catch{}return debugGridEnabled;}
+setDebugGridEnabled(debugGridEnabled);
+const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});
 const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camThird" type="button">THIRD</button><button id="camSolo" class="start-sim-cta" type="button">START SIM</button><button id="soundToggle" type="button">SOUND</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
@@ -591,6 +596,7 @@ soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloStic
 const soloSettingsMount=mountPhoneControlSettings({
   parent:$("soloTopbar"),
   buttonText:"SETTINGS",
+  debugGrid:{get:()=>debugGridEnabled,set:setDebugGridEnabled,defaultValue:false},
   onChange:next=>{phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
@@ -609,7 +615,7 @@ $("soloReset").onclick=resetSoloSimulation;
 $("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;};
 $("soloKill").onclick=()=>{setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;};
 $("soloCamera").onclick=()=>{const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();};
-document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
+document.addEventListener("fullscreenchange",()=>{if(!soloMode)return;const viewport=$("viewport");if(viewport)viewport.dataset.soloFullscreen=document.fullscreenElement?"1":"0";resize();});
 let mode="sim",backend=null,running=false,runEpoch=0,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;

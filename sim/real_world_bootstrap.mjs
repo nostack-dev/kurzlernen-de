@@ -166,7 +166,7 @@ class RealWorldBridge{
       if(training)this.trainingObjects.add(child);
     }
   }
-  hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){if(child.isGridHelper&&this.gridEnabled)continue;this.frameVisibility.set(child,child.visible);child.visible=false;}}
+  hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);if(child.isGridHelper){child.visible=this.gridEnabled;continue;}child.visible=false;}}
   restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
   applyFlightPalette(){
     if(!this.map)return 0;let changed=0;const layers=this.map.getStyle()?.layers||[];

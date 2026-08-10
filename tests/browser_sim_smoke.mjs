@@ -123,6 +123,8 @@ try{
   const defaults=await page.evaluate(()=>({
     left:document.querySelector('.phone-settings-dialog [data-slider="left"]')?.value,
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
+    debugGrid:document.querySelector('.phone-settings-dialog [data-debug-grid]')?.checked,
+    debugGridRuntime:document.querySelector("#viewport")?.dataset.debugGridEnabled,
     lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
     lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
     invertLeft:document.querySelector('.phone-settings-dialog [data-invert-left-horizontal]')?.checked,
@@ -139,7 +141,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="10"||defaults.right!=="10"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);
@@ -200,6 +202,11 @@ try{
   const armReached=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0}));
   if(!(armReached.fc&1)||armReached.sim-armStart>1.5)throw new Error(`solo GAME ARM authority failed: start=${armStart} reached=${JSON.stringify(armReached)} snapshot=${JSON.stringify(await snapshot())}`);
   await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:1500});state="ARMED";
+  const fullscreenDropStart=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime));
+  await page.evaluate(async()=>{if(document.fullscreenElement&&document.exitFullscreen){try{await document.exitFullscreen();}catch{}}else document.dispatchEvent(new Event("fullscreenchange"));});
+  await page.waitForFunction(start=>Number(globalThis.__arondightDiagnostics?.simTime)>=start+.30,{timeout:5000},fullscreenDropStart);
+  const afterFullscreenDrop=await page.evaluate(()=>({fc:Number(globalThis.__arondightDiagnostics?.fcState)||0,solo:document.body.classList.contains("solo-flight"),armText:document.querySelector("#soloArm")?.textContent||""}));
+  if(!(afterFullscreenDrop.fc&1)||!afterFullscreenDrop.solo)throw new Error(`fullscreen presentation loss disarmed/exited flight: ${JSON.stringify(afterFullscreenDrop)}`);
   await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.70;},{timeout:90000});
   const holdStart=await simTime();await waitForSimTime(holdStart+.35,25000);
   const hold=bodyMotion(await latestFlightSample());
