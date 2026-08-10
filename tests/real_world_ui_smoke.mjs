@@ -11,6 +11,7 @@ if(bootstrapSource.includes("WebGLRenderer.prototype.render"))throw new Error("R
 if(!bootstrapSource.includes("renderFrame(renderer,scene,camera)"))throw new Error("REAL WORLD explicit renderFrame bridge is missing");
 if(!simulatorSource.includes("__arondightRealWorld?.renderFrame?.(renderer,scene,camera)"))throw new Error("simulator render loop does not explicitly call the REAL WORLD frame bridge");
 if(!bootstrapSource.includes("WORLD_MAP_FRAME_MS=1000/30")||!bootstrapSource.includes("pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO)")||!bootstrapSource.includes("setSky({\"sky-color\":\"#0a2845\""))throw new Error("WORLD mobile render/contrast budget missing");
+if(!bootstrapSource.includes('const fpvFrameLocked=cameraMode==="fpv"')||!bootstrapSource.includes('!forceMode&&!fpvFrameLocked&&now-this.lastMapSyncMs<this.mapFrameMs')||!bootstrapSource.includes('last&&!forceMode&&!fpvFrameLocked'))throw new Error("WORLD FPV must frame-lock map camera sync while FOLLOW/THIRD remain budgeted");
 if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");
 for(const marker of ["#237db0","#4f7b55","#f0c85c","#bdcbd3","WATER","GREEN","ROADS","BUILDINGS"])
   if(!bootstrapSource.includes(marker))throw new Error(`WORLD semantic palette/legend marker missing: ${marker}`);
@@ -198,6 +199,12 @@ try{
   const fpv=await cameraSnapshot();
   if(fpv.mode!=="fpv"||fpv.worldCameraMode!=="fpv")throw new Error(`FPV camera mode did not propagate to WORLD: ${JSON.stringify(fpv)}`);
   if(fpv.center===third.center&&fpv.zoom===third.zoom&&fpv.pitch===third.pitch&&fpv.bearing===third.bearing)throw new Error(`FPV geospatial camera stayed frozen: ${JSON.stringify({third,fpv})}`);
+  const fpvSyncStart=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));
+  if(fpvSyncStart.mode!=="frame-locked")throw new Error(`FPV WORLD sync is not frame-locked: ${JSON.stringify(fpvSyncStart)}`);
+  await page.waitForFunction(start=>Number(document.querySelector("#viewport")?.dataset.worldThreeFrames||0)>start+6,{timeout:5000},fpvSyncStart.frames);
+  const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));
+  const fpvFrameDelta=fpvSyncEnd.frames-fpvSyncStart.frames,fpvMapDelta=fpvSyncEnd.updates-fpvSyncStart.updates;
+  if(fpvSyncEnd.mode!=="frame-locked"||fpvFrameDelta<6||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD camera is not synchronized to visible flight frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);
   const fpvLookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(350,120,{steps:5});await page.mouse.up();await new Promise(resolve=>setTimeout(resolve,180));const fpvLookAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));if(Math.abs(fpvLookAfter-fpvLookBefore)>.1)throw new Error(`rigid FPV was virtually panned: ${JSON.stringify({fpvLookBefore,fpvLookAfter})}`);
 
   const framesBefore=live.frames;
@@ -211,7 +218,7 @@ try{
   });
   if(fallback.text!=="WORLD"||fallback.active!=="0"||fallback.provider||fallback.path||!fallback.rendererVisible)throw new Error(`WORLD training fallback failed: ${JSON.stringify(fallback)}`);
 
-  console.log("REAL WORLD explicit shared-frame smoke passed: 50m range, validated 5m/s shared FC envelope, grid toggle, SNAP/KEEP 360 look HUD, semantic map palette/legend, stripped symbol clutter, adaptive 15/20/30Hz map budget, live camera sync, clean fallback.");
+  console.log("REAL WORLD explicit shared-frame smoke passed: 50m range, validated 5m/s shared FC envelope, grid toggle, SNAP/KEEP 360 look HUD, semantic map palette/legend, stripped symbol clutter, adaptive 15/20/30Hz FOLLOW/THIRD map budget, frame-locked FPV camera sync, clean fallback.");
 }finally{
   await browser.close();
 }
