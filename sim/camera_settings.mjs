@@ -7,7 +7,9 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 export function normalizeCameraSettings(value={}){
   return{
     fpvTiltDeg:clamp(Number.isFinite(+value.fpvTiltDeg)?+value.fpvTiltDeg:DEFAULT_CAMERA_SETTINGS.fpvTiltDeg,-15,50),
-    fpvFovDeg:clamp(Number.isFinite(+value.fpvFovDeg)?+value.fpvFovDeg:DEFAULT_CAMERA_SETTINGS.fpvFovDeg,50,120),
+    // FOV has a one-degree UI step. Canonicalize at the shared persistence boundary so
+    // minimap pinch, Settings, localStorage and every camera consumer always see one value.
+    fpvFovDeg:Math.round(clamp(Number.isFinite(+value.fpvFovDeg)?+value.fpvFovDeg:DEFAULT_CAMERA_SETTINGS.fpvFovDeg,50,120)),
     thirdDistanceM:clamp(Number.isFinite(+value.thirdDistanceM)?+value.thirdDistanceM:DEFAULT_CAMERA_SETTINGS.thirdDistanceM,1.5,6),
   };
 }
