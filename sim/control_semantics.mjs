@@ -3,6 +3,9 @@ export const MIN_GAME_CLEARANCE_M=0.5;
 export const MAX_GAME_CLEARANCE_M=50.0;
 export const MAX_GAME_CLEARANCE_RATE_MPS=5.0;
 export const GAME_CLEARANCE_RATE_DEADBAND=0.08;
+export const MIN_GAME_HORIZONTAL_SPEED_KMH=5;
+export const MAX_GAME_HORIZONTAL_SPEED_KMH=54;
+export const DEFAULT_GAME_HORIZONTAL_SPEED_KMH=36;
 // UI/transport range mirrors the FC's hardware-side GAME clearance envelope.
 // Height input is spring-centred target slew: release means HOLD. It never writes
 // vehicle position/velocity and still crosses SBUS -> StateController -> motors.
@@ -10,6 +13,7 @@ export const GAME_CLEARANCE_RATE_DEADBAND=0.08;
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
 export const expoToFineness=expo=>clampLevel(1+9*clampControl(Number(expo)||0,0,MAX_PHONE_EXPO)/MAX_PHONE_EXPO);
+export const gameHorizontalSpeedScale=kmh=>clampControl(Number(kmh)||DEFAULT_GAME_HORIZONTAL_SPEED_KMH,MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH)/MAX_GAME_HORIZONTAL_SPEED_KMH;
 
 export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   leftFineness:10,
@@ -20,6 +24,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   invertRightHorizontal:false,
   invertRightVertical:true,
   defaultHoverAgl:1.2,
+  maxHorizontalSpeedKmh:DEFAULT_GAME_HORIZONTAL_SPEED_KMH,
 });
 
 export function neutralControls(){return{roll:0,pitch:0,yaw:0,throttle:0,bodyPitch:0,arm:false};}
@@ -56,6 +61,7 @@ export function normalizePhoneSettings(settings={}){
     invertRightHorizontal:Boolean(settings.invertRightHorizontal),
     invertRightVertical:Boolean(settings.invertRightVertical),
     defaultHoverAgl:Math.round(clampControl(Number(settings.defaultHoverAgl??DEFAULT_PHONE_SETTINGS.defaultHoverAgl),MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M)*10)/10,
+    maxHorizontalSpeedKmh:Math.round(clampControl(Number(settings.maxHorizontalSpeedKmh??DEFAULT_PHONE_SETTINGS.maxHorizontalSpeedKmh),MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH)),
   };
 }
 
@@ -120,11 +126,11 @@ export function endPointerDrag(element,pointerId){
 }
 
 export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
-  const cfg=normalizePhoneSettings(settings);
+  const cfg=normalizePhoneSettings(settings),speedScale=gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh);
   if(kind==="left"){
     const x=cfg.invertLeftHorizontal?-point.x:point.x;
-    controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness);
-    controls.pitch=phoneAxis(-point.y,cfg.leftFineness);
+    controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness)*speedScale;
+    controls.pitch=phoneAxis(-point.y,cfg.leftFineness)*speedScale;
     controls.throttle=0;
   }else{
     const x=cfg.invertRightHorizontal?-point.x:point.x;
@@ -135,10 +141,11 @@ export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTIN
   return controls;
 }
 export function gameKnobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
-  const cfg=normalizePhoneSettings(settings);
+  const cfg=normalizePhoneSettings(settings),speedScale=gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh);
   if(kind==="left"){
-    const rawX=cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.roll,cfg.leftFineness);
-    return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-inversePhoneAxis(controls.pitch,cfg.leftFineness)};
+    const scaledRoll=speedScale>0?clampControl(controls.roll/speedScale):0,scaledPitch=speedScale>0?clampControl(controls.pitch/speedScale):0;
+    const rawX=cfg.lockLeftHorizontal?0:inversePhoneAxis(scaledRoll,cfg.leftFineness);
+    return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-inversePhoneAxis(scaledPitch,cfg.leftFineness)};
   }
   const rawX=-inversePhoneAxis(controls.yaw,cfg.rightFineness);
   const rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,cfg.rightFineness);
