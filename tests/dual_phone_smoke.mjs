@@ -106,12 +106,12 @@ try{
   await controller.mouse.up();
   console.log(`State-control E2E: right-stick up physically pitched airframe nose-up ${pitchBefore.pitch.toFixed(1)}° -> ${pitched.pitch.toFixed(1)}° through motors.`);
 
-  await view.waitForFunction(()=>{const parts=(document.querySelector("#attitude")?.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[],pitch=Number(parts[1]||0),speed=parseFloat(document.querySelector("#velocity")?.textContent||"99");return Math.abs(pitch)<2.0&&speed<.55;},{timeout:90000});
+  await view.waitForFunction(()=>{const parts=(document.querySelector("#attitude")?.textContent||"").match(/-?\d+(?:\.\d+)?/g)||[],pitch=Number(parts[1]||0),speed=parseFloat(document.querySelector("#velocity")?.textContent||"99");return Math.abs(pitch)<2.0&&speed<.12;},{timeout:90000});
   const recovered=await liveMotion(view,controller);
-  if(recovered.state!=="ARMED"||Math.abs(recovered.pitch)>=2.0||recovered.speed>=.55)throw new Error(`aircraft did not physically recover after body-pitch maneuver: ${JSON.stringify(recovered)}`);
+  if(recovered.state!=="ARMED"||Math.abs(recovered.pitch)>=2.0||recovered.speed>=.12)throw new Error(`aircraft did not physically recover after body-pitch maneuver: ${JSON.stringify(recovered)}`);
 
   const left=await stickBox(controller,"#leftStick"),lcx=left.x+left.w/2,lcy=left.y+left.h/2,lr=Math.min(left.w,left.h)*.42;
-  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
+  const forwardBaseline=await liveMotion(view,controller);await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.70,{steps:5});
   const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);const moving=await liveMotion(view,controller);
   if(moving.state!=="ARMED"||!moving.motors.some(value=>value>1050))throw new Error(`motor authority lost during forward vector: ${JSON.stringify(moving)}`);
   if(!(moving.forward>.30))throw new Error(`forward desired-vector did not produce forward motion: ${JSON.stringify(moving)}`);
@@ -125,10 +125,10 @@ try{
   if(Math.abs(braked.vertical)>1.0)throw new Error(`AGL loop destabilized during horizontal braking: before=${JSON.stringify(moving)}, trace=${JSON.stringify(trace)}`);
   console.log(`State-control E2E: forward=${moving.forward.toFixed(2)}m/s, horizontal peak=${peak.toFixed(2)} -> ${braked.horizontal.toFixed(2)}m/s after counter-tilt, vz=${braked.vertical.toFixed(2)}m/s.`);
 
-  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.65,lcy,{steps:5});
+  await view.waitForFunction(()=>parseFloat(document.querySelector("#velocity")?.textContent||"99")<.12,{timeout:90000});const strafeBaseline=await liveMotion(view,controller);await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx+lr*.70,lcy,{steps:5});
   const strafeStart=await simTime(view);const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);const strafing=strafeCommandTrace[strafeCommandTrace.length-1];console.log(`State-control strafe command trace: ${JSON.stringify(strafeCommandTrace)}`);
   if(strafeCommandTrace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during strafe vector: ${JSON.stringify(strafeCommandTrace)}`);
-  if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);
+  if(strafing.right<.35)throw new Error(`strafe desired-vector sign/response wrong: final=${JSON.stringify(strafing)} trace=${JSON.stringify(strafeCommandTrace)}`);const forwardGain=moving.forward-forwardBaseline.forward,strafeGain=strafing.right-strafeBaseline.right,axisRatio=Math.min(Math.abs(forwardGain),Math.abs(strafeGain))/Math.max(Math.abs(forwardGain),Math.abs(strafeGain));console.log(`Equal-axis response: forward Δ=${forwardGain.toFixed(3)} m/s · strafe Δ=${strafeGain.toFixed(3)} m/s · ratio=${axisRatio.toFixed(3)}`);if(axisRatio<.65)throw new Error(`equal physical stick commands are materially axis-asymmetric: ${JSON.stringify({forwardBaseline,moving,strafeBaseline,strafing,forwardGain,strafeGain,axisRatio})}`);
   await controller.mouse.up();
   const strafeBrakeStart=await simTime(view);const strafeTrace=await liveTrace(view,controller,strafeBrakeStart,[0,.4,.8,1.2,1.6,2.4,3.2,4.0]),strafeBraked=strafeTrace[strafeTrace.length-1];const strafePeak=Math.max(...strafeTrace.map(point=>point.horizontal));
   if(strafeTrace.some(point=>point.state!=="ARMED"||!point.motors.some(value=>value>1050)))throw new Error(`motor authority dropped during strafe braking: ${JSON.stringify(strafeTrace)}`);

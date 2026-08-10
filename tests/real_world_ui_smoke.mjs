@@ -11,7 +11,7 @@ if(bootstrapSource.includes("WebGLRenderer.prototype.render"))throw new Error("R
 if(!bootstrapSource.includes("renderFrame(renderer,scene,camera)"))throw new Error("REAL WORLD explicit renderFrame bridge is missing");
 if(!simulatorSource.includes("__arondightRealWorld?.renderFrame?.(renderer,scene,camera)"))throw new Error("simulator render loop does not explicitly call the REAL WORLD frame bridge");
 if(!bootstrapSource.includes("WORLD_MAP_FRAME_MS=1000/30")||!bootstrapSource.includes("pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO)")||!bootstrapSource.includes("setSky({\"sky-color\":\"#071b2e\""))throw new Error("WORLD mobile render/contrast budget missing");
-if(!bootstrapSource.includes('fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)')||!bootstrapSource.includes('setVerticalFieldOfView(verticalFov)')||!bootstrapSource.includes('elevation:fpv?target.z:0'))throw new Error("WORLD FPV stable 3D camera model missing");
+if(!bootstrapSource.includes('fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)')||!bootstrapSource.includes('setVerticalFieldOfView(verticalFov)')||!bootstrapSource.includes('calculateCameraOptionsFromTo(eye,p.z,aim,target.z)'))throw new Error("WORLD FPV exact-eye 3D camera model missing");
 if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15")||!simulatorSource.includes("worldHaloBack")||!simulatorSource.includes("worldHeadingCue"))throw new Error("WORLD range/visual acquisition cues missing");
 for(const marker of ["#086a9d","#2f7044","#ffd34f","#dbe4e9","WATER","GREEN","ROADS","BUILDINGS"])
   if(!bootstrapSource.includes(marker))throw new Error(`WORLD semantic palette/legend marker missing: ${marker}`);
@@ -66,7 +66,8 @@ const cameraSnapshot=()=>page.evaluate(()=>{
     pitch:viewport?.dataset.worldMapPitch||"",
     bearing:viewport?.dataset.worldMapBearing||"",
     targetElevation:viewport?.dataset.worldMapTargetElevation||"",
-    syncMode:viewport?.dataset.worldMapSyncMode||""
+    syncMode:viewport?.dataset.worldMapSyncMode||"",
+    eyeElevation:viewport?.dataset.worldMapEyeElevation||""
   };
 });
 
@@ -94,10 +95,9 @@ try{
     training:document.querySelector("[data-world-training]")?.textContent?.trim()||"",
     grid:document.querySelector('.phone-settings-dialog [data-world-grid]')?.checked,
     keepLook:document.querySelector('.phone-settings-dialog [data-world-keep-look]')?.checked,
-    minimapFollow:document.querySelector('.phone-settings-dialog [data-world-minimap-follow]')?.checked,
     note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""
   }));
-  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||config.minimapFollow!==true||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
+  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||document.querySelector('.phone-settings-dialog [data-world-minimap-follow]')||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
   if(external.length)throw new Error(`training/settings path triggered external network: ${JSON.stringify(external)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
@@ -139,12 +139,12 @@ try{
       mapPixelRatio:Number(viewport?.dataset.worldMapPixelRatio||0),
       flightPixelRatio:Number(viewport?.dataset.worldFlightPixelRatio||0),
       geoBackground:getComputedStyle(document.querySelector("#geoViewport")).backgroundImage,
-      grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display,minimapCanvas:!!document.querySelector("#worldLookHud .world-mini-canvas"),minimapMode:viewport?.dataset.worldMinimapMode||"",minimapFollow:viewport?.dataset.worldMinimapFollow||"",legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,perfMode:viewport?.dataset.worldPerfMode||"",flightFps:Number(viewport?.dataset.worldFlightFps||0),paletteLayers:Number(viewport?.dataset.worldPaletteLayers||0)
+      grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display,minimapCanvas:!!document.querySelector("#worldLookHud .world-mini-canvas"),minimapMode:viewport?.dataset.worldMinimapMode||"",minimapExpanded:viewport?.dataset.worldMinimapExpanded||"",legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,perfMode:viewport?.dataset.worldPerfMode||"",flightFps:Number(viewport?.dataset.worldFlightFps||0),paletteLayers:Number(viewport?.dataset.worldPaletteLayers||0)
     };
   });
   if(live.button!=="WORLD ✓"||live.active!=="1"||live.provider!=="openfreemap")throw new Error(`WORLD did not become live: ${JSON.stringify(live)}`);
   if(live.path!=="shared-three-renderer"||live.frames<=5||!live.mapCreated||!live.hasSharedRenderer||live.hasLegacyOverlay||!live.rendererVisible||!live.alpha)throw new Error(`shared real-world THREE renderer contract failed: ${JSON.stringify(live)}`);
-  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||![15,20,30].includes(live.mapFpsCap)||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient")||live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||!live.minimapCanvas||live.minimapMode!=="camera"||live.minimapFollow!=="1"||live.legend==="none"||!["nominal","constrained","critical"].includes(live.perfMode)||live.paletteLayers<1)throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
+  if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||![15,20,30].includes(live.mapFpsCap)||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient")||live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||!live.minimapCanvas||live.minimapMode!=="north"||live.minimapExpanded!=="0"||live.legend==="none"||!["nominal","constrained","critical"].includes(live.perfMode)||live.paletteLayers<1)throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
   if(live.canvasCount!==3)throw new Error(`REAL WORLD must use MapLibre + existing flight canvas + one lightweight cached mini-map canvas, got ${live.canvasCount}`);
   if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);
 
@@ -156,7 +156,7 @@ try{
       {sourceLayer:"building",layer:{id:"arondight45-buildings-3d",type:"fill-extrusion"},geometry:{type:"Polygon",coordinates:[[[lon,lat],[lon+d,lat],[lon+d,lat+d],[lon,lat]]]},properties:{render_height:14}}
     ];bridge.minimapLastQueryMs=-Infinity;bridge.minimapLastDrawMs=-Infinity;bridge.drawMinimap(performance.now());return{count:bridge.minimapFeatures.length,kinds:bridge.minimapFeatures.map(f=>f.kind).sort(),queries:bridge.minimapQueries,mode:document.querySelector("#viewport")?.dataset.worldMinimapMode||""};
   });
-  if(miniFixture.count!==4||miniFixture.kinds.join(",")!=="building,green,road,water"||miniFixture.queries<1||miniFixture.mode!=="camera")throw new Error(`cached mini-map semantic projection failed: ${JSON.stringify(miniFixture)}`);
+  if(miniFixture.count!==4||miniFixture.kinds.join(",")!=="building,green,road,water"||miniFixture.queries<1||miniFixture.mode!=="north")throw new Error(`cached mini-map semantic projection failed: ${JSON.stringify(miniFixture)}`);
 
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
@@ -184,8 +184,12 @@ try{
   await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.80,lookBox.y+lookBox.h*.58,{steps:5});await page.mouse.up();await page.waitForFunction(()=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0))>8,{timeout:3000});
   await new Promise(resolve=>setTimeout(resolve,450));const keptLook=await page.$eval("#viewport",element=>({yaw:Number(element.dataset.worldLookYaw||0),keep:element.dataset.worldLookKeepEnabled||""}));if(Math.abs(keptLook.yaw)<8||keptLook.keep!=="1")throw new Error(`WORLD KEEP look did not persist after release: ${JSON.stringify(keptLook)}`);
 
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapMode==="north",{timeout:3000});const northMini=await page.$eval("#viewport",e=>Number(e.dataset.worldMinimapBearing||99));if(Math.abs(northMini)>.01)throw new Error(`north-up mini-map failed: ${northMini}`);
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click(".phone-settings-dialog [data-world-minimap-follow]");await page.click(".phone-settings-dialog [data-close]");
+  const northMini=await page.$eval("#viewport",e=>({mode:e.dataset.worldMinimapMode||"",bearing:Number(e.dataset.worldMinimapBearing||99)}));if(northMini.mode!=="north"||Math.abs(northMini.bearing)>.01)throw new Error(`north-up mini-map failed: ${JSON.stringify(northMini)}`);
+const initialFov=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}").fpvFovDeg||105);
+const pinchResult=await page.$eval("#worldLookHud",(hud,initial)=>{hud.setPointerCapture=()=>{};const fire=(type,id,x,y)=>hud.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",button:0,clientX:x,clientY:y}));const r=hud.getBoundingClientRect(),cy=r.top+r.height/2;fire("pointerdown",41,r.left+35,cy);fire("pointerdown",42,r.right-35,cy);fire("pointermove",42,r.right-5,cy);fire("pointerup",42,r.right-5,cy);fire("pointerup",41,r.left+35,cy);return{before:initial,after:JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}").fpvFovDeg};},initialFov);
+if(!Number.isFinite(pinchResult.after)||Math.abs(pinchResult.after-pinchResult.before)<2)throw new Error(`minimap pinch did not change shared FOV: ${JSON.stringify(pinchResult)}`);
+await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});const syncedFov=await page.$eval('.phone-settings-dialog [data-camera-slider="fov"]',e=>Number(e.value));await page.click('.phone-settings-dialog [data-close]');if(Math.abs(syncedFov-pinchResult.after)>.01)throw new Error(`settings FOV did not synchronize with minimap pinch: ${JSON.stringify({syncedFov,pinchResult})}`);
+await page.$eval("#worldLookHud",hud=>hud.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true})));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapExpanded==="1",{timeout:2000});await page.$eval("#worldLookHud",hud=>hud.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true})));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldMinimapExpanded==="0",{timeout:2000});
 
   const follow=await cameraSnapshot();
   if(follow.mode!=="follow"||follow.worldCameraMode!=="follow"||!follow.center||!follow.zoom)throw new Error(`FOLLOW world-camera sync missing: ${JSON.stringify(follow)}`);
@@ -201,12 +205,13 @@ try{
   const fpv=await cameraSnapshot();
   if(fpv.mode!=="fpv"||fpv.worldCameraMode!=="fpv")throw new Error(`FPV camera mode did not propagate to WORLD: ${JSON.stringify(fpv)}`);
   if(fpv.center===third.center&&fpv.zoom===third.zoom&&fpv.pitch===third.pitch&&fpv.bearing===third.bearing)throw new Error(`FPV geospatial camera stayed frozen: ${JSON.stringify({third,fpv})}`);
-  if(fpv.syncMode!=="rigid-3d-target"||!Number.isFinite(Number(fpv.targetElevation)))throw new Error(`FPV WORLD camera did not use stable elevated 3D target: ${JSON.stringify(fpv)}`);
+  if(fpv.syncMode!=="exact-eye-to-target"||!Number.isFinite(Number(fpv.targetElevation))||!Number.isFinite(Number(fpv.eyeElevation)))throw new Error(`FPV WORLD camera did not use exact eye-to-target pose: ${JSON.stringify(fpv)}`);
   const fpvSyncStart=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0)}));
   await page.waitForFunction(start=>Number(document.querySelector("#viewport")?.dataset.worldThreeFrames||0)>start+6,{timeout:5000},fpvSyncStart.frames);
   const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));
-  const fpvFrameDelta=fpvSyncEnd.frames-fpvSyncStart.frames,fpvMapDelta=fpvSyncEnd.updates-fpvSyncStart.updates;if(fpvSyncEnd.mode!=="rigid-3d-target"||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD map did not stay locked to visible camera frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);
-  const fpvLookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(350,120,{steps:5});await page.mouse.up();await new Promise(resolve=>setTimeout(resolve,180));const fpvLookAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));if(Math.abs(fpvLookAfter-fpvLookBefore)>.1)throw new Error(`rigid FPV was virtually panned: ${JSON.stringify({fpvLookBefore,fpvLookAfter})}`);
+  const fpvFrameDelta=fpvSyncEnd.frames-fpvSyncStart.frames,fpvMapDelta=fpvSyncEnd.updates-fpvSyncStart.updates;if(fpvSyncEnd.mode!=="exact-eye-to-target"||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD map did not stay locked to visible camera frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);
+  const fpvEyeProbe=await page.evaluate(()=>{const bridge=globalThis.__arondightRealWorld,cam=bridge.threeCamera,viewport=document.querySelector("#viewport"),saved=cam.position.clone();cam.position.z=5;bridge.syncMapCamera(cam);const five=Number(viewport.dataset.worldMapEyeElevation);cam.position.z=50;bridge.syncMapCamera(cam);const fifty=Number(viewport.dataset.worldMapEyeElevation);cam.position.copy(saved);return{five,fifty};});if(Math.abs(fpvEyeProbe.five-5)>.02||Math.abs(fpvEyeProbe.fifty-50)>.02)throw new Error(`FPV eye altitude was reconstructed instead of preserved: ${JSON.stringify(fpvEyeProbe)}`);
+const shotsBefore=await page.$eval("#viewport",e=>Number(e.dataset.presentationShots||0));await page.mouse.click(250,220);await page.waitForFunction(before=>Number(document.querySelector("#viewport")?.dataset.presentationShots||0)>before,{timeout:2000},shotsBefore);const lookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(lookBox.x+lookBox.w/2,lookBox.y+lookBox.h/2);await page.mouse.down();await page.mouse.move(lookBox.x+lookBox.w*.80,lookBox.y+lookBox.h*.30,{steps:5});await page.mouse.up();await page.waitForFunction(before=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0)-before)>8,{timeout:3000},lookBefore);
 
   const framesBefore=live.frames;
   await page.waitForFunction(before=>Number(document.querySelector("#viewport")?.dataset.worldThreeFrames||0)>before+3,{timeout:5000},framesBefore);
@@ -219,7 +224,7 @@ try{
   });
   if(fallback.text!=="WORLD"||fallback.active!=="0"||fallback.provider||fallback.path||!fallback.rendererVisible)throw new Error(`WORLD training fallback failed: ${JSON.stringify(fallback)}`);
 
-  console.log("REAL WORLD explicit shared-frame smoke passed: 50m range, validated 5m/s shared FC envelope, grid toggle, SNAP/KEEP 360 look HUD, semantic map palette/legend, stripped symbol clutter, adaptive 15/20/30Hz FOLLOW/THIRD map budget, rigid elevated FPV camera target, semantic depth palette, clean fallback.");
+  console.log("REAL WORLD explicit shared-frame smoke passed: 50m range, validated 5m/s shared FC envelope, grid toggle, NORTH-UP expandable SNAP/KEEP minimap with shared FOV, semantic map palette/legend, stripped symbol clutter, adaptive 15/20/30Hz FOLLOW/THIRD map budget, exact-eye FPV pose, semantic depth palette, clean fallback.");
 }finally{
   await browser.close();
 }

@@ -143,7 +143,7 @@ requireText("sim/control_settings.mjs","openfreemap-osm-3d");
 requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
 requireText("sim/control_settings.mjs","WORLD GRID");
 requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");
-requireText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA");
+forbidText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA");
 
 for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
@@ -192,9 +192,9 @@ requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
 requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","elevation:fpv?target.z:0","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_FOLLOW_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","calculateCameraOptionsFromTo(eye,p.z,aim,target.z)","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode=\"north\"","toggleMinimapExpanded()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["TorusGeometry(.15","worldHaloBack","worldHeadingCue","showWorldMarker=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
-forbidText("sim/real_world_bootstrap.mjs",'if(mode==="fpv"){const qYaw',"WORLD must never virtually pan rigid FPV optics");
+requireText("sim/real_world_bootstrap.mjs","One orientation-only look transform for FOLLOW, THIRD and FPV");
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHoverAgl");
 requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");
@@ -221,6 +221,22 @@ requireText("sim/controller.mjs","ControllerPeerLink");
 requireText("sim/simulator.mjs","new QrScanner");
 requireText("sim/controller.mjs","new QrScanner");
 
+requireText("esp32/Arondight45_StateControl.hpp","kStateNavigationDegraded = 1u << 7");
+requireText("esp32/Arondight45_StateControl.hpp","Full NAV is required to enter flight");
+requireText("esp32/Arondight45_StateControl.hpp","NAV loss while airborne");
+requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationSplitValidity = 1u << 15");
+requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationVelocityValid = 1u << 1");
+requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationAglValid = 1u << 2");
+requireText("sim/simulator.mjs","PHYSICS_GROUND_HALF = 10000");
+requireText("sim/simulator.mjs","FlightLogbook");
+requireText("sim/simulator.mjs","installPresentationFire");
+requireText("sim/presentation_fire.mjs","-webkit-touch-callout:none");
+requireText("sim/presentation_fire.mjs","document.body.classList.contains(\"solo-flight\")");
+for(const dirty of ["PhysicsModel","StateController","motorOmega","physics.step","backend.exchange","applyForces("])forbidText("sim/presentation_fire.mjs",dirty,`presentation fire crossed flight authority boundary: ${dirty}`);
+requireText("sim/flight_logbook.mjs","Logging is observer-only");
+for(const dirty of ["PhysicsModel","StateController","motorOmega","physics.step","backend.exchange","applyForces("])forbidText("sim/flight_logbook.mjs",dirty,`flight logbook crossed flight authority boundary: ${dirty}`);
+forbidText("sim/controller.mjs","if(!peer.linked)safetyNeutral(false)","transient WebRTC state must not synthesize ARM-low");
+requireText("sim/p2p_link.mjs",'["failed","closed"].includes(this.pc.connectionState)');
 requireText("tools/s31_hil_bridge.mjs",'pathname!=="/hil"');
 requireText("tools/s31_hil_bridge.mjs","HIL packets only");
 for(const dirty of ["CONTROL_PROTOCOL","controlSockets","rooms =","rooms=new Map","--sim-only",'pathname==="/control"',"Control relay"])
