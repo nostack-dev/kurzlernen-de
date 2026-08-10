@@ -122,6 +122,7 @@ jobs:
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
@@ -143,6 +144,7 @@ jobs:
           node --check tests/dual_phone_smoke.mjs
           node --check tests/solo_layout_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
+          node --check tests/world_fpv_frame_lock_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
 
       - uses: actions/configure-pages@v5
