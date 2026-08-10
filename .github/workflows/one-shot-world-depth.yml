@@ -21,11 +21,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          def one(path,old,new,label):
-              p=Path(path);s=p.read_text();n=s.count(old)
-              assert n==1,f"{label}: expected one occurrence, got {n}"
-              p.write_text(s.replace(old,new,1))
-
           p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
           old='''      if(layer.type==="background"){set(layer.id,"background-color","#304657");continue;}\n      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#237db0");set(layer.id,"fill-opacity",.96);continue;}\n      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#55b7df");continue;}\n      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#4f7b55":industry?"#675b58":"#53636b");set(layer.id,"fill-opacity",.92);continue;}\n      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#bdcbd3");set(layer.id,"fill-opacity",.82);continue;}\n      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#f0c85c":mid?"#d9d4ad":"#a9b8c1");set(layer.id,"line-opacity",.95);continue;}\n      if(layer.type==="line"&&source==="boundary")set(layer.id,"line-color","#8094a4");\n'''
           new='''      if(layer.type==="background"){set(layer.id,"background-color","#243440");continue;}\n      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#086a9d");set(layer.id,"fill-opacity",1);continue;}\n      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#5bc4ed");set(layer.id,"line-opacity",1);continue;}\n      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#2f7044":industry?"#645751":"#46565f");set(layer.id,"fill-opacity",.96);continue;}\n      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#c7d5dc");set(layer.id,"fill-opacity",.88);continue;}\n      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#ffd34f":mid?"#eee4a8":"#c9d2d7");set(layer.id,"line-opacity",1);set(layer.id,"line-width",major?3.6:mid?2.6:1.5);continue;}\n      if(layer.type==="line"&&source==="boundary"){set(layer.id,"line-color","#92a8b7");set(layer.id,"line-opacity",.8);}\n'''
@@ -52,7 +47,7 @@ jobs:
 
           p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
           old='''for(const marker of ["#237db0","#4f7b55","#f0c85c","#bdcbd3","WATER","GREEN","ROADS","BUILDINGS"])\n'''
-          new='''for(const marker of ["#086a9d","#2f7044","#ffd34f","#dbe4e9","WATER","GREEN","ROADS","BUILDINGS","setLight?.({anchor:\"viewport\"","fill-extrusion-vertical-gradient"])\n'''
+          new='''for(const marker of ["#086a9d","#2f7044","#ffd34f","#dbe4e9","WATER","GREEN","ROADS","BUILDINGS","OpenFreeMap extrusion lighting unavailable","fill-extrusion-vertical-gradient"])\n'''
           assert s.count(old)==1;s=s.replace(old,new,1)
           old='''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");\n'''
           new='''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15")||!simulatorSource.includes("worldHaloBack")||!simulatorSource.includes("worldHeadingCue"))throw new Error("WORLD range/visual acquisition cues missing");\n'''
