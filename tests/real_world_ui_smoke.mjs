@@ -148,6 +148,8 @@ try{
   if(worldRaceUi.display!=="none")throw new Error(`WORLD must not show training laps/timer: ${JSON.stringify(worldRaceUi)}`);
   if(live.path!=="shared-three-renderer"||live.frames<=5||!live.mapCreated||!live.hasSharedRenderer||live.hasLegacyOverlay||!live.rendererVisible||!live.alpha)throw new Error(`shared real-world THREE renderer contract failed: ${JSON.stringify(live)}`);
   if(!(live.mapUpdates>0&&live.mapUpdates<live.frames)||![15,20,30].includes(live.mapFpsCap)||live.mapPixelRatio!==1||live.flightPixelRatio>1.25||!live.geoBackground.includes("gradient")||live.grid!=="1"||live.keepLook!=="0"||live.lookHud==="none"||!live.minimapCanvas||live.minimapMode!=="north"||live.minimapExpanded!=="0"||live.legend==="none"||!["nominal","constrained","critical"].includes(live.perfMode)||live.paletteLayers<1)throw new Error(`WORLD render budget/contrast failed: ${JSON.stringify(live)}`);
+  const worldRaceDisplay=await page.$eval("#soloRaceHud",element=>getComputedStyle(element).display);
+  if(worldRaceDisplay!=="none")throw new Error(`WORLD must not expose training laps/timer HUD, got display=${worldRaceDisplay}`);
   if(live.canvasCount!==3)throw new Error(`REAL WORLD must use MapLibre + existing flight canvas + one lightweight cached mini-map canvas, got ${live.canvasCount}`);
   if(providerRequests.length!==1)throw new Error(`expected one deterministic OpenFreeMap style request, got ${JSON.stringify(providerRequests)}`);
 
