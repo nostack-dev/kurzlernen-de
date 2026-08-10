@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   fix:
-    if: github.event.head_commit.message == 'Install one-shot WORLD FPV jitter fix'
+    if: github.event.head_commit.message == 'Retry one-shot WORLD FPV jitter fix'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -40,6 +40,9 @@ jobs:
           p.write_text(s)
           PY
 
+          # Remove this temporary workflow before architecture tests: production
+          # intentionally allows only deploy.yml and s31-hil.yml.
+          rm -f .github/workflows/one-shot-fix-world-fpv-map-throttle.yml
           node --check sim/real_world_bootstrap.mjs
           node --check tests/real_world_ui_smoke.mjs
           node tests/control_semantics_test.mjs
@@ -49,7 +52,6 @@ jobs:
       - name: Commit verified fix to main
         run: |
           set -euxo pipefail
-          rm -f .github/workflows/one-shot-fix-world-fpv-map-throttle.yml
           git config user.name 'Arondight45 CI'
           git config user.email 'actions@users.noreply.github.com'
           git add -A
