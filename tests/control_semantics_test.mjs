@@ -4,7 +4,7 @@ import {readdirSync,readFileSync} from "node:fs";
 import {
   DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,neutralControls,copyControls,armReady,applyStick,releaseStick,
   knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes,normalizePhoneSettings,
-  MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH,DEFAULT_GAME_HORIZONTAL_SPEED_KMH,gameHorizontalSpeedScale
+  MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH,DEFAULT_GAME_HORIZONTAL_SPEED_KMH,gameHorizontalSpeedScale,gameStateStickMagnitude,inverseGameStateStickMagnitude
 } from "../sim/control_semantics.mjs";
 
 assert.deepEqual(
@@ -27,6 +27,7 @@ assert.equal(DEFAULT_PHONE_SETTINGS.maxHorizontalSpeedKmh,36);
 assert.equal(MIN_GAME_HORIZONTAL_SPEED_KMH,5);assert.equal(MAX_GAME_HORIZONTAL_SPEED_KMH,54);assert.equal(DEFAULT_GAME_HORIZONTAL_SPEED_KMH,36);
 near(gameHorizontalSpeedScale(36),2/3,1e-12,"36 km/h must map to two-thirds of the 54 km/h FC hard envelope");
 near(gameHorizontalSpeedScale(54),1,1e-12,"54 km/h must retain full FC translation authority");
+for(const value of [0,.02,.1,.25,.5,.75,1])near(gameStateStickMagnitude(inverseGameStateStickMagnitude(value)),value,2e-8,"GAME FC transfer inverse");
 assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:999}).maxHorizontalSpeedKmh,54);assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:-5}).maxHorizontalSpeedKmh,5);
 assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
 assert.equal(copyControls({groundClearance:999}).groundClearance,50);assert.equal(copyControls({groundClearance:-5}).groundClearance,.5);
@@ -111,10 +112,10 @@ game=neutralControls();applyGameStick(game,"left",{x:.60,y:0},gameInvertLeft);
 assert.ok(game.roll<0,"inverted RIGHT motion must produce physical LEFT strafe");
 
 game=neutralControls();applyGameStick(game,"left",{x:1,y:-1},DEFAULT_PHONE_SETTINGS);
-near(Math.hypot(game.roll,game.pitch),2/3,3e-6,"default GAME full-vector command must request 36 km/h from the 54 km/h FC envelope");
-gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);near(Math.hypot(gameKnob.x,gameKnob.y),1,3e-6,"speed scaling must not shrink the rendered stick travel");
-const maxGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:54};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},maxGameSpeed);near(game.roll,1,1e-12,"54 km/h setting must use full SBUS translation authority");
-const slowGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:5};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},slowGameSpeed);near(game.roll,5/54,1e-12,"low speed setting must scale the velocity request, not the FC physics");
+near(gameStateStickMagnitude(Math.hypot(game.roll,game.pitch)),2/3,3e-6,"default GAME full-vector command must decode to 36 km/h from the 54 km/h FC envelope");
+gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);near(Math.hypot(gameKnob.x,gameKnob.y),1,3e-6,"speed mapping must not shrink the rendered stick travel");
+const maxGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:54};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},maxGameSpeed);near(gameStateStickMagnitude(Math.abs(game.roll)),1,1e-10,"54 km/h setting must decode to full FC velocity authority");
+const slowGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:5};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},slowGameSpeed);near(gameStateStickMagnitude(Math.abs(game.roll)),5/54,2e-8,"low speed setting must decode to the selected velocity fraction");
 
 const knob={style:{left:"50%",top:"71%"}};
 const element={
@@ -143,8 +144,11 @@ for(const marker of ["DECAL_POOL_SIZE=32","fireDecalPoolSize","flightFireDecal",
 const addDecalStart=fireSource.indexOf("function addThreeDecal"),aimStart=fireSource.indexOf("function aimPoint",addDecalStart);
 assert.ok(addDecalStart>=0&&aimStart>addDecalStart,"cannot isolate pooled decal writer");
 assert.ok(!fireSource.slice(addDecalStart,aimStart).includes("new THREE.Mesh"),"shots must recycle decal meshes instead of allocating per hit");
+const stateSource=readFileSync("esp32/Arondight45_StateControl.hpp","utf8");
+for(const marker of ["shaped_magnitude = shape(magnitude, 0.035f, 0.25f)","kStateMaxHorizontalSpeedMps = 15.0f"])
+  assert.ok(stateSource.includes(marker),`shared S31 radial velocity contract missing: ${marker}`);
 
-console.log("Phone controls passed: production fineness, persisted 5-54 km/h GAME velocity envelope, semantic inversion, axis locks, relative drag, pooled fire FX, and FC-authoritative arming.");
+console.log("Phone controls passed: radial 5-54 km/h GAME velocity envelope, semantic inversion, axis locks, relative drag, pooled fire FX, and FC-authoritative arming.");
 
 import {clearanceRateMps,stepGroundClearanceTarget,MAX_GAME_CLEARANCE_RATE_MPS} from "../sim/control_semantics.mjs";
 if(clearanceRateMps(0)!==0||clearanceRateMps(.05)!==0)throw new Error("height HOLD/deadband failed");
