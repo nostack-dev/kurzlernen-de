@@ -6,6 +6,8 @@ export const GAME_CLEARANCE_RATE_DEADBAND=0.08;
 export const MIN_GAME_HORIZONTAL_SPEED_KMH=5;
 export const MAX_GAME_HORIZONTAL_SPEED_KMH=54;
 export const DEFAULT_GAME_HORIZONTAL_SPEED_KMH=36;
+export const GAME_STATE_STICK_DEADBAND=0.035;
+export const GAME_STATE_STICK_EXPO=0.25;
 // UI/transport range mirrors the FC's hardware-side GAME clearance envelope.
 // Height input is spring-centred target slew: release means HOLD. It never writes
 // vehicle position/velocity and still crosses SBUS -> StateController -> motors.
@@ -81,6 +83,27 @@ export function inversePhoneAxis(value,fineness=1){
   return sign*(lo+hi)/2;
 }
 
+// Mirror the shared C++ StateController's radial GAME stick shaping exactly.
+// The phone pre-compensates only this input transfer curve so the FC receives the
+// requested velocity fraction; acceleration, tilt, mixer and motor limits remain
+// entirely inside the shared C++ controller on both WASM and ESP32-S31.
+export function gameStateStickMagnitude(value){
+  const a=clampControl(Math.abs(Number(value)||0),0,1);
+  if(a<=GAME_STATE_STICK_DEADBAND)return 0;
+  const t=(a-GAME_STATE_STICK_DEADBAND)/(1-GAME_STATE_STICK_DEADBAND);
+  return clampControl(t*(1-GAME_STATE_STICK_EXPO)+t*t*t*GAME_STATE_STICK_EXPO,0,1);
+}
+export function inverseGameStateStickMagnitude(value){
+  const target=clampControl(Math.abs(Number(value)||0),0,1);
+  if(target===0||target===1)return target;
+  let lo=0,hi=1;
+  for(let i=0;i<30;i++){
+    const mid=(lo+hi)/2;
+    if(gameStateStickMagnitude(mid)<target)lo=mid;else hi=mid;
+  }
+  return(lo+hi)/2;
+}
+
 export function armReady(fcState,_controls,available=true){
   return Boolean(available)&&fcState==="DISARMED";
 }
@@ -126,26 +149,24 @@ export function endPointerDrag(element,pointerId){
 }
 
 export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
-  const cfg=normalizePhoneSettings(settings),speedScale=gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh);
+  const cfg=normalizePhoneSettings(settings),p=constrainUnit(Number(point?.x)||0,Number(point?.y)||0);
   if(kind==="left"){
-    const x=cfg.invertLeftHorizontal?-point.x:point.x;
-    controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness)*speedScale;
-    controls.pitch=phoneAxis(-point.y,cfg.leftFineness)*speedScale;
-    controls.throttle=0;
+    const x=cfg.lockLeftHorizontal?0:(cfg.invertLeftHorizontal?-p.x:p.x),forward=-p.y,magnitude=Math.hypot(x,forward);
+    const phoneMagnitude=phoneAxis(magnitude,cfg.leftFineness),desiredVelocityFraction=phoneMagnitude*gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh),encodedMagnitude=inverseGameStateStickMagnitude(desiredVelocityFraction),factor=magnitude>1e-9?encodedMagnitude/magnitude:0;
+    controls.roll=x*factor;controls.pitch=forward*factor;controls.throttle=0;
   }else{
-    const x=cfg.invertRightHorizontal?-point.x:point.x;
-    const y=cfg.invertRightVertical?-point.y:point.y;
+    const x=cfg.invertRightHorizontal?-p.x:p.x;
+    const y=cfg.invertRightVertical?-p.y:p.y;
     controls.yaw=phoneAxis(-x,cfg.rightFineness);
     controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y,cfg.rightFineness);
   }
   return controls;
 }
 export function gameKnobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
-  const cfg=normalizePhoneSettings(settings),speedScale=gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh);
+  const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
-    const scaledRoll=speedScale>0?clampControl(controls.roll/speedScale):0,scaledPitch=speedScale>0?clampControl(controls.pitch/speedScale):0;
-    const rawX=cfg.lockLeftHorizontal?0:inversePhoneAxis(scaledRoll,cfg.leftFineness);
-    return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-inversePhoneAxis(scaledPitch,cfg.leftFineness)};
+    const encodedRoll=clampControl(Number(controls.roll)||0),encodedPitch=clampControl(Number(controls.pitch)||0),encodedMagnitude=clampControl(Math.hypot(encodedRoll,encodedPitch),0,1),speedScale=gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh),velocityFraction=gameStateStickMagnitude(encodedMagnitude),phoneMagnitude=speedScale>0?clampControl(velocityFraction/speedScale,0,1):0,rawMagnitude=Math.abs(inversePhoneAxis(phoneMagnitude,cfg.leftFineness)),factor=encodedMagnitude>1e-9?rawMagnitude/encodedMagnitude:0,rawX=encodedRoll*factor,rawForward=encodedPitch*factor;
+    return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-rawForward};
   }
   const rawX=-inversePhoneAxis(controls.yaw,cfg.rightFineness);
   const rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,cfg.rightFineness);
