@@ -15,6 +15,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/world-fpv-eye-altitude
+      - name: Apply diagnostic-only pitch inertia compensation
+        run: |
+          set -euxo pipefail
+          python3 -c 'from pathlib import Path; p=Path("esp32/Arondight45_DroneFC_Core.hpp"); s=p.read_text(); old="PID pitch_pid_{Gains{0.0030f, 0.0007f, 0.000010f, 0.18f, 0.38f, 55.0f}};"; new="PID pitch_pid_{Gains{0.003428571f, 0.000800f, 0.000011429f, 0.205714f, 0.38f, 55.0f}};"; assert s.count(old)==1; p.write_text(s.replace(old,new,1))'
       - name: Host controller tests
         run: |
           set -euxo pipefail
