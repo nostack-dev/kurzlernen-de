@@ -16,6 +16,7 @@ constexpr int kStateModeChannel = 6;
 constexpr int kStateBodyPitchChannel = 7;
 constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
+constexpr uint16_t kStateNavigationDegraded = 1u << 7;
 
 // Shared Production/HIL/WASM speed envelope. Do not widen this to mask
 // simulator frame pacing; retune only from measured physical-airframe evidence.
@@ -30,12 +31,25 @@ constexpr float kStateMaxClearanceM = 50.00f;
 struct NavigationState {
     V3 velocity_world_mps{};
     float agl_m{};
+    // valid remains the aggregate/full-NAV indicator for source compatibility.
+    // Split fields let a real rangefinder disappear without throwing away an
+    // otherwise healthy velocity solution.
     bool valid{};
+    bool velocity_valid{};
+    bool agl_valid{};
 };
 
-inline bool finite(const NavigationState& n) {
-    return n.valid && finite(n.velocity_world_mps) && std::isfinite(n.agl_m) &&
+inline bool navigation_velocity_valid(const NavigationState& n) {
+    return (n.velocity_valid || n.valid) && finite(n.velocity_world_mps);
+}
+
+inline bool navigation_agl_valid(const NavigationState& n) {
+    return (n.agl_valid || n.valid) && std::isfinite(n.agl_m) &&
            n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+}
+
+inline bool finite(const NavigationState& n) {
+    return navigation_velocity_valid(n) && navigation_agl_valid(n);
 }
 
 inline float wrap_degrees(float value) {
@@ -116,7 +130,7 @@ public:
     }
 
     Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
-                bool inner_armed, float dt) {
+                bool inner_armed, float dt, bool agl_valid = true) {
         const StateIntent intent = state_intent(receiver);
         if (!active_) {
             target_yaw_deg_ = wrap_degrees(yaw_deg);
@@ -152,9 +166,13 @@ public:
         const float measured_right_accel =
             -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
 
-        const float agl_error = intent.clearance_m - nav.agl_m;
-        const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
-                                      -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps);
+        // AGL is a degradable aid, not an arming kill-switch. If the range source
+        // is unavailable in flight, command zero vertical speed from the still
+        // valid velocity solution. Never fabricate a ground distance.
+        const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
+        const float target_vz = agl_valid
+            ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
+            : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
         const float vertical_accel = clamp(kVerticalVelocityGain * vz_error,
                                            -kMaxVerticalAccelerationMps2,
@@ -203,8 +221,10 @@ public:
                                              -180.0f, 180.0f);
         const float yaw_command = desired_yaw_rate / 180.0f;
 
-        hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
-                            kMinHoverTrim, kMaxHoverTrim);
+        if (agl_valid) {
+            hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
+                                kMinHoverTrim, kMaxHoverTrim);
+        }
         // Compensate thrust from the final commanded body attitude, including the
         // manual pitch bias. This keeps AGL control physical instead of letting a
         // body-pitch command masquerade as an altitude loss in the outer loop.
@@ -230,6 +250,34 @@ public:
         return sanitize(Command{roll_command, pitch_command, throttle_command, yaw_command, intent.arm});
     }
 
+    // Full navigation can disappear while IMU and pilot control remain healthy.
+    // This fallback deliberately uses no invented position/velocity/height: it
+    // maps GAME sticks to bounded attitude/rate commands and the learned physical
+    // hover trim, leaving the shared inner FC as the sole motor authority.
+    Command degraded_attitude_command(const RC& receiver) const {
+        const StateIntent intent = state_intent(receiver);
+        const float right_unit = clamp(intent.right_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
+        const float forward_unit = clamp(intent.forward_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
+        const float roll_target_deg = -right_unit * kDegradedMaxTiltDeg;
+        const float pitch_target_deg = clamp(-forward_unit * kDegradedMaxTiltDeg +
+                                             intent.body_pitch_deg * kDegradedBodyPitchScale,
+                                             -kDegradedMaxTiltDeg, kDegradedMaxTiltDeg);
+        const float roll_command = clamp(roll_target_deg / kInnerAttitudeRangeDeg,
+                                         -kMaxAttitudeCommand, kMaxAttitudeCommand);
+        const float pitch_command = clamp(pitch_target_deg / kInnerAttitudeRangeDeg,
+                                          -kMaxAttitudeCommand, kMaxAttitudeCommand);
+        const float vertical_fraction = std::max(0.50f,
+            std::cos(roll_target_deg * kPi / 180.0f) *
+            std::cos(pitch_target_deg * kPi / 180.0f));
+        const float hover_motor_command = kEscCommandOffset + kEscCommandScale * hover_trim_;
+        const float required_motor_command = hover_motor_command / std::sqrt(vertical_fraction);
+        const float throttle_command = clamp(
+            (required_motor_command - kEscCommandOffset) / kEscCommandScale,
+            kMinFlightThrottle, kMaxFlightThrottle);
+        return sanitize(Command{roll_command, pitch_command, throttle_command,
+                                intent.yaw_rate_dps / 180.0f, intent.arm});
+    }
+
     const StateControllerDebug& debug() const { return debug_; }
     float hover_trim() const { return hover_trim_; }
 
@@ -239,6 +287,8 @@ private:
     static constexpr float kMaxTiltDeg = 25.0f;
     static constexpr float kMaxTiltTangent = 0.46630766f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
+    static constexpr float kDegradedMaxTiltDeg = 12.0f;
+    static constexpr float kDegradedBodyPitchScale = 0.35f;
 
     // Preserve the previously validated small-signal velocity loop gain. The
     // responsiveness change comes only from removing the old 2 m/s^2 authority
@@ -355,7 +405,9 @@ public:
 
         game_active_ = true;
         const bool receiver_valid = input.flight.rc.valid && input.flight.rc_fresh;
-        if (!receiver_valid || !finite(input.navigation)) {
+        if (!receiver_valid) {
+            // Real control-link loss remains a hard fail-safe. Navigation loss is
+            // handled separately below and must never masquerade as RC loss.
             state_controller_.leave_mode();
             RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
             out.state |= kStateGameMode;
@@ -363,13 +415,40 @@ public:
             return out;
         }
 
+        const bool velocity_valid = navigation_velocity_valid(input.navigation);
+        const bool agl_valid = navigation_agl_valid(input.navigation);
+        const bool full_navigation = velocity_valid && agl_valid;
+
+        if (!runtime_.armed() && !full_navigation) {
+            // Arming still requires the complete navigation contract. command_valid
+            // stays false so an ARM-high request cannot satisfy the low-before-arm
+            // latch while sensors are degraded.
+            state_controller_.leave_mode();
+            RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
+            out.state |= kStateGameMode | kStateNavigationDegraded;
+            update_attitude(out);
+            return out;
+        }
+
         const float dt = (input.flight.dt_us > 0 && input.flight.dt_us < 100000)
                              ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
                              : 0.001f;
-        const Command physical_command = state_controller_.run(
-            input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt);
+        Command physical_command{};
+        if (velocity_valid) {
+            physical_command = state_controller_.run(
+                input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt, agl_valid);
+        } else {
+            // Complete nav loss while already flying degrades to bounded IMU
+            // attitude/rate control plus learned hover trim. No position, velocity
+            // or terrain value is invented.
+            state_controller_.leave_mode();
+            physical_command = state_controller_.degraded_attitude_command(input.flight.rc);
+        }
+
         RuntimeOutput out = runtime_.step_command(input.flight, physical_command, true);
-        out.state |= kStateGameMode | kStateNavigationValid;
+        out.state |= kStateGameMode;
+        if (full_navigation) out.state |= kStateNavigationValid;
+        else out.state |= kStateNavigationDegraded;
         update_attitude(out);
         return out;
     }

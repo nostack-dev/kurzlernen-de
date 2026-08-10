@@ -61,6 +61,24 @@ void set_navigation(hil::InputPacket& input, uint16_t nav_sequence,
 }  // namespace
 
 int main() {
+    {
+        const auto split = hwcontract::encode_navigation_wire(7, 1.0f, -2.0f, 0.3f, 0.0f, true, false);
+        fc::NavigationState decoded{};
+        CHECK(hwcontract::decode_navigation_wire(split, decoded));
+        CHECK(decoded.velocity_valid);
+        CHECK(!decoded.agl_valid);
+        CHECK(!decoded.valid);
+        CHECK(fc::navigation_velocity_valid(decoded));
+        CHECK(!fc::navigation_agl_valid(decoded));
+
+        auto legacy = split;
+        legacy.flags = hwcontract::kNavigationValid;
+        legacy.agl_mm = 2300;
+        legacy.crc16 = hwcontract::crc16_ccitt(&legacy, offsetof(hwcontract::NavigationWireFrame, crc16));
+        decoded = {};
+        CHECK(hwcontract::decode_navigation_wire(legacy, decoded));
+        CHECK(decoded.valid && decoded.velocity_valid && decoded.agl_valid);
+    }
     CHECK(sizeof(hil::InputPacket) == 80);
     CHECK(sizeof(hil::OutputPacket) == 32);
     CHECK(hil::kProtocolVersion == 3);

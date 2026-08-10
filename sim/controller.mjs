@@ -68,26 +68,28 @@ const stopHeightUp=bindHeightKey(ui.gameUp,+1),stopHeightDown=bindHeightKey(ui.g
 
 function measuredGameState(){
   const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m);
-  if(lastTelemetry.navigation_valid!==true||![vx,vy,vz,yaw,agl].every(Number.isFinite))return{valid:false};
+  const velocityValid=lastTelemetry.nav_velocity_valid===true||lastTelemetry.navigation_valid===true;
+  const aglValid=lastTelemetry.nav_agl_valid===true||lastTelemetry.navigation_valid===true;
+  if(!velocityValid||![vx,vy,vz,yaw].every(Number.isFinite))return{valid:false,velocityValid:false,aglValid:false};
   const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
-  return{valid:true,forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
+  return{valid:velocityValid&&aglValid,velocityValid,aglValid,forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl:aglValid&&Number.isFinite(agl)?agl:null,yaw};
 }
 function renderNavigation(){
   const nav=measuredGameState();
-  if(!nav.valid){
-    ui.gameSensorStatus.textContent=lastTelemetry.game_mode?"NAV INVALID":"STATE READY";
+  if(!nav.velocityValid){
+    ui.gameSensorStatus.textContent=lastTelemetry.game_mode?"NAV DEGRADED · ATTITUDE HOLD":"STATE READY";
     ui.gameSensorStatus.style.color="#ffd06d";
     ui.gameNav.textContent="F — · R —";
     for(const key of ["navForwardMps","navRightMps","navVerticalMps","aglM","yawDeg"])delete ui.gameClearance.dataset[key];
     return;
   }
-  ui.gameSensorStatus.textContent=`AGL ${nav.agl.toFixed(1)} m`;
+  ui.gameSensorStatus.textContent=nav.aglValid?`AGL ${nav.agl.toFixed(1)} m`:"NAV DEGRADED · AGL LOST";
   ui.gameSensorStatus.style.color="#64e0ae";
   ui.gameNav.textContent=`F ${nav.forward.toFixed(1)} · R ${nav.right.toFixed(1)}`;
   ui.gameClearance.dataset.navForwardMps=String(nav.forward);
   ui.gameClearance.dataset.navRightMps=String(nav.right);
   ui.gameClearance.dataset.navVerticalMps=String(nav.vertical);
-  ui.gameClearance.dataset.aglM=String(nav.agl);
+  if(nav.aglValid)ui.gameClearance.dataset.aglM=String(nav.agl);else delete ui.gameClearance.dataset.aglM;
   ui.gameClearance.dataset.yawDeg=String(nav.yaw);
 }
 
@@ -138,7 +140,7 @@ function updateSticks(){
   setKnob(ui.leftKnob,left.x,left.y);setKnob(ui.rightKnob,right.x,right.y);updateArm();
 }
 function publish(){controls.gameMode=gameMode;controls.groundClearance=groundClearance;peer.publish(controls);}
-function safetyNeutral(send=true){stopHeightUp();stopHeightDown();setHeightAxis(0);controls=neutralForMode();updateSticks();if(send)publish();}
+function safetyNeutral(send=true,{preserveArm=false}={}){const keepArm=preserveArm&&controls.arm;stopHeightUp();stopHeightDown();setHeightAxis(0);controls=neutralForMode();controls.arm=keepArm;updateSticks();if(send)publish();}
 function bindStick(element,kind){
   let pointer=null;
   element.addEventListener("pointerdown",event=>{pointer=event.pointerId;element.setPointerCapture(pointer);apply(event);event.preventDefault();});
@@ -199,7 +201,7 @@ function updateConnection(){
   updateArm();
 }
 
-peer.onState=()=>{updateConnection();if(!peer.linked)safetyNeutral(false);};
+peer.onState=()=>{updateConnection();if(!peer.linked)safetyNeutral(false,{preserveArm:Boolean(peer.pc&&peer.recentlyLinked)});};
 peer.onTelemetry=message=>{
   const previousFcState=lastTelemetry.fc_state;
   lastTelemetry=message;

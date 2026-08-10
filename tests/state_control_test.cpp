@@ -231,6 +231,50 @@ int main() {
     cmd = controller.run(rc, nav, 0.0f, true, 0.01f);
     CHECK(cmd.yaw > 0.50f);
 
+    // In-flight AGL loss must degrade, never cut motors. Velocity remains real,
+    // so vertical control switches to vz=0 while horizontal state control remains active.
+    {
+        fc::StateRuntime state_runtime;
+        uint64_t t = 0;
+        fc::StateRuntimeInput in{};
+        for (uint32_t i = 0; i < fc::kCalibrationSamples + 10; ++i) {
+            in.flight = stationary_input(t += 1000);
+            in.flight.rc = base_rc(false);
+            in.navigation = {{0.0f, 0.0f, 0.0f}, 2.0f, true, true, true};
+            state_runtime.step(in);
+        }
+        for (int i = 0; i < 1100; ++i) {
+            in.flight = stationary_input(t += 1000);
+            in.flight.rc = base_rc(true);
+            in.navigation = {{0.0f, 0.0f, 0.0f}, 2.0f, true, true, true};
+            state_runtime.step(in);
+        }
+        CHECK(state_runtime.inner().armed());
+        in.flight = stationary_input(t += 1000);
+        in.flight.rc = base_rc(true);
+        in.navigation = {{0.0f, 0.0f, 0.35f}, 0.0f, false, true, false};
+        auto degraded = state_runtime.step(in);
+        CHECK(degraded.armed);
+        CHECK((degraded.state & fc::kStateNavigationDegraded) != 0);
+        CHECK((degraded.state & fc::kStateNavigationValid) == 0);
+        CHECK(state_runtime.state_controller().debug().target_vz_mps == 0.0f);
+        CHECK(degraded.motor_us[0] > fc::kEscMinUs);
+
+        // If all NAV is lost, an already-airborne craft falls back to bounded
+        // IMU attitude/hover control. It still obeys a real ARM-low immediately.
+        in.flight = stationary_input(t += 1000);
+        in.flight.rc = base_rc(true);
+        in.navigation = {{}, 0.0f, false, false, false};
+        degraded = state_runtime.step(in);
+        CHECK(degraded.armed);
+        CHECK((degraded.state & fc::kStateNavigationDegraded) != 0);
+        CHECK(degraded.motor_us[0] > fc::kEscMinUs);
+        in.flight.rc = base_rc(false);
+        degraded = state_runtime.step(in);
+        CHECK(!degraded.armed);
+        for (auto pulse : degraded.motor_us) CHECK(pulse == fc::kEscMinUs);
+    }
+
     const fc::Imu still{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
     {
         fc::Controller attitude;

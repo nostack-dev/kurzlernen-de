@@ -24,7 +24,11 @@ namespace hwcontract {
 
 constexpr uint32_t kNavigationMagic = 0x3156414eu;  // "NAV1" little-endian.
 constexpr uint16_t kNavigationVersion = 1;
-constexpr uint16_t kNavigationValid = 1u << 0;
+constexpr uint16_t kNavigationVelocityValid = 1u << 0;
+constexpr uint16_t kNavigationAglValid = 1u << 1;
+constexpr uint16_t kNavigationSplitValidity = 1u << 15;
+// Legacy v1 senders used bit 0 to mean the whole NAV solution was valid.
+constexpr uint16_t kNavigationValid = kNavigationVelocityValid;
 constexpr uint32_t kNavigationTimeoutUs = 60000;
 constexpr size_t kNavigationFrameBytes = 20;
 
@@ -102,13 +106,23 @@ inline bool decode_navigation_wire(const NavigationWireFrame& frame, fc::Navigat
                               frame.vy_cms * 0.01f,
                               frame.vz_cms * 0.01f};
     out.agl_m = frame.agl_mm * 0.001f;
-    out.valid = (frame.flags & kNavigationValid) != 0;
-    return !out.valid || fc::finite(out);
+    const bool split = (frame.flags & kNavigationSplitValidity) != 0;
+    if (split) {
+        out.velocity_valid = (frame.flags & kNavigationVelocityValid) != 0;
+        out.agl_valid = (frame.flags & kNavigationAglValid) != 0;
+    } else {
+        const bool legacy_valid = (frame.flags & kNavigationValid) != 0;
+        out.velocity_valid = legacy_valid;
+        out.agl_valid = legacy_valid;
+    }
+    out.valid = out.velocity_valid && out.agl_valid;
+    return (!out.velocity_valid || fc::finite(out.velocity_world_mps)) &&
+           (!out.agl_valid || (std::isfinite(out.agl_m) && out.agl_m >= 0.0f));
 }
 
 inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
                                                   float vx_mps, float vy_mps, float vz_mps,
-                                                  float agl_m, bool valid) {
+                                                  float agl_m, bool velocity_valid, bool agl_valid) {
     auto s16 = [](float value) {
         const long rounded = std::lround(value * 100.0f);
         return static_cast<int16_t>(fc::clamp<long>(rounded, -32767l, 32767l));
@@ -120,9 +134,17 @@ inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
     frame.vz_cms = s16(vz_mps);
     const long mm = std::lround(std::max(0.0f, agl_m) * 1000.0f);
     frame.agl_mm = static_cast<uint16_t>(fc::clamp<long>(mm, 0l, 65535l));
-    frame.flags = valid ? kNavigationValid : 0u;
+    frame.flags = kNavigationSplitValidity |
+        (velocity_valid ? kNavigationVelocityValid : 0u) |
+        (agl_valid ? kNavigationAglValid : 0u);
     frame.crc16 = crc16_ccitt(&frame, offsetof(NavigationWireFrame, crc16));
     return frame;
+}
+
+inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                  float vx_mps, float vy_mps, float vz_mps,
+                                                  float agl_m, bool valid) {
+    return encode_navigation_wire(sequence, vx_mps, vy_mps, vz_mps, agl_m, valid, valid);
 }
 
 class NavigationWireParser {
