@@ -1,0 +1,74 @@
+name: one-shot WORLD FPS correction
+
+on:
+  push:
+    branches: ["fix/world-fpv-frame-lock"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/world-fpv-frame-lock
+          fetch-depth: 0
+      - name: Add true map FPS telemetry and presentation-only adaptation
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
+          old='''const WORLD_MAP_PIXEL_RATIO=1.0;\nconst WORLD_FLIGHT_PIXEL_RATIO=1.25;\n'''
+          new='''const WORLD_MAP_PIXEL_RATIO=1.0;\nconst WORLD_MAP_PIXEL_RATIO_CONSTRAINED=.85;\nconst WORLD_MAP_PIXEL_RATIO_CRITICAL=.75;\nconst WORLD_FLIGHT_PIXEL_RATIO=1.25;\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''this.mapFrameMs=WORLD_MAP_FRAME_MS;this.perfMode="nominal";this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.flightFps=60;\n'''
+          new='''this.mapFrameMs=WORLD_MAP_FRAME_MS;this.perfMode="nominal";this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.flightFps=60;this.mapPerfWindowStart=performance.now();this.mapPerfFrames=0;this.mapRenderFps=60;\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''    this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));\n'''
+          new='''    this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));\n    this.map.on("render",()=>this.trackMapPerformance(performance.now()));\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''      this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.mapUpdates=0;this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.perfMode="nominal";this.mapFrameMs=WORLD_MAP_FRAME_MS;\n      this.threeRenderer.setPixelRatio(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));this.threeRenderer.shadowMap.enabled=false;\n'''
+          new='''      this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.mapUpdates=0;this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.perfMode="nominal";this.mapFrameMs=WORLD_MAP_FRAME_MS;this.mapPerfWindowStart=performance.now();this.mapPerfFrames=0;this.mapRenderFps=60;\n      this.map?.setPixelRatio?.(WORLD_MAP_PIXEL_RATIO);this.threeRenderer.setPixelRatio(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));this.threeRenderer.shadowMap.enabled=false;\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''viewport.dataset.worldMapFpsCap="30";viewport.dataset.worldMapPixelRatio=String(WORLD_MAP_PIXEL_RATIO);viewport.dataset.worldFlightPixelRatio=String(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));viewport.dataset.worldMapUpdates="0";'''
+          new='''viewport.dataset.worldMapFpsCap="30";viewport.dataset.worldMapPixelRatio=String(WORLD_MAP_PIXEL_RATIO);viewport.dataset.worldMapRenderFps="0";viewport.dataset.worldFlightPixelRatio=String(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));viewport.dataset.worldMapUpdates="0";'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          s=s.replace('delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldFlightPixelRatio;','delete viewport.dataset.worldMapPixelRatio;delete viewport.dataset.worldMapRenderFps;delete viewport.dataset.worldFlightPixelRatio;')
+          old='''  setPerfMode(mode){\n    if(this.perfMode===mode)return;this.perfMode=mode;this.mapFrameMs=mode==="critical"?WORLD_MAP_FRAME_MS_CRITICAL:mode==="constrained"?WORLD_MAP_FRAME_MS_CONSTRAINED:WORLD_MAP_FRAME_MS;\n    if(this.threeRenderer){const ceiling=Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO),ratio=mode==="critical"?Math.min(ceiling,.75):mode==="constrained"?Math.min(ceiling,1):ceiling;this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}\n    const viewport=$("viewport");if(viewport){viewport.dataset.worldPerfMode=mode;viewport.dataset.worldMapFpsCap=String(Math.round(1000/this.mapFrameMs));}\n  }\n  trackFlightPerformance(now){\n    this.perfFrames++;const elapsed=now-this.perfWindowStart;if(elapsed<WORLD_PERF_WINDOW_MS)return;this.flightFps=this.perfFrames*1000/Math.max(1,elapsed);this.perfFrames=0;this.perfWindowStart=now;const viewport=$("viewport");if(viewport)viewport.dataset.worldFlightFps=this.flightFps.toFixed(1);\n    if(this.flightFps<WORLD_FPS_CRITICAL){this.perfGoodWindows=0;this.setPerfMode("critical");return;}if(this.flightFps<WORLD_FPS_CONSTRAINED){this.perfGoodWindows=0;this.setPerfMode("constrained");return;}if(this.flightFps>WORLD_FPS_RECOVER){this.perfGoodWindows++;if(this.perfGoodWindows>=3)this.setPerfMode("nominal");}else this.perfGoodWindows=0;\n  }\n'''
+          new='''  setPerfMode(mode){\n    if(this.perfMode===mode)return;this.perfMode=mode;this.mapFrameMs=mode==="critical"?WORLD_MAP_FRAME_MS_CRITICAL:mode==="constrained"?WORLD_MAP_FRAME_MS_CONSTRAINED:WORLD_MAP_FRAME_MS;\n    const mapRatio=mode==="critical"?WORLD_MAP_PIXEL_RATIO_CRITICAL:mode==="constrained"?WORLD_MAP_PIXEL_RATIO_CONSTRAINED:WORLD_MAP_PIXEL_RATIO;this.map?.setPixelRatio?.(mapRatio);\n    if(this.threeRenderer){const ceiling=Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO),ratio=mode==="critical"?Math.min(ceiling,.75):mode==="constrained"?Math.min(ceiling,1):ceiling;this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}\n    const viewport=$("viewport");if(viewport){viewport.dataset.worldPerfMode=mode;viewport.dataset.worldMapFpsCap=String(Math.round(1000/this.mapFrameMs));viewport.dataset.worldMapPixelRatio=String(mapRatio);}\n  }\n  trackMapPerformance(now){\n    this.mapPerfFrames++;const elapsed=now-this.mapPerfWindowStart;if(elapsed<WORLD_PERF_WINDOW_MS)return;this.mapRenderFps=this.mapPerfFrames*1000/Math.max(1,elapsed);this.mapPerfFrames=0;this.mapPerfWindowStart=now;const viewport=$("viewport");if(viewport)viewport.dataset.worldMapRenderFps=this.mapRenderFps.toFixed(1);\n  }\n  trackFlightPerformance(now){\n    this.perfFrames++;const elapsed=now-this.perfWindowStart;if(elapsed<WORLD_PERF_WINDOW_MS)return;this.flightFps=this.perfFrames*1000/Math.max(1,elapsed);this.perfFrames=0;this.perfWindowStart=now;const viewport=$("viewport"),fpv=viewport?.dataset.cameraMode==="fpv",effectiveFps=fpv?Math.min(this.flightFps,this.mapRenderFps):this.flightFps;if(viewport)viewport.dataset.worldFlightFps=this.flightFps.toFixed(1);\n    if(effectiveFps<WORLD_FPS_CRITICAL){this.perfGoodWindows=0;this.setPerfMode("critical");return;}if(effectiveFps<WORLD_FPS_CONSTRAINED){this.perfGoodWindows=0;this.setPerfMode("constrained");return;}if(effectiveFps>WORLD_FPS_RECOVER){this.perfGoodWindows++;if(this.perfGoodWindows>=3)this.setPerfMode("nominal");}else this.perfGoodWindows=0;\n  }\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          old='''for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25",'''
+          new='''for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_MAP_PIXEL_RATIO_CONSTRAINED=.85","WORLD_MAP_PIXEL_RATIO_CRITICAL=.75","WORLD_FLIGHT_PIXEL_RATIO=1.25","trackMapPerformance(now)","worldMapRenderFps","this.map?.setPixelRatio?.(mapRatio)",'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
+          old='''mapPixelRatio:Number(viewport?.dataset.worldMapPixelRatio||0),\n      flightPixelRatio:'''
+          new='''mapPixelRatio:Number(viewport?.dataset.worldMapPixelRatio||0),\n      mapRenderFps:Number(viewport?.dataset.worldMapRenderFps||0),\n      flightPixelRatio:'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));\n'''
+          new='''  const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||"",mapFps:Number(e.dataset.worldMapRenderFps||0)}));\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  if(fpvSyncEnd.mode!=="frame-locked"||fpvFrameDelta<6||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD camera is not synchronized to visible flight frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);\n'''
+          new='''  if(fpvSyncEnd.mode!=="frame-locked"||fpvFrameDelta<6||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD camera is not synchronized to visible flight frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);\n  await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.worldMapRenderFps||0)>0,{timeout:3000});\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+          Path('.github/workflows/one-shot-world-fps.yml').unlink()
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          node --check tests/architecture_invariants.mjs
+          node --check tests/real_world_ui_smoke.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Correct WORLD FPV presentation FPS"
+          git push origin HEAD:fix/world-fpv-frame-lock
