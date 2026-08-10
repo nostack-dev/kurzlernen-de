@@ -5,190 +5,54 @@ on:
     branches: ["fix/final-flight-safety-ux"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-test-commit:
-    if: github.event.head_commit.message != 'Apply NAV1 component validity and sensor continuity'
+  axis-probe:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/final-flight-safety-ux
-          fetch-depth: 0
-      - name: Patch NAV1 hardware contract and simulator sensor source
+      - name: Build SIL and measure equal-axis transient
         run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/axis-probe
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/sim.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/controller.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
-
-          def patch(path, old, new, label):
-              p=Path(path); s=p.read_text(); n=s.count(old)
-              assert n==1, f'{label}: expected 1, got {n}'
-              p.write_text(s.replace(old,new,1))
-
-          patch('esp32/Arondight45_HardwareSensors.hpp',
-          '''constexpr uint16_t kNavigationValid = 1u << 0;
-          constexpr uint32_t kNavigationTimeoutUs = 60000;
-          ''',
-          '''constexpr uint16_t kNavigationValid = 1u << 0;
-          constexpr uint16_t kNavigationVelocityValid = 1u << 1;
-          constexpr uint16_t kNavigationAglValid = 1u << 2;
-          // New producers set this marker and publish velocity/AGL validity independently.
-          // Legacy NAV1 modules omit it; their bit 0 remains "all navigation valid".
-          constexpr uint16_t kNavigationSplitValidity = 1u << 15;
-          constexpr uint32_t kNavigationTimeoutUs = 60000;
-          ''','NAV1 constants')
-
-          patch('esp32/Arondight45_HardwareSensors.hpp',
-          '''    out.agl_m = frame.agl_mm * 0.001f;
-              out.valid = (frame.flags & kNavigationValid) != 0;
-              return !out.valid || fc::finite(out);
-          }
-          ''',
-          '''    out.agl_m = frame.agl_mm * 0.001f;
-              const bool split = (frame.flags & kNavigationSplitValidity) != 0;
-              const bool legacy_valid = (frame.flags & kNavigationValid) != 0;
-              out.velocity_valid = split ? (frame.flags & kNavigationVelocityValid) != 0 : legacy_valid;
-              out.agl_valid = split ? (frame.flags & kNavigationAglValid) != 0 : legacy_valid;
-              out.valid = out.velocity_valid && out.agl_valid;
-              return (!out.velocity_valid || fc::finite(out.velocity_world_mps)) &&
-                     (!out.agl_valid || (std::isfinite(out.agl_m) && out.agl_m >= 0.0f && out.agl_m < 1000.0f));
-          }
-          ''','NAV1 decode')
-
-          patch('esp32/Arondight45_HardwareSensors.hpp',
-          '''inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
-                                                            float vx_mps, float vy_mps, float vz_mps,
-                                                            float agl_m, bool valid) {
-          ''',
-          '''inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
-                                                            float vx_mps, float vy_mps, float vz_mps,
-                                                            float agl_m, bool velocity_valid, bool agl_valid) {
-          ''','NAV1 encoder signature')
-
-          patch('esp32/Arondight45_HardwareSensors.hpp',
-          '''    frame.flags = valid ? kNavigationValid : 0u;
-          ''',
-          '''    frame.flags = kNavigationSplitValidity |
-                            (velocity_valid ? kNavigationVelocityValid : 0u) |
-                            (agl_valid ? kNavigationAglValid : 0u) |
-                            ((velocity_valid && agl_valid) ? kNavigationValid : 0u);
-          ''','NAV1 encoder flags')
-
-          patch('esp32/Arondight45_HardwareSensors.hpp',
-          '''    return frame;
-          }
-
-          class NavigationWireParser {
-          ''',
-          '''    return frame;
-          }
-
-          inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
-                                                            float vx_mps, float vy_mps, float vz_mps,
-                                                            float agl_m, bool valid) {
-              return encode_navigation_wire(sequence, vx_mps, vy_mps, vz_mps, agl_m, valid, valid);
-          }
-
-          class NavigationWireParser {
-          ''','NAV1 legacy encoder overload')
-
-          patch('esp32/Arondight45_FirmwareRuntime.hpp',
-          '''            navigation.valid = false;
-          ''',
-          '''            navigation.valid = false;
-                      navigation.velocity_valid = false;
-                      navigation.agl_valid = false;
-          ''','NAV freshness components')
-
-          patch('sim/p2p_link.mjs',
-          '''    if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState)){
-          ''',
-          '''    // "disconnected" is transient in WebRTC. Freshness is independently enforced by
-              // CONTROL_STALE_MS, so only terminal peer states erase the last control sample here.
-              if(!this.pc||["failed","closed"].includes(this.pc.connectionState)){
-          ''','transient WebRTC state')
-
-          patch('sim/simulator.mjs',
-          '''const STATE_NAVIGATION_VALID = 1 << 5;
-          const STATE_GAME_MODE = 1 << 6;
-          const TERRAIN_SIZE = 600;
-          const TERRAIN_HALF = TERRAIN_SIZE / 2;
-          ''',
-          '''const STATE_NAVIGATION_VALID = 1 << 5;
-          const STATE_GAME_MODE = 1 << 6;
-          const STATE_NAVIGATION_DEGRADED = 1 << 7;
-          const TERRAIN_SIZE = 600;
-          const TERRAIN_HALF = TERRAIN_SIZE / 2;
-          // TERRAIN_SIZE is only the visible training-grid size. Sensor/collision truth must not
-          // end at the drawing edge and fabricate NAV loss during long WORLD flights.
-          const PHYSICS_GROUND_HALF = 10000;
-          ''','sim state constants')
-
-          patch('sim/simulator.mjs',
-          '''b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);''',
-          '''b3.b3CreateBoxShape(ground,groundShape,PHYSICS_GROUND_HALF,PHYSICS_GROUND_HALF,.05);''','physics ground extent')
-
-          patch('sim/simulator.mjs',
-          '''  view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,measurement.valid?1:0,true);
-          ''',
-          '''  const velocityValid=measurement.velocityValid??measurement.valid,aglValid=measurement.aglValid??measurement.valid;
-            const navFlags=(1<<15)|(velocityValid?(1<<1):0)|(aglValid?(1<<2):0)|((velocityValid&&aglValid)?1:0);
-            view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,navFlags,true);
-          ''','sim NAV1 flags')
-
-          patch('sim/simulator.mjs',
-          '''  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
-          ''',
-          '''  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};}
-          ''','sim NAV reset')
-
-          patch('sim/simulator.mjs',
-          '''    const range=model.groundRange(NAV_AGL_RAY_MAX_M);let valid=range.valid,agl=0;
-              if(valid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;}
-              this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};
-          ''',
-          '''    const range=model.groundRange(NAV_AGL_RAY_MAX_M),velocityValid=this.filtered.every(Number.isFinite);let aglValid=range.valid,agl=0;
-              if(aglValid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;if(!Number.isFinite(agl)||agl>65.4)aglValid=false;}
-              this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl:aglValid?agl:0,valid:velocityValid&&aglValid,velocityValid,aglValid};
-          ''','sim component validity')
-
-          patch('sim/simulator.mjs',
-          '''let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};''',
-          '''let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};''','latest nav state')
-
-          # Hardware-wire contract tests: legacy frame compatibility + component validity.
-          p=Path('tests/drone_hil_protocol_test.cpp'); s=p.read_text()
-          marker='''    const auto high_wire = hwcontract::encode_navigation_wire(78, 0, 0, 0, 50.0f, true);
-              CHECK(hwcontract::decode_navigation_wire(high_wire, nav));
-              CHECK(nav.valid);
-              CHECK(std::fabs(nav.agl_m - 50.0f) < 0.002f);
+          for path,marker,bundle in [('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/sim.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/controller.bundle.mjs')]:
+              p=Path(path);s=p.read_text();b=Path(bundle).read_text().replace('</script','<\\/script');assert marker in s;p.write_text(s.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          p=Path('tests/dual_phone_smoke.mjs');s=p.read_text()
+          old='''  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
+            const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);const moving=await liveMotion(view,controller);
           '''
-          assert s.count(marker)==1, 'wire test marker'
-          addition=marker+'''    const auto agl_lost_wire = hwcontract::encode_navigation_wire(79, 1.0f, -0.5f, 0.1f, 0.0f, true, false);
-              CHECK(hwcontract::decode_navigation_wire(agl_lost_wire, nav));
-              CHECK(!nav.valid);
-              CHECK(nav.velocity_valid);
-              CHECK(!nav.agl_valid);
-              CHECK(std::fabs(nav.velocity_world_mps.x - 1.0f) < 0.011f);
-              auto legacy_wire = wire;
-              legacy_wire.flags = hwcontract::kNavigationValid;
-              legacy_wire.crc16 = hwcontract::crc16_ccitt(&legacy_wire, offsetof(hwcontract::NavigationWireFrame, crc16));
-              CHECK(hwcontract::decode_navigation_wire(legacy_wire, nav));
-              CHECK(nav.valid && nav.velocity_valid && nav.agl_valid);
+          new='''  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.70,{steps:5});
+            const forwardStart=await simTime(view);const forwardCommandTrace=await liveTrace(view,controller,forwardStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);const moving=forwardCommandTrace[forwardCommandTrace.length-1];console.log(`AXIS PROBE forward FC trace: ${JSON.stringify(forwardCommandTrace)}`);const forwardPhysics=traceAtOffsets(await flightSamples(view),forwardStart,[0,.1,.2,.35,.5,.65,.8,1.0]);console.log(`AXIS PROBE forward PHYS trace: ${JSON.stringify(forwardPhysics)}`);
           '''
-          s=s.replace(marker,addition,1)
-          p.write_text(s)
+          assert s.count(old)==1
+          s=s.replace(old,new,1)
+          assert s.count('lcx+lr*.65,lcy')==1
+          s=s.replace('lcx+lr*.65,lcy','lcx+lr*.70,lcy',1)
+          old2='''const strafeStart=await simTime(view);const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);const strafing=strafeCommandTrace[strafeCommandTrace.length-1];console.log(`State-control strafe command trace: ${JSON.stringify(strafeCommandTrace)}`);'''
+          new2='''const strafeStart=await simTime(view);const strafeCommandTrace=await liveTrace(view,controller,strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);const strafing=strafeCommandTrace[strafeCommandTrace.length-1];console.log(`AXIS PROBE strafe FC trace: ${JSON.stringify(strafeCommandTrace)}`);const strafePhysics=traceAtOffsets(await flightSamples(view),strafeStart,[0,.1,.2,.35,.5,.65,.8,1.0]);console.log(`AXIS PROBE strafe PHYS trace: ${JSON.stringify(strafePhysics)}`);'''
+          assert s.count(old2)==1
+          p.write_text(s.replace(old2,new2,1))
           PY
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
-          /tmp/state_control_test
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/drone_hil_protocol_test
-          /tmp/drone_hil_protocol_test
-          node --check sim/simulator.mjs
-          node --check sim/p2p_link.mjs
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add esp32/Arondight45_HardwareSensors.hpp esp32/Arondight45_FirmwareRuntime.hpp sim/simulator.mjs sim/p2p_link.mjs tests/drone_hil_protocol_test.cpp
-          git commit -m 'Apply NAV1 component validity and sensor continuity'
-          git push origin HEAD:fix/final-flight-safety-ux
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/axis-http.log 2>&1 &
+          PID=$!; trap 'kill "$PID" 2>/dev/null || true; rm -f node_modules' EXIT; sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
