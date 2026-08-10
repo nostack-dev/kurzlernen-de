@@ -18,9 +18,10 @@ constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
 constexpr uint16_t kStateNavigationDegraded = 1u << 7;
 
-// Shared Production/HIL/WASM speed envelope. Do not widen this to mask
-// simulator frame pacing; retune only from measured physical-airframe evidence.
-constexpr float kStateMaxHorizontalSpeedMps = 5.0f;
+// Shared Production/HIL/WASM hard speed envelope. Phone GAME settings scale the
+// normalized SBUS translation request below this ceiling; the physical outer loop
+// still limits acceleration and tilt before the one shared motor-authority path.
+constexpr float kStateMaxHorizontalSpeedMps = 15.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;
