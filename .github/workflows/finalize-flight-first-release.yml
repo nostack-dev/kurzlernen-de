@@ -22,6 +22,7 @@ jobs:
         run: |
           set -euxo pipefail
           python3 tools/finalize_flight_first_release_v5.py
+          python3 tools/finalize_flight_first_release_v6.py
           rm .github/workflows/finalize-flight-first-release.yml
           node --check sim/simulator.mjs
           node --check sim/control_settings.mjs
