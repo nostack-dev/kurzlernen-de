@@ -180,8 +180,8 @@ public:
         // never become stored propulsion after the pilot releases translation.
         // Neutral means an immediate zero-velocity target, so clear the cruise
         // compensation before computing the braking acceleration. The P/D path
-        // then commands counter-tilt immediately, still under the same 4 m/s² and
-        // 25° physical envelopes.
+        // then commands counter-tilt immediately, still under the same 5.5 m/s²
+        // and 30° physical envelopes.
         if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ = 0.0f;
             horizontal_integral_right_mps2_ = 0.0f;
@@ -292,8 +292,8 @@ public:
 private:
     static constexpr float kGravityMps2 = 9.80665f;
     static constexpr float kInnerAttitudeRangeDeg = 32.0f;
-    static constexpr float kMaxTiltDeg = 25.0f;
-    static constexpr float kMaxTiltTangent = 0.46630766f;
+    static constexpr float kMaxTiltDeg = 30.0f;
+    static constexpr float kMaxTiltTangent = 0.57735027f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
@@ -306,7 +306,7 @@ private:
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    static constexpr float kMaxHorizontalAccelerationMps2 = 4.0f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 5.5f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;
     static constexpr float kMaxVerticalSpeedMps = 2.0f;
