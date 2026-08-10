@@ -26,6 +26,11 @@ jobs:
           new='hud.addEventListener("pointerup",release,{passive:false});hud.addEventListener("pointercancel",release,{passive:false});this.renderLookHud();'
           assert s.count(old)==1
           p.write_text(s.replace(old,new,1))
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
+          needle='  await page.click("#soloWorld");await waitWorld();\n'
+          grid='''  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});\n  await page.click(\'.phone-settings-dialog [data-world-grid]\');await page.click(\'.phone-settings-dialog [data-close]\');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="0",{timeout:3000});\n  const gridOff=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOff!=="0")throw new Error(`WORLD GRID off did not persist: ${gridOff}`);\n  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});\n  await page.click(\'.phone-settings-dialog [data-world-grid]\');await page.click(\'.phone-settings-dialog [data-close]\');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="1",{timeout:3000});\n  const gridOn=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOn!=="1")throw new Error(`WORLD GRID on did not persist: ${gridOn}`);\n\n'''
+          assert s.count(needle)==1
+          p.write_text(s.replace(needle,grid+needle,1))
           PY
           rm -f .github/workflows/one-shot-full-release-validation.yml
       - name: Host flight-core and architecture gates
