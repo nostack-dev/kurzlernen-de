@@ -280,6 +280,34 @@ int main() {
     CHECK(!invalid.armed);
     for (auto pulse : invalid.motor_us) CHECK(pulse == fc::kEscMinUs);
 
+
+    // GAME NAV degradation must never masquerade as RC/control loss after arming.
+    fc::StateRuntime state_runtime;
+    uint64_t state_now = 0;
+    fc::StateRuntimeInput si{};
+    si.navigation = fc::NavigationState{{0.0f,0.0f,0.0f},2.0f,true};
+    for (uint32_t i=0;i<fc::kCalibrationSamples+1;++i) {
+        si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(false);
+        CHECK(state_runtime.step(si).fault==fc::kFaultNone);
+    }
+    for (int i=0;i<1002;++i) {
+        si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true);
+        const auto o=state_runtime.step(si); if(i==1001) CHECK(o.armed);
+    }
+    si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true);
+    si.navigation=fc::NavigationState{{0.0f,0.0f,0.0f},0.0f,true,false};
+    const auto agl_lost=state_runtime.step(si);
+    CHECK(agl_lost.armed); CHECK((agl_lost.state&fc::kStateNavigationDegraded)!=0);
+    for(auto pulse:agl_lost.motor_us) CHECK(pulse>fc::kEscIdleUs);
+    si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true);
+    si.navigation=fc::NavigationState{{0.0f,0.0f,0.0f},0.0f,false,false};
+    const auto nav_lost=state_runtime.step(si);
+    CHECK(nav_lost.armed); CHECK((nav_lost.state&fc::kStateNavigationDegraded)!=0);
+    for(auto pulse:nav_lost.motor_us) CHECK(pulse>fc::kEscIdleUs);
+    si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true); si.flight.rc_fresh=false;
+    const auto rc_lost=state_runtime.step(si);
+    CHECK(!rc_lost.armed); for(auto pulse:rc_lost.motor_us) CHECK(pulse==fc::kEscMinUs);
+
     std::puts("All direct state-vector control tests passed.");
     return 0;
 }

@@ -16,6 +16,7 @@ constexpr int kStateModeChannel = 6;
 constexpr int kStateBodyPitchChannel = 7;
 constexpr uint16_t kStateNavigationValid = 1u << 5;
 constexpr uint16_t kStateGameMode = 1u << 6;
+constexpr uint16_t kStateNavigationDegraded = 1u << 7;
 
 // Shared Production/HIL/WASM speed envelope. Do not widen this to mask
 // simulator frame pacing; retune only from measured physical-airframe evidence.
@@ -31,11 +32,26 @@ struct NavigationState {
     V3 velocity_world_mps{};
     float agl_m{};
     bool valid{};
+    bool velocity_valid{};
+    bool agl_valid{};
+
+    NavigationState() = default;
+    NavigationState(V3 velocity, float agl, bool all_valid)
+        : velocity_world_mps(velocity), agl_m(agl), valid(all_valid),
+          velocity_valid(all_valid), agl_valid(all_valid) {}
+    NavigationState(V3 velocity, float agl, bool velocity_ok, bool agl_ok)
+        : velocity_world_mps(velocity), agl_m(agl), valid(velocity_ok && agl_ok),
+          velocity_valid(velocity_ok), agl_valid(agl_ok) {}
 };
 
+inline bool finite_velocity(const NavigationState& n) {
+    return n.velocity_valid && finite(n.velocity_world_mps);
+}
+inline bool finite_agl(const NavigationState& n) {
+    return n.agl_valid && std::isfinite(n.agl_m) && n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+}
 inline bool finite(const NavigationState& n) {
-    return n.valid && finite(n.velocity_world_mps) && std::isfinite(n.agl_m) &&
-           n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+    return finite_velocity(n) && finite_agl(n);
 }
 
 inline float wrap_degrees(float value) {
@@ -116,7 +132,7 @@ public:
     }
 
     Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
-                bool inner_armed, float dt) {
+                bool inner_armed, float dt, bool agl_valid = true) {
         const StateIntent intent = state_intent(receiver);
         if (!active_) {
             target_yaw_deg_ = wrap_degrees(yaw_deg);
@@ -152,9 +168,11 @@ public:
         const float measured_right_accel =
             -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
 
-        const float agl_error = intent.clearance_m - nav.agl_m;
-        const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
-                                      -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps);
+        // Loss of AGL alone degrades to vertical-speed hold. It is not a motor-stop condition.
+        const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
+        const float target_vz = agl_valid
+            ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
+            : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
         const float vertical_accel = clamp(kVerticalVelocityGain * vz_error,
                                            -kMaxVerticalAccelerationMps2,
@@ -355,7 +373,8 @@ public:
 
         game_active_ = true;
         const bool receiver_valid = input.flight.rc.valid && input.flight.rc_fresh;
-        if (!receiver_valid || !finite(input.navigation)) {
+        if (!receiver_valid) {
+            // Receiver freshness is a real control-loss condition and remains a hard disarm boundary.
             state_controller_.leave_mode();
             RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
             out.state |= kStateGameMode;
@@ -363,13 +382,39 @@ public:
             return out;
         }
 
+        const bool velocity_valid = finite_velocity(input.navigation);
+        const bool agl_valid = finite_agl(input.navigation);
+        const bool full_navigation = velocity_valid && agl_valid;
+
+        // Full NAV is required to enter flight. command_valid=false here deliberately
+        // resets the ARM low/high qualifier so NAV recovery cannot auto-arm a held switch.
+        if (!runtime_.armed() && !full_navigation) {
+            state_controller_.leave_mode();
+            RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
+            out.state |= kStateGameMode | kStateNavigationDegraded;
+            update_attitude(out);
+            return out;
+        }
+
         const float dt = (input.flight.dt_us > 0 && input.flight.dt_us < 100000)
                              ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
                              : 0.001f;
-        const Command physical_command = state_controller_.run(
-            input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt);
+        Command physical_command{};
+        if (velocity_valid) {
+            physical_command = state_controller_.run(
+                input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt, agl_valid);
+        } else {
+            // Complete NAV loss while airborne: retain the same shared inner attitude controller,
+            // pilot attitude authority, yaw-rate authority and learned hover trim. No simulator state
+            // is injected. RC loss and IMU/fatal faults remain separate safety boundaries.
+            state_controller_.leave_mode();
+            physical_command = degraded_attitude_command(intent);
+        }
+
         RuntimeOutput out = runtime_.step_command(input.flight, physical_command, true);
-        out.state |= kStateGameMode | kStateNavigationValid;
+        out.state |= kStateGameMode;
+        if (full_navigation) out.state |= kStateNavigationValid;
+        else out.state |= kStateNavigationDegraded;
         update_attitude(out);
         return out;
     }
@@ -380,6 +425,23 @@ public:
     bool game_active() const { return game_active_; }
 
 private:
+    Command degraded_attitude_command(const StateIntent& intent) const {
+        constexpr float kInnerAttitudeRangeDeg = 32.0f;
+        const float forward_unit = clamp(intent.forward_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
+        const float right_unit = clamp(intent.right_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
+        const float roll_target_deg = -right_unit * kStateMaxBodyPitchDeg;
+        const float pitch_target_deg = clamp(
+            -forward_unit * kStateMaxBodyPitchDeg + intent.body_pitch_deg,
+            -kStateMaxBodyPitchDeg, kStateMaxBodyPitchDeg);
+        return sanitize(Command{
+            roll_target_deg / kInnerAttitudeRangeDeg,
+            pitch_target_deg / kInnerAttitudeRangeDeg,
+            state_controller_.hover_trim(),
+            clamp(intent.yaw_rate_dps / 180.0f, -1.0f, 1.0f),
+            intent.arm,
+        });
+    }
+
     void update_attitude(const RuntimeOutput& out) {
         last_yaw_deg_ = static_cast<float>(out.attitude_cdeg[2]) * 0.01f;
     }
