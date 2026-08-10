@@ -67,10 +67,10 @@ function bindHeightKey(button,direction){
 const stopHeightUp=bindHeightKey(ui.gameUp,+1),stopHeightDown=bindHeightKey(ui.gameDown,-1);
 
 function measuredGameState(){
-  const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m);
-  if(lastTelemetry.navigation_valid!==true||![vx,vy,vz,yaw,agl].every(Number.isFinite))return{valid:false};
+  const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m),velocityValid=lastTelemetry.navigation_velocity_valid??lastTelemetry.navigation_valid,aglValid=lastTelemetry.navigation_agl_valid??lastTelemetry.navigation_valid;
+  if(velocityValid!==true||![vx,vy,vz,yaw].every(Number.isFinite))return{valid:false,aglValid:false};
   const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
-  return{valid:true,forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
+  return{valid:true,aglValid:aglValid===true&&Number.isFinite(agl),forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
 }
 function renderNavigation(){
   const nav=measuredGameState();
@@ -81,13 +81,13 @@ function renderNavigation(){
     for(const key of ["navForwardMps","navRightMps","navVerticalMps","aglM","yawDeg"])delete ui.gameClearance.dataset[key];
     return;
   }
-  ui.gameSensorStatus.textContent=`AGL ${nav.agl.toFixed(1)} m`;
-  ui.gameSensorStatus.style.color="#64e0ae";
+  ui.gameSensorStatus.textContent=nav.aglValid?`AGL ${nav.agl.toFixed(1)} m`:"NAV DEGRADED · AGL LOST";
+  ui.gameSensorStatus.style.color=nav.aglValid?"#64e0ae":"#ffd06d";
   ui.gameNav.textContent=`F ${nav.forward.toFixed(1)} · R ${nav.right.toFixed(1)}`;
   ui.gameClearance.dataset.navForwardMps=String(nav.forward);
   ui.gameClearance.dataset.navRightMps=String(nav.right);
   ui.gameClearance.dataset.navVerticalMps=String(nav.vertical);
-  ui.gameClearance.dataset.aglM=String(nav.agl);
+  if(nav.aglValid)ui.gameClearance.dataset.aglM=String(nav.agl);else delete ui.gameClearance.dataset.aglM;
   ui.gameClearance.dataset.yawDeg=String(nav.yaw);
 }
 
@@ -199,7 +199,9 @@ function updateConnection(){
   updateArm();
 }
 
-peer.onState=()=>{updateConnection();if(!peer.linked)safetyNeutral(false);};
+// A transient WebRTC state change must not synthesize ARM-low. The VIEW-side
+// 350ms control freshness contract remains the authoritative real link-loss failsafe.
+peer.onState=()=>{updateConnection();};
 peer.onTelemetry=message=>{
   const previousFcState=lastTelemetry.fc_state;
   lastTelemetry=message;

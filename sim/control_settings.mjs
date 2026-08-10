@@ -97,7 +97,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   button.type="button";button.className="phone-settings-button";button.textContent=buttonText;button.setAttribute("aria-label","Phone control settings");
   const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
   dialog.innerHTML=`
-    <h3>PHONE CONTROLS</h3>
+    <h3>FLIGHT CONTROLS</h3>
     <p>Higher fineness softens only the centre of each virtual stick. Full stick always stays full command.</p>
     <div class="phone-settings-row">
       <label>LEFT STICK FINENESS</label><output data-out="left"></output>
