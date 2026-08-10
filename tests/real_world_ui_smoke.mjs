@@ -82,9 +82,8 @@ try{
   // Same north-up minimap and same 360-look input in every camera mode.
   for(const expected of ["follow","third","fpv"]){
     await page.waitForFunction(mode=>document.querySelector("#viewport")?.dataset.cameraMode===mode,{timeout:3000},expected);
-    const before=await page.evaluate(()=>Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0));
-    const box=await minimapBox();await page.mouse.move(box.x+box.w*.45,box.y+box.h*.58);await page.mouse.down();await page.mouse.move(box.x+box.w*.72,box.y+box.h*.46,{steps:4});await page.mouse.up();
-    await page.waitForFunction(start=>Math.abs(Number(document.querySelector("#viewport")?.dataset.worldLookYaw||0)-start)>5,{timeout:3000},before);
+    const look=await page.evaluate(()=>{const hud=document.querySelector("#worldLookHud"),v=document.querySelector("#viewport"),r=hud.getBoundingClientRect(),sx=r.left+r.width*.45,sy=r.top+r.height*.58,send=(type,x,y)=>hud.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:31,pointerType:"touch",clientX:x,clientY:y,button:0})),before=Number(v?.dataset.worldLookYaw||0);send("pointerdown",sx,sy);send("pointermove",r.left+r.width*.72,r.top+r.height*.46);send("pointerup",r.left+r.width*.72,r.top+r.height*.46);return{before,after:Number(v?.dataset.worldLookYaw||0)};});
+    if(Math.abs(look.after-look.before)<=5)throw new Error(`${expected} minimap look gesture did not move camera orientation: ${JSON.stringify(look)}`);
     const mode=await page.evaluate(()=>({camera:document.querySelector("#viewport")?.dataset.cameraMode,mini:document.querySelector("#viewport")?.dataset.worldMinimapMode,bearing:Number(document.querySelector("#viewport")?.dataset.worldMinimapBearing||99)}));
     if(mode.camera!==expected||mode.mini!=="north"||Math.abs(mode.bearing)>.01)throw new Error(`${expected} changed minimap contract: ${JSON.stringify(mode)}`);
     await page.evaluate(()=>globalThis.__arondightRealWorld.resetLook(true));
