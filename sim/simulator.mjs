@@ -45,6 +45,13 @@ const PRESENTATION_CONSTRAINED_BACKLOG_MS = 4;
 const PRESENTATION_HARD_BACKLOG_MS = 8;
 const PRESENTATION_SKIP_DRAW_BACKLOG_MS = 12;
 const PRESENTATION_SHADOW_BACKLOG_MS = 3;
+const PRESENTATION_PIXEL_RATIO_MAX = 1.25;
+const PRESENTATION_PIXEL_RATIO_MIN = .60;
+const PRESENTATION_QUALITY_WINDOW_MS = 250;
+const PRESENTATION_CADENCE_CRITICAL = .86;
+const PRESENTATION_CADENCE_CONSTRAINED = .93;
+const PRESENTATION_CADENCE_RECOVER = .985;
+const PRESENTATION_RECOVERY_WINDOWS = 8;
 const yieldToBrowser=(()=>{
   const queue=[],channel=new MessageChannel();
   channel.port1.onmessage=()=>queue.shift()?.();
@@ -431,7 +438,7 @@ function daylightSky(){
 }
 const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,90,700);
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");const presentationSoftwareRaster=/(swiftshader|llvmpipe|software raster|software renderer)/i.test(presentationRendererName),presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX);let presentationPixelRatio=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
 const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});
@@ -603,7 +610,7 @@ $("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if
 $("soloKill").onclick=()=>{setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;};
 $("soloCamera").onclick=()=>{const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();};
 document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
-let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
+let mode="sim",backend=null,running=false,runEpoch=0,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
 const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput=neutralControls(),lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
@@ -673,15 +680,15 @@ function recordSession(){
   sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
 }
 let simulationBacklogMs=0;
-async function loop(){
+async function loop(epoch){
   let schedulerWallMs=performance.now(),accumulatorMs=0,auxAccumulatorS=0;
-  while(running){
+  while(running&&epoch===runEpoch){
     if(mode==="replay"){simulationBacklogMs=0;await replayStep();schedulerWallMs=performance.now();continue;}
     const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=now;
     accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);simulationBacklogMs=accumulatorMs;
     if(accumulatorMs<SIM_FIXED_STEP_MS){await new Promise(requestAnimationFrame);continue;}
     const sliceStart=performance.now(),due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_SLICE),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
-    for(let i=0;i<due&&running;i++){
+    for(let i=0;i<due&&running&&epoch===runEpoch;i++){
       latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;auxAccumulatorS+=DT;accumulatorMs-=SIM_FIXED_STEP_MS;
       if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
       if(performance.now()-sliceStart>=SIM_WORK_SLICE_MS)break;
@@ -701,18 +708,36 @@ async function replayStep(){
 }
 
 function currentFcStateText(){const fcState=latest.state,fault=fcState>>8&255;return fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";}
-let lastPresentationHudMs=-Infinity,lastPresentationAudioMs=-Infinity,lastPresentationDrawMs=-Infinity,lastPresentationShadowMs=-Infinity,presentationDraws=0;
+let lastPresentationHudMs=-Infinity,lastPresentationAudioMs=-Infinity,lastPresentationDrawMs=-Infinity,lastPresentationShadowMs=-Infinity,presentationDraws=0,lastPresentationQualityWallMs=performance.now(),lastPresentationQualitySimS=simTime,presentationQualityGoodWindows=0;
 const simulatorDiagnostics={};
 Object.defineProperties(simulatorDiagnostics,{
   simTime:{get:()=>simTime,enumerable:true},
   simulationBacklogMs:{get:()=>simulationBacklogMs,enumerable:true},
   presentationDraws:{get:()=>presentationDraws,enumerable:true},
+  presentationPixelRatio:{get:()=>presentationPixelRatio,enumerable:true},
+  fcState:{get:()=>latest.state,enumerable:true},
+  runEpoch:{get:()=>runEpoch,enumerable:true},
 });
 Object.freeze(simulatorDiagnostics);
 Object.defineProperty(globalThis,"__arondightDiagnostics",{value:simulatorDiagnostics,writable:false,configurable:false});
+function updatePresentationQuality(now){
+  const worldActive=$("viewport")?.dataset.worldMode==="real";
+  if(!running||mode!=="sim"||worldActive){lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;presentationQualityGoodWindows=0;return;}
+  const elapsedMs=now-lastPresentationQualityWallMs;if(elapsedMs<PRESENTATION_QUALITY_WINDOW_MS)return;
+  const simElapsedS=simTime-lastPresentationQualitySimS,cadence=simElapsedS/Math.max(.001,elapsedMs/1000);
+  lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;
+  let target=presentationPixelRatio;
+  if(cadence<PRESENTATION_CADENCE_CRITICAL){target=Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN);presentationQualityGoodWindows=0;}
+  else if(cadence<PRESENTATION_CADENCE_CONSTRAINED){target=Math.min(presentationNativePixelRatio,.80);presentationQualityGoodWindows=0;}
+  else if(cadence>PRESENTATION_CADENCE_RECOVER&&presentationPixelRatio<presentationNativePixelRatio){
+    if(++presentationQualityGoodWindows>=PRESENTATION_RECOVERY_WINDOWS){target=Math.min(presentationNativePixelRatio,presentationPixelRatio+.20);presentationQualityGoodWindows=0;}
+  }else presentationQualityGoodWindows=0;
+  if(Math.abs(target-presentationPixelRatio)>.01){presentationPixelRatio=target;renderer.setPixelRatio(presentationPixelRatio);resize();}
+  const viewport=$("viewport");if(viewport){viewport.dataset.presentationPixelRatio=presentationPixelRatio.toFixed(2);viewport.dataset.presentationCadence=cadence.toFixed(3);}
+}
 function render(){
   requestAnimationFrame(render);
-  const renderNow=performance.now(),fcState=latest.state;
+  const renderNow=performance.now(),fcState=latest.state;updatePresentationQuality(renderNow);
   motorSound.syncFcState(fcState,arm);
   if(renderNow-lastPresentationAudioMs>=PRESENTATION_AUDIO_INTERVAL_MS){
     lastPresentationAudioMs=renderNow;
@@ -731,8 +756,10 @@ function render(){
   const minDrawInterval=backlog>=PRESENTATION_HARD_BACKLOG_MS?PRESENTATION_MAX_DRAW_GAP_MS:
     backlog>=PRESENTATION_CONSTRAINED_BACKLOG_MS?33:
     backlog>=PRESENTATION_SOFT_BACKLOG_MS?22:0;
+  const softwareRasterDrawInterval=presentationSoftwareRaster?60:0;
+  const effectiveDrawInterval=Math.max(minDrawInterval,softwareRasterDrawInterval);
   const forceDraw=sinceDraw>=PRESENTATION_MAX_DRAW_GAP_MS;
-  const drawDue=forceDraw||(backlog<PRESENTATION_SKIP_DRAW_BACKLOG_MS&&sinceDraw>=minDrawInterval);
+  const drawDue=forceDraw||(backlog<PRESENTATION_SKIP_DRAW_BACKLOG_MS&&sinceDraw>=effectiveDrawInterval);
   if(drawDue){
     lastPresentationDrawMs=renderNow;
     physics.render();
@@ -813,9 +840,9 @@ $("modeSim").onclick=()=>switchMode("sim");$("modeHil").onclick=()=>switchMode("
 ui.connect.onclick=async()=>{if(mode==="sim")return switchMode("sim");if(mode!=="hil")return;try{backend=new HardwareBackend();setStatus("Connecting physical S31…");await backend.connect();ui.tController.textContent=backend.label();ui.tController.className="good";setStatus(`HIL ready: ${backend.label()}.`,"good");ui.run.disabled=false;}catch(error){backend=null;ui.tController.textContent="connection failed";ui.tController.className="bad";setStatus(error.message,"bad");}};
 function startRun(){
   if(running)return true;if(mode!=="replay"&&!backend)return false;if(mode==="replay"&&!realLog.length)return false;
-  running=true;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop().catch(error=>{running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
+  running=true;const epoch=++runEpoch;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop(epoch).catch(error=>{if(epoch!==runEpoch)return;running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
 }
-function stopRun(){running=false;ui.run.textContent="Start";}
+function stopRun(){running=false;++runEpoch;ui.run.textContent="Start";}
 ui.run.onclick=()=>{if(running)stopRun();else startRun();};
 ui.reset.onclick=()=>{stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);};
 ui.logFile.onchange=event=>event.target.files[0]&&loadLog(event.target.files[0]).catch(error=>ui.fitStatus.textContent=error.message);

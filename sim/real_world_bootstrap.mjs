@@ -233,7 +233,7 @@ class RealWorldBridge{
   }
   setPerfMode(mode){
     if(this.perfMode===mode)return;this.perfMode=mode;this.mapFrameMs=mode==="critical"?WORLD_MAP_FRAME_MS_CRITICAL:mode==="constrained"?WORLD_MAP_FRAME_MS_CONSTRAINED:WORLD_MAP_FRAME_MS;
-    if(this.threeRenderer){const ratio=mode==="nominal"?Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO):1;this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}
+    if(this.threeRenderer){const ceiling=Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO),ratio=mode==="critical"?Math.min(ceiling,.75):mode==="constrained"?Math.min(ceiling,1):ceiling;this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}
     const viewport=$("viewport");if(viewport){viewport.dataset.worldPerfMode=mode;viewport.dataset.worldMapFpsCap=String(Math.round(1000/this.mapFrameMs));}
   }
   trackFlightPerformance(now){
