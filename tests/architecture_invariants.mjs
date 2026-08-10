@@ -42,7 +42,8 @@ requireText("esp32/Arondight45_StateControl.hpp","vertical_thrust_fraction");
 requireText("esp32/Arondight45_StateControl.hpp","std::sqrt(thrust_ratio)");
 requireText("esp32/Arondight45_StateControl.hpp","std::atan2");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxYawRateDps = 140.0f");
-requireText("esp32/Arondight45_StateControl.hpp","kStateMaxHorizontalSpeedMps = 5.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kStateMaxHorizontalSpeedMps = 15.0f");
+requireText("esp32/Arondight45_StateControl.hpp","shaped_magnitude = shape(magnitude, 0.035f, 0.25f)");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","const float roll_rate = s.g.x + sin_phi * tan_theta * s.g.y");
 requireText("esp32/Arondight45_DroneFC_Core.hpp","2.0f * kPi * 0.02f");
 
@@ -155,7 +156,7 @@ requireText("sim/simulator.mjs",'import {HybridMotorSound} from "./motor_sound.m
 requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.mjs";');
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
 for(const marker of ["FLIGHT_LOGBOOK_KEY","EXPORT JSON","maxForwardMps","maxRightMps"])requireText("sim/flight_logbook.mjs",marker);
-for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS"])requireText("sim/flight_fire_fx.mjs",marker);
+for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);
 for(const dirty of ["applyForces(","b3Body_ApplyForce","motorOmega","fc::Runtime","StateController"])forbidText("sim/flight_fire_fx.mjs",dirty,`presentation-only fire FX gained flight authority: ${dirty}`);
 for(const marker of ["kStateNavigationDegraded","navigation_velocity_valid","navigation_agl_valid","degraded_attitude_command"])requireText("esp32/Arondight45_StateControl.hpp",marker);
 for(const marker of ["kNavigationVelocityValid","kNavigationAglValid","kNavigationSplitValidity"])requireText("esp32/Arondight45_HardwareSensors.hpp",marker);
@@ -166,8 +167,12 @@ requireText("sim/motor_sound.mjs",'this.viewport.dataset.motorAudioSource="motor
 for(const marker of ["bladeSource","motorSource","washNoise","tipSpeed","playbackRate.setTargetAtTime"])requireText("sim/motor_sound.mjs",marker);
 requireText("sim/control_semantics.mjs","export function applyGameStick");
 requireText("sim/control_semantics.mjs","controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y");
-requireText("sim/control_semantics.mjs","cfg.invertLeftHorizontal?-point.x:point.x");
-requireText("sim/control_semantics.mjs","controls.roll=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness)");
+requireText("sim/control_semantics.mjs","cfg.invertLeftHorizontal?-p.x:p.x");
+requireText("sim/control_semantics.mjs","inverseGameStateStickMagnitude(desiredVelocityFraction)");
+requireText("sim/control_semantics.mjs","controls.roll=x*factor;controls.pitch=forward*factor");
+requireText("sim/control_semantics.mjs","gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh)");
+requireText("sim/control_settings.mjs","MAX HORIZONTAL SPEED");
+requireText("sim/control_settings.mjs","maxHorizontalSpeedKmh:Number(speed.value)");
 requireText("sim/controller.mjs","applyGameStick(controls,kind,point,phoneSettings)");
 requireText("sim/controller.mjs","const keepArm=gameMode&&controls.arm");
 requireText("sim/simulator.mjs","const keepArm=soloControls.arm");
@@ -196,6 +201,8 @@ requireText("sim/controller.mjs","bindHeightKey(ui.gameDown,-1)");
 requireText("sim/controller.mjs",'previousFcState==="ARMED"&&message.fc_state!=="ARMED"&&controls.arm');
 requireText("sim/control_settings.mjs","DEFAULT HOVER ABOVE GROUND");
 requireText("sim/control_semantics.mjs","defaultHoverAgl:1.2");
+requireText("sim/control_semantics.mjs","maxHorizontalSpeedKmh:DEFAULT_GAME_HORIZONTAL_SPEED_KMH");
+requireText("sim/control_semantics.mjs","MAX_GAME_HORIZONTAL_SPEED_KMH=54");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
 requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
@@ -255,7 +262,7 @@ requireText("tests/browser_sim_smoke.mjs","turnStart+.30");
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
-console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, geospatial WGS84/ENU render adapter only, one shared 1-PHONE/2-PHONE GAME mapping, direct WebRTC control and HIL-only bridge.");
+console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
 requireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");
