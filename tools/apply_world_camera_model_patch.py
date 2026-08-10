@@ -1,0 +1,137 @@
+from pathlib import Path
+
+
+def replace_one(path, old, new, label):
+    p = Path(path)
+    s = p.read_text()
+    n = s.count(old)
+    assert n == 1, f"{label}: expected one occurrence, got {n}"
+    p.write_text(s.replace(old, new, 1))
+
+
+# --- WORLD render adapter: remove the near-horizon ground-ray singularity in FPV. ---
+p = Path("sim/real_world_bootstrap.mjs")
+s = p.read_text()
+
+old = 'import {Map as MapLibreMap} from "maplibre-gl";\n'
+new = 'import {Map as MapLibreMap} from "maplibre-gl";\nimport {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";\n'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+
+old = 'const WORLD_MAP_MAX_ZOOM=20;\n'
+new = 'const WORLD_MAP_MAX_ZOOM=20;\nconst WORLD_MAP_MAX_PITCH=120;\n'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+
+old = '''      if(layer.type==="background"){set(layer.id,"background-color","#304657");continue;}\n      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#237db0");set(layer.id,"fill-opacity",.96);continue;}\n      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#55b7df");continue;}\n      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#4f7b55":industry?"#675b58":"#53636b");set(layer.id,"fill-opacity",.92);continue;}\n      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#bdcbd3");set(layer.id,"fill-opacity",.82);continue;}\n      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#f0c85c":mid?"#d9d4ad":"#a9b8c1");set(layer.id,"line-opacity",.95);continue;}\n      if(layer.type==="line"&&source==="boundary")set(layer.id,"line-color","#8094a4");\n'''
+new = '''      if(layer.type==="background"){set(layer.id,"background-color","#243440");continue;}\n      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#086a9d");set(layer.id,"fill-opacity",1);continue;}\n      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#5bc4ed");set(layer.id,"line-opacity",1);continue;}\n      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#2f7044":industry?"#645751":"#46565f");set(layer.id,"fill-opacity",.96);continue;}\n      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#c7d5dc");set(layer.id,"fill-opacity",.88);continue;}\n      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#ffd34f":mid?"#eee4a8":"#c9d2d7");set(layer.id,"line-opacity",1);set(layer.id,"line-width",major?3.6:mid?2.6:1.5);continue;}\n      if(layer.type==="line"&&source==="boundary"){set(layer.id,"line-color","#92a8b7");set(layer.id,"line-opacity",.8);}\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+
+old = '''    const layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":"#a8bdcc","fill-extrusion-height":["coalesce",["to-number",["get","render_height"]],8],"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.91,"fill-extrusion-vertical-gradient":true}};\n'''
+new = '''    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":["interpolate",["linear"],height,0,"#80929e",12,"#aebec7",35,"#dbe4e9",80,"#f2f5f6"],"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.96,"fill-extrusion-vertical-gradient":true}};\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+
+assert s.count('maxPitch:85,maxZoom:WORLD_MAP_MAX_ZOOM') == 1
+s = s.replace('maxPitch:85,maxZoom:WORLD_MAP_MAX_ZOOM', 'maxPitch:WORLD_MAP_MAX_PITCH,maxZoom:WORLD_MAP_MAX_ZOOM', 1)
+
+old = '''    try{this.map.setSky({"sky-color":"#0a2845","sky-horizon-blend":.42,"horizon-color":"#477493","horizon-fog-blend":.22,"fog-color":"#274d68","fog-ground-blend":.08});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}\n    this.addBuildings();this.configureMinimapLayers();return this.map;\n'''
+new = '''    try{this.map.setSky({"sky-color":"#071b2e","sky-horizon-blend":.52,"horizon-color":"#6e93aa","horizon-fog-blend":.34,"fog-color":"#365f79","fog-ground-blend":.12});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}\n    try{this.map.setLight?.({anchor:"viewport",position:[1.35,210,32],color:"#fff3dd",intensity:.78});}catch(error){console.warn("OpenFreeMap extrusion lighting unavailable:",error);}\n    this.addBuildings();this.configureMinimapLayers();return this.map;\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+
+old = '#worldMapLegend i{width:9px;height:6px;border-radius:2px;display:inline-block;margin-right:4px}.legend-water i{background:#237db0}.legend-green i{background:#4f7b55}.legend-road i{background:#e3c56b}.legend-building i{background:#bdcbd3}\n'
+new = '#worldMapLegend i{width:10px;height:7px;border-radius:2px;display:inline-block;margin-right:4px;box-shadow:0 0 0 1px #ffffff24}.legend-water i{background:#086a9d}.legend-green i{background:#2f7044}.legend-road i{background:#ffd34f}.legend-building i{background:#dbe4e9}\n'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+
+start = s.index('  syncMapCamera(camera){')
+end = s.index('\n  renderReal(scene,camera){', start)
+new_sync = '''  syncMapCamera(camera){
+    if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
+    const now=performance.now(),viewport=$("viewport"),cameraMode=viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||""),fpv=cameraMode==="fpv";
+    if(forceMode&&viewport.dataset.worldCameraMode)this.resetLook(true);
+    if(!forceMode&&!fpv&&now-this.lastMapSyncMs<this.mapFrameMs)return;
+    const p=camera.position,dir=new THREE.Vector3(),actualUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir).normalize();
+    const rect=viewport.getBoundingClientRect(),height=Math.max(1,rect.height),verticalFov=clamp(camera.fov,10,120);
+    if(Math.abs(this.map.getVerticalFieldOfView()-verticalFov)>.001)this.map.setVerticalFieldOfView(verticalFov);
+    let focusDistance=10;
+    if(fpv)focusDistance=fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM);
+    else if(dir.z<-.02&&p.z>0){const ground=-p.z/dir.z;if(Number.isFinite(ground)&&ground>0)focusDistance=clamp(ground,2,250);}
+    const target=fpv?forwardTarget(p,dir,focusDistance):p.clone().addScaledVector(dir,focusDistance),center=metersToLngLat(this.originLon,this.originLat,target.x,target.y),horizontal=Math.hypot(dir.x,dir.y);
+    const bearing=THREE.MathUtils.radToDeg(Math.atan2(dir.x,dir.y)),pitch=clamp(90+THREE.MathUtils.radToDeg(Math.atan2(dir.z,Math.max(1e-6,horizontal))),0,fpv?WORLD_MAP_MAX_PITCH:85);
+    let roll=0;if(horizontal>.02){const worldUp=new THREE.Vector3(0,0,1),right0=new THREE.Vector3().crossVectors(dir,worldUp).normalize(),up0=new THREE.Vector3().crossVectors(right0,dir).normalize();roll=THREE.MathUtils.radToDeg(Math.atan2(dir.dot(new THREE.Vector3().crossVectors(up0,actualUp)),up0.dot(actualUp)));}
+    const metersPerPixel=Math.max(.01,2*focusDistance*Math.tan(THREE.MathUtils.degToRad(verticalFov)/2)/height),cosLat=Math.max(.05,Math.cos(center[1]*Math.PI/180)),zoom=fpv?WORLD_MAP_MAX_ZOOM:clamp(Math.log2(156543.03392804097*cosLat/metersPerPixel),14,WORLD_MAP_MAX_ZOOM),size=`${Math.round(rect.width)}x${Math.round(rect.height)}`;
+    if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
+    const view={center,elevation:fpv?target.z:0,zoom,bearing,pitch,roll:clamp(roll,-85,85)},last=this.lastMapView;
+    if(last&&!forceMode&&!fpv){const latM=(center[1]-last.center[1])*Math.PI/180*EARTH_RADIUS_M,lonM=(center[0]-last.center[0])*Math.PI/180*EARTH_RADIUS_M*Math.max(.05,Math.cos(center[1]*Math.PI/180)),centerDelta=Math.hypot(latM,lonM);if(centerDelta<WORLD_MAP_CENTER_EPS_M&&Math.abs(zoom-last.zoom)<WORLD_MAP_ZOOM_EPS&&angularDistanceDeg(bearing,last.bearing)<WORLD_MAP_ANGLE_EPS_DEG&&Math.abs(pitch-last.pitch)<WORLD_MAP_ANGLE_EPS_DEG&&angularDistanceDeg(view.roll,last.roll)<WORLD_MAP_ANGLE_EPS_DEG){this.lastMapSyncMs=now;return;}}
+    this.lastMapSyncMs=now;this.lastMapView={...view,center:[...center]};this.map.jumpTo(view);this.mapUpdates++;
+    viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapSyncMode=fpv?"rigid-3d-target":"budgeted-ground-target";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapTargetElevation=view.elevation.toFixed(3);viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);
+  }'''
+s = s[:start] + new_sync + s[end:]
+s = s.replace('delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldThreeFrames;', 'delete viewport.dataset.worldMapBearing;delete viewport.dataset.worldMapSyncMode;delete viewport.dataset.worldMapTargetElevation;delete viewport.dataset.worldThreeFrames;')
+p.write_text(s)
+
+
+# --- Cheap perceptual acquisition cues for the aircraft; no extra renderer/post-process. ---
+p = Path("sim/simulator.mjs")
+s = p.read_text()
+old = '''    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0045,8,48),new THREE.MeshBasicMaterial({color:0xbdefff,transparent:true,opacity:.88,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;\n'''
+new = '''    const worldHaloBack=new THREE.Mesh(new THREE.TorusGeometry(.158,.009,8,48),new THREE.MeshBasicMaterial({color:0x061018,transparent:true,opacity:.78,depthTest:false,depthWrite:false}));worldHaloBack.position.z=.034;worldHaloBack.visible=false;worldHaloBack.renderOrder=999;this.group.add(worldHaloBack);this.worldHaloBack=worldHaloBack;\n    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0055,8,48),new THREE.MeshBasicMaterial({color:0xaef3ff,transparent:true,opacity:.98,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;\n    const worldHeadingCue=new THREE.Mesh(new THREE.ConeGeometry(.012,.055,12),new THREE.MeshBasicMaterial({color:0xff405a,depthTest:false,depthWrite:false}));worldHeadingCue.rotation.z=-Math.PI/2;worldHeadingCue.position.set(-.19,0,.036);worldHeadingCue.visible=false;worldHeadingCue.renderOrder=1001;this.group.add(worldHeadingCue);this.worldHeadingCue=worldHeadingCue;\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+old = '''  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);if(this.worldHalo){const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow";this.worldHalo.visible=worldActive&&cameraMode!=="fpv";}}\n'''
+new = '''  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;}\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+p.write_text(s)
+
+
+# --- Architecture gate: prove the singularity is gone numerically. ---
+p = Path("tests/architecture_invariants.mjs")
+s = p.read_text()
+old = 'import {phoneAxis} from "../sim/control_semantics.mjs";\n'
+new = 'import {phoneAxis} from "../sim/control_semantics.mjs";\nimport {fpvTargetDistanceMeters,forwardTarget} from "../sim/world_camera_math.mjs";\n'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+anchor = 'const walk=(root,accept)=>{const out=[];for(const name of readdirSync(root)){const path=join(root,name),stat=statSync(path);if(stat.isDirectory())out.push(...walk(path,accept));else if(accept(path))out.push(path);}return out;};\n'
+extra = '''const fpvDistance=fpvTargetDistanceMeters(47,844,50,20);\nif(!(fpvDistance>20&&fpvDistance<200))fail(`WORLD FPV target distance out of physical viewport scale: ${fpvDistance}`);\nconst fpvA=forwardTarget({x:0,y:0,z:5},{x:Math.sqrt(1-.019**2),y:0,z:-.019},fpvDistance),fpvB=forwardTarget({x:0,y:0,z:5},{x:Math.sqrt(1-.021**2),y:0,z:-.021},fpvDistance);\nif(Math.hypot(fpvA.x-fpvB.x,fpvA.y-fpvB.y,fpvA.z-fpvB.z)>1)fail("WORLD FPV target geometry reintroduced near-horizon singularity");\n'''
+assert s.count(anchor) == 1
+s = s.replace(anchor, anchor + extra, 1)
+old = '"setSky({\\"sky-color\\":\\"#0a2845\\"","worldMapUpdates"'
+new = '"setSky({\\"sky-color\\":\\"#071b2e\\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","elevation:fpv?target.z:0","worldMapUpdates"'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+old = 'for(const marker of ["TorusGeometry(.15","worldHalo.visible=worldActive&&cameraMode!==\\"fpv\\""])requireText("sim/simulator.mjs",marker);'
+new = 'for(const marker of ["TorusGeometry(.15","worldHaloBack","worldHeadingCue","showWorldMarker=worldActive&&cameraMode!==\\"fpv\\""])requireText("sim/simulator.mjs",marker);'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+p.write_text(s)
+
+
+# --- Browser gate: camera mode must use the elevated rigid target and stay frame locked. ---
+p = Path("tests/real_world_ui_smoke.mjs")
+s = p.read_text()
+old = 'if(!bootstrapSource.includes("WORLD_MAP_FRAME_MS=1000/30")||!bootstrapSource.includes("pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO)")||!bootstrapSource.includes("setSky({\\"sky-color\\":\\"#0a2845\\""))throw new Error("WORLD mobile render/contrast budget missing");\n'
+new = 'if(!bootstrapSource.includes("WORLD_MAP_FRAME_MS=1000/30")||!bootstrapSource.includes("pixelRatio:Math.min(devicePixelRatio||1,WORLD_MAP_PIXEL_RATIO)")||!bootstrapSource.includes("setSky({\\"sky-color\\":\\"#071b2e\\""))throw new Error("WORLD mobile render/contrast budget missing");\nif(!bootstrapSource.includes(\'fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)\')||!bootstrapSource.includes(\'setVerticalFieldOfView(verticalFov)\')||!bootstrapSource.includes(\'elevation:fpv?target.z:0\'))throw new Error("WORLD FPV stable 3D camera model missing");\n'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+old = '''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");\nfor(const marker of ["#237db0","#4f7b55","#f0c85c","#bdcbd3","WATER","GREEN","ROADS","BUILDINGS"])\n'''
+new = '''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15")||!simulatorSource.includes("worldHaloBack")||!simulatorSource.includes("worldHeadingCue"))throw new Error("WORLD range/visual acquisition cues missing");\nfor(const marker of ["#086a9d","#2f7044","#ffd34f","#dbe4e9","WATER","GREEN","ROADS","BUILDINGS"])\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+old = '    bearing:viewport?.dataset.worldMapBearing||""\n'
+new = '    bearing:viewport?.dataset.worldMapBearing||"",\n    targetElevation:viewport?.dataset.worldMapTargetElevation||"",\n    syncMode:viewport?.dataset.worldMapSyncMode||""\n'
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+old = '''  if(fpv.mode!=="fpv"||fpv.worldCameraMode!=="fpv")throw new Error(`FPV camera mode did not propagate to WORLD: ${JSON.stringify(fpv)}`);\n  if(fpv.center===third.center&&fpv.zoom===third.zoom&&fpv.pitch===third.pitch&&fpv.bearing===third.bearing)throw new Error(`FPV geospatial camera stayed frozen: ${JSON.stringify({third,fpv})}`);\n'''
+new = '''  if(fpv.mode!=="fpv"||fpv.worldCameraMode!=="fpv")throw new Error(`FPV camera mode did not propagate to WORLD: ${JSON.stringify(fpv)}`);\n  if(fpv.center===third.center&&fpv.zoom===third.zoom&&fpv.pitch===third.pitch&&fpv.bearing===third.bearing)throw new Error(`FPV geospatial camera stayed frozen: ${JSON.stringify({third,fpv})}`);\n  if(fpv.syncMode!=="rigid-3d-target"||!Number.isFinite(Number(fpv.targetElevation)))throw new Error(`FPV WORLD camera did not use stable elevated 3D target: ${JSON.stringify(fpv)}`);\n  const fpvSyncStart=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0)}));\n  await page.waitForFunction(start=>Number(document.querySelector("#viewport")?.dataset.worldThreeFrames||0)>start+6,{timeout:5000},fpvSyncStart.frames);\n  const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));\n  const fpvFrameDelta=fpvSyncEnd.frames-fpvSyncStart.frames,fpvMapDelta=fpvSyncEnd.updates-fpvSyncStart.updates;if(fpvSyncEnd.mode!=="rigid-3d-target"||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD map did not stay locked to visible camera frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);\n'''
+assert s.count(old) == 1
+s = s.replace(old, new, 1)
+s = s.replace('adaptive 15/20/30Hz map budget, live camera sync, clean fallback.', 'adaptive 15/20/30Hz FOLLOW/THIRD map budget, rigid elevated FPV camera target, semantic depth palette, clean fallback.', 1)
+p.write_text(s)
+
+# The transaction must leave the production tree with only the two permanent workflows.
+Path("tools/apply_world_camera_model_patch.py").unlink()
+Path(".github/workflows/one-shot-world-camera-model-run.yml").unlink()
