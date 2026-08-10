@@ -21,7 +21,8 @@ jobs:
           set -euxo pipefail
           python3 tools/apply_flight_ux_patch.py
           python3 tools/patch_flight_ux_invariants.py
-          rm -f .github/workflows/one-shot-apply-flight-ux.yml tools/apply_flight_ux_patch.py tools/patch_flight_ux_invariants.py
+          python3 tools/patch_flight_ux_invariants2.py
+          rm -f .github/workflows/one-shot-apply-flight-ux.yml tools/apply_flight_ux_patch.py tools/patch_flight_ux_invariants.py tools/patch_flight_ux_invariants2.py
       - name: Static and architecture gates
         run: |
           set -euxo pipefail
