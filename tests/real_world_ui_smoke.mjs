@@ -95,9 +95,10 @@ try{
     training:document.querySelector("[data-world-training]")?.textContent?.trim()||"",
     grid:document.querySelector('.phone-settings-dialog [data-world-grid]')?.checked,
     keepLook:document.querySelector('.phone-settings-dialog [data-world-keep-look]')?.checked,
+    minimapFollowPresent:!!document.querySelector('.phone-settings-dialog [data-world-minimap-follow]'),
     note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""
   }));
-  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||document.querySelector('.phone-settings-dialog [data-world-minimap-follow]')||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
+  if(!config.section||config.key||config.forget||config.use!=="USE MY GPS LOCATION"||config.training!=="TRAINING RANGE"||config.grid!==true||config.keepLook!==false||config.minimapFollowPresent||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`REAL WORLD settings incomplete: ${JSON.stringify(config)}`);
   if(external.length)throw new Error(`training/settings path triggered external network: ${JSON.stringify(external)}`);
   await page.click('.phone-settings-dialog [data-close]');
 
