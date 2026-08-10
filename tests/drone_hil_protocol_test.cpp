@@ -79,6 +79,17 @@ int main() {
     CHECK(hwcontract::decode_navigation_wire(high_wire, nav));
     CHECK(nav.valid);
     CHECK(std::fabs(nav.agl_m - 50.0f) < 0.002f);
+    const auto agl_lost_wire = hwcontract::encode_navigation_wire(79, 1.0f, -0.5f, 0.1f, 0.0f, true, false);
+    CHECK(hwcontract::decode_navigation_wire(agl_lost_wire, nav));
+    CHECK(!nav.valid);
+    CHECK(nav.velocity_valid);
+    CHECK(!nav.agl_valid);
+    CHECK(std::fabs(nav.velocity_world_mps.x - 1.0f) < 0.011f);
+    auto legacy_wire = wire;
+    legacy_wire.flags = hwcontract::kNavigationValid;
+    legacy_wire.crc16 = hwcontract::crc16_ccitt(&legacy_wire, offsetof(hwcontract::NavigationWireFrame, crc16));
+    CHECK(hwcontract::decode_navigation_wire(legacy_wire, nav));
+    CHECK(nav.valid && nav.velocity_valid && nav.agl_valid);
     auto corrupt = wire;
     ++corrupt.vx_cms;
     CHECK(!hwcontract::decode_navigation_wire(corrupt, nav));

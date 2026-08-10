@@ -76,6 +76,8 @@ public:
         if (!have_navigation_sequence_ || hardware.now_us < navigation_us_ ||
             hardware.now_us - navigation_us_ > hwcontract::kNavigationTimeoutUs) {
             navigation.valid = false;
+            navigation.velocity_valid = false;
+            navigation.agl_valid = false;
         }
 
         StateRuntimeInput input{};

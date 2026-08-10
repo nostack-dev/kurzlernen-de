@@ -25,8 +25,12 @@ const STATE_CALIBRATING = 2;
 const STATE_FAULT = 4;
 const STATE_NAVIGATION_VALID = 1 << 5;
 const STATE_GAME_MODE = 1 << 6;
+const STATE_NAVIGATION_DEGRADED = 1 << 7;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
+// TERRAIN_SIZE is only the visible training-grid size. Sensor/collision truth must not
+// end at the drawing edge and fabricate NAV loss during long WORLD flights.
+const PHYSICS_GROUND_HALF = 10000;
 const DEBUG_GRID_STORAGE = "arondight45DebugGridlinesV1";
 const NAV_AGL_RAY_MAX_M = 60;
 const SIM_FIXED_STEP_MS = DT * 1000;
@@ -92,7 +96,9 @@ function encodeNavigationWire(sequence,measurement){
   const bytes=new Uint8Array(NAVIGATION_BYTES),view=new DataView(bytes.buffer),s16=value=>clamp(Math.round(value*100),-32767,32767);
   view.setUint32(0,0x3156414e,true);view.setUint16(4,1,true);view.setUint16(6,sequence&0xffff,true);
   view.setInt16(8,s16(measurement.vx),true);view.setInt16(10,s16(measurement.vy),true);view.setInt16(12,s16(measurement.vz),true);
-  view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,measurement.valid?1:0,true);
+  const velocityValid=measurement.velocityValid??measurement.valid,aglValid=measurement.aglValid??measurement.valid;
+  const navFlags=(1<<15)|(velocityValid?(1<<1):0)|(aglValid?(1<<2):0)|((velocityValid&&aglValid)?1:0);
+  view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,navFlags,true);
   view.setUint16(18,crc16Ccitt(bytes,18),true);return bytes;
 }
 
@@ -262,14 +268,14 @@ class Noise {
 // NAV1 bytes accepted by the target UART; FirmwareRuntime owns decode/freshness.
 class SimNavigationSensors {
   constructor(){this.reset();}
-  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
+  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};}
   sampleFrame(model,dt=DT){
     this.elapsed+=dt;if(this.elapsed<.01)return null;this.elapsed-=.01;
     const truth=model.linear(),alpha=.42;
     for(let i=0;i<3;i++){const measured=truth[i]+this.noise.gaussian()*.025;this.filtered[i]+=alpha*(measured-this.filtered[i]);}
-    const range=model.groundRange(NAV_AGL_RAY_MAX_M);let valid=range.valid,agl=0;
-    if(valid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;}
-    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid};
+    const range=model.groundRange(NAV_AGL_RAY_MAX_M),velocityValid=this.filtered.every(Number.isFinite);let aglValid=range.valid,agl=0;
+    if(aglValid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;if(!Number.isFinite(agl)||agl>65.4)aglValid=false;}
+    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl:aglValid?agl:0,valid:velocityValid&&aglValid,velocityValid,aglValid};
     return encodeNavigationWire(this.sequence++,this.last);
   }
 }
@@ -335,7 +341,7 @@ class PhysicsModel {
     this.p={...p,wind:[...p.wind]};
     if(this.world)b3.b3DestroyWorld(this.world);
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
-    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
+    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,PHYSICS_GROUND_HALF,PHYSICS_GROUND_HALF,.05);
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:.024;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(.024,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,.022);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
@@ -464,7 +470,7 @@ document.addEventListener("visibilitychange",()=>{motorSound.syncState();updateS
 updateSoundButton();
 const navigationSensors=new SimNavigationSensors();
 const sbusReceiver=new SimSbusReceiver();
-let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};
+let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
 let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFollowInitialized=false;
 const followHeading=new THREE.Vector3(-1,0,0),thirdHeading=new THREE.Vector3(-1,0,0);

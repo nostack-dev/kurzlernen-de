@@ -126,7 +126,9 @@ export class ViewPeerLink extends PeerBase{
     this.control=null;this.lastControlWall=0;this.lastSequence=null;
   }
   _connectionChanged(){
-    if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState)){
+    // "disconnected" is transient in WebRTC. Freshness is independently enforced by
+    // CONTROL_STALE_MS, so only terminal peer states erase the last control sample here.
+    if(!this.pc||["failed","closed"].includes(this.pc.connectionState)){
       if(this.control?.arm===true)this.staleArmLatch=true;
       this.control=null;this.lastControlWall=0;this.lastSequence=null;
     }
