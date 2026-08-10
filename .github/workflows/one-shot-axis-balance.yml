@@ -15,16 +15,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/world-fpv-eye-altitude
-      - name: Apply diagnostic-only full pitch inertia normalization
-        run: |
-          set -euxo pipefail
-          python3 -c 'from pathlib import Path; p=Path("esp32/Arondight45_DroneFC_Core.hpp"); s=p.read_text(); old="PID pitch_pid_{Gains{0.0030f, 0.0007f, 0.000010f, 0.18f, 0.38f, 55.0f}};"; new="PID pitch_pid_{Gains{0.003428571f, 0.000800f, 0.000011429f, 0.205714f, 0.434286f, 55.0f}};"; assert s.count(old)==1; p.write_text(s.replace(old,new,1))'
       - name: Host controller tests
         run: |
           set -euxo pipefail
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
-      - name: Build browser SIL and probe equal forward/strafe commands
+      - name: Build browser SIL and probe equal forward/strafe transients
         run: |
           set -euxo pipefail
           mkdir -p generated
@@ -46,7 +42,26 @@ jobs:
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 -c 'from pathlib import Path; p=Path("drone_simulator.html"); s=p.read_text(); m="<script type=\"module\" src=\"./sim/real_world_bootstrap.mjs\"></script>"; b=Path("/tmp/arondight45-simulator.bundle.mjs").read_text().replace("</script","<\\/script"); assert m in s; p.write_text(s.replace(m,"<script type=\"module\">\n"+b+"\n</script>"))'
           python3 -c 'from pathlib import Path; p=Path("drone_controller.html"); s=p.read_text(); m="<script type=\"module\" src=\"./sim/controller.mjs\"></script>"; b=Path("/tmp/arondight45-controller.bundle.mjs").read_text().replace("</script","<\\/script"); assert m in s; p.write_text(s.replace(m,"<script type=\"module\">\n"+b+"\n</script>"))'
-          python3 -c 'from pathlib import Path; p=Path("tests/dual_phone_smoke.mjs"); s=p.read_text(); a="lcx,lcy-lr*.72"; b="lcx+lr*.65,lcy"; assert s.count(a)==1 and s.count(b)==1; p.write_text(s.replace(a,"lcx,lcy-lr*.70",1).replace(b,"lcx+lr*.70,lcy",1))'
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tests/dual_phone_smoke.mjs")
+          s=p.read_text()
+          old='''  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.72,{steps:5});
+          const forwardStart=await simTime(view);await waitSim(view,forwardStart+1.0,45000);const moving=await liveMotion(view,controller);
+          if(moving.state!=="ARMED"||!moving.motors.some(value=>value>1050))throw new Error(`motor authority lost during forward vector: ${JSON.stringify(moving)}`);
+          if(!(moving.forward>.30))throw new Error(`forward desired-vector did not produce forward motion: ${JSON.stringify(moving)}`);
+          '''
+          new='''  await controller.mouse.move(lcx,lcy);await controller.mouse.down();await controller.mouse.move(lcx,lcy-lr*.70,{steps:5});
+          const forwardStart=await simTime(view);const forwardCommandTrace=await liveTrace(view,controller,forwardStart,[0,.1,.2,.35,.5,.65,.8,1.0],45000);const moving=forwardCommandTrace[forwardCommandTrace.length-1];console.log(`State-control forward command trace: ${JSON.stringify(forwardCommandTrace)}`);
+          if(moving.state!=="ARMED"||!moving.motors.some(value=>value>1050))throw new Error(`motor authority lost during forward vector: ${JSON.stringify(moving)}`);
+          if(!(moving.forward>.30))throw new Error(`forward desired-vector did not produce forward motion: ${JSON.stringify(moving)}`);
+          '''
+          assert s.count(old)==1
+          s=s.replace(old,new,1)
+          assert s.count('lcx+lr*.65,lcy')==1
+          s=s.replace('lcx+lr*.65,lcy','lcx+lr*.70,lcy',1)
+          p.write_text(s)
+          PY
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-axis-http.log 2>&1 &
           HTTP_PID=$!
