@@ -1,0 +1,32 @@
+name: Align minimap pinch FOV
+on:
+  push:
+    branches: ["fix/final-flight-safety-ux"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Align minimap pinch FOV with settings'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/final-flight-safety-ux
+          fetch-depth: 0
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
+          old='const d=distance(),next=clamp(this.minimapPinch.fov-(d-this.minimapPinch.distance)*.16,50,120);saveCameraSettings({...loadCameraSettings(),fpvFovDeg:next});'
+          new='const d=distance(),next=Math.round(clamp(this.minimapPinch.fov-(d-this.minimapPinch.distance)*.16,50,120));saveCameraSettings({...loadCameraSettings(),fpvFovDeg:next});'
+          assert s.count(old)==1,s.count(old)
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          git diff --check
+          rm .github/workflows/one-shot-round-minimap-fov.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/real_world_bootstrap.mjs .github/workflows/one-shot-round-minimap-fov.yml
+          git commit -m 'Align minimap pinch FOV with settings'
+          git push origin HEAD:fix/final-flight-safety-ux
