@@ -1,0 +1,74 @@
+name: one-shot WORLD visual depth
+
+on:
+  push:
+    branches: ["fix/world-fpv-frame-lock"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/world-fpv-frame-lock
+          fetch-depth: 0
+      - name: Patch visual depth without touching flight dynamics
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def one(path,old,new,label):
+              p=Path(path);s=p.read_text();n=s.count(old)
+              assert n==1,f"{label}: expected one occurrence, got {n}"
+              p.write_text(s.replace(old,new,1))
+
+          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
+          old='''      if(layer.type==="background"){set(layer.id,"background-color","#304657");continue;}\n      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#237db0");set(layer.id,"fill-opacity",.96);continue;}\n      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#55b7df");continue;}\n      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#4f7b55":industry?"#675b58":"#53636b");set(layer.id,"fill-opacity",.92);continue;}\n      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#bdcbd3");set(layer.id,"fill-opacity",.82);continue;}\n      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#f0c85c":mid?"#d9d4ad":"#a9b8c1");set(layer.id,"line-opacity",.95);continue;}\n      if(layer.type==="line"&&source==="boundary")set(layer.id,"line-color","#8094a4");\n'''
+          new='''      if(layer.type==="background"){set(layer.id,"background-color","#243440");continue;}\n      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#086a9d");set(layer.id,"fill-opacity",1);continue;}\n      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#5bc4ed");set(layer.id,"line-opacity",1);continue;}\n      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#2f7044":industry?"#645751":"#46565f");set(layer.id,"fill-opacity",.96);continue;}\n      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#c7d5dc");set(layer.id,"fill-opacity",.88);continue;}\n      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#ffd34f":mid?"#eee4a8":"#c9d2d7");set(layer.id,"line-opacity",1);set(layer.id,"line-width",major?3.6:mid?2.6:1.5);continue;}\n      if(layer.type==="line"&&source==="boundary"){set(layer.id,"line-color","#92a8b7");set(layer.id,"line-opacity",.8);}\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''    const layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":"#a8bdcc","fill-extrusion-height":["coalesce",["to-number",["get","render_height"]],8],"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.91,"fill-extrusion-vertical-gradient":true}};\n'''
+          new='''    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":["interpolate",["linear"],height,0,"#80929e",12,"#aebec7",35,"#dbe4e9",80,"#f2f5f6"],"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.96,"fill-extrusion-vertical-gradient":true}};\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''    this.applyFlightPalette();this.stripFlightClutter();\n    try{this.map.setSky({"sky-color":"#0a2845","sky-horizon-blend":.42,"horizon-color":"#477493","horizon-fog-blend":.22,"fog-color":"#274d68","fog-ground-blend":.08});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}\n    this.addBuildings();this.configureMinimapLayers();return this.map;\n'''
+          new='''    this.applyFlightPalette();this.stripFlightClutter();\n    try{this.map.setSky({"sky-color":"#071b2e","sky-horizon-blend":.52,"horizon-color":"#6e93aa","horizon-fog-blend":.34,"fog-color":"#365f79","fog-ground-blend":.12});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}\n    try{this.map.setLight?.({anchor:"viewport",position:[1.35,210,32],color:"#fff3dd",intensity:.78});}catch(error){console.warn("OpenFreeMap extrusion lighting unavailable:",error);}\n    this.addBuildings();this.configureMinimapLayers();return this.map;\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''#worldMapLegend i{width:9px;height:6px;border-radius:2px;display:inline-block;margin-right:4px}.legend-water i{background:#237db0}.legend-green i{background:#4f7b55}.legend-road i{background:#e3c56b}.legend-building i{background:#bdcbd3}\n'''
+          new='''#worldMapLegend i{width:10px;height:7px;border-radius:2px;display:inline-block;margin-right:4px;box-shadow:0 0 0 1px #ffffff24}.legend-water i{background:#086a9d}.legend-green i{background:#2f7044}.legend-road i{background:#ffd34f}.legend-building i{background:#dbe4e9}\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('sim/simulator.mjs');s=p.read_text()
+          old='''    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0045,8,48),new THREE.MeshBasicMaterial({color:0xbdefff,transparent:true,opacity:.88,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;\n'''
+          new='''    const worldHaloBack=new THREE.Mesh(new THREE.TorusGeometry(.158,.009,8,48),new THREE.MeshBasicMaterial({color:0x061018,transparent:true,opacity:.78,depthTest:false,depthWrite:false}));worldHaloBack.position.z=.034;worldHaloBack.visible=false;worldHaloBack.renderOrder=999;this.group.add(worldHaloBack);this.worldHaloBack=worldHaloBack;\n    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0055,8,48),new THREE.MeshBasicMaterial({color:0xaef3ff,transparent:true,opacity:.98,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;\n    const worldHeadingCue=new THREE.Mesh(new THREE.ConeGeometry(.012,.055,12),new THREE.MeshBasicMaterial({color:0xff405a,depthTest:false,depthWrite:false}));worldHeadingCue.rotation.z=-Math.PI/2;worldHeadingCue.position.set(-.19,0,.036);worldHeadingCue.visible=false;worldHeadingCue.renderOrder=1001;this.group.add(worldHeadingCue);this.worldHeadingCue=worldHeadingCue;\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);if(this.worldHalo){const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow";this.worldHalo.visible=worldActive&&cameraMode!=="fpv";}}\n'''
+          new='''  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;}\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/real_world_ui_smoke.mjs');s=p.read_text()
+          old='''for(const marker of ["#237db0","#4f7b55","#f0c85c","#bdcbd3","WATER","GREEN","ROADS","BUILDINGS"])\n'''
+          new='''for(const marker of ["#086a9d","#2f7044","#ffd34f","#dbe4e9","WATER","GREEN","ROADS","BUILDINGS","setLight?.({anchor:\"viewport\"","fill-extrusion-vertical-gradient"])\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          old='''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15"))throw new Error("WORLD range/visual acquisition cues missing");\n'''
+          new='''if(!simulatorSource.includes("MAX_GAME_CLEARANCE_M")||!simulatorSource.includes("NAV_AGL_RAY_MAX_M = 60")||!simulatorSource.includes("TorusGeometry(.15")||!simulatorSource.includes("worldHaloBack")||!simulatorSource.includes("worldHeadingCue"))throw new Error("WORLD range/visual acquisition cues missing");\n'''
+          assert s.count(old)==1;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          Path('.github/workflows/one-shot-world-depth.yml').unlink()
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/simulator.mjs
+          node --check tests/real_world_ui_smoke.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add -A
+          git commit -m "Improve WORLD visual depth and contrast"
+          git push origin HEAD:fix/world-fpv-frame-lock
