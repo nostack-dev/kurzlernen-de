@@ -356,7 +356,9 @@ class PhysicsModel {
       const rotor=new THREE.Mesh(new THREE.BoxGeometry(this.p.propD,.012,.002),new THREE.MeshStandardMaterial({color:i%2?0xffa34d:0x4dd6ff,transparent:true,opacity:.72}));rotor.position.set(...position);this.group.add(rotor);this.rotors.push(rotor);
     }
     const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);
-    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0045,8,48),new THREE.MeshBasicMaterial({color:0xbdefff,transparent:true,opacity:.88,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;
+    const worldHaloBack=new THREE.Mesh(new THREE.TorusGeometry(.158,.009,8,48),new THREE.MeshBasicMaterial({color:0x061018,transparent:true,opacity:.78,depthTest:false,depthWrite:false}));worldHaloBack.position.z=.034;worldHaloBack.visible=false;worldHaloBack.renderOrder=999;this.group.add(worldHaloBack);this.worldHaloBack=worldHaloBack;
+    const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0055,8,48),new THREE.MeshBasicMaterial({color:0xaef3ff,transparent:true,opacity:.98,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;
+    const worldHeadingCue=new THREE.Mesh(new THREE.ConeGeometry(.012,.055,12),new THREE.MeshBasicMaterial({color:0xff405a,depthTest:false,depthWrite:false}));worldHeadingCue.rotation.z=-Math.PI/2;worldHeadingCue.position.set(-.19,0,.036);worldHeadingCue.visible=false;worldHeadingCue.renderOrder=1001;this.group.add(worldHeadingCue);this.worldHeadingCue=worldHeadingCue;
   }
   localVector(v){return b3.b3Body_GetLocalVector([0,0,0],this.body,v);}
   worldVector(v){return b3.b3Body_GetWorldVector([0,0,0],this.body,v);}
@@ -419,7 +421,7 @@ class PhysicsModel {
     this.worldAcceleration=scale(sub(this.linear(),before),1/dt);
   }
   state(){const p=this.position(),q=this.rotation(),v=this.linear();return{x:p[0],y:p[1],z:p[2],vx:v[0],vy:v[1],vz:v[2],speed:norm(v),attitude:quatToEuler(q),battery_v:this.batteryVoltage,current_a:this.batteryCurrent};}
-  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);if(this.worldHalo){const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow";this.worldHalo.visible=worldActive&&cameraMode!=="fpv";}}
+  render(){if(!this.graphics||!this.group)return;const p=this.position(),q=this.rotation();this.group.position.set(...p);this.group.quaternion.set(q[0],q[1],q[2],q[3]);this.rotors.forEach((rotor,i)=>rotor.rotation.z+=(i%2?-1:1)*this.motorOmega[i]/60);const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;}
 }
 
 function integrateDuration(model,pulses,duration){
