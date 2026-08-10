@@ -27,12 +27,32 @@ const STATE_NAVIGATION_VALID = 1 << 5;
 const STATE_GAME_MODE = 1 << 6;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
+const DEBUG_GRID_STORAGE = "arondight45DebugGridlinesV1";
 const NAV_AGL_RAY_MAX_M = 60;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
 const SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
 const SIM_WORK_SLICE_MS = 6;
 const SIM_AUX_INTERVAL_S = .01;
+
+// Presentation is explicitly subordinate to the 1 kHz digital-twin clock.
+// These budgets may skip visual work; they never skip FC/sensor/motor/Box3D ticks.
+const PRESENTATION_HUD_INTERVAL_MS = 75;
+const PRESENTATION_AUDIO_INTERVAL_MS = 50;
+const PRESENTATION_SHADOW_INTERVAL_MS = 250;
+const PRESENTATION_MAX_DRAW_GAP_MS = 50;
+const PRESENTATION_SOFT_BACKLOG_MS = 1.5;
+const PRESENTATION_CONSTRAINED_BACKLOG_MS = 4;
+const PRESENTATION_HARD_BACKLOG_MS = 8;
+const PRESENTATION_SKIP_DRAW_BACKLOG_MS = 12;
+const PRESENTATION_SHADOW_BACKLOG_MS = 3;
+const PRESENTATION_PIXEL_RATIO_MAX = 1.25;
+const PRESENTATION_PIXEL_RATIO_MIN = .60;
+const PRESENTATION_QUALITY_WINDOW_MS = 250;
+const PRESENTATION_CADENCE_CRITICAL = .86;
+const PRESENTATION_CADENCE_CONSTRAINED = .93;
+const PRESENTATION_CADENCE_RECOVER = .985;
+const PRESENTATION_RECOVERY_WINDOWS = 8;
 const yieldToBrowser=(()=>{
   const queue=[],channel=new MessageChannel();
   channel.port1.onmessage=()=>queue.shift()?.();
@@ -419,9 +439,13 @@ function daylightSky(){
 }
 const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,90,700);
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");const presentationSoftwareRaster=/(swiftshader|llvmpipe|software raster|software renderer)/i.test(presentationRendererName),presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX);let presentationPixelRatio=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
-const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
+const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);
+let debugGridEnabled=false;try{debugGridEnabled=localStorage.getItem(DEBUG_GRID_STORAGE)==="1";}catch{}
+function setDebugGridEnabled(enabled){debugGridEnabled=Boolean(enabled);grid.visible=debugGridEnabled;const viewport=$("viewport");if(viewport)viewport.dataset.debugGridEnabled=debugGridEnabled?"1":"0";try{localStorage.setItem(DEBUG_GRID_STORAGE,debugGridEnabled?"1":"0");}catch{}return debugGridEnabled;}
+setDebugGridEnabled(debugGridEnabled);
+const groundMesh=new THREE.Mesh(new THREE.BoxGeometry(TERRAIN_SIZE,TERRAIN_SIZE,.1),new THREE.MeshStandardMaterial({color:0xa9b99a,roughness:.96,metalness:0}));groundMesh.position.z=-.05;groundMesh.receiveShadow=true;scene.add(groundMesh);
 const raceTrack=new RaceTrack(scene,{laps:3});
 const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraHud.setAttribute("aria-label","Camera mode");cameraHud.innerHTML='<button id="camFollow" type="button">FOLLOW</button><button id="camFpv" type="button">FPV</button><button id="camThird" type="button">THIRD</button><button id="camSolo" class="start-sim-cta" type="button">START SIM</button><button id="soundToggle" type="button">SOUND</button>';
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
@@ -572,6 +596,7 @@ soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloStic
 const soloSettingsMount=mountPhoneControlSettings({
   parent:$("soloTopbar"),
   buttonText:"SETTINGS",
+  debugGrid:{get:()=>debugGridEnabled,set:setDebugGridEnabled,defaultValue:false},
   onChange:next=>{phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
@@ -590,8 +615,8 @@ $("soloReset").onclick=resetSoloSimulation;
 $("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;};
 $("soloKill").onclick=()=>{setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;};
 $("soloCamera").onclick=()=>{const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();};
-document.addEventListener("fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo();});
-let mode="sim",backend=null,running=false,sequence=1,simTime=0,resetFlag=true;
+document.addEventListener("fullscreenchange",()=>{if(!soloMode)return;const viewport=$("viewport");if(viewport)viewport.dataset.soloFullscreen=document.fullscreenElement?"1":"0";resize();});
+let mode="sim",backend=null,running=false,runEpoch=0,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
 const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput=neutralControls(),lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
@@ -660,24 +685,26 @@ function recordSession(){
   const state=physics.state();
   sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
 }
-async function loop(){
+let simulationBacklogMs=0;
+async function loop(epoch){
   let schedulerWallMs=performance.now(),accumulatorMs=0,auxAccumulatorS=0;
-  while(running){
-    if(mode==="replay"){await replayStep();schedulerWallMs=performance.now();continue;}
+  while(running&&epoch===runEpoch){
+    if(mode==="replay"){simulationBacklogMs=0;await replayStep();schedulerWallMs=performance.now();continue;}
     const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=now;
-    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);
+    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);simulationBacklogMs=accumulatorMs;
     if(accumulatorMs<SIM_FIXED_STEP_MS){await new Promise(requestAnimationFrame);continue;}
     const sliceStart=performance.now(),due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_SLICE),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
-    for(let i=0;i<due&&running;i++){
+    for(let i=0;i<due&&running&&epoch===runEpoch;i++){
       latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;auxAccumulatorS+=DT;accumulatorMs-=SIM_FIXED_STEP_MS;
       if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
       if(performance.now()-sliceStart>=SIM_WORK_SLICE_MS)break;
     }
     const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=afterWork;
-    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_CATCHUP_MS);
+    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_CATCHUP_MS);simulationBacklogMs=accumulatorMs;
     if(accumulatorMs>=SIM_FIXED_STEP_MS)await yieldToBrowser();else await new Promise(requestAnimationFrame);
   }
 }
+
 async function replayStep(){
   if(!realLog.length||replayIndex>=realLog.length-1){running=false;ui.run.textContent="Start";return;}
   const previous=realLog[replayIndex],current=realLog[++replayIndex],duration=current.time_s-previous.time_s;
@@ -687,12 +714,71 @@ async function replayStep(){
 }
 
 function currentFcStateText(){const fcState=latest.state,fault=fcState>>8&255;return fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";}
+let lastPresentationHudMs=-Infinity,lastPresentationAudioMs=-Infinity,lastPresentationDrawMs=-Infinity,lastPresentationShadowMs=-Infinity,presentationDraws=0,lastPresentationQualityWallMs=performance.now(),lastPresentationQualitySimS=simTime,presentationQualityGoodWindows=0;
+const simulatorDiagnostics={};
+Object.defineProperties(simulatorDiagnostics,{
+  simTime:{get:()=>simTime,enumerable:true},
+  simulationBacklogMs:{get:()=>simulationBacklogMs,enumerable:true},
+  presentationDraws:{get:()=>presentationDraws,enumerable:true},
+  presentationPixelRatio:{get:()=>presentationPixelRatio,enumerable:true},
+  fcState:{get:()=>latest.state,enumerable:true},
+  runEpoch:{get:()=>runEpoch,enumerable:true},
+});
+Object.freeze(simulatorDiagnostics);
+Object.defineProperty(globalThis,"__arondightDiagnostics",{value:simulatorDiagnostics,writable:false,configurable:false});
+function updatePresentationQuality(now){
+  const worldActive=$("viewport")?.dataset.worldMode==="real";
+  if(!running||mode!=="sim"||worldActive){lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;presentationQualityGoodWindows=0;return;}
+  const elapsedMs=now-lastPresentationQualityWallMs;if(elapsedMs<PRESENTATION_QUALITY_WINDOW_MS)return;
+  const simElapsedS=simTime-lastPresentationQualitySimS,cadence=simElapsedS/Math.max(.001,elapsedMs/1000);
+  lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;
+  let target=presentationPixelRatio;
+  if(cadence<PRESENTATION_CADENCE_CRITICAL){target=Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN);presentationQualityGoodWindows=0;}
+  else if(cadence<PRESENTATION_CADENCE_CONSTRAINED){target=Math.min(presentationNativePixelRatio,.80);presentationQualityGoodWindows=0;}
+  else if(cadence>PRESENTATION_CADENCE_RECOVER&&presentationPixelRatio<presentationNativePixelRatio){
+    if(++presentationQualityGoodWindows>=PRESENTATION_RECOVERY_WINDOWS){target=Math.min(presentationNativePixelRatio,presentationPixelRatio+.20);presentationQualityGoodWindows=0;}
+  }else presentationQualityGoodWindows=0;
+  if(Math.abs(target-presentationPixelRatio)>.01){presentationPixelRatio=target;renderer.setPixelRatio(presentationPixelRatio);resize();}
+  const viewport=$("viewport");if(viewport){viewport.dataset.presentationPixelRatio=presentationPixelRatio.toFixed(2);viewport.dataset.presentationCadence=cadence.toFixed(3);}
+}
 function render(){
-  requestAnimationFrame(render);const renderNow=performance.now();physics.render();updateCamera();const fcState=latest.state;motorSound.syncFcState(fcState,arm);motorSound.update(physics,camera.position);const state=physics.state();
+  requestAnimationFrame(render);
+  const renderNow=performance.now(),fcState=latest.state;updatePresentationQuality(renderNow);
+  motorSound.syncFcState(fcState,arm);
+  if(renderNow-lastPresentationAudioMs>=PRESENTATION_AUDIO_INTERVAL_MS){
+    lastPresentationAudioMs=renderNow;
+    motorSound.update(physics,camera.position);
+  }
+  if(renderNow-lastPresentationHudMs>=PRESENTATION_HUD_INTERVAL_MS){
+    lastPresentationHudMs=renderNow;
+    const state=physics.state();
   const fault=fcState>>8&255,stateText=currentFcStateText();ui.fcState.textContent=stateText;ui.fcState.className=fcState&STATE_FAULT?"bad":fcState&STATE_ARMED?"good":"warn";
   ui.simTime.textContent=simTime.toFixed(3)+" s";ui.altitude.textContent=Math.max(0,state.z).toFixed(3)+" m";ui.velocity.textContent=state.speed.toFixed(3)+" m/s";ui.attitude.textContent=latest.attitude.map(x=>x.toFixed(1)).join(" / ")+"°";ui.motors.textContent=latest.motors.map(x=>Math.round(x)).join(" ");ui.rpm.textContent=physics.motorOmega.map(w=>Math.round(w*60/(2*Math.PI))).join(" ");ui.battery.textContent=physics.batteryVoltage.toFixed(2)+" V";ui.current.textContent=physics.batteryCurrent.toFixed(1)+" A";ui.processing.textContent=latest.processingUs+" μs";ui.rtt.textContent=latestControllerRttMs.toFixed(2)+" ms";ui.armSwitch.textContent=arm?"ON":"OFF";ui.throttle.textContent=(throttle*100).toFixed(1)+"%";
   const now=renderNow;if(now-lastRemoteTelemetry>=100){lastRemoteTelemetry=now;remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});}
-  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;const soloCanArm=!soloControls.arm&&Boolean(fcState&STATE_NAVIGATION_VALID)&&sharedArmReady(stateText,soloControls,true,phoneSettings);soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.classList.toggle("armed",stateText==="ARMED");soloArm.classList.toggle("attention",soloCanArm);soloArm.disabled=!soloControls.arm&&!soloCanArm;soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);
+  const wall=(now-wallStart)/1000;ui.speed.textContent=(wall>0?(simTime-simStart)/wall:0).toFixed(2)+"×";if(soloMode){const soloArm=$("soloArm");$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";$("soloCamera").textContent=cameraMode.toUpperCase();const race=raceTrack.snapshot(simTime);$("soloLap").textContent=race.finished?`FINISH · ${race.totalTimeText}`:(race.started?`LAP ${race.lap}/${race.totalLaps}`:`READY · ${race.totalLaps} LAPS`);$("soloRaceTime").textContent=race.finished?race.totalTimeText:race.currentLapText;$("soloGate").textContent=race.finished?"COURSE COMPLETE":`GATE ${race.nextGate+1}/${race.gateCount} · ${race.nextGateText}`;$("soloBest").textContent=`BEST ${race.bestLapText}`;const soloCanArm=!soloControls.arm&&Boolean(fcState&STATE_NAVIGATION_VALID)&&sharedArmReady(stateText,soloControls,true,phoneSettings);soloArm.classList.toggle("arming",soloControls.arm&&stateText!=="ARMED");soloArm.classList.toggle("armed",stateText==="ARMED");soloArm.classList.toggle("attention",soloCanArm);soloArm.disabled=!soloControls.arm&&!soloCanArm;soloArm.textContent=soloControls.arm?(stateText==="ARMED"?"ARMED ✓":"ARMING…"):(stateText==="CALIBRATING"?"CALIBRATING…":"ARM");}
+  }
+  const backlog=Math.max(0,simulationBacklogMs);
+  const sinceDraw=renderNow-lastPresentationDrawMs;
+  const minDrawInterval=backlog>=PRESENTATION_HARD_BACKLOG_MS?PRESENTATION_MAX_DRAW_GAP_MS:
+    backlog>=PRESENTATION_CONSTRAINED_BACKLOG_MS?33:
+    backlog>=PRESENTATION_SOFT_BACKLOG_MS?22:0;
+  const softwareRasterDrawInterval=presentationSoftwareRaster?60:0;
+  const effectiveDrawInterval=Math.max(minDrawInterval,softwareRasterDrawInterval);
+  const forceDraw=sinceDraw>=PRESENTATION_MAX_DRAW_GAP_MS;
+  const drawDue=forceDraw||(backlog<PRESENTATION_SKIP_DRAW_BACKLOG_MS&&sinceDraw>=effectiveDrawInterval);
+  if(drawDue){
+    lastPresentationDrawMs=renderNow;
+    physics.render();
+    updateCamera();
+    if(renderer.shadowMap.enabled&&renderNow-lastPresentationShadowMs>=PRESENTATION_SHADOW_INTERVAL_MS&&backlog<PRESENTATION_SHADOW_BACKLOG_MS){
+      lastPresentationShadowMs=renderNow;
+      renderer.shadowMap.needsUpdate=true;
+    }
+    presentationDraws++;
+    const viewport=$("viewport");
+    if(viewport){viewport.dataset.presentationDraws=String(presentationDraws);viewport.dataset.presentationBacklogMs=backlog.toFixed(2);}
+    if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);
+  }
 }
 render();
 
@@ -760,9 +846,9 @@ $("modeSim").onclick=()=>switchMode("sim");$("modeHil").onclick=()=>switchMode("
 ui.connect.onclick=async()=>{if(mode==="sim")return switchMode("sim");if(mode!=="hil")return;try{backend=new HardwareBackend();setStatus("Connecting physical S31…");await backend.connect();ui.tController.textContent=backend.label();ui.tController.className="good";setStatus(`HIL ready: ${backend.label()}.`,"good");ui.run.disabled=false;}catch(error){backend=null;ui.tController.textContent="connection failed";ui.tController.className="bad";setStatus(error.message,"bad");}};
 function startRun(){
   if(running)return true;if(mode!=="replay"&&!backend)return false;if(mode==="replay"&&!realLog.length)return false;
-  running=true;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop().catch(error=>{running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
+  running=true;const epoch=++runEpoch;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop(epoch).catch(error=>{if(epoch!==runEpoch)return;running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
 }
-function stopRun(){running=false;ui.run.textContent="Start";}
+function stopRun(){running=false;++runEpoch;ui.run.textContent="Start";}
 ui.run.onclick=()=>{if(running)stopRun();else startRun();};
 ui.reset.onclick=()=>{stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);};
 ui.logFile.onchange=event=>event.target.files[0]&&loadLog(event.target.files[0]).catch(error=>ui.fitStatus.textContent=error.message);

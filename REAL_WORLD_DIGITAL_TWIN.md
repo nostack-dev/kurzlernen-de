@@ -54,3 +54,21 @@ The browser SIL fast path executes the exact same `fc::FirmwareRuntime` synchron
 Realtime browser SIL preserves the physical authority path at 1 kHz: raw IMU generation, asynchronous SBUS/NAV1 arrivals, the exact compiled `fc::FirmwareRuntime`, motor-pulse output, motor/prop dynamics and Box3D integration at 1 ms with four solver substeps are unchanged. Race-HUD bookkeeping and downloadable diagnostic logging are sampled at 100 Hz, and RTT instrumentation at 50 Hz, because none of those observers feeds the controller or plant. `PhysicsModel.step()` no longer performs a redundant full-state readback that the realtime loop discarded; replay/fitting reads the resulting state after the requested integration duration.
 
 The realtime scheduler treats display frames and simulation time as separate clocks. Exact 1 ms FC/raw-sensor/motor/Box3D steps are executed in bounded CPU work slices. When wall-time backlog remains, the scheduler yields main-thread ownership through `MessageChannel` without waiting an extra display frame; `requestAnimationFrame` is used only when the simulation has caught up. Physics dt, Box3D solver substeps, firmware cadence, sensor bytes, motor outputs and controller authority are unchanged. Release browser E2E requires measured simulator/wall cadence between 0.90x and 1.10x.
+
+### Flight-first presentation budget
+
+Browser SIL treats visual work as an observer with an explicit CPU/GPU budget. The authoritative path remains exact 1 ms raw-sensor → `fc::FirmwareRuntime` → motor-pulse → motor/prop → Box3D execution. HUD refresh is capped at about 13 Hz, continuous motor-audio parameter refresh at 20 Hz, and shadow-map refresh at 4 Hz while the normal image renderer remains adaptive; WebGL uses the lower-cost basic shadow sampler so shadow presentation cannot dominate the 1 kHz authority path. When measured simulation backlog grows, presentation frames are skipped before any physical tick is skipped; a 50 ms maximum draw gap prevents the UI from disappearing under severe load. On hardware with headroom the renderer still runs at display cadence. Neither the presentation governor nor WORLD rendering changes `DT`, controller constants, sensor cadence, motor outputs, mass/inertia/drag, or Box3D integration.
+
+
+### Restart ownership and adaptive visual resolution
+
+STOP / RESET / START uses a monotonic run epoch. A loop from an older epoch cannot resume after a new run begins, including across `requestAnimationFrame`, `MessageChannel`, or asynchronous HIL waits. This prevents two 1 kHz schedulers from ever sharing the same FirmwareRuntime/Box3D authority after an immediate restart.
+
+Visual resolution is a production presentation governor, not a simulation time-scale. Hardware-accelerated WebGL starts at up to 1.25 CSS pixel ratio and measures authoritative simulator-time versus wall-time in 250 ms windows. A browser that reports a software rasterizer such as SwiftShader or llvmpipe starts directly at the same 0.60 presentation floor and caps presentation draw work to roughly 16–17 fps because it has no GPU raster budget; this is a renderer-capability choice, not a simulation-time choice. Hardware WebGL keeps the normal display-rate/adaptive draw path. On hardware WebGL, only measured presentation pressure may step the THREE backbuffer down to 0.80 and ultimately 0.60, and sustained headroom is required before resolution recovers. REAL WORLD keeps its independent map/flight governor and uses a 0.75 flight-overlay floor only in its critical visual-pressure tier. None of these paths changes the 1 ms timestep, sensor cadence, FC code, motor pulses, plant parameters, collision, or Box3D solver work.
+
+
+### Fullscreen and grid ownership
+
+Fullscreen/orientation is presentation state only. A browser dropping fullscreen must not exit SOLO, clear the arm request, stop the scheduler, or alter FC state. Flight termination remains explicit (`EXIT` / `KILL`) or comes from the real shared FC safety path.
+
+`DEBUG GRIDLINES` and `WORLD GRID` are intentionally separate renderer controls. Debug gridlines default OFF and affect only the training renderer. WORLD GRID remains an independent local-metre orientation overlay in REAL WORLD. Neither grid participates in navigation measurement, collision, controller state, motor output, or Box3D physics.

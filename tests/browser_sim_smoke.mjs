@@ -92,12 +92,16 @@ try{
   });
   await page.click("#camSolo");
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
-  const cadenceStart=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
-  await wait(1200);
-  const cadenceEnd=await page.evaluate(()=>({wall:performance.now(),sim:parseFloat(document.querySelector("#simTime")?.textContent||"0")}));
-  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000);
-  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x`);
+  await wait(700); // exclude layout/solo-transition startup from the steady-state clock proof
+  const cadenceStart=await page.evaluate(()=>{const d=globalThis.__arondightDiagnostics;return{wall:performance.now(),sim:Number(d?.simTime),draws:Number(d?.presentationDraws||0),uiSim:parseFloat(document.querySelector("#simTime")?.textContent||"0")};});
+  await wait(2500);
+  const cadenceEnd=await page.evaluate(()=>{const d=globalThis.__arondightDiagnostics;return{wall:performance.now(),sim:Number(d?.simTime),draws:Number(d?.presentationDraws||0),backlog:Number(d?.simulationBacklogMs||0),pixelRatio:Number(d?.presentationPixelRatio||0),uiSim:parseFloat(document.querySelector("#simTime")?.textContent||"0")};});
+  if(!Number.isFinite(cadenceStart.sim)||!Number.isFinite(cadenceEnd.sim))throw new Error("authoritative simulator clock diagnostic unavailable");
+  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000),presentationDraws=cadenceEnd.draws-cadenceStart.draws,uiClockLag=Math.abs(cadenceEnd.sim-cadenceEnd.uiSim);
+  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x · presentation draws ${presentationDraws} · pixel ratio ${cadenceEnd.pixelRatio.toFixed(2)} · backlog ${cadenceEnd.backlog.toFixed(2)} ms · HUD lag ${uiClockLag.toFixed(3)} s`);
   if(!(cadenceRatio>.90&&cadenceRatio<1.10))throw new Error(`fixed-step simulation is not tracking wall time closely enough: ${cadenceRatio.toFixed(3)}x`);
+  if(presentationDraws<35)throw new Error(`flight-first presentation starved visual output: only ${presentationDraws} draws in 2.5s`);
+  if(!(uiClockLag<.12))throw new Error(`20 Hz HUD fell too far behind authoritative simulation clock: ${uiClockLag.toFixed(3)} s`);
   const soloUi=await page.evaluate(()=>({
     hud:!document.querySelector("#soloHud")?.hidden,
     reset:!!document.querySelector("#soloReset"),
@@ -119,6 +123,8 @@ try{
   const defaults=await page.evaluate(()=>({
     left:document.querySelector('.phone-settings-dialog [data-slider="left"]')?.value,
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
+    debugGrid:document.querySelector('.phone-settings-dialog [data-debug-grid]')?.checked,
+    debugGridRuntime:document.querySelector("#viewport")?.dataset.debugGridEnabled,
     lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
     lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
     invertLeft:document.querySelector('.phone-settings-dialog [data-invert-left-horizontal]')?.checked,
@@ -135,7 +141,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="10"||defaults.right!=="10"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);
@@ -178,19 +184,29 @@ try{
   const storedCamera=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}"));
   if(storedCamera.fpvTiltDeg!==18||storedCamera.fpvFovDeg!==101||Math.abs(storedCamera.thirdDistanceM-3.6)>.001)throw new Error(`camera settings did not persist: ${JSON.stringify(storedCamera)}`);
   await page.click('.phone-settings-dialog [data-close]');
+  const resetEpochBefore=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.runEpoch)||0);
   await page.click("#soloReset");
+  await page.waitForFunction(prev=>Number(globalThis.__arondightDiagnostics?.runEpoch)>prev,{timeout:5000},resetEpochBefore);
   await page.waitForFunction(()=>document.querySelector("#soloClearanceValue")?.textContent?.includes("2.2 m"),{timeout:5000});
-
-  await waitForSimTime(2.2,60000);
-  let state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="DISARMED")throw new Error(`solo calibration failed: ${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>Number(globalThis.__arondightDiagnostics?.simTime)>=2.2,{timeout:60000});
+  const calibrated=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0,epoch:Number(globalThis.__arondightDiagnostics?.runEpoch)||0}));
+  if((calibrated.fc&2)||(calibrated.fc&4)||(calibrated.fc&1))throw new Error(`solo authoritative calibration failed: ${JSON.stringify(calibrated)} snapshot=${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="DISARMED",{timeout:1500});
+  let state="DISARMED";
 
   await page.waitForFunction(()=>document.querySelector("#soloRangeStatus")?.textContent?.includes("AGL"),{timeout:15000});
   await page.waitForFunction(()=>{const b=document.querySelector("#soloArm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:15000});
   const escToneStart=await page.$eval("#viewport",e=>Number(e.dataset.motorAudioEscToneCount)||0);
-  const armStart=await simTime();await page.click("#soloArm");await waitForSimTime(armStart+1.25,50000);
-  state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="ARMED")throw new Error(`solo GAME ARM failed: ${JSON.stringify(await snapshot())}`);
+  const armStart=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime));await page.click("#soloArm");
+  await page.waitForFunction(({start,limit})=>{const d=globalThis.__arondightDiagnostics,sim=Number(d?.simTime),fc=Number(d?.fcState)||0;return Boolean(fc&1)||(Number.isFinite(sim)&&sim>=start+limit);},{timeout:15000},{start:armStart,limit:1.5});
+  const armReached=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0}));
+  if(!(armReached.fc&1)||armReached.sim-armStart>1.5)throw new Error(`solo GAME ARM authority failed: start=${armStart} reached=${JSON.stringify(armReached)} snapshot=${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:1500});state="ARMED";
+  const fullscreenDropStart=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime));
+  await page.evaluate(async()=>{if(document.fullscreenElement&&document.exitFullscreen){try{await document.exitFullscreen();}catch{}}else document.dispatchEvent(new Event("fullscreenchange"));});
+  await page.waitForFunction(start=>Number(globalThis.__arondightDiagnostics?.simTime)>=start+.30,{timeout:5000},fullscreenDropStart);
+  const afterFullscreenDrop=await page.evaluate(()=>({fc:Number(globalThis.__arondightDiagnostics?.fcState)||0,solo:document.body.classList.contains("solo-flight"),armText:document.querySelector("#soloArm")?.textContent||""}));
+  if(!(afterFullscreenDrop.fc&1)||!afterFullscreenDrop.solo)throw new Error(`fullscreen presentation loss disarmed/exited flight: ${JSON.stringify(afterFullscreenDrop)}`);
   await page.waitForFunction(()=>{const z=parseFloat(document.querySelector("#altitude")?.textContent||"0"),v=parseFloat(document.querySelector("#velocity")?.textContent||"99");return z>1.5&&z<2.5&&v<.70;},{timeout:90000});
   const holdStart=await simTime();await waitForSimTime(holdStart+.35,25000);
   const hold=bodyMotion(await latestFlightSample());

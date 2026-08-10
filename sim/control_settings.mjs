@@ -90,7 +90,7 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
   renderButton();return{section,button:worldButton,activate};
 }
 
-export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{}}={}){
+export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},debugGrid=null}={}){
   if(!parent)throw Error("settings parent required");
   installStyle();
   let settings=loadPhoneControlSettings();
@@ -120,15 +120,16 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     <label class="phone-settings-toggle"><span>INVERT RIGHT STICK VERTICAL (UP/DOWN)</span><input data-invert-right-vertical type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK LEFT STICK HORIZONTAL AXIS</span><input data-lock-left-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK RIGHT STICK VERTICAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
+    ${debugGrid?'<label class="phone-settings-toggle"><span>DEBUG GRIDLINES</span><input data-debug-grid type="checkbox"></label><p class="phone-settings-note">DEBUG GRIDLINES affect only the local training renderer. They never alter WORLD GRID, sensors, collision, FC state or physics.</p>':''}
     <p class="phone-settings-note">Left X invert reverses MANUAL yaw / GAME strafe. Right X/Y invert independently reverse TURN and body pitch. All phone-input settings are stored locally on this device and never modify flight-controller code or aircraft physics.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),hover=dialog.querySelector('[data-slider="hover"]');
   const leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]'),hoverOut=dialog.querySelector('[data-out="hover"]');
-  const invertLeft=dialog.querySelector("[data-invert-left-horizontal]"),invertRight=dialog.querySelector("[data-invert-right-horizontal]"),invertRightVertical=dialog.querySelector("[data-invert-right-vertical]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]");
+  const invertLeft=dialog.querySelector("[data-invert-left-horizontal]"),invertRight=dialog.querySelector("[data-invert-right-horizontal]"),invertRightVertical=dialog.querySelector("[data-invert-right-vertical]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]"),debugGridInput=dialog.querySelector("[data-debug-grid]");
   const render=()=>{
     left.value=String(settings.leftFineness);right.value=String(settings.rightFineness);hover.value=String(settings.defaultHoverAgl);
-    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;hoverOut.value=`${Number(hover.value).toFixed(1)} m`;invertLeft.checked=settings.invertLeftHorizontal;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;
+    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;hoverOut.value=`${Number(hover.value).toFixed(1)} m`;invertLeft.checked=settings.invertLeftHorizontal;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;if(debugGridInput)debugGridInput.checked=Boolean(debugGrid?.get?.());
   };
   const apply=()=>{
     settings=savePhoneControlSettings({
@@ -143,8 +144,8 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     });
     render();onChange({...settings});
   };
-  left.addEventListener("input",apply);right.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);
-  dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);render();onChange({...settings});};
+  left.addEventListener("input",apply);right.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);if(debugGridInput)debugGridInput.addEventListener("change",()=>{debugGrid?.set?.(debugGridInput.checked);render();});
+  dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);debugGrid?.set?.(Boolean(debugGrid?.defaultValue));render();onChange({...settings});};
   dialog.querySelector("[data-close]").onclick=()=>dialog.close();
   button.onclick=()=>{settings=loadPhoneControlSettings();render();dialog.showModal();};
   const world=mountSoloWorldSettings({parent,dialog,settingsButton:button});
