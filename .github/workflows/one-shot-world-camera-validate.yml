@@ -1,4 +1,5 @@
 name: one-shot WORLD camera validation
+# Retry identical candidate to distinguish renderer-count variance from a product regression.
 
 on:
   push:
