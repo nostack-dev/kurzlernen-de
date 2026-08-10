@@ -88,7 +88,7 @@ class RealWorldBridge{
       #worldLookHud .world-look-cardinal{position:absolute;font:900 7px system-ui,-apple-system,sans-serif;color:#72d9ff;opacity:.85;pointer-events:none}.world-look-n{top:22px;left:53px}.world-look-e{top:62px;right:12px}.world-look-s{bottom:9px;left:54px}.world-look-w{top:62px;left:12px}
       #worldMapLegend{display:none;position:absolute;z-index:4;left:max(10px,env(safe-area-inset-left));top:max(52px,calc(env(safe-area-inset-top) + 46px));padding:5px 7px;border-radius:8px;background:#071522e8;border:1px solid #ffffff25;color:#dce9f2;font:800 7px/1.4 system-ui,-apple-system,sans-serif;letter-spacing:.03em;pointer-events:none}
       body.solo-flight #viewport[data-world-mode="real"] #worldMapLegend{display:grid;grid-template-columns:auto auto;gap:2px 7px}
-      #worldMapLegend i{width:9px;height:6px;border-radius:2px;display:inline-block;margin-right:4px}.legend-water i{background:#237db0}.legend-green i{background:#4f7b55}.legend-road i{background:#e3c56b}.legend-building i{background:#bdcbd3}
+      #worldMapLegend i{width:10px;height:7px;border-radius:2px;display:inline-block;margin-right:4px;box-shadow:0 0 0 1px #ffffff24}.legend-water i{background:#086a9d}.legend-green i{background:#2f7044}.legend-road i{background:#ffd34f}.legend-building i{background:#dbe4e9}
       body.solo-flight #viewport[data-world-mode="real"] #soloTopbar span,body.solo-flight #viewport[data-world-mode="real"] #soloTopbar button,body.solo-flight #viewport[data-world-mode="real"] #soloRaceHud,body.solo-flight #viewport[data-world-mode="real"] #soloClearance,body.solo-flight #viewport[data-world-mode="real"] .solo-action{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
       #realWorldStatus{line-height:1.4}
     `;document.head.appendChild(style);
@@ -172,13 +172,13 @@ class RealWorldBridge{
     if(!this.map)return 0;let changed=0;const layers=this.map.getStyle()?.layers||[];
     const set=(id,property,value)=>{try{this.map.setPaintProperty(id,property,value);changed++;}catch{}};
     for(const layer of layers){const source=String(layer["source-layer"]||"").toLowerCase(),id=String(layer.id||"").toLowerCase();
-      if(layer.type==="background"){set(layer.id,"background-color","#304657");continue;}
-      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#237db0");set(layer.id,"fill-opacity",.96);continue;}
-      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#55b7df");continue;}
-      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#4f7b55":industry?"#675b58":"#53636b");set(layer.id,"fill-opacity",.92);continue;}
-      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#bdcbd3");set(layer.id,"fill-opacity",.82);continue;}
-      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#f0c85c":mid?"#d9d4ad":"#a9b8c1");set(layer.id,"line-opacity",.95);continue;}
-      if(layer.type==="line"&&source==="boundary")set(layer.id,"line-color","#8094a4");
+      if(layer.type==="background"){set(layer.id,"background-color","#243440");continue;}
+      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#086a9d");set(layer.id,"fill-opacity",1);continue;}
+      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#5bc4ed");set(layer.id,"line-opacity",1);continue;}
+      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#2f7044":industry?"#645751":"#46565f");set(layer.id,"fill-opacity",.96);continue;}
+      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#c7d5dc");set(layer.id,"fill-opacity",.88);continue;}
+      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#ffd34f":mid?"#eee4a8":"#c9d2d7");set(layer.id,"line-opacity",1);set(layer.id,"line-width",major?3.6:mid?2.6:1.5);continue;}
+      if(layer.type==="line"&&source==="boundary"){set(layer.id,"line-color","#92a8b7");set(layer.id,"line-opacity",.8);}
     }
     const viewport=$("viewport");if(viewport)viewport.dataset.worldPaletteLayers=String(changed);return changed;
   }
@@ -195,7 +195,7 @@ class RealWorldBridge{
     const style=this.map.getStyle(),sourceId=Object.entries(style.sources||{}).find(([,source])=>source?.type==="vector")?.[0];
     if(!sourceId){console.warn("OpenFreeMap style has no vector source for 3D buildings");return;}
     const before=(style.layers||[]).find(layer=>layer.type==="symbol")?.id;
-    const layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":"#a8bdcc","fill-extrusion-height":["coalesce",["to-number",["get","render_height"]],8],"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.91,"fill-extrusion-vertical-gradient":true}};
+    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":["interpolate",["linear"],height,0,"#80929e",12,"#aebec7",35,"#dbe4e9",80,"#f2f5f6"],"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.96,"fill-extrusion-vertical-gradient":true}};
     try{if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}catch(error){console.warn("OpenFreeMap 3D building layer unavailable:",error);}
   }
   async createMap(longitude,latitude){
@@ -206,7 +206,8 @@ class RealWorldBridge{
     this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
     await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
     this.applyFlightPalette();this.stripFlightClutter();
-    try{this.map.setSky({"sky-color":"#0a2845","sky-horizon-blend":.42,"horizon-color":"#477493","horizon-fog-blend":.22,"fog-color":"#274d68","fog-ground-blend":.08});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}
+    try{this.map.setSky({"sky-color":"#071b2e","sky-horizon-blend":.52,"horizon-color":"#6e93aa","horizon-fog-blend":.34,"fog-color":"#365f79","fog-ground-blend":.12});}catch(error){console.warn("OpenFreeMap sky contrast unavailable:",error);}
+    try{this.map.setLight?.({anchor:"viewport",position:[1.35,210,32],color:"#fff3dd",intensity:.78});}catch(error){console.warn("OpenFreeMap extrusion lighting unavailable:",error);}
     this.addBuildings();this.configureMinimapLayers();return this.map;
   }
   async activate(){
