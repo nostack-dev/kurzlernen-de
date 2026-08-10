@@ -1,7 +1,6 @@
 name: Final flight safety UX transaction
 
 on:
-  workflow_dispatch:
   push:
     branches: ["fix/final-flight-safety-ux"]
 
@@ -10,12 +9,331 @@ permissions:
 
 jobs:
   patch-test-commit:
+    if: github.event.head_commit.message != 'Apply NAV degraded flight safety'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/final-flight-safety-ux
           fetch-depth: 0
-      - name: Apply and validate transaction
+      - name: Apply NAV safety transaction
         run: |
-          echo 'CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAppbXBvcnQgc3VicHJvY2VzcywgcmUKCmRlZiBvbmUocGF0aCwgb2xkLCBuZXcsIGxhYmVsKToKICAgIHA9UGF0aChwYXRoKTsgcz1wLnJlYWRfdGV4dCgpCiAgICBuPXM uY291bnQob2xkKQogICAgYXNzZXJ0IG49PTEsIGYie2xhYmVsfTogZXhwZWN0ZWQgb25lIG9jY3VycmVuY2UsIGdvdCB7bn0iCiAgICBwLndyaXRlX3RleHQocy5yZXBsYWNlKG9sZCxuZXcsMSkpCgpkZWYgcmVnZXhfb25lKHBhdGgsIHBhdHRlcm4sIHJlcGwsIGxhYmVsLCBmbGFncz0wKToKICAgIHA9UGF0aChwYXRoKTsgcz1wLnJlYWRfdGV4dCgpCiAgICBuLCBjb3VudCA9IHJlLnN1Ym4ocGF0dGVybiwgcmVwbCwgcywgY291bnQ9MSwgZmxhZ3M9ZmxhZ3MpCiAgICBhc3NlcnQgY291bnQ9PTEsIGYie2xhYmVsfTogZXhwZWN0ZWQgb25lIHJlZ2V4IG1hdGNoLCBnb3Qge2NvdW50fSIKICAgIHAud3JpdGVfdGV4dChuKQoKIyAtLS0tIEhhcmR3YXJlIE5BVjEgY29udHJhY3Q6IHByZXNlcnZlIGxlZ2FjeSBiaXQgMCwgYWRkIHNwbGl0IHZhbGlkaXR5IHdpdGhvdXQgd2lkZW5pbmcgd2lyZS4gLS0tLQpvbmUoImVzcDMyL0Fyb25kaWdodDQ1X0hhcmR3YXJlU2Vuc29ycy5ocHAiLAonJydjb25zdGV4cHIgdWludDE2X3Qga05hdmlnYXRpb25WYWxpZCA9IDF1IDw8IDA7CmNvbnN0ZXhwciB1aW50MzJfdCBrTmF2aWdhdGlvblRpbWVvdXRVcyA9IDYwMDAwOwonJywKJycnY29uc3RleHByIHVpbnQxNl90IGtOYXZpZ2F0aW9uVmFsaWQgPSAxdSA8PCAwOwpjb25zdGV4cHIgdWludDE2X3Qga05hdmlnYXRpb25WZWxvY2l0eVZhbGlkID0gMXUgPDwgMTsKY29uc3RleHByIHVpbnQxNl90IGtOYXZpZ2F0aW9uQWdsVmFsaWQgPSAxdSA8PCAyOwovLyBGcmFtZXMgd2l0aCB0aGlzIGJpdCBzZXQgY2FycnkgY29tcG9uZW50IHZhbGlkaXR5LiBMZWdhY3kgcmVhbCBtb2R1bGVzIHRoYXQKLy8gb25seSBwdWJsaXNoIGtOYXZpZ2F0aW9uVmFsaWQgcmVtYWluIHdpcmUtY29tcGF0aWJsZSBhbmQgbWVhbiAiYm90aCB2YWxpZCIuCmNvbnN0ZXhwciB1aW50MTZfdCBrTmF2aWdhdGlvblNwbGl0VmFsaWRpdHkgPSAxdSA8PCAxNTsKY29uc3RleHByIHVpbnQzMl90IGtOYXZpZ2F0aW9uVGltZW91dFVzID0gNjAwMDA7CicnLCJOQVYxIHNwbGl0IGZsYWdzIikKCm9uZSgiZXNwMzIvQXJvbmRpZ2h0NDVfSGFyZHdhcmVTZW5zb3JzLmhwcCIsCicnJyAgICBvdXQuYWdsX20gPSBmcmFtZS5hZ2xfbW0gKiAwLjAwMWY7CiAgICBvdXQudmFsaWQgPSAoZnJhbWUuZmxhZ3MgJiBrTmF2aWdhdGlvblZhbGlkKSAhPSAwOwogICAgcmV0dXJuICFvdXQudmFsaWQgfHwgZmM6OmZpbml0ZShvdXQpOwp9CgppbmxpbmUgTmF2aWdhdGlvbldpcmVGcmFtZSBlbmNvZGVfbmF2aWdhdGlvbl93aXJlKHVpbnQxNl90IHNlcXVlbmNlLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBmbG9hdCB2eF9tcHMsIGZsb2F0IHZ5X21wcywgZmxvYXQgdlpfbXBzLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBmbG9hdCBhZ2xfbSwgYm9vbCB2YWxpZCkgewo...REDACTED...'}
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def one(path, old, new, label):
+              p=Path(path); s=p.read_text(); n=s.count(old)
+              assert n==1, f"{label}: {n} matches"
+              p.write_text(s.replace(old,new,1))
+
+          one('esp32/Arondight45_StateControl.hpp', '''struct NavigationState {
+              V3 velocity_world_mps{};
+              float agl_m{};
+              bool valid{};
+          };
+
+          inline bool finite(const NavigationState& n) {
+              return n.valid && finite(n.velocity_world_mps) && std::isfinite(n.agl_m) &&
+                     n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+          }
+          ''', '''struct NavigationState {
+              V3 velocity_world_mps{};
+              float agl_m{};
+              bool valid{};
+              bool velocity_valid{};
+              bool agl_valid{};
+
+              NavigationState() = default;
+              NavigationState(V3 velocity, float agl, bool all_valid)
+                  : velocity_world_mps(velocity), agl_m(agl), valid(all_valid),
+                    velocity_valid(all_valid), agl_valid(all_valid) {}
+              NavigationState(V3 velocity, float agl, bool velocity_ok, bool agl_ok)
+                  : velocity_world_mps(velocity), agl_m(agl), valid(velocity_ok && agl_ok),
+                    velocity_valid(velocity_ok), agl_valid(agl_ok) {}
+          };
+
+          inline bool finite_velocity(const NavigationState& n) {
+              return n.velocity_valid && finite(n.velocity_world_mps);
+          }
+          inline bool finite_agl(const NavigationState& n) {
+              return n.agl_valid && std::isfinite(n.agl_m) && n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+          }
+          inline bool finite(const NavigationState& n) {
+              return finite_velocity(n) && finite_agl(n);
+          }
+          ''', 'NavigationState split validity')
+
+          one('esp32/Arondight45_StateControl.hpp', '''constexpr uint16_t kStateNavigationValid = 1u << 5;
+          constexpr uint16_t kStateGameMode = 1u << 6;
+          ''', '''constexpr uint16_t kStateNavigationValid = 1u << 5;
+          constexpr uint16_t kStateGameMode = 1u << 6;
+          // High byte is fault code; bit 7 is the explicit non-fatal NAV degraded state.
+          constexpr uint16_t kStateNavigationDegraded = 1u << 7;
+          ''', 'degraded state bit')
+
+          one('esp32/Arondight45_StateControl.hpp', '''    Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
+                          bool inner_armed, float dt) {
+          ''', '''    Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
+                          bool inner_armed, float dt, bool agl_valid = true) {
+          ''', 'StateController AGL validity')
+
+          one('esp32/Arondight45_StateControl.hpp', '''        const float agl_error = intent.clearance_m - nav.agl_m;
+                  const float target_vz = clamp(kAglToVerticalSpeed * agl_error,
+                                                -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps);
+                  const float vz_error = target_vz - nav.velocity_world_mps.z;
+          ''', '''        // AGL loss is not a motor-stop condition. With velocity still valid,
+                  // hold zero vertical speed until the range source recovers.
+                  const float agl_error = agl_valid ? (intent.clearance_m - nav.agl_m) : 0.0f;
+                  const float target_vz = agl_valid
+                      ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
+                      : 0.0f;
+                  const float vz_error = target_vz - nav.velocity_world_mps.z;
+          ''', 'AGL degraded vertical control')
+
+          # Replace StateRuntime as a single transaction.
+          p=Path('esp32/Arondight45_StateControl.hpp'); s=p.read_text()
+          pattern=r'class StateRuntime \{.*?\n\};\n\n\}  // namespace fc'
+          replacement=r'''class StateRuntime {
+          public:
+              StateRuntime() { reset(); }
+
+              void reset() {
+                  runtime_.reset();
+                  state_controller_.reset();
+                  last_yaw_deg_ = 0.0f;
+                  game_active_ = false;
+              }
+
+              RuntimeOutput step(StateRuntimeInput input) {
+                  const StateIntent intent = state_intent(input.flight.rc);
+                  if (!intent.game_mode) {
+                      if (game_active_) state_controller_.leave_mode();
+                      game_active_ = false;
+                      RuntimeOutput out = runtime_.step(input.flight);
+                      update_attitude(out);
+                      return out;
+                  }
+
+                  game_active_ = true;
+                  const bool receiver_valid = input.flight.rc.valid && input.flight.rc_fresh;
+                  if (!receiver_valid) {
+                      // True control freshness loss remains the hard disarm boundary.
+                      state_controller_.leave_mode();
+                      RuntimeOutput out = runtime_.step_command(input.flight, Command{}, false);
+                      out.state |= kStateGameMode;
+                      update_attitude(out);
+                      return out;
+                  }
+
+                  const bool velocity_valid = finite_velocity(input.navigation);
+                  const bool agl_valid = finite_agl(input.navigation);
+                  const bool full_navigation = velocity_valid && agl_valid;
+
+                  // Full navigation is still mandatory before arming. In flight, NAV
+                  // degradation must never be re-labelled as control-invalid.
+                  if (!runtime_.armed() && !full_navigation) {
+                      state_controller_.leave_mode();
+                      Command blocked{};
+                      blocked.arm = false;
+                      RuntimeOutput out = runtime_.step_command(input.flight, blocked, true);
+                      out.state |= kStateGameMode | kStateNavigationDegraded;
+                      update_attitude(out);
+                      return out;
+                  }
+
+                  const float dt = (input.flight.dt_us > 0 && input.flight.dt_us < 100000)
+                                       ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
+                                       : 0.001f;
+                  Command physical_command{};
+                  if (velocity_valid) {
+                      physical_command = state_controller_.run(
+                          input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt, agl_valid);
+                  } else {
+                      // Entire NAV source lost while airborne: keep the real shared inner
+                      // attitude loop and learned hover trim. No simulator state is injected.
+                      state_controller_.leave_mode();
+                      physical_command = degraded_attitude_command(intent);
+                  }
+
+                  RuntimeOutput out = runtime_.step_command(input.flight, physical_command, true);
+                  out.state |= kStateGameMode;
+                  if (full_navigation) out.state |= kStateNavigationValid;
+                  else out.state |= kStateNavigationDegraded;
+                  update_attitude(out);
+                  return out;
+              }
+
+              Runtime& inner() { return runtime_; }
+              const Runtime& inner() const { return runtime_; }
+              const StateController& state_controller() const { return state_controller_; }
+              bool game_active() const { return game_active_; }
+
+          private:
+              Command degraded_attitude_command(const StateIntent& intent) const {
+                  constexpr float kDegradedMaxTiltDeg = 12.0f;
+                  constexpr float kInnerAttitudeRangeDeg = 32.0f;
+                  const float forward_unit = clamp(intent.forward_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
+                  const float right_unit = clamp(intent.right_mps / kStateMaxHorizontalSpeedMps, -1.0f, 1.0f);
+                  const float roll_target_deg = -right_unit * kDegradedMaxTiltDeg;
+                  const float pitch_target_deg = clamp(
+                      -forward_unit * kDegradedMaxTiltDeg + intent.body_pitch_deg,
+                      -kStateMaxBodyPitchDeg, kStateMaxBodyPitchDeg);
+                  return sanitize(Command{
+                      roll_target_deg / kInnerAttitudeRangeDeg,
+                      pitch_target_deg / kInnerAttitudeRangeDeg,
+                      state_controller_.hover_trim(),
+                      clamp(intent.yaw_rate_dps / 180.0f, -1.0f, 1.0f),
+                      intent.arm,
+                  });
+              }
+
+              void update_attitude(const RuntimeOutput& out) {
+                  last_yaw_deg_ = static_cast<float>(out.attitude_cdeg[2]) * 0.01f;
+              }
+
+              Runtime runtime_{};
+              StateController state_controller_{};
+              float last_yaw_deg_{};
+              bool game_active_{};
+          };
+
+          }  // namespace fc'''
+          s2,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
+          assert n==1, f'StateRuntime replacement: {n}'
+          p.write_text(s2)
+
+          one('esp32/Arondight45_HardwareSensors.hpp', '''constexpr uint16_t kNavigationValid = 1u << 0;
+          constexpr uint32_t kNavigationTimeoutUs = 60000;
+          ''', '''constexpr uint16_t kNavigationValid = 1u << 0;
+          constexpr uint16_t kNavigationVelocityValid = 1u << 1;
+          constexpr uint16_t kNavigationAglValid = 1u << 2;
+          constexpr uint16_t kNavigationSplitValidity = 1u << 15;
+          constexpr uint32_t kNavigationTimeoutUs = 60000;
+          ''', 'NAV1 flags')
+
+          one('esp32/Arondight45_HardwareSensors.hpp', '''    out.agl_m = frame.agl_mm * 0.001f;
+              out.valid = (frame.flags & kNavigationValid) != 0;
+              return !out.valid || fc::finite(out);
+          }
+          ''', '''    out.agl_m = frame.agl_mm * 0.001f;
+              const bool split = (frame.flags & kNavigationSplitValidity) != 0;
+              const bool legacy_valid = (frame.flags & kNavigationValid) != 0;
+              out.velocity_valid = split ? (frame.flags & kNavigationVelocityValid) != 0 : legacy_valid;
+              out.agl_valid = split ? (frame.flags & kNavigationAglValid) != 0 : legacy_valid;
+              out.valid = out.velocity_valid && out.agl_valid;
+              return (!out.velocity_valid || fc::finite(out.velocity_world_mps)) &&
+                     (!out.agl_valid || (std::isfinite(out.agl_m) && out.agl_m >= 0.0f && out.agl_m < 1000.0f));
+          }
+          ''', 'NAV1 decode')
+
+          # Preserve existing bool API and add a component-valid overload.
+          p=Path('esp32/Arondight45_HardwareSensors.hpp'); s=p.read_text()
+          old='''inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                            float vx_mps, float vy_mps, float vz_mps,
+                                                            float agl_m, bool valid) {'''
+          assert s.count(old)==1
+          s=s.replace(old, '''inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                            float vx_mps, float vy_mps, float vz_mps,
+                                                            float agl_m, bool velocity_valid, bool agl_valid) {''',1)
+          old='''    frame.flags = valid ? kNavigationValid : 0u;'''
+          assert s.count(old)==1
+          s=s.replace(old, '''    frame.flags = kNavigationSplitValidity |
+                            (velocity_valid ? kNavigationVelocityValid : 0u) |
+                            (agl_valid ? kNavigationAglValid : 0u) |
+                            ((velocity_valid && agl_valid) ? kNavigationValid : 0u);''',1)
+          marker='''    return frame;
+          }
+
+          inline bool decode_icm42688_registers'''
+          assert s.count(marker)==1
+          s=s.replace(marker, '''    return frame;
+          }
+
+          inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
+                                                            float vx_mps, float vy_mps, float vz_mps,
+                                                            float agl_m, bool valid) {
+              return encode_navigation_wire(sequence, vx_mps, vy_mps, vz_mps, agl_m, valid, valid);
+          }
+
+          inline bool decode_icm42688_registers''',1)
+          p.write_text(s)
+
+          one('esp32/Arondight45_FirmwareRuntime.hpp', '''            navigation.valid = false;
+          ''', '''            navigation.valid = false;
+                      navigation.velocity_valid = false;
+                      navigation.agl_valid = false;
+          ''', 'NAV freshness')
+
+          one('sim/p2p_link.mjs', '''    if(!this.pc||["failed","disconnected","closed"].includes(this.pc.connectionState)){
+          ''', '''    if(!this.pc||["failed","closed"].includes(this.pc.connectionState)){
+          ''', 'P2P transient disconnected')
+
+          one('sim/simulator.mjs', '''const STATE_NAVIGATION_VALID = 1 << 5;
+          const STATE_GAME_MODE = 1 << 6;
+          const TERRAIN_SIZE = 600;
+          const TERRAIN_HALF = TERRAIN_SIZE / 2;
+          ''', '''const STATE_NAVIGATION_VALID = 1 << 5;
+          const STATE_GAME_MODE = 1 << 6;
+          const STATE_NAVIGATION_DEGRADED = 1 << 7;
+          const TERRAIN_SIZE = 600;
+          const TERRAIN_HALF = TERRAIN_SIZE / 2;
+          // The 600m grid is visual only; the flat local collision/sensor plane must
+          // not end at that drawing edge and fabricate NAV loss in WORLD flight.
+          const PHYSICS_GROUND_HALF = 10000;
+          ''', 'sim state/ground')
+          one('sim/simulator.mjs', 'b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);', 'b3.b3CreateBoxShape(ground,groundShape,PHYSICS_GROUND_HALF,PHYSICS_GROUND_HALF,.05);', 'ground box')
+
+          one('sim/simulator.mjs', '''  view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,measurement.valid?1:0,true);
+          ''', '''  const velocityValid=measurement.velocityValid??measurement.valid,aglValid=measurement.aglValid??measurement.valid;
+            const navFlags=(1<<15)|(velocityValid?(1<<1):0)|(aglValid?(1<<2):0)|((velocityValid&&aglValid)?1:0);
+            view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,navFlags,true);
+          ''', 'sim NAV flags')
+
+          one('sim/simulator.mjs', '''  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false};}
+          ''', '''  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};}
+          ''', 'sim nav reset')
+
+          one('sim/simulator.mjs', '''    const range=model.groundRange(NAV_AGL_RAY_MAX_M);let valid=range.valid,agl=0;
+              if(valid){agl=Math.max(0,range.agl+this.noise.gaussian()*.008);if(!Number.isFinite(agl)||agl>65.4)valid=false;}
+              this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl:valid?agl:0,valid};
+          ''', '''    const range=model.groundRange(NAV_AGL_RAY_MAX_M),velocityValid=this.filtered.every(Number.isFinite);let aglValid=range.valid,agl=0;
+              if(aglValid){agl=Math.max(0,range.agl+this.noise.gaussian()*.008);if(!Number.isFinite(agl)||agl>65.4)aglValid=false;}
+              this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl:aglValid?agl:0,valid:velocityValid&&aglValid,velocityValid,aglValid};
+          ''', 'sim NAV components')
+
+          one('sim/simulator.mjs', 'let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};', 'let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};', 'latest nav')
+
+          one('sim/simulator.mjs', '''soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";
+          ''', '''const navDegraded=Boolean(fcState&STATE_NAVIGATION_DEGRADED);soloRangeStatus.textContent=latestNavigation.aglValid?`AGL ${latestNavigation.agl.toFixed(1)} m`:navDegraded?"NAV DEGRADED · AGL LOST":"NAV INVALID";soloRangeStatus.style.color=latestNavigation.aglValid?"#64e0ae":"#ffd06d";
+          ''', 'degraded HUD')
+
+          # Direct state test: NAV loss airborne keeps motors, real RC freshness loss still stops them.
+          p=Path('tests/state_control_test.cpp'); s=p.read_text(); marker='''    std::puts("All direct state-vector control tests passed.");'''; assert s.count(marker)==1
+          test=r'''
+              fc::StateRuntime state_runtime;
+              uint64_t state_now = 0;
+              fc::StateRuntimeInput si{};
+              si.navigation = fc::NavigationState{{0.0f,0.0f,0.0f},2.0f,true};
+              for (uint32_t i=0;i<fc::kCalibrationSamples+1;++i) { si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(false); const auto o=state_runtime.step(si); CHECK(o.fault==fc::kFaultNone); }
+              for (int i=0;i<1002;++i) { si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true); const auto o=state_runtime.step(si); if(i==1001)CHECK(o.armed); }
+              si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true); si.navigation=fc::NavigationState{{0.0f,0.0f,0.0f},0.0f,true,false};
+              const auto agl_lost=state_runtime.step(si); CHECK(agl_lost.armed); CHECK((agl_lost.state&fc::kStateNavigationDegraded)!=0); for(auto pulse:agl_lost.motor_us)CHECK(pulse>fc::kEscIdleUs);
+              si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true); si.navigation=fc::NavigationState{{0.0f,0.0f,0.0f},0.0f,false,false};
+              const auto nav_lost=state_runtime.step(si); CHECK(nav_lost.armed); CHECK((nav_lost.state&fc::kStateNavigationDegraded)!=0); for(auto pulse:nav_lost.motor_us)CHECK(pulse>fc::kEscIdleUs);
+              si.flight=stationary_input(state_now+=1000); si.flight.rc=base_rc(true); si.flight.rc_fresh=false;
+              const auto rc_lost=state_runtime.step(si); CHECK(!rc_lost.armed); for(auto pulse:rc_lost.motor_us)CHECK(pulse==fc::kEscMinUs);
+
+          '''
+          s=s.replace(marker,test+marker,1);p.write_text(s)
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          node --check sim/simulator.mjs
+          node --check sim/p2p_link.mjs
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add esp32/Arondight45_StateControl.hpp esp32/Arondight45_HardwareSensors.hpp esp32/Arondight45_FirmwareRuntime.hpp sim/simulator.mjs sim/p2p_link.mjs tests/state_control_test.cpp
+          git commit -m 'Apply NAV degraded flight safety'
+          git push origin HEAD:fix/final-flight-safety-ux
