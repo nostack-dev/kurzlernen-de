@@ -31,7 +31,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   let screenImpactCursor=0;
   const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),candidates=[],intersections=[],hitNormal=new THREE.Vector3(),decalForward=new THREE.Vector3(0,0,1);
   const decalGeometry=new THREE.CircleGeometry(.022,12),decalMaterial=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.94,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,side:THREE.DoubleSide});
-  const decalPool=Array.from({length:DECAL_POOL_SIZE},()=>{const mesh=new THREE.Mesh(decalGeometry,decalMaterial);mesh.visible=false;mesh.renderOrder=8;mesh.userData.flightFireDecal=true;scene.add(mesh);return mesh;});
+  const decalPool=Array.from({length:DECAL_POOL_SIZE},()=>{const mesh=new THREE.Mesh(decalGeometry,decalMaterial);mesh.visible=false;mesh.renderOrder=8;mesh.userData.flightFireDecal=true;mesh.userData.flightFireWorld=false;scene.add(mesh);return mesh;});
   let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null;
 
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
@@ -44,7 +44,8 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];el.classList.remove("active");el.style.left=`${x}px`;el.style.top=`${y}px`;void el.offsetWidth;el.classList.add("active");}
   function addThreeDecal(hit){
-    if(!hit?.point||!hit?.face?.normal||!hit.object)return false;const mesh=decalPool[decalCursor++%decalPool.length];hitNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).normalize();mesh.position.copy(hit.point).addScaledVector(hitNormal,.0035);mesh.quaternion.setFromUnitVectors(decalForward,hitNormal);mesh.rotateZ((decalWrites*2.399963229728653)%6.283185307179586);mesh.scale.setScalar(.88+(decalWrites%5)*.055);mesh.visible=true;decalWrites++;viewport.dataset.fireDecalWrites=String(decalWrites);return true;
+    if(!hit?.point)return false;const hasWorldNormal=hit.worldNormal&&Number.isFinite(hit.worldNormal.x)&&Number.isFinite(hit.worldNormal.y)&&Number.isFinite(hit.worldNormal.z);if(hasWorldNormal)hitNormal.copy(hit.worldNormal).normalize();else{if(!hit?.face?.normal||!hit.object)return false;hitNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).normalize();}
+    const mesh=decalPool[decalCursor++%decalPool.length];mesh.position.copy(hit.point).addScaledVector(hitNormal,.0035);mesh.quaternion.setFromUnitVectors(decalForward,hitNormal);mesh.rotateZ((decalWrites*2.399963229728653)%6.283185307179586);mesh.scale.setScalar(.88+(decalWrites%5)*.055);mesh.userData.flightFireWorld=Boolean(hasWorldNormal);mesh.visible=true;decalWrites++;viewport.dataset.fireDecalWrites=String(decalWrites);return true;
   }
   function aimPoint(){
     const rect=viewport.getBoundingClientRect(),dx=active?.dx||0,dy=active?.dy||0,span=Math.min(rect.width,rect.height)*AIM_RADIUS_FRACTION;return{x:rect.width/2+dx/STICK_RADIUS_PX*span,y:rect.height/2+dy/STICK_RADIUS_PX*span,rect};
@@ -52,7 +53,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   function fire(now){
     if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();reticle.style.left=`${aim.x}px`;reticle.style.top=`${aim.y}px`;reticle.style.display="block";pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
     candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];
-    if(hit)addThreeDecal(hit);else worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect);
+    if(hit)addThreeDecal(hit);else{const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}
     screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);return true;
   }
   function scheduleFire(){
