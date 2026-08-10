@@ -251,7 +251,7 @@ class RealWorldBridge{
     if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
     const now=performance.now(),viewport=$("viewport"),cameraMode=viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||""),fpv=cameraMode==="fpv";
     if(forceMode&&viewport.dataset.worldCameraMode)this.resetLook(true);
-    if(!forceMode&&!fpv&&now-this.lastMapSyncMs<this.mapFrameMs)return;
+    if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;
     const p=camera.position,dir=new THREE.Vector3(),actualUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir).normalize();
     const rect=viewport.getBoundingClientRect(),height=Math.max(1,rect.height),verticalFov=clamp(camera.fov,10,120);if(Math.abs(this.map.getVerticalFieldOfView()-verticalFov)>.001)this.map.setVerticalFieldOfView(verticalFov);
     let focusDistance=10;if(fpv)focusDistance=fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM);else if(dir.z<-.02&&p.z>0){const ground=-p.z/dir.z;if(Number.isFinite(ground)&&ground>0)focusDistance=clamp(ground,2,250);}

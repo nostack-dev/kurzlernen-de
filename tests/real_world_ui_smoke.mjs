@@ -86,6 +86,14 @@ try{
   });
   if(Math.abs(eyeHeights.low.eye-5)>.01||Math.abs(eyeHeights.high.eye-50)>.01||eyeHeights.low.sync!=="rigid-eye-target"||eyeHeights.high.sync!=="rigid-eye-target"||eyeHeights.high.eye-eyeHeights.low.eye<44.9)throw new Error(`FPV eye altitude not preserved: ${JSON.stringify(eyeHeights)}`);
 
+  // FPV must obey the same adaptive MapLibre cadence as every other camera. A
+  // single render burst must not hammer jumpTo() once per THREE frame.
+  const fpvCadence=await page.evaluate(()=>{
+    const b=globalThis.__arondightRealWorld,c=b.threeCamera,v=document.querySelector("#viewport"),saved={p:c.position.clone(),q:c.quaternion.clone(),u:c.up.clone(),mode:v.dataset.cameraMode,worldMode:v.dataset.worldCameraMode};
+    v.dataset.cameraMode="fpv";v.dataset.worldCameraMode="fpv";c.position.set(12,-7,18);c.quaternion.set(0,0,0,1);c.up.set(0,1,0);b.lastMapSyncMs=-Infinity;const before=b.mapUpdates;b.syncMapCamera(c);const first=b.mapUpdates;for(let i=0;i<20;i++)b.syncMapCamera(c);const burst=b.mapUpdates;c.position.copy(saved.p);c.quaternion.copy(saved.q);c.up.copy(saved.u);v.dataset.cameraMode=saved.mode;if(saved.worldMode===undefined)delete v.dataset.worldCameraMode;else v.dataset.worldCameraMode=saved.worldMode;b.lastMapSyncMs=-Infinity;return{before,first,burst,mapFrameMs:b.mapFrameMs};
+  });
+  if(fpvCadence.first!==fpvCadence.before+1||fpvCadence.burst!==fpvCadence.first||fpvCadence.mapFrameMs<30)throw new Error(`FPV MapLibre cadence regression: ${JSON.stringify(fpvCadence)}`);
+
   // Same north-up minimap and same 360-look input in every camera mode.
   for(const expected of ["follow","third","fpv"]){
     await page.waitForFunction(mode=>document.querySelector("#viewport")?.dataset.cameraMode===mode,{timeout:3000},expected);
@@ -118,5 +126,5 @@ try{
   // Logbook persistence is local telemetry only. Exercise its public session API.
   const log=await page.evaluate(()=>{const l=globalThis.__arondightFlightLogbook;l.clear();l.observe({simTime:1,armed:true,x:0,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.7,worldMode:"real"});l.observe({simTime:3,armed:true,x:2,y:0,z:2,vx:-1,vy:0,vz:0,yawDeg:0,speed:1,agl:2,aglValid:true,batteryV:16.4,worldMode:"real"});l.observe({simTime:4,armed:false,disarmReason:"TEST_END",x:2,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.3,worldMode:"real"});const snap=l.snapshot();return{count:snap.entries.length,entry:snap.entries[0],stored:JSON.parse(localStorage.getItem("arondight45FlightLogbookV1")||"[]").length};});if(log.count!==1||log.stored!==1||log.entry.endReason!=="TEST_END"||log.entry.distanceM<1.9||log.entry.maxForwardMps<.9)throw new Error(`flight logbook session failed: ${JSON.stringify(log)}`);
 
-  console.log(`REAL WORLD E2E passed: exact 5/50m FPV eye pose, shared north-up minimap, pinch FOV, double-tap expansion, mobile-safe fire FX and local flight logbook.`);
+  console.log(`REAL WORLD E2E passed: exact 5/50m FPV eye pose, bounded FPV MapLibre cadence, shared north-up minimap, pinch FOV, double-tap expansion, mobile-safe fire FX and local flight logbook.`);
 }finally{await browser.close();}
