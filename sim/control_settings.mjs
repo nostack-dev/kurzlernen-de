@@ -1,4 +1,4 @@
-import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings} from "./control_semantics.mjs";
+import {DEFAULT_PHONE_SETTINGS,normalizePhoneSettings,MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH} from "./control_semantics.mjs";
 import {installSoloFlightLayout} from "./solo_layout.mjs";
 
 export const PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV5";
@@ -98,7 +98,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
   dialog.innerHTML=`
     <h3>PHONE CONTROLS</h3>
-    <p>Higher fineness softens only the centre of each virtual stick. Full stick always stays full command.</p>
+    <p>Higher fineness softens only the centre of each virtual stick. In GAME, full translation stick reaches the selected horizontal-speed envelope while the flight controller still enforces physical tilt and acceleration limits.</p>
     <div class="phone-settings-row">
       <label>LEFT STICK FINENESS</label><output data-out="left"></output>
       <input data-slider="left" type="range" min="1" max="10" step="1">
@@ -108,6 +108,11 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
       <label>RIGHT STICK FINENESS</label><output data-out="right"></output>
       <input data-slider="right" type="range" min="1" max="10" step="1">
       <div class="phone-settings-scale"><span>DIRECT</span><span>MAX FINE</span></div>
+    </div>
+    <div class="phone-settings-row">
+      <label>MAX HORIZONTAL SPEED</label><output data-out="speed"></output>
+      <input data-slider="speed" type="range" min="${MIN_GAME_HORIZONTAL_SPEED_KMH}" max="${MAX_GAME_HORIZONTAL_SPEED_KMH}" step="1">
+      <div class="phone-settings-scale"><span>${MIN_GAME_HORIZONTAL_SPEED_KMH} km/h</span><span>${MAX_GAME_HORIZONTAL_SPEED_KMH} km/h</span></div>
     </div>
     <div class="phone-settings-row">
       <label>DEFAULT HOVER ABOVE GROUND</label><output data-out="hover"></output>
@@ -120,20 +125,21 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     <label class="phone-settings-toggle"><span>LOCK LEFT STICK HORIZONTAL AXIS</span><input data-lock-left-horizontal type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK RIGHT STICK VERTICAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
     ${debugGrid?'<label class="phone-settings-toggle"><span>DEBUG GRIDLINES</span><input data-debug-grid type="checkbox"></label><p class="phone-settings-note">DEBUG GRIDLINES affect only the local training renderer. They never alter WORLD GRID, sensors, collision, FC state or physics.</p>':''}
-    <p class="phone-settings-note">Left X invert reverses MANUAL yaw / GAME strafe. Right X/Y invert independently reverse TURN and body pitch. All phone-input settings are stored locally on this device and never modify flight-controller code or aircraft physics.</p>
+    <p class="phone-settings-note">Left X invert reverses MANUAL yaw / GAME strafe. Right X/Y invert independently reverse TURN and body pitch. MAX HORIZONTAL SPEED scales the real GAME velocity request sent through SBUS to the shared StateController; acceleration, tilt, mixer and motor authority remain flight-controller bounded. Settings are stored locally on this device.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
-  const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),hover=dialog.querySelector('[data-slider="hover"]');
-  const leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]'),hoverOut=dialog.querySelector('[data-out="hover"]');
+  const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),speed=dialog.querySelector('[data-slider="speed"]'),hover=dialog.querySelector('[data-slider="hover"]');
+  const leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]'),speedOut=dialog.querySelector('[data-out="speed"]'),hoverOut=dialog.querySelector('[data-out="hover"]');
   const invertLeft=dialog.querySelector("[data-invert-left-horizontal]"),invertRight=dialog.querySelector("[data-invert-right-horizontal]"),invertRightVertical=dialog.querySelector("[data-invert-right-vertical]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]"),debugGridInput=dialog.querySelector("[data-debug-grid]");
   const render=()=>{
-    left.value=String(settings.leftFineness);right.value=String(settings.rightFineness);hover.value=String(settings.defaultHoverAgl);
-    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;hoverOut.value=`${Number(hover.value).toFixed(1)} m`;invertLeft.checked=settings.invertLeftHorizontal;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;if(debugGridInput)debugGridInput.checked=Boolean(debugGrid?.get?.());
+    left.value=String(settings.leftFineness);right.value=String(settings.rightFineness);speed.value=String(settings.maxHorizontalSpeedKmh);hover.value=String(settings.defaultHoverAgl);
+    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;speedOut.value=`${Math.round(Number(speed.value))} km/h`;hoverOut.value=`${Number(hover.value).toFixed(1)} m`;invertLeft.checked=settings.invertLeftHorizontal;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;if(debugGridInput)debugGridInput.checked=Boolean(debugGrid?.get?.());
   };
   const apply=()=>{
     settings=savePhoneControlSettings({
       leftFineness:Number(left.value),
       rightFineness:Number(right.value),
+      maxHorizontalSpeedKmh:Number(speed.value),
       defaultHoverAgl:Number(hover.value),
       invertLeftHorizontal:invertLeft.checked,
       invertRightHorizontal:invertRight.checked,
@@ -143,7 +149,7 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     });
     render();onChange({...settings});
   };
-  left.addEventListener("input",apply);right.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);if(debugGridInput)debugGridInput.addEventListener("change",()=>{debugGrid?.set?.(debugGridInput.checked);render();});
+  left.addEventListener("input",apply);right.addEventListener("input",apply);speed.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);if(debugGridInput)debugGridInput.addEventListener("change",()=>{debugGrid?.set?.(debugGridInput.checked);render();});
   dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);debugGrid?.set?.(Boolean(debugGrid?.defaultValue));render();onChange({...settings});};
   dialog.querySelector("[data-close]").onclick=()=>dialog.close();
   button.onclick=()=>{settings=loadPhoneControlSettings();render();dialog.showModal();};
