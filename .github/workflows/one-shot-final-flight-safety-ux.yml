@@ -9,133 +9,160 @@ permissions:
 
 jobs:
   patch-test-commit:
-    if: github.event.head_commit.message != 'Apply unified NORTH-UP minimap and exact FPV eye'
+    if: github.event.head_commit.message != 'Wire final flight observer and presentation UX'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: fix/final-flight-safety-ux
           fetch-depth: 0
-      - name: Patch WORLD camera and minimap
+      - name: Wire logbook fire feedback degraded HUD and P2P safety
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
+          def one(path,old,new,label):
+              p=Path(path);s=p.read_text();n=s.count(old);assert n==1,f'{label}: {n}';p.write_text(s.replace(old,new,1))
+
+          one('sim/simulator.mjs',
+          '''import {HybridMotorSound} from "./motor_sound.mjs";
+          ''',
+          '''import {HybridMotorSound} from "./motor_sound.mjs";
+          import {FlightLogbook} from "./flight_logbook.mjs";
+          import {installPresentationFire} from "./presentation_fire.mjs";
+          ''','sim imports')
+
+          one('sim/simulator.mjs',
+          '''mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
+          async function enterSolo(){
+          ''',
+          '''mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
+          const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});
+          const presentationRaycaster=new THREE.Raycaster(),presentationPointer=new THREE.Vector2();
+          function trainingPresentationHit({x,y}){
+            const viewport=$("viewport"),rect=viewport.getBoundingClientRect();if(!(rect.width>0&&rect.height>0))return false;
+            presentationPointer.set(x/rect.width*2-1,-(y/rect.height*2-1));presentationRaycaster.setFromCamera(presentationPointer,camera);
+            const hit=presentationRaycaster.intersectObject(groundMesh,false)[0];if(!hit)return false;
+            const material=new THREE.MeshBasicMaterial({color:0x65ffa8,transparent:true,opacity:.82,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}),decal=new THREE.Mesh(new THREE.RingGeometry(.035,.065,14),material);decal.position.copy(hit.point);decal.position.z+=.004;decal.renderOrder=30;scene.add(decal);const started=performance.now();
+            const fade=now=>{const t=(now-started)/900;if(t>=1){scene.remove(decal);decal.geometry.dispose();material.dispose();return;}material.opacity=.82*(1-t);decal.scale.setScalar(1+t*.9);requestAnimationFrame(fade);};requestAnimationFrame(fade);return true;
+          }
+          const presentationFire=installPresentationFire({viewport:$("viewport"),onShot:shot=>{if(globalThis.__arondightRealWorld?.active)globalThis.__arondightRealWorld.presentationHit?.(shot);else trainingPresentationHit(shot);}});
+          Object.defineProperty(globalThis,"__arondightPresentationFire",{value:presentationFire,writable:false,configurable:false});
+          async function enterSolo(){
+          ''','wire observer/presentation')
+
+          one('sim/simulator.mjs',
+          '''function resetSimulation(initial=null){
+            phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
+            physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
+          ''',
+          '''function resetSimulation(initial=null){
+            if(flightLogbook.active)flightLogbook.finish("SIM_RESET");
+            phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
+            physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];flightLogAuxTicks=0;
+          ''','reset logbook/nav')
+
+          one('sim/simulator.mjs',
+          '''function recordSession(){
+            const state=physics.state();
+            sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
+          }
+          let simulationBacklogMs=0;
+          ''',
+          '''function recordSession(){
+            const state=physics.state();
+            sessionLog.push({time_s:simTime,motor1_us:latest.motors[0],motor2_us:latest.motors[1],motor3_us:latest.motors[2],motor4_us:latest.motors[3],x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2],fc_roll_deg:latest.attitude[0],fc_pitch_deg:latest.attitude[1],fc_yaw_deg:latest.attitude[2],battery_v:state.battery_v,current_a:state.current_a,fc_state:latest.state});
+          }
+          function flightLogSample(){
+            const state=physics.state(),fcState=latest.state,fault=fcState>>8&255,remoteMissing=inputSource==="remote"&&!remoteLink.current();let disarmReason="FC_DISARM";if(fault)disarmReason=`FAULT_${fault}`;else if(!arm)disarmReason="ARM_OFF";else if(remoteMissing)disarmReason="CONTROL_LOSS";
+            const bridge=globalThis.__arondightRealWorld;return{simTime,x:state.x,y:state.y,z:state.z,vx:state.vx,vy:state.vy,vz:state.vz,speed:state.speed,yawDeg:state.attitude[2],agl:latestNavigation.agl,aglValid:latestNavigation.aglValid!==false,batteryV:state.battery_v,armed:Boolean(fcState&STATE_ARMED),navDegraded:Boolean(fcState&STATE_NAVIGATION_DEGRADED),worldMode:bridge?.active?"real":"training",worldOrigin:bridge?.active&&Number.isFinite(bridge.originLat)&&Number.isFinite(bridge.originLon)?{lat:bridge.originLat,lon:bridge.originLon}:null,disarmReason};
+          }
+          let flightLogAuxTicks=0,simulationBacklogMs=0;
+          ''','logbook sampling')
+
+          one('sim/simulator.mjs',
+          '''if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
+          ''',
+          '''if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();if(++flightLogAuxTicks>=10){flightLogAuxTicks=0;flightLogbook.observe(flightLogSample());}}
+          ''','observe logbook')
+
+          one('sim/simulator.mjs',
+          '''remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});''',
+          '''remoteLink.sendTelemetry({fc_state:stateText,mode,sim_time:simTime,altitude:Math.max(0,state.z),agl_m:latestNavigation.agl,nav_vx_mps:latestNavigation.vx,nav_vy_mps:latestNavigation.vy,nav_vz_mps:latestNavigation.vz,roll_deg:latest.attitude[0],pitch_deg:latest.attitude[1],yaw_deg:latest.attitude[2],speed:state.speed,battery_v:physics.batteryVoltage,current_a:physics.batteryCurrent,motors:latest.motors,rpm:physics.motorOmega.map(w=>w*60/(2*Math.PI)),armed:Boolean(fcState&STATE_ARMED),fault,game_mode:Boolean(fcState&STATE_GAME_MODE),navigation_valid:Boolean(fcState&STATE_NAVIGATION_VALID),navigation_degraded:Boolean(fcState&STATE_NAVIGATION_DEGRADED),navigation_velocity_valid:latestNavigation.velocityValid!==false,navigation_agl_valid:latestNavigation.aglValid!==false,target_ground_clearance:effectiveInput?.gameMode?clamp(Number(effectiveInput.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M):null,body_pitch_input:effectiveInput?.gameMode?clamp(Number(effectiveInput.bodyPitch)||0,-1,1):0});''','remote degraded telemetry')
+
+          old='''$("soloState").textContent=stateText;$("soloAlt").textContent=`AGL ${latestNavigation.valid?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:"NAV INVALID";soloRangeStatus.style.color=latestNavigation.valid?"#64e0ae":"#ffd06d";'''
+          new='''$("soloState").textContent=stateText;const navDegraded=Boolean(fcState&STATE_NAVIGATION_DEGRADED),aglOk=latestNavigation.aglValid!==false;$("soloAlt").textContent=`AGL ${aglOk?latestNavigation.agl.toFixed(1):"—"} m`;soloRangeStatus.textContent=aglOk?`AGL ${latestNavigation.agl.toFixed(1)} m`:navDegraded?"NAV DEGRADED · AGL LOST":"NAV INVALID";soloRangeStatus.style.color=aglOk?"#64e0ae":"#ffd06d";'''
+          one('sim/simulator.mjs',old,new,'solo degraded HUD')
+
+          # Controller: telemetry can remain useful with AGL degraded; transient link states must not synthesize ARM-low.
+          one('sim/controller.mjs',
+          '''function measuredGameState(){
+            const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m);
+            if(lastTelemetry.navigation_valid!==true||![vx,vy,vz,yaw,agl].every(Number.isFinite))return{valid:false};
+            const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
+            return{valid:true,forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
+          }
+          ''',
+          '''function measuredGameState(){
+            const vx=Number(lastTelemetry.nav_vx_mps),vy=Number(lastTelemetry.nav_vy_mps),vz=Number(lastTelemetry.nav_vz_mps),yaw=Number(lastTelemetry.yaw_deg),agl=Number(lastTelemetry.agl_m),velocityValid=lastTelemetry.navigation_velocity_valid??lastTelemetry.navigation_valid,aglValid=lastTelemetry.navigation_agl_valid??lastTelemetry.navigation_valid;
+            if(velocityValid!==true||![vx,vy,vz,yaw].every(Number.isFinite))return{valid:false,aglValid:false};
+            const radians=yaw*Math.PI/180,c=Math.cos(radians),s=Math.sin(radians);
+            return{valid:true,aglValid:aglValid===true&&Number.isFinite(agl),forward:-c*vx-s*vy,right:-s*vx+c*vy,vertical:vz,agl,yaw};
+          }
+          ''','controller split nav')
+          one('sim/controller.mjs',
+          '''  ui.gameSensorStatus.textContent=`AGL ${nav.agl.toFixed(1)} m`;
+            ui.gameSensorStatus.style.color="#64e0ae";
+          ''',
+          '''  ui.gameSensorStatus.textContent=nav.aglValid?`AGL ${nav.agl.toFixed(1)} m`:"NAV DEGRADED · AGL LOST";
+            ui.gameSensorStatus.style.color=nav.aglValid?"#64e0ae":"#ffd06d";
+          ''','controller degraded label')
+          one('sim/controller.mjs',
+          '''  ui.gameClearance.dataset.aglM=String(nav.agl);
+          ''',
+          '''  if(nav.aglValid)ui.gameClearance.dataset.aglM=String(nav.agl);else delete ui.gameClearance.dataset.aglM;
+          ''','controller AGL dataset')
+          one('sim/controller.mjs',
+          '''peer.onState=()=>{updateConnection();if(!peer.linked)safetyNeutral(false);};
+          ''',
+          '''// A transient WebRTC state change must not synthesize ARM-low. The VIEW-side
+          // 350ms control freshness contract remains the authoritative real link-loss failsafe.
+          peer.onState=()=>{updateConnection();};
+          ''','controller transient P2P')
+
+          one('sim/control_settings.mjs','''    <h3>PHONE CONTROLS</h3>''','''    <h3>FLIGHT CONTROLS</h3>''','settings heading')
+
+          # WORLD presentation-only map-anchored fading acknowledgement.
           p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
-          def rep(old,new,label):
-              global s
-              n=s.count(old);assert n==1,f'{label}: {n}'
-              s=s.replace(old,new,1)
-          rep('''import {Map as MapLibreMap} from "maplibre-gl";
-          import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
-          ''','''import {Map as MapLibreMap} from "maplibre-gl";
-          import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
-          import {loadCameraSettings,saveCameraSettings} from "./camera_settings.mjs";
-          ''','camera settings import')
-          rep('''const WORLD_MINIMAP_FOLLOW_STORAGE="arondight45WorldMinimapFollowV1";
-          ''','', 'obsolete minimap-follow storage')
-          rep('''this.minimapQueries=0;this.minimapFollowLook=loadBool(WORLD_MINIMAP_FOLLOW_STORAGE,true);this.lookSurfaceInstalled=false;this.airframe=null;''','''this.minimapQueries=0;this.minimapExpanded=false;this.minimapLastTapMs=-Infinity;this.minimapPointers=new Map();this.minimapPinch=null;this.airframe=null;''','minimap state')
-          rep('''this.installUi();this.installLookHud();this.installFreeLookSurface();''','''this.installUi();this.installLookHud();''','remove viewport free look')
-          rep('''      #worldLookHud .world-look-cardinal{position:absolute;font:900 7px system-ui,-apple-system,sans-serif;color:#72d9ff;opacity:.85;pointer-events:none}.world-look-n{top:22px;left:53px}.world-look-e{top:62px;right:12px}.world-look-s{bottom:9px;left:54px}.world-look-w{top:62px;left:12px}
-          ''','''      #worldLookHud .world-look-cardinal{position:absolute;font:900 7px system-ui,-apple-system,sans-serif;color:#72d9ff;opacity:.85;pointer-events:none}.world-look-n{top:22px;left:53px}.world-look-e{top:62px;right:12px}.world-look-s{bottom:9px;left:54px}.world-look-w{top:62px;left:12px}
-                #worldLookHud.minimap-expanded{position:fixed;width:min(86vw,560px);height:min(72vh,460px);left:50%;right:auto;top:50%;transform:translate(-50%,-50%);z-index:20;border-radius:20px;box-shadow:0 20px 70px #000d,0 0 0 1px #8cdcff88 inset}
-                #worldLookHud.minimap-expanded .world-look-stage{border-radius:16px}
-          ''','expanded minimap CSS')
-
-          start=s.index('  installLookHud(){')
-          end=s.index('  installFreeLookSurface(){',start)
-          new_method='''  installLookHud(){
-              const viewport=$("viewport");if(!viewport||this.lookHud)return;
-              const hud=document.createElement("div");hud.id="worldLookHud";hud.setAttribute("aria-label","NORTH-UP WORLD minimap and unified camera look");hud.innerHTML='<div class="world-look-title"><span>MAP · NORTH UP</span><span data-world-look-readout>SNAP</span></div><div class="world-look-stage"><canvas class="world-mini-canvas" width="196" height="172" aria-label="NORTH-UP WORLD minimap"></canvas><div class="world-look-plane"></div><div class="world-look-drone"><i class="world-look-nose"></i></div></div><b class="world-look-cardinal world-look-n">N</b><b class="world-look-cardinal world-look-e">E</b><b class="world-look-cardinal world-look-s">S</b><b class="world-look-cardinal world-look-w">W</b>';
-              viewport.appendChild(hud);this.lookHud=hud;this.lookPlane=hud.querySelector(".world-look-plane");this.lookReadout=hud.querySelector("[data-world-look-readout]");this.minimapCanvas=hud.querySelector(".world-mini-canvas");this.minimapCtx=this.minimapCanvas?.getContext("2d");const legend=document.createElement("div");legend.id="worldMapLegend";legend.innerHTML='<span class="legend-water"><i></i>WATER</span><span class="legend-green"><i></i>GREEN</span><span class="legend-road"><i></i>ROADS</span><span class="legend-building"><i></i>BUILDINGS</span>';viewport.appendChild(legend);this.mapLegend=legend;
-              const distance=()=>{const a=[...this.minimapPointers.values()];return a.length<2?0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);};
-              const update=event=>{const point=this.minimapPointers.get(event.pointerId);if(!point)return;point.x=event.clientX;point.y=event.clientY;this.minimapPointers.set(event.pointerId,point);if(this.minimapPinch&&this.minimapPointers.size>=2){const d=distance(),next=clamp(this.minimapPinch.fov-(d-this.minimapPinch.distance)*.16,50,120);saveCameraSettings({...loadCameraSettings(),fpvFovDeg:next});if(this.lookReadout)this.lookReadout.textContent=`FOV ${Math.round(next)}°`;event.preventDefault();return;}if(!this.lookDragging||event.pointerId!==this.lookPointer?.id)return;const dx=event.clientX-this.lookPointer.x,dy=event.clientY-this.lookPointer.y;this.lookYawDeg=((this.lookPointer.yaw+dx*.85+540)%360)-180;this.lookPitchDeg=clamp(this.lookPointer.pitch-dy*.62,-75,60);this.lookSnapping=false;this.renderLookHud();event.preventDefault();};
-              hud.addEventListener("pointerdown",event=>{if(event.button>0)return;event.preventDefault();hud.setPointerCapture?.(event.pointerId);this.minimapPointers.set(event.pointerId,{x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,down:performance.now()});if(this.minimapPointers.size>=2){this.lookDragging=false;this.lookPointer=null;this.minimapPinch={distance:distance(),fov:loadCameraSettings().fpvFovDeg};return;}this.lookDragging=true;this.lookSnapping=false;this.lookPointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw:this.lookYawDeg,pitch:this.lookPitchDeg};this.renderLookHud();},{passive:false});
-              hud.addEventListener("pointermove",update,{passive:false});
-              const release=event=>{const point=this.minimapPointers.get(event.pointerId);if(!point)return;const wasPinch=Boolean(this.minimapPinch);const moved=Math.hypot(event.clientX-point.startX,event.clientY-point.startY),quick=performance.now()-point.down<300;this.minimapPointers.delete(event.pointerId);if(this.minimapPointers.size<2)this.minimapPinch=null;if(this.lookPointer?.id===event.pointerId){this.lookDragging=false;this.lookPointer=null;if(!this.keepLookOrientation)this.lookSnapping=true;}if(!wasPinch&&quick&&moved<7){const now=performance.now();if(now-this.minimapLastTapMs<340){this.minimapLastTapMs=-Infinity;this.toggleMinimapExpanded();}else this.minimapLastTapMs=now;}this.renderLookHud();event.preventDefault();};
-              hud.addEventListener("pointerup",release,{passive:false});hud.addEventListener("pointercancel",release,{passive:false});hud.addEventListener("dblclick",event=>{event.preventDefault();this.toggleMinimapExpanded();});this.renderLookHud();
+          s=s.replace('''import {Map as MapLibreMap} from "maplibre-gl";''','''import {Map as MapLibreMap,Marker} from "maplibre-gl";''',1)
+          anchor='''  status(text,kind=""){const el=$("realWorldStatus");if(!el)return;el.textContent=text;el.className=`statusline ${kind}`;}
+          '''
+          assert s.count(anchor)==1,'WORLD status anchor'
+          method='''  presentationHit({x,y}={}){
+              if(!this.active||!this.map||!this.geoContainer)return false;const rect=$("viewport")?.getBoundingClientRect();if(!rect)return false;const point=[clamp(Number(x)||0,0,rect.width),clamp(Number(y)||0,0,rect.height)];let lngLat;try{lngLat=this.map.unproject(point);}catch{return false;}
+              const element=document.createElement("div");element.className="world-presentation-hit";Object.assign(element.style,{width:"9px",height:"9px",borderRadius:"50%",border:"1px solid #d9ffe8",background:"#62ffa6",boxShadow:"0 0 9px #44ff99",opacity:".9",transition:"opacity .8s ease,transform .8s ease",pointerEvents:"none"});const marker=new Marker({element,anchor:"center"}).setLngLat(lngLat).addTo(this.map);requestAnimationFrame(()=>{element.style.opacity="0";element.style.transform="scale(2.1)";});setTimeout(()=>marker.remove(),850);const viewport=$("viewport");if(viewport)viewport.dataset.worldPresentationHits=String((Number(viewport.dataset.worldPresentationHits)||0)+1);return true;
             }
           '''
-          s=s[:start]+new_method+s[end:]
-          # Whole-view free-look conflicts with the free scene interaction. Remove it completely.
-          start=s.index('  installFreeLookSurface(){')
-          end=s.index('  renderLookHud(){',start)
-          s=s[:start]+'''  toggleMinimapExpanded(){this.minimapExpanded=!this.minimapExpanded;this.lookHud?.classList.toggle("minimap-expanded",this.minimapExpanded);if(this.minimapCanvas){this.minimapCanvas.width=this.minimapExpanded?640:196;this.minimapCanvas.height=this.minimapExpanded?480:172;}this.minimapLastDrawMs=-Infinity;this.renderLookHud();return this.minimapExpanded;}
-          '''+s[end:]
-
-          # NORTH-UP is invariant; only the drone/heading glyph rotates.
-          old='''    if(this.lookPlane)this.lookPlane.style.transform=`rotateX(${clamp(60-this.lookPitchDeg*.28,38,78)}deg) rotateZ(${-this.lookYawDeg}deg)`;
-              const cameraMode=$("viewport")?.dataset.cameraMode||"follow";if(this.lookReadout)this.lookReadout.textContent=cameraMode==="fpv"?"FPV LOCK":this.lookDragging?`${Math.round(this.lookYawDeg)}°`:this.keepLookOrientation?`KEEP · ${Math.round(this.lookYawDeg)}°`:this.lookSnapping?"SNAP ↺":"SNAP";
-              const viewport=$("viewport");if(viewport){viewport.dataset.worldLookYaw=this.lookYawDeg.toFixed(2);viewport.dataset.worldLookPitch=this.lookPitchDeg.toFixed(2);viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldMinimapFollow=this.minimapFollowLook?"1":"0";}
-          '''
-          new='''    if(this.lookPlane)this.lookPlane.style.transform="rotateX(60deg) rotateZ(0deg)";
-              if(this.lookReadout&&!this.minimapPinch)this.lookReadout.textContent=this.minimapExpanded?"DOUBLE TAP · CLOSE":this.lookDragging?`${Math.round(this.lookYawDeg)}°`:this.keepLookOrientation?`KEEP · ${Math.round(this.lookYawDeg)}°`:this.lookSnapping?"SNAP ↺":"SNAP";
-              const viewport=$("viewport");if(viewport){viewport.dataset.worldLookYaw=this.lookYawDeg.toFixed(2);viewport.dataset.worldLookPitch=this.lookPitchDeg.toFixed(2);viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldMinimapMode="north";viewport.dataset.worldMinimapBearing="0.00";viewport.dataset.worldMinimapExpanded=this.minimapExpanded?"1":"0";}
-          '''
-          assert s.count(old)==1,'renderLookHud block';s=s.replace(old,new,1)
-          # Remove obsolete per-mode minimap orientation setter.
-          import re
-          s,n=re.subn(r'  setMinimapFollowLook\(value\)\{.*?\}\n','',s,count=1);assert n==1,'remove minimap follow setter'
-
-          start=s.index('  applyLookCamera(scene,camera){')
-          end=s.index('  configureMinimapLayers(){',start)
-          s=s[:start]+'''  applyLookCamera(scene,camera){
-              this.stepLook(performance.now());if(Math.abs(this.lookYawDeg)<.001&&Math.abs(this.lookPitchDeg)<.001)return;
-              // One orientation-only look transform for FOLLOW, THIRD and FPV. Camera position remains
-              // owned by the selected view mode, so look input can never fight aircraft/FPV eye position.
-              const worldUp=new THREE.Vector3(0,0,1),yawQ=new THREE.Quaternion().setFromAxisAngle(worldUp,THREE.MathUtils.degToRad(-this.lookYawDeg));camera.quaternion.premultiply(yawQ);const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize(),pitchQ=new THREE.Quaternion().setFromAxisAngle(right,THREE.MathUtils.degToRad(this.lookPitchDeg));camera.quaternion.premultiply(pitchQ);camera.updateMatrixWorld();
-            }
-          '''+s[end:]
-
-          # Minimap projection is unconditionally north-up.
-          old='''position=airframe.position,viewport=$("viewport"),mainBearing=Number(viewport?.dataset.worldMapBearing||0),miniBearing=this.minimapFollowLook&&Number.isFinite(mainBearing)?mainBearing:0,rad=-miniBearing*Math.PI/180,c=Math.cos(rad),si=Math.sin(rad),radius='''
-          new='''position=airframe.position,viewport=$("viewport"),miniBearing=0,rad=0,c=1,si=0,radius='''
-          assert s.count(old)==1,'north up projection';s=s.replace(old,new,1)
-          old='''ctx.fillText(this.minimapFollowLook?"CAM":"N",7,15);''';assert s.count(old)==1,'minimap label';s=s.replace(old,'''ctx.fillText("N",7,15);''',1)
-          old='''viewport.dataset.worldMinimapMode=this.minimapFollowLook?"camera":"north";viewport.dataset.worldMinimapBearing=miniBearing.toFixed(2);''';assert s.count(old)==1,'minimap dataset';s=s.replace(old,'''viewport.dataset.worldMinimapMode="north";viewport.dataset.worldMinimapBearing="0.00";''',1)
-          s=s.replace('''viewport.dataset.worldMinimapFollow=this.minimapFollowLook?"1":"0";''','')
-          s=s.replace('''delete viewport.dataset.worldMinimapFollow;''','')
-
-          # Exact eye-to-target MapLibre camera in FPV; FOLLOW/THIRD retain budgeted ground-target sync.
-          start=s.index('  syncMapCamera(camera){')
-          end=s.index('  renderReal(scene,camera){',start)
-          sync='''  syncMapCamera(camera){
-              if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
-              const now=performance.now(),viewport=$("viewport"),cameraMode=viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||""),fpv=cameraMode==="fpv";
-              if(forceMode&&viewport.dataset.worldCameraMode)this.resetLook(true);if(!forceMode&&!fpv&&now-this.lastMapSyncMs<this.mapFrameMs)return;
-              const p=camera.position,dir=new THREE.Vector3(),actualUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();camera.getWorldDirection(dir).normalize();const rect=viewport.getBoundingClientRect(),height=Math.max(1,rect.height),verticalFov=clamp(camera.fov,10,120),size=`${Math.round(rect.width)}x${Math.round(rect.height)}`;if(Math.abs(this.map.getVerticalFieldOfView()-verticalFov)>.001)this.map.setVerticalFieldOfView(verticalFov);if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
-              const horizontal=Math.hypot(dir.x,dir.y),bearing=THREE.MathUtils.radToDeg(Math.atan2(dir.x,dir.y));let roll=0;if(horizontal>.02){const worldUp=new THREE.Vector3(0,0,1),right0=new THREE.Vector3().crossVectors(dir,worldUp).normalize(),up0=new THREE.Vector3().crossVectors(right0,dir).normalize();roll=THREE.MathUtils.radToDeg(Math.atan2(dir.dot(new THREE.Vector3().crossVectors(up0,actualUp)),up0.dot(actualUp)));}roll=clamp(roll,-85,85);
-              if(fpv){
-                const focusDistance=fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM),target=forwardTarget(p,dir,focusDistance),eye=metersToLngLat(this.originLon,this.originLat,p.x,p.y),aim=metersToLngLat(this.originLon,this.originLat,target.x,target.y),calculated=this.map.calculateCameraOptionsFromTo(eye,p.z,aim,target.z),view={...calculated,zoom:clamp(calculated.zoom,0,WORLD_MAP_MAX_ZOOM),pitch:clamp(calculated.pitch,0,WORLD_MAP_MAX_PITCH),roll};
-                this.lastMapSyncMs=now;this.lastMapView={...view};this.map.jumpTo(view);this.mapUpdates++;const center=view.center?.lng!=null?[view.center.lng,view.center.lat]:view.center;viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapSyncMode="exact-eye-to-target";viewport.dataset.worldMapEyeElevation=p.z.toFixed(3);viewport.dataset.worldMapTargetElevation=target.z.toFixed(3);viewport.dataset.worldMapCenter=`${Number(center[0]).toFixed(7)},${Number(center[1]).toFixed(7)}`;viewport.dataset.worldMapZoom=Number(view.zoom).toFixed(4);viewport.dataset.worldMapPitch=Number(view.pitch).toFixed(3);viewport.dataset.worldMapBearing=Number(view.bearing).toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);return;
-              }
-              delete viewport.dataset.worldMapEyeElevation;let focusDistance=10;if(dir.z<-.02&&p.z>0){const ground=-p.z/dir.z;if(Number.isFinite(ground)&&ground>0)focusDistance=clamp(ground,2,250);}const target=p.clone().addScaledVector(dir,focusDistance),center=metersToLngLat(this.originLon,this.originLat,target.x,target.y),pitch=clamp(90+THREE.MathUtils.radToDeg(Math.atan2(dir.z,Math.max(1e-6,horizontal))),0,85),metersPerPixel=Math.max(.01,2*focusDistance*Math.tan(THREE.MathUtils.degToRad(verticalFov)/2)/height),cosLat=Math.max(.05,Math.cos(center[1]*Math.PI/180)),zoom=clamp(Math.log2(156543.03392804097*cosLat/metersPerPixel),14,WORLD_MAP_MAX_ZOOM),view={center,elevation:0,zoom,bearing,pitch,roll},last=this.lastMapView;
-              if(last&&!forceMode){const latM=(center[1]-last.center[1])*Math.PI/180*EARTH_RADIUS_M,lonM=(center[0]-last.center[0])*Math.PI/180*EARTH_RADIUS_M*Math.max(.05,Math.cos(center[1]*Math.PI/180)),centerDelta=Math.hypot(latM,lonM);if(centerDelta<WORLD_MAP_CENTER_EPS_M&&Math.abs(zoom-last.zoom)<WORLD_MAP_ZOOM_EPS&&angularDistanceDeg(bearing,last.bearing)<WORLD_MAP_ANGLE_EPS_DEG&&Math.abs(pitch-last.pitch)<WORLD_MAP_ANGLE_EPS_DEG&&angularDistanceDeg(view.roll,last.roll)<WORLD_MAP_ANGLE_EPS_DEG){this.lastMapSyncMs=now;return;}}
-              this.lastMapSyncMs=now;this.lastMapView={...view,center:[...center]};this.map.jumpTo(view);this.mapUpdates++;viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapSyncMode="budgeted-ground-target";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapTargetElevation="0.000";viewport.dataset.worldMapZoom=zoom.toFixed(4);viewport.dataset.worldMapPitch=pitch.toFixed(3);viewport.dataset.worldMapBearing=bearing.toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);
-            }
-          '''
-          s=s[:start]+sync+s[end:]
-          p.write_text(s)
-
-          # Settings: one minimap contract only; no per-view orientation toggle.
-          p=Path('sim/control_settings.mjs');s=p.read_text()
-          s=s.replace('''    <label class="phone-settings-toggle"><span>MINIMAP FOLLOWS 360° CAMERA</span><input data-world-minimap-follow type="checkbox"></label>\n''','')
-          s=s.replace('''MINIMAP follow ON rotates the cached mini 3D map with the camera; OFF keeps north-up. FPV stays rigidly mounted and cannot be virtually panned.''','''The minimap is always NORTH-UP in FOLLOW, THIRD and FPV. Drag changes camera look without moving the camera eye; release snaps unless KEEP is enabled. Pinch changes the shared FOV setting and double-tap expands the map.''')
-          s=s.replace(''',minimapFollow=section.querySelector("[data-world-minimap-follow]")''','')
-          s=s.replace(''';minimapFollow.checked=bridge.minimapFollowLook!==false''','')
-          s=s.replace(''';minimapFollow.addEventListener("change",()=>{bridge.setMinimapFollowLook?.(minimapFollow.checked);renderButton();})''','')
-          s=s.replace(''';bridge.setMinimapFollowLook?.(true)''','')
-          p.write_text(s)
+          s=s.replace(anchor,method+anchor,1);p.write_text(s)
           PY
-          node --check sim/real_world_bootstrap.mjs
+          node --check sim/simulator.mjs
+          node --check sim/controller.mjs
           node --check sim/control_settings.mjs
-          node --check sim/camera_settings.mjs
-          grep -q 'calculateCameraOptionsFromTo' sim/real_world_bootstrap.mjs
-          ! grep -q 'MINIMAP FOLLOWS 360' sim/control_settings.mjs
-          ! grep -q 'setMinimapFollowLook' sim/real_world_bootstrap.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/flight_logbook.mjs
+          node --check sim/presentation_fire.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/drone_hil_protocol_test
+          /tmp/drone_hil_protocol_test
+          grep -q 'NAV DEGRADED · AGL LOST' sim/simulator.mjs
+          grep -q 'presentationHit' sim/real_world_bootstrap.mjs
+          grep -q 'FlightLogbook' sim/simulator.mjs
+          grep -q 'installPresentationFire' sim/simulator.mjs
+          ! grep -q 'if(!peer.linked)safetyNeutral' sim/controller.mjs
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sim/real_world_bootstrap.mjs sim/control_settings.mjs
-          git commit -m 'Apply unified NORTH-UP minimap and exact FPV eye'
+          git add sim/simulator.mjs sim/controller.mjs sim/control_settings.mjs sim/real_world_bootstrap.mjs
+          git commit -m 'Wire final flight observer and presentation UX'
           git push origin HEAD:fix/final-flight-safety-ux
