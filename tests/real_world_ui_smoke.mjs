@@ -135,6 +135,7 @@ try{
       mapUpdates:Number(viewport?.dataset.worldMapUpdates||0),
       mapFpsCap:Number(viewport?.dataset.worldMapFpsCap||0),
       mapPixelRatio:Number(viewport?.dataset.worldMapPixelRatio||0),
+      mapRenderFps:Number(viewport?.dataset.worldMapRenderFps||0),
       flightPixelRatio:Number(viewport?.dataset.worldFlightPixelRatio||0),
       geoBackground:getComputedStyle(document.querySelector("#geoViewport")).backgroundImage,
       grid:viewport?.dataset.worldGridEnabled||"",keepLook:viewport?.dataset.worldLookKeepEnabled||"",lookHud:getComputedStyle(document.querySelector("#worldLookHud")).display,minimapCanvas:!!document.querySelector("#worldLookHud .world-mini-canvas"),minimapMode:viewport?.dataset.worldMinimapMode||"",minimapFollow:viewport?.dataset.worldMinimapFollow||"",legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,perfMode:viewport?.dataset.worldPerfMode||"",flightFps:Number(viewport?.dataset.worldFlightFps||0),paletteLayers:Number(viewport?.dataset.worldPaletteLayers||0)
@@ -202,9 +203,10 @@ try{
   const fpvSyncStart=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));
   if(fpvSyncStart.mode!=="frame-locked")throw new Error(`FPV WORLD sync is not frame-locked: ${JSON.stringify(fpvSyncStart)}`);
   await page.waitForFunction(start=>Number(document.querySelector("#viewport")?.dataset.worldThreeFrames||0)>start+6,{timeout:5000},fpvSyncStart.frames);
-  const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||""}));
+  const fpvSyncEnd=await page.$eval("#viewport",e=>({frames:Number(e.dataset.worldThreeFrames||0),updates:Number(e.dataset.worldMapUpdates||0),mode:e.dataset.worldMapSyncMode||"",mapFps:Number(e.dataset.worldMapRenderFps||0)}));
   const fpvFrameDelta=fpvSyncEnd.frames-fpvSyncStart.frames,fpvMapDelta=fpvSyncEnd.updates-fpvSyncStart.updates;
   if(fpvSyncEnd.mode!=="frame-locked"||fpvFrameDelta<6||fpvMapDelta<fpvFrameDelta-1)throw new Error(`FPV WORLD camera is not synchronized to visible flight frames: ${JSON.stringify({fpvSyncStart,fpvSyncEnd,fpvFrameDelta,fpvMapDelta})}`);
+  await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.worldMapRenderFps||0)>0,{timeout:3000});
   const fpvLookBefore=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));await page.mouse.move(250,145);await page.mouse.down();await page.mouse.move(350,120,{steps:5});await page.mouse.up();await new Promise(resolve=>setTimeout(resolve,180));const fpvLookAfter=await page.$eval("#viewport",e=>Number(e.dataset.worldLookYaw||0));if(Math.abs(fpvLookAfter-fpvLookBefore)>.1)throw new Error(`rigid FPV was virtually panned: ${JSON.stringify({fpvLookBefore,fpvLookAfter})}`);
 
   const framesBefore=live.frames;
