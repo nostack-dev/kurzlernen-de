@@ -39,6 +39,10 @@ const DEBUG_GRID_STORAGE = "arondight45DebugGridlinesV1";
 const NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
+// Keep work per slice bounded, but retain short scheduler stalls as wall-clock debt.
+// Otherwise a >50 ms rAF/OS stall silently deletes real time and the digital twin
+// runs permanently slow even when the CPU has enough capacity to catch up.
+const SIM_MAX_BACKLOG_MS = 250;
 const SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
 const SIM_WORK_SLICE_MS = 6;
 const SIM_AUX_INTERVAL_S = .01;
@@ -717,8 +721,8 @@ async function loop(epoch){
   let schedulerWallMs=performance.now(),accumulatorMs=0,auxAccumulatorS=0;
   while(running&&epoch===runEpoch){
     if(mode==="replay"){simulationBacklogMs=0;await replayStep();schedulerWallMs=performance.now();continue;}
-    const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=now;
-    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);simulationBacklogMs=accumulatorMs;
+    const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_BACKLOG_MS);schedulerWallMs=now;
+    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_BACKLOG_MS);simulationBacklogMs=accumulatorMs;
     if(accumulatorMs<SIM_FIXED_STEP_MS){await new Promise(requestAnimationFrame);continue;}
     const sliceStart=performance.now(),due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_SLICE),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
     for(let i=0;i<due&&running&&epoch===runEpoch;i++){
@@ -726,8 +730,8 @@ async function loop(epoch){
       if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
       if(performance.now()-sliceStart>=SIM_WORK_SLICE_MS)break;
     }
-    const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=afterWork;
-    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_CATCHUP_MS);simulationBacklogMs=accumulatorMs;
+    const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_BACKLOG_MS);schedulerWallMs=afterWork;
+    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_BACKLOG_MS);simulationBacklogMs=accumulatorMs;
     if(accumulatorMs>=SIM_FIXED_STEP_MS)await yieldToBrowser();else await new Promise(requestAnimationFrame);
   }
 }
