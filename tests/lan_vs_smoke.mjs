@@ -7,15 +7,14 @@ function transportHarness(){
   function joinRoom(_config,roomId){
     const id=`peer-${next++}`;
     const group=rooms.get(roomId)||new Set();rooms.set(roomId,group);
-    const actions=new Map(),joins=[],leaves=[];
+    const receivers=new Map(),joins=[],leaves=[];
     const room={
       id,
       makeAction(name){
-        let receiver=()=>{};actions.set(name,fn=>receiver=fn);
         const send=data=>{for(const peer of group)if(peer!==room)peer._deliver(name,data,id);};
-        return[send,fn=>receiver=fn];
+        return[send,fn=>receivers.set(name,fn)];
       },
-      _deliver(name,data,peerId){actions.get(name)?.(data,peerId);},
+      _deliver(name,data,peerId){receivers.get(name)?.(data,peerId);},
       onPeerJoin(fn){joins.push(fn);},
       onPeerLeave(fn){leaves.push(fn);},
       leave(){group.delete(room);for(const peer of group)for(const fn of peer._leaves)fn(id);},
