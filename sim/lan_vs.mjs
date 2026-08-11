@@ -81,22 +81,36 @@ export class LanVsSession{
   }
 }
 
-const NETWORK_IP_URL="https://api.ipify.org?format=json";
+const NETWORK_IP_URLS=["https://api4.ipify.org?format=json","https://api.ipify.org?format=json"];
+
+async function hashRoomMaterial(material,cryptoObj){
+  if(!cryptoObj?.subtle)throw Error("Secure room hashing unavailable");
+  const bytes=new TextEncoder().encode(material);
+  const digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));
+  return [...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+
+export async function manualRoomKey(code,{cryptoObj=globalThis.crypto}={}){
+  const normalized=String(code||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(normalized.length<4||normalized.length>12)throw Error("Pair code must be 4-12 letters or digits");
+  return `code-${await hashRoomMaterial(`arondight45-vs-code:${normalized}`,cryptoObj)}`;
+}
 
 export async function sameNetworkRoomKey({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto}={}){
   if(typeof fetchFn!=="function")throw Error("Network lookup unavailable");
-  if(!cryptoObj?.subtle)throw Error("Secure room hashing unavailable");
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),5000);
-  try{
-    const response=await fetchFn(NETWORK_IP_URL,{cache:"no-store",signal:controller.signal});
-    if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);
-    const data=await response.json();
-    const ip=String(data?.ip||"").trim();
-    if(!ip||ip.length>64||!/^[0-9a-fA-F:.]+$/.test(ip))throw Error("Network lookup returned invalid address");
-    const bytes=new TextEncoder().encode(`arondight45-vs-network:${ip}`);
-    const digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));
-    const key=[...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
-    return `net-${key}`;
-  }finally{clearTimeout(timeout);}
+  let lastError=null;
+  for(const url of NETWORK_IP_URLS){
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),3500);
+    try{
+      const response=await fetchFn(url,{cache:"no-store",signal:controller.signal});
+      if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);
+      const data=await response.json();
+      const ip=String(data?.ip||"").trim();
+      if(!ip||ip.length>64||!/^[0-9a-fA-F:.]+$/.test(ip))throw Error("Network lookup returned invalid address");
+      const key=await hashRoomMaterial(`arondight45-vs-network:${ip}`,cryptoObj);
+      return `net-${key}`;
+    }catch(error){lastError=error;}finally{clearTimeout(timeout);}
+  }
+  throw lastError||Error("Network lookup unavailable");
 }
