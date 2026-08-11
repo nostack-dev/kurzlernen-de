@@ -2,7 +2,8 @@ import mqtt from "mqtt";
 
 const BROKERS=[
   "wss://test.mosquitto.org:8081/mqtt",
-  "wss://broker.emqx.io:8084/mqtt"
+  "wss://broker.emqx.io:8084/mqtt",
+  "wss://public:public@public.cloud.shiftr.io"
 ];
 const PROTOCOL_VERSION=1;
 const HELLO_MS=1000;
@@ -11,7 +12,7 @@ const CONNECT_ERROR_MS=10000;
 const MAX_PACKET_BYTES=32768;
 const MAX_SEEN=1024;
 const roomsByTopic=new Map();
-const brokerStates=new Map(BROKERS.map(url=>[url,{readyState:0}]));
+const brokerStates=new Map(BROKERS.map(url=>[url,{readyState:0,error:""}]));
 let clients=null;
 
 function clean(value){return String(value||"").replace(/[^a-zA-Z0-9_.-]/g,"_").slice(0,128);}
@@ -31,8 +32,8 @@ function parsePayload(payload){
     return value&&value.v===PROTOCOL_VERSION&&typeof value.id==="string"&&typeof value.kind==="string"?value:null;
   }catch{return null;}
 }
-function statusObject(url){return brokerStates.get(url)||{readyState:3};}
-export function getRelaySockets(){return Object.fromEntries(BROKERS.map(url=>[url,statusObject(url)]));}
+function statusObject(url){return brokerStates.get(url)||{readyState:3,error:"missing"};}
+export function getRelaySockets(){return Object.fromEntries(BROKERS.map(url=>[url,{...statusObject(url)}]));}
 
 function ensureClients(){
   if(clients)return clients;
@@ -40,13 +41,13 @@ function ensureClients(){
     const state=statusObject(url);
     const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});
     client.on("connect",()=>{
-      state.readyState=1;
-      for(const [topic,set] of roomsByTopic){client.subscribe(topic,{qos:0},()=>{for(const room of set)room._announce();});}
+      state.readyState=1;state.error="";
+      for(const [topic,set] of roomsByTopic){client.subscribe(topic,{qos:0},error=>{if(error){state.error=String(error?.message||error);return;}for(const room of set)room._announce();});}
     });
     client.on("reconnect",()=>{state.readyState=0;});
     client.on("offline",()=>{state.readyState=0;});
     client.on("close",()=>{state.readyState=3;});
-    client.on("error",()=>{if(!client.connected)state.readyState=0;});
+    client.on("error",error=>{state.error=String(error?.message||error||"broker error");if(!client.connected)state.readyState=0;});
     client.on("message",(topic,payload)=>{
       const packet=parsePayload(payload);if(!packet)return;
       const set=roomsByTopic.get(topic);if(!set)return;
@@ -58,13 +59,19 @@ function ensureClients(){
 }
 function subscribeRoom(room){
   let set=roomsByTopic.get(room.topic);if(!set){set=new Set();roomsByTopic.set(room.topic,set);}set.add(room);
-  for(const {client} of ensureClients())if(client.connected)client.subscribe(room.topic,{qos:0},()=>room._announce());
+  for(const {client,url} of ensureClients())if(client.connected)client.subscribe(room.topic,{qos:0},error=>{const state=statusObject(url);if(error){state.error=String(error?.message||error);return;}room._announce();});
+}
+function closeClientsIfIdle(){
+  if(roomsByTopic.size||!clients)return;
+  const closing=clients;clients=null;
+  for(const {client,url} of closing){const state=statusObject(url);try{client.end(true,{},()=>{});}catch{}state.readyState=3;}
 }
 function unsubscribeRoom(room){
   const set=roomsByTopic.get(room.topic);if(!set)return;set.delete(room);
   if(set.size)return;
   roomsByTopic.delete(room.topic);
   for(const {client} of clients||[])if(client.connected)client.unsubscribe(room.topic,()=>{});
+  closeClientsIfIdle();
 }
 function publish(topic,packet){
   const text=JSON.stringify(packet);if(text.length>MAX_PACKET_BYTES)return Promise.reject(Error("VS broker packet too large"));
