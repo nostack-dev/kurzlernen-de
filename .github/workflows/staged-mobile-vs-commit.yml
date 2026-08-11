@@ -1,0 +1,63 @@
+name: Commit staged mobile VS patch
+
+on:
+  push:
+    branches:
+      - fix/staged-mobile-vs
+
+permissions:
+  contents: write
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/staged-mobile-vs
+
+      - name: Apply product patch
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/lan_vs.mjs')
+          s=p.read_text()
+          if 'mode:"staged-mobile"' not in s:
+              old='''const DEFAULT_TRANSPORTS=[\n  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")},\n  {name:"Nostr",load:()=>import("trystero")},\n  {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},\n  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")}\n];'''
+              new='''const DEFAULT_TRANSPORTS=[\n  {name:"Nostr",load:()=>import("trystero")},\n  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")},\n  {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},\n  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")}\n];'''
+              assert old in s
+              s=s.replace(old,new,1)
+              s=s.replace('const GESTURE_DEFER_MS=650;','const GESTURE_DEFER_MS=650;\nconst FINDER_STAGE_MS=6500;\nconst FINDER_MAX_ROOMS_PER_STAGE=3;',1)
+              old_join='room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy}},this.roomId,{onJoinError});'
+              new_join='''const directRtc=this.transportName!=="Broker";\n    const roomConfig={appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy},...(directRtc?{trickleIce:true,rtcConfig:{iceServers:STUN_ICE_SERVERS,iceTransportPolicy:"all",iceCandidatePoolSize:1,bundlePolicy:"max-bundle"}}:{})};\n    this.diag("ice-config",{directRtc,trickleIce:directRtc,iceServers:directRtc?STUN_ICE_SERVERS.map(server=>server.urls):[]});\n    room=joinRoom(roomConfig,this.roomId,{onJoinError});'''
+              assert old_join in s
+              s=s.replace(old_join,new_join,1)
+              start=s.index('export class LanVsFinder{')
+              end=s.index('\n\nasync function hashRoomMaterial',start)
+              snippet=Path('tools/staged_finder_snippet.txt').read_text().strip()
+              s=s[:start]+snippet+s[end:]
+              p.write_text(s)
+          deploy=Path('.github/workflows/deploy.yml')
+          d=deploy.read_text().replace('          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174\n','')
+          deploy.write_text(d)
+          PY
+
+      - name: Validate staged runtime
+        run: |
+          set -euxo pipefail
+          node --check sim/lan_vs.mjs
+          node --check tests/staged_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/staged_vs_smoke.mjs
+
+      - name: Commit product files
+        run: |
+          set -euxo pipefail
+          git add sim/lan_vs.mjs tests/staged_vs_smoke.mjs .github/workflows/deploy.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Stage mobile VS transports and cap peer sessions"
+          git push origin HEAD:fix/staged-mobile-vs
