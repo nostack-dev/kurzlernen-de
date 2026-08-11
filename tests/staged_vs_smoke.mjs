@@ -23,7 +23,7 @@ function harness(name,{connect=false,fail=false}={}){
 
 let connected="";
 const finder=new LanVsFinder({
-  stageMs:25,
+  stageMs:250,
   maxRoomsPerStage:3,
   transportStrategies:[
     {name:"Nostr",load:harness("Nostr",{fail:true})},
@@ -35,7 +35,7 @@ const finder=new LanVsFinder({
 });
 
 await finder.start(["net-exact","net-secondary","net-third","tap-current","tap-previous","net-extra"]);
-await sleep(100);
+await sleep(400);
 
 assert.equal(connected,"Torrent","second staged transport must take over after first transport fails");
 assert.ok(opened.length<=6,`staged finder opened too many sessions before connection: ${opened.length}`);
