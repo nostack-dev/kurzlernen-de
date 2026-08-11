@@ -76,8 +76,8 @@ async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps
   const result={name:direction.name,average,orthogonal,vertical,yawFrameErrorDeg,yawFrameErrorAbsDeg,batteryV,currentA,maxTiltDeg,t90:Number.isFinite(t90)?t90:null};
   console.log(`GAME speed sample ${label} ${direction.name}: ${(average*3.6).toFixed(2)} km/h · cross ${orthogonal.toFixed(3)} m/s · physical-FC yaw ${yawFrameErrorDeg.toFixed(3)}° (|.| ${yawFrameErrorAbsDeg.toFixed(3)}°) · |vz| ${vertical.toFixed(3)} m/s · battery ${batteryV.toFixed(2)} V @ ${currentA.toFixed(1)} A · tilt ${maxTiltDeg.toFixed(2)}° · t90 ${result.t90}`);
   if(!(average>=minSteadyMps&&average<=maxSteadyMps))throw new Error(`${direction.name}: ${label} target did not converge; steady=${(average*3.6).toFixed(1)} km/h (${average.toFixed(2)} m/s), target=${(targetMps*3.6).toFixed(0)} km/h`);
-  if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s at ${label}; physical-FC yaw=${yawFrameErrorDeg.toFixed(2)}°`);
-  if(vertical>1.2)throw new Error(`${direction.name}: AGL destabilized, |vz| avg ${vertical.toFixed(2)} m/s at ${label}`);
+  if(orthogonal>.25)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(3)} m/s at ${label}; limit=0.250 m/s; physical-FC yaw=${yawFrameErrorDeg.toFixed(2)}°`);
+  if(vertical>.10)throw new Error(`${direction.name}: AGL destabilized, |vz| avg ${vertical.toFixed(3)} m/s at ${label}; limit=0.100 m/s`);
   if(!(Number.isFinite(t90)&&t90<=t90LimitS))throw new Error(`${direction.name}: did not reach 90% of ${label} within ${t90LimitS.toFixed(1)} s; t90=${t90}`);
   await settle();
   return result;
@@ -94,10 +94,10 @@ try{
   await setSpeed(36);
   const defaultResults=[];
   for(const direction of directions){
-    defaultResults.push(await runDirection(direction,{label:"36 km/h",targetMps:10.0,minSteadyMps:9.5,maxSteadyMps:10.5,holdS:8.0,t90LimitS:5.0}));
+    defaultResults.push(await runDirection(direction,{label:"36 km/h",targetMps:10.0,minSteadyMps:9.70,maxSteadyMps:10.30,holdS:8.0,t90LimitS:3.0}));
   }
   const defaultSpeeds=defaultResults.map(x=>x.average),defaultSpread=Math.max(...defaultSpeeds)-Math.min(...defaultSpeeds);
-  if(defaultSpread>0.75)throw new Error(`36 km/h directional steady-state asymmetry exceeds 0.75 m/s: ${JSON.stringify(defaultResults)}`);
+  if(defaultSpread>.25)throw new Error(`36 km/h directional steady-state spread exceeds 0.25 m/s: ${JSON.stringify(defaultResults)}`);
 
   // Each direction starts from the same fresh plant/FC/battery state. That makes
   // this a directional controller/airframe envelope test instead of accidentally
@@ -105,11 +105,11 @@ try{
   await setSpeed(90);
   const maxResults=[];
   for(const direction of directions){
-    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:23.75,maxSteadyMps:26.25,holdS:12.0,t90LimitS:10.0}));
+    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:24.25,maxSteadyMps:25.75,holdS:12.0,t90LimitS:6.0}));
   }
   const maxSpeeds=maxResults.map(x=>x.average),maxSpread=Math.max(...maxSpeeds)-Math.min(...maxSpeeds);
-  if(maxSpread>0.75)throw new Error(`90 km/h directional steady-state spread exceeds 0.75 m/s: ${JSON.stringify(maxResults)}`);
+  if(maxSpread>.25)throw new Error(`90 km/h directional steady-state spread exceeds 0.25 m/s: ${JSON.stringify(maxResults)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log(`GAME speed envelope passed from equal fresh states: default=${JSON.stringify(defaultResults)} · 36 km/h / 10.0 m/s spread ${(defaultSpread*3.6).toFixed(1)} km/h; max=${JSON.stringify(maxResults)} · 90 km/h / 25.0 m/s spread ${(maxSpread*3.6).toFixed(1)} km/h.`);
+  console.log(`GAME speed envelope passed strict release gate from equal fresh states: default=${JSON.stringify(defaultResults)} · 36 km/h / 10.0 m/s spread ${(defaultSpread*3.6).toFixed(1)} km/h; max=${JSON.stringify(maxResults)} · 90 km/h / 25.0 m/s spread ${(maxSpread*3.6).toFixed(1)} km/h.`);
 }finally{await browser.close();}
