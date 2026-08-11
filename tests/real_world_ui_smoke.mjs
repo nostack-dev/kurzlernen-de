@@ -6,6 +6,7 @@ const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 
 const bootstrap=readFileSync("sim/real_world_bootstrap.mjs","utf8");
+const autoStart=readFileSync("sim/auto_flight_start.mjs","utf8");
 const simulator=readFileSync("sim/simulator.mjs","utf8");
 const settings=readFileSync("sim/control_settings.mjs","utf8");
 const cameraSettings=readFileSync("sim/camera_settings.mjs","utf8");
@@ -13,6 +14,8 @@ const fireFx=readFileSync("sim/flight_fire_fx.mjs","utf8");
 const logbook=readFileSync("sim/flight_logbook.mjs","utf8");
 for(const marker of ["calculateCameraOptionsFromTo","worldMapEyeElevation","MINIMAP · N↑","toggleMinimapExpanded","setCameraFovDeg","addVisualShotImpact"])
   if(!bootstrap.includes(marker))throw new Error(`WORLD camera/minimap contract missing: ${marker}`);
+for(const marker of ["requestStartupLocation","navigator.onLine===false","launchDefaultFlight","camFpv","camSolo","autoFlightStart"])
+  if(!autoStart.includes(marker))throw new Error(`automatic flight-start contract missing: ${marker}`);
 if(settings.includes("MINIMAP FOLLOWS 360° CAMERA")||bootstrap.includes("WORLD_MINIMAP_FOLLOW_STORAGE"))throw new Error("obsolete camera-rotating minimap remains");
 for(const marker of ["VIEW FOV","CAMERA_SETTINGS_EVENT","setCameraFovDeg"])
   if(!cameraSettings.includes(marker))throw new Error(`shared camera FOV contract missing: ${marker}`);
@@ -51,7 +54,11 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.click("#camSolo");await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+  await waitWorld();
+  const startup=await page.evaluate(()=>({camera:document.querySelector("#viewport")?.dataset.cameraMode,auto:document.querySelector("#viewport")?.dataset.autoFlightStart,button:document.querySelector("#soloCamera")?.textContent?.trim(),panel:getComputedStyle(document.querySelector(".panel")).display}));
+  if(startup.camera!=="fpv"||startup.auto!=="fpv"||startup.button!=="FPV"||startup.panel!=="none")throw new Error(`automatic FPV/Solo startup failed: ${JSON.stringify(startup)}`);
+  const externalAfterAutoWorld=external.length;
 
   const mobileUx=await page.evaluate(()=>{const viewport=document.querySelector("#viewport"),s=getComputedStyle(viewport);return{select:s.userSelect,webkitSelect:s.webkitUserSelect,callout:s.webkitTouchCallout||"none",touchAction:s.touchAction,logbook:!!document.querySelector("#soloLogbook"),aimUi:!!document.querySelector("#flightFireStick,#flightFireReticle"),decalPool:Number(viewport?.dataset.fireDecalPoolSize||0)};});
   if(mobileUx.select!=="none"&&mobileUx.webkitSelect!=="none")throw new Error(`flight viewport remains selectable: ${JSON.stringify(mobileUx)}`);
@@ -61,7 +68,7 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const config=await page.evaluate(()=>({section:!!document.querySelector('[data-world-settings="openfreemap-osm-3d"]'),grid:document.querySelector('[data-world-grid]')?.checked,keep:document.querySelector('[data-world-keep-look]')?.checked,obsolete:!!document.querySelector('[data-world-minimap-follow]'),fovLabel:[...document.querySelectorAll('.camera-settings-section label')].some(x=>x.textContent.includes('VIEW FOV')),speed:Number(document.querySelector('[data-slider="speed"]')?.value),speedText:document.querySelector('[data-out="speed"]')?.value||"",note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""}));
   if(!config.section||config.grid!==true||config.keep!==false||config.obsolete||!config.fovLabel||config.speed!==36||!config.speedText.includes("36 km/h")||!config.note.includes("No account, API key, billing setup, backend or proxy"))throw new Error(`WORLD/settings contract failed: ${JSON.stringify(config)}`);
-  if(external.length)throw new Error(`settings path triggered external network: ${JSON.stringify(external)}`);
+  if(external.length!==externalAfterAutoWorld)throw new Error(`settings path triggered additional external network: ${JSON.stringify(external.slice(externalAfterAutoWorld))}`);
   const speedPersist=await page.evaluate(()=>{const slider=document.querySelector('[data-slider="speed"]');slider.value="42";slider.dispatchEvent(new Event("input",{bubbles:true}));return JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").maxHorizontalSpeedKmh;});
   if(speedPersist!==42)throw new Error(`horizontal speed did not persist to Local Storage: ${speedPersist}`);
   await page.evaluate(()=>{const slider=document.querySelector('[data-slider="speed"]');slider.value="36";slider.dispatchEvent(new Event("input",{bubbles:true}));});
@@ -74,7 +81,6 @@ try{
   await page.click('.phone-settings-dialog [data-world-grid]');await page.click('.phone-settings-dialog [data-close]');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="1",{timeout:3000});
   const gridOn=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOn!=="1")throw new Error(`WORLD GRID on did not persist: ${gridOn}`);
 
-  await page.click("#soloWorld");await waitWorld();
   const live=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{button:document.querySelector("#soloWorld")?.textContent||"",mode:v?.dataset.worldMode,provider:v?.dataset.worldProvider,map:Boolean(b?.map),renderer:Boolean(b?.threeRenderer),minimap:v?.dataset.worldMinimapMode,miniBearing:v?.dataset.worldMinimapBearing,legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,palette:Number(v?.dataset.worldPaletteLayers||0),canvasCount:document.querySelectorAll("#viewport canvas").length};});
   if(live.button!=="WORLD ✓"||live.mode!=="real"||live.provider!=="openfreemap"||!live.map||!live.renderer||live.minimap!=="north"||Number(live.miniBearing)!==0||live.legend==="none"||live.palette<1||live.canvasCount!==3)throw new Error(`WORLD live contract failed: ${JSON.stringify(live)}`);
   if(providerRequests.length!==1)throw new Error(`expected one OpenFreeMap style request, got ${providerRequests.length}`);
@@ -92,7 +98,7 @@ try{
   });
   if(fpvCadence.first!==fpvCadence.before+1||fpvCadence.burst!==fpvCadence.first||fpvCadence.mapFrameMs<30)throw new Error(`FPV MapLibre cadence regression: ${JSON.stringify(fpvCadence)}`);
 
-  for(const expected of ["follow","third","fpv"]){
+  for(const expected of ["fpv","follow","third"]){
     await page.waitForFunction(mode=>document.querySelector("#viewport")?.dataset.cameraMode===mode,{timeout:3000},expected);
     const look=await page.evaluate(()=>{const hud=document.querySelector("#worldLookHud"),v=document.querySelector("#viewport"),r=hud.getBoundingClientRect(),sx=r.left+r.width*.45,sy=r.top+r.height*.58,send=(type,x,y)=>hud.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:31,pointerType:"touch",clientX:x,clientY:y,button:0})),before=Number(v?.dataset.worldLookYaw||0);send("pointerdown",sx,sy);send("pointermove",r.left+r.width*.72,r.top+r.height*.46);send("pointerup",r.left+r.width*.72,r.top+r.height*.46);return{before,after:Number(v?.dataset.worldLookYaw||0)};});
     if(Math.abs(look.after-look.before)<=5)throw new Error(`${expected} minimap look gesture did not move camera orientation: ${JSON.stringify(look)}`);
@@ -128,5 +134,5 @@ try{
 
   const log=await page.evaluate(()=>{const l=globalThis.__arondightFlightLogbook;l.clear();l.observe({simTime:1,armed:true,x:0,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.7,worldMode:"real"});l.observe({simTime:3,armed:true,x:2,y:0,z:2,vx:-1,vy:0,vz:0,yawDeg:0,speed:1,agl:2,aglValid:true,batteryV:16.4,worldMode:"real"});l.observe({simTime:4,armed:false,disarmReason:"TEST_END",x:2,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.3,worldMode:"real"});const snap=l.snapshot();return{count:snap.entries.length,entry:snap.entries[0],stored:JSON.parse(localStorage.getItem("arondight45FlightLogbookV1")||"[]").length};});if(log.count!==1||log.stored!==1||log.entry.endReason!=="TEST_END"||log.entry.distanceM<1.9||log.entry.maxForwardMps<.9)throw new Error(`flight logbook session failed: ${JSON.stringify(log)}`);
 
-  console.log(`REAL WORLD E2E passed: exact FPV camera registration, shared north-up minimap, persisted 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
+  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup, exact FPV camera registration, shared north-up minimap, persisted 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
 }finally{await browser.close();}
