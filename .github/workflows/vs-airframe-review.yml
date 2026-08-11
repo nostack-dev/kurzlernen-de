@@ -1,0 +1,43 @@
+name: vs-airframe-review
+on:
+  push:
+    branches: ["fix/vs-review-airframe"]
+    paths: [".github/workflows/vs-airframe-review.yml"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix training/world VS airframe source and add regression guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/real_world_bootstrap.mjs')
+          s=p.read_text()
+          old='updateVsPose(){if(!this.vsSession||!this.airframe)return;const p=this.airframe.position,q=this.airframe.quaternion;if(!p||!q)return;'
+          new='updateVsPose(){if(!this.vsSession||!this.threeScene)return;const airframe=this.airframeFor(this.threeScene);if(!airframe)return;const p=airframe.position,q=airframe.quaternion;if(!p||!q)return;'
+          assert s.count(old)==1, f'expected one updateVsPose anchor, got {s.count(old)}'
+          p.write_text(s.replace(old,new,1))
+
+          t=Path('tests/architecture_invariants.mjs')
+          x=t.read_text()
+          marker='console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");'
+          guard='''requireText("sim/real_world_bootstrap.mjs","const airframe=this.airframeFor(this.threeScene)","VS pose sync must resolve the shared THREE airframe in every view/world mode");\nrequireText("sim/lan_vs.mjs","poseAction.onMessage=", "VS transport must use Trystero 0.25 action API");\nrequireText("sim/lan_vs.mjs","room.onPeerJoin=", "VS transport must use Trystero 0.25 peer callback property API");\nforbidText("sim/lan_vs.mjs","const [sendPose,getPose]", "legacy Trystero tuple action API must not return");\n'''
+          assert marker in x
+          if 'VS pose sync must resolve the shared THREE airframe' not in x:
+              x=x.replace(marker,guard+marker,1)
+          t.write_text(x)
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/lan_vs.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+      - name: Commit reviewed fix
+        run: |
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/real_world_bootstrap.mjs tests/architecture_invariants.mjs
+          git commit -m 'Resolve VS airframe in all world modes'
+          git push
