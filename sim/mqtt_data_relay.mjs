@@ -84,7 +84,7 @@ function fakePeer(){return{connectionState:"connected",iceConnectionState:"broke
 
 class RelayRoom{
   constructor(config,roomId,callbacks={}){
-    this.appId=clean(config?.appId||"app");this.roomId=clean(roomId);this.topic=`arondight45/vs-data/v2/${this.appId}/${this.roomId}`;
+    this.appId=clean(config?.appId||"app");this.roomId=clean(roomId);this.topic=`arondight45/vs-data/v1/${this.appId}/${this.roomId}`;
     this.id=randomId();this.actions=new Map();this.peers=new Set();this.peerKeys=new Map();this.peerPublicKeys=new Map();this.seen=new Set();this.pendingPings=new Map();this.closed=false;this._onPeerJoin=null;this._onPeerLeave=null;this.onJoinError=callbacks?.onJoinError;
     this.cryptoReady=generateIdentity().then(identity=>{this.identity=identity;return identity;}).catch(error=>{this.onJoinError?.({peerId:"",error});throw error;});
     subscribeRoom(this);
