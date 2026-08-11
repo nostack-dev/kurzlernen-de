@@ -1,0 +1,60 @@
+name: One-shot realtime backlog fix
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-realtime-backlog.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Preserve bounded wall-clock backlog
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/simulator.mjs');s=p.read_text()
+          replacements=[
+            ('const SIM_MAX_CATCHUP_MS = 50;\nconst SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);',
+             'const SIM_MAX_CATCHUP_MS = 50;\n// Keep work per slice bounded, but retain short scheduler stalls as wall-clock debt.\n// Otherwise a >50 ms rAF/OS stall silently deletes real time and the digital twin\n// runs permanently slow even when the CPU has enough capacity to catch up.\nconst SIM_MAX_BACKLOG_MS = 250;\nconst SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);'),
+            ('const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=now;\n    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS);',
+             'const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_BACKLOG_MS);schedulerWallMs=now;\n    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_BACKLOG_MS);'),
+            ('const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS);schedulerWallMs=afterWork;\n    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_CATCHUP_MS);',
+             'const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_BACKLOG_MS);schedulerWallMs=afterWork;\n    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_BACKLOG_MS);'),
+          ]
+          for old,new in replacements:
+            n=s.count(old)
+            if n!=1: raise SystemExit(f'simulator scheduler marker expected once, got {n}: {old[:80]}')
+            s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          replacements=[
+            ('requireText("sim/simulator.mjs","accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS)");',
+             'requireText("sim/simulator.mjs","SIM_MAX_BACKLOG_MS = 250");\nrequireText("sim/simulator.mjs","SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS)");\nrequireText("sim/simulator.mjs","accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_BACKLOG_MS)");'),
+            ('requireText("sim/simulator.mjs","workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_CATCHUP_MS)");',
+             'requireText("sim/simulator.mjs","workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_BACKLOG_MS)");\nforbidText("sim/simulator.mjs","accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_CATCHUP_MS)","scheduler must not discard wall time at the per-slice work cap");'),
+          ]
+          for old,new in replacements:
+            n=s.count(old)
+            if n!=1: raise SystemExit(f'architecture marker expected once, got {n}: {old[:80]}')
+            s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          rm .github/workflows/fix-realtime-backlog.yml
+          node --check sim/simulator.mjs
+          node --check tests/architecture_invariants.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Preserve bounded realtime simulation backlog'
+          git push origin HEAD:main
