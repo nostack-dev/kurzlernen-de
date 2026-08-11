@@ -128,6 +128,8 @@ requireText("sim/simulator.mjs","PRESENTATION_PIXEL_RATIO_MIN = .60");
 requireText("sim/simulator.mjs","PRESENTATION_PIXEL_RATIO_MAX = 1.25");
 requireText("sim/simulator.mjs",'presentationGl.getExtension("WEBGL_debug_renderer_info")');
 requireText("sim/simulator.mjs","presentationSoftwareRaster");
+requireText("sim/simulator.mjs","presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio");
+requireText("sim/simulator.mjs","presentationPixelRatio<presentationQualityCeiling");
 requireText("sim/simulator.mjs","softwareRasterDrawInterval=presentationSoftwareRaster?60:0");
 requireText("sim/simulator.mjs","effectiveDrawInterval=Math.max(minDrawInterval,softwareRasterDrawInterval)");
 requireText("sim/simulator.mjs","swiftshader|llvmpipe|software raster|software renderer");
