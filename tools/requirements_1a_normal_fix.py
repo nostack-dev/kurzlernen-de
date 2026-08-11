@@ -51,18 +51,18 @@ replace_once(
     'if(targetVisual.after!==targetVisual.before+1||targetVisual.builds!==1||targetVisual.impact?.kind!=="target"||!targetVisual.impact.target||!targetVisual.impact.object||targetVisual.normalError>1e-5||!targetVisual.attached||!near(targetVisual.delta?.x,1,.015)||!near(targetVisual.delta?.y,0,.015)||!near(targetVisual.delta?.z,0,.015))',
 )
 
-# Match MapLibre's actually rendered extrusion surface set, then finish the
-# object-hit contract without relying on Object3D.attach(), and finally exercise
-# real WebGL context recovery. Temporary drivers delete themselves so the
-# validated release tree stays product-only.
+# Dependency order matters: render_fix authors the base MapLibre invariant;
+# context_fix extends it; surface_fix then replaces the base-cap contract;
+# attach_fix finally hardens object-local decal placement. All temporary drivers
+# delete themselves so the validated release tree stays product-only.
+context_script=Path("tools/requirements_1a_context_fix.py")
+exec(compile(context_script.read_text(),str(context_script),"exec"),{})
+context_script.unlink()
 surface_script=Path("tools/requirements_1a_surface_fix.py")
 exec(compile(surface_script.read_text(),str(surface_script),"exec"),{})
 surface_script.unlink()
 attach_script=Path("tools/requirements_1a_attach_fix.py")
 exec(compile(attach_script.read_text(),str(attach_script),"exec"),{})
 attach_script.unlink()
-context_script=Path("tools/requirements_1a_context_fix.py")
-exec(compile(context_script.read_text(),str(context_script),"exec"),{})
-context_script.unlink()
 
-print('object-normal, rendered-surface, scale-safe attachment and WebGL-context impact hardening applied')
+print('object-normal, context-recovery, rendered-surface and scale-safe attachment hardening applied')
