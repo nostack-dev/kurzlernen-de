@@ -43,11 +43,22 @@ export class LanVsSession{
   }
 }
 
-// Browsers cannot read the Wi-Fi SSID. A coarse nearby GPS cell is therefore only
-// the zero-setup rendezvous key; once peers meet, flight pose traffic is WebRTC P2P.
-// ~1.1 km latitude cells avoid two people on the same WLAN landing in adjacent
-// 100 m cells because of normal phone GPS error.
-export function nearbyRoomKey(latitude,longitude){
-  if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS required for nearby matchmaking");
-  return `geo-${latitude.toFixed(2)}-${longitude.toFixed(2)}`;
+const NETWORK_IP_URL="https://api.ipify.org?format=json";
+
+export async function sameNetworkRoomKey({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto}={}){
+  if(typeof fetchFn!=="function")throw Error("Network lookup unavailable");
+  if(!cryptoObj?.subtle)throw Error("Secure room hashing unavailable");
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),5000);
+  try{
+    const response=await fetchFn(NETWORK_IP_URL,{cache:"no-store",signal:controller.signal});
+    if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);
+    const data=await response.json();
+    const ip=String(data?.ip||"").trim();
+    if(!ip||ip.length>64||!/^[0-9a-fA-F:.]+$/.test(ip))throw Error("Network lookup returned invalid address");
+    const bytes=new TextEncoder().encode(`arondight45-vs-network:${ip}`);
+    const digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));
+    const key=[...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
+    return `net-${key}`;
+  }finally{clearTimeout(timeout);}
 }

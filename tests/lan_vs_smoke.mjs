@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import {LanVsSession,nearbyRoomKey} from "../sim/lan_vs.mjs";
+import {webcrypto} from "node:crypto";
+import {LanVsSession,sameNetworkRoomKey} from "../sim/lan_vs.mjs";
 
 function transportHarness(){
   const rooms=new Map();
@@ -28,10 +29,16 @@ function transportHarness(){
   return{loadTransport:async()=>({joinRoom})};
 }
 
+const fakeFetch=ip=>async()=>({ok:true,json:async()=>({ip})});
+const room=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
+const sameRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
+const otherRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.8"),cryptoObj:webcrypto});
+assert.equal(room,sameRoom);
+assert.notEqual(room,otherRoom);
+assert.match(room,/^net-[0-9a-f]{24}$/);
+assert.ok(!room.includes("203.0.113.7"));
+
 const harness=transportHarness();
-const room=nearbyRoomKey(47.6601,9.1701);
-assert.equal(room,nearbyRoomKey(47.6639,9.1749));
-assert.throws(()=>nearbyRoomKey(NaN,9.17),/GPS/);
 let aPeer=0,bPeer=0,aPose=null,bPose=null,aLeft=0;
 const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onLeave:()=>aLeft++});
 const b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p});
