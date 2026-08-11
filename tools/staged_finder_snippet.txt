@@ -1,0 +1,93 @@
+export class LanVsFinder{
+  constructor(options={}){
+    this.options=options;this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.stageErrors=[];this.stageTimer=0;this.stageResolve=null;this.stageEpoch=0;this.stageTask=null;
+    this.stageMs=Number.isFinite(options.stageMs)?Math.max(250,Number(options.stageMs)):FINDER_STAGE_MS;
+    this.maxRoomsPerStage=Number.isFinite(options.maxRoomsPerStage)?Math.max(1,Math.floor(options.maxRoomsPerStage)):FINDER_MAX_ROOMS_PER_STAGE;
+    if(Array.isArray(options.transportStrategies)&&options.transportStrategies.length)this.transportStrategies=options.transportStrategies;
+    else if(typeof options.loadTransport==="function")this.transportStrategies=[{name:String(options.transportName||"Custom"),load:options.loadTransport}];
+    else this.transportStrategies=DEFAULT_TRANSPORTS;
+  }
+  chooseStageRooms(ids){
+    const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),out=[];
+    for(const id of gesture.slice(0,2))if(!out.includes(id))out.push(id);
+    for(const id of trusted)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
+    for(const id of gesture.slice(2))if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
+    return out.slice(0,this.maxRoomsPerStage);
+  }
+  makeChild(roomId,strategy){
+    let child=null;const opts=this.options;
+    child=new LanVsSession({
+      loadTransport:strategy.load,transportName:strategy.name,
+      ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),
+      onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},onDiagnostic:event=>opts.onDiagnostic?.(event,roomId,strategy.name),onPeer:peerId=>this.adopt(child,peerId,roomId,strategy.name),
+      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
+      onError:error=>{
+        if(this.active===child){opts.onError?.(error);return;}
+        this.failedChildren.add(child);this.stageErrors.push(error);
+        if(this.currentStageChildren.length&&this.currentStageChildren.every(item=>this.failedChildren.has(item)))this.wakeStage("all-error");
+      }
+    });
+    if(this.pendingPose)child.setPose(this.pendingPose);if(this.pendingOrigin)child.setOrigin(this.pendingOrigin);return child;
+  }
+  wakeStage(reason="wake"){
+    if(!this.stageResolve)return;const resolve=this.stageResolve;this.stageResolve=null;clearTimeout(this.stageTimer);this.stageTimer=0;resolve(reason);
+  }
+  waitStage(epoch){
+    if(this.active||!this.started||epoch!==this.stageEpoch)return Promise.resolve("cancel");
+    return new Promise(resolve=>{this.stageResolve=resolve;this.stageTimer=setTimeout(()=>{if(this.stageResolve===resolve)this.stageResolve=null;this.stageTimer=0;resolve("timeout");},this.stageMs);});
+  }
+  adopt(child,peerId,roomId,transportName){
+    if(this.active&&this.active!==child){child.stop(false);return;}
+    if(!this.active){
+      this.active=child;this.wakeStage("peer");
+      for(const other of this.children)if(other!==child)other.stop(false);
+      this.children=[child];this.currentStageChildren=[child];this.failedChildren.clear();this.stageErrors=[];
+      emitNetworkEvent("finder-selected",{roomId,transport:transportName,peerId,maxConcurrent:this.maxRoomsPerStage});
+    }
+    this.options.onPeer?.(peerId,roomId,transportName);
+  }
+  async runStages(epoch){
+    let lastError=null;
+    for(let index=0;index<this.transportStrategies.length;index++){
+      if(!this.started||epoch!==this.stageEpoch||this.active)return;
+      const strategy=this.transportStrategies[index];this.failedChildren.clear();this.stageErrors=[];
+      const rooms=this.stageRoomIds.filter(id=>!strategy.trustedOnly||!id.startsWith("tap-"));
+      if(!rooms.length)continue;
+      const children=rooms.map(roomId=>this.makeChild(roomId,strategy));this.children=children;this.currentStageChildren=children;
+      emitNetworkEvent("finder-stage-start",{stage:index+1,transport:strategy.name,roomIds:rooms,maxConcurrent:children.length});
+      const results=await Promise.allSettled(children.map((child,i)=>child.start(rooms[i])));
+      for(const result of results)if(result.status==="rejected")lastError=result.reason;
+      if(this.active||!this.started||epoch!==this.stageEpoch)return;
+      if(!results.every(result=>result.status==="rejected")){
+        const reason=await this.waitStage(epoch);
+        if(this.active||!this.started||epoch!==this.stageEpoch)return;
+        emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason,errors:this.stageErrors.map(error=>errorMessage(error)).slice(-4)});
+      }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:"start-failed",errors:results.filter(result=>result.status==="rejected").map(result=>errorMessage(result.reason)).slice(-4)});
+      for(const child of children)child.stop(false);this.children=[];this.currentStageChildren=[];
+      if(this.stageErrors.length)lastError=this.stageErrors[this.stageErrors.length-1];
+    }
+    if(this.started&&epoch===this.stageEpoch&&!this.active){
+      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after staged Nostr/Torrent/MQTT/Broker attempts");
+      emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});
+      this.options.onError?.(error);
+    }
+  }
+  async start(roomIds){
+    if(this.started)return;this.started=true;
+    const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);
+    if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
+    this.roomIds=ids;this.stageRoomIds=this.chooseStageRooms(ids);
+    if(!this.stageRoomIds.length){this.started=false;throw Error("VS discovery produced no staged room candidates");}
+    const epoch=++this.stageEpoch;
+    emitNetworkEvent("finder-start",{roomCount:ids.length,selectedRoomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name),maxConcurrent:this.maxRoomsPerStage,mode:"staged-mobile"});
+    this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.options.onError?.(error);}});
+    await Promise.resolve();
+  }
+  setOrigin(origin){if(!validOrigin(origin))return false;this.pendingOrigin={...origin};for(const child of this.active?[this.active]:this.children)child.setOrigin(origin);return true;}
+  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
+  sendCombat(packet){return this.active?.sendCombat(packet)||false;}
+  stop(){
+    this.started=false;++this.stageEpoch;this.wakeStage("stop");clearTimeout(this.stageTimer);this.stageTimer=0;
+    for(const child of this.children)child.stop(false);this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.failedChildren.clear();this.stageErrors=[];this.stageTask=null;emitNetworkEvent("finder-stop");
+  }
+}
