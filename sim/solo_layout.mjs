@@ -11,6 +11,8 @@ export function installSoloFlightLayout(){
     body.solo-flight #soloTopbar span,body.solo-flight #soloTopbar button{padding:6px 8px;font-size:11px;border-radius:8px}
     body.solo-flight #soloTopbar span{flex:0 1 auto;min-width:0}
     body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{display:inline-flex!important;flex:0 0 auto;min-width:58px;min-height:28px;align-items:center;justify-content:center}
+    body.solo-flight #soloTopbar #vsCombatHud{display:inline-flex;align-items:center;justify-content:center;min-width:112px;font-size:10px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+    body.solo-flight #soloTopbar #vsCombatHud[hidden]{display:none!important}
     /* Lap/time telemetry is intentionally not drawn over the flight image. */
     body.solo-flight #soloRaceHud{display:none!important}
     body.solo-flight .solo-stick{width:min(25vw,150px);bottom:max(20px,env(safe-area-inset-bottom))}
@@ -30,6 +32,7 @@ export function installSoloFlightLayout(){
       body.solo-flight #soloTopbar{top:max(3px,env(safe-area-inset-top));gap:4px}
       body.solo-flight #soloTopbar span,body.solo-flight #soloTopbar button{padding:4px 7px;font-size:10px;border-radius:7px}
       body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:52px;min-height:24px}
+      body.solo-flight #soloTopbar #vsCombatHud{min-width:100px;font-size:9px;padding-left:5px;padding-right:5px}
       body.solo-flight .solo-stick{width:min(22vw,128px);bottom:max(16px,env(safe-area-inset-bottom))}
       body.solo-flight .solo-stick span{bottom:-13px;font-size:8px}
       body.solo-flight #soloClearance{left:calc(max(10px,env(safe-area-inset-left)) + min(22vw,128px) + 8px);bottom:max(16px,env(safe-area-inset-bottom));width:42px;height:112px;padding:5px 2px}

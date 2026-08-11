@@ -28,6 +28,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
 
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
   function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}
+  function visibleInHierarchy(object){for(let node=object;node;node=node.parent)if(node.visible===false)return false;return true;}
   function ensureAudio(){
     if(audioCtx)return audioCtx;const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return null;audioCtx=new Ctx();noiseBuffer=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.045),audioCtx.sampleRate);const data=noiseBuffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(1-i/data.length);return audioCtx;
   }
@@ -45,8 +46,8 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function fire(now){
     if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
-    candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];
-    if(hit)addThreeDecal(hit);else{const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}
+    candidates.length=0;scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];
+    const vsHit=Boolean(hit&&worldBridge?.registerVsHit?.(hit));if(hit&&!vsHit)addThreeDecal(hit);else if(!hit){const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);
     screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);return true;
   }
   function scheduleFire(){

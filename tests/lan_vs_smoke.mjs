@@ -63,9 +63,9 @@ assert.equal(httpRoom,room,"HTTP IPv4 fallback must converge on the same room as
 assert.ok(calls.every(url=>url.includes("api4.ipify.org")),"HTTP fallback must force shared IPv4 rather than per-device IPv6");
 
 const harness=transportHarness();
-let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aLeft=0;
-const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onLeave:()=>aLeft++});
-const b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o});
+let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aCombat=null,bCombat=null,aLeft=0;
+const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onCombat:p=>aCombat=p,onLeave:()=>aLeft++});
+const b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o,onCombat:p=>bCombat=p});
 await a.start(room);await b.start(room);
 await new Promise(r=>setTimeout(r,10));
 assert.equal(aPeer,1);assert.equal(bPeer,1);
@@ -83,6 +83,10 @@ assert.ok(aPose.seq>=1&&bPose.seq>=1);
 const oldSeq=aPose.seq;
 await new Promise(r=>setTimeout(r,70));
 assert.ok(aPose.seq>oldSeq,"pose sequence did not advance");
+assert.equal(a.sendCombat({type:"hit",id:"hit-1",damage:25}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(bCombat,{type:"hit",id:"hit-1",damage:25});
+assert.equal(b.sendCombat({type:"state",id:"hit-1",hp:75,killed:false}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(aCombat,{type:"state",id:"hit-1",hp:75,killed:false});
+assert.equal(a.sendCombat({type:"hit",id:"",damage:25}),false);assert.equal(a.sendCombat({type:"hit",id:"bad",damage:101}),false);
+assert.equal(b.sendCombat({type:"respawn",hp:100}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(aCombat,{type:"respawn",hp:100});
 b.stop();await new Promise(r=>setTimeout(r,5));assert.equal(aLeft,1);
 a.stop();
 
@@ -104,4 +108,4 @@ await new Promise(r=>setTimeout(r,90));
 assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);
 fa.stop();fb.stop();
 
-console.log("LAN VS deterministic smoke passed: automatic same-NAT room, no pair code, and Nostr -> MQTT signaling fallback");
+console.log("LAN VS deterministic smoke passed: automatic same-NAT room, Nostr -> MQTT fallback, pose/origin and reliable combat actions");

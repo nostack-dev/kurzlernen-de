@@ -23,7 +23,7 @@ try{
         cameraMode:document.querySelector("#viewport")?.dataset.cameraMode||"",
         autoStart:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
         soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
-        topbar:rect("#soloTopbar"),vs:rect("#lanVsButton"),vsParent:document.querySelector("#lanVsButton")?.parentElement?.id||"",left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
+        topbar:rect("#soloTopbar"),vs:rect("#lanVsButton"),vsParent:document.querySelector("#lanVsButton")?.parentElement?.id||"",vsCombatParent:document.querySelector("#vsCombatHud")?.parentElement?.id||"",vsCombatHidden:Boolean(document.querySelector("#vsCombatHud")?.hidden),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
         armCueClass:document.querySelector("#soloArm")?.className||"",armLabel:document.querySelector("#soloArm")?.textContent?.trim()||""
       };
     });
@@ -32,6 +32,7 @@ try{
     if(g.raceDisplay!=="none")throw new Error(`${viewport.name}: lap/time HUD still blocks the flight image: ${g.raceDisplay}`);
     for(const key of ["topbar","vs","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);
     if(g.vsParent!=="soloTopbar")throw new Error(`${viewport.name}: FIND MATE is not in the topbar: ${JSON.stringify({parent:g.vsParent,vs:g.vs,topbar:g.topbar})}`);
+    if(g.vsCombatParent!=="soloTopbar"||!g.vsCombatHidden)throw new Error(`${viewport.name}: VS combat HUD lifecycle/layout invalid: ${JSON.stringify({parent:g.vsCombatParent,hidden:g.vsCombatHidden})}`);
     if(g.topbar.left<-1||g.topbar.right>g.width+1||g.vs.left<g.topbar.left-1||g.vs.right>g.topbar.right+1)throw new Error(`${viewport.name}: FIND MATE/topbar escapes viewport: ${JSON.stringify({width:g.width,topbar:g.topbar,vs:g.vs})}`);
     if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM start cue class missing: ${JSON.stringify({className:g.armCueClass,label:g.armLabel})}`);
     const expectedStickMax=viewport.height<=340?129:151;

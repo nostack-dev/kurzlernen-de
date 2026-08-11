@@ -9,6 +9,14 @@ const NETWORK_IPV4_URL="https://api4.ipify.org?format=json";
 function finiteArray(value,length){return Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);}
 function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}
 function validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!("alt" in origin)||Number.isFinite(origin.alt)));}
+function validCombat(packet){
+  if(!packet||typeof packet!=="object"||typeof packet.type!=="string")return false;
+  const idOk=typeof packet.id==="string"&&packet.id.length>=1&&packet.id.length<=64;
+  if(packet.type==="hit")return idOk&&Number.isFinite(packet.damage)&&packet.damage>0&&packet.damage<=100;
+  if(packet.type==="state")return idOk&&Number.isFinite(packet.hp)&&packet.hp>=0&&packet.hp<=100&&typeof packet.killed==="boolean";
+  if(packet.type==="respawn")return Number.isFinite(packet.hp)&&packet.hp>=0&&packet.hp<=100;
+  return false;
+}
 function validIpv4(value){
   const parts=String(value||"").trim().split(".");
   return parts.length===4&&parts.every(part=>/^\d{1,3}$/.test(part)&&Number(part)>=0&&Number(part)<=255);
@@ -44,8 +52,8 @@ async function webRtcNatIpv4({RTCPeerConnectionCtor=globalThis.RTCPeerConnection
 export class LanVsSession{
   constructor(options={}){
     const customPrimary=Object.prototype.hasOwnProperty.call(options,"loadTransport");
-    this.room=null;this.poseAction=null;this.originAction=null;this.timer=0;this.fallbackTimer=0;this.peerId=null;this.roomId="";this.transportGeneration=0;this.transportName="";this.switchingFallback=false;
-    this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;
+    this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.timer=0;this.fallbackTimer=0;this.peerId=null;this.roomId="";this.transportGeneration=0;this.transportName="";this.switchingFallback=false;
+    this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onCombat=options.onCombat;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;
     this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
     this.loadTransport=options.loadTransport||DEFAULT_PRIMARY_LOADER;
     this.loadFallbackTransport=Object.prototype.hasOwnProperty.call(options,"loadFallbackTransport")?options.loadFallbackTransport:(customPrimary?null:DEFAULT_FALLBACK_LOADER);
@@ -75,7 +83,7 @@ export class LanVsSession{
   async switchToFallback(primaryError=null){
     if(this.switchingFallback||this.peerId||!this.loadFallbackTransport||!this.roomId)return;
     this.switchingFallback=true;clearTimeout(this.fallbackTimer);this.fallbackTimer=0;
-    const oldRoom=this.room;++this.transportGeneration;this.room=null;this.poseAction=null;this.originAction=null;this.transportName="";
+    const oldRoom=this.room;++this.transportGeneration;this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.transportName="";
     try{oldRoom?.leave?.();}catch{}
     try{
       await this.openTransport(this.loadFallbackTransport,"MQTT");
@@ -99,12 +107,16 @@ export class LanVsSession{
     const originAction=room.makeAction("origin");
     if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");
     this.originAction=originAction;
+    const combatAction=room.makeAction("combat");
+    if(!combatAction||typeof combatAction.send!=="function")throw Error("VS combat action unavailable");
+    this.combatAction=combatAction;
     const active=()=>generation===this.transportGeneration&&room===this.room;
     const adoptPeer=peerId=>{
       if(!active()||!peerId||this.peerId)return;
       this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);clearTimeout(this.fallbackTimer);this.fallbackTimer=0;this.onPeer?.(peerId);
     };
     originAction.onMessage=(origin,{peerId}={})=>{if(!active()||!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};
+    combatAction.onMessage=(packet,{peerId}={})=>{if(!active()||!peerId||!validCombat(packet))return;if(!this.peerId)adoptPeer(peerId);if(peerId!==this.peerId)return;this.onCombat?.({...packet},peerId);};
     poseAction.onMessage=(pose,{peerId}={})=>{
       if(!active()||!peerId||!validPose(pose))return;
       if(!this.peerId)adoptPeer(peerId);
@@ -154,8 +166,13 @@ export class LanVsSession{
     this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};
     return true;
   }
+  sendCombat(packet){
+    if(!validCombat(packet)||!this.peerId||!this.combatAction)return false;
+    Promise.resolve(this.combatAction.send({...packet},{target:this.peerId})).catch(error=>this.onError?.(error));
+    return true;
+  }
   stop(){
-    clearInterval(this.timer);clearTimeout(this.fallbackTimer);this.timer=0;this.fallbackTimer=0;++this.transportGeneration;try{this.room?.leave?.();}catch{}this.room=null;this.poseAction=null;this.originAction=null;this.peerId=null;this.roomId="";this.transportName="";this.switchingFallback=false;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
+    clearInterval(this.timer);clearTimeout(this.fallbackTimer);this.timer=0;this.fallbackTimer=0;++this.transportGeneration;try{this.room?.leave?.();}catch{}this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.peerId=null;this.roomId="";this.transportName="";this.switchingFallback=false;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
   }
 }
 

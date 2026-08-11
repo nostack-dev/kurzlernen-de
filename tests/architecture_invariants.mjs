@@ -303,6 +303,13 @@ forbidText("sim/lan_vs.mjs","manualRoomKey","manual room-code matching must not 
 requireText("sim/lan_vs.mjs","stun:stun.cloudflare.com:3478","same-network discovery must try WebRTC/STUN NAT identity before HTTP heuristics");
 requireText("sim/lan_vs.mjs","@trystero-p2p/mqtt","VS must have a second serverless signaling strategy when Nostr is unavailable");
 requireText("sim/lan_vs.mjs","room.makeAction(\"origin\")","VS must exchange shared origin independently from pose");
+requireText("sim/lan_vs.mjs","room.makeAction(\"combat\")","VS combat must use a separate P2P action from pose/origin");
+requireText("sim/real_world_bootstrap.mjs","registerVsHit(hit)","peer hit detection must stay in the VS presentation/game layer");
+requireText("sim/real_world_bootstrap.mjs","this.vsLocalHealth=100","VS must track explicit player health");
+requireText("sim/real_world_bootstrap.mjs","this.vsKills++","VS must count victim-authoritative kills");
+requireText("sim/real_world_bootstrap.mjs","explodeVsPeer()","VS kill must trigger peer explosion presentation");
+requireText("tests/vs_combat_browser_smoke.mjs","duplicate hit changed health twice","browser gate must cover combat dedupe and kill presentation");
+for(const fcPath of ["esp32/Arondight45_DroneFC_Core.hpp","esp32/Arondight45_StateControl.hpp","esp32/Arondight45_FirmwareRuntime.hpp","sim/Arondight45_DroneFC_SIL_WASM.cpp"])forbidText(fcPath,"vsCombat","VS combat must never enter shared FC/physics authority");
 requireText("sim/lan_vs.mjs","setOrigin(origin)","VS must expose optional geodetic origin publication");
 requireText("sim/real_world_bootstrap.mjs","this.vsSharedOrigin","GPS-less peers must accept a mate-provided world origin");
 requireText("sim/real_world_bootstrap.mjs","this.vsSession.setOrigin({lon:this.originLon,lat:this.originLat,alt:0})","GPS-capable peers must publish their world origin");
