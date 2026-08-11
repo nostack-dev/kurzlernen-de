@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 const SHOT_INTERVAL_MS=92;
 const DECAL_POOL_SIZE=32;
-const SCREEN_IMACT_POOL_SIZE=8;
+const SCREEN_IMPACT_POOL_SIZE=8;
 const RAYCAST_REFRESH_MS=500;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
 
@@ -26,7 +26,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     @keyframes flightImpactFadeB{from{opacity:1;transform:scale(.65)}to{opacity:0;transform:scale(1.55)}}
   `;document.head.appendChild(style);
 
-  const screenImpacts=Array.from({length:SCREEN_IMACT_POOL_SIZE},()=>{const el=document.createElement("i");el.className="flight-fire-impact";viewport.appendChild(el);return el;});
+  const screenImpacts=Array.from({length:SCREEN_IMPACT_POOL_SIZE},()=>{const el=document.createElement("i");el.className="flight-fire-impact";viewport.appendChild(el);return el;});
   let screenImpactCursor=0,screenImpactPulse=false;
   const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),candidates=[],intersections=[],hitNormal=new THREE.Vector3(),decalForward=new THREE.Vector3(0,0,1);
   const decalGeometry=new THREE.CircleGeometry(.022,12);
@@ -36,6 +36,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null,noiseSource=null,noiseFilter=null,noiseGain=null,raycastBuilds=0,lastRaycastBuildMs=-Infinity,impactSerial=0;
 
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
+  function belongsToAirframe(object){for(let node=object;node;node=node.parent)if(node.userData?.arondightAirframe)return true;return false;}
   function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}
   function impactTargetRoot(object){for(let node=object;node&&node!==scene;node=node.parent){const u=node.userData||{};if(u.flightTarget||u.hitTarget||u.damageable||u.enemy||u.opponent||u.shootable)return node;}return null;}
   function ensureAudio(){
@@ -46,7 +47,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];screenImpactPulse=!screenImpactPulse;el.style.left=`${x}px`;el.style.top=`${y}px`;el.classList.toggle("pulse-a",screenImpactPulse);el.classList.toggle("pulse-b",!screenImpactPulse);}
   function rebuildCandidates(now=performance.now()){
-    candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});lastRaycastBuildMs=now;raycastBuilds++;viewport.dataset.fireRaycastBuilds=String(raycastBuilds);
+    candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!belongsToAirframe(object)&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});lastRaycastBuildMs=now;raycastBuilds++;viewport.dataset.fireRaycastBuilds=String(raycastBuilds);
   }
   function refreshCandidates(now){if(!candidates.length||now-lastRaycastBuildMs>=RAYCAST_REFRESH_MS)rebuildCandidates(now);}
   function emitImpact(kind,hit,targetRoot=null){
