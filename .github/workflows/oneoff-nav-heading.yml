@@ -14,11 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: python3 tools/fix_nav_patch_guard.py
       - run: python3 tools/oneoff_nav_heading_patch.py
       - run: |
           git config user.name "Christian Heinrich Hohlfeld"
           git config user.email "chris.hohlfeld@gmail.com"
-          git rm .github/workflows/oneoff-nav-heading.yml tools/oneoff_nav_heading_patch.py
+          git rm .github/workflows/oneoff-nav-heading.yml tools/oneoff_nav_heading_patch.py tools/fix_nav_patch_guard.py
           git add esp32/Arondight45_StateControl.hpp esp32/Arondight45_HardwareSensors.hpp sim/simulator.mjs tests/drone_hil_protocol_test.cpp tests/state_control_test.cpp tests/architecture_invariants.mjs
           git commit -m "Close GAME yaw observability with NAV heading"
           git push origin HEAD:main
