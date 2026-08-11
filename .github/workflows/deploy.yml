@@ -71,7 +71,7 @@ jobs:
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund \
             three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 \
-            qrcode-generator@1.4.4 jsqr@1.4.0
+            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.1
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
@@ -96,6 +96,7 @@ jobs:
           ! grep -q 'src="./sim/real_world_bootstrap.mjs"' drone_simulator.html
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
           ! grep -q 'cdn.jsdelivr.net' drone_simulator.html
+          ! grep -q 'esm.run/trystero' drone_simulator.html
           ! grep -q 'generated/flight_core.mjs' drone_simulator.html
           grep -q 'REAL WORLD' drone_simulator.html
           grep -q 'soloWorld' drone_simulator.html
@@ -106,6 +107,8 @@ jobs:
           grep -q 'navigator.geolocation' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
+          grep -q 'VS · AUTO' drone_simulator.html
+          grep -q 'api.ipify.org' drone_simulator.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
           grep -q 'SCAN VIEW ANSWER' drone_controller.html
           ! grep -q '/control' drone_controller.html
