@@ -418,8 +418,8 @@ class PhysicsModel {
       b3.b3Body_ApplyForce(this.body,this.worldVector([0,0,thrust]),this.worldPoint(this.motorPos[i]),true);
       b3.b3Body_ApplyTorque(this.body,this.worldVector([0,0,yawSign[i]*motorTorque]),true);
     }
-    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=[.035,.04,.07].map(x=>x*p.dragScale),drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
-    const omega=this.localVector(this.angular()),angularDrag=omega.map(v=>-.0012*p.dragScale*v*Math.abs(v));b3.b3Body_ApplyTorque(this.body,this.worldVector(angularDrag),true);
+    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=[.035,.035,.07].map(x=>x*p.dragScale),drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
+    const omega=this.localVector(this.angular()),angularDrag=omega.map(v=>-.0012*v*Math.abs(v));b3.b3Body_ApplyTorque(this.body,this.worldVector(angularDrag),true);
   }
   step(pulses,dt=DT){
     this.applyForces(pulses,dt);
@@ -859,7 +859,7 @@ async function fitPhysics(){
     }
   }
   $("ct").value=p.Ct.toFixed(6);$("cq").value=p.Cq.toFixed(6);$("rotorJ").value=p.J.toFixed(8);$("dragScale").value=p.dragScale.toFixed(4);$("batteryR").value=p.batteryR.toFixed(6);$("resistance").value=p.R.toFixed(6);
-  localStorage.setItem("arondight45FittedPhysics",JSON.stringify({Ct:p.Ct,Cq:p.Cq,J:p.J,dragScale:p.dragScale,batteryR:p.batteryR,R:p.R,rmse:best}));ui.fitStatus.textContent=`Fit complete · normalized RMSE ${best.toFixed(4)}. Parameters applied.`;ui.fit.disabled=false;resetSimulation(mode==="replay"?realLog[0]:null);
+  localStorage.setItem("arondight45FittedPhysicsV2",JSON.stringify({Ct:p.Ct,Cq:p.Cq,J:p.J,dragScale:p.dragScale,batteryR:p.batteryR,R:p.R,rmse:best}));ui.fitStatus.textContent=`Fit complete · normalized RMSE ${best.toFixed(4)}. Parameters applied.`;ui.fit.disabled=false;resetSimulation(mode==="replay"?realLog[0]:null);
 }
 
 $("modeSim").onclick=()=>switchMode("sim");$("modeHil").onclick=()=>switchMode("hil");$("modeReplay").onclick=()=>switchMode("replay");
@@ -918,5 +918,5 @@ ui.closePair.onclick=async()=>{await offerScanner.stop();ui.pairDialog.close();}
 ui.inputSource.onchange=()=>{inputSource=ui.inputSource.value;localArm=false;localThrottle=0;arm=false;throttle=0;updateRemoteUI();};
 inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250);
 
-const fitted=localStorage.getItem("arondight45FittedPhysics");if(fitted)try{const p=JSON.parse(fitted);if(p.Ct)$("ct").value=p.Ct;if(p.Cq)$("cq").value=p.Cq;if(p.J)$("rotorJ").value=p.J;if(p.dragScale)$("dragScale").value=p.dragScale;if(p.batteryR)$("batteryR").value=p.batteryR;if(p.R)$("resistance").value=p.R;}catch{}
+const fitted=localStorage.getItem("arondight45FittedPhysicsV2");if(fitted)try{const p=JSON.parse(fitted);if(p.Ct)$("ct").value=p.Ct;if(p.Cq)$("cq").value=p.Cq;if(p.J)$("rotorJ").value=p.J;if(p.dragScale)$("dragScale").value=p.dragScale;if(p.batteryR)$("batteryR").value=p.batteryR;if(p.R)$("resistance").value=p.R;}catch{}
 await switchMode("sim");

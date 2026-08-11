@@ -28,10 +28,14 @@ async function setSpeed(kmh){
 }
 
 const directions=[
-  {name:"forward",dx:0,dy:-1,axis:"forward",sign:1},
-  {name:"backward",dx:0,dy:1,axis:"forward",sign:-1},
-  {name:"right",dx:1,dy:0,axis:"right",sign:1},
-  {name:"left",dx:-1,dy:0,axis:"right",sign:-1},
+  {name:"forward",dx:0,dy:-1,forwardUnit:1,rightUnit:0},
+  {name:"backward",dx:0,dy:1,forwardUnit:-1,rightUnit:0},
+  {name:"right",dx:1,dy:0,forwardUnit:0,rightUnit:1},
+  {name:"left",dx:-1,dy:0,forwardUnit:0,rightUnit:-1},
+  {name:"forward-right",dx:Math.SQRT1_2,dy:-Math.SQRT1_2,forwardUnit:Math.SQRT1_2,rightUnit:Math.SQRT1_2},
+  {name:"forward-left",dx:-Math.SQRT1_2,dy:-Math.SQRT1_2,forwardUnit:Math.SQRT1_2,rightUnit:-Math.SQRT1_2},
+  {name:"backward-right",dx:Math.SQRT1_2,dy:Math.SQRT1_2,forwardUnit:-Math.SQRT1_2,rightUnit:Math.SQRT1_2},
+  {name:"backward-left",dx:-Math.SQRT1_2,dy:Math.SQRT1_2,forwardUnit:-Math.SQRT1_2,rightUnit:-Math.SQRT1_2},
 ];
 
 async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps,holdS,t90LimitS}){
@@ -42,12 +46,12 @@ async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps
   const raw=await flightSamples(),motion=raw.map(bodyMotion);
   const samples=motion.filter(x=>x.time>=start+holdS-1.0&&x.time<=start+holdS+.15);
   if(samples.length<20)throw new Error(`${label} ${direction.name}: insufficient steady-state samples (${samples.length})`);
-  const signed=samples.map(x=>direction.sign*x[direction.axis]);
+  const signed=samples.map(x=>x.forward*direction.forwardUnit+x.right*direction.rightUnit);
   const average=signed.reduce((a,b)=>a+b,0)/signed.length;
-  const orthogonal=samples.reduce((a,x)=>a+Math.abs(direction.axis==="forward"?x.right:x.forward),0)/samples.length;
+  const orthogonal=samples.reduce((a,x)=>a+Math.abs(-x.forward*direction.rightUnit+x.right*direction.forwardUnit),0)/samples.length;
   const vertical=samples.reduce((a,x)=>a+Math.abs(x.vertical),0)/samples.length;
   const all=motion.filter(x=>x.time>=start&&x.time<=start+holdS+.15);
-  const t90=all.find(x=>direction.sign*x[direction.axis]>=targetMps*.90)?.time-start;
+  const t90=all.find(x=>x.forward*direction.forwardUnit+x.right*direction.rightUnit>=targetMps*.90)?.time-start;
   const result={name:direction.name,average,orthogonal,vertical,t90:Number.isFinite(t90)?t90:null};
   if(!(average>=minSteadyMps&&average<=maxSteadyMps))throw new Error(`${direction.name}: ${label} target did not converge; steady=${(average*3.6).toFixed(1)} km/h (${average.toFixed(2)} m/s), target=${(targetMps*3.6).toFixed(0)} km/h`);
   if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s at ${label}`);
@@ -75,21 +79,21 @@ try{
   await setSpeed(36);
   const defaultResults=[];
   for(const direction of directions){
-    defaultResults.push(await runDirection(direction,{label:"36 km/h",targetMps:10.0,minSteadyMps:8.7,maxSteadyMps:10.9,holdS:7.0,t90LimitS:5.0}));
+    defaultResults.push(await runDirection(direction,{label:"36 km/h",targetMps:10.0,minSteadyMps:9.5,maxSteadyMps:10.5,holdS:8.0,t90LimitS:5.0}));
   }
   const defaultSpeeds=defaultResults.map(x=>x.average),defaultSpread=Math.max(...defaultSpeeds)-Math.min(...defaultSpeeds);
-  if(defaultSpread>1.0)throw new Error(`36 km/h directional steady-state asymmetry exceeds 1.0 m/s: ${JSON.stringify(defaultResults)}`);
+  if(defaultSpread>0.75)throw new Error(`36 km/h directional steady-state asymmetry exceeds 1.0 m/s: ${JSON.stringify(defaultResults)}`);
 
   // The top of the user-visible slider is a real velocity target, not a cosmetic
   // scaling label. Prove the full shared 25 m/s / 90 km/h envelope in both signs
   // through the same WASM FC, motor mixer and rigid-body plant used by the app.
   await setSpeed(90);
   const maxResults=[];
-  for(const direction of directions.slice(0,2)){
-    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:22.5,maxSteadyMps:26.5,holdS:12.0,t90LimitS:10.0}));
+  for(const direction of directions){
+    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:23.75,maxSteadyMps:26.25,holdS:12.0,t90LimitS:10.0}));
   }
-  const maxSpread=Math.abs(maxResults[0].average-maxResults[1].average);
-  if(maxSpread>1.2)throw new Error(`90 km/h forward/backward asymmetry exceeds 1.2 m/s: ${JSON.stringify(maxResults)}`);
+  const maxSpeeds=maxResults.map(x=>x.average),maxSpread=Math.max(...maxSpeeds)-Math.min(...maxSpeeds);
+  if(maxSpread>0.75)throw new Error(`90 km/h directional steady-state spread exceeds 0.75 m/s: ${JSON.stringify(maxResults)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
   console.log(`GAME speed envelope passed: default=${JSON.stringify(defaultResults)} · 36 km/h / 10.0 m/s spread ${(defaultSpread*3.6).toFixed(1)} km/h; max=${JSON.stringify(maxResults)} · 90 km/h / 25.0 m/s spread ${(maxSpread*3.6).toFixed(1)} km/h.`);

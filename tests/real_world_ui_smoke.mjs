@@ -128,5 +128,5 @@ try{
 
   const log=await page.evaluate(()=>{const l=globalThis.__arondightFlightLogbook;l.clear();l.observe({simTime:1,armed:true,x:0,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.7,worldMode:"real"});l.observe({simTime:3,armed:true,x:2,y:0,z:2,vx:-1,vy:0,vz:0,yawDeg:0,speed:1,agl:2,aglValid:true,batteryV:16.4,worldMode:"real"});l.observe({simTime:4,armed:false,disarmReason:"TEST_END",x:2,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.3,worldMode:"real"});const snap=l.snapshot();return{count:snap.entries.length,entry:snap.entries[0],stored:JSON.parse(localStorage.getItem("arondight45FlightLogbookV1")||"[]").length};});if(log.count!==1||log.stored!==1||log.entry.endReason!=="TEST_END"||log.entry.distanceM<1.9||log.entry.maxForwardMps<.9)throw new Error(`flight logbook session failed: ${JSON.stringify(log)}`);
 
-  console.log(`REAL WORLD E2E passed: exact FPV camera registration, shared north-up minimap, persisted 5-54 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
+  console.log(`REAL WORLD E2E passed: exact FPV camera registration, shared north-up minimap, persisted 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
 }finally{await browser.close();}
