@@ -1,0 +1,66 @@
+name: one-shot-vs-proximity-live
+on:
+  push:
+    branches: ["fix/vs-real-proximity-discovery"]
+    paths: [".github/workflows/one-shot-vs-proximity-live.yml"]
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser P2P test dependencies
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/vs-live && cd /tmp/vs-live
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund esbuild@0.25.8 puppeteer-core@24.16.0 @trystero-p2p/mqtt@0.25.1
+          ln -s /tmp/vs-live/node_modules "$GITHUB_WORKSPACE/node_modules"
+      - name: Two independent browsers find one overlapping room and exchange WebRTC data
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          cat >/tmp/vs-live/entry.mjs <<'JS'
+          import {LanVsFinder,proximityRoomKeys} from '/workspace/sim/lan_vs.mjs';
+          import * as mqtt from '@trystero-p2p/mqtt';
+          globalThis.VS={
+            proximity:(lon,lat)=>proximityRoomKeys({longitude:lon,latitude:lat}),
+            async start(rooms){
+              const state={peer:false,pose:null,left:false,room:null};
+              const finder=new LanVsFinder({loadTransport:async()=>mqtt,loadFallbackTransport:null,onPeer:(_peer,room)=>{state.peer=true;state.room=room;},onPose:p=>state.pose=p,onLeave:()=>state.left=true});
+              await finder.start(rooms);globalThis.__finder=finder;globalThis.__state=state;
+            },
+            pose:p=>globalThis.__finder.setPose({p,q:[0,0,0,1]}),
+            state:()=>globalThis.__state,
+            stop:()=>globalThis.__finder?.stop()
+          };
+          JS
+          sed -i "s#/workspace#$GITHUB_WORKSPACE#" /tmp/vs-live/entry.mjs
+          "$GITHUB_WORKSPACE/node_modules/.bin/esbuild" /tmp/vs-live/entry.mjs --bundle --format=iife --platform=browser --target=es2022 --outfile=/tmp/vs-live/app.js
+          printf '<!doctype html><meta charset="utf-8"><script src="app.js"></script>\n' >/tmp/vs-live/index.html
+          cat >/tmp/vs-live/test.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          const exe=process.env.CHROME_BIN,base='http://127.0.0.1:4191',salt=`${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`;
+          const launch=()=>puppeteer.launch({headless:true,executablePath:exe,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const a=await launch(),b=await launch();
+          const wait=async(page,predicate,ms=20000)=>{const end=Date.now()+ms;while(Date.now()<end){const s=await page.evaluate(()=>VS.state());if(predicate(s))return s;await new Promise(r=>setTimeout(r,100));}throw Error('timeout waiting for P2P state');};
+          try{
+            const pa=await a.newPage(),pb=await b.newPage();await Promise.all([pa.goto(base),pb.goto(base)]);
+            const [ga,gb]=await Promise.all([pa.evaluate(()=>VS.proximity(9.170000,47.660000)),pb.evaluate(()=>VS.proximity(9.170650,47.660450))]);
+            const common=ga.find(x=>gb.includes(x));if(!common)throw Error(`nearby coordinates had no common room: ${JSON.stringify({ga,gb})}`);
+            const room=`${common}-${salt}`,roomsA=[`only-a-${salt}`,room,`other-a-${salt}`],roomsB=[`only-b-${salt}`,`other-b-${salt}`,room];
+            await Promise.all([pa.evaluate(r=>VS.start(r),roomsA),pb.evaluate(r=>VS.start(r),roomsB)]);
+            const [as,bs]=await Promise.all([wait(pa,s=>s.peer),wait(pb,s=>s.peer)]);if(as.room!==room||bs.room!==room)throw Error(`finder chose wrong room: ${JSON.stringify({as,bs,room})}`);
+            await Promise.all([pa.evaluate(()=>VS.pose([1,2,3])),pb.evaluate(()=>VS.pose([4,5,6]))]);
+            const [ar,br]=await Promise.all([wait(pa,s=>s.pose?.p?.[0]===4),wait(pb,s=>s.pose?.p?.[0]===1)]);
+            await pb.evaluate(()=>VS.stop());await wait(pa,s=>s.left,5000);
+            console.log('LIVE MULTI-ROOM VS PASS',JSON.stringify({room,a:ar.pose,b:br.pose}));
+          }finally{await a.close();await b.close();}
+          JS
+          cd /tmp/vs-live
+          python3 -m http.server 4191 --bind 127.0.0.1 >/tmp/vs-live-http.log 2>&1 & PID=$!
+          trap 'kill $PID 2>/dev/null || true; rm -f "$GITHUB_WORKSPACE/node_modules"' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" node test.mjs
