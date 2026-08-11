@@ -1,10 +1,13 @@
-const APP_ID="arondight45-kurzlernen-vs-v2";
+const APP_ID="arondight45-kurzlernen-vs-v3";
 const SEND_MS=50;
-const DEFAULT_LOADER=()=>import("https://esm.run/trystero@0.25.1");
+const DEFAULT_LOADER=()=>import("trystero");
+
+function finiteArray(value,length){return Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);}
+function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}
 
 export class LanVsSession{
   constructor({onPeer,onPose,onLeave,onError,loadTransport=DEFAULT_LOADER}={}){
-    this.room=null;this.sendPoseAction=null;this.timer=0;this.peerId=null;this.onPeer=onPeer;this.onPose=onPose;this.onLeave=onLeave;this.onError=onError;this.pendingPose=null;this.loadTransport=loadTransport;this.seq=0;
+    this.room=null;this.poseAction=null;this.timer=0;this.peerId=null;this.onPeer=onPeer;this.onPose=onPose;this.onLeave=onLeave;this.onError=onError;this.pendingPose=null;this.loadTransport=loadTransport;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;
   }
   async start(roomId){
     if(this.room)return;
@@ -14,32 +17,47 @@ export class LanVsSession{
       if(typeof joinRoom!=="function")throw Error("VS transport unavailable");
       const room=joinRoom({appId:APP_ID},roomId);
       this.room=room;
-      const [sendPose,getPose]=room.makeAction("pose");
-      this.sendPoseAction=sendPose;
-      getPose((pose,peerId)=>{
-        if(!peerId)return;
-        if(!this.peerId){this.peerId=peerId;this.onPeer?.(peerId);}
-        if(peerId===this.peerId)this.onPose?.(pose,peerId);
-      });
-      room.onPeerJoin(peerId=>{
-        if(!this.peerId){this.peerId=peerId;this.onPeer?.(peerId);}
-      });
-      room.onPeerLeave(peerId=>{
-        if(peerId===this.peerId){this.peerId=null;this.onLeave?.(peerId);}
-      });
-      this.timer=setInterval(()=>{
-        if(this.pendingPose&&this.sendPoseAction)this.sendPoseAction({...this.pendingPose,seq:++this.seq});
-      },SEND_MS);
+      const poseAction=room.makeAction("pose");
+      if(!poseAction||typeof poseAction.send!=="function")throw Error("VS pose action unavailable");
+      this.poseAction=poseAction;
+      poseAction.onMessage=(pose,{peerId}={})=>{
+        if(!peerId||!validPose(pose))return;
+        if(!this.peerId){this.peerId=peerId;this.lastRxSeq=0;this.onPeer?.(peerId);}
+        if(peerId!==this.peerId)return;
+        const seq=Number(pose.seq)||0;
+        if(seq&&seq<=this.lastRxSeq)return;
+        if(seq)this.lastRxSeq=seq;
+        this.onPose?.(pose,peerId);
+      };
+      room.onPeerJoin=peerId=>{
+        if(!peerId||this.peerId)return;
+        this.peerId=peerId;this.lastRxSeq=0;this.onPeer?.(peerId);
+      };
+      room.onPeerLeave=peerId=>{
+        if(peerId!==this.peerId)return;
+        this.peerId=null;this.lastRxSeq=0;this.onLeave?.(peerId);
+      };
+      room.onJoinError=error=>this.onError?.(error instanceof Error?error:Error(String(error||"VS peer connection failed")));
+      this.timer=setInterval(()=>this.flushPose(),SEND_MS);
     }catch(error){
       this.stop();this.onError?.(error);throw error;
     }
   }
+  flushPose(){
+    if(this.sendBusy||!this.peerId||!this.pendingPose||!this.poseAction)return;
+    const packet={...this.pendingPose,seq:++this.seq};
+    this.sendBusy=true;
+    Promise.resolve(this.poseAction.send(packet,{target:this.peerId}))
+      .catch(error=>this.onError?.(error))
+      .finally(()=>{this.sendBusy=false;});
+  }
   setPose(pose){
-    if(!pose||!Array.isArray(pose.p)||pose.p.length!==3||!Array.isArray(pose.q)||pose.q.length!==4)return;
-    this.pendingPose=pose;
+    if(!validPose(pose))return false;
+    this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};
+    return true;
   }
   stop(){
-    clearInterval(this.timer);this.timer=0;this.room?.leave?.();this.room=null;this.sendPoseAction=null;this.peerId=null;this.pendingPose=null;this.seq=0;
+    clearInterval(this.timer);this.timer=0;this.room?.leave?.();this.room=null;this.poseAction=null;this.peerId=null;this.pendingPose=null;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;
   }
 }
 
