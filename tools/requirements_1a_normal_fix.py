@@ -51,10 +51,13 @@ replace_once(
     'if(targetVisual.after!==targetVisual.before+1||targetVisual.builds!==1||targetVisual.impact?.kind!=="target"||!targetVisual.impact.target||!targetVisual.impact.object||targetVisual.normalError>1e-5||!targetVisual.attached||!near(targetVisual.delta?.x,1,.015)||!near(targetVisual.delta?.y,0,.015)||!near(targetVisual.delta?.z,0,.015))',
 )
 
-# Finish the object-hit contract without relying on Object3D.attach(), whose own
-# Three docs exclude non-uniformly-scaled scene graphs. Then exercise MapLibre's
-# real context-loss recovery. Both temporary drivers delete themselves so the
-# validated release tree remains product-only.
+# Match MapLibre's actually rendered extrusion surface set, then finish the
+# object-hit contract without relying on Object3D.attach(), and finally exercise
+# real WebGL context recovery. Temporary drivers delete themselves so the
+# validated release tree stays product-only.
+surface_script=Path("tools/requirements_1a_surface_fix.py")
+exec(compile(surface_script.read_text(),str(surface_script),"exec"),{})
+surface_script.unlink()
 attach_script=Path("tools/requirements_1a_attach_fix.py")
 exec(compile(attach_script.read_text(),str(attach_script),"exec"),{})
 attach_script.unlink()
@@ -62,4 +65,4 @@ context_script=Path("tools/requirements_1a_context_fix.py")
 exec(compile(context_script.read_text(),str(context_script),"exec"),{})
 context_script.unlink()
 
-print('object-normal, scale-safe attachment and WebGL-context impact hardening applied')
+print('object-normal, rendered-surface, scale-safe attachment and WebGL-context impact hardening applied')
