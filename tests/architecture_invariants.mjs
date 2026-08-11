@@ -297,7 +297,11 @@ requireText("sim/lan_vs.mjs","poseAction.onMessage=", "VS transport must use Try
 requireText("sim/lan_vs.mjs","room.onPeerJoin=", "VS transport must use Trystero 0.25 peer callback property API");
 forbidText("sim/lan_vs.mjs","const [sendPose,getPose]", "legacy Trystero tuple action API must not return");
 forbidText("sim/real_world_bootstrap.mjs","queueMicrotask(()=>this.startVs())","VS signaling must never auto-start with the flight simulator");
-requireText("sim/real_world_bootstrap.mjs","FIND MATE · VS","VS must be an explicit in-game action");
+requireText("sim/real_world_bootstrap.mjs","FIND MATE","VS must be an explicit in-game action");
+forbidText("sim/real_world_bootstrap.mjs","PAIR CODE","VS discovery must stay automatic without pair-code UX");
+forbidText("sim/lan_vs.mjs","manualRoomKey","manual room-code matching must not return");
+requireText("sim/lan_vs.mjs","stun:stun.cloudflare.com:3478","same-network discovery must try WebRTC/STUN NAT identity before HTTP heuristics");
+requireText("sim/lan_vs.mjs","@trystero-p2p/mqtt","VS must have a second serverless signaling strategy when Nostr is unavailable");
 requireText("sim/lan_vs.mjs","room.makeAction(\"origin\")","VS must exchange shared origin independently from pose");
 requireText("sim/lan_vs.mjs","setOrigin(origin)","VS must expose optional geodetic origin publication");
 requireText("sim/real_world_bootstrap.mjs","this.vsSharedOrigin","GPS-less peers must accept a mate-provided world origin");
