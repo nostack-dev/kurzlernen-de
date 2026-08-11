@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch-test-commit:
-    if: ${{ !contains(github.event.head_commit.message, '[staged-vs-fixed]') }}
+    if: "${{ !contains(github.event.head_commit.message, '[staged-vs-fixed]') }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -149,12 +149,10 @@ jobs:
           const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
           const opened=[];
           function harness(name,{connect=false,fail=false}={}){
-            const rooms=new Map();
             return async()=>({
               joinRoom(config,roomId,callbacks={}){
                 opened.push({name,roomId,config});
-                const actions=new Map();
-                const room={onPeerJoin:null,onPeerLeave:null,makeAction(action){const a={onMessage:null,send:async()=>{}};actions.set(action,a);return a;},getPeers:()=>({}),ping:async()=>1,leave(){}};
+                const room={onPeerJoin:null,onPeerLeave:null,makeAction(){return{onMessage:null,send:async()=>{}};},getPeers:()=>({}),ping:async()=>1,leave(){}};
                 if(fail)queueMicrotask(()=>callbacks.onJoinError?.({peerId:"x",error:new Error(`${name} failed`)}));
                 if(connect)queueMicrotask(()=>room.onPeerJoin?.("peer-ok"));
                 return room;
