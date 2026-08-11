@@ -131,25 +131,29 @@ jobs:
       - name: Validate JavaScript sources after browser E2E
         run: |
           set -euxo pipefail
-          node --check sim/flight_fire_fx.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/simulator.mjs
+          node --check sim/controller.mjs
+          node --check sim/p2p_link.mjs
+          node --check sim/qr_pairing.mjs
+          node --check sim/control_semantics.mjs
           node --check sim/control_settings.mjs
-          node --check sim/auto_flight_start.mjs
+          node --check sim/solo_layout.mjs
+          node --check tests/architecture_invariants.mjs
+          node --check tests/control_semantics_test.mjs
+          node --check tests/sil_wasm_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node --check tests/dual_phone_smoke.mjs
           node --check tests/solo_layout_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/world_shot_decal_smoke.mjs
           node --check tests/world_fpv_frame_lock_smoke.mjs
           node --check tests/game_speed_envelope_smoke.mjs
-          node --check tests/dual_phone_smoke.mjs
-          node --check tests/browser_sim_smoke.mjs
+          node --check tools/s31_hil_bridge.mjs
 
-      - name: Run actions/configure-pages@v5
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
-
-      - name: Run actions/upload-pages-artifact@v3
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: .
-
-      - name: Run actions/deploy-pages@v4
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
+      - id: deployment
+        uses: actions/deploy-pages@v4
