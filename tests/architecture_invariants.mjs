@@ -301,6 +301,10 @@ requireText("sim/real_world_bootstrap.mjs","FIND MATE","VS must be an explicit i
 forbidText("sim/real_world_bootstrap.mjs","PAIR CODE","VS discovery must stay automatic without pair-code UX");
 forbidText("sim/lan_vs.mjs","manualRoomKey","manual room-code matching must not return");
 requireText("sim/lan_vs.mjs","stun:stun.cloudflare.com:3478","same-network discovery must try WebRTC/STUN NAT identity before HTTP heuristics");
+requireText("sim/lan_vs.mjs","export class LanVsFinder","VS discovery must search multiple automatic candidate rooms and collapse to the first real mate");
+requireText("sim/lan_vs.mjs","PROXIMITY_CELL_M=800","nearby phones must have an automatic GPS-proximity discovery path independent of WAN identity");
+requireText("sim/lan_vs.mjs","ipv6p64:","same-WLAN discovery must normalize IPv6 privacy addresses to their shared /64 prefix");
+requireText("sim/real_world_bootstrap.mjs","discoveryRoomKeys(deviceCoords)","FIND MATE must use proximity plus network candidate discovery instead of one WAN room");
 requireText("sim/lan_vs.mjs","@trystero-p2p/mqtt","VS must have a second serverless signaling strategy when Nostr is unavailable");
 requireText("sim/lan_vs.mjs","room.makeAction(\"origin\")","VS must exchange shared origin independently from pose");
 requireText("sim/lan_vs.mjs","room.makeAction(\"combat\")","VS combat must use a separate P2P action from pose/origin");

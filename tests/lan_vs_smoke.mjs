@@ -1,111 +1,42 @@
 import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
-import {LanVsSession,sameNetworkRoomKey} from "../sim/lan_vs.mjs";
+import {LanVsSession,LanVsFinder,sameNetworkRoomKey,sameNetworkRoomKeys,proximityRoomKeys,discoveryRoomKeys,networkMaterialFromCandidate} from "../sim/lan_vs.mjs";
 
 function transportHarness(){
-  const rooms=new Map();
-  let next=1;
+  const rooms=new Map();let next=1;
   function joinRoom(_config,roomId){
-    const id=`peer-${next++}`;
-    const group=rooms.get(roomId)||new Set();rooms.set(roomId,group);
-    const actions=new Map();
-    const room={
-      id,
-      onPeerJoin:null,
-      onPeerLeave:null,
-      onJoinError:null,
-      makeAction(name){
-        const action={
-          onMessage:null,
-          send(data,{target}={}){
-            for(const peer of group){
-              if(peer===room)continue;
-              if(target&&peer.id!==target)continue;
-              peer._deliver(name,data,id);
-            }
-            return Promise.resolve();
-          }
-        };
-        actions.set(name,action);
-        return action;
-      },
-      _deliver(name,data,peerId){actions.get(name)?.onMessage?.(data,{peerId});},
-      leave(){group.delete(room);for(const peer of group)peer.onPeerLeave?.(id);}
-    };
-    for(const peer of group)peer.onPeerJoin?.(id);
-    group.add(room);
-    queueMicrotask(()=>{for(const peer of group)if(peer!==room)room.onPeerJoin?.(peer.id);});
-    return room;
+    const id=`peer-${next++}`,group=rooms.get(roomId)||new Set();rooms.set(roomId,group);const actions=new Map();
+    const room={id,onPeerJoin:null,onPeerLeave:null,onJoinError:null,makeAction(name){const action={onMessage:null,send(data,{target}={}){for(const peer of group){if(peer===room)continue;if(target&&peer.id!==target)continue;peer._deliver(name,data,id);}return Promise.resolve();}};actions.set(name,action);return action;},_deliver(name,data,peerId){actions.get(name)?.onMessage?.(data,{peerId});},leave(){group.delete(room);for(const peer of group)peer.onPeerLeave?.(id);}};
+    for(const peer of group)peer.onPeerJoin?.(id);group.add(room);queueMicrotask(()=>{for(const peer of group)if(peer!==room)room.onPeerJoin?.(peer.id);});return room;
   }
   return{loadTransport:async()=>({joinRoom})};
 }
+function deadTransport(){let next=1;const joinRoom=()=>{const id=`dead-${next++}`;return{id,onPeerJoin:null,onPeerLeave:null,onJoinError:null,makeAction:()=>({onMessage:null,send:()=>Promise.resolve()}),leave(){}};};return{loadTransport:async()=>({joinRoom})};}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const overlap=(a,b)=>a.filter(v=>b.includes(v));
+const fakeFetch=ip=>async()=>({ok:true,json:async()=>({ip})});
 
-function deadTransport(){
-  let next=1;
-  const joinRoom=()=>{
-    const id=`dead-${next++}`;
-    return{id,onPeerJoin:null,onPeerLeave:null,onJoinError:null,makeAction:()=>({onMessage:null,send:()=>Promise.resolve()}),leave(){}};
-  };
-  return{loadTransport:async()=>({joinRoom})};
-}
+assert.equal(networkMaterialFromCandidate({type:"srflx",address:"203.0.113.7"}),"ipv4:203.0.113.7");
+assert.equal(networkMaterialFromCandidate({type:"host",address:"192.168.4.21"}),"lan4p24:192.168.4");
+const v6a=networkMaterialFromCandidate({type:"srflx",address:"2001:db8:abcd:42::1111"}),v6b=networkMaterialFromCandidate({type:"srflx",address:"2001:0db8:abcd:0042:9999::1"});
+assert.equal(v6a,"ipv6p64:2001:0db8:abcd:0042");assert.equal(v6a,v6b,"IPv6 privacy interface IDs on the same /64 must converge");
 
-const calls=[];
-const fakeFetch=ip=>async url=>{calls.push(String(url));return{ok:true,json:async()=>({ip})};};
-const room=await sameNetworkRoomKey({fetchFn:fakeFetch("198.51.100.99"),cryptoObj:webcrypto,natAddressFn:async()=>"203.0.113.7"});
-const sameRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("198.51.100.100"),cryptoObj:webcrypto,natAddressFn:async()=>"203.0.113.7"});
-const otherRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("198.51.100.99"),cryptoObj:webcrypto,natAddressFn:async()=>"203.0.113.8"});
-assert.equal(room,sameRoom,"same WebRTC NAT must produce the same automatic room");
-assert.notEqual(room,otherRoom,"different NATs must not collide");
-assert.match(room,/^net-[0-9a-f]{24}$/);
-assert.equal(calls.length,0,"HTTP address service must not run when STUN already found the shared NAT");
-const httpRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,natAddressFn:async()=>null});
-assert.equal(httpRoom,room,"HTTP IPv4 fallback must converge on the same room as STUN for the same NAT");
-assert.ok(calls.every(url=>url.includes("api4.ipify.org")),"HTTP fallback must force shared IPv4 rather than per-device IPv6");
+const keysA=await sameNetworkRoomKeys({fetchFn:fakeFetch("198.51.100.20"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv6p64:2001:0db8:abcd:0042","ipv4:203.0.113.7"]});
+const keysB=await sameNetworkRoomKeys({fetchFn:fakeFetch("198.51.100.21"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv6p64:2001:0db8:abcd:0042","ipv4:203.0.113.8"]});
+assert.ok(overlap(keysA,keysB).length>=1,"same IPv6 LAN prefix must give both phones a common room despite different public IPv4");
+const legacy=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"]});assert.match(legacy,/^net-[0-9a-f]{24}$/);
 
-const harness=transportHarness();
-let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aCombat=null,bCombat=null,aLeft=0;
-const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onCombat:p=>aCombat=p,onLeave:()=>aLeft++});
-const b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o,onCombat:p=>bCombat=p});
-await a.start(room);await b.start(room);
-await new Promise(r=>setTimeout(r,10));
-assert.equal(aPeer,1);assert.equal(bPeer,1);
-assert.equal(a.setOrigin({lon:9.17,lat:47.66,alt:411}),true);
-assert.equal(b.setOrigin({lon:NaN,lat:47.66}),false);
-await new Promise(r=>setTimeout(r,90));
-assert.deepEqual(bOrigin,{lon:9.17,lat:47.66,alt:411});
-assert.equal(aOrigin,null,"GPS-less peer must not invent an origin");
-assert.equal(a.setPose({p:[1,2,NaN],q:[0,0,0,1]}),false);
-assert.equal(a.setPose({p:[1,2,3],q:[0,0,0,1],g:[9.17,47.66]}),true);
-assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99]}),true);
-await new Promise(r=>setTimeout(r,140));
-assert.deepEqual(aPose.p,[4,5,6]);assert.deepEqual(bPose.p,[1,2,3]);
-assert.ok(aPose.seq>=1&&bPose.seq>=1);
-const oldSeq=aPose.seq;
-await new Promise(r=>setTimeout(r,70));
-assert.ok(aPose.seq>oldSeq,"pose sequence did not advance");
-assert.equal(a.sendCombat({type:"hit",id:"hit-1",damage:25}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(bCombat,{type:"hit",id:"hit-1",damage:25});
-assert.equal(b.sendCombat({type:"state",id:"hit-1",hp:75,killed:false}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(aCombat,{type:"state",id:"hit-1",hp:75,killed:false});
-assert.equal(a.sendCombat({type:"hit",id:"",damage:25}),false);assert.equal(a.sendCombat({type:"hit",id:"bad",damage:101}),false);
-assert.equal(b.sendCombat({type:"respawn",hp:100}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(aCombat,{type:"respawn",hp:100});
-b.stop();await new Promise(r=>setTimeout(r,5));assert.equal(aLeft,1);
-a.stop();
+const geoA=await proximityRoomKeys({longitude:9.170000,latitude:47.660000,cryptoObj:webcrypto}),geoB=await proximityRoomKeys({longitude:9.170650,latitude:47.660450,cryptoObj:webcrypto}),geoFar=await proximityRoomKeys({longitude:9.30,latitude:47.80,cryptoObj:webcrypto});
+assert.ok(overlap(geoA,geoB).length>=1,"phones tens of metres apart must share at least one proximity room even at grid boundaries");assert.equal(overlap(geoA,geoFar).length,0,"distant phones must not collide in proximity rooms");
+const discovery=await discoveryRoomKeys({longitude:9.17,latitude:47.66,fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"]});assert.ok(discovery.length>=5&&discovery.length<=8);
 
-// Real failure mode: both peers can sit in a healthy-looking Nostr room forever.
-// Both must automatically abandon that path and converge on the same MQTT room.
-const dead=deadTransport(),fallback=transportHarness(),fallbackRoom=room;
-let faPeer=0,fbPeer=0,faPose=null,fbPose=null;const faTransports=[],fbTransports=[];
-const fa=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:name=>faTransports.push(name),onPeer:()=>faPeer++,onPose:p=>faPose=p});
-const fb=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:name=>fbTransports.push(name),onPeer:()=>fbPeer++,onPose:p=>fbPose=p});
-await fa.start(fallbackRoom);await new Promise(r=>setTimeout(r,8));await fb.start(fallbackRoom);
-await new Promise(r=>setTimeout(r,90));
-assert.equal(faPeer,1,"peer A did not connect after primary signaling timeout");
-assert.equal(fbPeer,1,"peer B did not connect after primary signaling timeout");
-assert.deepEqual(faTransports,["Nostr","MQTT"]);
-assert.deepEqual(fbTransports,["Nostr","MQTT"]);
-assert.equal(fa.transportName,"MQTT");assert.equal(fb.transportName,"MQTT");
-fa.setPose({p:[10,20,30],q:[0,0,0,1]});fb.setPose({p:[40,50,60],q:[0,0,0,1]});
-await new Promise(r=>setTimeout(r,90));
-assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);
-fa.stop();fb.stop();
+const harness=transportHarness();let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aCombat=null,bCombat=null,aLeft=0;
+const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onCombat:p=>aCombat=p,onLeave:()=>aLeft++}),b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o,onCombat:p=>bCombat=p});
+await a.start(legacy);await b.start(legacy);await sleep(10);assert.equal(aPeer,1);assert.equal(bPeer,1);assert.equal(a.setOrigin({lon:9.17,lat:47.66,alt:411}),true);assert.equal(b.setOrigin({lon:NaN,lat:47.66}),false);await sleep(90);assert.deepEqual(bOrigin,{lon:9.17,lat:47.66,alt:411});assert.equal(aOrigin,null,"GPS-less peer must not invent an origin");assert.equal(a.setPose({p:[1,2,NaN],q:[0,0,0,1]}),false);assert.equal(a.setPose({p:[1,2,3],q:[0,0,0,1],g:[9.17,47.66]}),true);assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99]}),true);await sleep(140);assert.deepEqual(aPose.p,[4,5,6]);assert.deepEqual(bPose.p,[1,2,3]);assert.ok(aPose.seq>=1&&bPose.seq>=1);const oldSeq=aPose.seq;await sleep(70);assert.ok(aPose.seq>oldSeq);assert.equal(a.sendCombat({type:"hit",id:"hit-1",damage:25}),true);await sleep(5);assert.deepEqual(bCombat,{type:"hit",id:"hit-1",damage:25});assert.equal(b.sendCombat({type:"state",id:"hit-1",hp:75,killed:false}),true);await sleep(5);assert.deepEqual(aCombat,{type:"state",id:"hit-1",hp:75,killed:false});b.stop();await sleep(5);assert.equal(aLeft,1);a.stop();
 
-console.log("LAN VS deterministic smoke passed: automatic same-NAT room, Nostr -> MQTT fallback, pose/origin and reliable combat actions");
+const finderHarness=transportHarness(),shared=geoA[0];let faPeer=0,fbPeer=0,faPose=null,fbPose=null,faLeft=0;
+const fa=new LanVsFinder({...finderHarness,onPeer:()=>faPeer++,onPose:p=>faPose=p,onLeave:()=>faLeft++}),fb=new LanVsFinder({...finderHarness,onPeer:()=>fbPeer++,onPose:p=>fbPose=p});
+await fa.start(["net-only-a",shared,"geo-only-a"]);await fb.start(["net-only-b","geo-only-b",shared]);await sleep(20);assert.equal(faPeer,1);assert.equal(fbPeer,1);fa.setPose({p:[10,20,30],q:[0,0,0,1]});fb.setPose({p:[40,50,60],q:[0,0,0,1]});await sleep(90);assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);fb.stop();await sleep(5);assert.equal(faLeft,1);fa.stop();
+
+const dead=deadTransport(),fallback=transportHarness();let xaPeer=0,xbPeer=0;const xaTransports=[],xbTransports=[];const xa=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:n=>xaTransports.push(n),onPeer:()=>xaPeer++}),xb=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:n=>xbTransports.push(n),onPeer:()=>xbPeer++});await xa.start(legacy);await sleep(8);await xb.start(legacy);await sleep(90);assert.equal(xaPeer,1);assert.equal(xbPeer,1);assert.deepEqual(xaTransports,["Nostr","MQTT"]);assert.deepEqual(xbTransports,["Nostr","MQTT"]);xa.stop();xb.stop();
+console.log("LAN VS deterministic smoke passed: proximity + IPv6/LAN/IPv4 multi-room discovery, Nostr -> MQTT fallback, pose/origin/combat");
