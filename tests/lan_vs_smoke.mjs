@@ -63,7 +63,7 @@ assert.deepEqual(bOrigin,{lon:9.17,lat:47.66,alt:411});
 assert.equal(aOrigin,null,"GPS-less peer must not invent an origin");
 assert.equal(a.setPose({p:[1,2,NaN],q:[0,0,0,1]}),false);
 assert.equal(a.setPose({p:[1,2,3],q:[0,0,0,1],g:[9.17,47.66]}),true);
-assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99],g:[9.171,47.661]}),true);
+assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99]}),true);
 await new Promise(r=>setTimeout(r,140));
 assert.deepEqual(aPose.p,[4,5,6]);assert.deepEqual(bPose.p,[1,2,3]);
 assert.ok(aPose.seq>=1&&bPose.seq>=1);

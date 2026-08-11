@@ -302,6 +302,11 @@ requireText("sim/lan_vs.mjs","room.makeAction(\"origin\")","VS must exchange sha
 requireText("sim/lan_vs.mjs","setOrigin(origin)","VS must expose optional geodetic origin publication");
 requireText("sim/real_world_bootstrap.mjs","this.vsSharedOrigin","GPS-less peers must accept a mate-provided world origin");
 requireText("sim/real_world_bootstrap.mjs","this.vsSession.setOrigin({lon:this.originLon,lat:this.originLat,alt:0})","GPS-capable peers must publish their world origin");
+requireText("sim/real_world_bootstrap.mjs","ensureVsSharedWorld(status=null)","GPS-less VS peer must adopt mate origin as the actual WORLD frame");
+requireText("sim/real_world_bootstrap.mjs","vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.clearVsPeerPresentation()","peer leave must clear stale VS origin and presentation state");
+requireText("sim/real_world_bootstrap.mjs","now-this.vsPeerLastPoseMs>1000","stale peer poses must disappear instead of freezing forever");
+requireText("sim/real_world_bootstrap.mjs","this.vsPeerRenderPosition.lerp","peer pose smoothing must stay presentation-only");
+forbidText("tests/lan_vs_smoke.mjs","p:[4,5,6],q:[0,0,.1,.99],g:","GPS-less regression peer must not carry geolocation");
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
