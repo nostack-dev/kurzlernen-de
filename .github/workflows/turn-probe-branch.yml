@@ -1,0 +1,36 @@
+name: TURN relay branch probe
+
+on:
+  push:
+    branches: ["fix/turn-relay-prod"]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Deterministic TURN config injection
+        run: |
+          set -euxo pipefail
+          node --check sim/lan_vs.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/turn_config_smoke.mjs
+      - name: Real relay-only WebRTC datachannel
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/turn-probe-node
+          mkdir -p "$TMP"
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/turn-probe-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/turn_relay_browser_smoke.mjs http://127.0.0.1:4174
