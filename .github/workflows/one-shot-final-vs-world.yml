@@ -1,0 +1,89 @@
+name: one-shot-final-vs-world
+on:
+  push:
+    branches: ["fix/final-vs-shared-world"]
+    paths: [".github/workflows/one-shot-final-vs-world.yml"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Harden shared WORLD frame and peer lifecycle
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/real_world_bootstrap.mjs')
+          s=p.read_text()
+
+          old='this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.vsSharedOrigin=null;this.installUi();'
+          new='this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.vsPeerTargetPosition=null;this.vsPeerTargetQuaternion=null;this.vsPeerRenderPosition=null;this.vsPeerRenderQuaternion=null;this.vsPeerLastPoseMs=-Infinity;this.vsPeerRenderMs=performance.now();this.installUi();'
+          assert s.count(old)==1, ('constructor',s.count(old))
+          s=s.replace(old,new,1)
+
+          old='if(this.loading)return;if(this.active)return;\n    this.loading=true;this.status("REAL WORLD · requesting high-accuracy GPS permission…","warn");\n    try{\n      const fix=locationFix?.coords?locationFix:await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;\n      if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");\n      this.originLat=latitude;this.originLon=longitude;this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");'
+          new='if(this.loading)return;if(this.active)return;\n    const fromMate=Boolean(locationFix?.vsSharedOrigin);\n    this.loading=true;this.status(fromMate?"REAL WORLD · using mate GPS origin…":"REAL WORLD · requesting high-accuracy GPS permission…","warn");\n    try{\n      const fix=locationFix?.coords?locationFix:await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;\n      if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");\n      this.vsWorldFromMate=fromMate;this.originLat=latitude;this.originLon=longitude;const source=fromMate?"MATE GPS ORIGIN":"GPS";this.status(`${source} ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");'
+          assert s.count(old)==1, ('activate head',s.count(old))
+          s=s.replace(old,new,1)
+
+          old='this.status(`REAL WORLD LIVE · OpenFreeMap · GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}'
+          new='this.status(`REAL WORLD LIVE · OpenFreeMap · ${fromMate?"MATE GPS ORIGIN":"GPS"} ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}'
+          assert s.count(old)==1, ('activate status',s.count(old))
+          s=s.replace(old,new,1)
+
+          old='onPose:pose=>this.applyVsPose(pose),onOrigin:origin=>{if(!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))this.vsSharedOrigin={lon:origin.lon,lat:origin.lat,alt:Number.isFinite(origin.alt)?origin.alt:0};if(status&&!Number.isFinite(this.originLon)&&this.vsSharedOrigin)status.textContent="Mate GPS origin shared · VS active";},onLeave:()=>{this.vsConnected=false;if(button)button.textContent="VS · WAITING";if(status)status.textContent="Same network · waiting for mate";if(this.vsPeerMesh)this.vsPeerMesh.visible=false;},onError:'
+          new='onPose:pose=>this.applyVsPose(pose),onOrigin:origin=>this.acceptVsOrigin(origin,status),onLeave:()=>{const mateWorld=this.vsWorldFromMate;this.vsConnected=false;this.vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.clearVsPeerPresentation();if(mateWorld&&this.active)this.deactivate();if(button)button.textContent="VS · WAITING";if(status){status.style.display="block";status.textContent="Same network · waiting for mate";}},onError:'
+          assert s.count(old)==1, ('callbacks',s.count(old))
+          s=s.replace(old,new,1)
+
+          marker='  stopVs(){'
+          methods='''  acceptVsOrigin(origin,status){\n    if(!origin||!Number.isFinite(origin.lon)||!Number.isFinite(origin.lat)||Number.isFinite(this.originLon)&&Number.isFinite(this.originLat)&&!this.vsWorldFromMate)return;\n    const next={lon:Number(origin.lon),lat:Number(origin.lat),alt:Number.isFinite(origin.alt)?Number(origin.alt):0};\n    const changed=!this.vsSharedOrigin||this.vsSharedOrigin.lon!==next.lon||this.vsSharedOrigin.lat!==next.lat||this.vsSharedOrigin.alt!==next.alt;\n    this.vsSharedOrigin=next;if(changed)this.vsSharedWorldAttempted=false;if(status)status.textContent="Mate GPS origin shared · joining same WORLD…";this.ensureVsSharedWorld(status);\n  }\n  ensureVsSharedWorld(status=null){\n    if(this.active||this.loading||this.vsSharedWorldAttempted||!this.vsSharedOrigin||!this.threeRenderer)return;\n    this.vsSharedWorldAttempted=true;const origin={...this.vsSharedOrigin};\n    this.activate({vsSharedOrigin:true,coords:{latitude:origin.lat,longitude:origin.lon,altitude:origin.alt,accuracy:0}})\n      .then(()=>{if(status)status.textContent="Mate GPS origin · same WORLD active";})\n      .catch(error=>{this.vsSharedWorldAttempted=false;if(status)status.textContent=`Mate origin map unavailable · VS local coordinates active`;console.warn("VS shared WORLD activation unavailable:",error);});\n  }\n  clearVsPeerPresentation(){\n    this.vsPeerTargetPosition=null;this.vsPeerTargetQuaternion=null;this.vsPeerRenderPosition=null;this.vsPeerRenderQuaternion=null;this.vsPeerLastPoseMs=-Infinity;if(this.vsPeerMesh)this.vsPeerMesh.visible=false;\n  }\n  updateVsPeerRender(){\n    if(!this.vsPeerMesh||!this.vsPeerTargetPosition||!this.vsPeerTargetQuaternion)return;const now=performance.now();\n    if(now-this.vsPeerLastPoseMs>1000){this.vsPeerMesh.visible=false;return;}\n    const dt=Math.max(0,Math.min(.1,(now-this.vsPeerRenderMs)/1000));this.vsPeerRenderMs=now;const alpha=1-Math.exp(-14*dt);\n    if(!this.vsPeerRenderPosition){this.vsPeerRenderPosition=this.vsPeerTargetPosition.clone();this.vsPeerRenderQuaternion=this.vsPeerTargetQuaternion.clone();}\n    else{this.vsPeerRenderPosition.lerp(this.vsPeerTargetPosition,alpha);this.vsPeerRenderQuaternion.slerp(this.vsPeerTargetQuaternion,alpha);}\n    this.vsPeerMesh.position.copy(this.vsPeerRenderPosition);this.vsPeerMesh.quaternion.copy(this.vsPeerRenderQuaternion);this.vsPeerMesh.visible=true;\n  }\n'''
+          assert s.count(marker)==1
+          s=s.replace(marker,methods+marker,1)
+
+          old='this.vsStarting=false;this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;this.vsSharedOrigin=null;if(this.vsPeerMesh)this.vsPeerMesh.visible=false;const b=$("lanVsButton"),s=$("lanVsStatus");'
+          new='this.vsStarting=false;const mateWorld=this.vsWorldFromMate;this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;this.vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.clearVsPeerPresentation();if(mateWorld&&this.active)this.deactivate();const b=$("lanVsButton"),s=$("lanVsStatus");'
+          assert s.count(old)==1, ('stop',s.count(old))
+          s=s.replace(old,new,1)
+
+          old='if(![x,y,z].every(Number.isFinite))return;this.vsPeerMesh.position.set(x,y,z);const q=pose.q;if(Array.isArray(q)&&q.length===4&&q.every(Number.isFinite))this.vsPeerMesh.quaternion.set(q[0],q[1],q[2],q[3]);this.vsPeerMesh.visible=true;}'
+          new='if(![x,y,z].every(Number.isFinite))return;const q=pose.q;if(!Array.isArray(q)||q.length!==4||!q.every(Number.isFinite))return;this.vsPeerTargetPosition??=new THREE.Vector3();this.vsPeerTargetQuaternion??=new THREE.Quaternion();this.vsPeerTargetPosition.set(x,y,z);this.vsPeerTargetQuaternion.set(q[0],q[1],q[2],q[3]).normalize();this.vsPeerLastPoseMs=performance.now();if(!this.vsPeerRenderPosition){this.vsPeerRenderPosition=this.vsPeerTargetPosition.clone();this.vsPeerRenderQuaternion=this.vsPeerTargetQuaternion.clone();this.vsPeerRenderMs=this.vsPeerLastPoseMs;}this.updateVsPeerRender();}'
+          assert s.count(old)==1, ('apply pose',s.count(old))
+          s=s.replace(old,new,1)
+
+          old='updateVsPose(){if(!this.vsSession||!this.threeScene)return;'
+          new='updateVsPose(){this.updateVsPeerRender();this.ensureVsSharedWorld();if(!this.vsSession||!this.threeScene)return;'
+          assert s.count(old)==1, ('updateVsPose',s.count(old))
+          s=s.replace(old,new,1)
+
+          p.write_text(s)
+
+          # Permanent deterministic test must really keep peer B GPS-less.
+          p=Path('tests/lan_vs_smoke.mjs');s=p.read_text()
+          old='assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99],g:[9.171,47.661]}),true);'
+          new='assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99]}),true);'
+          assert s.count(old)==1, ('nogps pose',s.count(old));s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Make the reviewed integration properties permanent architecture gates.
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          marker='console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");'
+          guards='''requireText("sim/real_world_bootstrap.mjs","ensureVsSharedWorld(status=null)","GPS-less VS peer must adopt mate origin as the actual WORLD frame");\nrequireText("sim/real_world_bootstrap.mjs","vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.clearVsPeerPresentation()","peer leave must clear stale VS origin and presentation state");\nrequireText("sim/real_world_bootstrap.mjs","now-this.vsPeerLastPoseMs>1000","stale peer poses must disappear instead of freezing forever");\nrequireText("sim/real_world_bootstrap.mjs","this.vsPeerRenderPosition.lerp","peer pose smoothing must stay presentation-only");\nforbidText("tests/lan_vs_smoke.mjs","p:[4,5,6],q:[0,0,.1,.99],g:","GPS-less regression peer must not carry geolocation");\n'''
+          assert marker in s
+          if 'GPS-less VS peer must adopt mate origin as the actual WORLD frame' not in s:s=s.replace(marker,guards+marker,1)
+          p.write_text(s)
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/lan_vs.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+      - name: Commit final hardening
+        run: |
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/real_world_bootstrap.mjs tests/lan_vs_smoke.mjs tests/architecture_invariants.mjs
+          git commit -m 'Finalize GPS-less VS shared WORLD lifecycle'
+          git push
