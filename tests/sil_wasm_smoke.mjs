@@ -19,6 +19,12 @@ const STATE_FAULT = 4;
 const STATE_RC_VALID = 1 << 3;
 const STATE_NAVIGATION_VALID = 1 << 5;
 const STATE_GAME_MODE = 1 << 6;
+const STATE_NAVIGATION_DEGRADED = 1 << 7;
+const NAV_VELOCITY_VALID = 1;
+const NAV_AGL_VALID = 1 << 1;
+const NAV_HEADING_VALID = 1 << 2;
+const NAV_HEADING_SHIFT = 3;
+const NAV_SPLIT_VALIDITY = 1 << 15;
 
 function check(condition, message) {
   if (!condition) throw new Error(`WASM smoke test failed: ${message}`);
@@ -41,8 +47,8 @@ function crc16(bytes, length = bytes.length) {
 }
 function encodeSbus(channels) {
   const p = new Uint8Array(25);p[0] = 0x0f;p[24] = 0;
-  for (let channel = 0; channel < 16; ++channel) for (let bit = 0; bit < 11; ++bit) {
-    if (channels[channel] & (1 << bit)) {const k = 8 + channel * 11 + bit;p[k >> 3] |= 1 << (k & 7);}
+  for (let channel = 0; channel<16; ++channel) for (let bit = 0; bit<11; ++bit) {
+    if (channels[channel] & (1 << bit)) {const k=8+channel*11+bit;p[k >> 3] |= 1 << (k & 7);}
   }
   return p;
 }
@@ -53,7 +59,15 @@ function navigationWire(sequence, nav) {
   const s16 = value => Math.max(-32767, Math.min(32767, Math.round(value * 100)));
   view.setInt16(8, s16(nav.vx), true);view.setInt16(10, s16(nav.vy), true);view.setInt16(12, s16(nav.vz), true);
   view.setUint16(14, Math.max(0, Math.min(65535, Math.round(nav.agl * 1000))), true);
-  view.setUint16(16, nav.valid === false ? 0 : 1, true);view.setUint16(18, crc16(bytes, 18), true);
+  let flags=NAV_SPLIT_VALIDITY;
+  if(nav.valid!==false)flags|=NAV_VELOCITY_VALID|NAV_AGL_VALID;
+  const headingValid=nav.valid!==false&&nav.headingValid!==false;
+  if(headingValid){
+    const heading=Number.isFinite(nav.headingDeg)?nav.headingDeg:0;
+    const wrapped=((heading%360)+360)%360,code=Math.round(wrapped*10)%3600;
+    flags|=NAV_HEADING_VALID|(code<<NAV_HEADING_SHIFT);
+  }
+  view.setUint16(16, flags, true);view.setUint16(18, crc16(bytes, 18), true);
   return bytes;
 }
 function packet(sequence, {channels=null, reset=false, nav=null, navSequence=0, missed=0, imu=true}={}) {
@@ -88,17 +102,26 @@ channels[2]=700;output=exchange(packet(5005,{channels}));check(output.motors.eve
 for(let i=0;i<120;++i) output=exchange(packet(5100+i));
 check((output.state&STATE_ARMED)===0,"receiver timeout disarms");check((output.state&STATE_RC_VALID)===0,"receiver validity expires");
 
-// GAME mode: navigation is a real NAV1 frame, never cooked HIL state.
+// GAME mode: navigation is a real NAV1 frame, never cooked HIL state. Full
+// body-relative velocity control is only valid with velocity + AGL + absolute heading.
 core._fc_reset();channels.fill(992);channels[2]=172;channels[4]=172;channels[5]=718;channels[6]=1811;let navSequence=1;
-for(let i=0;i<2001;++i){const tick=i%10===0;output=exchange(packet(6000+i,{channels:tick?channels:null,reset:i===0,nav:tick?{vx:0,vy:0,vz:0,agl:.02}:null,navSequence:tick?navSequence++:0}));}
-check((output.state&STATE_GAME_MODE)!==0,"game mode active after calibration");check((output.state&STATE_NAVIGATION_VALID)!==0,"fresh NAV1 is valid");
+for(let i=0;i<2001;++i){const tick=i%10===0;output=exchange(packet(6000+i,{channels:tick?channels:null,reset:i===0,nav:tick?{vx:0,vy:0,vz:0,agl:.02,headingDeg:0}:null,navSequence:tick?navSequence++:0}));}
+check((output.state&STATE_GAME_MODE)!==0,"game mode active after calibration");check((output.state&STATE_NAVIGATION_VALID)!==0,"fresh heading-qualified NAV1 is valid");
+
+// A fresh velocity+AGL frame without absolute heading is intentionally degraded:
+// the FC must not call world/body velocity control 'valid' with an unobservable yaw.
+output=exchange(packet(8050,{channels,nav:{vx:0,vy:0,vz:0,agl:.02,headingValid:false},navSequence:navSequence++}));
+check((output.state&STATE_NAVIGATION_VALID)===0,"NAV1 without heading is not full GAME navigation");
+check((output.state&STATE_NAVIGATION_DEGRADED)!==0,"NAV1 without heading reports degraded GAME navigation");
+output=exchange(packet(8051,{channels,nav:{vx:0,vy:0,vz:0,agl:.02,headingDeg:0},navSequence:navSequence++}));
+check((output.state&STATE_NAVIGATION_VALID)!==0,"heading-qualified NAV1 recovers full GAME navigation");
 
 // No fresh NAV1 for >60 ms => GAME fails closed, despite continued 1 kHz IMU and SBUS.
 for(let i=0;i<70;++i) output=exchange(packet(8100+i,{channels:i%10===0?channels:null}));
 check((output.state&STATE_NAVIGATION_VALID)===0,"navigation freshness expires");check((output.state&STATE_ARMED)===0,"game cannot arm without navigation");
 
-channels[4]=172;output=exchange(packet(8200,{channels,nav:{vx:0,vy:0,vz:0,agl:.02},navSequence:navSequence++}));
+channels[4]=172;output=exchange(packet(8200,{channels,nav:{vx:0,vy:0,vz:0,agl:.02,headingDeg:0},navSequence:navSequence++}));
 channels[4]=1811;
-for(let i=0;i<1002;++i){const tick=i%10===0;output=exchange(packet(8201+i,{channels:tick?channels:null,nav:tick?{vx:0,vy:0,vz:0,agl:.02}:null,navSequence:tick?navSequence++:0}));}
+for(let i=0;i<1002;++i){const tick=i%10===0;output=exchange(packet(8201+i,{channels:tick?channels:null,nav:tick?{vx:0,vy:0,vz:0,agl:.02,headingDeg:0}:null,navSequence:tick?navSequence++:0}));}
 check((output.state&STATE_GAME_MODE)!==0,"game mode active");check((output.state&STATE_NAVIGATION_VALID)!==0,"navigation valid");check((output.state&STATE_ARMED)!==0,"game arming");check(output.motors.some(p=>p>1050),"ground-clearance controller produces physical thrust");
 console.log("Generated WebAssembly raw-hardware FirmwareRuntime smoke test passed.");
