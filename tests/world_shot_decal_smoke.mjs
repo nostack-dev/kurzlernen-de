@@ -32,9 +32,7 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.click("#camSolo");
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
-  await page.click("#soloWorld");
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
 
   const geometry=await page.evaluate(()=>{
@@ -75,5 +73,5 @@ try{
   if(!geometry.reusedHitObject)throw new Error(`WORLD impact result allocates per hit instead of reusing the hit object: ${JSON.stringify(geometry)}`);
   if(geometry.queries<2)throw new Error(`WORLD building-hit queries were not exercised: ${JSON.stringify(geometry)}`);
 
-  console.log(`WORLD pooled decal geometry passed: wall/roof/ground ray hits registered in local ENU with reused hit storage: ${JSON.stringify(geometry)}`);
+  console.log(`WORLD pooled decal geometry passed from automatic FPV/WORLD startup: wall/roof/ground ray hits registered in local ENU with reused hit storage: ${JSON.stringify(geometry)}`);
 }finally{await browser.close();}
