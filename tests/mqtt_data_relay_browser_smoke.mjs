@@ -11,7 +11,9 @@ for(const [page,label] of [[a,"A"],[b,"B"]]){
   page.on("pageerror",error=>console.error(`[${label}] pageerror`,error.message));
 }
 async function setup(page,label){
-  await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
+  // Deliberately load a script-free same-origin 404 page. The relay probe must be
+  // isolated from simulator imports so this gate tests only the broker data path.
+  await page.goto(`${base}/__mqtt_relay_probe__.html`,{waitUntil:"load",timeout:30000});
   await page.evaluate(async({roomId,label})=>{
     const mod=await import("/generated/mqtt_data_relay_probe.mjs");
     const state=globalThis.__relayProbe={label,peer:"",messages:[],joinError:"",rtt:null};
