@@ -5,6 +5,8 @@ const DEFAULT_PRIMARY_LOADER=()=>import("trystero");
 const DEFAULT_FALLBACK_LOADER=()=>import("@trystero-p2p/mqtt");
 const DISCOVERY_MAX_ROOMS=8;
 const PROXIMITY_CELL_M=800;
+const GESTURE_BUCKET_MS=8000;
+const GESTURE_DEFER_MS=650;
 const GEO_DISCOVERY_TIMEOUT_MS=1800;
 const GEO_DISCOVERY_MAX_AGE_MS=120000;
 const EARTH_RADIUS_M=6378137;
@@ -219,7 +221,7 @@ export class LanVsSession{
 }
 
 export class LanVsFinder{
-  constructor(options={}){this.options=options;this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();}
+  constructor(options={}){this.options=options;this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.gestureDeferMs=Number.isFinite(options.gestureDeferMs)?Math.max(0,Number(options.gestureDeferMs)):GESTURE_DEFER_MS;}
   makeChild(roomId){
     let child=null;const opts=this.options;
     child=new LanVsSession({
@@ -242,7 +244,24 @@ export class LanVsFinder{
     this.options.onPeer?.(peerId,roomId);
   }
   async start(roomIds){
-    if(this.started)return;this.started=true;const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}this.roomIds=ids;const children=ids.map(id=>this.makeChild(id));this.children=children;const results=await Promise.allSettled(children.map((child,index)=>child.start(ids[index])));if(!this.active&&results.every(result=>result.status==="rejected")){const reason=results.find(result=>result.status==="rejected")?.reason||Error("VS signaling unavailable");this.stop();throw reason;}
+    if(this.started)return;
+    this.started=true;
+    const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);
+    if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
+    this.roomIds=ids;
+    const entries=ids.map(id=>({id,child:this.makeChild(id)}));
+    this.children=entries.map(entry=>entry.child);
+    const trusted=entries.filter(entry=>!entry.id.startsWith("tap-")),gesture=entries.filter(entry=>entry.id.startsWith("tap-"));
+    const results=[];
+    const startEntries=async list=>{if(!list.length)return[];return Promise.allSettled(list.map(entry=>entry.child.start(entry.id)));};
+    results.push(...await startEntries(trusted));
+    if(!this.active&&gesture.length){
+      await new Promise(resolve=>setTimeout(resolve,this.gestureDeferMs));
+      if(this.started&&!this.active)results.push(...await startEntries(gesture));
+    }
+    if(!this.active&&this.started&&results.length&&results.every(result=>result.status==="rejected")){
+      const reason=results.find(result=>result.status==="rejected")?.reason||Error("VS signaling unavailable");this.stop();throw reason;
+    }
   }
   setOrigin(origin){if(!validOrigin(origin))return false;this.pendingOrigin={...origin};for(const child of this.active?[this.active]:this.children)child.setOrigin(origin);return true;}
   setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
@@ -255,6 +274,15 @@ async function hashRoomMaterial(material,cryptoObj){
   const bytes=new TextEncoder().encode(material);
   const digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));
   return [...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+
+export async function gestureRoomKeys({gestureTimeMs=Date.now(),cryptoObj=globalThis.crypto}={}){
+  const time=Number(gestureTimeMs);if(!Number.isFinite(time)||time<0)return[];
+  const bucket=Math.floor(time/GESTURE_BUCKET_MS),keys=[];
+  for(const slot of [bucket,bucket-1]){
+    const key=await hashRoomMaterial(`arondight45-vs-discovery-v6:gesture:${GESTURE_BUCKET_MS}:${slot}`,cryptoObj);keys.push(`tap-${key}`);
+  }
+  return [...new Set(keys)];
 }
 
 export async function sameNetworkRoomKeys({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials}={}){
@@ -271,14 +299,17 @@ export async function proximityRoomKeys({longitude,latitude,cryptoObj=globalThis
   if(!Number.isFinite(longitude)||!Number.isFinite(latitude)||Math.abs(longitude)>180||Math.abs(latitude)>85)return[];const lonRad=longitude*Math.PI/180,latRad=latitude*Math.PI/180,x=EARTH_RADIUS_M*lonRad,y=EARTH_RADIUS_M*Math.log(Math.tan(Math.PI/4+latRad/2)),half=PROXIMITY_CELL_M/2,shifts=[[0,0],[half,0],[0,half],[half,half]],keys=[];
   for(let i=0;i<shifts.length;i++){const [sx,sy]=shifts[i],ix=Math.floor((x+sx)/PROXIMITY_CELL_M),iy=Math.floor((y+sy)/PROXIMITY_CELL_M),key=await hashRoomMaterial(`arondight45-vs-discovery-v5:geo:${PROXIMITY_CELL_M}:${i}:${ix}:${iy}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
-export async function discoveryRoomKeys({longitude,latitude,fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials,positionFn=browserPosition}={}){
+export async function discoveryRoomKeys({longitude,latitude,fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials,positionFn=browserPosition,gestureTimeMs=Date.now()}={}){
+  const gesturePromise=gestureRoomKeys({gestureTimeMs,cryptoObj});
   let position=normalizePosition({longitude,latitude});
   if(!position&&typeof positionFn==="function"){
     try{position=normalizePosition(await positionFn());}catch{}
   }
-  const [geo,network]=await Promise.all([
+  const [gesture,geo,network]=await Promise.all([
+    gesturePromise,
     position?proximityRoomKeys({...position,cryptoObj}):Promise.resolve([]),
     sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[])
   ]);
-  const keys=[...geo,...network];if(!keys.length)throw Error("No automatic proximity/network discovery path available");return [...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);
+  const trusted=[...new Set([...geo,...network])].slice(0,Math.max(0,DISCOVERY_MAX_ROOMS-gesture.length));
+  const keys=[...trusted,...gesture];if(!keys.length)throw Error("No automatic proximity/network/gesture discovery path available");return [...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);
 }
