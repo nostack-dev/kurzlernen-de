@@ -35,6 +35,7 @@ jobs:
           /tmp/sil_test
           node tests/control_semantics_test.mjs
           node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -141,6 +142,7 @@ jobs:
           node --check sim/solo_layout.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/auto_flight_start.mjs
+          node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/sil_wasm_smoke.mjs
@@ -151,6 +153,7 @@ jobs:
           node --check tests/world_shot_decal_smoke.mjs
           node --check tests/world_fpv_frame_lock_smoke.mjs
           node --check tests/game_speed_envelope_smoke.mjs
+          node --check tests/lan_vs_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
 
       - uses: actions/configure-pages@v5
