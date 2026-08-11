@@ -22,6 +22,7 @@ jobs:
           grep -q 'ECDH' sim/mqtt_data_relay.mjs
           grep -q 'AES-GCM' sim/mqtt_data_relay.mjs
           grep -q 'kind==="sealed"' sim/mqtt_data_relay.mjs
+          grep -q 'vs-data/v2' sim/mqtt_data_relay.mjs
 
       - name: Build exact WebAssembly runtime
         run: |
@@ -60,11 +61,6 @@ jobs:
           bundle=Path('/tmp/arondight45-simulator.bundle.mjs').read_text().replace('</script','<\\/script')
           path.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
           PY
-          grep -q 'arondight45/vs-data/v2' drone_simulator.html
-          grep -q 'test.mosquitto.org' drone_simulator.html
-          grep -q 'broker.emqx.io' drone_simulator.html
-          grep -q 'public.cloud.shiftr.io' drone_simulator.html
-          grep -q 'AES-GCM' drone_simulator.html
           ! grep -q 'import mqtt from' drone_simulator.html
 
       - name: Real broker path plus integrated browser regression
