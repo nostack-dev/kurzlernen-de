@@ -11,7 +11,7 @@ for(const [page,label] of [[a,"A"],[b,"B"]]){
   page.on("pageerror",error=>console.error(`[${label}] pageerror`,error.message));
 }
 async function setup(page,label){
-  await page.goto(`${base}/__mqtt_relay_probe__.html`,{waitUntil:"load",timeout:30000});
+  await page.goto(`${base}/tests/mqtt_relay_probe.html`,{waitUntil:"load",timeout:30000});
   await page.evaluate(async({roomId,label})=>{
     const mod=await import("/generated/mqtt_data_relay_probe.mjs");
     const state=globalThis.__relayProbe={label,peer:"",messages:[],joinError:"",rtt:null};
@@ -45,7 +45,7 @@ try{
   if(!stateA.messages.some(item=>item.data?.from==="b"))throw new Error(`B→A action missing; A=${JSON.stringify(stateA)} B=${JSON.stringify(stateB)}`);
   if(!Number.isFinite(stateA.rtt)||stateA.rtt<0)throw new Error(`broker ping failed: A=${JSON.stringify(stateA)} B=${JSON.stringify(stateB)}`);
   for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);}
-  console.log(`MQTT data relay browser smoke passed: two browsers paired (${peers.join(" ↔ ")}), bidirectional action data + ping; rtt=${stateA.rtt.toFixed(1)}ms`);
+  console.log(`MQTT data relay browser smoke passed: two browsers paired (${peers.join(" ↔ ")}), bidirectional encrypted action data + ping; rtt=${stateA.rtt.toFixed(1)}ms`);
 }finally{
   await Promise.allSettled([a.evaluate(()=>globalThis.__relayProbe?.room?.leave?.()),b.evaluate(()=>globalThis.__relayProbe?.room?.leave?.())]);
   await browser.close();
