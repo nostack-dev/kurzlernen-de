@@ -52,7 +52,7 @@ void set_sbus(hil::InputPacket& input, const std::array<uint16_t, 16>& channels)
 
 void set_navigation(hil::InputPacket& input, uint16_t nav_sequence,
                     float vx, float vy, float vz, float agl, bool valid = true) {
-    const auto frame = hwcontract::encode_navigation_wire(nav_sequence, vx, vy, vz, agl, valid);
+    const auto frame = hwcontract::encode_navigation_wire(nav_sequence, vx, vy, vz, agl, valid, valid, 0.0f, valid);
     std::memcpy(input.navigation_frame, &frame, sizeof(frame));
     input.flags |= hil::kFlagNavigationPresent;
     finalize(input);
@@ -70,6 +70,7 @@ int main() {
         CHECK(!decoded.valid);
         CHECK(fc::navigation_velocity_valid(decoded));
         CHECK(!fc::navigation_agl_valid(decoded));
+        CHECK(!fc::navigation_heading_valid(decoded));
 
         auto legacy = split;
         legacy.flags = hwcontract::kNavigationValid;
@@ -78,6 +79,13 @@ int main() {
         decoded = {};
         CHECK(hwcontract::decode_navigation_wire(legacy, decoded));
         CHECK(decoded.valid && decoded.velocity_valid && decoded.agl_valid);
+        CHECK(!decoded.heading_valid);
+
+        const auto with_heading = hwcontract::encode_navigation_wire(8, 1.0f, -2.0f, 0.3f, 2.0f, true, true, -123.4f, true);
+        decoded = {};
+        CHECK(hwcontract::decode_navigation_wire(with_heading, decoded));
+        CHECK(decoded.heading_valid);
+        CHECK(std::fabs(decoded.heading_deg + 123.4f) < 0.11f);
     }
     CHECK(sizeof(hil::InputPacket) == 80);
     CHECK(sizeof(hil::OutputPacket) == 32);

@@ -26,6 +26,9 @@ constexpr uint32_t kNavigationMagic = 0x3156414eu;  // "NAV1" little-endian.
 constexpr uint16_t kNavigationVersion = 1;
 constexpr uint16_t kNavigationVelocityValid = 1u << 0;
 constexpr uint16_t kNavigationAglValid = 1u << 1;
+constexpr uint16_t kNavigationHeadingValid = 1u << 2;
+constexpr uint16_t kNavigationHeadingShift = 3;
+constexpr uint16_t kNavigationHeadingMask = 0x7ff8u;  // 12 bits, 0.1 degree/code.
 constexpr uint16_t kNavigationSplitValidity = 1u << 15;
 // Legacy v1 senders used bit 0 to mean the whole NAV solution was valid.
 constexpr uint16_t kNavigationValid = kNavigationVelocityValid;
@@ -115,14 +118,24 @@ inline bool decode_navigation_wire(const NavigationWireFrame& frame, fc::Navigat
         out.velocity_valid = legacy_valid;
         out.agl_valid = legacy_valid;
     }
+    out.heading_valid = split && (frame.flags & kNavigationHeadingValid) != 0;
+    out.heading_deg = 0.0f;
+    if (out.heading_valid) {
+        const uint16_t code = static_cast<uint16_t>((frame.flags & kNavigationHeadingMask) >> kNavigationHeadingShift);
+        if (code >= 3600u) return false;
+        out.heading_deg = static_cast<float>(code) * 0.1f;
+        if (out.heading_deg >= 180.0f) out.heading_deg -= 360.0f;
+    }
     out.valid = out.velocity_valid && out.agl_valid;
     return (!out.velocity_valid || fc::finite(out.velocity_world_mps)) &&
-           (!out.agl_valid || (std::isfinite(out.agl_m) && out.agl_m >= 0.0f));
+           (!out.agl_valid || (std::isfinite(out.agl_m) && out.agl_m >= 0.0f)) &&
+           (!out.heading_valid || fc::navigation_heading_valid(out));
 }
 
 inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
                                                   float vx_mps, float vy_mps, float vz_mps,
-                                                  float agl_m, bool velocity_valid, bool agl_valid) {
+                                                  float agl_m, bool velocity_valid, bool agl_valid,
+                                                  float heading_deg = 0.0f, bool heading_valid = false) {
     auto s16 = [](float value) {
         const long rounded = std::lround(value * 100.0f);
         return static_cast<int16_t>(fc::clamp<long>(rounded, -32767l, 32767l));
@@ -137,6 +150,14 @@ inline NavigationWireFrame encode_navigation_wire(uint16_t sequence,
     frame.flags = kNavigationSplitValidity |
         (velocity_valid ? kNavigationVelocityValid : 0u) |
         (agl_valid ? kNavigationAglValid : 0u);
+    if (heading_valid && std::isfinite(heading_deg)) {
+        float wrapped = std::fmod(heading_deg, 360.0f);
+        if (wrapped < 0.0f) wrapped += 360.0f;
+        long code = std::lround(wrapped * 10.0f);
+        if (code >= 3600l) code -= 3600l;
+        frame.flags |= kNavigationHeadingValid |
+            static_cast<uint16_t>((static_cast<uint16_t>(code) << kNavigationHeadingShift) & kNavigationHeadingMask);
+    }
     frame.crc16 = crc16_ccitt(&frame, offsetof(NavigationWireFrame, crc16));
     return frame;
 }

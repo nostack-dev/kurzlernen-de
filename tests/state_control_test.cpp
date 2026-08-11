@@ -222,6 +222,17 @@ int main() {
     CHECK(controller.debug().right_accel_mps2 > 0.75f && controller.debug().right_accel_mps2 < 0.85f);
     CHECK(cmd.roll < -0.08f);
 
+    // Absolute NAV heading, when present, is the physical world/body frame
+    // reference. A drifting 6-DoF IMU yaw must not rotate velocity axes.
+    controller.reset();
+    rc = base_rc(true);
+    rc.ch[FC_SBUS_PITCH] = centered_raw(1.0f);
+    nav = {{0.0f, -10.0f, 0.0f}, 2.0f, true, true, true, 90.0f, true};
+    cmd = controller.run(rc, nav, 12.0f, true, 0.001f);
+    CHECK(std::fabs(controller.debug().measured_yaw_deg - 90.0f) < 0.001f);
+    CHECK(controller.debug().measured_forward_mps > 9.99f);
+    CHECK(std::fabs(controller.debug().measured_right_mps) < 0.01f);
+
     controller.reset();
     rc = base_rc(true);
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
@@ -242,19 +253,19 @@ int main() {
         for (uint32_t i = 0; i < fc::kCalibrationSamples + 10; ++i) {
             in.flight = stationary_input(t += 1000);
             in.flight.rc = base_rc(false);
-            in.navigation = {{0.0f, 0.0f, 0.0f}, 2.0f, true, true, true};
+            in.navigation = {{0.0f, 0.0f, 0.0f}, 2.0f, true, true, true, 0.0f, true};
             state_runtime.step(in);
         }
         for (int i = 0; i < 1100; ++i) {
             in.flight = stationary_input(t += 1000);
             in.flight.rc = base_rc(true);
-            in.navigation = {{0.0f, 0.0f, 0.0f}, 2.0f, true, true, true};
+            in.navigation = {{0.0f, 0.0f, 0.0f}, 2.0f, true, true, true, 0.0f, true};
             state_runtime.step(in);
         }
         CHECK(state_runtime.inner().armed());
         in.flight = stationary_input(t += 1000);
         in.flight.rc = base_rc(true);
-        in.navigation = {{0.0f, 0.0f, 0.35f}, 0.0f, false, true, false};
+        in.navigation = {{0.0f, 0.0f, 0.35f}, 0.0f, false, true, false, 0.0f, true};
         auto degraded = state_runtime.step(in);
         CHECK(degraded.armed);
         CHECK((degraded.state & fc::kStateNavigationDegraded) != 0);

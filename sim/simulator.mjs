@@ -30,6 +30,8 @@ const STATE_GAME_MODE = 1 << 6;
 const STATE_NAVIGATION_DEGRADED = 1 << 7;
 const NAV_VELOCITY_VALID = 1 << 0;
 const NAV_AGL_VALID = 1 << 1;
+const NAV_HEADING_VALID = 1 << 2;
+const NAV_HEADING_SHIFT = 3;
 const NAV_SPLIT_VALIDITY = 1 << 15;
 const TERRAIN_SIZE = 600;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
@@ -98,7 +100,11 @@ function encodeNavigationWire(sequence,measurement){
   const bytes=new Uint8Array(NAVIGATION_BYTES),view=new DataView(bytes.buffer),s16=value=>clamp(Math.round(value*100),-32767,32767);
   view.setUint32(0,0x3156414e,true);view.setUint16(4,1,true);view.setUint16(6,sequence&0xffff,true);
   view.setInt16(8,s16(measurement.vx),true);view.setInt16(10,s16(measurement.vy),true);view.setInt16(12,s16(measurement.vz),true);
-  const flags=NAV_SPLIT_VALIDITY|(measurement.velocityValid?NAV_VELOCITY_VALID:0)|(measurement.aglValid?NAV_AGL_VALID:0);
+  let flags=NAV_SPLIT_VALIDITY|(measurement.velocityValid?NAV_VELOCITY_VALID:0)|(measurement.aglValid?NAV_AGL_VALID:0);
+  if(measurement.headingValid&&Number.isFinite(measurement.headingDeg)){
+    const wrapped=((measurement.headingDeg%360)+360)%360,code=Math.round(wrapped*10)%3600;
+    flags|=NAV_HEADING_VALID|(code<<NAV_HEADING_SHIFT);
+  }
   view.setUint16(14,clamp(Math.round(Math.max(0,measurement.agl)*1000),0,65535),true);view.setUint16(16,flags,true);
   view.setUint16(18,crc16Ccitt(bytes,18),true);return bytes;
 }
@@ -269,14 +275,15 @@ class Noise {
 // NAV1 bytes accepted by the target UART; FirmwareRuntime owns decode/freshness.
 class SimNavigationSensors {
   constructor(){this.reset();}
-  reset(){this.noise=new Noise(0x7193ab21);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};}
+  reset(){this.noise=new Noise(0x7193ab21);this.headingNoise=new Noise(0x45a1d1a5);this.elapsed=.01;this.filtered=[0,0,0];this.sequence=1;this.last={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false,headingDeg:0,headingValid:false};}
   sampleFrame(model,dt=DT){
     this.elapsed+=dt;if(this.elapsed<.01)return null;this.elapsed-=.01;
     const truth=model.linear(),alpha=.42;
     for(let i=0;i<3;i++){const measured=truth[i]+this.noise.gaussian()*.025;this.filtered[i]+=alpha*(measured-this.filtered[i]);}
     const velocityValid=this.filtered.every(Number.isFinite),range=model.groundRange(NAV_AGL_RAY_MAX_M),aglValid=range.valid;let agl=0;
     if(aglValid){const measuredSlant=Math.max(0,range.slant+this.noise.gaussian()*.004);agl=measuredSlant*range.verticalProjection;}
-    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid:velocityValid&&aglValid,velocityValid,aglValid};
+    const truthHeading=quatToEuler(model.rotation())[2],headingDeg=(((truthHeading+this.headingNoise.gaussian()*.12+180)%360)+360)%360-180,headingValid=Number.isFinite(headingDeg);
+    this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid:velocityValid&&aglValid,velocityValid,aglValid,headingDeg,headingValid};
     return encodeNavigationWire(this.sequence++,this.last);
   }
 }
@@ -471,7 +478,7 @@ document.addEventListener("visibilitychange",()=>{motorSound.syncState();updateS
 updateSoundButton();
 const navigationSensors=new SimNavigationSensors();
 const sbusReceiver=new SimSbusReceiver();
-let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};
+let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false,headingDeg:0,headingValid:false};
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
 let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFollowInitialized=false;
 const followHeading=new THREE.Vector3(-1,0,0),thirdHeading=new THREE.Vector3(-1,0,0);
@@ -662,7 +669,7 @@ async function switchMode(next){
 function resetSimulation(initial=null){
   if(typeof flightLogbook!=="undefined")flightLogbook.finish("SIM_RESET");
   phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
-  physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
+  physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false,headingDeg:0,headingValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }
 function localControlState(){

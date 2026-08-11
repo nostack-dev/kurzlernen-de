@@ -30,6 +30,8 @@ struct NavigationState {
     bool valid{};
     bool velocity_valid{};
     bool agl_valid{};
+    float heading_deg{};
+    bool heading_valid{};
 };
 
 inline bool navigation_velocity_valid(const NavigationState& n) {
@@ -37,6 +39,9 @@ inline bool navigation_velocity_valid(const NavigationState& n) {
 }
 inline bool navigation_agl_valid(const NavigationState& n) {
     return (n.agl_valid || n.valid) && std::isfinite(n.agl_m) && n.agl_m >= 0.0f && n.agl_m < 1000.0f;
+}
+inline bool navigation_heading_valid(const NavigationState& n) {
+    return n.heading_valid && std::isfinite(n.heading_deg) && n.heading_deg >= -180.0f && n.heading_deg <= 180.0f;
 }
 inline bool finite(const NavigationState& n) {
     return navigation_velocity_valid(n) && navigation_agl_valid(n);
@@ -116,6 +121,7 @@ class StateController {
 public:
     void reset() {
         active_ = false;
+        heading_source_valid_ = false;
         target_yaw_deg_ = 0.0f;
         hover_trim_ = kInitialHoverThrottle;
         reset_horizontal_state();
@@ -124,6 +130,7 @@ public:
 
     void leave_mode() {
         active_ = false;
+        heading_source_valid_ = false;
         reset_horizontal_state();
         debug_ = {};
     }
@@ -131,15 +138,24 @@ public:
     Command run(const RC& receiver, const NavigationState& nav, float yaw_deg,
                 bool inner_armed, float dt, bool agl_valid = true) {
         const StateIntent intent = state_intent(receiver);
-        if (!active_) {
-            target_yaw_deg_ = wrap_degrees(yaw_deg);
+        const bool absolute_heading_valid = navigation_heading_valid(nav);
+        const float measured_yaw_deg = wrap_degrees(absolute_heading_valid ? nav.heading_deg : yaw_deg);
+        // World-frame navigation velocity cannot be projected into body forward/right
+        // indefinitely from a 6-DoF gyro yaw: yaw has no absolute observable and drifts.
+        // NAV heading closes that missing degree of freedom. On source transitions we
+        // rebase the target to the current physical heading and clear frame-dependent
+        // horizontal estimator/integral state, avoiding a discontinuous yaw command.
+        if (!active_ || heading_source_valid_ != absolute_heading_valid) {
+            target_yaw_deg_ = measured_yaw_deg;
+            heading_source_valid_ = absolute_heading_valid;
+            reset_horizontal_state();
             active_ = true;
         }
 
         dt = clamp(dt, 0.0002f, 0.02f);
         target_yaw_deg_ = wrap_degrees(target_yaw_deg_ + intent.yaw_rate_dps * dt);
 
-        const float yaw_rad = yaw_deg * kPi / 180.0f;
+        const float yaw_rad = measured_yaw_deg * kPi / 180.0f;
         const float c = std::cos(yaw_rad);
         const float s = std::sin(yaw_rad);
         const float measured_forward = -c * nav.velocity_world_mps.x - s * nav.velocity_world_mps.y;
@@ -147,10 +163,11 @@ public:
 
         if (!inner_armed) {
             reset_horizontal_state();
-            target_yaw_deg_ = wrap_degrees(yaw_deg);
+            target_yaw_deg_ = measured_yaw_deg;
+            heading_source_valid_ = absolute_heading_valid;
             debug_ = {intent.forward_mps, measured_forward,
                       intent.right_mps, measured_right,
-                      target_yaw_deg_, yaw_deg,
+                      target_yaw_deg_, measured_yaw_deg,
                       intent.clearance_m, nav.agl_m,
                       0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                       0.0f, 0.0f, 0.0f};
@@ -233,7 +250,7 @@ public:
         const float pitch_command = clamp(pitch_target_deg / kInnerAttitudeRangeDeg,
                                           -kMaxAttitudeCommand, kMaxAttitudeCommand);
 
-        const float yaw_error = wrap_degrees(target_yaw_deg_ - yaw_deg);
+        const float yaw_error = wrap_degrees(target_yaw_deg_ - measured_yaw_deg);
         const float desired_yaw_rate = clamp(intent.yaw_rate_dps + kHeadingKp * yaw_error,
                                              -180.0f, 180.0f);
         const float yaw_command = desired_yaw_rate / 180.0f;
@@ -254,7 +271,7 @@ public:
 
         debug_ = {intent.forward_mps, measured_forward,
                   intent.right_mps, measured_right,
-                  target_yaw_deg_, yaw_deg,
+                  target_yaw_deg_, measured_yaw_deg,
                   intent.clearance_m, nav.agl_m,
                   target_vz, throttle_command,
                   roll_command, pitch_command, yaw_command,
@@ -379,6 +396,7 @@ private:
     }
 
     bool active_{};
+    bool heading_source_valid_{};
     bool acceleration_estimator_valid_{};
     float acceleration_sample_dt_s_{};
     V3 previous_velocity_world_mps_{};
@@ -428,7 +446,9 @@ public:
 
         const bool velocity_valid = navigation_velocity_valid(input.navigation);
         const bool agl_valid = navigation_agl_valid(input.navigation);
-        const bool full_navigation = velocity_valid && agl_valid;
+        const bool heading_valid = navigation_heading_valid(input.navigation);
+        const bool horizontal_navigation = velocity_valid && heading_valid;
+        const bool full_navigation = horizontal_navigation && agl_valid;
 
         if (!runtime_.armed() && !full_navigation) {
             state_controller_.leave_mode();
@@ -442,7 +462,7 @@ public:
                              ? static_cast<float>(input.flight.dt_us) * 1.0e-6f
                              : 0.001f;
         Command physical_command{};
-        if (velocity_valid) {
+        if (horizontal_navigation) {
             physical_command = state_controller_.run(
                 input.flight.rc, input.navigation, last_yaw_deg_, runtime_.armed(), dt, agl_valid);
         } else {

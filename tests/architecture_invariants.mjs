@@ -75,6 +75,13 @@ requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_sbus");
 requireText("esp32/Arondight45_FirmwareRuntime.hpp","kNavigationTimeoutUs");
 requireText("esp32/Arondight45_HardwareSensors.hpp","NavigationWireFrame");
 requireText("esp32/Arondight45_HardwareSensors.hpp","crc16_ccitt");
+requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationHeadingValid = 1u << 2");
+requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationHeadingMask = 0x7ff8u");
+requireText("esp32/Arondight45_StateControl.hpp","navigation_heading_valid");
+requireText("esp32/Arondight45_StateControl.hpp","horizontal_navigation = velocity_valid && heading_valid");
+requireText("esp32/Arondight45_StateControl.hpp","absolute_heading_valid ? nav.heading_deg : yaw_deg");
+requireText("sim/simulator.mjs","NAV_HEADING_VALID = 1 << 2");
+requireText("sim/simulator.mjs","headingNoise=new Noise");
 
 requireText("esp32/Arondight45_HIL_Protocol.hpp","kProtocolVersion = 3");
 requireText("esp32/Arondight45_HIL_Protocol.hpp","fc::FirmwareRuntime runtime_");
