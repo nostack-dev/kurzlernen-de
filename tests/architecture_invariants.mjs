@@ -50,7 +50,7 @@ requireText("esp32/Arondight45_StateControl.hpp","kInnerAttitudeRangeDeg = kInne
 requireText("esp32/Arondight45_StateControl.hpp","kMaxTiltDeg = 40.0f");
 const stateControlSource=read("esp32/Arondight45_StateControl.hpp"),tiltMatch=stateControlSource.match(/kMaxTiltDeg = ([0-9.]+)f/);
 if(!tiltMatch||Math.abs(Number(tiltMatch[1])-MAX_GAME_TILT_DEG)>1e-9)fail(`JS/C++ GAME tilt envelope diverged: JS ${MAX_GAME_TILT_DEG}, C++ ${tiltMatch?.[1]}`);
-const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);
+const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);
 if(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M<requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M)fail(`AGL slant range ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
 requireText("esp32/Arondight45_StateControl.hpp","kMaxHorizontalAccelerationMps2 = 7.5f");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalIntegralLimitMps2 = 7.0f");

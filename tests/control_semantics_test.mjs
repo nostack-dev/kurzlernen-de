@@ -32,7 +32,7 @@ for(const value of [0,.02,.1,.25,.5,.75,1])near(gameStateStickMagnitude(inverseG
 assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:999}).maxHorizontalSpeedKmh,90);assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:-5}).maxHorizontalSpeedKmh,5);
 assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
 assert.equal(MAX_GAME_TILT_DEG,40);assert.equal(GAME_AGL_SENSOR_RANGE_MARGIN_M,10);
-const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);
+const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);
 assert.ok(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M>=requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M,`AGL sensor envelope ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
 assert.equal(copyControls({groundClearance:999}).groundClearance,50);assert.equal(copyControls({groundClearance:-5}).groundClearance,.5);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
