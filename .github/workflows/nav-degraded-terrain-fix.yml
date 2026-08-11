@@ -68,6 +68,6 @@ jobs:
           set -euxo pipefail
           git config user.name 'Christian Heinrich Hohlfeld'
           git config user.email 'chris.hohlfeld@gmail.com'
-          git add sim/simulator.mjs tests/game_speed_envelope_smoke.mjs .github/workflows/nav-degraded-terrain-fix.yml
+          git add -A
           git commit -m 'Keep NAV valid beyond local terrain edge'
           git push origin HEAD:main
