@@ -1,0 +1,46 @@
+name: one-shot-vs-origin-rollback
+on:
+  push:
+    branches: ["fix/final-vs-shared-world"]
+    paths: [".github/workflows/one-shot-vs-origin-rollback.yml"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clear borrowed geospatial origin on failure and leave
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/real_world_bootstrap.mjs');s=p.read_text()
+          old='if(mateWorld&&this.active)this.deactivate();if(button)button.textContent="VS · WAITING";'
+          new='if(mateWorld){if(this.active)this.deactivate();this.originLon=null;this.originLat=null;}if(button)button.textContent="VS · WAITING";'
+          assert s.count(old)==1,('leave rollback',s.count(old));s=s.replace(old,new,1)
+          old='if(mateWorld&&this.active)this.deactivate();const b=$("lanVsButton"),s=$("lanVsStatus");'
+          new='if(mateWorld){if(this.active)this.deactivate();this.originLon=null;this.originLat=null;}const b=$("lanVsButton"),s=$("lanVsStatus");'
+          assert s.count(old)==1,('stop rollback',s.count(old));s=s.replace(old,new,1)
+          old='    }catch(error){this.loading=false;throw error;}\n  }\n  deactivate(){'
+          new='    }catch(error){this.loading=false;if(fromMate){this.originLon=null;this.originLat=null;this.vsWorldFromMate=false;}throw error;}\n  }\n  deactivate(){'
+          assert s.count(old)==1,('activation rollback',s.count(old));s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          marker='console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");'
+          guard='requireText("sim/real_world_bootstrap.mjs","if(fromMate){this.originLon=null;this.originLat=null;this.vsWorldFromMate=false;}","failed mate-WORLD activation must roll back borrowed geospatial origin");\n'
+          assert marker in s
+          if 'failed mate-WORLD activation must roll back borrowed geospatial origin' not in s:s=s.replace(marker,guard+marker,1)
+          p.write_text(s)
+          PY
+          node --check sim/real_world_bootstrap.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+      - name: Commit rollback hardening
+        run: |
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/real_world_bootstrap.mjs tests/architecture_invariants.mjs
+          git commit -m 'Roll back borrowed VS origin cleanly'
+          git push
