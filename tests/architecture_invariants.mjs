@@ -73,6 +73,7 @@ requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_icm42688_registers")
 requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_navigation_wire");
 requireText("esp32/Arondight45_FirmwareRuntime.hpp","decode_sbus");
 requireText("esp32/Arondight45_FirmwareRuntime.hpp","kNavigationTimeoutUs");
+requireText("esp32/Arondight45_FirmwareRuntime.hpp","navigation.heading_valid = false;");
 requireText("esp32/Arondight45_HardwareSensors.hpp","NavigationWireFrame");
 requireText("esp32/Arondight45_HardwareSensors.hpp","crc16_ccitt");
 requireText("esp32/Arondight45_HardwareSensors.hpp","kNavigationHeadingValid = 1u << 2");
@@ -92,7 +93,7 @@ for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
 
-for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = 60","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
+for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = 70","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
   requireText("sim/simulator.mjs",marker);
 requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
 requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM");
@@ -140,6 +141,11 @@ requireText("sim/simulator.mjs",'Object.defineProperty(globalThis,"__arondightDi
 requireText("sim/simulator.mjs","simTime:{get:()=>simTime");
 requireText("sim/simulator.mjs","b3.b3World_Step(this.world,dt,4)");
 requireText("sim/simulator.mjs","cdA=[.035,.035,.07].map(x=>x*p.dragScale)");
+const sensorContractSource=read("sim/simulator.mjs"),stateContractSource=read("esp32/Arondight45_StateControl.hpp");
+const rayMatch=sensorContractSource.match(/NAV_AGL_RAY_MAX_M = ([0-9.]+)/),tiltMatch=stateContractSource.match(/kMaxTiltDeg = ([0-9.]+)f/),clearanceMatch=stateContractSource.match(/kStateMaxClearanceM = ([0-9.]+)f/);
+if(!rayMatch||!tiltMatch||!clearanceMatch)fail("cannot parse WORLD AGL/tilt sensor contract");
+const rayM=Number(rayMatch[1]),tiltDeg=Number(tiltMatch[1]),clearanceM=Number(clearanceMatch[1]),requiredSlantM=clearanceM/Math.cos(tiltDeg*Math.PI/180);
+if(!(rayM>=requiredSlantM+.25))fail(`WORLD NAV ray ${rayM} m cannot cover ${clearanceM} m AGL at ${tiltDeg} deg GAME tilt; needs ${requiredSlantM.toFixed(2)} m plus margin`);
 requireText("sim/simulator.mjs","angularDrag=omega.map(v=>-.0012*v*Math.abs(v))");
 forbidText("sim/simulator.mjs","angularDrag=omega.map(v=>-.0012*p.dragScale", "linear drag fit must not mutate angular damping");
 requireText("sim/simulator.mjs",'localStorage.getItem("arondight45FittedPhysicsV2")');
@@ -178,6 +184,14 @@ requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.m
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
 for(const marker of ["FLIGHT_LOGBOOK_KEY","EXPORT JSON","maxForwardMps","maxRightMps"])requireText("sim/flight_logbook.mjs",marker);
 for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);
+const fireFxSource=read("sim/flight_fire_fx.mjs"),fireHotStart=fireFxSource.indexOf("  function fire(now){"),fireHotEnd=fireFxSource.indexOf("  function scheduleFire()",fireHotStart),shotSoundStart=fireFxSource.indexOf("  function shotSound(){"),shotSoundEnd=fireFxSource.indexOf("  function screenImpact",shotSoundStart);
+if(fireHotStart<0||fireHotEnd<=fireHotStart)fail("cannot isolate fire hotpath");
+if(fireFxSource.slice(fireHotStart,fireHotEnd).includes("scene.traverse"))fail("fire hotpath traverses the whole THREE scene per shot");
+if(shotSoundStart<0||shotSoundEnd<=shotSoundStart)fail("cannot isolate shot audio hotpath");
+if(fireFxSource.slice(shotSoundStart,shotSoundEnd).includes("createBufferSource"))fail("shot audio allocates AudioNodes per shot");
+forbidText("sim/flight_fire_fx.mjs","offsetWidth","fire impact animation must not force synchronous layout");
+for(const marker of ["RAYCAST_REFRESH_MS=500","function rebuildCandidates","fireRaycastBuilds","noiseSource.loop=true","hit.object?.attach","arondight45:impact","belongsToAirframe","worldHit.mapDecal"])requireText("sim/flight_fire_fx.mjs",marker);
+for(const marker of ["el.dataset.pulse","childadded","childremoved","candidatesDirty","intersections.find(item=>hitEligible(item.object))"])requireText("sim/flight_fire_fx.mjs",marker);
 for(const dirty of ["applyForces(","b3Body_ApplyForce","motorOmega","fc::Runtime","StateController"])forbidText("sim/flight_fire_fx.mjs",dirty,`presentation-only fire FX gained flight authority: ${dirty}`);
 for(const marker of ["kStateNavigationDegraded","navigation_velocity_valid","navigation_agl_valid","degraded_attitude_command"])requireText("esp32/Arondight45_StateControl.hpp",marker);
 for(const marker of ["kNavigationVelocityValid","kNavigationAglValid","kNavigationSplitValidity"])requireText("esp32/Arondight45_HardwareSensors.hpp",marker);
@@ -228,6 +242,8 @@ requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
 requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
+for(const marker of ["MercatorCoordinate","class WorldImpactLayer","arondight45-impact-decals","renderingMode=\"3d\"","WORLD_IMPACT_POOL_SIZE=32","worldImpactLayer.addImpact","worldImpactDepth=\"maplibre-3d\""])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WebGL2RenderingContext","#version 300 es","gl_FragColor","this.installImpactLayer();return this.map","this.vertices.fill(0)"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const marker of ["TorusGeometry(.15","worldHaloBack","worldHeadingCue","showWorldMarker=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
 for(const marker of ['if(mode==="fpv"){const dir=','camera.lookAt(camera.position.clone().addScaledVector(dir,4));return;'])requireText("sim/real_world_bootstrap.mjs",marker);
@@ -283,6 +299,9 @@ requireText("tests/browser_sim_smoke.mjs","turnStart+.30");
 for(const path of [".github/workflows/one-shot-shared-controls.yml",".github/workflows/oneoff-complete-game-spec.yml",".github/workflows/oneoff-complete-game-spec-v2.yml","tools/patch_shared_control_semantics.py"])
   if(existsSync(path))fail(`historical migration scaffold still exists: ${path}`);
 
+const twinDoc=read("REAL_WORLD_DIGITAL_TWIN.md");
+for(const marker of ["25 m/s (90 km/h)","70 m downward ground ray","40° maximum GAME tilt","arondight45:impact","MapLibre custom 3D layer","32-mesh decal pool"])if(!twinDoc.includes(marker))fail(`digital-twin requirements document stale/missing: ${marker}`);
+for(const stale of ["remains **5 m/s**","25° maximum GAME tilt","60 m navigation-ray coverage","configured 60 m slant ray"])if(twinDoc.includes(stale))fail(`stale digital-twin requirement survived: ${stale}`);
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
