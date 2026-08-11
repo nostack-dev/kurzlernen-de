@@ -1,0 +1,62 @@
+name: Focused local ARM diagnostic
+on:
+  push:
+    paths:
+      - '.github/workflows/local-arm-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build browser twin and diagnose local arm
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -f .github/workflows/local-arm-diagnostic.yml sim/.final-release-trigger
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          TMP=/tmp/arondight45-local-arm
+          rm -rf "$TMP"; mkdir -p "$TMP"; cd "$TMP"; npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"; cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/sim.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html');h=p.read_text();m='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>';b=Path('/tmp/sim.bundle.mjs').read_text().replace('</script','<\\/script');assert m in h;p.write_text(h.replace(m,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
+          HTTP=$!; trap 'kill $HTTP 2>/dev/null || true' EXIT; sleep 1
+          cat >/tmp/local-arm.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          const chrome=process.env.CHROME_BIN; const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=swiftshader']});
+          const page=await browser.newPage(); await page.setViewport({width:844,height:390,deviceScaleFactor:1});
+          await page.goto('http://127.0.0.1:4174/drone_simulator.html',{waitUntil:'load',timeout:30000});
+          await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('SIM ready'),{timeout:30000});
+          await page.waitForFunction(()=>document.body.classList.contains('solo-flight'),{timeout:5000});
+          await page.click('#soloExit'); await page.waitForFunction(()=>!document.body.classList.contains('solo-flight'),{timeout:5000});
+          await page.click('#reset'); await page.select('#inputSource','local'); await page.$eval('#inputSource',e=>e.dispatchEvent(new Event('change',{bubbles:true}))); await page.click('#run');
+          const sim=()=>page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime||0));
+          const waitSim=async target=>{const until=Date.now()+30000;while(Date.now()<until){if(await sim()>=target)return;await new Promise(r=>setTimeout(r,20));}throw Error('sim timeout');};
+          await waitSim(2.2);
+          const before=await page.evaluate(()=>({state:document.querySelector('#fcState')?.textContent,armText:document.querySelector('#touchArm')?.textContent,input:document.querySelector('#inputSource')?.value,focused:document.activeElement?.id,run:document.querySelector('#run')?.textContent,sim:globalThis.__arondightDiagnostics?.simTime}));
+          const start=await sim(); await page.keyboard.press('Space');
+          const afterSpace=await page.evaluate(()=>({state:document.querySelector('#fcState')?.textContent,armText:document.querySelector('#touchArm')?.textContent,input:document.querySelector('#inputSource')?.value,focused:document.activeElement?.id,run:document.querySelector('#run')?.textContent,sim:globalThis.__arondightDiagnostics?.simTime}));
+          await waitSim(start+1.2);
+          const keyboardResult=await page.evaluate(()=>({state:document.querySelector('#fcState')?.textContent,armText:document.querySelector('#touchArm')?.textContent,motors:document.querySelector('#motors')?.textContent,sim:globalThis.__arondightDiagnostics?.simTime}));
+          if(keyboardResult.armText?.includes('ON')) await page.click('#touchArm');
+          const offStart=await sim(); await waitSim(offStart+.15); await page.click('#touchArm'); const clickStart=await sim(); await waitSim(clickStart+1.2);
+          const clickResult=await page.evaluate(()=>({state:document.querySelector('#fcState')?.textContent,armText:document.querySelector('#touchArm')?.textContent,motors:document.querySelector('#motors')?.textContent,sim:globalThis.__arondightDiagnostics?.simTime}));
+          console.log(JSON.stringify({before,afterSpace,keyboardResult,clickResult},null,2));
+          await browser.close();
+          if(keyboardResult.state!=='ARMED'&&clickResult.state!=='ARMED')process.exit(2);
+          JS
+          CHROME_BIN="$(command -v google-chrome)" node /tmp/local-arm.mjs
