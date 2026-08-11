@@ -30,7 +30,13 @@ new_fn='''  function addThreeDecal(hit,kind="object",targetRoot=null){
   }'''
 p.write_text(text[:start]+new_fn+text[end:])
 
-# Static invariant: attach() must not return; local authoring contract must stay.
+# Replace the old positive attach() requirement before adding the stronger local
+# authoring invariant. Keeping both would make the release gate self-contradictory.
+replace_once(
+    "tests/architecture_invariants.mjs",
+    'for(const marker of ["RAYCAST_REFRESH_MS=500","function rebuildCandidates","fireRaycastBuilds","noiseSource.loop=true","hit.object?.attach","arondight45:impact","belongsToAirframe","worldHit.mapDecal"])requireText("sim/flight_fire_fx.mjs",marker);',
+    'for(const marker of ["RAYCAST_REFRESH_MS=500","function rebuildCandidates","fireRaycastBuilds","noiseSource.loop=true","hit.object.add(mesh)","arondight45:impact","belongsToAirframe","worldHit.mapDecal"])requireText("sim/flight_fire_fx.mjs",marker);',
+)
 replace_once(
     "tests/architecture_invariants.mjs",
     'for(const marker of ["el.dataset.pulse","childadded","childremoved","candidatesDirty","intersections.find(item=>hitEligible(item.object))","hitNormalMatrix.getNormalMatrix(hit.object.matrixWorld)","hitNormal.dot(raycaster.ray.direction)>0"])requireText("sim/flight_fire_fx.mjs",marker);',
