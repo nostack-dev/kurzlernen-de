@@ -296,6 +296,8 @@ requireText("sim/real_world_bootstrap.mjs","const airframe=this.airframeFor(this
 requireText("sim/lan_vs.mjs","poseAction.onMessage=", "VS transport must use Trystero 0.25 action API");
 requireText("sim/lan_vs.mjs","room.onPeerJoin=", "VS transport must use Trystero 0.25 peer callback property API");
 forbidText("sim/lan_vs.mjs","const [sendPose,getPose]", "legacy Trystero tuple action API must not return");
+forbidText("sim/real_world_bootstrap.mjs","queueMicrotask(()=>this.startVs())","VS signaling must never auto-start with the flight simulator");
+requireText("sim/real_world_bootstrap.mjs","FIND MATE · VS","VS must be an explicit in-game action");
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
