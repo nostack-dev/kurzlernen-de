@@ -25,6 +25,8 @@ async function waitForBridge(timeoutMs=30000){
 
 const bridge=await waitForBridge();
 
+function markWorldStartup(source){const viewport=$("viewport");if(viewport)viewport.dataset.autoWorldLocationSource=source;}
+
 function syncWorldButton(){
   const button=$("soloWorld");
   if(!button||!bridge)return;
@@ -51,6 +53,7 @@ function trainingFallback(message){
   bridge.deactivate();
   discardFailedWorldMap();
   bridge.status(message,"warn");
+  markWorldStartup("sim-fallback");
   syncWorldButton();
 }
 
@@ -63,7 +66,7 @@ async function autoWorld(locationResultPromise){
     // The permission prompt's high-accuracy fix is the WORLD origin. Do not ask
     // the platform for a second fix during startup; manual WORLD activation still
     // acquires a fresh position when no startup fix is supplied.
-    const pending=bridge.activate(fix);syncWorldButton();await pending;syncWorldButton();
+    const pending=bridge.activate(fix);syncWorldButton();await pending;markWorldStartup("startup-gps");syncWorldButton();
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
 }
 
