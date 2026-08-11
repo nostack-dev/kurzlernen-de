@@ -1,52 +1,97 @@
 const APP_ID="arondight45-kurzlernen-vs-v3";
 const SEND_MS=50;
-const DEFAULT_LOADER=()=>import("trystero");
+const FALLBACK_AFTER_MS=4500;
+const DEFAULT_PRIMARY_LOADER=()=>import("trystero");
+const DEFAULT_FALLBACK_LOADER=()=>import("@trystero-p2p/mqtt");
 
 function finiteArray(value,length){return Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);}
 function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}
 function validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!("alt" in origin)||Number.isFinite(origin.alt)));}
 
 export class LanVsSession{
-  constructor({onPeer,onPose,onOrigin,onLeave,onError,loadTransport=DEFAULT_LOADER}={}){
-    this.room=null;this.poseAction=null;this.originAction=null;this.timer=0;this.peerId=null;this.onPeer=onPeer;this.onPose=onPose;this.onOrigin=onOrigin;this.onLeave=onLeave;this.onError=onError;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.loadTransport=loadTransport;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
+  constructor(options={}){
+    const customPrimary=Object.prototype.hasOwnProperty.call(options,"loadTransport");
+    this.room=null;this.poseAction=null;this.originAction=null;this.timer=0;this.fallbackTimer=0;this.peerId=null;this.roomId="";this.transportGeneration=0;this.transportName="";this.switchingFallback=false;
+    this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;
+    this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
+    this.loadTransport=options.loadTransport||DEFAULT_PRIMARY_LOADER;
+    this.loadFallbackTransport=Object.prototype.hasOwnProperty.call(options,"loadFallbackTransport")?options.loadFallbackTransport:(customPrimary?null:DEFAULT_FALLBACK_LOADER);
+    this.fallbackAfterMs=Number.isFinite(options.fallbackAfterMs)?Math.max(0,Number(options.fallbackAfterMs)):FALLBACK_AFTER_MS;
   }
   async start(roomId){
-    if(this.room)return;
+    if(this.room||this.switchingFallback)return;
     if(typeof roomId!=="string"||!roomId)throw Error("VS room id required");
+    this.roomId=roomId;
+    if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);
     try{
-      const {joinRoom}=await this.loadTransport();
-      if(typeof joinRoom!=="function")throw Error("VS transport unavailable");
-      const room=joinRoom({appId:APP_ID},roomId);
-      this.room=room;
-      const poseAction=room.makeAction("pose");
-      if(!poseAction||typeof poseAction.send!=="function")throw Error("VS pose action unavailable");
-      this.poseAction=poseAction;
-      const originAction=room.makeAction("origin");
-      if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");
-      this.originAction=originAction;
-      originAction.onMessage=(origin,{peerId}={})=>{if(!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};
-      poseAction.onMessage=(pose,{peerId}={})=>{
-        if(!peerId||!validPose(pose))return;
-        if(!this.peerId){this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);this.onPeer?.(peerId);}
-        if(peerId!==this.peerId)return;
-        const seq=Number(pose.seq)||0;
-        if(seq&&seq<=this.lastRxSeq)return;
-        if(seq)this.lastRxSeq=seq;
-        this.onPose?.(pose,peerId);
-      };
-      room.onPeerJoin=peerId=>{
-        if(!peerId||this.peerId)return;
-        this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);this.onPeer?.(peerId);
-      };
-      room.onPeerLeave=peerId=>{
-        if(peerId!==this.peerId)return;
-        this.peerId=null;this.lastRxSeq=0;this.onLeave?.(peerId);
-      };
-      room.onJoinError=error=>this.onError?.(error instanceof Error?error:Error(String(error||"VS peer connection failed")));
-      this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);
+      await this.openTransport(this.loadTransport,"Nostr");
+      this.armFallback();
     }catch(error){
-      this.stop();this.onError?.(error);throw error;
+      if(this.loadFallbackTransport){
+        await this.switchToFallback(error);
+      }else{
+        this.stop();this.onError?.(error);throw error;
+      }
     }
+  }
+  armFallback(){
+    clearTimeout(this.fallbackTimer);this.fallbackTimer=0;
+    if(!this.loadFallbackTransport||this.peerId||this.transportName!=="Nostr")return;
+    this.fallbackTimer=setTimeout(()=>{if(!this.peerId)this.switchToFallback();},this.fallbackAfterMs);
+  }
+  async switchToFallback(primaryError=null){
+    if(this.switchingFallback||this.peerId||!this.loadFallbackTransport||!this.roomId)return;
+    this.switchingFallback=true;clearTimeout(this.fallbackTimer);this.fallbackTimer=0;
+    const oldRoom=this.room;++this.transportGeneration;this.room=null;this.poseAction=null;this.originAction=null;this.transportName="";
+    try{oldRoom?.leave?.();}catch{}
+    try{
+      await this.openTransport(this.loadFallbackTransport,"MQTT");
+    }catch(error){
+      this.onError?.(error instanceof Error?error:Error(String(error||primaryError||"VS signaling unavailable")));
+    }finally{this.switchingFallback=false;}
+  }
+  async openTransport(loader,name){
+    if(typeof loader!=="function")throw Error("VS transport unavailable");
+    const generation=++this.transportGeneration;
+    this.onTransport?.(name);
+    const {joinRoom}=await loader();
+    if(generation!==this.transportGeneration)return;
+    if(typeof joinRoom!=="function")throw Error(`${name} VS transport unavailable`);
+    const room=joinRoom({appId:APP_ID},this.roomId);
+    if(generation!==this.transportGeneration){try{room?.leave?.();}catch{}return;}
+    this.room=room;this.transportName=name;
+    const poseAction=room.makeAction("pose");
+    if(!poseAction||typeof poseAction.send!=="function")throw Error("VS pose action unavailable");
+    this.poseAction=poseAction;
+    const originAction=room.makeAction("origin");
+    if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");
+    this.originAction=originAction;
+    const active=()=>generation===this.transportGeneration&&room===this.room;
+    const adoptPeer=peerId=>{
+      if(!active()||!peerId||this.peerId)return;
+      this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);clearTimeout(this.fallbackTimer);this.fallbackTimer=0;this.onPeer?.(peerId);
+    };
+    originAction.onMessage=(origin,{peerId}={})=>{if(!active()||!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};
+    poseAction.onMessage=(pose,{peerId}={})=>{
+      if(!active()||!peerId||!validPose(pose))return;
+      if(!this.peerId)adoptPeer(peerId);
+      if(peerId!==this.peerId)return;
+      const seq=Number(pose.seq)||0;
+      if(seq&&seq<=this.lastRxSeq)return;
+      if(seq)this.lastRxSeq=seq;
+      this.onPose?.(pose,peerId);
+    };
+    room.onPeerJoin=peerId=>adoptPeer(peerId);
+    room.onPeerLeave=peerId=>{
+      if(!active()||peerId!==this.peerId)return;
+      this.peerId=null;this.lastRxSeq=0;this.onLeave?.(peerId);
+    };
+    room.onJoinError=error=>{
+      if(!active())return;
+      const normalized=error instanceof Error?error:Error(String(error||"VS peer connection failed"));
+      if(name==="Nostr"&&this.loadFallbackTransport&&!this.peerId)this.switchToFallback(normalized);
+      else this.onError?.(normalized);
+    };
   }
   flushOrigin(){
     if(this.originBusy||!this.peerId||!this.pendingOrigin||!this.originDirty||!this.originAction)return;
@@ -77,7 +122,7 @@ export class LanVsSession{
     return true;
   }
   stop(){
-    clearInterval(this.timer);this.timer=0;this.room?.leave?.();this.room=null;this.poseAction=null;this.originAction=null;this.peerId=null;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
+    clearInterval(this.timer);clearTimeout(this.fallbackTimer);this.timer=0;this.fallbackTimer=0;++this.transportGeneration;try{this.room?.leave?.();}catch{}this.room=null;this.poseAction=null;this.originAction=null;this.peerId=null;this.roomId="";this.transportName="";this.switchingFallback=false;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
   }
 }
 
