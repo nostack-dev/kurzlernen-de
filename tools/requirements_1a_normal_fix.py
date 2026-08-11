@@ -51,4 +51,11 @@ replace_once(
     'if(targetVisual.after!==targetVisual.before+1||targetVisual.builds!==1||targetVisual.impact?.kind!=="target"||!targetVisual.impact.target||!targetVisual.impact.object||targetVisual.normalError>1e-5||!targetVisual.attached||!near(targetVisual.delta?.x,1,.015)||!near(targetVisual.delta?.y,0,.015)||!near(targetVisual.delta?.z,0,.015))',
 )
 
-print('object impact normal-space hardening applied')
+# Final no-shortcuts layer: exercise the exact MapLibre context-loss recovery
+# patch in the same deterministic workspace, then remove its temporary driver so
+# the release tree remains product-only.
+context_script=Path("tools/requirements_1a_context_fix.py")
+exec(compile(context_script.read_text(),str(context_script),"exec"),{})
+context_script.unlink()
+
+print('object-normal and WebGL-context impact hardening applied')
