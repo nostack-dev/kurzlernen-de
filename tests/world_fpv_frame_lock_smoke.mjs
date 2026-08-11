@@ -27,9 +27,7 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.click("#camSolo");
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
-  await page.click("#soloWorld");
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
 
   const result=await page.evaluate(async()=>{
@@ -88,5 +86,5 @@ try{
   if(!(halfRate.p95EyeM>locked.p95EyeM+.18&&halfRate.p95Pixel>locked.p95Pixel+1.2))throw new Error(`quantitative probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
   if(screenLocked.samples<250||screenLocked.p95ScreenPx>1)throw new Error(`FPV MapLibre/THREE screen-space registration exceeds 1px p95: ${JSON.stringify(result)}`);
   if(!(screenHalfRate.p95ScreenPx>screenLocked.p95ScreenPx+1))throw new Error(`screen-space probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
-  console.log(`WORLD FPV frame-lock passed: ${JSON.stringify(result)}`);
+  console.log(`WORLD FPV frame-lock passed from automatic FPV/WORLD startup: ${JSON.stringify(result)}`);
 }finally{await browser.close();}
