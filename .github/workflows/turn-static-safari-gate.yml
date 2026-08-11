@@ -1,0 +1,138 @@
+name: Static TURN Safari validation gate
+
+on:
+  push:
+    branches: ["fix/turn-static-safari"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: ${{ !contains(github.event.head_commit.message, '[turn-safari-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/turn-static-safari
+
+      - name: Patch standards-based TURN plus Safari-safe broker transport
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lan=Path('sim/lan_vs.mjs')
+          s=lan.read_text()
+          old='''const STUN_ICE_SERVERS=[\n  {urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},\n  {urls:"stun:stun.l.google.com:19302"}\n];'''
+          new=old+'''\nconst TURN_CONFIG=[\n  {urls:["turn:openrelay.metered.ca:80","turn:openrelay.metered.ca:443","turn:openrelay.metered.ca:443?transport=tcp"],username:"openrelayproject",credential:"openrelayproject"}\n];'''
+          assert old in s and 'const TURN_CONFIG=' not in s
+          s=s.replace(old,new,1)
+          old_join='room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy}},this.roomId,{onJoinError});'
+          new_join='room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy},turnConfig:TURN_CONFIG},this.roomId,{onJoinError});'
+          assert old_join in s
+          s=s.replace(old_join,new_join,1)
+          lan.write_text(s)
+
+          relay=Path('sim/mqtt_data_relay.mjs')
+          s=relay.read_text()
+          old_url='"wss://public:public@public.cloud.shiftr.io"'
+          new_url='"wss://public.cloud.shiftr.io"'
+          assert old_url in s
+          s=s.replace(old_url,new_url,1)
+          old_connect='const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});'
+          new_connect='const auth=url==="wss://public.cloud.shiftr.io"?{username:"public",password:"public"}:{};\n    const client=mqtt.connect(url,{...auth,forceNativeWebSocket:true,clientId:`a45-${randomId().slice(0,18)}`,clean:true,reconnectPeriod:1000,connectTimeout:8000,keepalive:20,protocolVersion:4,resubscribe:true});'
+          assert old_connect in s
+          s=s.replace(old_connect,new_connect,1)
+          relay.write_text(s)
+
+          smoke=Path('tests/mqtt_data_relay_browser_smoke.mjs')
+          s=smoke.read_text()
+          old='for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);}'
+          new='for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(side.sockets["wss://public.cloud.shiftr.io"]?.readyState!==1)throw new Error(`Safari-safe WSS:443 broker path not open: ${JSON.stringify(side.sockets)}`);}'
+          assert old in s
+          s=s.replace(old,new,1)
+          smoke.write_text(s)
+
+          turn=Path('tests/turn_relay_browser_smoke.mjs')
+          turn.write_text(r'''import puppeteer from "puppeteer-core";
+
+const base=process.argv[2]||"http://127.0.0.1:4174";
+const executablePath=process.env.CHROME_BIN;
+if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
+const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage"]});
+const page=await browser.newPage();
+try{
+  await page.goto(`${base}/tests/mqtt_relay_probe.html`,{waitUntil:"load",timeout:30000});
+  const result=await page.evaluate(async()=>{
+    const iceServers=[{urls:["turn:openrelay.metered.ca:80","turn:openrelay.metered.ca:443","turn:openrelay.metered.ca:443?transport=tcp"],username:"openrelayproject",credential:"openrelayproject"}];
+    const pc=new RTCPeerConnection({iceServers,iceTransportPolicy:"relay"});
+    pc.createDataChannel("relay-probe");
+    const candidates=[];
+    let done;
+    const finished=new Promise(resolve=>done=resolve);
+    pc.onicecandidate=e=>{if(e.candidate)candidates.push({candidate:e.candidate.candidate,type:e.candidate.type||""});else done();};
+    const offer=await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await Promise.race([finished,new Promise(resolve=>setTimeout(resolve,15000))]);
+    const state={iceGatheringState:pc.iceGatheringState,candidates};
+    pc.close();
+    return state;
+  });
+  if(!result.candidates.some(c=>c.type==="relay"||/ typ relay /.test(` ${c.candidate} `)))throw new Error(`TURN relay candidate missing: ${JSON.stringify(result)}`);
+  console.log(`TURN relay browser smoke passed: ${JSON.stringify(result.candidates)}`);
+}finally{await browser.close();}
+''')
+
+          deploy=Path('.github/workflows/deploy.yml')
+          s=deploy.read_text()
+          check='          node --check tests/mqtt_data_relay_browser_smoke.mjs\n'
+          assert check in s and 'tests/turn_relay_browser_smoke.mjs' not in s
+          s=s.replace(check,check+'          node --check tests/turn_relay_browser_smoke.mjs\n',1)
+          run='          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174\n'
+          assert run in s
+          s=s.replace(run,run+'          CHROME_BIN="$CHROME_BIN" node tests/turn_relay_browser_smoke.mjs http://127.0.0.1:4174\n',1)
+          deploy.write_text(s)
+          PY
+
+          grep -q 'turnConfig:TURN_CONFIG' sim/lan_vs.mjs
+          grep -q 'openrelay.metered.ca:443?transport=tcp' sim/lan_vs.mjs
+          grep -q 'forceNativeWebSocket:true' sim/mqtt_data_relay.mjs
+          grep -q 'wss://public.cloud.shiftr.io' sim/mqtt_data_relay.mjs
+          ! grep -q 'public:public@public.cloud.shiftr.io' sim/mqtt_data_relay.mjs
+          node --check sim/lan_vs.mjs
+          node --check sim/mqtt_data_relay.mjs
+          node --check tests/mqtt_data_relay_browser_smoke.mjs
+          node --check tests/turn_relay_browser_smoke.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+
+      - name: Real TURN and Safari-safe WSS broker in Chromium
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/turn-safari-node
+          mkdir -p "$TMP"
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p generated
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/turn-safari-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/turn_relay_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
+
+      - name: Commit validated fix to branch
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sim/lan_vs.mjs sim/mqtt_data_relay.mjs tests/mqtt_data_relay_browser_smoke.mjs tests/turn_relay_browser_smoke.mjs .github/workflows/deploy.yml
+          git commit -m "Add standards TURN fallback and Safari-safe MQTT WSS [turn-safari-fixed]"
+          git push origin HEAD:fix/turn-static-safari
