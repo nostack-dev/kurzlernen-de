@@ -3,6 +3,7 @@ const SEND_MS=50;
 const RELAY_REDUNDANCY=3;
 const JOIN_DIAGNOSTIC_MS=12000;
 const DEFAULT_TRANSPORTS=[
+  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs"),trustedOnly:true},
   {name:"Nostr",load:()=>import("trystero")},
   {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},
   {name:"Torrent",load:()=>import("@trystero-p2p/torrent")}
@@ -281,7 +282,7 @@ export class LanVsFinder{
     if(this.started)return;this.started=true;
     const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
     this.roomIds=ids;
-    const makeEntries=list=>list.flatMap(id=>this.transportStrategies.map(strategy=>({id,strategy,child:this.makeChild(id,strategy)}))),trustedIds=ids.filter(id=>!id.startsWith("tap-")),gestureIds=ids.filter(id=>id.startsWith("tap-")),trusted=makeEntries(trustedIds),gesture=makeEntries(gestureIds),entries=[...trusted,...gesture];this.children=entries.map(entry=>entry.child);
+    const makeEntries=list=>list.flatMap(id=>this.transportStrategies.filter(strategy=>!strategy.trustedOnly||!id.startsWith("tap-")).map(strategy=>({id,strategy,child:this.makeChild(id,strategy)}))),trustedIds=ids.filter(id=>!id.startsWith("tap-")),gestureIds=ids.filter(id=>id.startsWith("tap-")),trusted=makeEntries(trustedIds),gesture=makeEntries(gestureIds),entries=[...trusted,...gesture];this.children=entries.map(entry=>entry.child);
     emitNetworkEvent("finder-start",{roomCount:ids.length,transportNames:this.transportStrategies.map(item=>item.name),trustedRooms:trustedIds.length,gestureRooms:gestureIds.length});
     const results=[],startEntries=async list=>{if(!list.length)return[];return Promise.allSettled(list.map(entry=>entry.child.start(entry.id)));};
     results.push(...await startEntries(trusted));
