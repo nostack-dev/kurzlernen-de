@@ -6,8 +6,6 @@ if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
 
-function overlap(a,b){return Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));}
-
 try{
   for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"}]){
     await page.setViewport({width:viewport.width,height:viewport.height,deviceScaleFactor:1});
@@ -21,16 +19,18 @@ try{
         cameraDisplay:getComputedStyle(document.querySelector("#cameraModes")).display,
         panelDisplay:getComputedStyle(document.querySelector(".panel")).display,
         telemetryDisplay:getComputedStyle(document.querySelector(".telemetry")).display,
+        raceDisplay:getComputedStyle(document.querySelector("#soloRaceHud")).display,
         cameraMode:document.querySelector("#viewport")?.dataset.cameraMode||"",
         autoStart:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
         soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
-        topbar:rect("#soloTopbar"),race:rect("#soloRaceHud"),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
+        topbar:rect("#soloTopbar"),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
         armCueClass:document.querySelector("#soloArm")?.className||"",armLabel:document.querySelector("#soloArm")?.textContent?.trim()||""
       };
     });
     if(g.cameraMode!=="fpv"||g.autoStart!=="fpv"||g.soloCamera!=="FPV")throw new Error(`${viewport.name}: direct FPV startup failed: ${JSON.stringify({cameraMode:g.cameraMode,autoStart:g.autoStart,soloCamera:g.soloCamera})}`);
     if(g.panelDisplay!=="none"||g.telemetryDisplay!=="none"||g.cameraDisplay!=="none")throw new Error(`${viewport.name}: main menu leaked into direct flight startup: ${JSON.stringify({panel:g.panelDisplay,telemetry:g.telemetryDisplay,camera:g.cameraDisplay})}`);
-    for(const key of ["topbar","race","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);
+    if(g.raceDisplay!=="none")throw new Error(`${viewport.name}: lap/time HUD still blocks the flight image: ${g.raceDisplay}`);
+    for(const key of ["topbar","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);
     if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM start cue class missing: ${JSON.stringify({className:g.armCueClass,label:g.armLabel})}`);
     const expectedStickMax=viewport.height<=340?129:151;
     if(g.left.width>expectedStickMax||g.right.width>expectedStickMax)throw new Error(`${viewport.name}: sticks still dominate viewport: ${JSON.stringify({left:g.left,right:g.right})}`);
@@ -38,9 +38,7 @@ try{
     if(g.clearance.left-g.left.right<5)throw new Error(`${viewport.name}: height control overlaps left stick: ${JSON.stringify({left:g.left,clearance:g.clearance})}`);
     if(g.arm.left-g.clearance.right<20)throw new Error(`${viewport.name}: height control crowds ARM/KILL center: ${JSON.stringify({clearance:g.clearance,arm:g.arm})}`);
     if(g.right.left-g.kill.right<20)throw new Error(`${viewport.name}: center actions crowd right stick: ${JSON.stringify({kill:g.kill,right:g.right})}`);
-    if(g.race.top<g.topbar.bottom-2)throw new Error(`${viewport.name}: race HUD overlaps top controls: ${JSON.stringify({topbar:g.topbar,race:g.race})}`);
-    if(overlap(g.race,g.clearance)>0)throw new Error(`${viewport.name}: race HUD overlaps height control`);
-    for(const key of ["left","right","clearance","arm","kill","race"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
+    for(const key of ["left","right","clearance","arm","kill"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
 
     // Validate the ARM attention affordance independent of calibration timing.
     const armCue=await page.evaluate(()=>{
@@ -68,6 +66,6 @@ try{
       soloHidden:document.querySelector("#soloHud")?.hidden,
     }));
     if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore the main menu: ${JSON.stringify(exited)}`);
-    console.log(`Solo layout ${viewport.name} passed: direct FPV flight startup, compact HUD, and EXIT-only menu reveal.`);
+    console.log(`Solo layout ${viewport.name} passed: direct FPV flight startup, clear race-free HUD, and EXIT-only menu reveal.`);
   }
 }finally{await browser.close();}
