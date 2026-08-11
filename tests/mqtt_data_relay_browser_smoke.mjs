@@ -6,6 +6,10 @@ if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage"]});
 const roomId=`net-ci-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
 const a=await browser.newPage(),b=await browser.newPage();
+for(const [page,label] of [[a,"A"],[b,"B"]]){
+  page.on("console",msg=>console.log(`[${label}]`,msg.type(),msg.text()));
+  page.on("pageerror",error=>console.error(`[${label}] pageerror`,error.message));
+}
 async function setup(page,label){
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.evaluate(async({roomId,label})=>{
@@ -19,14 +23,17 @@ async function setup(page,label){
     state.room=room;state.action=action;state.mod=mod;
   },{roomId,label});
 }
+async function snapshot(page){return page.evaluate(()=>({peer:globalThis.__relayProbe?.peer||"",joinError:globalThis.__relayProbe?.joinError||"",sockets:globalThis.__relayProbe?.mod?.getRelaySockets?.()||{}}));}
 try{
   await Promise.all([setup(a,"a"),setup(b,"b")]);
-  await Promise.all([
-    a.waitForFunction(()=>Boolean(globalThis.__relayProbe?.peer),{timeout:15000}),
-    b.waitForFunction(()=>Boolean(globalThis.__relayProbe?.peer),{timeout:15000})
-  ]);
-  const peers=await Promise.all([a.evaluate(()=>globalThis.__relayProbe.peer),b.evaluate(()=>globalThis.__relayProbe.peer)]);
-  if(!peers[0]||!peers[1])throw new Error(`broker peers missing ${JSON.stringify(peers)}`);
+  const deadline=Date.now()+20000;let stateA,stateB;
+  while(Date.now()<deadline){
+    [stateA,stateB]=await Promise.all([snapshot(a),snapshot(b)]);
+    if(stateA.peer&&stateB.peer)break;
+    await new Promise(resolve=>setTimeout(resolve,500));
+  }
+  if(!stateA?.peer||!stateB?.peer)throw new Error(`broker peers missing after 20s; A=${JSON.stringify(stateA)} B=${JSON.stringify(stateB)}`);
+  const peers=[stateA.peer,stateB.peer];
   await a.evaluate(async()=>{const s=globalThis.__relayProbe;await s.action.send({from:"a",n:1},{target:s.peer});s.rtt=await s.room.ping(s.peer);});
   await b.waitForFunction(()=>globalThis.__relayProbe?.messages?.some(item=>item.data?.from==="a"),{timeout:5000});
   await b.evaluate(async()=>{const s=globalThis.__relayProbe;await s.action.send({from:"b",n:2},{target:s.peer});});
@@ -34,7 +41,7 @@ try{
   const result=await Promise.all([a.evaluate(()=>({peer:__relayProbe.peer,messages:__relayProbe.messages,rtt:__relayProbe.rtt,sockets:__relayProbe.mod.getRelaySockets(),joinError:__relayProbe.joinError})),b.evaluate(()=>({peer:__relayProbe.peer,messages:__relayProbe.messages,sockets:__relayProbe.mod.getRelaySockets(),joinError:__relayProbe.joinError}))]);
   if(!Number.isFinite(result[0].rtt)||result[0].rtt<0)throw new Error(`broker ping failed: ${JSON.stringify(result)}`);
   for(const side of result){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);}
-  console.log(`MQTT data relay browser smoke passed: two browsers paired, bidirectional action data + ping; rtt=${result[0].rtt.toFixed(1)}ms`);
+  console.log(`MQTT data relay browser smoke passed: two browsers paired (${peers.join(" ↔ ")}), bidirectional action data + ping; rtt=${result[0].rtt.toFixed(1)}ms`);
 }finally{
   await Promise.allSettled([a.evaluate(()=>globalThis.__relayProbe?.room?.leave?.()),b.evaluate(()=>globalThis.__relayProbe?.room?.leave?.())]);
   await browser.close();
