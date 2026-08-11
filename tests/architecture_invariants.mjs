@@ -298,6 +298,10 @@ requireText("sim/lan_vs.mjs","room.onPeerJoin=", "VS transport must use Trystero
 forbidText("sim/lan_vs.mjs","const [sendPose,getPose]", "legacy Trystero tuple action API must not return");
 forbidText("sim/real_world_bootstrap.mjs","queueMicrotask(()=>this.startVs())","VS signaling must never auto-start with the flight simulator");
 requireText("sim/real_world_bootstrap.mjs","FIND MATE · VS","VS must be an explicit in-game action");
+requireText("sim/lan_vs.mjs","room.makeAction(\"origin\")","VS must exchange shared origin independently from pose");
+requireText("sim/lan_vs.mjs","setOrigin(origin)","VS must expose optional geodetic origin publication");
+requireText("sim/real_world_bootstrap.mjs","this.vsSharedOrigin","GPS-less peers must accept a mate-provided world origin");
+requireText("sim/real_world_bootstrap.mjs","this.vsSession.setOrigin({lon:this.originLon,lat:this.originLat,alt:0})","GPS-capable peers must publish their world origin");
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
