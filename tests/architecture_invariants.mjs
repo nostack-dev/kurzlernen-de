@@ -307,6 +307,7 @@ requireText("sim/real_world_bootstrap.mjs","vsSharedOrigin=null;this.vsSharedWor
 requireText("sim/real_world_bootstrap.mjs","now-this.vsPeerLastPoseMs>1000","stale peer poses must disappear instead of freezing forever");
 requireText("sim/real_world_bootstrap.mjs","this.vsPeerRenderPosition.lerp","peer pose smoothing must stay presentation-only");
 forbidText("tests/lan_vs_smoke.mjs","p:[4,5,6],q:[0,0,.1,.99],g:","GPS-less regression peer must not carry geolocation");
+requireText("sim/real_world_bootstrap.mjs","if(fromMate){this.originLon=null;this.originLat=null;this.vsWorldFromMate=false;}","failed mate-WORLD activation must roll back borrowed geospatial origin");
 console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
