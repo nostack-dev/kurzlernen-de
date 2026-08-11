@@ -1,0 +1,73 @@
+name: One-shot NAV degraded terrain fix
+on:
+  push:
+    paths:
+      - .github/workflows/nav-degraded-terrain-fix.yml
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply fail-closed NAV terrain fix
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sim = Path('sim/simulator.mjs')
+          s = sim.read_text()
+          replacements = [
+              ('const TERRAIN_SIZE = 600;', 'const TERRAIN_SIZE = 20000;'),
+              ('this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid:velocityValid&&aglValid,velocityValid,aglValid,headingDeg,headingValid};',
+               'this.last={vx:this.filtered[0],vy:this.filtered[1],vz:this.filtered[2],agl,valid:velocityValid&&aglValid&&headingValid,velocityValid,aglValid,headingDeg,headingValid};'),
+              ('navigation_valid:latestNavigation.valid,nav_velocity_valid:latestNavigation.velocityValid,nav_agl_valid:latestNavigation.aglValid});',
+               'navigation_valid:latestNavigation.valid,nav_velocity_valid:latestNavigation.velocityValid,nav_agl_valid:latestNavigation.aglValid,nav_heading_valid:latestNavigation.headingValid});'),
+              ('nav_velocity_valid:Boolean(latestNavigation.velocityValid),nav_agl_valid:Boolean(latestNavigation.aglValid),target_ground_clearance:',
+               'nav_velocity_valid:Boolean(latestNavigation.velocityValid),nav_agl_valid:Boolean(latestNavigation.aglValid),nav_heading_valid:Boolean(latestNavigation.headingValid),target_ground_clearance:'),
+              ('soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:latestNavigation.velocityValid?"NAV DEGRADED · AGL LOST":"NAV DEGRADED · ATTITUDE HOLD";',
+               'soloRangeStatus.textContent=latestNavigation.valid?`AGL ${latestNavigation.agl.toFixed(1)} m`:!latestNavigation.velocityValid?"NAV DEGRADED · VELOCITY LOST":!latestNavigation.headingValid?"NAV DEGRADED · HEADING LOST":!latestNavigation.aglValid?"NAV DEGRADED · AGL LOST":"NAV DEGRADED · SENSOR STATE";'),
+          ]
+          for old, new in replacements:
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'simulator marker expected once, found {count}: {old[:90]}')
+              s = s.replace(old, new)
+          sim.write_text(s)
+
+          test = Path('tests/game_speed_envelope_smoke.mjs')
+          t = test.read_text()
+          marker = 'const page=await browser.newPage(),errors=[];'
+          if t.count(marker) != 1:
+              raise SystemExit('speed test page marker missing')
+          t = t.replace(marker, marker+'\nconst STATE_NAVIGATION_DEGRADED=1<<7;', 1)
+          marker = 'const all=motion.filter(x=>x.time>=start&&x.time<=start+holdS+.15);'
+          if t.count(marker) != 1:
+              raise SystemExit('speed test all-samples marker missing')
+          t = t.replace(marker, marker+'\n  const degraded=all.filter(x=>x.fcState&STATE_NAVIGATION_DEGRADED);\n  if(degraded.length)throw new Error(`${direction.name}: NAV DEGRADED for ${degraded.length} samples during ${label}; terrain/velocity/heading/AGL continuity is a release requirement`);', 1)
+          old = 'maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:24.25,maxSteadyMps:25.75,holdS:12.0,t90LimitS:6.0}));'
+          new = 'maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:24.25,maxSteadyMps:25.75,holdS:direction.name==="forward"?15.0:12.0,t90LimitS:6.0}));'
+          if t.count(old) != 1:
+              raise SystemExit('speed max-run marker missing')
+          t = t.replace(old, new, 1)
+          test.write_text(t)
+          PY
+          git rm .github/workflows/nav-degraded-terrain-fix.yml
+          node --check sim/simulator.mjs
+          node --check tests/game_speed_envelope_smoke.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+      - name: Commit exact patched tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
+          git add sim/simulator.mjs tests/game_speed_envelope_smoke.mjs .github/workflows/nav-degraded-terrain-fix.yml
+          git commit -m 'Keep NAV valid beyond local terrain edge'
+          git push origin HEAD:main
