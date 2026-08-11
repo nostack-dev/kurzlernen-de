@@ -18,6 +18,10 @@ const STUN_ICE_SERVERS=[
   {urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},
   {urls:"stun:stun.l.google.com:19302"}
 ];
+const OPENRELAY_HOST="staticauth.openrelay.metered.ca";
+const OPENRELAY_SECRET="openrelayprojectsecret";
+const TURN_TTL_S=3600;
+const TURN_REFRESH_MARGIN_MS=5*60*1000;
 const NETWORK_IPV4_URL="https://api4.ipify.org?format=json";
 export const VS_NETWORK_EVENT="arondight45:vs-network";
 
@@ -66,10 +70,7 @@ function candidateRecord(candidate){
   if(!type||!address){const raw=String(candidate.candidate||candidate||"").trim(),parts=raw.split(/\s+/),typ=parts.indexOf("typ");if(typ>4){type=type||String(parts[typ+1]||"").toLowerCase();address=address||String(parts[4]||"").trim();}}
   return type&&address?{type,address}:null;
 }
-function errorMessage(error){
-  const source=error?.error||error;
-  return String(source?.message||source||"unknown error");
-}
+function errorMessage(error){const source=error?.error||error;return String(source?.message||source||"unknown error");}
 function eventPayload(stage,detail={}){return{at:new Date().toISOString(),stage:String(stage||"unknown"),...detail};}
 function emitNetworkEvent(stage,detail={}){
   const payload=eventPayload(stage,detail);
@@ -113,6 +114,31 @@ async function peerNetworkSnapshot(pc){
     }
   }catch(error){out.statsError=errorMessage(error);}
   return out;
+}
+function base64Bytes(bytes){
+  const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";let out="";
+  for(let i=0;i<bytes.length;i+=3){const a=bytes[i],b=i+1<bytes.length?bytes[i+1]:0,c=i+2<bytes.length?bytes[i+2]:0,n=(a<<16)|(b<<8)|c;out+=chars[(n>>>18)&63]+chars[(n>>>12)&63]+(i+1<bytes.length?chars[(n>>>6)&63]:"=")+(i+2<bytes.length?chars[n&63]:"=");}
+  return out;
+}
+let turnCache=null;
+export async function createDefaultTurnConfig({nowMs=Date.now(),cryptoObj=globalThis.crypto}={}){
+  if(turnCache&&turnCache.refreshAfterMs>nowMs)return turnCache.config.map(item=>({...item,urls:[...item.urls]}));
+  if(!cryptoObj?.subtle)throw Error("TURN credential crypto unavailable");
+  const expiresAtSec=Math.floor(nowMs/1000)+TURN_TTL_S,username=`${expiresAtSec}:kurzlernen`;
+  const key=await cryptoObj.subtle.importKey("raw",new TextEncoder().encode(OPENRELAY_SECRET),{name:"HMAC",hash:"SHA-1"},false,["sign"]);
+  const signature=new Uint8Array(await cryptoObj.subtle.sign("HMAC",key,new TextEncoder().encode(username))),credential=base64Bytes(signature);
+  const config=[{
+    urls:[
+      `turn:${OPENRELAY_HOST}:80?transport=udp`,
+      `turn:${OPENRELAY_HOST}:80?transport=tcp`,
+      `turn:${OPENRELAY_HOST}:443?transport=tcp`,
+      `turns:${OPENRELAY_HOST}:443?transport=tcp`
+    ],
+    username,credential
+  }];
+  turnCache={refreshAfterMs:expiresAtSec*1000-TURN_REFRESH_MARGIN_MS,config};
+  emitNetworkEvent("turn-config-ready",{provider:"OpenRelay",expiresAt:new Date(expiresAtSec*1000).toISOString(),urls:[...config[0].urls]});
+  return config.map(item=>({...item,urls:[...item.urls]}));
 }
 
 export function networkMaterialFromCandidate(candidate){
@@ -166,6 +192,7 @@ export class LanVsSession{
     this.transportName=String(options.transportName||(customPrimary?"Custom":"Nostr"));
     this.relayRedundancy=Number.isFinite(options.relayRedundancy)?Math.max(1,Math.floor(options.relayRedundancy)):RELAY_REDUNDANCY;
     this.joinDiagnosticMs=Number.isFinite(options.joinDiagnosticMs)?Math.max(0,Number(options.joinDiagnosticMs)):JOIN_DIAGNOSTIC_MS;
+    this.turnConfigProvider=typeof options.turnConfigProvider==="function"?options.turnConfigProvider:createDefaultTurnConfig;
     this.getRelaySockets=null;
   }
   diag(stage,detail={}){const payload=emitNetworkEvent(stage,{transport:this.transportName,roomId:this.roomId,...detail});this.onDiagnostic?.(payload);return payload;}
@@ -190,21 +217,24 @@ export class LanVsSession{
     if(generation!==this.transportGeneration)return;
     if(typeof joinRoom!=="function")throw Error(`${this.transportName} VS transport unavailable`);
     this.getRelaySockets=typeof getRelaySockets==="function"?getRelaySockets:null;
+    let turnConfig=[];
+    try{turnConfig=await this.turnConfigProvider();this.diag("turn-enabled",{serverCount:turnConfig.length,urls:turnConfig.flatMap(item=>Array.isArray(item.urls)?item.urls:[item.urls]).filter(Boolean)});}catch(error){this.diag("turn-config-error",{error:errorMessage(error)});}
     let room=null;
     const active=()=>generation===this.transportGeneration&&room&&room===this.room;
     const onJoinError=details=>{
       if(!active())return;
       const error=details?.error instanceof Error?details.error:Error(errorMessage(details));
-      this.diag("join-error",{peerId:String(details?.peerId||""),error:errorMessage(error),relays:relaySnapshot(this.getRelaySockets)});
+      this.diag("join-error",{peerId:String(details?.peerId||""),error:errorMessage(error),turnConfigured:turnConfig.length>0,relays:relaySnapshot(this.getRelaySockets)});
       this.onError?.(error);
     };
-    room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy}},this.roomId,{onJoinError});
+    const config={appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy},...(turnConfig.length?{turnConfig}:{})};
+    room=joinRoom(config,this.roomId,{onJoinError});
     if(generation!==this.transportGeneration){try{room?.leave?.();}catch{}return;}
     this.room=room;
     const poseAction=room.makeAction("pose");if(!poseAction||typeof poseAction.send!=="function")throw Error("VS pose action unavailable");this.poseAction=poseAction;
     const originAction=room.makeAction("origin");if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");this.originAction=originAction;
     const combatAction=room.makeAction("combat");if(!combatAction||typeof combatAction.send!=="function")throw Error("VS combat action unavailable");this.combatAction=combatAction;
-    this.diag("transport-ready",{relays:relaySnapshot(this.getRelaySockets)});
+    this.diag("transport-ready",{turnConfigured:turnConfig.length>0,relays:relaySnapshot(this.getRelaySockets)});
     const adoptPeer=peerId=>{
       if(!active()||!peerId||this.peerId)return;
       this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);clearTimeout(this.joinTimer);this.joinTimer=0;
@@ -265,7 +295,7 @@ export class LanVsFinder{
     let child=null;const opts=this.options;
     child=new LanVsSession({
       loadTransport:strategy.load,transportName:strategy.name,
-      ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),
+      ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),...(typeof opts.turnConfigProvider==="function"?{turnConfigProvider:opts.turnConfigProvider}:{}),
       onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},onDiagnostic:event=>opts.onDiagnostic?.(event,roomId,strategy.name),onPeer:peerId=>this.adopt(child,peerId,roomId,strategy.name),
       onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
       onError:error=>{if(this.active===child)opts.onError?.(error);else{this.failedChildren.add(child);if(!this.active&&this.children.length&&this.failedChildren.size>=this.children.length)opts.onError?.(error);}}
