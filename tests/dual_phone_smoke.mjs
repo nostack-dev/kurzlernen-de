@@ -50,7 +50,11 @@ try{
   await view.setViewport({width:844,height:390,deviceScaleFactor:1});await controller.setViewport({width:844,height:390,deviceScaleFactor:1});
   await Promise.all([view.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000}),controller.goto(`${base}/drone_controller.html`,{waitUntil:"load",timeout:30000})]);
   await waitText(view,"#status","SIM ready",30000);
-  if(await view.$eval("#inputSource",element=>element.value)!=="remote")throw new Error("remote phone is not primary input");
+  await view.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
+  await invoke(view,"#soloExit");
+  await view.waitForFunction(()=>!document.body.classList.contains("solo-flight"),{timeout:5000});
+  const menuState=await view.evaluate(()=>({input:document.querySelector("#inputSource")?.value||"",panel:getComputedStyle(document.querySelector(".panel")).display}));
+  if(menuState.input!=="remote"||menuState.panel==="none")throw new Error(`EXIT did not restore the remote-first main menu: ${JSON.stringify(menuState)}`);
 
   await controller.click("#connect");
   await controller.waitForFunction(()=>document.querySelector("#offerCode")?.value?.length>100,{timeout:20000});
