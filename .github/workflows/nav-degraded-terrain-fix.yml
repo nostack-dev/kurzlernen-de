@@ -57,6 +57,7 @@ jobs:
           test.write_text(t)
           PY
           git rm .github/workflows/nav-degraded-terrain-fix.yml
+          git rm -f .github/workflows/dual-phone-autostart-migration.yml
           node --check sim/simulator.mjs
           node --check tests/game_speed_envelope_smoke.mjs
           node tests/control_semantics_test.mjs
