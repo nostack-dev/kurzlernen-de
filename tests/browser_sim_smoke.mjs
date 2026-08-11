@@ -338,9 +338,14 @@ try{
   await page.click("#touchArm");
   localArmText=await page.$eval("#touchArm",e=>e.textContent||"");
   if(!localArmText.includes("ON"))throw new Error(`local ARM button did not set request ON: ${localArmText}`);
-  const localArmStart=await simTime();await waitForSimTime(localArmStart+1.2,45000);
+  const localArmStart=await simTime();
+  await page.waitForFunction(()=>Boolean((Number(globalThis.__arondightDiagnostics?.fcState)||0)&1),{timeout:5000});
+  const authoritativeArmTime=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime||0));
+  const localArmLatency=authoritativeArmTime-localArmStart;
+  if(!(localArmLatency>=.95&&localArmLatency<=1.15))throw new Error(`local fallback ARM timing violated: ${localArmLatency.toFixed(3)} s · ${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>(document.querySelector("#fcState")?.textContent||"")==="ARMED",{timeout:1000});
   state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="ARMED")throw new Error(`local fallback ARM failed through visible ARM control: ${JSON.stringify(await snapshot())}`);
+  if(state!=="ARMED")throw new Error(`local fallback ARM HUD failed after authoritative ARM: ${JSON.stringify(await snapshot())}`);
 
   await page.$eval("#touchThrottle",e=>{e.value=".25";});
   const throttleStart=await simTime();await waitForSimTime(throttleStart+.1,15000);
