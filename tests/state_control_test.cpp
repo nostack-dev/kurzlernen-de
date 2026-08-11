@@ -120,10 +120,10 @@ int main() {
     rc = base_rc(true);
     rc.ch[FC_SBUS_PITCH] = centered_raw(1.0f);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().forward_accel_mps2 > 5.4f);
+    CHECK(controller.debug().forward_accel_mps2 > 5.9f);
     CHECK(cmd.pitch < -0.60f);
     CHECK(std::fabs(cmd.pitch - controller.debug().pitch_command) < 0.0001f);
-    // Nominal hover plus the full 5.5 m/s^2 horizontal request must still leave
+    // Nominal hover plus the full 6.0 m/s^2 horizontal request must still leave
     // actuator headroom in the real mixer/control path; no simulator force is used.
     {
         const fc::Imu level{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
@@ -185,7 +185,7 @@ int main() {
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     const float accel_norm = std::hypot(controller.debug().forward_accel_mps2,
                                         controller.debug().right_accel_mps2);
-    CHECK(accel_norm > 5.4f && accel_norm < 5.6f);
+    CHECK(accel_norm > 5.9f && accel_norm < 6.1f);
     CHECK(cmd.pitch < -0.20f);
     CHECK(cmd.roll < -0.20f);
 
@@ -194,7 +194,7 @@ int main() {
     rc.ch[FC_SBUS_ROLL] = centered_raw(1.0f);
     nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().right_accel_mps2 > 5.4f);
+    CHECK(controller.debug().right_accel_mps2 > 5.9f);
     CHECK(cmd.roll < -0.60f);
 
     const float desired_right = fc::state_intent(rc).right_mps;
