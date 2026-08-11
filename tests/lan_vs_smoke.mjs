@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
-import {LanVsSession,sameNetworkRoomKey} from "../sim/lan_vs.mjs";
+import {LanVsSession,sameNetworkRoomKey,manualRoomKey} from "../sim/lan_vs.mjs";
 
 function transportHarness(){
   const rooms=new Map();
@@ -40,7 +40,8 @@ function transportHarness(){
   return{loadTransport:async()=>({joinRoom})};
 }
 
-const fakeFetch=ip=>async()=>({ok:true,json:async()=>({ip})});
+const calls=[];
+const fakeFetch=ip=>async url=>{calls.push(String(url));return{ok:true,json:async()=>({ip})};};
 const room=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
 const sameRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
 const otherRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.8"),cryptoObj:webcrypto});
@@ -48,6 +49,12 @@ assert.equal(room,sameRoom);
 assert.notEqual(room,otherRoom);
 assert.match(room,/^net-[0-9a-f]{24}$/);
 assert.ok(!room.includes("203.0.113.7"));
+assert.ok(calls.every(url=>url.includes("api4.ipify.org")),"auto room must prefer shared IPv4 egress over per-device IPv6");
+const codeA=await manualRoomKey(" 7k-42 ",{cryptoObj:webcrypto});
+const codeB=await manualRoomKey("7K42",{cryptoObj:webcrypto});
+assert.equal(codeA,codeB,"pair code normalization must be deterministic");
+assert.match(codeA,/^code-[0-9a-f]{24}$/);
+await assert.rejects(()=>manualRoomKey("12",{cryptoObj:webcrypto}),/4-12/);
 
 const harness=transportHarness();
 let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aLeft=0;
