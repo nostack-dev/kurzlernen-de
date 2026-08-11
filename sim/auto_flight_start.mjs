@@ -16,8 +16,8 @@ const startupLocation=requestStartupLocation();
 async function waitForBridge(timeoutMs=30000){
   const started=performance.now();
   while(performance.now()-started<timeoutMs){
-    const bridge=globalThis.__arondightRealWorld;
-    if(bridge&&$("camFpv")&&$("camSolo"))return bridge;
+    const bridge=globalThis.__arondightRealWorld,status=$("status")?.textContent||"";
+    if(bridge&&$("camFpv")&&$("camSolo")&&status.includes("SIM ready"))return bridge;
     await new Promise(resolve=>setTimeout(resolve,20));
   }
   throw Error("Simulator/WORLD bridge did not become ready");
