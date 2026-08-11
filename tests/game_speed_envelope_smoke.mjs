@@ -9,6 +9,7 @@ const browser=await puppeteer.launch({
   args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding"],
 });
 const page=await browser.newPage(),errors=[];
+const STATE_NAVIGATION_DEGRADED=1<<7;
 page.on("pageerror",e=>errors.push(`pageerror: ${e.message}`));
 page.on("console",m=>{if(m.type()==="error")errors.push(`console: ${m.text()}`);});
 
@@ -74,6 +75,8 @@ async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps
   const currentA=samples.reduce((a,x)=>a+x.currentA,0)/samples.length;
   const maxTiltDeg=Math.max(...samples.map(x=>Math.hypot(x.rollDeg,x.pitchDeg)));
   const all=motion.filter(x=>x.time>=start&&x.time<=start+holdS+.15);
+  const degraded=all.filter(x=>x.fcState&STATE_NAVIGATION_DEGRADED);
+  if(degraded.length)throw new Error(`${direction.name}: NAV DEGRADED for ${degraded.length} samples during ${label}; terrain/velocity/heading/AGL continuity is a release requirement`);
   const t90=all.find(x=>x.forward*direction.forwardUnit+x.right*direction.rightUnit>=targetMps*.90)?.time-start;
   const result={name:direction.name,average,orthogonal,vertical,yawFrameErrorDeg,yawFrameErrorAbsDeg,batteryV,currentA,maxTiltDeg,t90:Number.isFinite(t90)?t90:null};
   console.log(`GAME speed sample ${label} ${direction.name}: ${(average*3.6).toFixed(2)} km/h · cross ${orthogonal.toFixed(3)} m/s · physical-FC yaw ${yawFrameErrorDeg.toFixed(3)}° (|.| ${yawFrameErrorAbsDeg.toFixed(3)}°) · |vz| ${vertical.toFixed(3)} m/s · battery ${batteryV.toFixed(2)} V @ ${currentA.toFixed(1)} A · tilt ${maxTiltDeg.toFixed(2)}° · t90 ${result.t90}`);
@@ -105,7 +108,7 @@ try{
   await setSpeed(90);
   const maxResults=[];
   for(const direction of directions){
-    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:24.25,maxSteadyMps:25.75,holdS:12.0,t90LimitS:6.0}));
+    maxResults.push(await runDirection(direction,{label:"90 km/h",targetMps:25.0,minSteadyMps:24.25,maxSteadyMps:25.75,holdS:direction.name==="forward"?15.0:12.0,t90LimitS:6.0}));
   }
   const maxSpeeds=maxResults.map(x=>x.average),maxSpread=Math.max(...maxSpeeds)-Math.min(...maxSpeeds);
   if(maxSpread>.25)throw new Error(`90 km/h directional steady-state spread exceeds 0.25 m/s: ${JSON.stringify(maxResults)}`);
