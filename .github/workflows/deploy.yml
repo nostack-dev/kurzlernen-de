@@ -71,7 +71,7 @@ jobs:
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund \
             three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 \
-            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.1 @trystero-p2p/mqtt@0.25.1
+            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.1 @trystero-p2p/mqtt@0.25.1 @trystero-p2p/torrent@0.25.1
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
@@ -128,6 +128,7 @@ jobs:
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/network_logbook_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/world_shot_decal_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
@@ -147,6 +148,7 @@ jobs:
           node --check sim/control_settings.mjs
           node --check sim/solo_layout.mjs
           node --check sim/flight_fire_fx.mjs
+          node --check sim/flight_logbook.mjs
           node --check sim/auto_flight_start.mjs
           node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
@@ -156,6 +158,7 @@ jobs:
           node --check tests/dual_phone_smoke.mjs
           node --check tests/solo_layout_smoke.mjs
           node --check tests/vs_combat_browser_smoke.mjs
+          node --check tests/network_logbook_browser_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/world_shot_decal_smoke.mjs
           node --check tests/world_fpv_frame_lock_smoke.mjs
