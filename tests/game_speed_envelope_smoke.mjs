@@ -12,10 +12,11 @@ const page=await browser.newPage(),errors=[];
 page.on("pageerror",e=>errors.push(`pageerror: ${e.message}`));
 page.on("console",m=>{if(m.type()==="error")errors.push(`console: ${m.text()}`);});
 
+const wrapDeg=value=>{let x=Number(value)||0;while(x>180)x-=360;while(x<-180)x+=360;return x;};
 async function simTime(){return page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime)||0);}
 async function waitSim(target,timeout=90000){await page.waitForFunction(t=>Number(globalThis.__arondightDiagnostics?.simTime)>=t,{timeout},target);}
 async function flightSamples(){return page.evaluate(async()=>{const original=URL.createObjectURL;let captured=null;URL.createObjectURL=blob=>{captured=blob;return original.call(URL,blob);};try{document.querySelector("#exportLog")?.click();await new Promise(resolve=>setTimeout(resolve,0));if(!captured)throw new Error("flight log blob was not captured");const log=JSON.parse(await captured.text());return log?.samples||[];}finally{URL.createObjectURL=original;}});}
-function bodyMotion(sample){const yaw=(Number(sample.yaw_deg)||0)*Math.PI/180,c=Math.cos(yaw),s=Math.sin(yaw),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz};}
+function bodyMotion(sample){const physicalYaw=Number(sample.yaw_deg)||0,fcYaw=Number(sample.fc_yaw_deg)||0,yaw=physicalYaw*Math.PI/180,c=Math.cos(yaw),s=Math.sin(yaw),vx=Number(sample.vx)||0,vy=Number(sample.vy)||0,vz=Number(sample.vz)||0;return{time:Number(sample.time_s)||0,forward:-c*vx-s*vy,right:-s*vx+c*vy,horizontal:Math.hypot(vx,vy),vertical:vz,yawFrameErrorDeg:wrapDeg(physicalYaw-fcYaw)};}
 async function stick(){return page.$eval("#soloLeft",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,y:b.top+b.height/2,r:Math.min(b.width,b.height)*.42};});}
 async function settle(){await page.waitForFunction(()=>parseFloat(document.querySelector("#velocity")?.textContent||"99")<.85,{timeout:90000});}
 async function setSpeed(kmh){
@@ -50,12 +51,14 @@ async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps
   const average=signed.reduce((a,b)=>a+b,0)/signed.length;
   const orthogonal=samples.reduce((a,x)=>a+Math.abs(-x.forward*direction.rightUnit+x.right*direction.forwardUnit),0)/samples.length;
   const vertical=samples.reduce((a,x)=>a+Math.abs(x.vertical),0)/samples.length;
+  const yawFrameErrorDeg=samples.reduce((a,x)=>a+x.yawFrameErrorDeg,0)/samples.length;
+  const yawFrameErrorAbsDeg=samples.reduce((a,x)=>a+Math.abs(x.yawFrameErrorDeg),0)/samples.length;
   const all=motion.filter(x=>x.time>=start&&x.time<=start+holdS+.15);
   const t90=all.find(x=>x.forward*direction.forwardUnit+x.right*direction.rightUnit>=targetMps*.90)?.time-start;
-  const result={name:direction.name,average,orthogonal,vertical,t90:Number.isFinite(t90)?t90:null};
-  console.log(`GAME speed sample ${label} ${direction.name}: ${(average*3.6).toFixed(2)} km/h · cross ${orthogonal.toFixed(3)} m/s · |vz| ${vertical.toFixed(3)} m/s · t90 ${result.t90}`);
+  const result={name:direction.name,average,orthogonal,vertical,yawFrameErrorDeg,yawFrameErrorAbsDeg,t90:Number.isFinite(t90)?t90:null};
+  console.log(`GAME speed sample ${label} ${direction.name}: ${(average*3.6).toFixed(2)} km/h · cross ${orthogonal.toFixed(3)} m/s · physical-FC yaw ${yawFrameErrorDeg.toFixed(3)}° (|.| ${yawFrameErrorAbsDeg.toFixed(3)}°) · |vz| ${vertical.toFixed(3)} m/s · t90 ${result.t90}`);
   if(!(average>=minSteadyMps&&average<=maxSteadyMps))throw new Error(`${direction.name}: ${label} target did not converge; steady=${(average*3.6).toFixed(1)} km/h (${average.toFixed(2)} m/s), target=${(targetMps*3.6).toFixed(0)} km/h`);
-  if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s at ${label}`);
+  if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s at ${label}; physical-FC yaw=${yawFrameErrorDeg.toFixed(2)}°`);
   if(vertical>1.2)throw new Error(`${direction.name}: AGL destabilized, |vz| avg ${vertical.toFixed(2)} m/s at ${label}`);
   if(!(Number.isFinite(t90)&&t90<=t90LimitS))throw new Error(`${direction.name}: did not reach 90% of ${label} within ${t90LimitS.toFixed(1)} s; t90=${t90}`);
   await settle();
