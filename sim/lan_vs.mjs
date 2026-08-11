@@ -1,10 +1,12 @@
 const APP_ID="arondight45-kurzlernen-vs-v3";
 const SEND_MS=50;
-const FALLBACK_AFTER_MS=4500;
+const FALLBACK_AFTER_MS=2200;
 const DEFAULT_PRIMARY_LOADER=()=>import("trystero");
 const DEFAULT_FALLBACK_LOADER=()=>import("@trystero-p2p/mqtt");
 const DISCOVERY_MAX_ROOMS=8;
-const PROXIMITY_CELL_M=800;
+const PROXIMITY_CELL_M=2000;
+const GEO_DISCOVERY_TIMEOUT_MS=1800;
+const GEO_DISCOVERY_MAX_AGE_MS=120000;
 const EARTH_RADIUS_M=6378137;
 const STUN_ICE_SERVERS=[
   {urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},
@@ -62,12 +64,31 @@ export function networkMaterialFromCandidate(candidate){
   if(validIpv4(address)){if(type==="srflx")return `ipv4:${address}`;if(type==="host"&&privateIpv4(address))return `lan4p24:${ipv4Subnet24(address)}`;return null;}
   const prefix=ipv6Prefix64(address);if(prefix&&(type==="srflx"||type==="host"))return `ipv6p64:${prefix}`;return null;
 }
+function addExpandedNetworkMaterial(target,material){
+  if(typeof material!=="string"||!material)return;
+  target.add(material);
+  if(material.startsWith("ipv4:")){
+    const address=material.slice(5),prefix=ipv4Subnet24(address);
+    if(prefix)target.add(`ipv4p24:${prefix}`);
+  }
+}
 async function webRtcNetworkMaterials({RTCPeerConnectionCtor=globalThis.RTCPeerConnection}={}){
   if(typeof RTCPeerConnectionCtor!=="function")return[];let pc=null,timer=0;
   try{
     pc=new RTCPeerConnectionCtor({iceServers:STUN_ICE_SERVERS,iceCandidatePoolSize:2});pc.createDataChannel("vs-discovery");
-    return await new Promise((resolve,reject)=>{const materials=new Set();let settled=false;const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);resolve([...materials].sort());};timer=setTimeout(finish,3600);pc.onicecandidate=event=>{if(!event.candidate){finish();return;}const material=networkMaterialFromCandidate(event.candidate);if(material)materials.add(material);};Promise.resolve(pc.createOffer()).then(offer=>pc.setLocalDescription(offer)).catch(reject);});
+    return await new Promise((resolve,reject)=>{const materials=new Set();let settled=false;const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);resolve([...materials].sort());};timer=setTimeout(finish,3600);pc.onicecandidate=event=>{if(!event.candidate){finish();return;}const material=networkMaterialFromCandidate(event.candidate);if(material)addExpandedNetworkMaterial(materials,material);};Promise.resolve(pc.createOffer()).then(offer=>pc.setLocalDescription(offer)).catch(reject);});
   }catch{return[];}finally{clearTimeout(timer);try{pc?.close?.();}catch{}}
+}
+function normalizePosition(value){
+  const source=value?.coords||value||{},longitude=Number(source.longitude),latitude=Number(source.latitude);
+  return Number.isFinite(longitude)&&Number.isFinite(latitude)&&Math.abs(longitude)<=180&&Math.abs(latitude)<=85?{longitude,latitude}:null;
+}
+async function browserPosition({geolocation=globalThis.navigator?.geolocation}={}){
+  if(!geolocation||typeof geolocation.getCurrentPosition!=="function")return null;
+  return await new Promise(resolve=>{
+    let settled=false;const finish=value=>{if(settled)return;settled=true;resolve(normalizePosition(value));};
+    try{geolocation.getCurrentPosition(finish,()=>finish(null),{enableHighAccuracy:false,timeout:GEO_DISCOVERY_TIMEOUT_MS,maximumAge:GEO_DISCOVERY_MAX_AGE_MS});}catch{finish(null);}
+  });
 }
 
 export class LanVsSession{
@@ -238,18 +259,26 @@ async function hashRoomMaterial(material,cryptoObj){
 
 export async function sameNetworkRoomKeys({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials}={}){
   const materials=new Set();let lastError=null;
-  try{for(const material of await networkMaterialsFn?.()||[])if(typeof material==="string"&&material)materials.add(material);}catch(error){lastError=error;}
+  try{for(const material of await networkMaterialsFn?.()||[])addExpandedNetworkMaterial(materials,material);}catch(error){lastError=error;}
   if(typeof fetchFn==="function"){
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500);
-    try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");materials.add(`ipv4:${address}`);}catch(error){lastError=error;}finally{clearTimeout(timeout);}
+    try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");addExpandedNetworkMaterial(materials,`ipv4:${address}`);}catch(error){lastError=error;}finally{clearTimeout(timeout);}
   }
-  if(!materials.size)throw lastError||Error("Could not determine shared network identity");const keys=[];for(const material of [...materials].sort()){const key=await hashRoomMaterial(`arondight45-vs-discovery-v4:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
+  if(!materials.size)throw lastError||Error("Could not determine shared network identity");const keys=[];for(const material of [...materials].sort()){const key=await hashRoomMaterial(`arondight45-vs-discovery-v5:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
 export async function sameNetworkRoomKey(options={}){const keys=await sameNetworkRoomKeys(options);return keys[0];}
 export async function proximityRoomKeys({longitude,latitude,cryptoObj=globalThis.crypto}={}){
   if(!Number.isFinite(longitude)||!Number.isFinite(latitude)||Math.abs(longitude)>180||Math.abs(latitude)>85)return[];const lonRad=longitude*Math.PI/180,latRad=latitude*Math.PI/180,x=EARTH_RADIUS_M*lonRad,y=EARTH_RADIUS_M*Math.log(Math.tan(Math.PI/4+latRad/2)),half=PROXIMITY_CELL_M/2,shifts=[[0,0],[half,0],[0,half],[half,half]],keys=[];
-  for(let i=0;i<shifts.length;i++){const [sx,sy]=shifts[i],ix=Math.floor((x+sx)/PROXIMITY_CELL_M),iy=Math.floor((y+sy)/PROXIMITY_CELL_M),key=await hashRoomMaterial(`arondight45-vs-discovery-v4:geo:${PROXIMITY_CELL_M}:${i}:${ix}:${iy}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
+  for(let i=0;i<shifts.length;i++){const [sx,sy]=shifts[i],ix=Math.floor((x+sx)/PROXIMITY_CELL_M),iy=Math.floor((y+sy)/PROXIMITY_CELL_M),key=await hashRoomMaterial(`arondight45-vs-discovery-v5:geo:${PROXIMITY_CELL_M}:${i}:${ix}:${iy}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
-export async function discoveryRoomKeys({longitude,latitude,fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials}={}){
-  const geo=await proximityRoomKeys({longitude,latitude,cryptoObj}),network=await sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[]),keys=[...geo,...network];if(!keys.length)throw Error("No automatic proximity/network discovery path available");return [...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);
+export async function discoveryRoomKeys({longitude,latitude,fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials,positionFn=browserPosition}={}){
+  let position=normalizePosition({longitude,latitude});
+  if(!position&&typeof positionFn==="function"){
+    try{position=normalizePosition(await positionFn());}catch{}
+  }
+  const [geo,network]=await Promise.all([
+    position?proximityRoomKeys({...position,cryptoObj}):Promise.resolve([]),
+    sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[])
+  ]);
+  const keys=[...geo,...network];if(!keys.length)throw Error("No automatic proximity/network discovery path available");return [...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);
 }
