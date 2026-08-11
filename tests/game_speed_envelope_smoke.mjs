@@ -25,7 +25,9 @@ async function setSpeed(kmh){
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const actual=await page.$eval('[data-slider="speed"]',(slider,value)=>{slider.value=String(value);slider.dispatchEvent(new Event("input",{bubbles:true}));return Number(slider.value);},kmh);
   if(actual!==kmh)throw new Error(`speed slider could not select ${kmh} km/h; got ${actual}`);
-  await page.waitForFunction(value=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").maxHorizontalSpeedKmh===value,{timeout:5000},kmh);
+  const hover=await page.$eval('[data-slider="hover"]',slider=>{slider.value="2.0";slider.dispatchEvent(new Event("input",{bubbles:true}));return Number(slider.value);});
+  if(Math.abs(hover-2.0)>.001)throw new Error(`hover slider could not select 2.0 m; got ${hover}`);
+  await page.waitForFunction(value=>{const s=JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}");return s.maxHorizontalSpeedKmh===value&&Math.abs(Number(s.defaultHoverAgl)-2.0)<.001;},{timeout:5000},kmh);
   await page.click('.phone-settings-dialog [data-close]');
 }
 async function resetAndArm(){
@@ -87,9 +89,7 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(url,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.evaluate(()=>localStorage.setItem("arondight45PhoneControlSettingsV5",JSON.stringify({maxHorizontalSpeedKmh:36,defaultHoverAgl:2.0,leftFineness:1,rightFineness:10,invertRightVertical:true})));
-  await page.click("#camSolo");
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
 
   await setSpeed(36);
   const defaultResults=[];
