@@ -1,0 +1,18 @@
+name: p2p-current
+on: push
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.ref == 'refs/heads/fix/p2p-vs-current'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/p2p_patch.py
+      - run: node --check sim/lan_vs.mjs && node --check sim/real_world_bootstrap.mjs
+      - run: |
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/real_world_bootstrap.mjs
+          git commit -m 'Integrate nearby P2P VS on current main' || true
+          git push
