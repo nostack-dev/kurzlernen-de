@@ -1,4 +1,4 @@
-import {connect} from "mqtt";
+import mqtt from "mqtt";
 
 const BROKERS=[
   "wss://test.mosquitto.org:8081/mqtt",
@@ -38,7 +38,7 @@ function ensureClients(){
   if(clients)return clients;
   clients=BROKERS.map((url,index)=>{
     const state=statusObject(url);
-    const client=connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});
+    const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});
     client.on("connect",()=>{
       state.readyState=1;
       for(const [topic,set] of roomsByTopic){client.subscribe(topic,{qos:0},()=>{for(const room of set)room._announce();});}
