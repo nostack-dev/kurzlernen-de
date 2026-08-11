@@ -109,7 +109,8 @@ jobs:
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
           grep -q 'arondight45-kurzlernen-vs-v3' drone_simulator.html
-          grep -q 'api.ipify.org' drone_simulator.html
+          grep -q 'api4.ipify.org' drone_simulator.html
+          grep -q 'stun.cloudflare.com' drone_simulator.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
           grep -q 'SCAN VIEW ANSWER' drone_controller.html
           ! grep -q '/control' drone_controller.html
