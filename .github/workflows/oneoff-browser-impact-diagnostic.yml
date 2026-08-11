@@ -1,0 +1,72 @@
+name: Diagnose 1a browser impact gate
+on:
+  push:
+    branches: [fix/requirements-1a-complete]
+permissions:
+  contents: read
+jobs:
+  browser-diagnostic:
+    if: github.event.head_commit.message == 'Diagnose 1a browser impact gate'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/requirements-1a-complete
+      - name: Apply product patch
+        run: |
+          set -euxo pipefail
+          python3 tools/requirements_1a_patch.py
+          python3 tools/requirements_1a_followup.py
+          rm -f .github/workflows/oneoff-requirements-1a.yml .github/workflows/oneoff-requirements-1a-v2.yml .github/workflows/oneoff-requirements-1a-diagnostic.yml .github/workflows/oneoff-requirements-1a-final.yml .github/workflows/oneoff-browser-impact-diagnostic.yml
+      - name: Build WASM and bundle
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight45-web-build; mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"; cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle_name in [('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs')]:
+              path=Path(html_name); html=path.read_text(); bundle=Path(bundle_name).read_text().replace('</script','<\\/script'); path.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+          PY
+          rm -rf generated
+      - name: Start server
+        run: |
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          echo $! > /tmp/arondight45-http.pid
+          sleep 1
+      - name: Solo layout
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+      - name: Real world UI and sustained fire
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+      - name: Exact map and moving-target impacts
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/world_shot_decal_smoke.mjs http://127.0.0.1:4174
+      - name: WORLD FPV frame lock
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
+      - name: GAME speed envelope
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/game_speed_envelope_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+      - name: Dual phone
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
+      - name: Browser SIL
+        continue-on-error: true
+        run: CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+      - name: Stop server
+        if: always()
+        run: kill "$(cat /tmp/arondight45-http.pid)" 2>/dev/null || true
