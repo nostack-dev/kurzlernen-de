@@ -220,11 +220,11 @@ class RealWorldBridge{
     try{this.map.setLight?.({anchor:"viewport",position:[1.35,210,32],color:"#fff3dd",intensity:.78});}catch(error){console.warn("OpenFreeMap extrusion lighting unavailable:",error);}
     this.addBuildings();this.configureMinimapLayers();return this.map;
   }
-  async activate(){
+  async activate(locationFix=null){
     if(this.loading)return;if(this.active)return;
     this.loading=true;this.status("REAL WORLD · requesting high-accuracy GPS permission…","warn");
     try{
-      const fix=await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;
+      const fix=locationFix?.coords?locationFix:await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;
       if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw Error("GPS returned no valid latitude/longitude");
       this.originLat=latitude;this.originLon=longitude;this.status(`GPS ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m · loading OpenFreeMap…`,"warn");
       await this.createMap(longitude,latitude);this.active=true;this.loading=false;

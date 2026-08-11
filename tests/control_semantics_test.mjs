@@ -4,7 +4,8 @@ import {readdirSync,readFileSync} from "node:fs";
 import {
   DEFAULT_PHONE_SETTINGS,MAX_PHONE_EXPO,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,neutralControls,copyControls,armReady,applyStick,releaseStick,
   knobAxes,phoneAxis,inversePhoneAxis,finenessToExpo,normalizedPointer,endPointerDrag,applyGameStick,gameKnobAxes,normalizePhoneSettings,
-  MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH,DEFAULT_GAME_HORIZONTAL_SPEED_KMH,gameHorizontalSpeedScale,gameStateStickMagnitude,inverseGameStateStickMagnitude
+  MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH,DEFAULT_GAME_HORIZONTAL_SPEED_KMH,gameHorizontalSpeedScale,gameStateStickMagnitude,inverseGameStateStickMagnitude,
+  MAX_GAME_TILT_DEG,GAME_AGL_SENSOR_RANGE_MARGIN_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M
 } from "../sim/control_semantics.mjs";
 
 assert.deepEqual(
@@ -30,6 +31,9 @@ near(gameHorizontalSpeedScale(90),1,1e-12,"90 km/h must retain full FC translati
 for(const value of [0,.02,.1,.25,.5,.75,1])near(gameStateStickMagnitude(inverseGameStateStickMagnitude(value)),value,2e-8,"GAME FC transfer inverse");
 assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:999}).maxHorizontalSpeedKmh,90);assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:-5}).maxHorizontalSpeedKmh,5);
 assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
+assert.equal(MAX_GAME_TILT_DEG,40);assert.equal(GAME_AGL_SENSOR_RANGE_MARGIN_M,10);
+const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);
+assert.ok(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M>=requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M,`AGL sensor envelope ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
 assert.equal(copyControls({groundClearance:999}).groundClearance,50);assert.equal(copyControls({groundClearance:-5}).groundClearance,.5);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
@@ -168,3 +172,4 @@ const hotSource=simulatorSource.slice(hotStart,hotEnd);
 assert.ok(!hotSource.includes("defaultParams()"),"1 kHz SIL authority loop must not re-read DOM-backed physical parameters");
 assert.ok(!hotSource.includes("ui.rtt.textContent"),"1 kHz SIL authority loop must not mutate diagnostic DOM");
 assert.ok(simulatorSource.includes("physics.step(latest.motors,DT)"),"SIL optimization must retain the same 1 ms physics integration path");
+assert.ok(simulatorSource.includes("NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M"),"simulated AGL rangefinder must cover the shared GAME clearance/tilt envelope");

@@ -1,6 +1,6 @@
 import {existsSync,readFileSync,readdirSync,statSync} from "node:fs";
 import {join} from "node:path";
-import {phoneAxis} from "../sim/control_semantics.mjs";
+import {phoneAxis,MAX_GAME_CLEARANCE_M,MAX_GAME_TILT_DEG,GAME_AGL_SENSOR_RANGE_MARGIN_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} from "../sim/control_semantics.mjs";
 import {fpvTargetDistanceMeters,forwardTarget} from "../sim/world_camera_math.mjs";
 
 const read=path=>readFileSync(path,"utf8");
@@ -48,6 +48,10 @@ requireText("esp32/Arondight45_DroneFC_Core.hpp","kInnerMaxAttitudeDeg = 40.0f")
 requireText("esp32/Arondight45_DroneFC_Core.hpp","kManualAttitudeCommandScale = kManualMaxAttitudeDeg / kInnerMaxAttitudeDeg");
 requireText("esp32/Arondight45_StateControl.hpp","kInnerAttitudeRangeDeg = kInnerMaxAttitudeDeg");
 requireText("esp32/Arondight45_StateControl.hpp","kMaxTiltDeg = 40.0f");
+const stateControlSource=read("esp32/Arondight45_StateControl.hpp"),tiltMatch=stateControlSource.match(/kMaxTiltDeg = ([0-9.]+)f/);
+if(!tiltMatch||Math.abs(Number(tiltMatch[1])-MAX_GAME_TILT_DEG)>1e-9)fail(`JS/C++ GAME tilt envelope diverged: JS ${MAX_GAME_TILT_DEG}, C++ ${tiltMatch?.[1]}`);
+const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);
+if(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M<requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M)fail(`AGL slant range ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
 requireText("esp32/Arondight45_StateControl.hpp","kMaxHorizontalAccelerationMps2 = 7.5f");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalIntegralLimitMps2 = 7.0f");
 forbidText("esp32/Arondight45_DroneFC_Core.hpp","cmd.roll * 32.0f", "inner attitude range must not silently cap GAME at the MANUAL 32-degree envelope");
@@ -92,7 +96,7 @@ for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
 
-for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = 60","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
+for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
   requireText("sim/simulator.mjs",marker);
 requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
 requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM");
