@@ -1,0 +1,67 @@
+name: Local ARM root cause v3
+on:
+  push:
+    branches:
+      - diagnostic/local-arm-root-cause-v3
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build and inspect exact local ARM path
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/simulator.mjs'); s=p.read_text()
+          old='''  runEpoch:{get:()=>runEpoch,enumerable:true},\n});'''
+          new='''  runEpoch:{get:()=>runEpoch,enumerable:true},\n  inputSource:{get:()=>inputSource,enumerable:true},\n  localArm:{get:()=>localArm,enumerable:true},\n  effectiveInput:{get:()=>({...effectiveInput}),enumerable:true},\n  localControl:{get:()=>({...localControlState()}),enumerable:true},\n  keys:{get:()=>[...keys],enumerable:true},\n  navigation:{get:()=>({...latestNavigation}),enumerable:true},\n});'''
+          if s.count(old)!=1: raise SystemExit(f'diagnostics marker count {s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          PY
+          TMP=/tmp/arondight45-arm-v3; rm -rf "$TMP"; mkdir -p "$TMP"; cd "$TMP"; npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"; cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/sim.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html'); h=p.read_text(); m='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>'
+          b=Path('/tmp/sim.bundle.mjs').read_text().replace('</script','<\\/script'); assert m in h
+          p.write_text(h.replace(m,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/http.log 2>&1 & HTTP=$!; trap 'kill $HTTP 2>/dev/null || true' EXIT; sleep 1
+          cat > tests/.arm-v3.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN,headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-webgl','--ignore-gpu-blocklist','--use-gl=angle','--use-angle=swiftshader']});
+          const page=await browser.newPage(), errors=[];
+          page.on('pageerror',e=>errors.push(`pageerror:${e.message}`));page.on('console',m=>{if(m.type()==='error')errors.push(`console:${m.text()}`)});
+          await page.evaluateOnNewDocument(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_s,e){queueMicrotask(()=>e?.({code:1,message:'CI geolocation denied'}));}}}));
+          await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
+          await page.goto('http://127.0.0.1:4174/drone_simulator.html',{waitUntil:'load',timeout:30000});
+          await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('SIM ready'),{timeout:30000});
+          await page.waitForFunction(()=>document.body.classList.contains('solo-flight'),{timeout:5000});
+          await page.evaluate(()=>document.querySelector('#soloExit')?.click());
+          await page.waitForFunction(()=>!document.body.classList.contains('solo-flight'),{timeout:5000});
+          await page.click('#reset'); await page.select('#inputSource','local'); await page.$eval('#inputSource',e=>e.dispatchEvent(new Event('change',{bubbles:true}))); await page.click('#run');
+          const sim=()=>page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime||0));
+          const waitSim=async t=>{const end=Date.now()+60000;while(Date.now()<end){if(await sim()>=t)return;await new Promise(r=>setTimeout(r,20));}throw Error(`sim timeout ${await sim()} < ${t}`)};
+          const snap=()=>page.evaluate(()=>{const d=globalThis.__arondightDiagnostics;return{sim:d.simTime,fc:d.fcState,state:document.querySelector('#fcState')?.textContent,armSwitch:document.querySelector('#armSwitch')?.textContent,armButton:document.querySelector('#touchArm')?.textContent,input:d.inputSource,localArm:d.localArm,effective:d.effectiveInput,local:d.localControl,keys:d.keys,nav:d.navigation,attitude:document.querySelector('#attitude')?.textContent,throttle:document.querySelector('#throttle')?.textContent,motors:document.querySelector('#motors')?.textContent}});
+          await waitSim(2.2); const before=await snap(); const start=await sim(); await page.keyboard.press('Space'); const immediate=await snap();
+          await waitSim(start+.2); const p2=await snap(); await waitSim(start+.6); const p6=await snap(); await waitSim(start+1.05); const p105=await snap(); await waitSim(start+1.25); const p125=await snap();
+          console.log('ARM_ROOT_CAUSE '+JSON.stringify({before,immediate,p2,p6,p105,p125,errors}));
+          await browser.close();
+          if(p125.state!=='ARMED')process.exit(2);
+          JS
+          CHROME_BIN="$(command -v google-chrome)" node tests/.arm-v3.mjs
