@@ -1,0 +1,100 @@
+name: Static relay 443 fix gate
+
+on:
+  push:
+    branches: ["fix/nostr-data-relay-prod"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: ${{ !contains(github.event.head_commit.message, '[relay-443-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/nostr-data-relay-prod
+
+      - name: Patch browser-safe WSS 443 broker path and diagnostics
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          relay = Path('sim/mqtt_data_relay.mjs')
+          s = relay.read_text()
+          old = '''const BROKERS=[
+            "wss://test.mosquitto.org:8081/mqtt",
+            "wss://broker.emqx.io:8084/mqtt",
+            "wss://public:public@public.cloud.shiftr.io"
+          ];'''
+          new = '''const BROKERS=[
+            {url:"wss://public.cloud.shiftr.io",username:"public",password:"public"},
+            {url:"wss://broker.emqx.io:8084/mqtt"},
+            {url:"wss://test.mosquitto.org:8081/mqtt"},
+            {url:"wss://broker.hivemq.com:8884/mqtt"}
+          ];'''
+          assert old in s, 'expected old BROKERS block not found'
+          s = s.replace(old, new, 1)
+          s = s.replace('const brokerStates=new Map(BROKERS.map(url=>[url,{readyState:0,error:""}]));','const brokerStates=new Map(BROKERS.map(({url})=>[url,{readyState:0,error:""}]));',1)
+          s = s.replace('export function getRelaySockets(){return Object.fromEntries(BROKERS.map(url=>[url,{...statusObject(url)}]));}','export function getRelaySockets(){return Object.fromEntries(BROKERS.map(({url})=>[url,{...statusObject(url)}]));}',1)
+          s = s.replace('clients=BROKERS.map((url,index)=>{\n    const state=statusObject(url);\n    const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});', 'clients=BROKERS.map((broker,index)=>{\n    const {url,username,password}=broker,state=statusObject(url);\n    const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:7000,keepalive:20,protocolVersion:4,resubscribe:true,...(username?{username,password}: {})});',1)
+          relay.write_text(s)
+
+          lan = Path('sim/lan_vs.mjs')
+          s = lan.read_text()
+          old = 'return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket)}));'
+          new = 'return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket),error:String(socket?.error||"")}));'
+          assert old in s, 'relaySnapshot mapping not found'
+          lan.write_text(s.replace(old,new,1))
+
+          smoke = Path('tests/mqtt_data_relay_browser_smoke.mjs')
+          s = smoke.read_text()
+          old = 'for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);}'
+          new = 'for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);const primary=side.sockets["wss://public.cloud.shiftr.io"];if(!primary||primary.readyState!==1)throw new Error(`WSS/443 shiftr fallback not open: ${JSON.stringify(side.sockets)}`);}'
+          assert old in s, 'broker socket assertion not found'
+          smoke.write_text(s.replace(old,new,1))
+          PY
+
+          grep -q 'wss://public.cloud.shiftr.io' sim/mqtt_data_relay.mjs
+          grep -q 'username:"public",password:"public"' sim/mqtt_data_relay.mjs
+          ! grep -q 'wss://public:public@public.cloud.shiftr.io' sim/mqtt_data_relay.mjs
+          grep -q 'broker.hivemq.com:8884/mqtt' sim/mqtt_data_relay.mjs
+          grep -q 'error:String(socket?.error||"")' sim/lan_vs.mjs
+          grep -q 'WSS/443 shiftr fallback not open' tests/mqtt_data_relay_browser_smoke.mjs
+          node --check sim/mqtt_data_relay.mjs
+          node --check sim/lan_vs.mjs
+          node --check tests/mqtt_data_relay_browser_smoke.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+
+      - name: Real two-browser relay test including explicit WSS 443 path
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/relay443-node
+          rm -rf "$TMP"
+          mkdir -p "$TMP"
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p generated
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/relay443-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
+
+      - name: Commit validated fix to branch
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sim/mqtt_data_relay.mjs sim/lan_vs.mjs tests/mqtt_data_relay_browser_smoke.mjs
+          git commit -m "Fix static relay WSS 443 path and broker diagnostics [relay-443-fixed]"
+          git push origin HEAD:fix/nostr-data-relay-prod
