@@ -97,6 +97,7 @@ jobs:
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
           ! grep -q 'cdn.jsdelivr.net' drone_simulator.html
           ! grep -q 'esm.run/trystero' drone_simulator.html
+          ! grep -q 'import("trystero")' drone_simulator.html
           ! grep -q 'generated/flight_core.mjs' drone_simulator.html
           grep -q 'REAL WORLD' drone_simulator.html
           grep -q 'soloWorld' drone_simulator.html
@@ -107,7 +108,7 @@ jobs:
           grep -q 'navigator.geolocation' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
-          grep -q 'VS · AUTO' drone_simulator.html
+          grep -q 'arondight45-kurzlernen-vs-v3' drone_simulator.html
           grep -q 'api.ipify.org' drone_simulator.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
           grep -q 'SCAN VIEW ANSWER' drone_controller.html
